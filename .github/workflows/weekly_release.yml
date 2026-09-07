@@ -43,29 +43,32 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - name: Select Friday cutoff and release baseline
+      - name: Select source commit and release baseline
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cutoff=$(python3 - <<'PYTHON'
+          sha="$GITHUB_SHA"
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            cutoff=$(python3 - <<'PYTHON'
           import datetime as d
           now = d.datetime.now(d.timezone.utc)
           friday = (now - d.timedelta(days=(now.weekday() - 4) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
           print(friday.strftime("%Y-%m-%dT%H:%M:%SZ"))
           PYTHON
-          )
-          # Push run timestamps record arrival on main, unlike commit dates.
-          sha=$(gh api --paginate --slurp 'repos/apache/opendal/actions/workflows/weekly_release.yml/runs?event=push&branch=main&per_page=100' |
-            jq -er --arg cutoff "$cutoff" '[.[].workflow_runs[] | select(.created_at <= $cutoff)] | max_by(.created_at, .id).head_sha // error("no push recorded before cutoff")')
+            )
+            # Push run timestamps record arrival on main, unlike commit dates.
+            sha=$(gh api --paginate --slurp 'repos/apache/opendal/actions/workflows/weekly_release.yml/runs?event=push&branch=main&per_page=100' |
+              jq -er --arg cutoff "$cutoff" '[.[].workflow_runs[] | select(.created_at <= $cutoff)] | max_by(.created_at, .id).head_sha // error("no push recorded before cutoff")')
+          fi
           baseline=$(git describe --tags --abbrev=0 --match 'v[0-9]*' --exclude '*-*' "$sha")
           git checkout --detach "$sha"
           branch="release-candidates/weekly-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           {
-            echo "CUTOFF_SHA=$sha"
+            echo "SOURCE_SHA=$sha"
             echo "BASELINE=$baseline"
             echo "CANDIDATE_BRANCH=$branch"
           } >> "$GITHUB_ENV"
@@ -83,7 +86,7 @@ jobs:
           import os
           from pathlib import Path
           p = Path("CHANGELOG.md")
-          p.write_text(f"# v{os.environ['RC'].split('-rc.')[0]}\n\n- [Changes since {os.environ['BASELINE']}](https://github.com/apache/opendal/compare/{os.environ['BASELINE']}...{os.environ['CUTOFF_SHA']})\n\n" + p.read_text())
+          p.write_text(f"# v{os.environ['RC'].split('-rc.')[0]}\n\n- [Changes since {os.environ['BASELINE']}](https://github.com/apache/opendal/compare/{os.environ['BASELINE']}...{os.environ['SOURCE_SHA']})\n\n" + p.read_text())
           PYTHON
       - name: Push prepared candidate
         id: candidate
@@ -100,7 +103,7 @@ jobs:
             echo "sha=$(git rev-parse HEAD)"
             echo "rc=$RC"
           } >> "$GITHUB_OUTPUT"
-          echo "Prepared $RC on $CANDIDATE_BRANCH from cutoff $CUTOFF_SHA. Continuing to ATR compose." >> "$GITHUB_STEP_SUMMARY"
+          echo "Prepared $RC on $CANDIDATE_BRANCH from source $SOURCE_SHA. Continuing to ATR compose." >> "$GITHUB_STEP_SUMMARY"
 
   compose:
     needs: prepare

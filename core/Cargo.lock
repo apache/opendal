@@ -549,7 +549,7 @@ dependencies = [
  "http 0.2.12",
  "http 1.4.2",
  "http-body 0.4.6",
- "lru",
+ "lru 0.12.5",
  "percent-encoding",
  "regex-lite",
  "sha2 0.10.9",
@@ -2798,7 +2798,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_aws_s3_assume_role_with_web_identity"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "logforth",
  "opendal",
@@ -2808,7 +2808,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_file_write_on_full_disk"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "rand 0.10.1",
@@ -2817,7 +2817,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_opfs_wasm32"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "opendal",
@@ -2829,7 +2829,7 @@ dependencies = [
 
 [[package]]
 name = "edge_test_s3_read_on_wasm"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "wasm-bindgen",
@@ -3833,20 +3833,21 @@ dependencies = [
 
 [[package]]
 name = "goosefs-sdk"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9bc9414e3b2cb0bd08dfe0eb315b177e86b119c7fa5e16179c92fc7b184860"
+checksum = "e1ea4eee6dcbc31b25ab4fd577adc55b677d2bed3aa3016c44c58fbe1b2298a5"
 dependencies = [
  "arc-swap",
  "async-trait",
  "bytes",
  "dashmap 6.2.1",
+ "fastrand",
  "futures",
  "hostname",
  "io-uring 0.7.12",
  "itoa",
  "libc",
- "lru",
+ "lru 0.18.4",
  "memmap2 0.9.11",
  "moka",
  "prost 0.14.3",
@@ -4031,6 +4032,11 @@ name = "hashbrown"
 version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
+dependencies = [
+ "allocator-api2",
+ "equivalent",
+ "foldhash 0.2.0",
+]
 
 [[package]]
 name = "hashlink"
@@ -5407,6 +5413,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lru"
+version = "0.18.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff9840bcc50b71349309900da0ce7279aa336ae71d73250b07998932c7d97c25"
+dependencies = [
+ "hashbrown 0.17.1",
+]
+
+[[package]]
 name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6189,7 +6204,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "opendal"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -6303,7 +6318,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-benchmark-vs-fs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "criterion",
  "opendal",
@@ -6314,7 +6329,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-benchmark-vs-s3"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "aws-config",
  "aws-credential-types",
@@ -6329,7 +6344,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-core"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "asyncband",
@@ -6357,7 +6372,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-basic"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -6365,7 +6380,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-concurrent-upload"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -6373,7 +6388,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-getting-started"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -6381,7 +6396,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-examples-multipart-upload"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal",
  "tokio",
@@ -6389,7 +6404,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-fuzz"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
@@ -6401,7 +6416,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-http-transport-reqwest"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "futures",
@@ -6413,7 +6428,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-async-backtrace"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "async-backtrace",
  "opendal-core",
@@ -6421,7 +6436,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-await-tree"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "await-tree",
  "futures",
@@ -6430,7 +6445,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-capability-check"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "tokio",
@@ -6438,7 +6453,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-chaos"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "rand 0.10.1",
@@ -6446,7 +6461,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-concurrent-limit"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "futures",
@@ -6457,7 +6472,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-dtrace"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "opendal-core",
@@ -6467,7 +6482,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-fastmetrics"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "fastmetrics",
  "log",
@@ -6478,7 +6493,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-fastrace"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "dotenvy",
@@ -6490,7 +6505,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-foyer"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "foyer",
  "opendal-core",
@@ -6501,7 +6516,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-hotpath"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "hotpath",
@@ -6512,7 +6527,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-immutable-index"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "log",
@@ -6523,7 +6538,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-logging"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "log",
  "opendal-core",
@@ -6531,7 +6546,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-metrics"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "metrics",
  "opendal-core",
@@ -6540,7 +6555,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-mime-guess"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "mime_guess",
@@ -6550,7 +6565,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-observe-metrics-common"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "http 1.4.2",
@@ -6560,7 +6575,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-otelmetrics"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "opendal-layer-observe-metrics-common",
@@ -6569,7 +6584,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-oteltrace"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "opentelemetry",
@@ -6577,7 +6592,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-prometheus"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "log",
  "opendal-core",
@@ -6588,7 +6603,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-prometheus-client"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "log",
  "opendal-core",
@@ -6599,7 +6614,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-retry"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "backon",
  "bytes",
@@ -6614,7 +6629,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-route"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "globset",
@@ -6625,7 +6640,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-tail-cut"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "tokio",
@@ -6633,7 +6648,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-throttle"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "governor",
  "opendal-core",
@@ -6641,7 +6656,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-timeout"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "futures",
  "opendal-core",
@@ -6651,7 +6666,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-layer-tracing"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "dotenvy",
@@ -6669,7 +6684,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-aliyun-drive"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -6683,7 +6698,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-alluxio"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -6696,7 +6711,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azblob"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -6718,7 +6733,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azdls"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "base64 0.23.0",
@@ -6738,7 +6753,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azfile"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -6755,7 +6770,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-azure-common"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "http 1.4.2",
  "opendal-core",
@@ -6763,7 +6778,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-b2"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -6777,7 +6792,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-cacache"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "cacache",
@@ -6788,7 +6803,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-cloudflare-kv"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -6799,7 +6814,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-compfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "compio",
@@ -6810,7 +6825,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-cos"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -6826,7 +6841,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-d1"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -6838,7 +6853,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-dashmap"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "dashmap 6.2.1",
  "log",
@@ -6849,7 +6864,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-dbfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -6863,7 +6878,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-dropbox"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -6876,7 +6891,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-etcd"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "etcd-client",
@@ -6887,7 +6902,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-foundationdb"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "foundationdb",
  "opendal-core",
@@ -6897,7 +6912,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-foyer"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "foyer",
  "log",
@@ -6911,7 +6926,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-fs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "log",
@@ -6924,7 +6939,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ftp"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -6939,7 +6954,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-gcs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "async-trait",
  "bytes",
@@ -6960,7 +6975,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-gcs-grpc"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "futures",
@@ -6981,7 +6996,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-gdrive"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -6995,7 +7010,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ghac"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "ghac",
@@ -7014,7 +7029,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-github"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -7028,7 +7043,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-goosefs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "goosefs-sdk",
@@ -7041,7 +7056,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-gridfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "futures",
@@ -7053,7 +7068,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-hdfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "futures",
@@ -7066,7 +7081,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-hdfs-native"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "futures",
@@ -7078,7 +7093,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-hf"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "base64 0.23.0",
@@ -7097,7 +7112,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-http"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "http 1.4.2",
  "log",
@@ -7108,7 +7123,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ipfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7121,7 +7136,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-ipmfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7134,7 +7149,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-koofr"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -7148,7 +7163,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-lakefs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7161,7 +7176,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-memcached"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7172,7 +7187,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-mini-moka"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "log",
  "mini-moka",
@@ -7182,7 +7197,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-moka"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "log",
  "moka",
@@ -7193,7 +7208,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-mongodb"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "asyncband",
@@ -7205,7 +7220,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-monoiofs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -7218,7 +7233,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-mysql"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7229,7 +7244,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-obs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7245,7 +7260,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-onedrive"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -7260,7 +7275,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-opfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "js-sys",
  "opendal-core",
@@ -7273,7 +7288,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-oss"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7290,7 +7305,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-pcloud"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7303,7 +7318,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-persy"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "persy",
@@ -7313,7 +7328,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-postgresql"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7324,7 +7339,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-redb"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "redb 4.1.0",
@@ -7334,7 +7349,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-redis"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -7347,7 +7362,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-rocksdb"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "rocksdb",
@@ -7357,7 +7372,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-s3"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -7380,7 +7395,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-seafile"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
@@ -7394,7 +7409,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-sftp"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "asyncband",
@@ -7410,7 +7425,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-sled"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "opendal-core",
  "serde",
@@ -7420,7 +7435,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-sqlite"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7431,7 +7446,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-surrealdb"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7442,7 +7457,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-swift"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -7462,7 +7477,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-tikv"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "asyncband",
  "opendal-core",
@@ -7473,7 +7488,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-tos"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7488,7 +7503,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-upyun"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "base64 0.23.0",
  "bytes",
@@ -7506,7 +7521,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-vercel-artifacts"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -7520,7 +7535,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-vercel-blob"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7534,7 +7549,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-webdav"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "bytes",
@@ -7548,7 +7563,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-webhdfs"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "anyhow",
  "asyncband",
@@ -7564,7 +7579,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-yandex-disk"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "http 1.4.2",
@@ -7578,7 +7593,7 @@ dependencies = [
 
 [[package]]
 name = "opendal-testkit"
-version = "0.59.0"
+version = "0.59.1"
 dependencies = [
  "bytes",
  "dotenvy",

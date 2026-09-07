@@ -87,26 +87,26 @@ fn make_package(path: &str, version: &str, dependencies: Vec<Package>) -> Packag
 
 /// List all packages that are ready for release.
 pub fn all_packages() -> Vec<Package> {
-    let core = make_package("core", "0.59.0", vec![]);
+    let core = make_package("core", "0.59.1", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.7.6", vec![core.clone()]);
-    let object_store = make_package("integrations/object_store", "0.60.0", vec![core.clone()])
+    let dav_server = make_package("integrations/dav-server", "0.7.7", vec![core.clone()]);
+    let object_store = make_package("integrations/object_store", "0.60.1", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "object_store"]);
-    let parquet = make_package("integrations/parquet", "0.10.0", vec![core.clone()])
+    let parquet = make_package("integrations/parquet", "0.10.1", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "parquet"]);
-    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.6", vec![core.clone()]);
+    let unftp_sbe = make_package("integrations/unftp-sbe", "0.4.7", vec![core.clone()]);
 
     // Binaries moved to separate repositories; no longer released from this repo
 
     // Bindings
-    let c = make_package("bindings/c", "0.47.3", vec![core.clone()]);
-    let cpp = make_package("bindings/cpp", "0.45.30", vec![core.clone()]);
-    let java = make_package("bindings/java", "0.50.3", vec![core.clone()]);
-    let nodejs = make_package("bindings/nodejs", "0.49.8", vec![core.clone()]);
-    let python = make_package("bindings/python", "0.47.7", vec![core.clone()]);
-    let ruby = make_package("bindings/ruby", "0.1.11", vec![core.clone()]);
-    let dotnet = make_package("bindings/dotnet", "0.2.0", vec![core.clone()]);
+    let c = make_package("bindings/c", "0.47.4", vec![core.clone()]);
+    let cpp = make_package("bindings/cpp", "0.45.31", vec![core.clone()]);
+    let java = make_package("bindings/java", "0.50.4", vec![core.clone()]);
+    let nodejs = make_package("bindings/nodejs", "0.49.9", vec![core.clone()]);
+    let python = make_package("bindings/python", "0.47.8", vec![core.clone()]);
+    let ruby = make_package("bindings/ruby", "0.1.12", vec![core.clone()]);
+    let dotnet = make_package("bindings/dotnet", "0.2.1", vec![core.clone()]);
 
     vec![
         core,
@@ -122,6 +122,52 @@ pub fn all_packages() -> Vec<Package> {
         ruby,
         dotnet,
     ]
+}
+
+/// Prepare inventory and dependency versions together before compatibility validation.
+pub(super) fn prepare_patch_versions(
+    packages: &mut [Package],
+    baseline: &str,
+) -> anyhow::Result<String> {
+    let matcher = regex::Regex::new(r#"make_package\("([^"]+)", "([^"]+)""#)?;
+    let baseline = matcher
+        .captures_iter(baseline)
+        .map(|c| Ok((c[1].to_string(), Version::parse(&c[2])?)))
+        .collect::<anyhow::Result<std::collections::BTreeMap<_, _>>>()?;
+    let mut targets = std::collections::BTreeMap::new();
+    for package in packages.iter() {
+        let target = match baseline.get(package.name()) {
+            Some(previous) => {
+                anyhow::ensure!(
+                    previous.pre.is_empty() && previous.build.is_empty(),
+                    "baseline package must be a final version"
+                );
+                let mut next = previous.clone();
+                next.patch = next
+                    .patch
+                    .checked_add(1)
+                    .ok_or_else(|| anyhow::anyhow!("patch version overflow"))?;
+                std::cmp::max(next, package.version.clone())
+            }
+            None => package.version.clone(),
+        };
+        targets.insert(package.name.clone(), target);
+    }
+    fn apply(package: &mut Package, targets: &std::collections::BTreeMap<String, Version>) {
+        package.version = targets[package.name()].clone();
+        for dependency in &mut package.dependencies {
+            apply(dependency, targets);
+        }
+    }
+    for package in packages {
+        apply(package, &targets);
+    }
+    let inventory = std::fs::read_to_string(workspace_dir().join("dev/src/release/package.rs"))?;
+    Ok(matcher
+        .replace_all(&inventory, |c: &regex::Captures<'_>| {
+            format!("make_package(\"{}\", \"{}\"", &c[1], targets[&c[1]])
+        })
+        .into_owned())
 }
 
 pub fn update_package_version(package: &Package) -> bool {
@@ -499,7 +545,16 @@ fn update_maven_version(path: &Path, version: &Version) -> bool {
 }
 
 fn update_nodejs_version(path: &Path, version: &Version) -> bool {
-    let mut updated = false;
+    let manifest: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path.join("package.json")).unwrap()).unwrap();
+    let previous = manifest["version"].as_str().unwrap();
+    let loader = path.join("generated.js");
+    let source = std::fs::read_to_string(&loader).unwrap();
+    let updated_source = source.replace(previous, &version.to_string());
+    let mut updated = source != updated_source;
+    if updated {
+        std::fs::write(loader, updated_source).unwrap();
+    }
 
     for entry in ignore::Walk::new(path) {
         let entry = entry.unwrap();
@@ -563,6 +618,40 @@ fn update_dotnet_version(path: &Path, version: &Version) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn patch_versions_preserve_reviewed_versions_and_update_dependencies() {
+        let mut packages = all_packages();
+        let old = packages[0].version.clone();
+        packages[1].version.major += 1;
+        let reviewed = packages[1].version.clone();
+        let baseline = include_str!("package.rs");
+        let inventory = prepare_patch_versions(&mut packages, baseline).unwrap();
+        assert_eq!(packages[0].version.patch, old.patch + 1);
+        assert_eq!(packages[1].version, reviewed);
+        assert_eq!(packages[1].dependencies[0].version, packages[0].version);
+        assert!(inventory.contains(&format!("\"core\", \"{}\"", packages[0].version)));
+        // Retrying from the same published baseline must not consume another patch.
+        prepare_patch_versions(&mut packages, baseline).unwrap();
+        assert_eq!(packages[0].version.patch, old.patch + 1);
+        let mut new_packages = all_packages();
+        prepare_patch_versions(&mut new_packages, "").unwrap();
+        assert_eq!(new_packages[0].version, old);
+    }
+
+    #[test]
+    fn node_loaders_follow_package_version() {
+        let root = temp_test_dir("node-loaders");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("package.json"), r#"{"version":"1.2.3"}"#).unwrap();
+        std::fs::write(root.join("generated.js"), "expectedVersion = '1.2.3'").unwrap();
+        assert!(update_nodejs_version(&root, &Version::new(1, 2, 4)));
+        assert_eq!(
+            std::fs::read_to_string(root.join("generated.js")).unwrap(),
+            "expectedVersion = '1.2.4'"
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
 
     fn temp_test_dir(name: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()

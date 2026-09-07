@@ -100,6 +100,10 @@ going to production — lives at
 
 ## Contributing
 
+The Maven `source-release.zip` includes `bindings/java` and the Rust `core`
+workspace. After extracting it, run `./mvnw package` from `bindings/java`.
+The wrapper downloads its JAR on first use; the source archive does not bundle it.
+
 This project is built upon the native OpenDAL library and depends on JDK 8 or
 later. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build the binding, run
 tests, and apply the code style.

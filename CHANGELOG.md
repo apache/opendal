@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- Release notes generated with: gh release create v_draft --generate-notes --draft -->
 
+## [v0.59.1] - 2026-09-05
+
+### Fixed
+* Include the changelog in the `opendal-core` crate so packages downloaded from crates.io compile. https://github.com/apache/opendal/pull/8223
+* Resolve GooseFS master addresses from `goosefs-site.properties`. https://github.com/apache/opendal/pull/8216
+
+### Added
+* Support response header overrides in GCS presigned XML requests. https://github.com/apache/opendal/pull/8206
+
+### Docs
+* Add conda-forge installation instructions for Python. https://github.com/apache/opendal/pull/8213
+
+### CI
+* Refresh the APT package index before installing dependencies. https://github.com/apache/opendal/pull/8215
+* Use the GHCR v2.0.0 GooseFS fixture image. https://github.com/apache/opendal/pull/8214
+
+**Full Changelog**: https://github.com/apache/opendal/compare/v0.59.0...v0.59.1
+
 ## [v0.59.0] - 2026-08-31
 
 ### Breaking Changes

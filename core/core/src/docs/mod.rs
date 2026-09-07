@@ -31,7 +31,7 @@ pub mod performance;
 pub mod specs;
 
 /// Changes log for all OpenDAL released versions.
-#[doc = include_str!("../../../CHANGELOG.md")]
+#[doc = include_str!("../../CHANGELOG.md")]
 #[cfg(not(doctest))]
 #[allow(rustdoc::broken_intra_doc_links, rustdoc::invalid_rust_codeblocks)]
 pub mod changelog {}

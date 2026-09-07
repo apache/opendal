@@ -90,3 +90,7 @@ components. Their source code is available from the linked project pages:
 - `persy` 1.8.1 ([source](https://crates.io/crates/persy/1.8.1), [homepage](https://persy.rs)), licensed under MPL-2.0.
 
 The distribution includes the MPL-2.0 text in `LICENSE-MPL-2.0.txt`.
+
+Musllinux wheels also bundle `libgcc_s`, the [GCC runtime library](https://gcc.gnu.org/),
+licensed under `GPL-3.0-or-later WITH GCC-exception-3.1`. The complete license and
+exception texts are included in `LICENSE-libgcc.txt`.

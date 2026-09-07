@@ -2,7 +2,7 @@ crate	Apache-2.0	Apache-2.0 WITH LLVM-exception	LGPL-2.1-or-later	MIT	MPL-2.0	Un
 allocator-api2@0.2.21	X			X				
 android_system_properties@0.1.6	X			X				
 anyhow@1.0.104	X			X				
-asyncband@0.6.7	X							
+asyncband@0.7.1	X							
 autocfg@1.5.1	X			X				
 base64@0.22.1	X			X				
 base64@0.23.1	X			X				

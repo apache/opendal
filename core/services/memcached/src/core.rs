@@ -18,9 +18,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
+use asyncband::pool::ManageObject;
+use asyncband::pool::ObjectStatus;
+use asyncband::pool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
 use std::io;

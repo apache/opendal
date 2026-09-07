@@ -32,7 +32,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-asyncband = { workspace = true }
+asyncband = { workspace = true, features = ["mpsc", "oneshot"] }
 bytes = { workspace = true }
 flume = "0.12"
 monoio = { version = "0.2.4", features = [

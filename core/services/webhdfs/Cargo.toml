@@ -33,7 +33,7 @@ all-features = true
 
 [dependencies]
 anyhow = { version = "1.0.100", features = ["std"] }
-asyncband = { workspace = true }
+asyncband = { workspace = true, features = ["once-cell"] }
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }

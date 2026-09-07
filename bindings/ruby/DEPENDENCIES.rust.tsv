@@ -301,17 +301,7 @@ winapi-i686-pc-windows-gnu@0.4.0	X									X
 winapi-util@0.1.11										X			X	
 winapi-x86_64-pc-windows-gnu@0.4.0	X									X				
 windows-link@0.2.1	X									X				
-windows-sys@0.52.0	X									X				
 windows-sys@0.61.2	X									X				
-windows-targets@0.52.6	X									X				
-windows_aarch64_gnullvm@0.52.6	X									X				
-windows_aarch64_msvc@0.52.6	X									X				
-windows_i686_gnu@0.52.6	X									X				
-windows_i686_gnullvm@0.52.6	X									X				
-windows_i686_msvc@0.52.6	X									X				
-windows_x86_64_gnu@0.52.6	X									X				
-windows_x86_64_gnullvm@0.52.6	X									X				
-windows_x86_64_msvc@0.52.6	X									X				
 wit-bindgen@0.57.1	X	X								X				
 writeable@0.6.3												X		
 xattr@1.6.1	X									X				

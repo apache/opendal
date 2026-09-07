@@ -52,7 +52,6 @@ cargo-platform@0.1.9		X									X
 cargo_metadata@0.14.2											X					
 cbc@0.1.2		X									X					
 cc@1.4.5		X									X					
-cfg-if@0.1.10		X									X					
 cfg-if@1.0.4		X									X					
 chacha20@0.10.2		X									X					
 chrono@0.4.45		X									X					
@@ -82,10 +81,10 @@ crc-fast@1.10.0		X									X
 crc16@0.4.0											X					
 crc32fast@1.5.1		X									X					
 critical-section@1.2.0		X									X					
-crossbeam-channel@0.5.16		X									X					
-crossbeam-epoch@0.9.20		X									X					
-crossbeam-queue@0.3.13		X									X					
-crossbeam-utils@0.8.22		X									X					
+crossbeam-channel@0.5.17		X									X					
+crossbeam-epoch@0.9.21		X									X					
+crossbeam-queue@0.3.14		X									X					
+crossbeam-utils@0.8.23		X									X					
 crunchy@0.2.4											X					
 crypto-common@0.1.7		X									X					
 crypto-common@0.2.2		X									X					
@@ -145,7 +144,7 @@ futures-sink@0.3.34		X									X
 futures-task@0.3.34		X									X					
 futures-util@0.3.34		X									X					
 fxhash@0.2.1		X									X					
-gearhash@0.1.3		X									X					
+gearhash@0.1.4		X									X					
 generic-array@0.14.7											X					
 getrandom@0.1.16		X									X					
 getrandom@0.2.17		X									X					
@@ -209,7 +208,7 @@ inout@0.1.4		X									X
 instant@0.1.13					X											
 io-uring@0.7.14		X									X					
 ipconfig@0.3.4		X									X					
-ipnet@2.12.1		X									X					
+ipnet@2.12.2		X									X					
 itertools@0.12.1		X									X					
 itertools@0.14.0		X									X					
 itoa@1.0.18		X									X					
@@ -402,9 +401,10 @@ rand_core@0.9.5		X									X
 rand_hc@0.2.0		X									X					
 redb@3.1.3		X									X					
 redb@4.2.0		X									X					
-redis@1.6.0					X											
+redis@1.7.0					X											
 redox_syscall@0.2.16											X					
 redox_syscall@0.5.18											X					
+redox_syscall@0.9.4											X					
 redox_users@0.5.2											X					
 reflink-copy@0.1.30		X									X					
 regex@1.13.1		X									X					

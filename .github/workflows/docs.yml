@@ -35,6 +35,12 @@ on:
     branches:
       - main
     paths: *paths
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Release tag to deploy to nightlies"
+        required: true
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -632,11 +638,11 @@ jobs:
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           # Keep this same with the remote_path below
-          OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-release-${{ github.ref_name }}/
+          OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-release-${{ inputs.release_version || github.ref_name }}/
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || github.event_name == 'workflow_dispatch' }}
         shell: bash
         env:
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
@@ -646,12 +652,12 @@ jobs:
           NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
         run: |
           mkdir -p "${HOME}/.ssh"
-          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          printf '%s\n' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
           chmod 0600 "${HOME}/.ssh/nightlies_rsync"
           rsync -avzr \
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
             build/ \
-            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ github.ref_name }}/"
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ inputs.release_version || github.ref_name }}/"
 
       - name: Clear build
         run: rm -rf ./build
@@ -664,7 +670,7 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc') }}
+        if: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || github.event_name == 'workflow_dispatch' }}
         shell: bash
         env:
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
@@ -674,7 +680,7 @@ jobs:
           NIGHTLIES_RSYNC_USER: ${{ secrets.NIGHTLIES_RSYNC_USER }}
         run: |
           mkdir -p "${HOME}/.ssh"
-          printf '%s' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
+          printf '%s\n' "${NIGHTLIES_RSYNC_KEY}" > "${HOME}/.ssh/nightlies_rsync"
           chmod 0600 "${HOME}/.ssh/nightlies_rsync"
           rsync -avzr --delete \
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \

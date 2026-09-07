@@ -1,9 +1,0 @@
-{
-  "repository": "apache/opendal",
-  "state_branch": "release-state",
-  "baseline_tag": "v0.59.0",
-  "validation_workflows": [
-    "ci_odev.yml",
-    "ci_check.yml"
-  ]
-}

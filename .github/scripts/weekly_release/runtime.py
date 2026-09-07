@@ -15,12 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import base64
 import json
 import os
 import subprocess
 from pathlib import Path
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from model import canonical
@@ -66,17 +64,11 @@ def api(endpoint, payload=None, method=None):
 
 
 def pages(endpoint):
-    output = []
-    for page in range(1, 1001):
-        part = api(
-            f"{endpoint}{'&' if '?' in endpoint else '?'}per_page=100&page={page}"
-        )
-        if not isinstance(part, list):
-            raise ValueError("expected paginated array")  # noqa: TRY004
-        output.extend(part)
-        if len(part) < 100:
-            return output
-    raise ValueError("pagination limit exceeded")
+    return [
+        item
+        for page in json.loads(run("gh", "api", "--paginate", "--slurp", endpoint))
+        for item in page
+    ]
 
 
 def download(url):
@@ -84,41 +76,3 @@ def download(url):
         Request(url, headers={"User-Agent": "Apache-OpenDAL-release"}), timeout=120
     ) as response:
         return response.read()
-
-
-class Store:
-    """Compare-and-swap state on the release-state branch."""
-
-    def __init__(self, config):
-        self.repo = config["repository"]
-        self.branch = config["state_branch"]
-        self.endpoint = f"repos/{self.repo}/contents/state.json"
-        self.sha = None
-
-    def load(self, public=False):
-        if public:
-            return json.loads(
-                download(
-                    f"https://raw.githubusercontent.com/{self.repo}/{self.branch}/state.json"
-                )
-            )
-        entry = api(f"{self.endpoint}?ref={quote(self.branch, safe='')}")
-        self.sha = entry["sha"]
-        return json.loads(base64.b64decode(entry["content"]))
-
-    def save(self, state):
-        value = api(
-            self.endpoint,
-            {
-                "message": "Update weekly release state",
-                "branch": self.branch,
-                "sha": self.sha,
-                "content": base64.b64encode(canonical(state)).decode(),
-            },
-            method="PUT",
-        )
-        self.sha = value["content"]["sha"]
-
-
-def config():
-    return json.loads((ROOT / ".release/config.json").read_text())

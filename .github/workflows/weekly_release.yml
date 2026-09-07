@@ -16,27 +16,23 @@
 # under the License.
 
 name: Weekly source release
-run-name: Weekly source release ${{ inputs.operation || github.event_name }}
 
 on:
   push:
     branches: [main]
+  pull_request:
+    types: [closed]
+    branches: ['release-candidates/**']
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '7 0 * * 5'
+    - cron: '22 * * * *'
   workflow_dispatch:
     inputs:
       operation:
-        description: Reconcile, rehearse, or recover a candidate
+        description: Prepare a fresh candidate or follow ATR publication
         type: choice
-        options: [tick, rehearsal, retry-dispatch, cancel, retry-announce]
-        default: tick
-      candidate:
-        description: Candidate ID for recovery
-        type: string
-      workflow:
-        description: Confirmed missing dispatch to retry
-        type: choice
-        options: [ci_odev.yml, ci_check.yml]
+        options: [prepare, rehearsal, follow-up]
+        default: prepare
 
 permissions:
   contents: read
@@ -46,21 +42,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  reconcile:
-    # Push run metadata records the cutoff even when a scheduler starts late.
-    if: github.repository == 'apache/opendal' && github.event_name != 'push'
+  plan:
+    if: github.repository == 'apache/opendal' && github.event_name != 'push' && (github.event_name != 'pull_request' || github.event.pull_request.merged)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write
       pull-requests: write
-      discussions: write
-      actions: write
       id-token: write
     outputs:
-      compose: ${{ steps.reconcile.outputs.compose }}
-      candidate: ${{ steps.reconcile.outputs.candidate }}
-      rc: ${{ steps.reconcile.outputs.rc }}
+      candidate: ${{ steps.plan.outputs.candidate }}
+      rc: ${{ steps.plan.outputs.rc }}
+      rehearsal: ${{ steps.plan.outputs.rehearsal }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -71,48 +64,78 @@ jobs:
         with:
           python-version: '3.12'
       - uses: ./.github/actions/setup
-      - name: Reconcile the weekly release
-        id: reconcile
+      - name: Prepare candidate or follow ATR
+        id: plan
         env:
           GH_TOKEN: ${{ github.token }}
-          OPERATION: ${{ inputs.operation || 'tick' }}
-          CANDIDATE: ${{ inputs.candidate }}
-          WORKFLOW: ${{ inputs.workflow }}
-        run: |
-          python3 .github/scripts/weekly_release/controller.py "$OPERATION" \
-            --candidate "$CANDIDATE" --workflow "${WORKFLOW:-ci_odev.yml}"
-      - name: Upload RM vote handoff
-        if: hashFiles('vote-request.json') != ''
-        uses: actions/upload-artifact@v7
-        with:
-          name: weekly-vote-request-${{ github.run_id }}-${{ github.run_attempt }}
-          path: vote-request.json
-      - name: Announce the published source release through ATR
-        if: steps.reconcile.outputs.announce == 'true'
+          OPERATION: ${{ github.event_name == 'pull_request' && 'merged' || inputs.operation || (github.event.schedule == '7 0 * * 5' && 'prepare' || 'follow-up') }}
+        run: python3 .github/scripts/weekly_release/controller.py "$OPERATION"
+      - name: Announce published source through ATR
+        if: steps.plan.outputs.announce == 'true'
         uses: apache/tooling-actions/release-on-atr@fa721a0b176d713807b574da721b96545b587eea
         with:
-          version: ${{ steps.reconcile.outputs.rc }}
+          version: ${{ steps.plan.outputs.rc }}
           announce: 'true'
-          announce-revision: ${{ steps.reconcile.outputs.revision }}
+          announce-revision: ${{ steps.plan.outputs.revision }}
           announce-email-to: announce@apache.org
-          announce-path-suffix: ${{ steps.reconcile.outputs.version }}
+          announce-path-suffix: ${{ steps.plan.outputs.version }}
           announce-body: |
-            Apache OpenDAL ${{ steps.reconcile.outputs.version }} is available.
+            Apache OpenDAL ${{ steps.plan.outputs.version }} is available.
 
-            Downloads: https://downloads.apache.org/opendal/${{ steps.reconcile.outputs.version }}/
+            Downloads: https://downloads.apache.org/opendal/${{ steps.plan.outputs.version }}/
 
             Apache OpenDAL provides a unified interface for accessing data across storage services.
 
+  check:
+    needs: plan
+    if: needs.plan.outputs.candidate != ''
+    uses: ./.github/workflows/ci_check.yml
+    with:
+      revision: ${{ needs.plan.outputs.candidate }}
+
+  dev:
+    needs: plan
+    if: needs.plan.outputs.candidate != ''
+    uses: ./.github/workflows/ci_odev.yml
+    with:
+      revision: ${{ needs.plan.outputs.candidate }}
+
   compose:
-    needs: reconcile
-    if: needs.reconcile.outputs.compose == 'true'
+    needs: [plan, check, dev]
+    if: needs.plan.outputs.candidate != ''
     permissions:
       contents: read
       id-token: write
     uses: ./.github/workflows/release-compose.yml
     with:
-      candidate: ${{ needs.reconcile.outputs.candidate }}
-      rc: ${{ needs.reconcile.outputs.rc }}
+      candidate: ${{ needs.plan.outputs.candidate }}
+      rc: ${{ needs.plan.outputs.rc }}
       version-directory: true
     secrets:
       GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
+
+  handoff:
+    needs: [plan, compose]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Prepare RM vote request
+        env:
+          RC: ${{ needs.plan.outputs.rc }}
+          SHA: ${{ needs.plan.outputs.candidate }}
+          REHEARSAL: ${{ needs.plan.outputs.rehearsal }}
+        run: |
+          args=()
+          if [ "$REHEARSAL" = true ]; then args+=(--rehearsal); fi
+          python3 .github/scripts/weekly_release/controller.py handoff --rc "$RC" --sha "$SHA" "${args[@]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weekly-vote-request-${{ github.run_id }}-${{ github.run_attempt }}
+          path: vote-request.json
+          if-no-files-found: error

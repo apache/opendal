@@ -25,7 +25,6 @@ on:
       - '.github/workflows/weekly_release.yml'
       - '.github/workflows/release-compose.yml'
       - '.github/workflows/ci_weekly_release.yml'
-      - '.release/**'
 permissions:
   contents: read
 jobs:

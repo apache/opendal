@@ -19,24 +19,18 @@ import os
 import tempfile
 from pathlib import Path
 
-from github import ensure_ref, pull_request, push, ref
-from model import PACKAGE_PATTERN, version_tuple, versions
+from github import ensure_ref, pull_request, push
+from model import PACKAGE_PATTERN, versions
 from runtime import git, run
 
 PACKAGE_FILE = "dev/src/release/package.rs"
 
 
-def apply_versions(root, targets, baseline, sync=False):
+def apply_versions(root, targets, baseline):
     path = root / PACKAGE_FILE
     current = versions(path.read_text())
     if not set(targets).issubset(current):
         raise ValueError("cannot update an unknown package")
-    if sync and any(
-        version_tuple(current[p]) > version_tuple(v) for p, v in targets.items()
-    ):
-        raise ValueError(
-            "main already has a higher version; manual reconciliation required"
-        )
     path.write_text(
         PACKAGE_PATTERN.sub(
             lambda m: f'make_package("{m[1]}", "{targets.get(m[1], m[2])}"',
@@ -83,53 +77,50 @@ def build_env():
 def candidate(record, cfg):
     repo = cfg["repository"]
     branch = record["branch"]
-    if ref(repo, "heads/" + branch) is None:
-        ensure_ref(repo, "heads/" + branch, record["cutoff_sha"])
+    ensure_ref(repo, "heads/" + branch, record["cutoff_sha"])
     bump_branch = branch + "-bump"
-    existing = ref(repo, "heads/" + bump_branch)
-    if existing is None:
-        with tempfile.TemporaryDirectory(prefix="opendal-prepare-") as tmp:
-            root = Path(tmp) / "repo"
-            git("worktree", "add", "--detach", root, record["cutoff_sha"])
-            try:
-                apply_versions(root, record["versions"], record["baseline_tag"])
-                run(
-                    "python3",
-                    "scripts/dependencies.py",
-                    "generate",
-                    cwd=root,
-                    env=build_env(),
-                )
-                changelog = root / "CHANGELOG.md"
-                notes = "\n".join(
-                    f"- {c['summary']}" for c in record["changes"] if c["packages"]
-                )
-                changelog.write_text(
-                    f"# v{record['version']}\n\n{notes}\n\n" + changelog.read_text()
-                )
-                git("add", "--all", cwd=root)
-                env = dict(
-                    build_env(),
-                    GIT_AUTHOR_NAME="OpenDAL Release",
-                    GIT_AUTHOR_EMAIL="dev@opendal.apache.org",
-                    GIT_COMMITTER_NAME="OpenDAL Release",
-                    GIT_COMMITTER_EMAIL="dev@opendal.apache.org",
-                    GIT_AUTHOR_DATE=record["cutoff"],
-                    GIT_COMMITTER_DATE=record["cutoff"],
-                )
-                run(
-                    "git",
-                    "-c",
-                    "commit.gpgsign=false",
-                    "commit",
-                    "-m",
-                    f"Prepare {record['rc']}",
-                    cwd=root,
-                    env=env,
-                )
-                push(bump_branch, root)
-            finally:
-                git("worktree", "remove", "--force", root)
+    with tempfile.TemporaryDirectory(prefix="opendal-prepare-") as tmp:
+        root = Path(tmp) / "repo"
+        git("worktree", "add", "--detach", root, record["cutoff_sha"])
+        try:
+            apply_versions(root, record["versions"], record["baseline_tag"])
+            run(
+                "python3",
+                "scripts/dependencies.py",
+                "generate",
+                cwd=root,
+                env=build_env(),
+            )
+            changelog = root / "CHANGELOG.md"
+            notes = "\n".join(
+                f"- {c['summary']}" for c in record["changes"] if c["packages"]
+            )
+            changelog.write_text(
+                f"# v{record['version']}\n\n{notes}\n\n" + changelog.read_text()
+            )
+            git("add", "--all", cwd=root)
+            env = dict(
+                build_env(),
+                GIT_AUTHOR_NAME="OpenDAL Release",
+                GIT_AUTHOR_EMAIL="dev@opendal.apache.org",
+                GIT_COMMITTER_NAME="OpenDAL Release",
+                GIT_COMMITTER_EMAIL="dev@opendal.apache.org",
+                GIT_AUTHOR_DATE=record["cutoff"],
+                GIT_COMMITTER_DATE=record["cutoff"],
+            )
+            run(
+                "git",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-m",
+                f"Prepare {record['rc']}",
+                cwd=root,
+                env=env,
+            )
+            push(bump_branch, root)
+        finally:
+            git("worktree", "remove", "--force", root)
     body = (
         f"Prepare {record['rc']} from cutoff `{record['cutoff_sha']}`.\n\n"
         "Review package versions, compatibility and changelog before merging into this release branch. "
@@ -139,7 +130,7 @@ def candidate(record, cfg):
             if record["dry_run"]
             else ""
         )
-        + "Generated by the weekly release controller from reviewed release declarations."
+        + "Generated from the reviewed package inventory. Review compatibility before merging."
     )
     return pull_request(
         repo, bump_branch, branch, f"chore(release): prepare {record['rc']}", body

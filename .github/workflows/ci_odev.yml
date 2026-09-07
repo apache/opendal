@@ -18,7 +18,11 @@
 name: odev CI
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
   push:
     branches:
       - main
@@ -36,7 +40,7 @@ on:
       - ".github/workflows/release-compose.yml"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: ci_odev.yml-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -44,6 +48,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -63,6 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -72,6 +80,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -86,6 +96,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -118,6 +130,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.revision || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v6

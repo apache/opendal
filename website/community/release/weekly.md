@@ -5,205 +5,112 @@ sidebar_position: 4
 
 # Weekly source releases
 
-OpenDAL prepares a source release from the Friday 00:00 UTC cutoff. A version PR
-is reviewed and merged into a release branch, after which GitHub Actions validates,
-builds, signs and uploads the candidate. ATR hosts the formal Trusted Vote and
-publishes the approved source files. GitHub Discussions provides a reminder and
-space for discussion, not a second ballot box.
+Each Friday, Actions prepares a version PR from the Friday 00:00 UTC main cutoff.
+Merging that PR validates, builds, signs and uploads the candidate to ATR. The
+release manager starts a 72-hour Trusted Vote; ATR counts ballots and can
+resolve and publish a passing vote automatically. Monday availability depends on
+when the vote actually starts and whether it passes.
 
-Monday availability is a target. The 72-hour voting period begins with ATR's vote
-announcement, after preparation and validation complete. An unresolved vote blocks
-the next candidate until the release manager cancels it or completes the release.
+## Configure
 
-This controller publishes source archives only. Maven, crates.io, PyPI, npm,
-NuGet, website deployment and other distribution channels retain their existing
-workflows. Its tags are created using the repository `GITHUB_TOKEN`, so they do
-not trigger the existing tag-based publishers.
+Use the existing `GPG_SECRET_KEY` secret and `SOURCE_SIGNING_FINGERPRINT` variable.
+GitHub operations use the built-in `GITHUB_TOKEN`; no personal GitHub token, ATR
+token or ASF ID is stored in CI. Allow Actions to create pull requests.
 
-## Configure once
+In ATR, select Trusted Vote and configure repository `opendal`, leaving the
+optional branch restriction empty. Register `.github/workflows/weekly_release.yml`
+for compose and finish. Keep `.github/workflows/release-compose.yml` registered
+for compose if direct manual dispatch is also used. The reusable compose workflow
+retains the caller's OIDC identity.
 
-The source compose workflow uses the existing `GPG_SECRET_KEY` secret and
-`SOURCE_SIGNING_FINGERPRINT` variable. The weekly controller uses GitHub's
-short-lived repository `GITHUB_TOKEN`. It requires no additional personal GitHub
-or ATR token, and no ASF ID variable.
+The scheduled actor must be an ASF-linked committer with project permissions.
+GitHub associates the schedule with the user who last changes its cron expression;
+an RM should maintain it. Manual runs and candidate PR merges must likewise be
+initiated by an ASF-linked project release manager.
 
-Enable Actions to create pull requests in the repository's workflow permissions.
-The workflow requests contents, pull requests, discussions and Actions write
-permissions. Explicit validation dispatches work with `GITHUB_TOKEN`; generated
-pushes and PRs do not automatically trigger further workflows.
+## Prepare and review
 
-Configure ATR Trusted Publishing for repository `opendal`, with the optional
-branch restriction empty. Register `.github/workflows/weekly_release.yml` under
-both **compose** and **finish**. Keep `.github/workflows/release-compose.yml` under
-compose for direct manual use. The weekly workflow calls compose as a reusable
-workflow, preserving the initiating actor and caller workflow identity for OIDC.
-Announcement uses ASF's `release-on-atr` action with OIDC.
+The weekly workflow records main push metadata. Preparation selects the latest
+recorded push at or before Friday 00:00 UTC, rather than using commit author dates
+or a delayed runner's current main. With no earlier snapshot, wait for the next
+week. Retain push-run history until the cutoff has been consumed.
 
-The scheduled workflow actor must be linked to an ASF committer account with the
-required project permissions. GitHub associates scheduled runs with the user who
-last changed the cron schedule; a manual run uses its initiating user. An RM
-should maintain the schedule and initiate recovery runs. This identity comes
-from GitHub OIDC, not an ASF ID supplied in repository configuration.
+Version calculation uses the newest Git-tagged source release present in the
+public distribution area. An announced ATR release with an RC tag can supply the
+baseline before its final tag or main synchronization exists. Drafts and failed
+votes never consume a stable version. The complete package matrix receives at
+least a patch increment; higher versions already reviewed in `package.rs` are
+preserved. Review breaking changes in the version PR and update that inventory
+before preparation. The existing Rust compatibility validator remains in use;
+there is no separate release-declaration format.
 
-The RM and voters keep their personal ATR authentication in their local official
-ATR clients. The controller cannot start or cancel a vote or cast a ballot.
+Each attempt creates `release-candidates/<version>-rc.<attempt>` and a version PR
+from its `-bump` branch. The RC suffix combines the Actions run ID and run attempt;
+it is an opaque identifier, not a small sequential counter. Review and merge the
+version PR into the candidate branch. Its merged SHA becomes the immutable RC tag.
+Keep candidate branches and RC tags until publication and synchronization finish.
 
-Review `.release/config.json` before deployment. `baseline_tag` identifies the
-last official source release for initialization, not a failed RC. Initialization
-checks its public distribution directory and records its package versions. After
-that, persisted state determines the successful baseline. There is no enablement
-variable, GitHub environment approval, or recurring initialization operation.
-Installing the workflow on the default branch activates its schedule.
+The merge event invokes existing check and dev workflows, then compose, as jobs in
+the same run. Successful compose uploads the signed artifacts under the stable
+version directory in ATR and produces `vote-request.json` as a run artifact.
+No workflow waits across the human review or vote, and no `release-state` branch
+or custom retry journal is created.
 
-`release-state/state.json` is created automatically on the first reconciliation.
-It contains candidate identities, version plans, artifact digests, workflow and
-ATR task IDs, and publication progress. It never contains credentials. Writes use
-GitHub's content SHA comparison and the workflow runs serially. Restrict writes
-to this branch to release maintainers; do not rewrite it to recover a failed run.
+## Start the vote
 
+The RM reviews the candidate, revision and vote text in the handoff, waits for ATR
+checks to finish, and starts the vote in ATR or through their locally authenticated
+official ATR client. Refresh acknowledged concerns if checks completed after the
+handoff was generated. OpenDAL's own checks determine quality; ATR blockers still
+prevent opening a vote. CI never submits `/vote/start` or casts ballots.
 
-## Candidate preparation
+Select Trusted Vote, at least 72 hours, notification on completion, automatic
+resolution and automatic publication. The prepared request includes these options.
+For a rehearsal, automatic publication must remain disabled. Public release
+queries do not establish these per-vote options; the RM verifies them at opening.
 
-Main push workflow metadata records the head and server timestamp. A delayed
-scheduler chooses the latest recorded push at or before Friday 00:00 UTC; it does
-not use commit author dates or the later main head. If no push snapshot predates
-the cutoff, the controller waits for a later cycle instead of guessing. Keep the
-weekly workflow's run history until its cutoff has been consumed.
+The hourly follow-up adds the formal ATR link to the version PR. PMC members
+independently verify signatures and reproduce the archives, then vote in ATR.
+GitHub comments are discussion only. At expiry, a passing vote can resolve and
+publish automatically; otherwise the RM waits or cancels in ATR.
 
-A week with no unreleased source changes is skipped. Version synchronization PRs
-created by the controller do not themselves cause another release. The controller
-starts from the last successful package versions, increments the complete source
-package matrix by at least a patch, and preserves larger versions already declared
-in `dev/src/release/package.rs`. Public dependency compatibility is also checked by
-`update-version --baseline`.
+After publication, follow-up compares every distributed archive, signature and
+checksum with the signed Actions artifact. It then uses ASF's OIDC action to
+announce, and waits for ATR's `release` phase before creating the final tag and a
+PR back to main. ATR handles email delivery asynchronously. Retain the successful
+run's signed artifact until this comparison completes. If it expires, the RM must
+verify the original candidate and finish through ATR; do not reconstruct evidence
+by signing a different build under the old RC identity.
 
-A normal PR can supply compatibility information in an added, uniquely named
-`.release/changes/*.json` file:
+Source release is the scope of this workflow. Language package publication remains
+with its existing workflows. Tags created with `GITHUB_TOKEN` do not trigger those
+publishers automatically.
 
-```json
-{
-  "summary": "Explain the user-visible change",
-  "packages": {"core": "breaking"}
-}
-```
+## Failure and rehearsal
 
-The supported levels are `patch`, `feature`, and `breaking`. Breaking changes to
-pre-1.0 packages raise the minor version; post-1.0 packages raise the major version.
-Breaking core changes also raise integration compatibility versions. Package names
-are the paths in the source package inventory. A changed inventory requires a
-reviewed baseline migration. Classification is reviewed by humans; the controller
-does not infer API compatibility from commit messages. Existing declaration files
-should not be edited or removed; add corrections in a new file.
+For preparation, validation or build failures, run `prepare` again in the Actions
+UI. It recalculates from the same successful baseline and current week's cutoff,
+using a new RC and branches. Abandoned branches, PRs and ATR drafts may remain;
+the RM can clean them up. Do not rerun compose for an already uploaded candidate.
+If only handoff generation failed, obtain the revision and vote options from ATR
+and the run's candidate information; uploading again is unnecessary.
 
-The controller creates `release-candidates/<cycle>` at the cutoff and a `-bump`
-branch containing generated versions, dependency inventories and changelog. The
-version PR targets the release branch. Review and merge that PR to continue.
-The resulting commit is frozen for CI, the RC tag, signing and voting. If the
-release branch changes afterward, cancel and prepare a fresh candidate rather
-than rebuilding different sources under the same identity.
+An open ATR vote blocks replacement until the RM cancels it. An approved release
+in preview blocks new preparation until publication finishes. Hourly `follow-up`
+reads ATR again and continues publication of the existing files. Before retrying
+an uncertain announcement, inspect ATR's phase; do not send a separate email.
+A published candidate is never replaced to work around a follow-up failure.
 
-`ci_odev.yml` and `ci_check.yml` are explicitly dispatched and must pass before
-compose. Compose runs as part of the weekly run, without another workflow dispatch.
-Source reproducibility and signature validation also run in compose.
-ATR concerns and suggestions do not introduce another project quality gate:
-the prepared vote request includes the acknowledged concerns. ATR's server still
-requires its background checks to complete and refuses candidates with blockers.
-
-## Trusted Vote and publication
-
-The candidate is uploaded under `<stable-version>/` inside ATR. This preserves
-OpenDAL's versioned SVN distribution layout when ATR's automatic publisher uses
-an empty download suffix. The ATR candidate key includes the RC suffix; source
-archive names and the published directory use their stable package versions.
-
-After upload, the controller records the immutable signed Actions artifact's
-SHA-512 digests and checks the ATR inventory. It enters `awaiting-vote` and writes
-`vote-request.json` to the `weekly-vote-request` artifact and persisted state.
-The request fixes the candidate revision, vote text and acknowledged concerns.
-Repeated ticks do not start a vote or send vote mail.
-
-### RM: start the vote
-
-Download the handoff from the weekly run. Review its candidate SHA, ATR revision
-and vote text, then start the vote in ATR's web interface, or authorize your local
-agent to submit the prepared request using your official ATR client's identity.
-The request goes to `/api/vote/start`; it is never submitted by CI. Retain the
-returned task ID if using the API so an uncertain response can be reconciled
-without sending another vote email.
-
-Use these settings:
-
-- Trusted Vote with a minimum duration of 72 hours.
-- Notify when finished and automatically resolve when finished.
-- Automatically publish when resolved for a real release.
-- Disable automatic publication for a rehearsal.
-
-The supplied JSON sets these values, including `automatic_resolve_when_finished`
-and `automatic_publish_when_resolved`. When using the web interface, set the same
-options explicitly. The controller's public release query cannot confirm those
-per-vote automation settings; the RM owns that check when opening the vote.
-
-The controller observes the manually started Trusted Vote and requires it to
-match the recorded revision. It creates the GitHub reminder, downloads the frozen
-candidate and compares every archive, signature and checksum with the signed
-Actions artifact. A mismatch stops follow-up and asks the RM to cancel in ATR.
-Voters independently rebuild on trusted hardware, inspect the source, and submit
-their own authorized ballots through ATR's website or API. GitHub comments and
-email replies are discussion, not recorded Trusted Vote ballots.
-
-ATR resolves a passing vote and publishes its exact files to SVN. If the vote has
-not passed at expiry, the RM can cancel it in ATR; the controller does not invent a
-result or start a competing candidate. An API/client failure is reported in the
-workflow summary and persisted without discarding the candidate.
-
-The controller checks all published bytes on `downloads.apache.org` before
-advancing its baseline. It then uses the OIDC announcement action and, after ATR reports the release
-phase, creates a
-PR from the released branch back to main. Normal PR review handles conflicts.
-The next version calculation uses the successful baseline even while that PR is
-pending. Publication already in progress must be recovered using the same
-candidate; it cannot be replaced by next week's head.
-
-## Rehearse and recover
-
-Start a rehearsal from the Actions UI or:
-
-```shell
-gh workflow run weekly_release.yml --repo apache/opendal -f operation=rehearsal
-```
-
-A rehearsal uses the current main head and an unused RC number, then follows the
-same version PR, validation, signing and upload flow, followed by the RM starting
-a real Trusted Vote. Its vote
-and GitHub reminder explicitly identify it as a rehearsal. Automatic SVN
-publication is false; it never announces an official release, creates a final tag,
-synchronizes main or advances the successful baseline. Candidate data may remain
-in ATR. Rehearsal success ends at a passing vote; the RM cancels an unsuccessful
-vote in ATR.
-
-Routine ticks resume work without rebuilding completed artifacts. Rerun failed
-validation workflows through GitHub Actions. For failed compose, rerun **all jobs**
-of the original weekly run so its signing artifact and run attempt stay aligned.
-The controller adopts that run's successful retry. Once voting begins, never rerun compose for that candidate.
-
-Recovery operations take the candidate ID shown in state and the workflow summary:
-
-- `cancel`: abandon preparation, or acknowledge a vote already cancelled in ATR.
-  It refuses candidates in publication or later phases.
-- `retry-dispatch`: after confirming no workflow run was created, clear that
-  validation workflow's uncertain dispatch marker and allow another dispatch.
-- `retry-announce`: after confirming ATR did not send the announcement, allow a
-  new announcement request. Never use it merely because a response timed out.
-
-All operations have a manual Actions entry point; none requires an environment
-approval. A cancelled or failed candidate does not consume a stable version. Next
-week's fresh cutoff is recalculated from the last successful release, with a new
-RC number. An active candidate always takes precedence over starting a new one.
+Use `rehearsal` to prepare from current main with a rehearsal branch. Review and
+merge its version PR, then start the real rehearsal vote with automatic publication
+disabled. Rehearsals do not receive final tags or main synchronization PRs. Remove
+the rehearsal from active vote/preview state in ATR before starting another real
+candidate. There are no special recovery commands or enablement variables.
 
 ## Validation boundary
 
-Local lifecycle tests cover preparation, manual vote handoff, fixed revisions,
-reusable compose recovery and publication follow-up. A live deployment must still
-verify the scheduled actor, repository token permissions, ATR caller-workflow
-matching and OIDC announcement. ATR's `release` phase confirms that it accepted
-the announcement; email delivery is handled asynchronously by ATR.
+Local tests cover fresh attempts, entrypoint routing, manual handoff, immutable
+candidate selection, version baselines and publication verification. Deployment
+must verify repository PR permissions, the initiating actor, reusable workflow
+OIDC matching and announcement against live GitHub/ATR. Installing this workflow
+on main activates both schedules; this PR alone does not constitute a deployment.

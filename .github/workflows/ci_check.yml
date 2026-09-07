@@ -18,7 +18,11 @@
 name: Check
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      revision:
+        type: string
+        required: true
   push:
     branches:
       - main
@@ -27,7 +31,7 @@ on:
       - main
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  group: ci_check.yml-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 env:
@@ -41,6 +45,8 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - name: Check typos
         uses: crate-ci/typos@v1.48.0
 
@@ -51,6 +57,8 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - name: Check license headers
         uses: korandoru/hawkeye@v6
 
@@ -62,6 +70,8 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
@@ -75,6 +85,8 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
       - name: Setup taplo
         uses: taiki-e/install-action@v2
         with:
@@ -89,6 +101,8 @@ jobs:
       FORCE_COLOR: 1
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -109,6 +123,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.revision || github.sha }}
 
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:

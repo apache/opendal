@@ -15,470 +15,310 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Exercise release lifecycle, retry boundaries and immutable artifact identities."""
+"""Test fresh attempts, platform facts and the real command entry point."""
 
+import copy
 import hashlib
 import io
+import json
 import os
-import subprocess
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import artifacts
 import atr
 import controller as c
 import model
 import prepare
 
-CFG = {
-    "repository": "apache/opendal",
-    "validation_workflows": ["ci_odev.yml", "ci_check.yml"],
-}
 SHA = "a" * 40
+RC = "0.59.1-rc.12001"
 
 
-def record(phase="staged", dry=False):
+def release(phase="release_candidate_draft", rc=RC):
     return {
-        "id": "2026-W37",
+        "version": rc,
         "phase": phase,
-        "dry_run": dry,
-        "candidate_sha": SHA,
-        "cutoff_sha": "b" * 40,
-        "branch": "release-candidates/2026-W37",
-        "version": "0.59.2",
-        "versions": {"core": "0.59.2"},
-        "rc": "v0.59.2-rc.1",
-        "atr_version": "0.59.2-rc.1",
-        "revision": "00001",
-        "dispatches": {},
-        "compose_run": 123,
-        "compose_attempt": 1,
-    }
-
-
-def release(phase="release_candidate", resolved=None):
-    return {
-        "phase": phase,
-        "vote_started": "2026-09-04T01:00:00Z",
-        "vote_resolved": resolved,
         "latest_revision_number": "00001",
         "vote_mode": "trusted",
+        "vote_started": "2026-09-04T01:00:00Z",
     }
 
 
-class ModelTests(unittest.TestCase):
-    def test_friday_cutoff_is_utc_and_stable_for_delayed_schedule(self):
-        now = model.timestamp("2026-09-07T10:00:00+08:00")
-        self.assertEqual(model.cutoff(now).isoformat(), "2026-09-04T00:00:00+00:00")
-        self.assertEqual(model.cycle_id(model.cutoff(now)), "2026-W36")
-
-    def test_failed_candidate_does_not_consume_stable_versions(self):
-        base = {"core": "0.59.0"}
-        patch_change = [{"summary": "Fix", "packages": {"core": "patch"}}]
-        self.assertEqual(
-            model.plan_versions(base, base, patch_change), {"core": "0.59.1"}
-        )
-        self.assertEqual(
-            model.next_rc("0.59.1", ["v0.59.1-rc.1", "v0.59.1-rc.999"]),
-            "v0.59.1-rc.1000",
-        )
-        breaking = [{"summary": "New contract", "packages": {"core": "breaking"}}]
-        self.assertEqual(model.plan_versions(base, base, breaking), {"core": "0.60.0"})
-
-    def test_package_baselines_and_compatibility_propagation(self):
-        base = {
-            "core": "0.59.0",
-            "integrations/object_store": "0.60.0",
-            "bindings/python": "0.47.0",
+class EntryTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.cwd = Path.cwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, self.cwd)
+        self.env = {
+            "GITHUB_REPOSITORY": c.REPO,
+            "GITHUB_RUN_ID": "12",
+            "GITHUB_RUN_ATTEMPT": "1",
+            "GITHUB_OUTPUT": str(self.root / "outputs"),
+            "GITHUB_EVENT_PATH": str(self.root / "event.json"),
         }
-        plan = model.plan_versions(
-            base, base, [{"summary": "Breaking", "packages": {"core": "breaking"}}]
-        )
-        self.assertEqual(
-            plan,
-            {
-                "core": "0.60.0",
-                "integrations/object_store": "0.61.0",
-                "bindings/python": "0.47.1",
-            },
-        )
-        with self.assertRaises(ValueError):
-            model.plan_versions(
-                base,
-                {"core": "0.59.0"},
-                [{"summary": "Change", "packages": {"core": "patch"}}],
-            )
+        self.remote = Mock(spec=atr.ATR)
+        self.remote.release.return_value = None
+        self.remote.request.return_value = {"releases": [], "count": 0}
+        self.remote.checks.return_value = []
 
-    def test_cutoff_uses_run_timestamp_not_current_main(self):
-        runs = [
-            {"created_at": "2026-09-04T00:01:00Z", "id": 2, "head_sha": "new"},
-            {"created_at": "2026-09-03T23:59:00Z", "id": 1, "head_sha": "cutoff"},
-        ]
-        with patch.object(c, "api", return_value={"workflow_runs": runs}):
-            self.assertEqual(
-                c.cutoff_commit(CFG, model.timestamp("2026-09-04T00:00:00Z")), "cutoff"
-            )
+    def invoke(self, *args):
         with (
-            patch.object(c, "api", return_value={"workflow_runs": []}),
-            self.assertRaises(ValueError),
+            patch.dict(os.environ, self.env),
+            patch("sys.argv", ["controller.py", *args]),
+            patch.object(c, "ATR", return_value=self.remote),
         ):
-            c.cutoff_commit(CFG, model.timestamp("2026-09-04T00:00:00Z"))
+            c.main()
 
+    def test_new_attempt_after_lost_pr_response_uses_new_rc(self):
+        created = []
 
-class WorkflowTests(unittest.TestCase):
-    def test_dispatch_persisted_before_network_and_not_duplicated(self):
-        r = record("composing")
-        events = []
-
-        def api(path, payload=None):
-            if payload is None:
-                return {"workflow_runs": []}
-            events.append("dispatch")
-            raise TimeoutError("response lost")
+        def create(record, cfg):
+            created.append(copy.deepcopy(record))
+            if len(created) == 1:
+                raise TimeoutError("PR created; response lost")
+            return {"html_url": "new-pr"}
 
         with (
-            patch.object(c, "api", side_effect=api),
-            patch.object(c, "ref", return_value=SHA),
+            patch.object(c, "baseline", return_value=("v0.59.0", {"core": "0.59.0"})),
+            patch.object(c, "cutoff_commit", return_value=SHA),
+            patch.object(c, "git", return_value='make_package("core", "0.59.0")'),
+            patch.object(c, "ref", return_value=None),
+            patch.object(c, "candidate", side_effect=create),
         ):
             with self.assertRaises(TimeoutError):
-                c.workflow(
-                    r, CFG, "release-compose.yml", {}, lambda: events.append("save")
-                )
-            with self.assertRaises(ValueError):
-                c.workflow(
-                    r, CFG, "release-compose.yml", {}, lambda: events.append("save")
-                )
-        self.assertEqual(events, ["save", "dispatch"])
+                self.invoke("prepare")
+            self.env["GITHUB_RUN_ATTEMPT"] = "2"
+            self.invoke("prepare")
+        self.assertNotEqual(created[0]["rc"], created[1]["rc"])
+        self.assertNotEqual(created[0]["branch"], created[1]["branch"])
+        self.assertEqual(created[0]["versions"], created[1]["versions"])
+        self.assertEqual(created[0]["baseline_tag"], "v0.59.0")
+        self.assertFalse((self.root / "state.json").exists())
 
-    def test_dispatch_adopts_only_frozen_sha_branch_and_completed_success(self):
-        r = record()
-        r["dispatches"]["test.yml"] = "2026-09-04T00:00:00Z"
-        run = {
-            "id": 1,
-            "head_sha": SHA,
-            "head_branch": r["branch"],
-            "created_at": "2026-09-04T00:00:00Z",
-            "run_attempt": 1,
-            "status": "completed",
-            "conclusion": "success",
-            "html_url": "run",
+    def test_open_vote_or_publication_prevents_new_candidate(self):
+        for phase in ("release_candidate", "release_preview"):
+            self.remote.request.return_value = {
+                "releases": [release(phase)],
+                "count": 1,
+            }
+            with patch.object(c, "baseline") as baseline, self.assertRaises(ValueError):
+                self.invoke("prepare")
+            baseline.assert_not_called()
+
+    def test_drafts_can_be_abandoned(self):
+        c.require_idle([release()])
+
+    def test_handoff_is_manual_and_rehearsal_disables_publication(self):
+        self.remote.release.return_value = release()
+        self.remote.checks.return_value = [{"status": "concern", "checker": "rat"}]
+        self.invoke("handoff", "--rc", RC, "--sha", SHA, "--rehearsal")
+        request = json.loads(Path("vote-request.json").read_text())
+        self.assertFalse(request["automatic_publish_when_resolved"])
+        self.assertTrue(request["automatic_resolve_when_finished"])
+        self.assertEqual(request["vote_duration"], 72)
+        self.assertEqual(request["concerns_noted"], ["rat"])
+        self.assertEqual(request["revision"], "00001")
+        self.assertFalse(hasattr(self.remote, "post"))
+
+    def test_merged_candidate_rejects_changed_branch_or_existing_upload(self):
+        event = {
+            "pull_request": {
+                "merged": True,
+                "base": {"ref": "release-candidates/" + RC},
+                "head": {
+                    "ref": "release-candidates/" + RC + "-bump",
+                    "repo": {"full_name": c.REPO},
+                },
+                "merge_commit_sha": SHA,
+            }
         }
-        with patch.object(c, "api", return_value={"workflow_runs": [run]}):
-            self.assertEqual(c.workflow(r, CFG, "test.yml", {}, Mock()), run)
-            run["head_sha"] = "c" * 40
-            with self.assertRaises(ValueError):
-                c.workflow(r, CFG, "test.yml", {}, Mock())
-
-    def test_compose_uses_same_run_instead_of_bot_dispatch(self):
-        r = record("composing")
-        r.pop("compose_run")
+        Path(self.env["GITHUB_EVENT_PATH"]).write_text(json.dumps(event))
         with (
-            patch.dict(os.environ, {"GITHUB_RUN_ID": "321"}),
-            patch.object(c, "ref", return_value=SHA),
-            patch.object(c, "output") as output,
-            patch.object(c, "api") as api,
+            patch.object(c, "ref", return_value="b" * 40),
+            self.assertRaises(ValueError),
         ):
-            c.reconcile(r, {}, CFG, Mock(), Mock())
-            self.assertEqual(r["compose_run"], 321)
-            output.assert_called_once_with(
-                compose="true", candidate=SHA, rc=r["atr_version"]
-            )
-            api.assert_not_called()
-
-    def test_compose_adopts_completed_reusable_workflow(self):
-        r = record("composing")
+            self.invoke("merged")
+        self.remote.release.return_value = release()
+        with patch.object(c, "ref", return_value=SHA), self.assertRaises(ValueError):
+            self.invoke("merged")
+        self.remote.release.return_value = None
         with (
-            patch.dict(os.environ, {"GITHUB_RUN_ID": "321"}),
+            patch.object(c, "ref", return_value=SHA),
+            patch.object(c, "git", return_value='make_package("core", "0.59.1")'),
+            patch.object(c, "ensure_ref") as tag,
+        ):
+            self.invoke("merged")
+        tag.assert_called_once_with(c.REPO, "tags/v" + RC, SHA)
+        self.assertIn("candidate=" + SHA, Path(self.env["GITHUB_OUTPUT"]).read_text())
+
+    def test_followup_uses_atr_phase_without_journal(self):
+        self.remote.request.return_value = {
+            "releases": [release("release_preview")],
+            "count": 1,
+        }
+
+        def ref(repo, name):
+            return None if name == "tags/v0.59.1" else SHA
+
+        with (
+            patch.object(c, "ref", side_effect=ref),
+            patch.object(c, "git", return_value='make_package("core", "0.59.1")'),
             patch.object(
                 c,
                 "api",
                 return_value={
-                    "status": "completed",
-                    "conclusion": "success",
-                    "run_attempt": 2,
+                    "workflow_runs": [
+                        {"id": 12, "run_attempt": 1, "conclusion": "success"}
+                    ]
                 },
             ),
+            patch.object(c, "signed_checksums", return_value={"file": "digest"}),
+            patch.object(c, "published_files") as verify,
+            patch.object(c, "ensure_ref") as tag,
+            patch.object(c, "sync_main") as sync,
         ):
-            c.reconcile(r, {}, CFG, Mock(), Mock())
-        self.assertEqual(r["phase"], "staged")
-        self.assertEqual(r["compose_attempt"], 2)
+            self.invoke("follow-up")
+            verify.assert_called_once()
+            tag.assert_not_called()
+            self.assertIn("announce=true", Path(self.env["GITHUB_OUTPUT"]).read_text())
+            self.remote.request.return_value = {
+                "releases": [release("release")],
+                "count": 1,
+            }
+            Path(self.env["GITHUB_OUTPUT"]).write_text("")
+            self.invoke("follow-up")
+            tag.assert_called_once_with(c.REPO, "tags/v0.59.1", SHA)
+            sync.assert_called_once()
+            self.assertNotIn(
+                "announce=true", Path(self.env["GITHUB_OUTPUT"]).read_text()
+            )
 
-    def test_candidate_build_environment_has_no_credentials(self):
+    def test_followup_never_advances_on_wrong_published_bytes(self):
+        self.remote.request.return_value = {
+            "releases": [release("release_preview")],
+            "count": 1,
+        }
+        with (
+            patch.object(
+                c,
+                "ref",
+                side_effect=lambda repo, name: None if name == "tags/v0.59.1" else SHA,
+            ),
+            patch.object(c, "git", return_value='make_package("core", "0.59.1")'),
+            patch.object(
+                c,
+                "api",
+                return_value={
+                    "workflow_runs": [
+                        {"id": 12, "run_attempt": 1, "conclusion": "success"}
+                    ]
+                },
+            ),
+            patch.object(c, "signed_checksums", return_value={"file": "digest"}),
+            patch.object(c, "published_files", side_effect=ValueError("wrong bytes")),
+            patch.object(c, "ensure_ref") as tag,
+            self.assertRaises(ValueError),
+        ):
+            self.invoke("follow-up")
+        tag.assert_not_called()
+        self.assertFalse(Path(self.env["GITHUB_OUTPUT"]).exists())
+
+
+class ContractTests(unittest.TestCase):
+    def test_cutoff_ignores_later_push(self):
+        when = model.timestamp("2026-09-07T10:00:00+08:00")
+        self.assertEqual(model.cutoff(when).isoformat(), "2026-09-04T00:00:00+00:00")
+        rows = [
+            {"created_at": "2026-09-04T00:01:00Z", "id": 2, "head_sha": "late"},
+            {"created_at": "2026-09-03T23:59:00Z", "id": 1, "head_sha": SHA},
+        ]
+        with patch.object(c, "api", return_value={"workflow_runs": rows}):
+            self.assertEqual(c.cutoff_commit(model.cutoff(when)), SHA)
+
+    def test_versions_preserve_reviewed_bumps_and_reject_inventory_drift(self):
+        self.assertEqual(
+            model.plan_versions({"core": "0.59.0"}, {"core": "0.60.0"}),
+            {"core": "0.60.0"},
+        )
+        self.assertEqual(
+            model.plan_versions({"core": "0.59.0"}, {"core": "0.59.0"}),
+            {"core": "0.59.1"},
+        )
+        with self.assertRaises(ValueError):
+            model.plan_versions({"core": "0.59.0"}, {"core": "0.59.0", "new": "0.1.0"})
+
+    def test_baseline_requires_actual_publication(self):
+        with (
+            patch.object(
+                c,
+                "git",
+                side_effect=["v0.59.0\nv0.60.0", 'make_package("core", "0.59.0")'],
+            ),
+            patch.object(c, "download", return_value=b'<a href="0.59.0/">'),
+        ):
+            self.assertEqual(c.baseline([]), ("v0.59.0", {"core": "0.59.0"}))
+
+    def test_atr_publication_precedes_final_tag_and_sync_pr(self):
+        with (
+            patch.object(
+                c, "git", side_effect=["v0.59.0", 'make_package("core", "0.59.1")']
+            ),
+            patch.object(c, "ref", return_value=SHA),
+            patch.object(c, "download", return_value=b'<a href="0.59.1/">'),
+        ):
+            self.assertEqual(c.baseline([release("release")])[0], "v" + RC)
+
+    def test_signed_inventory_and_published_bytes(self):
+        record = {
+            "version": "0.59.1",
+            "versions": {"core": "0.59.1"},
+            "compose_run": 12,
+            "compose_attempt": 1,
+        }
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as archive:
+            for path in artifacts.expected_paths(record):
+                archive.writestr(path.split("/", 1)[1], b"source")
+        with (
+            patch.object(
+                artifacts,
+                "api",
+                return_value={
+                    "artifacts": [
+                        {"id": 1, "name": "signed-source-12-1", "expired": False}
+                    ]
+                },
+            ),
+            patch.object(artifacts, "run", return_value=buf.getvalue()),
+        ):
+            record["checksums"] = artifacts.signed_checksums(record)
+        self.assertEqual(
+            set(record["checksums"].values()), {hashlib.sha512(b"source").hexdigest()}
+        )
+        with patch.object(artifacts, "download", return_value=b"source"):
+            artifacts.published_files(record)
+        with (
+            patch.object(artifacts, "download", return_value=b"changed"),
+            self.assertRaises(ValueError),
+        ):
+            artifacts.published_files(record)
+
+    def test_build_subprocess_does_not_receive_credentials(self):
         with patch.dict(
             os.environ,
-            {
-                "GH_TOKEN": "secret",
-                "ATR_PAT": "secret",
-                "GITHUB_TOKEN": "secret",
-                "GIT_CONFIG_VALUE_0": "secret",
-                "PATH": "/bin",
-            },
+            {"GH_TOKEN": "secret", "ATR_PAT": "secret", "GIT_CONFIG_VALUE_0": "secret"},
         ):
             env = prepare.build_env()
         self.assertNotIn("GH_TOKEN", env)
         self.assertNotIn("ATR_PAT", env)
         self.assertNotIn("GIT_CONFIG_VALUE_0", env)
-        self.assertEqual(env["PATH"], "/bin")
-
-
-class LifecycleTests(unittest.TestCase):
-    def setUp(self):
-        self.atr = Mock(spec=atr.ATR)
-        self.persist = Mock()
-        self.state = {"baseline": {"tag": "v0.59.0"}}
-
-    def test_failed_tag_creation_is_retried_before_validation(self):
-        r = record("checking")
-        with (
-            patch.object(c, "ensure_ref", side_effect=[TimeoutError(), None]) as tag,
-            patch.object(c, "workflow", return_value=None) as workflow,
-        ):
-            with self.assertRaises(TimeoutError):
-                c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            self.assertEqual(r["phase"], "checking")
-            workflow.assert_not_called()
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            self.assertEqual(tag.call_count, 2)
-            workflow.assert_called_once()
-
-    def test_announcement_uses_oidc_action_and_waits_for_release(self):
-        r = record("announcing")
-        self.atr.release.return_value = release("release_preview")
-        with patch.object(c, "output") as output:
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            self.assertEqual(r["phase"], "announcing")
-            self.persist.assert_called_once()
-            self.assertTrue(output.call_args.kwargs["announce"])
-        self.atr.release.return_value = release("release")
-        c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "syncing")
-
-    def test_rehearsal_opens_trusted_vote_without_publication(self):
-        r = record(dry=True)
-        payload = atr.vote_payload(r, "00001", ["rat", "rat"])
-        self.assertTrue(payload["automatic_resolve_when_finished"])
-        self.assertFalse(payload["automatic_publish_when_resolved"])
-        self.assertEqual(payload["vote_duration"], 72)
-        self.assertEqual(payload["concerns_noted"], ["rat"])
-        self.assertIn("REHEARSAL", payload["subject"])
-        self.assertTrue(
-            atr.vote_payload(record(), "00001", [])["automatic_publish_when_resolved"]
-        )
-
-    def test_staged_prepares_handoff_without_starting_vote(self):
-        r = record()
-        self.atr.release.return_value = release("release_candidate_draft")
-        self.atr.request.side_effect = [
-            {"ongoing": 0},
-            {"policy_vote_mode": "trusted"},
-            {"rel_paths": list(c.expected_paths(r))},
-        ]
-        self.atr.checks.return_value = [
-            {"status": "concern", "checker": "rat"},
-            {"status": "suggestion", "checker": "sbom"},
-        ]
-
-        with patch.object(c, "signed_checksums", return_value={}):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "awaiting-vote")
-        self.assertEqual(r["vote_request"]["concerns_noted"], ["rat"])
-
-    def test_blocker_does_not_start_vote(self):
-        r = record()
-        self.atr.release.return_value = release("release_candidate_draft")
-        self.atr.request.return_value = {"ongoing": 0}
-        self.atr.checks.return_value = [{"status": "blocker", "checker": "archive"}]
-        with self.assertRaises(ValueError):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-
-    def test_manual_vote_is_observed_without_credentials_or_post(self):
-        r = record("awaiting-vote")
-        self.atr.release.return_value = release("release_candidate_draft")
-        c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "awaiting-vote")
-        self.atr.release.return_value = release()
-        c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "voting")
-
-    def test_manual_vote_cannot_change_revision_or_vote_mode(self):
-        for key, value in [
-            ("latest_revision_number", "00002"),
-            ("vote_mode", "manual"),
-        ]:
-            r = record("awaiting-vote")
-            remote = release()
-            remote[key] = value
-            self.atr.release.return_value = remote
-            with self.assertRaises(ValueError):
-                c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            self.assertEqual(r["phase"], "awaiting-vote")
-
-    def test_vote_timeout_waits_for_rm_and_preserves_baseline(self):
-        r = record("voting")
-        r.update(discussion="url", verified_vote_files=True)
-        self.atr.release.return_value = release()
-        with patch.object(
-            c, "now", return_value=model.timestamp("2026-09-08T00:00:00Z")
-        ):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "voting")
-        self.assertIn("RM", r["attention"])
-        self.assertEqual(self.state["baseline"], {"tag": "v0.59.0"})
-
-    def test_cancelled_vote_and_rehearsal_never_advance_baseline(self):
-        for dry, phase, expected in [
-            (False, "release_candidate_draft", "cancelled"),
-            (True, "release_preview", "rehearsed"),
-        ]:
-            r = record("voting", dry=dry)
-            r["discussion"] = "url"
-            self.atr.release.return_value = release(
-                phase, resolved="2026-09-07T01:00:00Z"
-            )
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            self.assertEqual(r["phase"], expected)
-            self.assertEqual(self.state["baseline"], {"tag": "v0.59.0"})
-
-    def test_passing_vote_is_not_yet_a_published_release(self):
-        r = record("voting")
-        r.update(discussion="url", verified_vote_files=True)
-        self.atr.release.return_value = release(
-            "release_preview", resolved="2026-09-07T01:00:00Z"
-        )
-        c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "publishing")
-        self.assertEqual(self.state["baseline"], {"tag": "v0.59.0"})
-        with (
-            patch.object(
-                c, "published_files", side_effect=ValueError("not propagated")
-            ),
-            self.assertRaises(ValueError),
-        ):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(self.state["baseline"], {"tag": "v0.59.0"})
-        with patch.object(c, "published_files"):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(self.state["baseline"]["sha"], SHA)
-        self.assertEqual(r["phase"], "announcing")
-
-    def test_uncertain_announcement_is_not_repeated(self):
-        r = record("announcing")
-        self.atr.release.return_value = release("release_preview")
-        with (
-            patch.object(c, "output", side_effect=TimeoutError()),
-            self.assertRaises(TimeoutError),
-        ):
-            c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        with patch.object(c, "output") as output:
-            with self.assertRaises(ValueError):
-                c.reconcile(r, self.state, CFG, self.atr, self.persist)
-            output.assert_not_called()
-        self.atr.release.return_value = release("release")
-        c.reconcile(r, self.state, CFG, self.atr, self.persist)
-        self.assertEqual(r["phase"], "syncing")
-
-
-class ArtifactTests(unittest.TestCase):
-    def test_immutable_actions_zip_inventory(self):
-        r = record()
-        files = {p.split("/", 1)[1]: b"content" for p in c.expected_paths(r)}
-        buf = io.BytesIO()
-        with zipfile.ZipFile(buf, "w") as z:
-            for name, data in files.items():
-                z.writestr(name, data)
-        response = {
-            "artifacts": [{"id": 1, "name": "signed-source-123-1", "expired": False}]
-        }
-        with (
-            patch.object(c, "api", return_value=response),
-            patch.object(c, "run", return_value=buf.getvalue()),
-        ):
-            checksums = c.signed_checksums(r, CFG)
-        self.assertEqual(set(checksums), c.expected_paths(r))
-        self.assertEqual(
-            set(checksums.values()), {hashlib.sha512(b"content").hexdigest()}
-        )
-        r["versions"]["bindings/python"] = "0.47.1"
-        with (
-            patch.object(c, "api", return_value=response),
-            patch.object(c, "run", return_value=buf.getvalue()),
-            self.assertRaises(ValueError),
-        ):
-            c.signed_checksums(r, CFG)
-
-    def test_changed_atr_bytes_require_rm_cancellation(self):
-        r = record("voting")
-        r["checksums"] = {
-            p: hashlib.sha512(b"original").hexdigest() for p in c.expected_paths(r)
-        }
-        remote = Mock(spec=atr.ATR)
-        remote.request.return_value = {"rel_paths": list(c.expected_paths(r))}
-        remote.release.return_value = release()
-        with (
-            patch.object(c, "download", return_value=b"modified"),
-            self.assertRaises(ValueError),
-        ):
-            c.capture_files(r, remote)
-
-    def test_publication_compares_every_signed_file(self):
-        r = record("publishing")
-        r["checksums"] = {
-            p: hashlib.sha512(b"content").hexdigest() for p in c.expected_paths(r)
-        }
-        with patch.object(c, "download", return_value=b"content") as download:
-            c.published_files(r)
-            self.assertEqual(download.call_count, 3)
-        with (
-            patch.object(c, "download", return_value=b"different"),
-            self.assertRaises(ValueError),
-        ):
-            c.published_files(r)
-
-
-class PlanningGitTests(unittest.TestCase):
-    def test_sync_merge_alone_does_not_create_a_release(self):
-        with tempfile.TemporaryDirectory() as tmp:
-
-            def git(*args):
-                return (
-                    subprocess.check_output(
-                        ["git", "-C", tmp, *args], stderr=subprocess.DEVNULL
-                    )
-                    .decode()
-                    .strip()
-                )
-
-            git("init", "-b", "main")
-            git("config", "user.name", "Test")
-            git("config", "user.email", "test@example.org")
-            git("config", "commit.gpgsign", "false")
-            p = Path(tmp) / "core"
-            p.mkdir()
-            (p / "Cargo.toml").write_text('version = "0.59.0"')
-            git("add", ".")
-            git("commit", "-m", "Baseline")
-            base = git("rev-parse", "HEAD")
-            (p / "Cargo.toml").write_text('version = "0.59.1"')
-            git("commit", "-am", "Sync released version")
-            sync = git("rev-parse", "HEAD")
-            state = {
-                "baseline": {"sha": base},
-                "candidates": {"old": {"sync_number": 1}},
-            }
-            with (
-                patch.object(c, "git", side_effect=git),
-                patch.object(c, "cutoff_commit", return_value=sync),
-                patch.object(
-                    c, "api", return_value={"merged": True, "merge_commit_sha": sync}
-                ),
-            ):
-                c.plan(state, CFG)
-            self.assertEqual(
-                [r["phase"] for k, r in state["candidates"].items() if k != "old"],
-                ["skipped"],
-            )
 
 
 if __name__ == "__main__":

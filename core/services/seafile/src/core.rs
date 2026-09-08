@@ -584,12 +584,12 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 mod tests {
     use std::collections::VecDeque;
     use std::future::Future;
-    use std::sync::Mutex;
     use std::task::Context;
     use std::task::Waker;
 
+    use asyncband::mutex::Mutex;
+    use asyncband::semaphore::Semaphore;
     use http::StatusCode;
-    use tokio::sync::Semaphore;
 
     use super::*;
 
@@ -610,10 +610,10 @@ mod tests {
 
     impl HttpTransport for AuthTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-            let (path, body) = self.responses.lock().unwrap().pop_front().unwrap();
+            let (path, body) = self.responses.lock().await.pop_front().unwrap();
             assert_eq!(req.uri().path(), path);
             if path == "/api2/repos" {
-                drop(self.repositories.acquire().await.unwrap());
+                drop(self.repositories.acquire(1).await);
             }
             Ok(Response::builder()
                 .body(HttpBody::new(
@@ -647,7 +647,7 @@ mod tests {
             ("/api2/auth-token/", r#"{"token":"second"}"#),
             ("/api2/repos", r#"[{"name":"test","id":"repo-id"}]"#),
         ]);
-        transport.repositories.add_permits(1);
+        transport.repositories.release(1);
         let (core, ctx) = auth_core(transport.clone());
 
         let err = core.get_auth_info(&ctx).await.err().unwrap();
@@ -655,7 +655,7 @@ mod tests {
         let auth = core.get_auth_info(&ctx).await.unwrap();
         assert_eq!(auth.repo_id, "repo-id");
         assert_eq!(auth.token, "second");
-        assert!(transport.responses.lock().unwrap().is_empty());
+        assert!(transport.responses.lock().await.is_empty());
     }
 
     #[tokio::test]
@@ -672,11 +672,11 @@ mod tests {
         assert!(first.as_mut().poll(&mut cx).is_pending());
         drop(first);
 
-        transport.repositories.add_permits(1);
+        transport.repositories.release(1);
         let auth = core.get_auth_info(&ctx).await.unwrap();
         assert_eq!(auth.repo_id, "repo-id");
         assert_eq!(auth.token, "second");
-        assert!(transport.responses.lock().unwrap().is_empty());
+        assert!(transport.responses.lock().await.is_empty());
     }
 
     #[tokio::test]
@@ -695,14 +695,14 @@ mod tests {
         assert!(cancelled.as_mut().poll(&mut cx).is_pending());
         drop(cancelled);
 
-        transport.repositories.add_permits(1);
+        transport.repositories.release(1);
         let (first, second) = tokio::join!(first, second);
         for auth in [first, second, core.get_auth_info(&ctx).await] {
             let auth = auth.unwrap();
             assert_eq!(auth.repo_id, "repo-id");
             assert_eq!(auth.token, "shared");
         }
-        assert!(transport.responses.lock().unwrap().is_empty());
+        assert!(transport.responses.lock().await.is_empty());
     }
 
     #[tokio::test]

@@ -254,6 +254,29 @@ mod tests {
         Ok(())
     }
 
+    /// Http mode never classifies. HF puts `x-xet-hash` on the 302 it answers
+    /// with, not on the CDN response the transport follows it to, so a
+    /// response that does carry the header is still streamed as bytes rather
+    /// than parsed as metadata -- and no separate probe is issued.
+    #[tokio::test]
+    async fn test_http_mode_streams_bytes_without_probing() -> Result<()> {
+        let (mut core, ctx, mock_client) = test_core();
+        core.download_mode = HfDownloadMode::Http;
+        mock_client.set_xet_backed(&"11".repeat(32), 64);
+        let reader = hf_reader(core, ctx, "file.bin");
+
+        let (_, mut stream) = reader.open(BytesRange::new(0, Some(4))).await?;
+        let chunk = stream.read().await?;
+
+        assert!(
+            chunk.to_bytes().starts_with(br#"{"hash""#),
+            "the body must be handed back verbatim, not parsed"
+        );
+        assert_eq!(mock_client.request_count(), 1, "one resolve, no probe");
+
+        Ok(())
+    }
+
     /// A failed classifying resolve must not permanently cache a failure:
     /// the next `open()` on the same reader should retry rather than being
     /// stuck erroring for the reader's whole lifetime.

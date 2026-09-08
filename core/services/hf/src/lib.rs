@@ -43,6 +43,7 @@ mod core;
 mod deleter;
 mod lister;
 mod reader;
+mod utils;
 mod writer;
 
 pub use backend::HfBuilder as Hf;

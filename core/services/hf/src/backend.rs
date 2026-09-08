@@ -22,9 +22,10 @@ use std::time::Duration;
 use log::debug;
 
 use super::HF_SCHEME;
+use super::config::DEFAULT_RESOLVE_CACHE_TTL;
 use super::config::HfConfig;
 use super::core::HfCore;
-use super::core::{DEFAULT_RESOLVE_CACHE_TTL, HfDownloadMode};
+use super::core::HfDownloadMode;
 use super::core::{HfRepo, HfRepoType};
 use super::deleter::HfDeleter;
 use super::lister::HfLister;
@@ -162,11 +163,8 @@ impl HfBuilder {
             .to_string()
     }
 
-    /// Set how long a path's XET classification is reused before a read
-    /// probes `/resolve` again. See [`HfConfig::resolve_cache_ttl`] for what
-    /// the cache covers and what it does not. `Duration::ZERO` disables it.
-    ///
-    /// Default is 10 seconds. Takes precedence over the config value.
+    /// Set how long a path's XET classification is reused, overriding
+    /// [`HfConfig::resolve_cache_ttl`]. `Duration::ZERO` disables the cache.
     pub fn resolve_cache_ttl(mut self, ttl: Duration) -> Self {
         self.resolve_cache_ttl = Some(ttl);
         self
@@ -441,7 +439,8 @@ impl Service for HfBackend {
 pub(super) mod test_utils {
     use std::sync::Arc;
 
-    use super::super::core::{DEFAULT_RESOLVE_CACHE_TTL, HfCore, HfDownloadMode};
+    use super::super::config::DEFAULT_RESOLVE_CACHE_TTL;
+    use super::super::core::{HfCore, HfDownloadMode};
     use super::super::core::{HfRepo, HfRepoType};
     use super::HfBuilder;
     use opendal_core::Capability;

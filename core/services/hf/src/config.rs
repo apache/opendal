@@ -25,6 +25,10 @@ use std::fmt::Debug;
 
 use super::HUGGINGFACE_SCHEME;
 use opendal_core::raw::SignedDuration;
+use std::time::Duration;
+
+/// Outlasts the burst of ranges one scattered read fans over a file.
+pub(super) const DEFAULT_RESOLVE_CACHE_TTL: Duration = Duration::from_secs(10);
 
 /// Configuration for Hugging Face service support.
 #[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -62,17 +66,11 @@ pub struct HfConfig {
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
     /// How long a path's XET classification is reused before a read probes
-    /// it again.
+    /// `/resolve` again. Default `10s`; `0s` disables the cache.
     ///
-    /// In `xet` download mode every read first asks `/resolve` whether the
-    /// path is XET-backed. The answer is cached per path on the operator so
-    /// callers that open a fresh reader per range pay for it once. Writes
-    /// and deletes through this operator drop their own paths immediately;
-    /// this bounds how long a change made elsewhere to a floating revision
-    /// such as `main` can stay invisible. `0s` disables the cache.
-    ///
-    /// Default is `10s`. Accepts humantime-style strings such as `500ms`
-    /// or `2m` when set through a URI or `from_iter`.
+    /// A write or delete through this operator discards the cache outright,
+    /// so it never hides your own changes. This bounds how long a change made
+    /// *elsewhere* to a floating revision such as `main` stays invisible.
     pub resolve_cache_ttl: Option<SignedDuration>,
 }
 

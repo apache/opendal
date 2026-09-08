@@ -16,7 +16,6 @@
 // under the License.
 
 use asyncband::mutex::Mutex;
-use asyncband::once::OnceCell;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -25,7 +24,6 @@ use http::StatusCode;
 use http::header;
 use log::debug;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -35,6 +33,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use super::HUGGINGFACE_SCHEME;
+use super::utils::TtlCache;
 
 /// Repository type of Huggingface. Supports `model`, `dataset`, `space`, and `bucket`.
 /// [Reference](https://huggingface.co/docs/hub/repositories)
@@ -195,24 +194,6 @@ struct XetToken {
 /// refreshing again itself via its own unmocked, uncounted HTTP client.
 const XET_TOKEN_REFRESH_BUFFER_SECS: u64 = 120;
 
-/// How many paths `HfCore::resolve_cache` holds before it is dropped
-/// wholesale.
-const RESOLVE_CACHE_CAP: usize = 8192;
-
-/// Default for `HfCore::resolve_cache_ttl`. Ten seconds outlasts the burst of
-/// ranges a scattered read fans over one file, while keeping short the window
-/// in which another writer's change stays invisible.
-pub(super) const DEFAULT_RESOLVE_CACHE_TTL: Duration = Duration::from_secs(10);
-
-/// One path's cached XET classification. The cell holds `Some` when the path
-/// is XET-backed and `None` when it is not; it is shared behind an `Arc` so
-/// concurrent readers of the same path await one another's probe instead of
-/// each issuing their own.
-struct ResolveCacheEntry {
-    cell: Arc<OnceCell<Option<Arc<XetFileResponse>>>>,
-    inserted_at: Instant,
-}
-
 /// Which CAS token scope to fetch/cache -- reads and writes are distinct HF
 /// API token scopes, each with their own cache slot on [`HfCore`].
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -327,23 +308,10 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
-    /// Cached XET classification per repo-relative path (the form
-    /// [`Self::repo_path`] produces, so commit payloads and cache keys agree).
-    ///
-    /// Lives here rather than on `HfReader` because callers that read one
-    /// range per reader -- `object_store::get_opts`, and so lance's
-    /// scattered take -- never reuse a reader, and a reader-scoped cache
-    /// cannot help them. Each entry also single-flights its probe across
-    /// every reader on this core.
-    ///
-    /// Consistency: [`Self::forget_resolved`] drops the paths this core
-    /// writes or deletes, so a reader always observes this `Operator`'s own
-    /// changes; `resolve_cache_ttl` bounds how long a change made elsewhere
-    /// to a floating revision stays invisible. [`HfConfig::resolve_cache_ttl`]
-    /// documents that contract for users. The lock is a plain mutex because
-    /// it is never held across an await.
-    resolve_cache: Arc<std::sync::Mutex<HashMap<String, ResolveCacheEntry>>>,
-    resolve_cache_ttl: Duration,
+    /// Cached XET classification, keyed by repo-relative path. Lives here
+    /// rather than on `HfReader` because callers that build a reader per
+    /// range never reuse one. See [`Self::retire_resolved`] for consistency.
+    resolve_cache: TtlCache<String, Option<XetFileResponse>>,
     /// Cached CAS read token, shared by every `XetDownloadStreamGroup` this
     /// core creates, so at most one `xet-read-token` request happens per
     /// token lifetime instead of one per group (one per file read).
@@ -385,8 +353,7 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
-            resolve_cache: Arc::new(std::sync::Mutex::new(HashMap::new())),
-            resolve_cache_ttl,
+            resolve_cache: TtlCache::new(resolve_cache_ttl),
             xet_read_token: Arc::new(Mutex::new(None)),
             xet_write_token: Arc::new(Mutex::new(None)),
         }
@@ -685,68 +652,29 @@ impl HfCore {
         Ok(files.remove(0))
     }
 
-    /// XET metadata for `path`, or `None` when the path is not XET-backed,
-    /// reusing this core's cache and single-flighting the probe.
-    ///
-    /// The probe asks for one byte rather than the caller's range. HF returns
-    /// whole-file XET metadata regardless of the range, so one shared
-    /// response is correct for every caller no matter which ranges they go on
-    /// to want; and for a path that turns out *not* to be XET-backed, the
-    /// response body is real file content that this method discards, so
-    /// asking for a byte keeps that waste to a byte.
-    ///
-    /// An entry older than `resolve_cache_ttl` is replaced rather than
-    /// reused. A failed probe leaves the cell empty, so the next caller
-    /// retries instead of inheriting the failure.
+    /// XET metadata for `path`, or `None` when the path is not XET-backed.
     pub(super) async fn cached_xet_info(
         &self,
         ctx: &OperationContext,
         path: &str,
-    ) -> Result<Option<Arc<XetFileResponse>>> {
-        if self.resolve_cache_ttl.is_zero() {
-            return self.probe_xet_info(ctx, path).await;
-        }
-
-        let key = self.repo_path(path);
-        let cell = {
-            let mut cache = self.resolve_cache.lock().unwrap();
-            match cache.get(&key) {
-                Some(entry) if entry.inserted_at.elapsed() < self.resolve_cache_ttl => {
-                    entry.cell.clone()
-                }
-                _ => {
-                    if cache.len() >= RESOLVE_CACHE_CAP {
-                        // Reap what has already expired before falling back
-                        // to dropping entries a reader may still be using.
-                        cache.retain(|_, e| e.inserted_at.elapsed() < self.resolve_cache_ttl);
-                        if cache.len() >= RESOLVE_CACHE_CAP {
-                            cache.clear();
-                        }
-                    }
-                    let cell = Arc::new(OnceCell::new());
-                    cache.insert(
-                        key,
-                        ResolveCacheEntry {
-                            cell: cell.clone(),
-                            inserted_at: Instant::now(),
-                        },
-                    );
-                    cell
-                }
-            }
-        };
-
-        cell.get_or_try_init(|| self.probe_xet_info(ctx, path))
+    ) -> Result<Option<XetFileResponse>> {
+        self.resolve_cache
+            .get_or_try_init(self.repo_path(path), async || {
+                self.probe_xet_info(ctx, path).await
+            })
             .await
-            .cloned()
     }
 
     /// Ask HF whether `path` is XET-backed, bypassing the cache.
+    ///
+    /// Probes one byte rather than the caller's range: HF returns whole-file
+    /// metadata regardless of range, and for a non-XET path the discarded
+    /// body is then a byte instead of the caller's range.
     async fn probe_xet_info(
         &self,
         ctx: &OperationContext,
         path: &str,
-    ) -> Result<Option<Arc<XetFileResponse>>> {
+    ) -> Result<Option<XetFileResponse>> {
         let resp = self
             .resolve(ctx, path, BytesRange::new(0, Some(1)), HfDownloadMode::Xet)
             .await?;
@@ -757,34 +685,17 @@ impl HfCore {
         }
         let (_, mut body) = resp.into_parts();
         let buf = body.to_buffer().await?;
-        let info: XetFileResponse =
-            serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
-        Ok(Some(Arc::new(info)))
+        let info = serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
+        Ok(Some(info))
     }
 
-    /// Drop the cached classifications of `files` and of everything under
-    /// `folders` (repo-relative paths, as they appear in commit payloads), so
-    /// no reader on this core serves a path this core just wrote or deleted
-    /// from a stale entry. A probe already in flight keeps its own cell and
-    /// may still observe the pre-commit state; every later reader re-probes.
-    fn forget_resolved<'a>(
-        &self,
-        files: impl IntoIterator<Item = &'a str>,
-        folders: impl IntoIterator<Item = &'a str>,
-    ) {
-        let mut cache = self.resolve_cache.lock().unwrap();
-        for file in files {
-            cache.remove(file);
-        }
-        let folders: Vec<&str> = folders.into_iter().map(|f| f.trim_matches('/')).collect();
-        if !folders.is_empty() {
-            cache.retain(|key, _| {
-                !folders.iter().any(|folder| {
-                    key.strip_prefix(folder)
-                        .is_some_and(|rest| rest.starts_with('/'))
-                })
-            });
-        }
+    /// Drop every cached classification, so no reader serves a path this core
+    /// just wrote or deleted from a stale entry. Wholesale rather than by
+    /// path, so a future mutation cannot get it wrong by omission. Callers
+    /// invoke it after the request, and on failure too since the commit may
+    /// still have landed.
+    fn retire_resolved(&self) {
+        self.resolve_cache.clear();
     }
 
     /// Send `GET /resolve` and return the raw streaming response.
@@ -863,19 +774,8 @@ impl HfCore {
             .body(Buffer::from(json_body))
             .map_err(new_request_build_error)?;
 
-        // Invalidate after the request rather than before, so a probe that
-        // raced the commit cannot re-cache the pre-commit state; and on a
-        // transport error too, since the commit may still have landed.
         let sent = self.send(ctx, req).await;
-        self.forget_resolved(
-            payload
-                .files
-                .iter()
-                .map(|f| f.path.as_str())
-                .chain(payload.lfs_files.iter().map(|f| f.path.as_str()))
-                .chain(payload.deleted_files.iter().map(|f| f.path.as_str())),
-            payload.deleted_folders.iter().map(|f| f.path.as_str()),
-        );
+        self.retire_resolved();
         let resp = sent?;
         if !resp.status().is_success() {
             let (parts, _) = resp.into_parts();
@@ -907,8 +807,8 @@ impl HfCore {
         let url = self.repo.bucket_batch_url(&self.endpoint);
 
         let mut body = String::new();
-        for op in &operations {
-            let json = serde_json::to_string(op).map_err(new_json_serialize_error)?;
+        for op in operations {
+            let json = serde_json::to_string(&op).map_err(new_json_serialize_error)?;
             body.push_str(&json);
             body.push('\n');
         }
@@ -920,17 +820,8 @@ impl HfCore {
             .body(Buffer::from(Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        // See `commit_git` for why this runs after the request, on either
-        // outcome.
         let sent = self.send(ctx, req).await;
-        self.forget_resolved(
-            operations.iter().map(|op| match op {
-                BucketOperation::AddFile { path, .. } | BucketOperation::DeleteFile { path } => {
-                    path.as_str()
-                }
-            }),
-            [],
-        );
+        self.retire_resolved();
         let resp = sent?;
         if !resp.status().is_success() {
             let (parts, _) = resp.into_parts();
@@ -965,9 +856,8 @@ pub(crate) mod test_utils {
         /// mocked [`XetFileResponse`] body instead of plain bytes, so tests
         /// can exercise the XET classification path without real network.
         xet_file: Arc<Mutex<Option<XetFileResponse>>>,
-        /// `Range` header of the most recent XET metadata probe (a `/resolve/`
-        /// that hit the `xet_file` branch above), so tests can check the probe
-        /// sends its fixed single-byte range rather than a caller's.
+        /// `Range` header of the most recent XET metadata probe, so tests can
+        /// check it sends a fixed single byte rather than the caller's range.
         classify_range_header: Arc<Mutex<Option<String>>>,
     }
 
@@ -1018,8 +908,6 @@ pub(crate) mod test_utils {
             *self.request_count.lock().unwrap()
         }
 
-        /// `Range` header of the most recent XET metadata probe, or `None` if
-        /// no probe has happened yet.
         pub(crate) fn get_captured_classify_range_header(&self) -> Option<String> {
             self.classify_range_header.lock().unwrap().clone()
         }
@@ -1170,7 +1058,7 @@ pub(crate) mod test_utils {
             endpoint.to_string(),
             xet_session,
             HfDownloadMode::Xet,
-            DEFAULT_RESOLVE_CACHE_TTL,
+            crate::config::DEFAULT_RESOLVE_CACHE_TTL,
         );
 
         (core, ctx, transport)
@@ -1702,12 +1590,11 @@ mod tests {
         Ok(())
     }
 
-    /// The cache is keyed by repo-relative path, the same form commit
-    /// payloads carry, so a write through this core to a path under a
-    /// non-root `root` still drops the entry a reader cached under the
-    /// operator-relative name. Untouched paths keep their entries.
+    /// A commit retires every cached classification, so a later reader sees
+    /// this `Operator`'s own write. Uses a non-root `root` because the cache
+    /// is keyed by repo-relative path.
     #[tokio::test]
-    async fn test_resolve_cache_forgets_paths_this_core_writes() -> Result<()> {
+    async fn test_commit_retires_cached_classifications() -> Result<()> {
         let (mut core, ctx, mock_client) = test_core();
         core.root = "/data/".to_string();
         core.token = Some("hf_dummy".to_string());
@@ -1739,49 +1626,15 @@ mod tests {
         assert_eq!(second.size, 128, "a reader must see this core's own write");
         assert_eq!(mock_client.request_count(), 4, "f.bin is re-probed once");
 
+        // Retirement is wholesale, so a path the commit never named is
+        // re-probed too.
         core.cached_xet_info(&ctx, "g.bin").await?;
-        assert_eq!(mock_client.request_count(), 4, "g.bin stays cached");
+        assert_eq!(mock_client.request_count(), 5, "g.bin is re-probed as well");
 
-        Ok(())
-    }
-
-    /// Deleting a folder drops every cached path under it, and only those.
-    #[tokio::test]
-    async fn test_resolve_cache_forgets_deleted_folders() -> Result<()> {
-        let (mut core, ctx, mock_client) = test_core();
-        core.token = Some("hf_dummy".to_string());
-        mock_client.set_xet_backed(&"11".repeat(32), 64);
-
-        for path in ["dir/a.bin", "dir/sub/b.bin", "dir2/c.bin"] {
-            core.cached_xet_info(&ctx, path).await?;
-        }
-        assert_eq!(mock_client.request_count(), 3);
-
-        core.commit_git(
-            &ctx,
-            vec![],
-            vec![],
-            vec![],
-            vec![DeletedFolder {
-                path: "dir".to_string(),
-            }],
-        )
-        .await?;
-        assert_eq!(mock_client.request_count(), 4);
-
-        core.cached_xet_info(&ctx, "dir2/c.bin").await?;
-        assert_eq!(
-            mock_client.request_count(),
-            4,
-            "a sibling folder is untouched"
-        );
-        core.cached_xet_info(&ctx, "dir/a.bin").await?;
-        core.cached_xet_info(&ctx, "dir/sub/b.bin").await?;
-        assert_eq!(
-            mock_client.request_count(),
-            6,
-            "everything under dir/ re-probes"
-        );
+        // Both are warm again.
+        core.cached_xet_info(&ctx, "f.bin").await?;
+        core.cached_xet_info(&ctx, "g.bin").await?;
+        assert_eq!(mock_client.request_count(), 5);
 
         Ok(())
     }
@@ -1845,26 +1698,6 @@ mod tests {
 
         core.cached_xet_info(&ctx, "f.bin").await?;
         assert_eq!(mock_client.request_count(), 3, "f.bin is re-probed");
-
-        Ok(())
-    }
-
-    /// A zero TTL disables the cache: every lookup probes, so a change made
-    /// by another writer is picked up immediately.
-    #[tokio::test]
-    async fn test_zero_ttl_disables_resolve_cache() -> Result<()> {
-        let (mut core, ctx, mock_client) = test_core();
-        mock_client.set_xet_backed(&"11".repeat(32), 64);
-
-        core.cached_xet_info(&ctx, "f.bin").await?;
-        core.cached_xet_info(&ctx, "f.bin").await?;
-        assert_eq!(mock_client.request_count(), 1, "within the TTL: cached");
-
-        core.resolve_cache_ttl = Duration::ZERO;
-        mock_client.set_xet_backed(&"22".repeat(32), 128);
-        let info = core.cached_xet_info(&ctx, "f.bin").await?.unwrap();
-        assert_eq!(mock_client.request_count(), 2, "zero TTL: re-probed");
-        assert_eq!(info.size, 128);
 
         Ok(())
     }

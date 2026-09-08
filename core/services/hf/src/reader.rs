@@ -121,10 +121,9 @@ pub struct HfReader {
     path: String,
     // `Some((hash, size))`/`None` once this path is known to be (or not be)
     // XET-backed; only consulted in `HfDownloadMode::Xet`. Single-flighted via
-    // `get_or_try_init`, so concurrent cold opens share one classifying
-    // resolve and every later range reuses it. If not XET-backed, that first
-    // resolve's body goes unused and every open falls back to its own fresh
-    // resolve -- one wasted request per reader, not per range.
+    // `get_or_try_init`, so concurrent cold opens share one probe and every
+    // later range reuses it. If not XET-backed, every open falls back to its
+    // own fresh resolve -- one wasted request per reader, not per range.
     //
     // Never re-validated for this reader's life, so a file changed mid-read
     // (e.g. a new commit on a floating `main`) can serve stale content --
@@ -163,26 +162,6 @@ impl HfReader {
             .await?;
         HfReadStream::new_xet(group, hash, size, range).await
     }
-
-    /// Classify an already-fetched resolve response and dispatch to the
-    /// matching stream. Used by [`Self::open`]'s Http-mode branch, which
-    /// classifies the same response it fetches bytes from. The Xet-mode
-    /// fallback (re-resolving in `HfDownloadMode::Http` after classification
-    /// came back non-XET) does not call this -- it never re-checks for
-    /// XET metadata on that second resolve, so it goes straight to
-    /// `new_http` instead.
-    async fn dispatch(
-        &self,
-        core: &HfCore,
-        path: &str,
-        range: BytesRange,
-        resp: Response<HttpBody>,
-    ) -> Result<(RpRead, HfReadStream)> {
-        match HfReadStream::maybe_xet(resp).await? {
-            Ok(info) => self.xet_stream(core, &info.hash, info.size, range).await,
-            Err(resp) => HfReadStream::new_http(path, resp),
-        }
-    }
 }
 
 impl oio::StreamRead for HfReader {
@@ -192,22 +171,36 @@ impl oio::StreamRead for HfReader {
 
         if core.download_mode != HfDownloadMode::Xet {
             // Http mode: resolve() is itself the byte-fetching request, done
-            // fresh per range -- there's no separate metadata step to cache.
+            // fresh per range -- there is no metadata step to cache. HF puts
+            // `x-xet-hash` on the 302 it answers with, not on the CDN
+            // response the transport follows it to, so there is nothing to
+            // classify here either.
             let resp = core
                 .resolve(&self.ctx, path, range, core.download_mode)
                 .await?;
-            let (rp, stream) = self.dispatch(core, path, range, resp).await?;
+            let (rp, stream) = HfReadStream::new_http(path, resp)?;
             return Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>));
         }
 
         // Xet mode: classification is single-flighted, see `resolved`'s
         // doc comment for why that's free for the XET outcome and cheap
         // (one extra request, once per reader) for the NotXet one.
+        //
+        // The probe asks for one byte rather than the caller's range. HF
+        // returns whole-file XET metadata regardless of range, so one shared
+        // response is correct for every range; and when the path turns out
+        // not to be XET-backed the discarded body is a byte instead of the
+        // caller's range.
         let classification = self
             .resolved
             .get_or_try_init(|| async {
                 let resp = core
-                    .resolve(&self.ctx, path, range, HfDownloadMode::Xet)
+                    .resolve(
+                        &self.ctx,
+                        path,
+                        BytesRange::new(0, Some(1)),
+                        HfDownloadMode::Xet,
+                    )
                     .await?;
                 match HfReadStream::maybe_xet(resp).await? {
                     Ok(info) => Ok(Some((info.hash, info.size))),
@@ -399,54 +392,59 @@ mod tests {
         Ok(())
     }
 
-    /// Documents a known sharp edge in the single-flighted classification:
-    /// the `Range` header on the one shared classifying resolve comes from
-    /// whichever concurrent `open()` call happens to win `get_or_try_init`'s
-    /// race, not from the caller that ends up consuming the result. All
-    /// racing callers get that winner's classification regardless of their
-    /// own requested range. See `resolved`'s field doc and the review notes
-    /// on this PR -- not yet confirmed against the real HF service, so no
-    /// fix has been applied; this test only pins today's behavior so a
-    /// future change here is deliberate.
+    /// The probe asks for a fixed single byte, never the caller's range.
+    /// Verified against the live API: XET metadata is byte-identical for no
+    /// range, a head range, and a range far into the file, so one response
+    /// serves every caller -- and for a path that turns out not to be
+    /// XET-backed the discarded body is one byte instead of the whole file
+    /// (248,987 B measured before this).
     #[tokio::test]
-    async fn test_concurrent_cold_opens_classify_with_one_racing_callers_range() -> Result<()> {
+    async fn test_xet_probe_uses_fixed_single_byte_range() -> Result<()> {
         let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
-        mock_client.set_xet_backed(&"00".repeat(32), 4);
+        mock_client.set_xet_backed(&"00".repeat(32), 64);
         mock_client.set_xet_token_expires_at(u64::MAX);
         let reader = hf_reader(core, ctx, "xet-file.bin");
 
-        let ranges = [
-            BytesRange::new(0, Some(1)),
-            BytesRange::new(10, Some(1)),
-            BytesRange::new(20, Some(1)),
-        ];
-        let (r1, r2, r3) = futures::join!(
-            reader.open(ranges[0]),
-            reader.open(ranges[1]),
-            reader.open(ranges[2]),
-        );
-        r1?;
-        r2?;
-        r3?;
+        reader.open(BytesRange::new(8, Some(4))).await?;
 
-        // Exactly one classifying resolve fires (see
-        // `test_concurrent_cold_opens_on_xet_file_share_one_group`), and its
-        // `Range` header must be exactly one of the three racing callers'
-        // own ranges -- not absent, and not some range not asked for by any
-        // of them.
-        let captured = mock_client
-            .get_captured_classify_range_header()
-            .expect("the shared classifying resolve must carry a Range header");
-        assert!(
-            ranges.iter().any(|r| r.to_header() == captured),
-            "the shared classifying resolve's Range header ({captured:?}) must match \
-             one of the racing callers' own ranges"
+        assert_eq!(
+            mock_client.get_captured_classify_range_header().as_deref(),
+            Some("bytes=0-0"),
+            "the probe must not inherit the caller's range"
         );
+
+        Ok(())
+    }
+
+    /// Http mode never classifies. HF puts `x-xet-hash` on the 302 it
+    /// answers with, not on the CDN response the transport follows it to, so
+    /// a response that does carry the header is still streamed as bytes
+    /// rather than parsed as metadata -- and no separate probe is issued.
+    #[tokio::test]
+    async fn test_http_mode_streams_bytes_without_probing() -> Result<()> {
+        let (mut core, ctx, mock_client) = create_test_core(
+            HfRepoType::Model,
+            "test-user/test-repo",
+            "main",
+            "https://huggingface.co",
+        );
+        core.download_mode = HfDownloadMode::Http;
+        mock_client.set_xet_backed(&"11".repeat(32), 64);
+        let reader = hf_reader(core, ctx, "file.bin");
+
+        let (_, mut stream) = reader.open(BytesRange::new(0, Some(4))).await?;
+        let chunk = stream.read().await?;
+
+        assert!(
+            chunk.to_bytes().starts_with(br#"{"hash""#),
+            "the body must be handed back verbatim, not parsed"
+        );
+        assert_eq!(mock_client.request_count(), 1, "one resolve, no probe");
 
         Ok(())
     }

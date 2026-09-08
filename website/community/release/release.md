@@ -474,6 +474,14 @@ Example: <https://lists.apache.org/thread/xk5myl10mztcfotn59oo59s4ckvojds6>
 
 ## Official Release
 
+The release manager initiates this phase after the vote passes. Weekly candidate
+preparation does not monitor vote results or publish the final release. Use the
+approved RC commit even if `main` has advanced.
+
+For a candidate staged in ATR, complete source publication through ATR using the
+approved revision. The SVN instructions below apply to candidates staged in
+`dist/dev`; preserve the approved archives in either path.
+
 ### Push the release git tag
 
 ```shell
@@ -484,6 +492,17 @@ git tag -s v${release_version}
 # Push tags to GitHub to trigger releases
 git push origin v${release_version}
 ```
+
+Push the final tag with the release manager's credentials. This triggers the
+existing tag workflows: Rust, Python, Node.js, Ruby and .NET take their formal
+publication paths; Java stages to Nexus and requires the promotion below. Dart
+builds artifacts. Check the resulting runs and package repositories before
+claiming publication succeeded.
+
+Tags pushed with `GITHUB_TOKEN` do not trigger those push workflows. The weekly
+RC dispatcher does not automate final publication; its inputs preserve RC
+behavior, and Ruby publishing requires a tag push. Creating the GitHub Release
+later is separate from this trigger.
 
 ### Publish artifacts to SVN RELEASE branch
 

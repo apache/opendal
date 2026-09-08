@@ -9,8 +9,8 @@ Run this checklist immediately before creating the vote discussion:
 - RC tag exists and points to the intended commit.
 - A newer `main` SHA does not invalidate an existing RC by itself; the vote is on the RC tag and uploaded artifacts.
 - Required RC workflows are `completed/success`.
-- `dist/dev/opendal/${release_version}/` exists and contains all generated source artifacts.
-- The artifact filenames in `dist/dev` match the package-specific versions from `dev/src/release/package.rs`.
+- The selected ATR revision or `dist/dev/opendal/${release_version}/` contains the signed source artifacts being proposed.
+- Artifact filenames match the package-specific versions from `dev/src/release/package.rs`; signatures and hashes have been independently verified.
 - `KEYS` URL is reachable: `https://downloads.apache.org/opendal/KEYS`.
 - Maven staging URL returns success and is not an open/hidden staging repo.
 - TestPyPI project URL is reachable: `https://test.pypi.org/project/opendal/`.
@@ -23,6 +23,11 @@ explicitly narrows the gate or waives a non-source-package readiness issue.
 If TestPyPI publish failed only because a file already exists from the same RC
 attempt, distinguish that from missing artifacts. Report the exact duplicate
 filename and proceed only with an explicit release-manager waiver.
+
+A weekly candidate-ready Discussion is a preparation notice, not a vote. For
+ATR candidates, inspect ATR checks and pin the verified candidate revision; use
+the live ATR vote path and its artifact links. Do not substitute an unpopulated
+SVN directory in the vote text. The template below applies to SVN-staged votes.
 
 ## Start Vote Discussion
 

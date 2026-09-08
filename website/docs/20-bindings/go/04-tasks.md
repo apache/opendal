@@ -75,9 +75,8 @@ err := op.Write("path/to/file", []byte("Hello, World!"))
 
 ## Stream a large upload
 
-Use a `Writer` for data produced incrementally. It implements `io.WriteCloser`;
-call `Write` repeatedly, then `Close` to commit. Each `Write` call accepts up to
-256KB.
+Use a `Writer` for data produced incrementally. It implements `io.Writer`;
+call `Write` repeatedly, then `Close` to commit and return the object's metadata.
 
 ```go
 w, err := op.Writer("big.bin")
@@ -91,10 +90,25 @@ if _, err := w.Write(secondChunk); err != nil {
 	log.Fatal(err)
 }
 // Close finishes the write; data may be lost if you skip it.
-if err := w.Close(); err != nil {
+if _, err := w.Close(); err != nil {
 	log.Fatal(err)
 }
 ```
+
+## Copy between streams
+
+Use `io.Copy(w, src)` to upload from an `io.Reader`, such as an open local file.
+`Writer.ReadFrom` provides a bounded copy buffer when `io.Copy` delegates to the
+writer. Call `w.Close()` after the copy, and check both the copy and close errors.
+
+For downloads, `io.Copy(dst, r)` uses `Reader.WriteTo`.
+It writes the bytes from each `Read` call before it reads more data.
+Close the reader and destination after the copy.
+
+Both methods reuse a bounded buffer for the duration of the copy. They do not
+close either stream or choose the storage service's multipart upload size.
+`io.CopyBuffer` uses the same interface dispatch, so its supplied buffer is
+ignored when one of these methods handles the copy.
 
 ## Upload concurrently
 

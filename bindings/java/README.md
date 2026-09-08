@@ -115,21 +115,13 @@ try (OperatorInputStream in = op.createInputStream(
 }
 ```
 
-- `concurrent` limits internal chunk requests, not application transfers or Java
-  threads. Its default is `1`, and it must be positive.
-- `chunk` sets the target range request size in bytes. Its default is `-1`
-  (unchunked streaming); a positive value enables chunked reads and must fit the
-  native platform's unsigned pointer-sized integer. Setting `concurrent` without
-  setting `chunk` does not enable concurrent range reads.
-- `prefetch` limits completed chunks buffered ahead of consumption, not bytes.
-  Its default is `0` for strict backpressure, and it must be non-negative.
-- `contentLengthHint` supplies the full object length in bytes, even when reading
-  a subrange. Its default is `-1` (unknown); `0` is valid for an empty object.
-  This hint can avoid a metadata request. It does not enforce consistency, and an
-  incorrect hint can cause incomplete reads or errors.
+A positive `chunk` enables internal range requests. `concurrent` limits these
+requests, not application transfers or Java threads; `prefetch` counts completed
+chunks, not bytes. Setting `concurrent` alone keeps unchunked streaming.
+See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for
+all defaults, valid values, and content length hint semantics.
 
-Invalid values produce an `OpenDALException` with code `ConfigInvalid` when the
-stream is created. Payload memory usage generally grows with chunk size,
+Payload memory usage generally grows with chunk size,
 concurrency, and prefetching; SDK, JNI, and Java buffers add further overhead.
 These options do not imply a fixed memory formula or a throughput guarantee.
 

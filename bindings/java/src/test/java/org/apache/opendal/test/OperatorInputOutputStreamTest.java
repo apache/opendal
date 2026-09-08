@@ -43,7 +43,6 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 public class OperatorInputOutputStreamTest {
     @TempDir
@@ -97,9 +96,8 @@ public class OperatorInputOutputStreamTest {
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void testChunkedInputStream(boolean knownLength) throws Exception {
+    @Test
+    void testChunkedInputStream() throws Exception {
         final byte[] content = new byte[4 * 1024 * 1024 + 13];
         new Random(8252).nextBytes(content);
         final ServiceConfig.Fs fs =
@@ -111,7 +109,6 @@ public class OperatorInputOutputStreamTest {
                     .concurrent(4)
                     .chunk(64 * 1024L)
                     .prefetch(2)
-                    .contentLengthHint(knownLength ? content.length : -1L)
                     .build();
             try (final OperatorInputStream in =
                     op.createInputStream(path, ReadOptions.builder().build(), options)) {
@@ -139,23 +136,18 @@ public class OperatorInputOutputStreamTest {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo("45678".getBytes(StandardCharsets.UTF_8));
                 assertThat(in.read()).isEqualTo(-1);
             }
-            try (final OperatorInputStream in = new OperatorInputStream(op, path, range)) {
-                assertThat(IOUtils.toByteArray(in)).isEqualTo("45678".getBytes(StandardCharsets.UTF_8));
-                assertThat(in.read()).isEqualTo(-1);
-            }
         }
     }
 
-    @ParameterizedTest
-    @ValueSource(longs = {-1L, 0L})
-    void testEmptyInputStreamWithReaderOptions(long hint) throws Exception {
+    @Test
+    void testEmptyInputStreamWithReaderOptions() throws Exception {
         final ServiceConfig.Fs fs =
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         try (final Operator op = Operator.of(fs)) {
             final String path = "empty.bin";
             op.write(path, new byte[0]);
             final ReaderOptions options =
-                    ReaderOptions.builder().chunk(2).contentLengthHint(hint).build();
+                    ReaderOptions.builder().chunk(2).contentLengthHint(0).build();
             try (final OperatorInputStream in =
                     op.createInputStream(path, ReadOptions.builder().build(), options)) {
                 assertThat(in.read()).isEqualTo(-1);

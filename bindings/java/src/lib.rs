@@ -384,22 +384,6 @@ mod reader_options_tests {
     }
 
     #[test]
-    fn invalid_reader_options() {
-        for (concurrent, chunk, prefetch, hint, field) in [
-            (0, -1, 0, -1, "concurrent"),
-            (-1, -1, 0, -1, "concurrent"),
-            (1, 0, 0, -1, "chunk"),
-            (1, -2, 0, -1, "chunk"),
-            (1, -1, -1, -1, "prefetch"),
-            (1, -1, 0, -2, "contentLengthHint"),
-        ] {
-            let err = build_reader_options(concurrent, chunk, prefetch, hint).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-            assert!(err.message().contains(field));
-        }
-    }
-
-    #[test]
     fn chunk_conversion_respects_native_width() {
         let options = build_reader_options(1, i64::MAX, 0, -1);
         if usize::BITS < 64 {

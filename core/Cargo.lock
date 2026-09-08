@@ -6960,6 +6960,7 @@ name = "opendal-service-gcs"
 version = "0.59.1"
 dependencies = [
  "async-trait",
+ "asyncband",
  "bytes",
  "futures",
  "http 1.4.2",
@@ -7048,6 +7049,7 @@ dependencies = [
 name = "opendal-service-goosefs"
 version = "0.59.1"
 dependencies = [
+ "asyncband",
  "bytes",
  "goosefs-sdk",
  "log",

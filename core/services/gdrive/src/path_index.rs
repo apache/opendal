@@ -332,7 +332,7 @@ mod tests {
     use std::task::Waker;
 
     use asyncband::mutex::Mutex;
-    use tokio::sync::Semaphore;
+    use asyncband::semaphore::Semaphore;
 
     use super::*;
 
@@ -404,7 +404,7 @@ mod tests {
             }
             self.create_count.fetch_add(1, Ordering::SeqCst);
             if let Some(gate) = &self.create_gate {
-                drop(gate.acquire().await.unwrap());
+                drop(gate.acquire(1).await);
             }
             let id = format!("{parent_id}:{name}");
             self.insert(parent_id, name, &id).await;
@@ -501,7 +501,7 @@ mod tests {
         assert!(second.as_mut().poll(&mut cx).is_pending());
         assert_eq!(query.create_count.load(Ordering::SeqCst), 1);
 
-        gate.add_permits(1);
+        gate.release(1);
         let (first, second) = tokio::join!(first, second);
         assert_eq!(first.unwrap(), "svc-root:shared/:left/");
         assert_eq!(second.unwrap(), "svc-root:shared/:right/");
@@ -527,7 +527,7 @@ mod tests {
             assert!(second.as_mut().poll(&mut cx).is_pending());
             assert_eq!(query.create_count.load(Ordering::SeqCst), 2);
 
-            gate.add_permits(1);
+            gate.release(1);
             let (first, second) = tokio::join!(first, second);
             assert_ne!(first.unwrap(), second.unwrap());
         }
@@ -551,7 +551,7 @@ mod tests {
         assert!(second.as_mut().poll(&mut cx).is_pending());
         assert_eq!(query.create_count.load(Ordering::SeqCst), 2);
 
-        gate.add_permits(1);
+        gate.release(1);
         assert_eq!(second.await.unwrap(), "svc-root:dir/");
         assert_eq!(
             index.ensure_dir(&ctx, "root/dir").await.unwrap(),

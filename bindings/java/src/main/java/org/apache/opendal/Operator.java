@@ -115,11 +115,26 @@ public class Operator extends NativeObject {
     }
 
     public OperatorInputStream createInputStream(String path) {
-        return new OperatorInputStream(this, path, ReadOptions.builder().build());
+        return createInputStream(
+                path, ReadOptions.builder().build(), ReaderOptions.builder().build());
     }
 
     public OperatorInputStream createInputStream(String path, ReadOptions options) {
-        return new OperatorInputStream(this, path, options);
+        return createInputStream(path, options, ReaderOptions.builder().build());
+    }
+
+    /**
+     * Creates a stream over the requested range using the supplied reader execution options.
+     * The stream ends at the range boundary. Closing it releases its native reader.
+     *
+     * @param path object path
+     * @param readOptions logical offset and length
+     * @param readerOptions internal chunk request and buffering controls
+     * @return a stream that the caller must close
+     * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
+     */
+    public OperatorInputStream createInputStream(String path, ReadOptions readOptions, ReaderOptions readerOptions) {
+        return new OperatorInputStream(this, path, readOptions, readerOptions);
     }
 
     public void delete(String path) {

@@ -118,3 +118,83 @@ jobs:
       rc: ${{ needs.prepare.outputs.rc }}
     secrets:
       GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
+
+  builds:
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Dispatch existing RC workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RC: ${{ needs.prepare.outputs.rc }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          # GITHUB_TOKEN pushes do not trigger the existing tag workflows.
+          for workflow in ci_bindings_{c,cpp,d,dart,dotnet,go,haskell,java,lua,nodejs,ocaml,php,ruby,swift,zig}.yml release_{dart,dotnet,java,nodejs,python,ruby,rust}.yml docs.yml; do
+            # Reuse runs already accepted before a partial dispatch failure.
+            count=$(gh run list --repo apache/opendal --workflow "$workflow" --commit "$SHA" --event workflow_dispatch --limit 1 --json databaseId --jq length)
+            if [ "$count" -gt 0 ]; then continue; fi
+            args=()
+            case "$workflow" in
+              release_nodejs.yml) args=(-f nodejs-publish=false -f nodejs-publish-dry-run=false) ;;
+              release_dotnet.yml) args=(-f release_type=none) ;;
+              docs.yml) args=(-f release_version="v$RC" -f deploy-nightlies=false) ;;
+            esac
+            gh workflow run "$workflow" --repo apache/opendal --ref "v$RC" "${args[@]}"
+          done
+
+  notify:
+    needs: [prepare, compose, builds]
+    runs-on: ubuntu-latest
+    permissions:
+      discussions: write
+      contents: read
+    steps:
+      - name: Announce staged candidate for RM verification
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RC: ${{ needs.prepare.outputs.rc }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+        run: |
+          title="Source candidate ready: $RC"
+          # GraphQL variables must reach the API without shell expansion.
+          # shellcheck disable=SC2016
+          gh api graphql --paginate --slurp -f query='
+            query($endCursor: String) {
+              repository(owner: "apache", name: "opendal") {
+                id
+                discussionCategories(first: 100) { nodes { id name } }
+                discussions(first: 100, after: $endCursor) {
+                  nodes { title url }
+                  pageInfo { hasNextPage endCursor }
+                }
+              }
+            }' > "$RUNNER_TEMP/discussions.json"
+          existing=$(jq -r --arg title "$title" '[.[].data.repository.discussions.nodes[] | select(.title == $title) | .url][0] // empty' "$RUNNER_TEMP/discussions.json")
+          if [ -n "$existing" ]; then
+            echo "$existing" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          repository=$(jq -er '.[0].data.repository.id' "$RUNNER_TEMP/discussions.json")
+          category=$(jq -er '.[0].data.repository.discussionCategories.nodes[] | select(.name == "General") | .id' "$RUNNER_TEMP/discussions.json")
+          cat > "$RUNNER_TEMP/candidate-notice.md" <<EOF
+          Source candidate **$RC** has been built, signed and uploaded to ATR.
+
+          - [ATR candidate](https://releases.apache.org/compose/opendal/$RC)
+          - [RC tag](https://github.com/apache/opendal/releases/tag/v$RC), commit: \`$SHA\`
+          - [Source build and signed artifacts](https://github.com/apache/opendal/actions/runs/$GITHUB_RUN_ID)
+          - [RC builds and binding checks](https://github.com/apache/opendal/actions?query=branch%3Av$RC)
+
+          RC build workflows have been dispatched; this notice does not mean they have passed.
+          Release manager: check their results and staging outputs, inspect ATR checks, and independently verify the candidate before starting the formal vote. This Discussion is a preparation notice, not a vote.
+          EOF
+          # shellcheck disable=SC2016
+          gh api graphql -f query='
+            mutation($repository: ID!, $category: ID!, $title: String!, $body: String!) {
+              createDiscussion(input: {repositoryId: $repository, categoryId: $category, title: $title, body: $body}) {
+                discussion { url }
+              }
+            }' -f repository="$repository" -f category="$category" -f title="$title" -F body=@"$RUNNER_TEMP/candidate-notice.md" --jq '.data.createDiscussion.discussion.url' >> "$GITHUB_STEP_SUMMARY"

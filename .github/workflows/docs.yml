@@ -37,6 +37,10 @@ on:
     paths: *paths
   workflow_dispatch:
     inputs:
+      deploy-nightlies:
+        description: "Deploy built documentation to nightlies"
+        type: boolean
+        default: true
       release_version:
         description: "Release tag to deploy to nightlies"
         required: true
@@ -642,7 +646,7 @@ jobs:
           OPENDAL_WEBSITE_NOT_LATEST: true
 
       - name: Deploy to nightlies for tagged version
-        if: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || github.event_name == 'workflow_dispatch' }}
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         shell: bash
         env:
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
@@ -670,7 +674,7 @@ jobs:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
 
       - name: Deploy to nightlies for stable version
-        if: ${{ (startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || github.event_name == 'workflow_dispatch' }}
+        if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         shell: bash
         env:
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}

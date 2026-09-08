@@ -2,7 +2,30 @@
 
 Repository paths and shell commands are relative to the repository root.
 
-## RC Tagging
+## Weekly ATR Preparation
+
+Read `website/community/release/weekly.md` and the selected revision of
+`.github/workflows/weekly_release.yml` before operating this path. Scheduled
+preparation uses the Friday cutoff; manual dispatch pins the selected commit.
+The workflow prepares package versions, pushes a candidate branch and lightweight
+RC tag, and calls `release-compose.yml` to build, sign and upload source archives.
+Do not add a manual version PR or rebuild an already staged candidate by default.
+
+Check that the dispatch implementation is on the revision actually running.
+Merging a workflow fix does not change earlier runs or backfill their downstream
+jobs. The weekly `builds` job dispatches the existing workflows automatically;
+no human needs to trigger each build in a normal run. The `notify` job waits for
+compose and dispatch, then posts a preparation notice. It does not wait for all
+downstream results, evaluate votes, or publish a final release.
+
+For ATR OIDC, register `.github/workflows/weekly_release.yml` as an allowed compose
+caller alongside `.github/workflows/release-compose.yml`. Inspect the actual ATR
+permission error and initiating actor before changing artifacts or source code.
+After correcting external configuration, rerun failed jobs on the original run
+when its candidate and completed outputs remain usable. Rerunning all jobs can
+run preparation again and create another candidate.
+
+## Manual RC Tagging
 
 Before creating an RC tag:
 
@@ -31,7 +54,7 @@ If a new commit lands after an RC tag and before the release is final, do not mo
 
 ## Required CI Gate
 
-After pushing the RC tag, inspect tag-triggered workflows with `gh`.
+After preparing the RC, inspect runs for its tag and verify their head SHA. Include both `push` and `workflow_dispatch` events; source compose success alone does not establish downstream success.
 
 Default required gate:
 
@@ -49,7 +72,7 @@ If the release manager explicitly narrows or expands the gate, follow that instr
 Useful commands:
 
 ```bash
-gh run list --repo apache/opendal --branch "v${release_version}" --event push --limit 50 \
+gh run list --repo apache/opendal --branch "v${release_version}" --limit 100 \
   --json name,status,conclusion,databaseId,url
 
 gh run view "${run_id}" --repo apache/opendal --json status,conclusion,jobs
@@ -68,7 +91,12 @@ Rules:
 
 ## Build ASF Source Artifacts
 
-Only build artifacts after the required RC workflows are green.
+For weekly ATR candidates, reuse the signed artifacts from the successful compose
+run and verify their candidate SHA, signatures, hashes and ATR revision. Source
+composition and downstream builds run independently; both must satisfy the agreed
+pre-vote gate. Do not rerun `just release` merely to obtain local copies.
+
+For the manual source-build path, build after the required RC workflows are green.
 
 ```bash
 git checkout "v${release_version}"

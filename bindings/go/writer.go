@@ -365,8 +365,33 @@ type Writer struct {
 	ctx   context.Context
 }
 
-// Write writes p into the Writer. The caller may reuse p after Write returns.
-// Call Close after the last write to complete the write.
+// Write writes the given bytes to the specified path.
+//
+// Write is a wrapper around the C-binding function `opendal_operator_write`. It provides a simplified
+// interface for writing data to the storage. Write can be called multiple times to write
+// additional data to the same path.
+//
+// The maximum size of the data that can be written in a single call is 256KB.
+//
+// # Parameters
+//
+//   - path: The destination path where the bytes will be written.
+//   - data: The byte slice containing the data to be written.
+//
+// # Returns
+//
+//   - error: An error if the write operation fails, or nil if successful.
+//
+// # Example
+//
+//	func exampleWrite(op *opendal.Operator) {
+//		_, err = op.Write("test", []byte("Hello opendal go binding!"))
+//		if err != nil {
+//			log.Fatal(err)
+//		}
+//	}
+//
+// Note: This example assumes proper error handling and import statements.
 func (w *Writer) Write(p []byte) (n int, err error) {
 	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
 }

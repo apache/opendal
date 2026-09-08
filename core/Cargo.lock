@@ -356,6 +356,9 @@ name = "asyncband"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e52766975a4f080528a898235c51e82e65df9db713419067b5368040eeb5659"
+dependencies = [
+ "hashbrown 0.17.1",
+]
 
 [[package]]
 name = "atoi"

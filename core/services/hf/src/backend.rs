@@ -146,12 +146,18 @@ impl HfBuilder {
         self
     }
 
+    /// Resolve the Hub base URL: an explicit config value wins, then
+    /// `HF_ENDPOINT`, then the public Hub. A trailing slash is trimmed
+    /// because every URL is built by appending `/api/...` to this, and HF
+    /// answers the resulting `//api/...` with a 404.
     fn hf_endpoint(&self) -> String {
         self.config
             .endpoint
             .clone()
             .or_else(|| std::env::var("HF_ENDPOINT").ok())
             .unwrap_or_else(|| "https://huggingface.co".to_string())
+            .trim_end_matches('/')
+            .to_string()
     }
 
     /// Resolve the download mode: an explicit config value wins; otherwise a set,
@@ -435,6 +441,19 @@ pub(super) mod test_utils {
         finish_operator(op)
     }
 
+    /// Same public dataset as [`mbpp_operator`], but with the repo id cased
+    /// differently from the canonical `google-research-datasets/mbpp`. HF
+    /// answers every request for it with a `307` to the canonical URL.
+    pub fn miscased_mbpp_operator() -> Operator {
+        let op = Operator::new(
+            HfBuilder::default()
+                .repo_type("dataset")
+                .repo_id("Google-Research-Datasets/MBPP"),
+        )
+        .unwrap();
+        finish_operator(op)
+    }
+
     pub fn testing_dataset_core() -> Arc<HfCore> {
         let repo_id = std::env::var("HF_OPENDAL_DATASET").expect("HF_OPENDAL_DATASET must be set");
         let token = std::env::var("HF_OPENDAL_TOKEN").expect("HF_OPENDAL_TOKEN must be set");
@@ -536,6 +555,18 @@ mod tests {
         unsafe { std::env::remove_var("HF_TOKEN_PATH") };
         std::fs::remove_file(&token_file).ok();
         assert_eq!(result.as_deref(), Some("file-token"));
+    }
+
+    #[test]
+    fn hf_endpoint_trims_trailing_slash() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::remove_var("HF_ENDPOINT") };
+        assert_eq!(
+            HfBuilder::default()
+                .endpoint("https://hub.example.com/")
+                .hf_endpoint(),
+            "https://hub.example.com"
+        );
     }
 
     #[test]

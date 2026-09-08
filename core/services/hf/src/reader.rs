@@ -232,7 +232,9 @@ impl oio::StreamRead for HfReader {
 
 #[cfg(test)]
 mod tests {
-    use super::super::backend::test_utils::{mbpp_operator, testing_dataset_core};
+    use super::super::backend::test_utils::{
+        mbpp_operator, miscased_mbpp_operator, testing_dataset_core,
+    };
     use super::super::core::HfRepoType;
     use super::super::core::test_utils::create_test_core;
     use super::super::core::{CommitFile, DeletedFile, HfCore};
@@ -308,9 +310,8 @@ mod tests {
     /// file has no separate metadata step to skip for its actual bytes: the
     /// classifying resolve's body is discarded and every open, including the
     /// first, fetches its own bytes with its own resolve. So the first open
-    /// costs 3 (canonical repo id + classify + fetch) and every later one
-    /// costs 1 (fetch only, classification and the canonical repo id already
-    /// cached).
+    /// costs 2 (classify + fetch) and every later one costs 1 (fetch only,
+    /// classification already cached).
     #[tokio::test]
     async fn test_non_xet_reads_cache_classification_but_still_fetch_each_range() -> Result<()> {
         let (core, ctx, mock_client) = create_test_core(
@@ -323,11 +324,11 @@ mod tests {
 
         let (_, mut s1) = reader.open(BytesRange::new(0, Some(1))).await?;
         s1.read().await?;
-        assert_eq!(mock_client.request_count(), 3);
+        assert_eq!(mock_client.request_count(), 2);
 
         let (_, mut s2) = reader.open(BytesRange::new(1, Some(1))).await?;
         s2.read().await?;
-        assert_eq!(mock_client.request_count(), 4);
+        assert_eq!(mock_client.request_count(), 3);
 
         Ok(())
     }
@@ -346,8 +347,6 @@ mod tests {
         let reader = hf_reader(core, ctx, "plain.txt");
         mock_client.fail_next_requests(1);
 
-        // The injected failure hits the canonical repo id lookup, the first
-        // request a classifying resolve makes.
         let result = reader.open(BytesRange::new(0, Some(1))).await;
         assert!(
             result.is_err(),
@@ -359,8 +358,8 @@ mod tests {
         stream.read().await?;
         assert_eq!(
             mock_client.request_count(),
-            4,
-            "classification must retry (canonical repo id + resolve) then fetch the range (1 more)"
+            3,
+            "classification must retry (1 resolve) then fetch the range (1 more)"
         );
 
         Ok(())
@@ -392,11 +391,10 @@ mod tests {
         r2?;
         r3?;
 
-        // 1 shared canonical repo id lookup + 1 shared classifying resolve +
-        // 1 shared xet-read-token fetch for the shared group build. Fetching
-        // actual bytes from the group would need a real CAS server, so this
-        // test only covers open().
-        assert_eq!(mock_client.request_count(), 3);
+        // 1 shared classifying resolve + 1 shared xet-read-token fetch for
+        // the shared group build. Fetching actual bytes from the group would
+        // need a real CAS server, so this test only covers open().
+        assert_eq!(mock_client.request_count(), 2);
 
         Ok(())
     }
@@ -476,10 +474,41 @@ mod tests {
         r2?.1.read().await?;
         r3?.1.read().await?;
 
-        // 1 canonical repo id lookup + 1 shared classifying resolve + 3 individual fetches.
-        assert_eq!(mock_client.request_count(), 5);
+        // 1 shared classifying resolve + 3 individual fetches.
+        assert_eq!(mock_client.request_count(), 4);
 
         Ok(())
+    }
+
+    /// Regression test for #8107 against the live API: a repo id whose case
+    /// differs from the canonical one.
+    ///
+    /// `stat` is the operation that matters here. It posts to `paths-info`,
+    /// and HF answers a miscased id with a `307` carrying a path-only
+    /// `Location`. A transport will follow that for a `GET` but hands a
+    /// bodied `POST` back unfollowed, which is exactly the failure #8107
+    /// reported, so this only passes if `HfCore::send` re-issues the request.
+    /// The read then covers the `resolve` path through the same repo. Both
+    /// use a public dataset, so no token is needed.
+    #[tokio::test]
+    #[ignore = "requires network access"]
+    async fn test_miscased_repo_id_follows_redirects() {
+        let path = "full/train-00000-of-00001.parquet";
+        let op = miscased_mbpp_operator();
+
+        let meta = op
+            .stat(path)
+            .await
+            .expect("stat must follow the case redirect on its paths-info POST");
+        assert!(meta.content_length() > 0);
+
+        let bytes = op
+            .read_with(path)
+            .range(0..4)
+            .await
+            .expect("read must succeed against a miscased repo id")
+            .to_vec();
+        assert_eq!(bytes, PARQUET_MAGIC);
     }
 
     /// Exercises the XET download code path against a public dataset known to

@@ -18,7 +18,7 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use asyncband::rwlock::RwLock;
+use asyncband::once::OnceCell;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
@@ -46,8 +46,8 @@ pub struct SeafileCore {
     /// The repo name of this backend.
     pub repo_name: String,
 
-    /// signer of this backend.
-    pub signer: Arc<RwLock<SeafileSigner>>,
+    /// Authentication and library information published after both requests succeed.
+    pub auth_info: Arc<OnceCell<AuthInfo>>,
 }
 
 impl Debug for SeafileCore {
@@ -71,96 +71,85 @@ impl SeafileCore {
         ctx.http_transport().send(req).await
     }
 
-    /// get auth info
+    /// Initialize authentication and library information, retrying incomplete attempts.
     pub async fn get_auth_info(&self, ctx: &OperationContext) -> Result<AuthInfo> {
-        {
-            let signer = self.signer.read().await;
+        let auth_info = self
+            .auth_info
+            .get_or_try_init(async || {
+                let body = format!(
+                    "username={}&password={}",
+                    percent_encode_path(&self.username),
+                    percent_encode_path(&self.password)
+                );
+                let req = Request::post(format!("{}/api2/auth-token/", self.endpoint))
+                    .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                    .body(Buffer::from(Bytes::from(body)))
+                    .map_err(new_request_build_error)?;
 
-            if !signer.auth_info.token.is_empty() {
-                let auth_info = signer.auth_info.clone();
-                return Ok(auth_info.clone());
-            }
-        }
+                let resp = ctx.http_transport().send(req).await?;
+                let status = resp.status();
 
-        {
-            let mut signer = self.signer.write().await;
-            let body = format!(
-                "username={}&password={}",
-                percent_encode_path(&self.username),
-                percent_encode_path(&self.password)
-            );
-            let req = Request::post(format!("{}/api2/auth-token/", self.endpoint))
-                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Buffer::from(Bytes::from(body)))
-                .map_err(new_request_build_error)?;
+                let token = match status {
+                    StatusCode::OK => {
+                        let resp_body = resp.into_body();
+                        let auth_response: AuthTokenResponse =
+                            serde_json::from_reader(resp_body.reader())
+                                .map_err(new_json_deserialize_error)?;
+                        auth_response.token
+                    }
+                    _ => {
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("AuthToken")),
+                            resp,
+                        ));
+                    }
+                };
 
-            let resp = ctx.http_transport().send(req).await?;
-            let status = resp.status();
+                let url = format!("{}/api2/repos", self.endpoint);
 
-            match status {
-                StatusCode::OK => {
-                    let resp_body = resp.into_body();
-                    let auth_response: AuthTokenResponse =
-                        serde_json::from_reader(resp_body.reader())
-                            .map_err(new_json_deserialize_error)?;
-                    signer.auth_info = AuthInfo {
-                        token: auth_response.token,
-                        repo_id: "".to_string(),
-                    };
-                }
-                _ => {
-                    return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("AuthToken")),
-                        resp,
-                    ));
-                }
-            }
+                let req = Request::get(url)
+                    .header(header::AUTHORIZATION, format!("Token {token}"))
+                    .body(Buffer::new())
+                    .map_err(new_request_build_error)?;
 
-            let url = format!("{}/api2/repos", self.endpoint);
+                let resp = ctx.http_transport().send(req).await?;
 
-            let req = Request::get(url)
-                .header(
-                    header::AUTHORIZATION,
-                    format!("Token {}", signer.auth_info.token),
-                )
-                .body(Buffer::new())
-                .map_err(new_request_build_error)?;
+                let status = resp.status();
 
-            let resp = ctx.http_transport().send(req).await?;
+                let mut repo_id = String::new();
+                match status {
+                    StatusCode::OK => {
+                        let resp_body = resp.into_body();
+                        let list_library_response: Vec<ListLibraryResponse> =
+                            serde_json::from_reader(resp_body.reader())
+                                .map_err(new_json_deserialize_error)?;
 
-            let status = resp.status();
+                        for library in list_library_response {
+                            if library.name == self.repo_name {
+                                repo_id = library.id;
+                                break;
+                            }
+                        }
 
-            match status {
-                StatusCode::OK => {
-                    let resp_body = resp.into_body();
-                    let list_library_response: Vec<ListLibraryResponse> =
-                        serde_json::from_reader(resp_body.reader())
-                            .map_err(new_json_deserialize_error)?;
-
-                    for library in list_library_response {
-                        if library.name == self.repo_name {
-                            signer.auth_info.repo_id = library.id;
-                            break;
+                        // repo not found
+                        if repo_id.is_empty() {
+                            return Err(Error::new(
+                                ErrorKind::NotFound,
+                                format!("repo {} not found", self.repo_name),
+                            ));
                         }
                     }
-
-                    // repo not found
-                    if signer.auth_info.repo_id.is_empty() {
-                        return Err(Error::new(
-                            ErrorKind::NotFound,
-                            format!("repo {} not found", self.repo_name),
+                    _ => {
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("ListRepositories")),
+                            resp,
                         ));
                     }
                 }
-                _ => {
-                    return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("ListRepositories")),
-                        resp,
-                    ));
-                }
-            }
-            Ok(signer.auth_info.clone())
-        }
+                Ok(AuthInfo { repo_id, token })
+            })
+            .await?;
+        Ok(auth_info.clone())
     }
 }
 
@@ -520,12 +509,7 @@ pub fn parse_file_detail(file_detail: FileDetail) -> Result<Metadata> {
     Ok(md.build())
 }
 
-#[derive(Clone, Default)]
-pub struct SeafileSigner {
-    pub auth_info: AuthInfo,
-}
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct AuthInfo {
     /// The repo id of this auth info.
     pub repo_id: String,
@@ -598,9 +582,128 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+    use std::future::Future;
+    use std::sync::Mutex;
+    use std::task::Context;
+    use std::task::Waker;
+
     use http::StatusCode;
+    use tokio::sync::Semaphore;
 
     use super::*;
+
+    #[derive(Clone)]
+    struct AuthTransport {
+        responses: Arc<Mutex<VecDeque<(&'static str, &'static str)>>>,
+        repositories: Arc<Semaphore>,
+    }
+
+    impl AuthTransport {
+        fn new(responses: &[(&'static str, &'static str)]) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(responses.iter().copied().collect())),
+                repositories: Arc::new(Semaphore::new(0)),
+            }
+        }
+    }
+
+    impl HttpTransport for AuthTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (path, body) = self.responses.lock().unwrap().pop_front().unwrap();
+            assert_eq!(req.uri().path(), path);
+            if path == "/api2/repos" {
+                drop(self.repositories.acquire().await.unwrap());
+            }
+            Ok(Response::builder()
+                .body(HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(Bytes::from_static(body.as_bytes())))]),
+                    Some(body.len() as u64),
+                ))
+                .unwrap())
+        }
+    }
+
+    fn auth_core(transport: AuthTransport) -> (SeafileCore, OperationContext) {
+        let core = SeafileCore {
+            info: ServiceInfo::new("seafile", "/", ""),
+            capability: Capability::default(),
+            root: "/".to_string(),
+            endpoint: "http://example.com".to_string(),
+            username: "user".to_string(),
+            password: "password".to_string(),
+            repo_name: "test".to_string(),
+            auth_info: Arc::new(OnceCell::new()),
+        };
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
+        (core, ctx)
+    }
+
+    #[tokio::test]
+    async fn test_auth_info_retries_after_missing_repository() {
+        let transport = AuthTransport::new(&[
+            ("/api2/auth-token/", r#"{"token":"first"}"#),
+            ("/api2/repos", "[]"),
+            ("/api2/auth-token/", r#"{"token":"second"}"#),
+            ("/api2/repos", r#"[{"name":"test","id":"repo-id"}]"#),
+        ]);
+        transport.repositories.add_permits(1);
+        let (core, ctx) = auth_core(transport.clone());
+
+        let err = core.get_auth_info(&ctx).await.err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        let auth = core.get_auth_info(&ctx).await.unwrap();
+        assert_eq!(auth.repo_id, "repo-id");
+        assert_eq!(auth.token, "second");
+        assert!(transport.responses.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_auth_info_retries_after_initialization_is_cancelled() {
+        let transport = AuthTransport::new(&[
+            ("/api2/auth-token/", r#"{"token":"first"}"#),
+            ("/api2/repos", r#"[{"name":"test","id":"repo-id"}]"#),
+            ("/api2/auth-token/", r#"{"token":"second"}"#),
+            ("/api2/repos", r#"[{"name":"test","id":"repo-id"}]"#),
+        ]);
+        let (core, ctx) = auth_core(transport.clone());
+        let mut first = Box::pin(core.get_auth_info(&ctx));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(first.as_mut().poll(&mut cx).is_pending());
+        drop(first);
+
+        transport.repositories.add_permits(1);
+        let auth = core.get_auth_info(&ctx).await.unwrap();
+        assert_eq!(auth.repo_id, "repo-id");
+        assert_eq!(auth.token, "second");
+        assert!(transport.responses.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_auth_info_shares_complete_initialization() {
+        let transport = AuthTransport::new(&[
+            ("/api2/auth-token/", r#"{"token":"shared"}"#),
+            ("/api2/repos", r#"[{"name":"test","id":"repo-id"}]"#),
+        ]);
+        let (core, ctx) = auth_core(transport.clone());
+        let mut first = Box::pin(core.get_auth_info(&ctx));
+        let mut second = Box::pin(core.get_auth_info(&ctx));
+        let mut cancelled = Box::pin(core.get_auth_info(&ctx));
+        let mut cx = Context::from_waker(Waker::noop());
+        assert!(first.as_mut().poll(&mut cx).is_pending());
+        assert!(second.as_mut().poll(&mut cx).is_pending());
+        assert!(cancelled.as_mut().poll(&mut cx).is_pending());
+        drop(cancelled);
+
+        transport.repositories.add_permits(1);
+        let (first, second) = tokio::join!(first, second);
+        for auth in [first, second, core.get_auth_info(&ctx).await] {
+            let auth = auth.unwrap();
+            assert_eq!(auth.repo_id, "repo-id");
+            assert_eq!(auth.token, "shared");
+        }
+        assert!(transport.responses.lock().unwrap().is_empty());
+    }
 
     #[tokio::test]
     async fn test_parse_error() {

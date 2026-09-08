@@ -34,7 +34,7 @@ all-features = true
 [dependencies]
 opendal-core = { path = "../../core", version = "0.59.1", default-features = false }
 
-asyncband = { workspace = true, features = ["rwlock"] }
+asyncband = { workspace = true, features = ["once-cell"] }
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
@@ -42,4 +42,5 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }

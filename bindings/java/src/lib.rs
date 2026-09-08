@@ -353,3 +353,59 @@ fn build_reader_options(
         ..Default::default()
     })
 }
+
+#[cfg(test)]
+mod reader_options_tests {
+    use super::build_reader_options;
+    use opendal::ErrorKind;
+
+    #[test]
+    fn default_reader_options() {
+        let options = build_reader_options(1, -1, 0, -1).unwrap();
+        assert_eq!(options.concurrent, 1);
+        assert_eq!(options.chunk, None);
+        assert_eq!(options.prefetch, 0);
+        assert_eq!(options.content_length_hint, None);
+    }
+
+    #[test]
+    fn tuned_reader_options() {
+        let options = build_reader_options(4, 8 * 1024 * 1024, 2, 128 * 1024 * 1024).unwrap();
+        assert_eq!(options.concurrent, 4);
+        assert_eq!(options.chunk, Some(8 * 1024 * 1024));
+        assert_eq!(options.prefetch, 2);
+        assert_eq!(options.content_length_hint, Some(128 * 1024 * 1024));
+    }
+
+    #[test]
+    fn empty_content_length_hint() {
+        let options = build_reader_options(1, 1, 0, 0).unwrap();
+        assert_eq!(options.content_length_hint, Some(0));
+    }
+
+    #[test]
+    fn invalid_reader_options() {
+        for (concurrent, chunk, prefetch, hint, field) in [
+            (0, -1, 0, -1, "concurrent"),
+            (-1, -1, 0, -1, "concurrent"),
+            (1, 0, 0, -1, "chunk"),
+            (1, -2, 0, -1, "chunk"),
+            (1, -1, -1, -1, "prefetch"),
+            (1, -1, 0, -2, "contentLengthHint"),
+        ] {
+            let err = build_reader_options(concurrent, chunk, prefetch, hint).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(err.message().contains(field));
+        }
+    }
+
+    #[test]
+    fn chunk_conversion_respects_native_width() {
+        let options = build_reader_options(1, i64::MAX, 0, -1);
+        if usize::BITS < 64 {
+            assert_eq!(options.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        } else {
+            assert_eq!(options.unwrap().chunk, usize::try_from(i64::MAX).ok());
+        }
+    }
+}

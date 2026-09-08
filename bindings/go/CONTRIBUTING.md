@@ -4,39 +4,6 @@ This document covers building and testing the Go binding from source. For user-f
 
 ## Run Tests
 
-### Stream copy tests
-
-Run the Go unit tests, including controlled short reads, copy dispatch, errors,
-and destination backpressure, from `bindings/go`:
-
-```bash
-go test ./...
-```
-
-Build the C library from the same checkout with the `fs` service to enable the
-native file-copy and buffer-ownership tests. From the repository root on macOS:
-
-```bash
-cd bindings/c
-cargo build --release --features opendal/services-fs
-cd ../go
-export OPENDAL_GO_TEST_LIBRARY="$(cd ../c/target/release && pwd)/libopendal_c.dylib"
-go test -run TestStreamNative -v
-go test -run '^$' -bench BenchmarkNativeStream -benchmem -count=5
-```
-
-On Linux, use `libopendal_c.so`; on Windows, use `opendal_c.dll`. Adjust the
-library path if `CARGO_TARGET_DIR` is set. Native tests skip when
-`OPENDAL_GO_TEST_LIBRARY` is unset.
-
-The native benchmarks use a 16 MiB local file and include stream creation and
-Close. They report Go allocations, native-call counts, and time until the first
-native upload write or destination download write. The explicit upload buffer
-cases disable `io.Copy` fast-path dispatch to compare buffer sizes. These local
-filesystem results do not measure network throughput, multipart first-part
-latency, or Rust allocations. Profile CPU and resident memory separately when
-evaluating a storage service.
-
 ### Behavior Tests
 
 ```bash

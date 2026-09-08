@@ -45,6 +45,7 @@ use std::os::raw::c_char;
 use std::sync::Arc;
 use std::time::Duration;
 
+use asyncband::mutex::Mutex;
 use futures::StreamExt;
 
 use crate::executor::Executor;
@@ -1261,7 +1262,7 @@ pub extern "C" fn operator_input_stream_create(
 /// reads — and the `Arc` lets in-flight tasks outlive an early free safely.
 struct InputStream {
     executor: Arc<Executor>,
-    inner: Arc<tokio::sync::Mutex<opendal::FuturesBytesStream>>,
+    inner: Arc<Mutex<opendal::FuturesBytesStream>>,
 }
 
 /// Convert one polled chunk into an FFI read payload.
@@ -1324,7 +1325,7 @@ fn operator_input_stream_create_inner(
 
     Ok(Box::into_raw(Box::new(InputStream {
         executor,
-        inner: Arc::new(tokio::sync::Mutex::new(stream)),
+        inner: Arc::new(Mutex::new(stream)),
     })) as *mut c_void)
 }
 
@@ -1453,7 +1454,7 @@ pub extern "C" fn operator_output_stream_create(
 /// against an early free.
 struct OutputStream {
     executor: Arc<Executor>,
-    inner: Arc<tokio::sync::Mutex<opendal::Writer>>,
+    inner: Arc<Mutex<opendal::Writer>>,
 }
 
 fn operator_output_stream_create_inner(
@@ -1477,7 +1478,7 @@ fn operator_output_stream_create_inner(
 
     Ok(Box::into_raw(Box::new(OutputStream {
         executor,
-        inner: Arc::new(tokio::sync::Mutex::new(writer)),
+        inner: Arc::new(Mutex::new(writer)),
     })) as *mut c_void)
 }
 

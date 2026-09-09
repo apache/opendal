@@ -173,6 +173,18 @@ services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-github = ["dep:opendal-service-github"]
 services-goosefs = ["dep:opendal-service-goosefs"]
+services-goosefs-metadata-cache = [
+  "services-goosefs",
+  "opendal-service-goosefs?/metadata-cache",
+]
+services-goosefs-page-cache = [
+  "services-goosefs",
+  "opendal-service-goosefs?/page-cache",
+]
+services-goosefs-page-cache-io-uring = [
+  "services-goosefs",
+  "opendal-service-goosefs?/page-cache-io-uring",
+]
 services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]

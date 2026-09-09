@@ -12,6 +12,14 @@ Applications should normally enable this service through the `opendal` facade wi
 cargo add opendal --features services-goosefs
 ```
 
+Opt in to the GooseFS client metadata cache or disk-backed page cache:
+
+```shell
+cargo add opendal --features services-goosefs,services-goosefs-metadata-cache,services-goosefs-page-cache
+# Linux io_uring page-cache backend:
+cargo add opendal --features services-goosefs,services-goosefs-page-cache-io-uring
+```
+
 The service is available as `opendal::services::GooseFs`. Configure the
 service builder, then pass it to `opendal::Operator::new`.
 
@@ -21,6 +29,7 @@ Add the split crates directly:
 
 ```shell
 cargo add opendal-core opendal-service-goosefs
+# Optional caches: cargo add opendal-service-goosefs --features metadata-cache,page-cache
 ```
 
 Pass a configured service builder to `Operator::new`:

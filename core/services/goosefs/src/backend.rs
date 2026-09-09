@@ -228,11 +228,9 @@ fn detect_master_addr_source() -> MasterAddrSource {
         return MasterAddrSource::Env;
     }
 
-    // The SDK searches `$GOOSEFS_CONFIG_FILE`, `$GOOSEFS_HOME/conf`,
-    // `~/.goosefs`, and `/etc/goosefs` for `goosefs-site.properties`. It
-    // documents `$GOOSEFS_CONF_DIR` as well, but 0.1.9 looks up the Java
-    // property name `goosefs.conf.dir` as the environment variable, so that
-    // path never matches. An unreadable file is left to
+    // The SDK searches `$GOOSEFS_CONFIG_FILE`, `$GOOSEFS_CONF_DIR`,
+    // `$GOOSEFS_HOME/conf`, `~/.goosefs`, and `/etc/goosefs` for
+    // `goosefs-site.properties`. An unreadable file is left to
     // `from_properties_auto()`, which already failed the build above.
     if let Some(path) = goosefs_sdk::config::discover_config_file()
         && let Ok(content) = std::fs::read_to_string(&path)

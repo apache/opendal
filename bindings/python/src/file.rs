@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use asyncband::mutex::Mutex;
 use futures::AsyncSeekExt;
-use futures::AsyncWriteExt;
+use futures::SinkExt;
 use pyo3::IntoPyObjectExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
@@ -437,18 +437,22 @@ impl File {
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
-    Reader(ocore::FuturesAsyncReader),
-    Writer(ocore::FuturesAsyncWriter),
+    Reader(Box<ocore::FuturesAsyncReader>),
+    Writer(ocore::BufferSink),
     Closed,
 }
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(Box::new(
+            reader,
+        )))))
     }
 
-    pub fn new_writer(writer: ocore::FuturesAsyncWriter) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(
+            writer.into_sink(),
+        ))))
     }
 }
 #[pymethods]
@@ -519,7 +523,7 @@ impl AsyncFile {
         bs: &Bound<PyBytes>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
-        let bs = PyBackedBytes::from(bs.clone());
+        let bs = py_bytes_like_into_buffer(bs.as_any())?;
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
@@ -538,8 +542,11 @@ impl AsyncFile {
             };
 
             let len = bs.len();
+            if len == 0 {
+                return Ok(0);
+            }
             writer
-                .write_all(&bs)
+                .send(bs)
                 .await
                 .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))
@@ -656,7 +663,7 @@ impl AsyncFile {
         future_into_py(py, async move {
             let mut state = state.lock().await;
             if let AsyncFileState::Writer(w) = &mut *state {
-                w.close().await.map_err(format_pyerr_from_io_error)?;
+                w.close().await.map_err(format_pyerr)?;
             }
             *state = AsyncFileState::Closed;
             Ok(())
@@ -747,5 +754,50 @@ impl AsyncFile {
             let state = state.lock().await;
             Ok(matches!(*state, AsyncFileState::Closed))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use asyncband::semaphore::Semaphore;
+    use futures::poll;
+    use ocore::layers::ConcurrentLimitLayer;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cancelled_send_keeps_owned_buffer() {
+        Python::initialize();
+        let (buffer, source_ptr) = Python::attach(|py| {
+            let source = PyBytes::new(py, b"owned Python bytes");
+            let source_ptr = source.as_bytes().as_ptr();
+            let buffer = py_bytes_like_into_buffer(source.as_any()).unwrap();
+            (buffer, source_ptr)
+        });
+        let semaphore = Arc::new(Semaphore::new(0));
+        let op = ocore::Operator::via_iter("memory", [])
+            .unwrap()
+            .layer(ConcurrentLimitLayer::with_semaphore(semaphore.clone()));
+        let file = AsyncFile::new_writer(op.writer_with("cancelled").chunk(4).await.unwrap());
+        let mut state = file.0.lock().await;
+        let AsyncFileState::Writer(sink) = &mut *state else {
+            unreachable!();
+        };
+
+        // Poll into an underlying write blocked on the semaphore, then drop
+        // the caller's future. The sink must retain both the future and input.
+        {
+            let send = sink.send(buffer);
+            futures::pin_mut!(send);
+            assert!(poll!(send).is_pending());
+        }
+        semaphore.release(1);
+        sink.close().await.unwrap();
+        drop(state);
+        drop(file);
+
+        let result = op.read("cancelled").await.unwrap();
+        assert_eq!(result.to_vec(), b"owned Python bytes");
+        assert_eq!(result.current().as_ptr(), source_ptr);
     }
 }

@@ -17,12 +17,14 @@
 
 import gc
 import os
+import sys
 from pathlib import Path
 from random import randint
 from uuid import uuid4
 
 import pytest
 
+import opendal
 from opendal.exceptions import NotFound
 
 
@@ -168,6 +170,47 @@ async def test_async_writer_keeps_bytes_alive(service_name, operator, async_oper
     await f.close()
     assert await async_operator.read(filename) == expected
     await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("write", "write_can_multi", "read", "delete")
+@pytest.mark.parametrize("chunk", [None, 256 * 1024, 8 * 1024 * 1024])
+async def test_async_writer_mixed_sizes(async_operator, chunk):
+    filename = f"test_file_{uuid4()}"
+    sizes = [0, 1, 17, 256 * 1024, 256 * 1024 + 1, 8 * 1024 * 1024, 31, 0]
+    expected = bytearray()
+    options = {} if chunk is None else {"chunk": chunk}
+    async with await async_operator.open(filename, "wb", **options) as file:
+        for i, size in enumerate(sizes):
+            content = bytes([i]) * size
+            expected.extend(content)
+            assert await file.write(content) == size
+            del content
+        gc.collect()
+    assert await file.closed
+    await file.close()
+    with pytest.raises(OSError, match="closed file"):
+        await file.write(b"")
+    assert await async_operator.read(filename) == expected
+    await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="requires reference counts")
+@pytest.mark.parametrize("size", [17, 256 * 1024, 8 * 1024 * 1024 + 1])
+async def test_async_writer_retains_python_owner(size):
+    op = opendal.AsyncOperator("memory")
+    content = os.urandom(size)
+    references = sys.getrefcount(content)
+    file = await op.open("owner", "wb", chunk=8 * 1024 * 1024)
+    assert await file.write(content) == size
+    # A copied staging buffer would let the Python owner go after write returns.
+    assert sys.getrefcount(content) > references
+    await file.close()
+    assert await op.read("owner") == content
+    await op.delete("owner")
+    gc.collect()
+    assert sys.getrefcount(content) == references
 
 
 @pytest.mark.asyncio

@@ -244,7 +244,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             };
         }
 
-        if !self.has_remaining() {
+        while !self.has_remaining() {
             let result = self
                 .tasks
                 .front_mut()

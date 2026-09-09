@@ -1,6 +1,6 @@
 ---
 name: opendal-release
-description: Execute and verify Apache OpenDAL release-manager work, including RC tagging, required GitHub Actions checks, ASF SVN dist uploads, Nexus staging close/release, vote discussions, language package readiness, GitHub release, announcements, and release postmortems.
+description: Execute and verify Apache OpenDAL release-manager work, including weekly ATR candidates, RC tagging, required GitHub Actions checks, ASF SVN dist uploads, Nexus staging close/release, vote discussions, language package readiness, GitHub release, announcements, and release postmortems.
 ---
 
 # OpenDAL Release
@@ -16,9 +16,9 @@ The primary repository runbook is `website/community/release/release.md`. The sp
 - Use `gh` for GitHub PRs, issues, discussions, checks, and Actions logs.
 - Do not use web search for repository state. Query live GitHub, SVN, Nexus, crates.io, PyPI, npm, and Maven URLs directly.
 - Do not claim any step succeeded until the external system confirms it.
-- Treat an RC as bound to its signed tag, target commit, and generated artifacts. Do not create a new RC merely because `main` advances after tagging.
+- Treat an RC as bound to its tag, target commit, and signed source artifacts. Manual RC tags are signed; weekly preparation creates a lightweight tag and compose signs the artifacts. Do not create a new RC merely because `main` advances after tagging.
 - Do not assume bindings or integrations share the top-level OpenDAL version. Each released binding or integration can have its own version.
-- Do not start a public vote with broken links, open Maven staging, missing SVN artifacts, or incomplete required workflows.
+- Do not start a public vote with broken links, open Maven staging, missing source artifacts at the selected staging location, or incomplete required workflows.
 - Do not conflate Nexus `Close` before voting with Nexus `Release` after the vote passes.
 - Do not over-block on unrelated/noncritical CI if the release gate is explicitly narrowed.
 - Do not put SVN, Nexus, or mail credentials in commands, files, issue text, PRs, or release notes. Read them from environment variables or an interactive prompt and avoid shell history when possible.
@@ -47,16 +47,18 @@ Use these states explicitly when reporting status:
 1. `planning`: release discussion/tracking issue/version bump not done.
 2. `bump-pr`: version/changelog/upgrade/dependency updates are in PR.
 3. `crates-bootstrapped`: the bootstrap workflow has authenticated every Rust crate in the scanned `main` publish plan, and every name exists with the exact Trusted Publisher and `trustpub_only` enabled.
-4. `rc-tagged`: signed RC tag exists and was pushed.
-5. `rc-ci`: tag-triggered release workflows are still running or failed.
-6. `artifacts-built`: `just release` generated local ASF source artifacts.
-7. `dist-dev-uploaded`: artifacts are committed to ASF SVN `dist/dev`.
+4. `rc-tagged`: RC tag exists and was pushed at the intended commit.
+5. `rc-ci`: required release workflows, triggered by tag push or explicit dispatch, are still running or failed.
+6. `artifacts-built`: local release tooling or source compose generated ASF source artifacts.
+7. `source-staged`: signed artifacts are uploaded to ATR compose or ASF SVN `dist/dev`; record which location and revision will be verified.
 8. `nexus-closed`: Java staging repo is closed and publicly accessible.
-9. `vote-open`: GitHub Discussion vote is open.
+9. `vote-open`: the formal vote is open and identifies the verified candidate and source location.
 10. `vote-passed`: at least 72 hours elapsed and binding vote requirements are met.
-11. `official-release`: final tag, `dist/release`, package repositories, GitHub release, and announcement are complete.
+11. `official-release`: final tag, approved source publication, package repositories, GitHub release, and announcement are complete.
 
-If a release fails before `official-release`, abandon that RC, clean up wrong staged artifacts where needed, drop the Maven staging repo, and create the next RC.
+Weekly preparation replaces the manual bump-PR path and can compose sources while downstream builds run. A candidate-ready Discussion confirms upload and dispatch, not readiness to vote.
+
+Retry transient failures against the same candidate and reuse existing signed artifacts. Create a new RC when source or workflow changes must be included, or the candidate is rejected; do not regenerate an RC merely to recover a missing dispatch or a staging permission failure.
 
 ## Choose the Current Phase
 
@@ -64,7 +66,7 @@ Load only the references needed for the requested phase or unresolved issue. Con
 
 - [Preparation](references/preparation.md): start a release or prepare version, changelog, and upgrade updates.
 - [Rust crate bootstrap](references/rust-bootstrap.md): reserve crate names or inspect the protected bootstrap prerequisites.
-- [Release candidate](references/rc.md): tag an RC, inspect its required CI, build source artifacts, upload to SVN, or close Nexus staging.
+- [Release candidate](references/rc.md): prepare a weekly ATR candidate or manual RC, inspect required CI, recover missing dispatches, stage source artifacts, or close Nexus staging.
 - [Go readiness](references/go.md): release or verify Go bindings and service modules when Go is in scope.
 - [Rust readiness](references/rust.md): inspect the publish plan, packaging constraints, or release helper CI.
 - [Vote](references/vote.md): check pre-vote readiness, prepare the vote, or determine and publish its result.

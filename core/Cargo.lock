@@ -356,6 +356,9 @@ name = "asyncband"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2e52766975a4f080528a898235c51e82e65df9db713419067b5368040eeb5659"
+dependencies = [
+ "hashbrown 0.17.1",
+]
 
 [[package]]
 name = "atoi"
@@ -6957,6 +6960,7 @@ name = "opendal-service-gcs"
 version = "0.59.1"
 dependencies = [
  "async-trait",
+ "asyncband",
  "bytes",
  "futures",
  "http 1.4.2",
@@ -7045,6 +7049,7 @@ dependencies = [
 name = "opendal-service-goosefs"
 version = "0.59.1"
 dependencies = [
+ "asyncband",
  "bytes",
  "goosefs-sdk",
  "log",
@@ -7399,6 +7404,7 @@ version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
+ "futures",
  "http 1.4.2",
  "log",
  "opendal-core",

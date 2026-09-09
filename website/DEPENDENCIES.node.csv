@@ -14,4 +14,4 @@
 "remark-gfm@4.0.1","MIT","https://github.com/remarkjs/remark-gfm"
 "remark-parse@11.0.0","MIT","https://github.com/remarkjs/remark/tree/main/packages/remark-parse"
 "semver@7.8.4","ISC","https://github.com/npm/node-semver"
-"unified@11.0.4","MIT","https://github.com/unifiedjs/unified"
+"unified@11.0.5","MIT","https://github.com/unifiedjs/unified"

@@ -4,6 +4,25 @@ Repository paths and shell commands are relative to the repository root.
 
 ## Official Release
 
+After the vote passes, the release manager initiates publication. The weekly
+workflow does not observe the vote result or create a final tag. Use the exact
+commit approved in the vote, even when main has advanced.
+
+A final tag pushed with the release manager's credentials triggers the existing
+release workflows. Rust, Python, Node.js, Ruby and .NET publish through their
+final-tag paths; Java stages artifacts and still needs Nexus promotion. Dart
+builds artifacts. Verify workflow results and package-specific registry versions.
+Creating a GitHub Release is a separate step, not the trigger described here.
+
+Do not replace this push with a `GITHUB_TOKEN` push and assume the same result:
+that token suppresses downstream push triggers. Final-tag automation would need
+its own dispatch design, including Ruby's push-only publishing condition. The
+weekly RC dispatch flags are not a general final-publication recipe.
+
+For sources staged in ATR, follow the live ATR voting/publication path for the
+approved candidate revision. The SVN commands below apply to SVN-staged sources;
+do not rebuild approved archives to switch between the two paths.
+
 After the vote passes:
 
 1. Push final release tag:

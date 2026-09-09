@@ -72,8 +72,75 @@ impl ReqwestTransport {
     }
 }
 
+// Diagnostic-only request tracing; this module is not part of the proposed change.
+struct RequestTrace {
+    operation: &'static str,
+    part: usize,
+    size: usize,
+    status: u16,
+}
+
+static ACTIVE_PARTS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+impl RequestTrace {
+    fn start(req: &Request<Buffer>) -> Option<Self> {
+        if std::env::var_os("ASYNCFILE_REQUEST_TRACE").is_none() {
+            return None;
+        }
+        let query = req.uri().query().unwrap_or_default();
+        let part = query
+            .split('&')
+            .find_map(|v| v.strip_prefix("partNumber="))
+            .and_then(|v| v.parse::<usize>().ok());
+        let operation = if req.method() == http::Method::PUT && part.is_some() {
+            "part"
+        } else if req.method() == http::Method::POST
+            && query.split('&').any(|v| v == "uploads" || v == "uploads=")
+        {
+            "create"
+        } else if req.method() == http::Method::POST && query.contains("uploadId=") {
+            "complete"
+        } else {
+            return None;
+        };
+        let trace = Self {
+            operation,
+            part: part.unwrap_or(0),
+            size: req.body().len(),
+            status: 0,
+        };
+        if operation == "part" {
+            ACTIVE_PARTS.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        trace.emit("begin");
+        Some(trace)
+    }
+
+    fn emit(&self, event: &str) {
+        let ns = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let active = ACTIVE_PARTS.load(std::sync::atomic::Ordering::SeqCst);
+        eprintln!(
+            "HTTPTRACE\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            ns, event, self.operation, self.part, self.size, active, self.status
+        );
+    }
+}
+
+impl Drop for RequestTrace {
+    fn drop(&mut self) {
+        if self.operation == "part" {
+            ACTIVE_PARTS.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        self.emit("end");
+    }
+}
+
 impl HttpTransport for ReqwestTransport {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        let mut request_trace = RequestTrace::start(&req);
         // Uri stores all string alike data in `Bytes` which means
         // the clone here is cheap.
         let uri = req.uri().clone();
@@ -118,6 +185,10 @@ impl HttpTransport for ReqwestTransport {
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err)
         })?;
+
+        if let Some(trace) = &mut request_trace {
+            trace.status = resp.status().as_u16();
+        }
 
         // Get content length from header so that we can check it.
         //

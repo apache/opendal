@@ -31,23 +31,9 @@ namespace OpenDAL.Interop.NativeObject;
 [StructLayout(LayoutKind.Sequential)]
 internal struct OpenDALMetadata
 {
-    public int Mode;
-    public byte IsCurrentHasValue;
-    public byte IsCurrent;
-    public byte IsDeleted;
-    public IntPtr CacheControl;
-    public ulong ContentLength;
-    public IntPtr ContentMd5;
-    public IntPtr ContentType;
-    public IntPtr ContentEncoding;
-    public byte LastModifiedHasValue;
-    public long LastModifiedSecond;
-    public int LastModifiedNanosecond;
-    public IntPtr ETag;
-    public IntPtr ContentDisposition;
-    public IntPtr Version;
-    public byte UserMetadataHasValue;
-    public IntPtr UserMetadataKeys;
-    public IntPtr UserMetadataValues;
-    public nuint UserMetadataLen;
+{%- for f in fields %}
+{%- for p in f.parts %}
+    public {{ p.interop_type }} {{ p.pascal }};
+{%- endfor %}
+{%- endfor %}
 }

@@ -26,8 +26,10 @@ policy.
   maintainer has explicitly accepted it as a hardening or maintenance goal.
 - A test against a fabricated response can verify implementation behavior, but
   it does not establish that the change solves a real-world problem.
-- In a Pull Request, briefly disclose AI's material role and any assumptions or
-  unknowns that affect review. Do not repeat routine validation output.
+- In a Pull Request, disclose each materially contributing harness, model, and
+  reasoning effort setting, along with AI's role and any assumptions or unknowns
+  that affect review. Follow the AI Usage Statement requirements in
+  CONTRIBUTING.md. Do not repeat routine validation output.
 
 The human contributor remains responsible for every submitted claim and change.
 

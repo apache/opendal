@@ -118,6 +118,9 @@ const config = {
   ],
 
   plugins: [
+    // Keep a single @docusaurus/theme-common instance so navbar hooks share
+    // the same React context as theme-classic providers under pnpm.
+    require.resolve("./plugins/theme-common-singleton-plugin"),
     require.resolve("./plugins/specifications-docs-plugin"),
     [
       "@docusaurus/plugin-content-docs",

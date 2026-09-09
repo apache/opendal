@@ -799,10 +799,8 @@ pub(crate) mod test_utils {
         /// mocked [`XetFileResponse`] body instead of plain bytes, so tests
         /// can exercise the XET classification path without real network.
         xet_file: Arc<Mutex<Option<XetFileResponse>>>,
-        /// `Range` header of the most recent XET-classifying `/resolve/`
-        /// request (one that hit the `xet_file` branch above), so tests can
-        /// tell which racing caller's range a single-flighted classification
-        /// actually sent.
+        /// `Range` header of the most recent XET metadata probe, so tests can
+        /// check it sends a fixed single byte rather than the caller's range.
         classify_range_header: Arc<Mutex<Option<String>>>,
     }
 
@@ -853,9 +851,6 @@ pub(crate) mod test_utils {
             *self.request_count.lock().unwrap()
         }
 
-        /// `Range` header of the most recent XET-classifying `/resolve/`
-        /// request, or `None` if that range was full (no `Range` header) or
-        /// no such request has happened yet.
         pub(crate) fn get_captured_classify_range_header(&self) -> Option<String> {
             self.classify_range_header.lock().unwrap().clone()
         }

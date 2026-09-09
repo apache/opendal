@@ -150,3 +150,133 @@ def test_blocking_operator_releases_gil(service_name, operator) -> None:
         server_process.terminate()
         server_process.join(TEST_TIMEOUT_SECONDS)
         port_receiver.close()
+
+
+class _FileHandler(BaseHTTPRequestHandler):
+    def _respond(self, body=b"file contents\n") -> None:
+        self.server.request_started.set()
+        if not self.server.release_response.wait(SERVER_FALLBACK_SECONDS):
+            self.server.response_timed_out.set()
+        self.send_response(403 if self.path == "/denied" else 200)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        if self.command == "GET":
+            self.wfile.write(body)
+
+    def do_GET(self) -> None:
+        self._respond()
+
+    def do_HEAD(self) -> None:
+        self._respond()
+
+    def do_PUT(self) -> None:
+        self.rfile.read(int(self.headers["Content-Length"]))
+        self._respond(b"")
+
+    def log_message(self, format_, *args: object) -> None:
+        pass
+
+
+def _serve_file_http(
+    port_sender, request_started, release_response, response_timed_out
+) -> None:
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _FileHandler)
+    server.request_started = request_started
+    server.release_response = release_response
+    server.response_timed_out = response_timed_out
+    port_sender.send(server.server_address[1])
+    port_sender.close()
+    server.serve_forever(poll_interval=0.01)
+
+
+@pytest.mark.parametrize(
+    "operation",
+    ["read", "readline", "readinto", "seek", "close", "exit", "close_error"],
+)
+def test_blocking_file_releases_gil(operation, service_name):
+    if service_name != "memory":
+        pytest.skip("run the standalone GIL regression test once")
+
+    context = multiprocessing.get_context("spawn")
+    request_started = context.Event()
+    release_response = context.Event()
+    response_timed_out = context.Event()
+    receiver, sender = context.Pipe(duplex=False)
+    server = context.Process(
+        target=_serve_file_http,
+        args=(sender, request_started, release_response, response_timed_out),
+    )
+    server.start()
+    sender.close()
+    worker = None
+    results = []
+    errors = []
+    try:
+        assert receiver.poll(TEST_TIMEOUT_SECONDS)
+        endpoint = f"http://127.0.0.1:{receiver.recv()}"
+        if operation in {"close", "exit", "close_error"}:
+            op = opendal.Operator(
+                "webdav", endpoint=endpoint, disable_create_dir="true"
+            )
+            file = op.open("denied" if operation == "close_error" else "file", "wb")
+            file.write(b"file contents\n")
+        else:
+            op = opendal.Operator("http", endpoint=endpoint)
+            file = op.open("file", "rb")
+        target = bytearray(b"?" * 32)
+
+        def perform_io() -> None:
+            try:
+                if operation == "readinto":
+                    results.append(file.readinto(target))
+                elif operation == "seek":
+                    results.append(file.seek(0, 2))
+                elif operation == "close_error":
+                    file.close()
+                elif operation == "exit":
+                    results.append(file.__exit__(None, None, None))
+                else:
+                    results.append(getattr(file, operation)())
+            except Exception as error:  # noqa: BLE001
+                errors.append(error)
+
+        worker = threading.Thread(target=perform_io)
+        worker.start()
+        assert request_started.wait(TEST_TIMEOUT_SECONDS)
+        # This thread must run before the server unblocks the storage operation.
+        # The active mutable borrow must also reject a concurrent state change.
+        with pytest.raises(RuntimeError, match="borrow"):
+            file.close()
+        if operation == "readinto":
+            with pytest.raises(BufferError):
+                target.extend(b"resize")
+            target[:] = b"?" * len(target)
+        assert not response_timed_out.is_set()
+        release_response.set()
+        worker.join(TEST_TIMEOUT_SECONDS)
+        assert not worker.is_alive()
+        if operation == "close_error":
+            assert len(errors) == 1
+            assert isinstance(errors[0], opendal.exceptions.PermissionDenied)
+            assert not file.closed
+            return
+        assert errors == []
+        if operation in {"read", "readline"}:
+            assert results == [b"file contents\n"]
+            assert file.tell() == 14
+        elif operation == "readinto":
+            assert results == [14]
+            assert target == b"file contents\n" + b"?" * 18
+        elif operation == "seek":
+            assert results == [14]
+        else:
+            assert results == [None]
+            assert file.closed
+        file.close()
+    finally:
+        release_response.set()
+        if worker is not None:
+            worker.join(TEST_TIMEOUT_SECONDS)
+        server.terminate()
+        server.join(TEST_TIMEOUT_SECONDS)
+        receiver.close()

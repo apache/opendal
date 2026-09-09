@@ -90,9 +90,12 @@ fn generate_capability(workspace_dir: &Path) -> Result<()> {
         .collect();
 
     let mut env = Environment::new();
-    env.add_template("capability_rs", include_str!("dotnet_capability_rs.j2"))?;
-    env.add_template("interop_cs", include_str!("dotnet_interop_cs.j2"))?;
-    env.add_template("public_cs", include_str!("dotnet_public_cs.j2"))?;
+    env.add_template("capability_rs", include_str!("dotnet/capability_rs.j2"))?;
+    env.add_template(
+        "interop_cs",
+        include_str!("dotnet/capability_interop_cs.j2"),
+    )?;
+    env.add_template("public_cs", include_str!("dotnet/capability_public_cs.j2"))?;
 
     let outputs = [
         ("capability_rs", "bindings/dotnet/src/capability.rs"),
@@ -133,7 +136,7 @@ fn generate_service_configs(workspace_dir: &Path, services: Services) -> Result<
     let srvs = sorted_services(services, enabled_service);
 
     let mut env = Environment::new();
-    env.add_template("service_config", include_str!("dotnet_service_config.j2"))?;
+    env.add_template("service_config", include_str!("dotnet/service_config.j2"))?;
     let tmpl = env.get_template("service_config")?;
 
     let mut names: Vec<&String> = srvs.keys().collect();

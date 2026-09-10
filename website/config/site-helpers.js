@@ -69,20 +69,6 @@ function createLegacyDocsRedirect(existingPath) {
   return undefined;
 }
 
-function rewriteRustdocLink(link, baseUrl = "/") {
-  const rustdocUrl = `https://opendal.apache.org${baseUrl}docs/rust/`;
-  if (/^https:\/\/docs\.rs([/\w].*\/[0-9]+.[0-9]+.[0-9]+$)/.test(link)) {
-    return `${rustdocUrl}opendal/`;
-  }
-
-  return link.includes("source/src")
-    ? `${link.replace(
-        /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
-        `${rustdocUrl}src/opendal`
-      )}.html`
-    : link;
-}
-
 function addRustdocLlmSessions(ctx, baseUrl = "/") {
   const filename = process.env.OPENDAL_RUSTDOC_LLMS;
   if (!filename) return;
@@ -92,18 +78,19 @@ function addRustdocLlmSessions(ctx, baseUrl = "/") {
     throw new Error(`Rust LLM documentation is empty: ${filename}`);
   }
 
+  const rustdocUrl = `https://opendal.apache.org${baseUrl}docs/rust/`;
   ctx.llmConfig.llmStdConfig.sessions.unshift({
     sessionName: config.libName,
     source: "normal",
     items: config.sessions.map((item) => ({
       title: item.title,
       description: item.description,
-      link: rewriteRustdocLink(item.link, baseUrl),
+      link: `${rustdocUrl}${item.link}`,
     })),
   });
   ctx.llmConfig.llmFullStdConfig.sessions = config.fullSessions
     .map((item) => ({
-      link: rewriteRustdocLink(item.link, baseUrl),
+      link: `${rustdocUrl}${item.link}`,
       content: item.content,
     }))
     .concat(ctx.llmConfig.llmFullStdConfig.sessions);
@@ -143,5 +130,4 @@ module.exports = {
   createLegacyDocsRedirect,
   getWebsiteSettings,
   orderByPathDepth,
-  rewriteRustdocLink,
 };

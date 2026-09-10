@@ -46,17 +46,17 @@ for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
         {
           title: "opendal",
           description: "Rust API",
-          link: "https://docs.rs/opendal/0.59.1",
+          link: "opendal/",
         },
         {
           title: "init_default_registry",
           description: "Initialize the registry",
-          link: "https://docs.rs/crate/opendal/0.59.1/source/src/lib.rs",
+          link: "src/opendal/lib.rs.html",
         },
       ],
       fullSessions: [{
         content: "Initialize the default registry.",
-        link: "https://docs.rs/crate/opendal/0.59.1/source/src/lib.rs",
+        link: "src/opendal/lib.rs.html",
       }],
     }));
     const websiteIndex = { sessionName: "Docs", items: [] };

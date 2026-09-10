@@ -104,26 +104,22 @@ jobs:
           name: rust-documentation
           path: ./core/target/doc
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
-        with:
-          version: 11.8.0
-          run_install: false
+      - name: Build Rustdoc JSON
+        working-directory: core
+        # Match the HTML build's workspace features to reuse compiled dependencies.
+        run: |
+          RUSTDOCFLAGS="$RUSTDOCFLAGS -Z unstable-options --output-format json" \
+            cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc \
+            --workspace --lib --no-deps --all-features
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - uses: actions/setup-node@v6
         with:
           node-version-file: "website/.node-version"
-          cache: pnpm
-          cache-dependency-path: "website/pnpm-lock.yaml"
-
-      - name: Install LLM generation dependencies
-        working-directory: website
-        run: pnpm install --frozen-lockfile
 
       - name: Generate Rust LLM documentation
-        working-directory: website
-        run: pnpm build:rustdoc-llms ../core/Cargo.toml "$RUST_DOC_TOOLCHAIN" ../core/target/llms.json
-        env:
-          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+        run: node website/scripts/generate-rustdoc-llms.cjs core/target/doc/opendal.json core/target/llms.json
 
       - name: Upload Rust LLM documentation
         uses: actions/upload-artifact@v7

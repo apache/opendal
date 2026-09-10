@@ -19,31 +19,33 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { performance } = require("node:perf_hooks");
-const { fromLocal } = require("crates-llms-txt");
 
-const [manifestPath, toolchain, output] = process.argv.slice(2);
-if (!manifestPath || !toolchain || !output) {
-  throw new Error(
-    "Usage: generate-rustdoc-llms.cjs <Cargo.toml> <toolchain> <output.json>",
-  );
+const [input, output] = process.argv.slice(2);
+if (!input || !output) {
+  throw new Error("Usage: generate-rustdoc-llms.cjs <rustdoc.json> <output.json>");
 }
 
-console.log(
-  `Generating Rust LLM documentation with ${toolchain}: ${manifestPath}`,
-);
-const started = performance.now();
-// Use the docs job's toolchain and existing Cargo target directory.
-// The converter also runs Cargo metadata, which can fetch non-host dependencies.
-const config = fromLocal(path.resolve(manifestPath), toolchain);
-if (!config?.sessions?.length || !config?.fullSessions?.length) {
-  throw new Error(
-    `Failed to generate Rust LLM documentation from ${manifestPath} with ${toolchain}`,
-  );
+const docs = JSON.parse(fs.readFileSync(input, "utf8"));
+const libName = docs.index[docs.root].name;
+const sessions = [{ title: libName, description: "", link: `${libName}/` }];
+const fullSessions = [];
+
+// Read only documentation fields; unrelated Rustdoc schema changes (such as
+// attributes changing from strings to objects) must not break the supplement.
+for (const item of Object.values(docs.index)) {
+  if (item.visibility !== "public" || !item.docs || !item.span) continue;
+
+  const filename = item.span.filename.replace(/^src\//, "");
+  const link = `src/${libName}/${filename}.html`;
+  sessions.push({ title: item.name ?? filename, description: "", link });
+  fullSessions.push({ content: item.docs, link });
 }
 
+if (!fullSessions.length) {
+  throw new Error(`Rust LLM documentation is empty: ${input}`);
+}
 fs.mkdirSync(path.dirname(output), { recursive: true });
-fs.writeFileSync(output, JSON.stringify(config));
+fs.writeFileSync(output, JSON.stringify({ libName, sessions, fullSessions }));
 console.log(
-  `Generated ${config.sessions.length} index entries and ${config.fullSessions.length} full-text entries in ${((performance.now() - started) / 1000).toFixed(2)} s: ${output}`,
+  `Generated ${sessions.length} index entries and ${fullSessions.length} full-text entries: ${output}`,
 );

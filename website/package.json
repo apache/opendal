@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "node --test plugins/local-images.test.js config/site-helpers.test.js",
+    "test": "node --test plugins/local-images.test.js config/site-helpers.test.js scripts/generate-rustdoc-llms.test.cjs",
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
@@ -40,7 +40,6 @@
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.10.1",
     "@docusaurus/types": "^3.10.1",
-    "crates-llms-txt": "^0.1.1",
     "docusaurus-plugin-llms-builder": "^0.1.13"
   },
   "browserslist": {

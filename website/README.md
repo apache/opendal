@@ -26,7 +26,7 @@ This command generates static content into the `build` directory and can be serv
 
 ## LLM documentation
 
-CI generates the Rust LLM supplement in the Rust documentation job, using the same toolchain, installed native dependencies, and Cargo target directory as the API documentation build. Cargo replaces the crate's HTML output when generating JSON, so CI uploads the HTML first, then uploads `llms.json` separately as `rust-llms-documentation`. The website downloads both artifacts and reuses the supplement for every deployment variant. Missing, invalid, or empty configured artifacts fail the build.
+CI generates Rustdoc JSON in the Rust documentation job, using the same toolchain, workspace features, installed native dependencies, and Cargo target directory as the API documentation build. A Node.js script extracts public documentation with source locations from the facade crate into the Rust LLM supplement. Cargo replaces the crate's HTML output when generating JSON, so CI uploads the HTML first, then uploads `llms.json` separately as `rust-llms-documentation`. The website downloads both artifacts and reuses the supplement for every deployment variant. Missing, invalid, or empty configured artifacts fail the build.
 
 Local website builds do not invoke Cargo. To include Rust content, download the `rust-llms-documentation` artifact from a successful Docs workflow and point the website at its `llms.json` file:
 

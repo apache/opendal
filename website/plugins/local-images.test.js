@@ -59,7 +59,7 @@ for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
       <a href="https://www.npmjs.com/package/opendal"><img id="version" width="120"
         alt="Latest Version" src="https://img.shields.io/npm/v/opendal.svg?logo=npm"></a>
       <img id="architecture" src="https://opendal.apache.org/img/architectural.png">
-      <img id="logo" src="https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg">
+      <img id="logo" src="https://opendal.apache.org/img/logo.svg">
       <img id="existing" src="local.svg">
     `,
     );

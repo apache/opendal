@@ -23,13 +23,6 @@ const { makeBadge } = require("badge-maker");
 const cheerio = require("cheerio");
 const { parse } = require("smol-toml");
 
-const IMAGE_ALIASES = new Map([
-  [
-    "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg",
-    "/img/logo.svg",
-  ],
-]);
-
 module.exports = function localImages({ siteDir, baseUrl }) {
   const root = path.resolve(siteDir, "..");
   const manifests = [
@@ -91,19 +84,15 @@ module.exports = function localImages({ siteDir, baseUrl }) {
   function resolveImage(src) {
     if (!/^(https?:)?\/\//i.test(src)) return { src };
     const url = new URL(src, "https://opendal.apache.org");
-    let localPath = IMAGE_ALIASES.get(url.href);
     if (
       url.origin === "https://opendal.apache.org" &&
       url.pathname.startsWith("/img/")
     ) {
-      localPath = url.pathname;
-    }
-    if (localPath) {
-      const filename = path.join(siteDir, "static", localPath);
+      const filename = path.join(siteDir, "static", url.pathname);
       if (!fs.statSync(filename).isFile()) {
         throw new Error(`Missing local image: ${filename}`);
       }
-      return { src: `${baseUrl}${localPath.slice(1)}` };
+      return { src: `${baseUrl}${url.pathname.slice(1)}` };
     }
 
     let badge;

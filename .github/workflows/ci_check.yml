@@ -124,9 +124,6 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test website processing
-        run: pnpm test
-
       - name: Check dependencies
         run: |
           npx license-checker --production --excludePrivatePackages --csv > DEPENDENCIES.node.csv

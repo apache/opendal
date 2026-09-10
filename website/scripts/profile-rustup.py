@@ -38,8 +38,10 @@ with open(os.environ["OPENDAL_CARGO_TRACE"], "a", buffering=1) as trace:
     child = subprocess.Popen(command, stderr=subprocess.PIPE)
     for line in child.stderr:
         record(line.decode(errors="replace").rstrip())
-        sys.stderr.buffer.write(line)
-        sys.stderr.buffer.flush()
+        # The native library closes stderr when it enables quiet mode.
+        if sys.stderr is not None:
+            sys.stderr.buffer.write(line)
+            sys.stderr.buffer.flush()
     code = child.wait()
     usage = resource.getrusage(resource.RUSAGE_CHILDREN)
     record(f"EXIT {code}; wall={time.monotonic() - started:.3f}s; user={usage.ru_utime:.3f}s; system={usage.ru_stime:.3f}s")

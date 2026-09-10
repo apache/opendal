@@ -123,7 +123,6 @@ jobs:
         working-directory: website
         run: pnpm build:rustdoc-llms ../core/Cargo.toml "$RUST_DOC_TOOLCHAIN" ../core/target/llms.json
         env:
-          CARGO_NET_OFFLINE: "true"
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - name: Upload Rust LLM documentation

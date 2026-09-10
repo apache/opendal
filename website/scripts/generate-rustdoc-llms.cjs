@@ -34,6 +34,7 @@ console.log(
 );
 const started = performance.now();
 // Use the docs job's toolchain and existing Cargo target directory.
+// The converter also runs Cargo metadata, which can fetch non-host dependencies.
 const config = fromLocal(path.resolve(manifestPath), toolchain);
 if (!config?.sessions?.length || !config?.fullSessions?.length) {
   throw new Error(

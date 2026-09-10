@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+    "test": "node --test plugins/local-images.test.js",
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
@@ -21,6 +22,8 @@
     "@docusaurus/preset-classic": "^3.10.1",
     "@docusaurus/theme-common": "^3.10.1",
     "@mdx-js/react": "^3.1.1",
+    "badge-maker": "6.0.0",
+    "cheerio": "1.0.0-rc.12",
     "docusaurus-lunr-search": "^3.6.0",
     "docusaurus-plugin-image-zoom": "^3.0.1",
     "lunr": "^2.3.9",
@@ -30,6 +33,7 @@
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "semver": "^7.8.4",
+    "smol-toml": "^1.8.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {

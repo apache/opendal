@@ -32,8 +32,6 @@ Website images are resolved locally by `plugins/local-images.js`. The resolver r
 - Badges are generated as self-contained SVG data URLs. Version badges show the version of the documented Rust, Node.js, or Ruby package, read from that package's manifest. CI, package-download, and Discord badges are fixed links rather than live metrics.
 - Unknown external images fail the build with their page and URL. Add a local asset or an explicit badge presentation to the resolver instead of adding a network fallback.
 
-The binding READMEs use the current architecture diagram. `static/img/architectural-legacy.png` preserves the original diagram from [the GitHub attachment](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887); remaining references to that attachment resolve to the preserved image.
-
 Run `pnpm test` to check image rewriting, independent package versions, and offline operation. To test a nested deployment path, run `OPENDAL_WEBSITE_BASE_URL=/opendal/opendal-docs-stable/ pnpm build`.
 
 ## Dependencies

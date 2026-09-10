@@ -36,7 +36,6 @@ async function fixture(t, baseUrl = "/") {
     "bindings/nodejs/package.json": '{"version":"2.3.4"}',
     "bindings/ruby/Cargo.toml": '[package]\nversion = "4.5.6"\n',
     "website/static/img/architectural.png": "current architecture",
-    "website/static/img/architectural-legacy.png": "original architecture",
     "website/static/img/logo.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
   };
   for (const [name, content] of Object.entries(files)) {
@@ -61,7 +60,6 @@ for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
         alt="Latest Version" src="https://img.shields.io/npm/v/opendal.svg?logo=npm"></a>
       <img id="architecture" src="https://opendal.apache.org/img/architectural.png">
       <img id="logo" src="https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg">
-      <img id="legacy" src="https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887">
       <img id="existing" src="local.svg">
     `,
     );
@@ -72,10 +70,6 @@ for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
       `${baseUrl}img/architectural.png`,
     );
     assert.equal($("#logo").attr("src"), `${baseUrl}img/logo.svg`);
-    assert.equal(
-      $("#legacy").attr("src"),
-      `${baseUrl}img/architectural-legacy.png`,
-    );
     assert.equal($("#existing").attr("src"), "local.svg");
     assert.equal(
       $("#version").parent().attr("href"),

@@ -28,10 +28,6 @@ const IMAGE_ALIASES = new Map([
     "https://raw.githubusercontent.com/apache/opendal/main/website/static/img/logo.svg",
     "/img/logo.svg",
   ],
-  [
-    "https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887",
-    "/img/architectural-legacy.png",
-  ],
 ]);
 
 module.exports = function localImages({ siteDir, baseUrl }) {

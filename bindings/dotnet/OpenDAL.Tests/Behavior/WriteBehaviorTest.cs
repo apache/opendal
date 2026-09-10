@@ -350,4 +350,73 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
 
         Assert.Equal("ab", System.Text.Encoding.UTF8.GetString(await Op.ReadAsync(path, CT)));
     }
+
+    [Fact]
+    public void WriteBehavior_ReturnsMetadataOfWrittenObject()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-returns-metadata");
+        var content = RandomBytes(512);
+
+        var meta = Op.Write(path, content);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_ReturnsMetadataOfWrittenObjectAsync()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-returns-metadata-async");
+        var content = RandomBytes(512);
+
+        var meta = await Op.WriteAsync(path, content, CT);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
+    public async Task WriteBehavior_FillCallback_ReturnsMetadataAsync()
+    {
+        if (!Supports(c => c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("write-fill-returns-metadata");
+        var content = RandomBytes(300);
+
+        var meta = await Op.WriteAsync(path, writer => writer.Write(content), cancellationToken: CT);
+
+        Assert.Equal((ulong)content.Length, meta.ContentLength);
+    }
+
+    [Fact]
+    public void WriteBehavior_WithUserMetadata_RoundtripsThroughStat()
+    {
+        if (!Supports(c => c.Write && c.Stat && c.WriteWithUserMetadata))
+        {
+            return;
+        }
+
+        var path = NewPath("write-user-metadata");
+        var userMetadata = new Dictionary<string, string>
+        {
+            ["location"] = "everywhere",
+        };
+
+        Op.Write(path, RandomBytes(64), new WriteOptions { UserMetadata = userMetadata });
+        var meta = Op.Stat(path);
+
+        Assert.NotNull(meta.UserMetadata);
+        Assert.Equal("everywhere", meta.UserMetadata["location"]);
+    }
 }

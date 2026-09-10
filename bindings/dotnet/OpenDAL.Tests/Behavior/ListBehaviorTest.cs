@@ -122,4 +122,45 @@ public sealed class ListBehaviorTest : BehaviorTestBase
             Assert.Contains(entries, e => e.Path == file);
         }
     }
+
+    [Fact]
+    public void ListBehavior_WithVersions_ReportsCurrentVersion()
+    {
+        if (!Supports(c => c.List && c.ListWithVersions && c.Write))
+        {
+            return;
+        }
+
+        var dir = NewPath("list-versions") + "/";
+        var path = $"{dir}file.txt";
+
+        Op.Write(path, RandomBytes(8));
+        Op.Write(path, RandomBytes(16));
+
+        var versions = Op.List(dir, new ListOptions { Versions = true })
+            .Where(e => e.Path == path)
+            .ToList();
+
+        Assert.True(versions.Count >= 2, $"expected at least two versions, got {versions.Count}");
+        Assert.Single(versions, e => e.Metadata.IsCurrent == true);
+    }
+
+    [Fact]
+    public void ListBehavior_WithDeleted_ReportsDeleteMarker()
+    {
+        if (!Supports(c => c.List && c.ListWithDeleted && c.Write && c.Delete))
+        {
+            return;
+        }
+
+        var dir = NewPath("list-deleted") + "/";
+        var path = $"{dir}file.txt";
+
+        Op.Write(path, RandomBytes(8));
+        Op.Delete(path);
+
+        var entries = Op.List(dir, new ListOptions { Deleted = true });
+
+        Assert.Contains(entries, e => e.Path == path && e.Metadata.IsDeleted);
+    }
 }

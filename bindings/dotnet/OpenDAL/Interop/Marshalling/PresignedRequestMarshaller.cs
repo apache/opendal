@@ -34,34 +34,12 @@ internal static class PresignedRequestMarshaller
         var payload = Unsafe.Read<OpenDALPresignedRequest>((void*)ptr);
         var method = Utilities.ReadUtf8(payload.Method);
         var uri = Utilities.ReadUtf8(payload.Uri);
-        var headers = ToHeaders(payload.HeadersKeys, payload.HeadersValues, payload.HeadersLen);
+        var headers = Utilities.ReadStringPairs(
+            payload.HeadersKeys,
+            payload.HeadersValues,
+            payload.HeadersLen,
+            StringComparer.OrdinalIgnoreCase
+        );
         return new PresignedRequest(method, uri, headers);
-    }
-
-    private static unsafe IReadOnlyDictionary<string, string> ToHeaders(IntPtr keysPtr, IntPtr valuesPtr, nuint len)
-    {
-        if (len == 0 || keysPtr == IntPtr.Zero || valuesPtr == IntPtr.Zero)
-        {
-            return new Dictionary<string, string>();
-        }
-
-        if (len > int.MaxValue)
-        {
-            throw new InvalidOperationException("Presigned request headers exceed supported size");
-        }
-
-        var count = (int)len;
-        var keys = new ReadOnlySpan<IntPtr>((void*)keysPtr, count);
-        var values = new ReadOnlySpan<IntPtr>((void*)valuesPtr, count);
-
-        var result = new Dictionary<string, string>(count, StringComparer.OrdinalIgnoreCase);
-        for (var index = 0; index < count; index++)
-        {
-            var key = Utilities.ReadUtf8(keys[index]);
-            var value = Utilities.ReadUtf8(values[index]);
-            result[key] = value;
-        }
-
-        return result;
     }
 }

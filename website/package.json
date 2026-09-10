@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "test": "node --test plugins/local-images.test.js",
+    "test": "node --test plugins/local-images.test.js config/site-helpers.test.js",
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
+    "build:rustdoc-llms": "node scripts/generate-rustdoc-llms.cjs",
     "swizzle": "docusaurus swizzle",
     "deploy": "docusaurus deploy",
     "clear": "docusaurus clear",

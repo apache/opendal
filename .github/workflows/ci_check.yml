@@ -124,7 +124,7 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test website image processing
+      - name: Test website processing
         run: pnpm test
 
       - name: Check dependencies

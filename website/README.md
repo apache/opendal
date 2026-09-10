@@ -24,6 +24,18 @@ $ pnpm build
 
 This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
+## LLM documentation
+
+CI generates the Rust LLM supplement in the Rust documentation job, using the same toolchain, installed native dependencies, and Cargo target directory as the API documentation build. Cargo replaces the crate's HTML output when generating JSON, so CI uploads the HTML first, then uploads `llms.json` separately as `rust-llms-documentation`. The website downloads both artifacts and reuses the supplement for every deployment variant. Missing, invalid, or empty configured artifacts fail the build.
+
+Local website builds do not invoke Cargo. To include Rust content, download the `rust-llms-documentation` artifact from a successful Docs workflow and point the website at its `llms.json` file:
+
+```bash
+OPENDAL_RUSTDOC_LLMS=/tmp/opendal-rust-llms/llms.json pnpm build
+```
+
+Leave `OPENDAL_RUSTDOC_LLMS` unset to build only the website's LLM content.
+
 ## Images and badges
 
 Website images are resolved locally by `plugins/local-images.js`. The resolver runs before Markdown compilation and on the generated API documentation, so client navigation and standalone API pages use the same resources. It does not download images during a build.

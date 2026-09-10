@@ -97,11 +97,40 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+      # Cargo replaces the facade's HTML when switching to rustdoc JSON.
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
           name: rust-documentation
           path: ./core/target/doc
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: 11.8.0
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: "website/.node-version"
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Install LLM generation dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Rust LLM documentation
+        working-directory: website
+        run: pnpm build:rustdoc-llms ../core/Cargo.toml "$RUST_DOC_TOOLCHAIN" ../core/target/llms.json
+        env:
+          CARGO_NET_OFFLINE: "true"
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+      - name: Upload Rust LLM documentation
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-llms-documentation
+          path: ./core/target/llms.json
 
   build-java-doc:
     runs-on: ubuntu-latest
@@ -498,6 +527,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCUSAURUS_PERF_LOGGER: "true"
+      OPENDAL_RUSTDOC_LLMS: ${{ github.workspace }}/website/static/docs/rust/llms.json
     permissions:
       contents: write
     needs:
@@ -555,6 +585,8 @@ jobs:
 
           # Becasue `website/static/docs/` maps to `/docs/` on website, we want to organize paths
           mv static/docs/rust-documentation/ static/docs/rust/
+          mv static/docs/rust-llms-documentation/llms.json static/docs/rust/llms.json
+          rmdir static/docs/rust-llms-documentation/
           mv static/docs/binding-java-documentation/ static/docs/java/
           mv static/docs/binding-nodejs-documentation/ static/docs/nodejs/
           mv static/docs/binding-python-documentation/ static/docs/python/
@@ -587,18 +619,9 @@ jobs:
             website/node_modules/.cache/
           key: website-build-artifacts-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}-v1
 
-      - name: Capture native Cargo diagnostics
-        run: |
-          mkdir -p "$RUNNER_TEMP/opendal-website-profile/bin"
-          echo "OPENDAL_REAL_RUSTUP=$(command -v rustup)" >> "$GITHUB_ENV"
-          echo "OPENDAL_CARGO_TRACE=$RUNNER_TEMP/opendal-website-profile/cargo.log" >> "$GITHUB_ENV"
-          cp scripts/profile-rustup.py "$RUNNER_TEMP/opendal-website-profile/bin/rustup"
-          chmod +x "$RUNNER_TEMP/opendal-website-profile/bin/rustup"
-          echo "$RUNNER_TEMP/opendal-website-profile/bin" >> "$GITHUB_PATH"
-
       - name: Build
         run: |
-          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
+          pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
 
       - name: Deploy to gh-pages
@@ -619,7 +642,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         working-directory: website
         run: |
-          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
+          pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_STAGING: true
@@ -649,7 +672,7 @@ jobs:
 
       - name: Build for nightlies with tagged version
         run: |
-          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
+          pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           # Keep this same with the remote_path below
@@ -679,7 +702,7 @@ jobs:
 
       - name: Build for nightlies with stable version
         run: |
-          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
+          pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
@@ -701,18 +724,3 @@ jobs:
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
             build/ \
             "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-stable/"
-
-      - name: Show native Cargo diagnostics
-        if: always()
-        run: |
-          if [ -f "$OPENDAL_CARGO_TRACE" ]; then
-            cat "$OPENDAL_CARGO_TRACE"
-          fi
-
-      - name: Upload native Cargo diagnostics
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: website-cargo-diagnostics
-          path: ${{ runner.temp }}/opendal-website-profile/cargo.log
-          if-no-files-found: ignore

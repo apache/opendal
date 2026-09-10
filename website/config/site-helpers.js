@@ -18,8 +18,7 @@
  */
 
 const exec = require("child_process").execSync;
-const path = require("path");
-const cratesLlmsTxt = require("crates-llms-txt");
+const fs = require("node:fs");
 const semver = require("semver");
 
 function envValue(name, fallback) {
@@ -70,49 +69,47 @@ function createLegacyDocsRedirect(existingPath) {
   return undefined;
 }
 
-function rewriteRustdocLink(link) {
+function rewriteRustdocLink(link, baseUrl = "/") {
+  const rustdocUrl = `https://opendal.apache.org${baseUrl}docs/rust/`;
   if (/^https:\/\/docs\.rs([/\w].*\/[0-9]+.[0-9]+.[0-9]+$)/.test(link)) {
-    return "https://opendal.apache.org/docs/rust/opendal/";
+    return `${rustdocUrl}opendal/`;
   }
 
   return link.includes("source/src")
     ? `${link.replace(
         /https:\/\/docs\.rs\/crate\/([^/]+)\/([^/]+)\/source\/src/g,
-        "https://opendal.apache.org/docs/rust/src/opendal"
+        `${rustdocUrl}src/opendal`
       )}.html`
     : link;
 }
 
-function addRustdocLlmSessions(ctx) {
-  try {
-    const config = cratesLlmsTxt.fromLocal(
-      path.resolve(process.cwd(), "../core/Cargo.toml")
-    );
-    if (!config) return;
+function addRustdocLlmSessions(ctx, baseUrl = "/") {
+  const filename = process.env.OPENDAL_RUSTDOC_LLMS;
+  if (!filename) return;
 
-    if (config.sessions) {
-      ctx.llmConfig.llmStdConfig.sessions.unshift({
-        sessionName: config.libName,
-        source: "normal",
-        items: config.sessions.map((item) => ({
-          title: item.title,
-          description: item.description,
-          link: rewriteRustdocLink(item.link),
-        })),
-      });
-    }
-
-    if (config.fullSessions) {
-      ctx.llmConfig.llmFullStdConfig.sessions = config.fullSessions
-        .map((item) => ({
-          link: rewriteRustdocLink(item.link),
-          content: item.content,
-        }))
-        .concat(ctx.llmConfig.llmFullStdConfig.sessions);
-    }
-  } catch (error) {
-    console.log("QAQ error:", error);
+  const config = JSON.parse(fs.readFileSync(filename, "utf8"));
+  if (!config?.sessions?.length || !config?.fullSessions?.length) {
+    throw new Error(`Rust LLM documentation is empty: ${filename}`);
   }
+
+  ctx.llmConfig.llmStdConfig.sessions.unshift({
+    sessionName: config.libName,
+    source: "normal",
+    items: config.sessions.map((item) => ({
+      title: item.title,
+      description: item.description,
+      link: rewriteRustdocLink(item.link, baseUrl),
+    })),
+  });
+  ctx.llmConfig.llmFullStdConfig.sessions = config.fullSessions
+    .map((item) => ({
+      link: rewriteRustdocLink(item.link, baseUrl),
+      content: item.content,
+    }))
+    .concat(ctx.llmConfig.llmFullStdConfig.sessions);
+  console.log(
+    `Loaded Rust LLM documentation: ${config.sessions.length} index entries, ${config.fullSessions.length} full-text entries`,
+  );
 }
 
 function orderByPathDepth(a, b) {

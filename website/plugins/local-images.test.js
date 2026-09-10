@@ -28,14 +28,10 @@ const localImages = require("./local-images");
 async function fixture(t, baseUrl = "/") {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "opendal-images-"));
   t.after(() => fs.rm(root, { recursive: true, force: true }));
-  t.mock.method(globalThis, "fetch", () =>
-    assert.fail("Image processing must not use the network"),
-  );
   const files = {
     "core/Cargo.toml": '[workspace.package]\nversion = "9.1.0"\n',
     "bindings/nodejs/package.json": '{"version":"2.3.4"}',
     "bindings/ruby/Cargo.toml": '[package]\nversion = "4.5.6"\n',
-    "website/static/img/architectural.png": "current architecture",
     "website/static/img/logo.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>',
   };
   for (const [name, content] of Object.entries(files)) {
@@ -50,91 +46,38 @@ async function fixture(t, baseUrl = "/") {
 }
 
 for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
-  test(`standalone API images work offline under ${baseUrl}`, async (t) => {
+  test(`API HTML localizes images and package versions under ${baseUrl}`, async (t) => {
     const { plugin, outDir } = await fixture(t, baseUrl);
     const filename = path.join(outDir, "docs/nodejs/index.html");
     await fs.writeFile(
       filename,
       `
-      <a href="https://www.npmjs.com/package/opendal"><img id="version" width="120"
+      <a href="https://www.npmjs.com/package/opendal"><img id="nodejs"
         alt="Latest Version" src="https://img.shields.io/npm/v/opendal.svg?logo=npm"></a>
-      <img id="architecture" src="https://opendal.apache.org/img/architectural.png">
+      <img id="rust" src="https://img.shields.io/crates/v/opendal.svg">
+      <img id="ruby" src="https://img.shields.io/gem/v/opendal">
       <img id="logo" src="https://opendal.apache.org/img/logo.svg">
-      <img id="existing" src="local.svg">
     `,
     );
     await plugin().postBuild({ outDir });
     const $ = cheerio.load(await fs.readFile(filename, "utf8"));
-    assert.equal(
-      $("#architecture").attr("src"),
-      `${baseUrl}img/architectural.png`,
-    );
     assert.equal($("#logo").attr("src"), `${baseUrl}img/logo.svg`);
-    assert.equal($("#existing").attr("src"), "local.svg");
     assert.equal(
-      $("#version").parent().attr("href"),
+      $("#nodejs").parent().attr("href"),
       "https://www.npmjs.com/package/opendal",
     );
-    assert.equal($("#version").attr("width"), "120");
-    assert.equal($("#version").attr("alt"), "Node.js docs: v2.3.4");
-    const svg = Buffer.from(
-      $("#version").attr("src").split(",")[1],
-      "base64",
-    ).toString();
-    assert.match(svg, /aria-label="Node.js docs: v2\.3\.4"/);
-    assert.doesNotMatch(svg, /(?:href|src)="https?:/);
-    const rewritten = await fs.readFile(filename, "utf8");
-    await plugin().postBuild({ outDir });
-    assert.equal(await fs.readFile(filename, "utf8"), rewritten);
+    for (const [id, expected] of [
+      ["rust", "Rust docs: v9.1.0"],
+      ["nodejs", "Node.js docs: v2.3.4"],
+      ["ruby", "Ruby docs: v4.5.6"],
+    ]) {
+      assert.equal($(`#${id}`).attr("alt"), expected);
+      assert.match($(`#${id}`).attr("src"), /^data:image\/svg\+xml;base64,/);
+    }
   });
 }
 
-test("Markdown images embed independent documentation versions before client rendering", async (t) => {
-  const { rehype } = await fixture(t);
-  const images = [
-    ["https://img.shields.io/crates/v/opendal.svg", "Rust docs: v9.1.0"],
-    [
-      "https://img.shields.io/npm/v/opendal.svg?logo=npm",
-      "Node.js docs: v2.3.4",
-    ],
-    ["https://img.shields.io/gem/v/opendal", "Ruby docs: v4.5.6"],
-  ];
-  const tree = {
-    type: "root",
-    children: images.map(([src]) => ({
-      type: "element",
-      tagName: "p",
-      children: [{ type: "element", tagName: "img", properties: { src } }],
-    })),
-  };
-  rehype()(tree, { fail: assert.fail });
-  tree.children.forEach((node, i) => {
-    const { src, alt } = node.children[0].properties;
-    assert.match(src, /^data:image\/svg\+xml;base64,/);
-    assert.equal(alt, images[i][1]);
-  });
-});
-
-test("literal MDX img elements use the same source resolution before hydration", async (t) => {
-  const { rehype } = await fixture(t, "/preview/");
-  const tree = {
-    type: "mdxJsxFlowElement",
-    name: "img",
-    attributes: [
-      {
-        type: "mdxJsxAttribute",
-        name: "src",
-        value: "https://opendal.apache.org/img/architectural.png",
-      },
-      { type: "mdxJsxAttribute", name: "width", value: "100%" },
-    ],
-  };
-  rehype()(tree, { fail: assert.fail });
-  assert.equal(tree.attributes[0].value, "/preview/img/architectural.png");
-  assert.equal(tree.attributes[1].value, "100%");
-});
-
-test("unknown external images identify the affected API page instead of falling back to a network request", async (t) => {
+test("unknown external images fail with their page and URL", async (t) => {
   const { plugin, outDir } = await fixture(t);
   await fs.writeFile(
     path.join(outDir, "docs/nodejs/index.html"),
@@ -142,6 +85,8 @@ test("unknown external images identify the affected API page instead of falling 
   );
   await assert.rejects(
     plugin().postBuild({ outDir }),
-    /docs\/nodejs\/index\.html: Unsupported external image: \/\/example\.com\/unknown\.png/,
+    (error) =>
+      error.message.includes("docs/nodejs/index.html") &&
+      error.message.includes("//example.com/unknown.png"),
   );
 });

@@ -496,6 +496,8 @@ jobs:
 
   build-website:
     runs-on: ubuntu-latest
+    env:
+      DOCUSAURUS_PERF_LOGGER: "true"
     permissions:
       contents: write
     needs:
@@ -585,9 +587,18 @@ jobs:
             website/node_modules/.cache/
           key: website-build-artifacts-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}-v1
 
+      - name: Capture native Cargo diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/opendal-website-profile/bin"
+          echo "OPENDAL_REAL_RUSTUP=$(command -v rustup)" >> "$GITHUB_ENV"
+          echo "OPENDAL_CARGO_TRACE=$RUNNER_TEMP/opendal-website-profile/cargo.log" >> "$GITHUB_ENV"
+          cp scripts/profile-rustup.py "$RUNNER_TEMP/opendal-website-profile/bin/rustup"
+          chmod +x "$RUNNER_TEMP/opendal-website-profile/bin/rustup"
+          echo "$RUNNER_TEMP/opendal-website-profile/bin" >> "$GITHUB_PATH"
+
       - name: Build
         run: |
-          pnpm build
+          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
 
       - name: Deploy to gh-pages
@@ -608,7 +619,7 @@ jobs:
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         working-directory: website
         run: |
-          pnpm build
+          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_STAGING: true
@@ -638,7 +649,7 @@ jobs:
 
       - name: Build for nightlies with tagged version
         run: |
-          pnpm build
+          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           # Keep this same with the remote_path below
@@ -668,7 +679,7 @@ jobs:
 
       - name: Build for nightlies with stable version
         run: |
-          pnpm build
+          NODE_OPTIONS="--require=$PWD/scripts/profile-build.cjs" pnpm build
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
         env:
           OPENDAL_WEBSITE_BASE_URL: /opendal/opendal-docs-stable/
@@ -690,3 +701,18 @@ jobs:
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
             build/ \
             "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-stable/"
+
+      - name: Show native Cargo diagnostics
+        if: always()
+        run: |
+          if [ -f "$OPENDAL_CARGO_TRACE" ]; then
+            cat "$OPENDAL_CARGO_TRACE"
+          fi
+
+      - name: Upload native Cargo diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-cargo-diagnostics
+          path: ${{ runner.temp }}/opendal-website-profile/cargo.log
+          if-no-files-found: ignore

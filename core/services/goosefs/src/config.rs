@@ -69,7 +69,10 @@ pub struct GoosefsConfig {
 
     /// Default write type for new files.
     ///
-    /// Supported values: `"must_cache"`, `"cache_through"`, `"through"`, `"async_through"`.
+    /// Supported values: `"must_cache"`, `"try_cache"`, `"cache_through"`,
+    /// `"through"`, `"async_through"`. Matching is case-insensitive.
+    /// `build()` fails with `ConfigInvalid` when the value is not one of
+    /// these.
     /// Default: `"must_cache"`.
     pub write_type: Option<String>,
 

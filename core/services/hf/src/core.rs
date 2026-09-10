@@ -1693,7 +1693,11 @@ mod uri {
             Self {
                 repo_type,
                 repo_id,
-                revision,
+                // An empty revision is no revision: `hf://datasets/user/repo@`
+                // and `revision=""` via options both reach here, and leaving
+                // `Some("")` in place would build URLs with an empty revision
+                // segment instead of falling back to `main`.
+                revision: revision.filter(|revision| !revision.is_empty()),
             }
         }
 
@@ -1839,11 +1843,7 @@ mod uri {
                 }
             } else if let Some((repo_id, rev)) = path.split_once('@') {
                 let rev = rev.replace("%2F", "/");
-                (
-                    repo_id.to_string(),
-                    if rev.is_empty() { None } else { Some(rev) },
-                    String::new(),
-                )
+                (repo_id.to_string(), Some(rev), String::new())
             } else {
                 (path, None, String::new())
             };
@@ -1932,21 +1932,27 @@ mod uri {
             recursive: bool,
             cursor: Option<&str>,
         ) -> String {
+            // HF answers a trailing slash with a 302 to the slash-less URL, so
+            // the separator lives in the segment rather than the template.
+            let path_segment = if self.path.is_empty() {
+                String::new()
+            } else {
+                format!("/{}", percent_encode_path(&self.path))
+            };
+
             let mut url = if self.repo.is_bucket() {
                 format!(
-                    "{}/api/buckets/{}/tree/{}?expand=True",
-                    endpoint,
-                    self.repo.repo_id,
-                    percent_encode_path(&self.path),
+                    "{}/api/buckets/{}/tree{}?expand=True",
+                    endpoint, self.repo.repo_id, path_segment,
                 )
             } else {
                 format!(
-                    "{}/api/{}/{}/tree/{}/{}?expand=True",
+                    "{}/api/{}/{}/tree/{}{}?expand=True",
                     endpoint,
                     self.repo.repo_type.as_plural_str(),
                     self.repo.repo_id,
                     percent_encode_revision(self.revision()),
-                    percent_encode_path(&self.path),
+                    path_segment,
                 )
             };
 
@@ -2215,6 +2221,76 @@ mod uri {
             let p = resolve("buckets/user/bucket");
             let url = p.repo.bucket_batch_url("https://huggingface.co");
             assert_eq!(url, "https://huggingface.co/api/buckets/user/bucket/batch");
+        }
+
+        #[test]
+        fn test_file_tree_url_root_has_no_trailing_slash() {
+            let p = resolve("datasets/user/repo");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", false, None),
+                "https://huggingface.co/api/datasets/user/repo/tree/main?expand=True"
+            );
+        }
+
+        #[test]
+        fn test_file_tree_url_subdir_keeps_path_separator() {
+            let p = resolve("datasets/user/repo/data");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", false, None),
+                "https://huggingface.co/api/datasets/user/repo/tree/main/data?expand=True"
+            );
+        }
+
+        #[test]
+        fn test_file_tree_url_encoded_revision_root() {
+            let p = resolve("datasets/user/repo@refs/convert/parquet");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", false, None),
+                "https://huggingface.co/api/datasets/user/repo/tree/refs%2Fconvert%2Fparquet?expand=True"
+            );
+        }
+
+        /// Every construction site funnels through `HfRepo::new`, so an empty
+        /// revision from a URI or from `revision=""` in options is unset.
+        #[test]
+        fn test_empty_revision_is_unset() {
+            assert!(resolve("datasets/user/repo@").repo.revision.is_none());
+            assert!(
+                HfRepo::new(
+                    HfRepoType::Dataset,
+                    "user/repo".to_string(),
+                    Some(String::new()),
+                )
+                .revision
+                .is_none()
+            );
+        }
+
+        #[test]
+        fn test_file_tree_url_recursive_and_cursor() {
+            let p = resolve("datasets/user/repo");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", true, Some("abc123")),
+                "https://huggingface.co/api/datasets/user/repo/tree/main?expand=True&recursive=True&cursor=abc123"
+            );
+        }
+
+        #[test]
+        fn test_bucket_file_tree_url_root_ends_at_tree() {
+            let p = resolve("buckets/user/bucket");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", false, None),
+                "https://huggingface.co/api/buckets/user/bucket/tree?expand=True&recursive=false"
+            );
+        }
+
+        #[test]
+        fn test_bucket_file_tree_url_subdir_keeps_path_separator() {
+            let p = resolve("buckets/user/bucket/data");
+            assert_eq!(
+                p.file_tree_url("https://huggingface.co", false, None),
+                "https://huggingface.co/api/buckets/user/bucket/tree/data?expand=True&recursive=false"
+            );
         }
     }
 }

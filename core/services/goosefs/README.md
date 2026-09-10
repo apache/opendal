@@ -12,16 +12,18 @@ Applications should normally enable this service through the `opendal` facade wi
 cargo add opendal --features services-goosefs
 ```
 
-Opt in to the GooseFS client metadata cache or disk-backed page cache:
-
-```shell
-cargo add opendal --features services-goosefs,services-goosefs-metadata-cache,services-goosefs-page-cache
-# Linux io_uring page-cache backend:
-cargo add opendal --features services-goosefs,services-goosefs-page-cache-io-uring
-```
-
 The service is available as `opendal::services::GooseFs`. Configure the
 service builder, then pass it to `opendal::Operator::new`.
+
+Optional client caches stay on this crate, not on the `opendal` facade. Add
+this crate as a direct dependency so Cargo unifies the features into the same
+`opendal-service-goosefs` build:
+
+```shell
+cargo add opendal-service-goosefs --features metadata-cache,page-cache
+# Linux io_uring page-cache backend:
+cargo add opendal-service-goosefs --features page-cache-io-uring
+```
 
 ## Use with `opendal-core`
 

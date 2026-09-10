@@ -34,7 +34,7 @@ Features:
   `CreateDirectory` for a parent that `CreateFile(recursive)` already created.
 - **Optional client caches**: `goosefs-sdk` 0.2.1 keeps metadata and page caches
   behind Cargo features so the default build stays a gRPC client. Enable them
-  through this crate or the facade; see [Optional client caches](#optional-client-caches).
+  on this crate; see [Optional client caches](#optional-client-caches).
 
 ## Configuration
 
@@ -76,14 +76,19 @@ address; it never falls back to `127.0.0.1:9200`.
 cache only when their Cargo features are enabled. The default
 `services-goosefs` / `opendal-service-goosefs` build stays a gRPC client.
 
-| Facade feature | `opendal-service-goosefs` feature | Compiles |
-| --- | --- | --- |
-| `services-goosefs-metadata-cache` | `metadata-cache` | Process-local status / listing LRU |
-| `services-goosefs-page-cache` | `page-cache` | Disk-backed page cache via `tokio::fs` |
-| `services-goosefs-page-cache-io-uring` | `page-cache-io-uring` | Page cache plus the Linux io_uring backend |
+Enable a cache on this crate. Applications that use the `opendal` facade still
+add `opendal-service-goosefs` as a direct dependency so Cargo unifies the
+features into the same build:
+
+| Feature | Compiles |
+| --- | --- |
+| `metadata-cache` | Process-local status / listing LRU |
+| `page-cache` | Disk-backed page cache via `tokio::fs` |
+| `page-cache-io-uring` | Page cache plus the Linux io_uring backend |
 
 ```shell
-cargo add opendal --features services-goosefs,services-goosefs-metadata-cache,services-goosefs-page-cache-io-uring
+cargo add opendal --features services-goosefs
+cargo add opendal-service-goosefs --features metadata-cache,page-cache-io-uring
 ```
 
 `page-cache-io-uring` already enables `page-cache`. On non-Linux targets the

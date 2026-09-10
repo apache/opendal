@@ -743,6 +743,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn metadata_layout_is_40_bytes() {
         assert_eq!(size_of::<MetadataHeader>(), 24);
         assert_eq!(size_of::<CompactValues>(), 16);

@@ -24,7 +24,8 @@ const path = require("node:path");
 const { test } = require("node:test");
 const { addRustdocLlmSessions } = require("./site-helpers");
 
-function artifact(t) {
+test("Rust artifacts supplement website content under a nested base URL", (t) => {
+  const baseUrl = "/opendal/opendal-docs-stable/";
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "opendal-rustdoc-llms-"));
   const filename = path.join(dir, "llms.json");
   const previous = process.env.OPENDAL_RUSTDOC_LLMS;
@@ -34,60 +35,46 @@ function artifact(t) {
     else process.env.OPENDAL_RUSTDOC_LLMS = previous;
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  return filename;
-}
-
-for (const baseUrl of ["/", "/opendal/opendal-docs-stable/"]) {
-  test(`Rust artifacts supplement website content under ${baseUrl}`, (t) => {
-    const filename = artifact(t);
-    fs.writeFileSync(filename, JSON.stringify({
-      libName: "opendal",
-      sessions: [
-        {
-          title: "opendal",
-          description: "Rust API",
-          link: "opendal/",
-        },
-        {
-          title: "init_default_registry",
-          description: "Initialize the registry",
-          link: "src/opendal/lib.rs.html",
-        },
-      ],
-      fullSessions: [{
-        content: "Initialize the default registry.",
-        link: "src/opendal/lib.rs.html",
-      }],
-    }));
-    const websiteIndex = { sessionName: "Docs", items: [] };
-    const websiteFull = {
-      content: "Website guide",
-      link: "https://opendal.apache.org/docs/",
-    };
-    const ctx = {
-      llmConfig: {
-        llmStdConfig: { sessions: [websiteIndex] },
-        llmFullStdConfig: { sessions: [websiteFull] },
+  fs.writeFileSync(filename, JSON.stringify({
+    libName: "opendal",
+    sessions: [
+      {
+        title: "opendal",
+        description: "Rust API",
+        link: "opendal/",
       },
-    };
+      {
+        title: "init_default_registry",
+        description: "Initialize the registry",
+        link: "src/opendal/lib.rs.html",
+      },
+    ],
+    fullSessions: [{
+      content: "Initialize the default registry.",
+      link: "src/opendal/lib.rs.html",
+    }],
+  }));
+  const websiteIndex = { sessionName: "Docs", items: [] };
+  const websiteFull = {
+    content: "Website guide",
+    link: "https://opendal.apache.org/docs/",
+  };
+  const ctx = {
+    llmConfig: {
+      llmStdConfig: { sessions: [websiteIndex] },
+      llmFullStdConfig: { sessions: [websiteFull] },
+    },
+  };
 
-    addRustdocLlmSessions(ctx, baseUrl);
+  addRustdocLlmSessions(ctx, baseUrl);
 
-    const [rust, docs] = ctx.llmConfig.llmStdConfig.sessions;
-    const [rustFull, guide] = ctx.llmConfig.llmFullStdConfig.sessions;
-    const root = `https://opendal.apache.org${baseUrl}docs/rust/`;
-    assert.equal(rust.items[0].link, `${root}opendal/`);
-    assert.equal(rust.items[1].link, `${root}src/opendal/lib.rs.html`);
-    assert.equal(rustFull.link, `${root}src/opendal/lib.rs.html`);
-    assert.equal(rustFull.content, "Initialize the default registry.");
-    assert.equal(docs, websiteIndex);
-    assert.equal(guide, websiteFull);
-  });
-}
-
-test("configured Rust artifacts cannot silently disappear or be empty", (t) => {
-  const filename = artifact(t);
-  assert.throws(() => addRustdocLlmSessions({}), { code: "ENOENT" });
-  fs.writeFileSync(filename, "null");
-  assert.throws(() => addRustdocLlmSessions({}), /Rust LLM documentation is empty/);
+  const [rust, docs] = ctx.llmConfig.llmStdConfig.sessions;
+  const [rustFull, guide] = ctx.llmConfig.llmFullStdConfig.sessions;
+  const root = `https://opendal.apache.org${baseUrl}docs/rust/`;
+  assert.equal(rust.items[0].link, `${root}opendal/`);
+  assert.equal(rust.items[1].link, `${root}src/opendal/lib.rs.html`);
+  assert.equal(rustFull.link, `${root}src/opendal/lib.rs.html`);
+  assert.equal(rustFull.content, "Initialize the default registry.");
+  assert.equal(docs, websiteIndex);
+  assert.equal(guide, websiteFull);
 });

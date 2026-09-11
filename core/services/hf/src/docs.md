@@ -32,6 +32,36 @@ Use [`crate::HfConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+### Reading files that can change
+
+OpenDAL assumes that previously written files are not modified. Each backend
+shares resolved HTTP download addresses and XET file metadata across readers and
+batches. If files can change, enable
+[`force_resolve`](crate::Hf::force_resolve) to resolve every
+range through the Hub:
+
+```rust,no_run
+let builder = opendal_service_hf::Hf::default()
+    .repo_type("bucket")
+    .repo_id("username/my-bucket")
+    .force_resolve(true);
+```
+
+The option controls read freshness, not permission to write. It also applies to
+paths changed by other clients or a floating repository revision. With the
+option disabled, changed files can remain invisible while a resolved address or
+XET file metadata is reused. Issued signed URLs can also remain usable after Hub
+permissions change.
+
+The shared cache retains bounded in-memory metadata. HTTP addresses refresh
+30 seconds before their signed expiry, on the next read, or once after a cached
+request returns 401 or 403. In HTTP mode, the first resolve returns its body
+directly. Responses without supported redirect metadata or expiry continue to
+resolve normally.
+The reqwest transport supports the optional
+[`HttpRedirect`](opendal_core::HttpRedirect) extension; custom transports may omit it.
+Separate authorization identities require separately constructed backends.
+
 ## Examples
 
 ### Via Builder (Git-based dataset)

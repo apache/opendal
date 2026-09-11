@@ -133,6 +133,23 @@ impl HfBuilder {
         self
     }
 
+    /// Resolve every range through the Hugging Face Hub.
+    ///
+    /// Defaults to `false`: readers share resolved HTTP download addresses and
+    /// XET file metadata on the same backend. HTTP addresses refresh near expiry.
+    /// Set to `true` to resolve every range through the Hub in either mode.
+    /// This bypasses cached HTTP addresses and XET file metadata.
+    ///
+    /// Enable this when paths can be overwritten, deleted and reused, or moved
+    /// to different content by another client or a floating repository revision.
+    /// With reuse enabled, an issued download URL can remain usable until expiry
+    /// even after Hub permissions change. Separate authorization identities must
+    /// use separately constructed backends.
+    pub fn force_resolve(mut self, enabled: bool) -> Self {
+        self.config.force_resolve = enabled;
+        self
+    }
+
     /// Set the Hub base URL.
     ///
     /// Configure this when your organization uses a
@@ -266,16 +283,10 @@ impl Builder for HfBuilder {
         let repo = HfRepo::new(repo_type, repo_id, Some(revision.clone()));
         debug!("backend repo uri: {:?}", repo.uri(&root, ""));
 
+        let mut core = HfCore::build(info, capability, repo, root, token, endpoint, download_mode)?;
+        core.force_resolve = self.config.force_resolve;
         Ok(HfBackend {
-            core: Arc::new(HfCore::build(
-                info,
-                capability,
-                repo,
-                root,
-                token,
-                endpoint,
-                download_mode,
-            )?),
+            core: Arc::new(core),
         })
     }
 }

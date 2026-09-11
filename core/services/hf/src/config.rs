@@ -60,6 +60,11 @@ pub struct HfConfig {
     ///
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
+    /// Resolve every range through the Hugging Face Hub. Defaults to `false`.
+    ///
+    /// Set to `true` to resolve every range through the Hub. See
+    /// [`HfBuilder::force_resolve`] for cache and freshness semantics.
+    pub force_resolve: bool,
 }
 
 impl Debug for HfConfig {
@@ -73,6 +78,7 @@ impl Debug for HfConfig {
             .field("revision", &self.revision)
             .field("root", &self.root)
             .field("download_mode", &self.download_mode)
+            .field("force_resolve", &self.force_resolve)
             .finish_non_exhaustive()
     }
 }
@@ -106,6 +112,19 @@ impl opendal_core::Configurator for HfConfig {
             .map(|s| HfDownloadMode::parse(s))
             .transpose()?;
 
+        let force_resolve = opts
+            .get("force_resolve")
+            .map(|value| value.parse::<bool>())
+            .transpose()
+            .map_err(|err| {
+                opendal_core::Error::new(
+                    opendal_core::ErrorKind::ConfigInvalid,
+                    "force_resolve must be true or false",
+                )
+                .set_source(err)
+            })?
+            .unwrap_or_default();
+
         if !path.is_empty() {
             // Full URI like "hf://datasets/user/repo@rev/path"
             let parsed = HfUri::parse(&path)?;
@@ -117,6 +136,7 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                force_resolve,
             })
         } else {
             // Bare scheme from via_iter, all config is in options.
@@ -138,6 +158,7 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                force_resolve,
             })
         }
     }

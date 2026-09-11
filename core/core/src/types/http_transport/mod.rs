@@ -36,12 +36,16 @@ use crate::types::Result;
 mod body;
 pub use body::HttpBody;
 
+mod uri;
+pub use uri::{HttpRedirect, HttpUri};
+
 static DEFAULT_HTTP_TRANSPORTER: OnceLock<HttpTransporter> = OnceLock::new();
 
 /// HTTP transport used by OpenDAL services.
 ///
 /// Implement this trait to provide a custom HTTP backend. A transport must
 /// support 3xx redirection.
+/// It can support [`HttpRedirect`] to let services reuse redirect destinations.
 pub trait HttpTransport: Send + Sync + Unpin + 'static {
     /// Fetch a request and return a streamable [`HttpBody`].
     #[cfg(not(target_arch = "wasm32"))]
@@ -114,8 +118,32 @@ impl HttpTransporter {
     }
 
     /// Fetch a request and return a streamable [`HttpBody`].
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        self.inner.fetch_dyn(req).await
+    ///
+    /// Mark credential headers as sensitive for diagnostics without changing
+    /// their values.
+    pub async fn fetch(&self, mut req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        // Mark credentials at the shared boundary before any transport wrapper
+        // formats the request. Values on the wire remain unchanged.
+        for (name, value) in req.headers_mut() {
+            if matches!(
+                name.as_str(),
+                "authorization" | "proxy-authorization" | "cookie" | "cookie2"
+            ) {
+                value.set_sensitive(true);
+            }
+        }
+        let mut resp = self.inner.fetch_dyn(req).await?;
+        for (name, value) in resp.headers_mut() {
+            if matches!(
+                name.as_str(),
+                "set-cookie" | "www-authenticate" | "proxy-authenticate"
+            ) {
+                value.set_sensitive(true);
+            }
+        }
+        let (mut parts, body) = resp.into_parts();
+        HttpUri::from_response_location(&mut parts);
+        Ok(Response::from_parts(parts, body))
     }
 }
 

@@ -26,12 +26,12 @@ use std::path::Path;
 mod bump;
 mod package;
 
-pub fn update_version(baseline: Option<&str>, patch: bool) -> anyhow::Result<()> {
+pub fn update_version(baseline: Option<&str>, patch: bool, sync: bool) -> anyhow::Result<()> {
     let baseline = baseline
         .map(str::to_owned)
         .map_or_else(bump::latest_final_release_tag, Ok)?;
     let mut packages = package::all_packages();
-    let inventory = if patch {
+    let inventory = if patch || sync {
         let mut command = find_command("git", workspace_dir());
         let output = command
             .args(["show", &format!("{baseline}:dev/src/release/package.rs")])
@@ -40,9 +40,10 @@ pub fn update_version(baseline: Option<&str>, patch: bool) -> anyhow::Result<()>
             output.status.success(),
             "failed to read baseline package inventory"
         );
-        Some(package::prepare_patch_versions(
+        Some(package::prepare_versions(
             &mut packages,
             std::str::from_utf8(&output.stdout)?,
+            patch,
         )?)
     } else {
         None

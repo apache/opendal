@@ -7,7 +7,7 @@ Repository paths and shell commands are relative to the repository root.
 Read `website/community/release/weekly.md` and the selected revision of
 `.github/workflows/weekly_release.yml` before operating this path. Scheduled
 preparation uses the Friday cutoff; manual dispatch pins the selected commit.
-The workflow prepares package versions, pushes a candidate branch and lightweight
+The workflow prepares package versions, pushes `releases/<version>-rc.N` and its lightweight
 RC tag with the first unused `rc.N` number for its version, and calls
 `release-compose.yml` to build, sign and upload source archives. Signing accepts
 both schedule and manual dispatch events. Disabled downstream workflows are
@@ -19,7 +19,9 @@ Merging a workflow fix does not change earlier runs or backfill their downstream
 jobs. The weekly `builds` job dispatches the existing workflows automatically;
 no human needs to trigger each build in a normal run. The `notify` job waits for
 compose and dispatch, then posts a preparation notice. It does not wait for all
-downstream results, evaluate votes, or publish a final release.
+downstream results. `release_lifecycle.yml` separately observes ATR hourly and
+calls `release_publish.yml` after a resolved passing vote. The notice includes the
+verified revision's CLI commands and the announcement draft for RM review.
 
 For ATR OIDC, register `.github/workflows/weekly_release.yml` as an allowed compose
 caller alongside `.github/workflows/release-compose.yml`. Inspect the actual ATR

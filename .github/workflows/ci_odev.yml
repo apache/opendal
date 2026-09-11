@@ -32,6 +32,11 @@ on:
       - "scripts/verify_source_reproducibility.py"
       - "scripts/sign_source_release.py"
       - "scripts/test_sign_source_release.py"
+      - "scripts/release_lifecycle.py"
+      - "scripts/test_release_lifecycle.py"
+      - ".github/workflows/weekly_release.yml"
+      - ".github/workflows/release_lifecycle.yml"
+      - ".github/workflows/release_publish.yml"
       - ".github/workflows/release-compose.yml"
 
 concurrency:
@@ -66,6 +71,7 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 -m unittest discover -s scripts -p 'test_sign_source_release.py'
+      - run: python3 -m unittest discover -s scripts -p 'test_release_lifecycle.py'
 
   test_dev:
     runs-on: ubuntu-latest

@@ -125,9 +125,10 @@ pub fn all_packages() -> Vec<Package> {
 }
 
 /// Prepare inventory and dependency versions together before compatibility validation.
-pub(super) fn prepare_patch_versions(
+pub(super) fn prepare_versions(
     packages: &mut [Package],
     baseline: &str,
+    patch: bool,
 ) -> anyhow::Result<String> {
     let matcher = regex::Regex::new(r#"make_package\("([^"]+)", "([^"]+)""#)?;
     let baseline = matcher
@@ -143,10 +144,12 @@ pub(super) fn prepare_patch_versions(
                     "baseline package must be a final version"
                 );
                 let mut next = previous.clone();
-                next.patch = next
-                    .patch
-                    .checked_add(1)
-                    .ok_or_else(|| anyhow::anyhow!("patch version overflow"))?;
+                if patch {
+                    next.patch = next
+                        .patch
+                        .checked_add(1)
+                        .ok_or_else(|| anyhow::anyhow!("patch version overflow"))?;
+                }
                 std::cmp::max(next, package.version.clone())
             }
             None => package.version.clone(),
@@ -626,17 +629,35 @@ mod tests {
         packages[1].version.major += 1;
         let reviewed = packages[1].version.clone();
         let baseline = include_str!("package.rs");
-        let inventory = prepare_patch_versions(&mut packages, baseline).unwrap();
+        let inventory = prepare_versions(&mut packages, baseline, true).unwrap();
         assert_eq!(packages[0].version.patch, old.patch + 1);
         assert_eq!(packages[1].version, reviewed);
         assert_eq!(packages[1].dependencies[0].version, packages[0].version);
         assert!(inventory.contains(&format!("\"core\", \"{}\"", packages[0].version)));
         // Retrying from the same published baseline must not consume another patch.
-        prepare_patch_versions(&mut packages, baseline).unwrap();
+        prepare_versions(&mut packages, baseline, true).unwrap();
         assert_eq!(packages[0].version.patch, old.patch + 1);
         let mut new_packages = all_packages();
-        prepare_patch_versions(&mut new_packages, "").unwrap();
+        prepare_versions(&mut new_packages, "", true).unwrap();
         assert_eq!(new_packages[0].version, old);
+    }
+
+    #[test]
+    fn sync_versions_preserve_main_and_use_released_dependency_versions() {
+        let mut packages = all_packages();
+        let released = packages[0].version.clone();
+        packages[0].version = Version::new(0, 0, 0);
+        packages[1].version.major += 1;
+        let main_version = packages[1].version.clone();
+        prepare_versions(&mut packages, include_str!("package.rs"), false).unwrap();
+        assert_eq!(packages[0].version, released);
+        assert_eq!(packages[1].version, main_version);
+        assert_eq!(packages[1].dependencies[0].version, released);
+        prepare_versions(&mut packages, include_str!("package.rs"), false).unwrap();
+        assert_eq!(packages[0].version, released);
+        let mut new_packages = all_packages();
+        prepare_versions(&mut new_packages, "", false).unwrap();
+        assert_eq!(new_packages[0].version, released);
     }
 
     #[test]

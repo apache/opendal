@@ -65,8 +65,11 @@ enum Commands {
         #[arg(long)]
         baseline: Option<String>,
         /// Prepare at least a patch increment from the baseline for every package.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "sync")]
         patch: bool,
+        /// Raise package versions to the baseline without adding another patch.
+        #[arg(long)]
+        sync: bool,
     },
     /// Create all the release artifacts.
     Release {
@@ -83,9 +86,11 @@ fn main() -> anyhow::Result<()> {
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
-        Commands::UpdateVersion { baseline, patch } => {
-            release::update_version(baseline.as_deref(), patch)
-        }
+        Commands::UpdateVersion {
+            baseline,
+            patch,
+            sync,
+        } => release::update_version(baseline.as_deref(), patch, sync),
         Commands::Release { unsigned } => release::archive_package(!unsigned),
         Commands::ReleasePackages => release::print_packages(),
     }

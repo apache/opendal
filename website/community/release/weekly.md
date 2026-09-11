@@ -12,7 +12,8 @@ from the selected branch commit at the time of dispatch.
 Preparation creates no version PR and requires no manual merge.
 
 The release manager then follows the [release procedure](release.md) to verify
-the candidate, start the vote and finish publication.
+the candidate, start and resolve the vote. Hourly synchronization then finishes
+publication and opens the version-sync PR.
 
 ## Preparation
 
@@ -24,21 +25,21 @@ history. It uses the dispatch commit even if the branch advances while the run
 is queued.
 
 `update-version --patch` prepares at least a patch increment for each package from
-the latest reachable final release tag, preserving higher inventory versions and
-versions of new packages. Final tags must identify successfully published releases.
+the latest published final GitHub Release, preserving higher inventory versions
+and versions of new packages. Draft and prerelease entries are excluded. This
+selection does not depend on tag ancestry: squash-merging a version-sync PR does
+not make the release commit an ancestor of main.
 It reuses the existing compatibility validation and package update logic. Breaking
 changes may require editing the inventory before running preparation again.
 
-Each attempt commits the version, dependency and changelog updates on a fresh
-`release-candidates/weekly-<run>-<attempt>` branch. It pushes that branch and its RC
-lightweight tag together, then passes the resulting SHA to compose in the same workflow run.
-Compose signs the source archives; the lightweight tag itself is unsigned.
-RC tags use `v<version>-rc.1`, `rc.2`, and so on. Preparation chooses the first
-unused positive RC number for that version from the fetched tags, including
-manual candidates. Existing tags are preserved, including legacy tags whose
-suffix contains an Actions run ID. The candidate branch retains the run and
-attempt for traceability. A conflicting tag push fails without replacing the tag. Compatibility or preparation
-failures stop the run before compose; correct the cause and start another run.
+Each attempt commits the version, dependency and changelog updates on
+`releases/<version>-rc.N`, for example `releases/0.59.3-rc.1`. It atomically pushes
+that branch and its lightweight `v0.59.3-rc.1` tag at the same commit, then passes
+the SHA to compose. Compose signs the source archives; the RC tag is unsigned.
+Preparation chooses the first unused positive RC number from the fetched tags,
+including manual candidates. Retaining RC tags prevents number reuse after branch
+cleanup. A conflicting push fails without replacing a tag. Correct preparation
+failures before starting another run.
 
 Preparing a new candidate does not cancel an existing vote or replace approved
 artifacts. The RM resolves any existing vote or pending publication before starting
@@ -46,12 +47,27 @@ another vote. Abandoned branches and ATR drafts can be cleaned up separately.
 
 ## Configuration
 
-Reuse the existing `GPG_SECRET_KEY` secret and `SOURCE_SIGNING_FINGERPRINT` variable.
-Source signing accepts both scheduled and manually dispatched runs.
-Register the weekly workflow for ATR compose OIDC, since the reusable workflow
-retains its caller's identity. The actor initiating a manual run or owning the
-schedule must have the required ASF-linked project permissions. An RM should
-maintain the cron expression, which determines the scheduled actor.
+Before the first candidate using this lifecycle:
+
+- Reuse `GPG_SECRET_KEY` and `SOURCE_SIGNING_FINGERPRINT` for source archives and
+  signed final tags. Source signing accepts schedule and manual dispatch events.
+- Register `.github/workflows/weekly_release.yml` as an ATR compose caller, along
+  with `.github/workflows/release-compose.yml` for direct compose runs.
+- Register `.github/workflows/release_lifecycle.yml` and
+  `.github/workflows/release_publish.yml` as ATR **finish** callers. Hourly runs
+  call the publication workflow directly, preserving the caller identity for
+  OIDC; they do not dispatch publication as `github-actions[bot]`.
+- The schedule owner and manual dispatcher must have ASF-linked GitHub accounts
+  with the required OpenDAL permissions. An RM should maintain the cron expression,
+  which determines the scheduled actor.
+- Existing `NEXUS_STAGE_DEPLOYER_USER` and `NEXUS_STAGE_DEPLOYER_PW` must allow
+  promotion of OpenDAL's closed staging repositories, as well as staging uploads.
+- Allow GitHub Actions to create pull requests and write the release refs and
+  Discussions. Existing package publisher credentials and release environment
+  rules continue to apply.
+
+These are external repository/ATR/Nexus settings; merging workflow code does not
+configure them. Never publish a release solely to test credentials.
 
 ## Builds and preparation notice
 
@@ -65,15 +81,44 @@ nightlies. Disabled workflows are skipped and recorded in the run summary.
 A retry skips workflows already dispatched for the candidate commit;
 rerun failed downstream jobs from their own runs.
 
-After ATR upload and dispatch succeed, the workflow posts a candidate preparation
-notice in GitHub Discussions with the ATR, tag, source artifact and build links.
-It reuses an existing notice for the same RC when retried. This notice does not
-assert that downstream builds or ATR checks passed. The RM verifies those results
-and the candidate before starting the formal vote.
+After ATR upload and dispatch succeed, `Release candidate: <RC>` becomes the
+shared release entry point in General Discussions. It includes the exact commit,
+ATR revision, checks, downloads, build links, RM actions, CLI commands and the
+final announcement draft. Upload and dispatch do not assert that builds or ATR
+checks passed. The RM independently verifies the candidate before opening voting.
 
-The workflow does not start votes, announce final releases, create final tags or
-synchronize main. These remain steps in the existing release procedure. Keep the
-candidate branch and signed artifacts until that procedure is complete.
+## Vote and community notification
+
+Use the [official ATR CLI](https://github.com/apache/tooling-releases-client/blob/main/RELEASE-PROCESS.md)
+or ATR's browser controls. The candidate Discussion substitutes the real RC and
+revision into these commands:
+
+```bash
+atr check status opendal 0.59.3-rc.1 00001
+atr vote start opendal 0.59.3-rc.1 00001 -m dev@opendal.apache.org --auto-publish
+atr vote tabulate opendal 0.59.3-rc.1
+atr vote resolve opendal 0.59.3-rc.1 passed
+```
+
+Read the tally and resolve with `passed`, `failed` or `cancelled` according to the
+formal result. Agents use the same CLI after the RM authorizes the voting action;
+credentials belong in the CLI's hidden prompt. The CLI is an interactive RM tool;
+CI reads ATR's JSON API and uses its trusted-publisher announcement endpoint.
+
+`release_lifecycle.yml` runs hourly at minute 17 (GitHub can delay scheduled runs).
+It updates the same candidate Discussion and posts one reminder per ATR vote
+round. GitHub subscribers receive that comment through their notification
+settings. The official vote remains in ATR and the dev mailing-list thread; the
+Discussion does not create another ballot. To synchronize sooner:
+
+```bash
+gh workflow run release_lifecycle.yml --repo apache/opendal --ref main
+```
+
+Synchronization never starts or resolves a vote. A failed or cancelled vote cannot
+trigger publication. `--auto-publish` lets ATR publish the approved source files
+when the vote passes. If omitted, the RM must publish the approved files in ATR
+before the final announcement can succeed.
 
 ## Recovering an existing candidate
 
@@ -118,17 +163,56 @@ one.
 
 ## After the vote passes
 
-The RM follows [Official Release](release.md#official-release): create the final
-signed tag at the approved RC commit and push it with the RM's credentials. That
-tag push triggers the existing final-release workflows. Weekly automation does
-not evaluate the vote or create this tag. Nexus promotion, source publication,
-GitHub Release and the announcement remain part of the release procedure.
+For new `releases/<version>-rc.N` candidates, the hourly workflow calls
+`release_publish.yml` once ATR reports a resolved passing vote. It:
 
-A final tag pushed with `GITHUB_TOKEN` would also suppress downstream push
-workflows. The RC dispatch mechanism is not a final-release dispatcher, and Ruby
-publishing still requires a final-tag push. Any future automation of final tags
-must account for those conditions.
+1. Verifies the RC branch and tag identify the same commit. Creates the retained
+   `releases/<version>` branch and signed `v<version>` tag at that commit. Existing
+   final refs must agree; they are never moved. ATR's OIDC `commit_hash` is not
+   used because the upload workflow starts on main before generating the RC.
+2. Explicitly dispatches the existing Rust, Python, Node.js, Ruby, .NET, Dart and
+   Docs workflows at the final tag, skipping disabled workflows. Ruby accepts
+   final-tag manual dispatch. Publication waits for successful runs; failures
+   require rerunning the failed jobs in their existing run. Dart retains its
+   existing artifact-only behavior. Go belongs to its separate repository.
+3. Promotes the closed Nexus repository from the successful Java RC run, without
+   staging another build, then waits for that Java package version on Maven Central.
+   A disabled Java workflow is skipped like other disabled publishers.
+4. Creates the GitHub Release and asks ATR to send the announcement to
+   `announce@apache.org`. ATR checks source publication and download propagation.
+   Posts the same reviewed announcement text in GitHub Announcements, which the
+   repository mirrors to dev@opendal.apache.org.
+5. Opens a draft version-sync PR from the latest main. `update-version --baseline
+   v<version> --sync` takes the higher of main and released versions per package,
+   preserves new packages and development changes, and regenerates dependencies,
+   lockfiles and the changelog entry. Normal review/CI and merge complete the sync;
+   the workflow does not merge the release branch into main or auto-merge the PR.
+   Because `GITHUB_TOKEN` does not trigger PR CI, a maintainer closes and reopens
+   the reviewed PR (or pushes an update) to start required checks before merging.
+6. Links the release and sync PR in the candidate Discussion, then deletes all
+   `releases/<version>-rc.N` branches for that version. Each deletion requires its
+   RC tag to retain the branch commit. The approved branch is deleted last so a
+   partial cleanup remains discoverable. Final branch, final tag and RC tags stay.
 
-For ATR-staged sources, publish the approved candidate revision through ATR.
-The SVN move commands in the release procedure apply to SVN-staged candidates.
-Preserve the approved source archives through publication.
+Each hourly run checks external completion records and resumes unfinished work.
+Pending packages or Maven propagation defer announcements and cleanup. A failed
+job appears in Actions and in the candidate notice; rerun the failed downstream
+jobs, then wait for the next hourly pass or resume explicitly:
+
+```bash
+gh workflow run release_publish.yml --repo apache/opendal --ref main \
+  -f rc=0.59.3-rc.1
+```
+
+If the version-sync PR was closed without merging, reopen it before resuming.
+If pushing its branch succeeded but PR creation failed, the retry reuses that
+branch. A successful publication run can still mean it is waiting for packages;
+inspect the candidate Discussion and downstream results for completion. Package
+workflow success is the automatic gate; RMs can also verify registry propagation
+using each package's version, as described in the release procedure.
+
+This lifecycle discovers only the new branch namespace. Existing
+`release-candidates/weekly-*` candidates, including 0.59.2, retain
+the [manual official-release procedure](release.md#official-release). Do not rename
+or migrate them to opt into automation. Source archives remain the approved ATR
+revision throughout; the manual SVN procedure applies only to SVN-staged sources.

@@ -121,7 +121,16 @@ pub fn archive_package(sign: bool) -> anyhow::Result<()> {
     let packages = package::all_packages();
     for package in packages {
         let mut cmd = find_command("git", &workspace_dir);
-        cmd.args(["ls-files", "--stage", "-z", "--", "LICENSE", "NOTICE"]);
+        // Package symlinks point at these root files, so every archive ships them.
+        cmd.args([
+            "ls-files",
+            "--stage",
+            "-z",
+            "--",
+            "LICENSE",
+            "NOTICE",
+            "CHANGELOG.md",
+        ]);
         cmd.arg(package.name());
         for dep in package.dependencies() {
             cmd.arg(dep.name());

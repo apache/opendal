@@ -427,7 +427,7 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
-    pub force_resolve: bool,
+    pub enable_resolve_cache: bool,
     /// Shared file resolutions, keyed by paths relative to this core's root.
     resolved_files: Arc<ResolvedFiles>,
     /// Cached CAS read token, shared by every `XetDownloadStreamGroup` this
@@ -470,7 +470,7 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
-            force_resolve: false,
+            enable_resolve_cache: false,
             resolved_files: Arc::default(),
             xet_read_token: Arc::new(Mutex::new(None)),
             xet_write_token: Arc::new(Mutex::new(None)),
@@ -777,10 +777,10 @@ impl HfCore {
         path: &str,
         range: BytesRange,
     ) -> Result<HfReadResponse> {
-        let entry = if self.force_resolve {
-            None
-        } else {
+        let entry = if self.enable_resolve_cache {
             self.resolved_files.entry(path)
+        } else {
+            None
         };
         let Some(entry) = entry else {
             let resp = self.resolve(ctx, path, range, self.download_mode).await?;

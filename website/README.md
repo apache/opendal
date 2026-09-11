@@ -24,6 +24,16 @@ $ pnpm build
 
 This command generates static content into the `build` directory and can be served using any static contents hosting service.
 
+## LLM documentation
+
+CI includes Rust documentation in `llms.txt` and `llms-full.txt`. Local builds include only website content by default.
+
+To include Rust content locally, download the `rust-llms-documentation` artifact from a successful Docs workflow and set `OPENDAL_RUSTDOC_LLMS` to its `llms.json` file:
+
+```bash
+OPENDAL_RUSTDOC_LLMS=/tmp/opendal-rust-llms/llms.json pnpm build
+```
+
 ## Images and badges
 
 Website images are resolved locally by `plugins/local-images.js`. The resolver runs before Markdown compilation and on the generated API documentation, so client navigation and standalone API pages use the same resources. It does not download images during a build.

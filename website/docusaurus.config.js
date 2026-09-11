@@ -179,7 +179,7 @@ const config = {
             generateLLMsFullTxt: true,
             hooks: {
               "generate:prepare": (ctx) => {
-                addRustdocLlmSessions(ctx);
+                addRustdocLlmSessions(ctx, baseUrl);
               },
             },
             sessions: [

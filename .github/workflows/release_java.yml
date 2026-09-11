@@ -56,19 +56,20 @@ jobs:
               )
               try:
                   with opener.open(request, timeout=30) as response:
-                      return json.load(response)["data"]
+                      return json.load(response)
               except urllib.error.HTTPError as error:
                   sys.exit(f"Read-only GET {path}: HTTP {error.code}")
 
-          status = get("status?perms=1")["clientPermissions"]
+          status = get("status?perms=1")["data"]["clientPermissions"]
           permissions = {p["id"]: int(p["value"]) for p in status["permissions"]}
           repository = get("staging/repository/orgapacheopendal-1090")
+          print("Staging response keys:", sorted(repository))
           report = {
               "authenticated": status["loggedIn"],
               "can_close_staging": bool(permissions.get("nexus:stagingfinish", 0) & 8),
               "can_promote_staging": bool(permissions.get("nexus:stagingpromote", 0) & 8),
               "opendal_repository_readable": True,
-              "repository_state": repository["type"],
+              "repository_state": repository.get("type"),
               "mutations_performed": False,
           }
           print(json.dumps(report, indent=2))

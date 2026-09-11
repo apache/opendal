@@ -124,16 +124,30 @@ pub fn all_packages() -> Vec<Package> {
     ]
 }
 
+pub(super) fn inventory_versions(
+    inventory: &str,
+) -> anyhow::Result<std::collections::BTreeMap<String, Version>> {
+    let matcher = regex::Regex::new(r#"make_package\("([^"]+)", "([^"]+)""#)?;
+    matcher
+        .captures_iter(inventory)
+        .map(|c| Ok((c[1].to_string(), Version::parse(&c[2])?)))
+        .collect()
+}
+
 /// Prepare inventory and dependency versions together before compatibility validation.
-pub(super) fn prepare_patch_versions(
+pub(super) fn prepare_versions(
     packages: &mut [Package],
     baseline: &str,
-) -> anyhow::Result<String> {
-    let matcher = regex::Regex::new(r#"make_package\("([^"]+)", "([^"]+)""#)?;
-    let baseline = matcher
-        .captures_iter(baseline)
-        .map(|c| Ok((c[1].to_string(), Version::parse(&c[2])?)))
-        .collect::<anyhow::Result<std::collections::BTreeMap<_, _>>>()?;
+    patch: bool,
+    breaking: &[String],
+) -> anyhow::Result<()> {
+    let baseline = inventory_versions(baseline)?;
+    for name in breaking {
+        anyhow::ensure!(
+            packages.iter().any(|p| p.name() == name),
+            "unknown breaking package: {name}"
+        );
+    }
     let mut targets = std::collections::BTreeMap::new();
     for package in packages.iter() {
         let target = match baseline.get(package.name()) {
@@ -143,25 +157,42 @@ pub(super) fn prepare_patch_versions(
                     "baseline package must be a final version"
                 );
                 let mut next = previous.clone();
-                next.patch = next
-                    .patch
-                    .checked_add(1)
-                    .ok_or_else(|| anyhow::anyhow!("patch version overflow"))?;
+                if breaking.iter().any(|name| name == package.name()) {
+                    next = super::bump::next_incompatible_version(previous);
+                } else if patch {
+                    next.patch = next
+                        .patch
+                        .checked_add(1)
+                        .ok_or_else(|| anyhow::anyhow!("patch version overflow"))?;
+                }
                 std::cmp::max(next, package.version.clone())
             }
             None => package.version.clone(),
         };
         targets.insert(package.name.clone(), target);
     }
-    fn apply(package: &mut Package, targets: &std::collections::BTreeMap<String, Version>) {
-        package.version = targets[package.name()].clone();
-        for dependency in &mut package.dependencies {
-            apply(dependency, targets);
-        }
-    }
+    apply_versions(packages, &targets);
+    Ok(())
+}
+
+pub(super) fn apply_versions(
+    packages: &mut [Package],
+    targets: &std::collections::BTreeMap<String, Version>,
+) {
     for package in packages {
-        apply(package, &targets);
+        if let Some(version) = targets.get(package.name()) {
+            package.version = version.clone();
+        }
+        apply_versions(&mut package.dependencies, targets);
     }
+}
+
+pub(super) fn render_inventory(packages: &[Package]) -> anyhow::Result<String> {
+    let matcher = regex::Regex::new(r#"make_package\("([^"]+)", "([^"]+)""#)?;
+    let targets = packages
+        .iter()
+        .map(|p| (p.name(), p.version()))
+        .collect::<std::collections::BTreeMap<_, _>>();
     let inventory = std::fs::read_to_string(workspace_dir().join("dev/src/release/package.rs"))?;
     Ok(matcher
         .replace_all(&inventory, |c: &regex::Captures<'_>| {
@@ -626,17 +657,86 @@ mod tests {
         packages[1].version.major += 1;
         let reviewed = packages[1].version.clone();
         let baseline = include_str!("package.rs");
-        let inventory = prepare_patch_versions(&mut packages, baseline).unwrap();
+        prepare_versions(&mut packages, baseline, true, &[]).unwrap();
+        let inventory = render_inventory(&packages).unwrap();
         assert_eq!(packages[0].version.patch, old.patch + 1);
         assert_eq!(packages[1].version, reviewed);
         assert_eq!(packages[1].dependencies[0].version, packages[0].version);
         assert!(inventory.contains(&format!("\"core\", \"{}\"", packages[0].version)));
         // Retrying from the same published baseline must not consume another patch.
-        prepare_patch_versions(&mut packages, baseline).unwrap();
+        prepare_versions(&mut packages, baseline, true, &[]).unwrap();
         assert_eq!(packages[0].version.patch, old.patch + 1);
         let mut new_packages = all_packages();
-        prepare_patch_versions(&mut new_packages, "").unwrap();
+        prepare_versions(&mut new_packages, "", true, &[]).unwrap();
         assert_eq!(new_packages[0].version, old);
+    }
+
+    #[test]
+    fn breaking_versions_are_scoped_idempotent_and_preserve_higher_targets() {
+        let mut packages = all_packages();
+        let baseline = include_str!("package.rs");
+        let breaking = vec![
+            "core".to_string(),
+            "bindings/java".to_string(),
+            "core".to_string(),
+        ];
+        let old = inventory_versions(baseline).unwrap();
+        let reviewed = Version::new(packages[1].version.major + 1, 0, 0);
+        packages[1].version = reviewed.clone();
+        for _ in 0..2 {
+            prepare_versions(&mut packages, baseline, true, &breaking).unwrap();
+            for package in &packages {
+                let previous = &old[package.name()];
+                let expected = if breaking.iter().any(|name| name == package.name()) {
+                    if previous.major == 0 {
+                        Version::new(0, previous.minor + 1, 0)
+                    } else {
+                        Version::new(previous.major + 1, 0, 0)
+                    }
+                } else if package.name() == "integrations/dav-server" {
+                    reviewed.clone()
+                } else {
+                    Version::new(previous.major, previous.minor, previous.patch + 1)
+                };
+                assert_eq!(package.version, expected, "{}", package.name());
+                for dependency in &package.dependencies {
+                    assert_eq!(dependency.version, packages[0].version);
+                }
+            }
+        }
+        assert!(
+            prepare_versions(&mut packages, baseline, true, &["bindings/go".to_string()]).is_err()
+        );
+    }
+
+    #[test]
+    fn stable_breaking_release_increments_major() {
+        let mut packages = all_packages();
+        let baseline = include_str!("package.rs").replace(
+            &format!("\"core\", \"{}\"", packages[0].version),
+            "\"core\", \"1.2.3\"",
+        );
+        packages[0].version = Version::new(1, 2, 3);
+        prepare_versions(&mut packages, &baseline, true, &["core".to_string()]).unwrap();
+        assert_eq!(packages[0].version, Version::new(2, 0, 0));
+    }
+
+    #[test]
+    fn sync_versions_preserve_main_and_use_released_dependency_versions() {
+        let mut packages = all_packages();
+        let released = packages[0].version.clone();
+        packages[0].version = Version::new(0, 0, 0);
+        packages[1].version.major += 1;
+        let main_version = packages[1].version.clone();
+        prepare_versions(&mut packages, include_str!("package.rs"), false, &[]).unwrap();
+        assert_eq!(packages[0].version, released);
+        assert_eq!(packages[1].version, main_version);
+        assert_eq!(packages[1].dependencies[0].version, released);
+        prepare_versions(&mut packages, include_str!("package.rs"), false, &[]).unwrap();
+        assert_eq!(packages[0].version, released);
+        let mut new_packages = all_packages();
+        prepare_versions(&mut new_packages, "", false, &[]).unwrap();
+        assert_eq!(new_packages[0].version, released);
     }
 
     #[test]

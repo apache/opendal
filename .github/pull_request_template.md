@@ -26,8 +26,20 @@ There is no need to duplicate the description in the issue here but it is someti
 If there are user-facing changes then we may require documentation to be updated before approving the PR.
 -->
 
-<!---
-If there are any breaking changes to public APIs, please add the `breaking-changes` label.
+# Breaking changes
+
+<!--
+Leave this section empty for compatible changes. For breaking changes, add the
+breaking-changes label and use the following format outside this comment:
+
+Affected packages: core, bindings/java
+
+Migration:
+- Replace `old_api()` with `new_api()`.
+
+Use package names from dev/src/release/package.rs. Include bindings affected by
+behavior changes even when their source files are unchanged. Explain how users
+can migrate, or explain the removal and available alternatives.
 -->
 
 # AI Usage Statement

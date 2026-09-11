@@ -26,12 +26,20 @@ use std::path::Path;
 mod bump;
 mod package;
 
-pub fn update_version(baseline: Option<&str>, patch: bool) -> anyhow::Result<()> {
+pub fn update_version(
+    baseline: Option<&str>,
+    patch: bool,
+    sync: bool,
+    breaking: &[String],
+    report: Option<&Path>,
+) -> anyhow::Result<()> {
     let baseline = baseline
         .map(str::to_owned)
         .map_or_else(bump::latest_final_release_tag, Ok)?;
     let mut packages = package::all_packages();
-    let inventory = if patch {
+    let configured = packages.clone();
+    let mut previous = std::collections::BTreeMap::new();
+    if patch || sync {
         let mut command = find_command("git", workspace_dir());
         let output = command
             .args(["show", &format!("{baseline}:dev/src/release/package.rs")])
@@ -40,18 +48,41 @@ pub fn update_version(baseline: Option<&str>, patch: bool) -> anyhow::Result<()>
             output.status.success(),
             "failed to read baseline package inventory"
         );
-        Some(package::prepare_patch_versions(
+        previous = package::inventory_versions(std::str::from_utf8(&output.stdout)?)?;
+        package::prepare_versions(
             &mut packages,
             std::str::from_utf8(&output.stdout)?,
-        )?)
+            patch,
+            breaking,
+        )?;
+    }
+    let dependency_reasons = if patch {
+        bump::prepare_public_dependencies(&mut packages, &baseline)?
     } else {
-        None
+        std::collections::BTreeMap::new()
     };
     bump::validate_release_versions(&packages, Some(&baseline))?;
-    if let Some(inventory) = inventory {
+    if let Some(path) = report {
+        let decisions = packages
+            .iter()
+            .zip(&configured)
+            .map(|(target, configured)| {
+                serde_json::json!({
+                    "package": target.name(),
+                    "previous": previous.get(target.name()).map(ToString::to_string),
+                    "configured": configured.version().to_string(),
+                    "target": target.version().to_string(),
+                    "breaking": breaking.iter().any(|name| name == target.name()),
+                    "public_dependency_reason": dependency_reasons.get(target.name()),
+                })
+            })
+            .collect::<Vec<_>>();
+        std::fs::write(path, serde_json::to_string_pretty(&decisions)?)?;
+    }
+    if patch || sync {
         std::fs::write(
             workspace_dir().join("dev/src/release/package.rs"),
-            inventory,
+            package::render_inventory(&packages)?,
         )?;
     }
 

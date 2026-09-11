@@ -69,3 +69,21 @@ Inspect the response body. If it says the staging repo exists but is `open` or `
 ### Vote has comments but may not have passed
 
 Count binding votes explicitly and verify the 72-hour rule. Do not move artifacts to `dist/release` or release Maven artifacts until the result is formally posted.
+
+### ATR vote passed but automatic publication is incomplete
+
+Automatic discovery covers only `releases/<version>-rc.N`. Inspect
+`release_lifecycle.yml`, `release_publish.yml`, the candidate Discussion and
+actual downstream runs. The hourly scheduler can be delayed. Reuse the same
+candidate and rerun failed package jobs rather than starting new runs.
+
+For ATR finish OIDC failures, check both the allowed caller workflow and ASF-linked
+actor. Register the hourly caller and manual publish workflow; do not dispatch
+ATR publication as `github-actions[bot]`. For Nexus promotion permission errors,
+verify the existing staging credentials have release permission. A GitHub Release
+can exist before ATR confirms announcement; it alone does not prove completion.
+
+For sync-PR creation failures, enable workflow PR creation and resume; the pushed
+sync branch is reused. Reopen a closed, unmerged sync PR. Cleanup deletes the
+approved RC branch last and preserves all RC tags; do not remove that recovery
+entry point manually while publication is incomplete.

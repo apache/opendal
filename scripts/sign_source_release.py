@@ -176,8 +176,8 @@ def main():
     parser.add_argument("rc")
     parser.add_argument("output", type=Path)
     args = parser.parse_args()
-    if os.environ.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
-        raise ValueError("source signing must be manually dispatched")
+    if os.environ.get("GITHUB_EVENT_NAME") not in {"workflow_dispatch", "schedule"}:
+        raise ValueError("source signing requires manual dispatch or a scheduled run")
     if not re.fullmatch(r"[0-9a-f]{40}", args.candidate):
         raise ValueError("full candidate SHA required")
     # Recheck reachability in the trusted checkout before obtaining the private key.

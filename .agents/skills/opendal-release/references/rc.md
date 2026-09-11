@@ -8,7 +8,10 @@ Read `website/community/release/weekly.md` and the selected revision of
 `.github/workflows/weekly_release.yml` before operating this path. Scheduled
 preparation uses the Friday cutoff; manual dispatch pins the selected commit.
 The workflow prepares package versions, pushes a candidate branch and lightweight
-RC tag, and calls `release-compose.yml` to build, sign and upload source archives.
+RC tag with the first unused `rc.N` number for its version, and calls
+`release-compose.yml` to build, sign and upload source archives. Signing accepts
+both schedule and manual dispatch events. Disabled downstream workflows are
+skipped and listed in the run summary.
 Do not add a manual version PR or rebuild an already staged candidate by default.
 
 Check that the dispatch implementation is on the revision actually running.

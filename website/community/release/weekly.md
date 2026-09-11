@@ -24,13 +24,57 @@ the cutoff. Manual dispatch starts a fresh attempt without requiring earlier pus
 history. It uses the dispatch commit even if the branch advances while the run
 is queued.
 
-`update-version --patch` prepares at least a patch increment for each package from
-the latest published final GitHub Release, preserving higher inventory versions
-and versions of new packages. Draft and prerelease entries are excluded. This
-selection does not depend on tag ancestry: squash-merging a version-sync PR does
-not make the release commit an ancestor of main.
-It reuses the existing compatibility validation and package update logic. Breaking
-changes may require editing the inventory before running preparation again.
+Weekly preparation reads the merged PRs between the last published source commit
+and the fixed cutoff. It validates their optional breaking change declarations,
+then calls `update-version --patch --breaking <package>` for each affected package.
+Unmarked PRs require no release metadata and retain the normal patch policy.
+
+Each package receives at least a patch increment from the latest published final
+GitHub Release. Declared breaking changes require an incompatible increment:
+minor for `0.x` packages, major for stable `1.x` and later packages (`0.0.x` follows
+Cargo's patch compatibility boundary). Multiple breaking PRs increment a package
+only once. Higher configured versions and new package versions are preserved.
+Public dependency compatibility changes also raise affected integration versions;
+a core breaking change does not automatically require an incompatible binding
+version. Existing manifest and dependency update code applies the resulting plan.
+
+The candidate commits `.release/plan.json`, containing the baseline, source SHA,
+PR declarations and version decisions. Discussions and final release notes read
+this snapshot, not live PR descriptions. Resuming downstream jobs keeps the
+candidate unchanged; preparing another RC can collect corrected PR declarations.
+The next weekly range starts at the published plan's source SHA, independently of
+whether the version-sync PR has merged. For older releases without a plan, it
+starts at the merge base of the final tag and cutoff. Draft and prerelease GitHub
+Releases do not advance the baseline. Missing PR associations or malformed breaking
+declarations stop preparation with the affected commit or PR identified.
+
+## Declaring breaking changes
+
+Compatible PRs leave the optional **Breaking changes** section empty. Breaking PRs
+add the `breaking-changes` label and fill the section in the PR template:
+
+```markdown
+# Breaking changes
+
+Affected packages: core, bindings/java
+
+Migration:
+- Replace `old_api()` with `new_api()`.
+```
+
+Use comma-separated package names from `dev/src/release/package.rs`. Include
+bindings whose public behavior changes even when their source files do not.
+Explain the migration or the available alternatives for removed functionality.
+The required **Breaking change declaration** check validates the label, package
+names and migration text on PR changes and label/description edits. It does not
+require compatible PRs to list packages or declare `none`.
+
+Reviewers identify API, behavior, default-value and runtime requirement breaks.
+This contract does not detect unmarked breaking changes automatically. Before the
+first weekly run with this contract, review unreleased breaking PRs and add their
+missing labels and migration declarations; older published PRs need no backfill.
+
+## Candidate refs
 
 Each attempt commits the version, dependency and changelog updates on
 `releases/<version>-rc.N`, for example `releases/0.59.3-rc.1`. It atomically pushes
@@ -84,7 +128,8 @@ rerun failed downstream jobs from their own runs.
 After ATR upload and dispatch succeed, `Release candidate: <RC>` becomes the
 shared release entry point in General Discussions. It includes the exact commit,
 ATR revision, checks, downloads, build links, RM actions, CLI commands and the
-final announcement draft. Upload and dispatch do not assert that builds or ATR
+final announcement draft, package version decisions and breaking-change migration
+instructions. Upload and dispatch do not assert that builds or ATR
 checks passed. The RM independently verifies the candidate before opening voting.
 
 ## Vote and community notification

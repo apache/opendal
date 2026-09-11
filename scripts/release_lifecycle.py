@@ -254,6 +254,18 @@ The Apache OpenDAL community
 """
 
 
+def version_notes(candidate):
+    from release_impact import PLAN_PATH, render_plan
+
+    content = api(
+        f"repos/{REPO}/contents/{PLAN_PATH}?ref={candidate.sha}", optional=True
+    )
+    if content is None:
+        return ""
+    plan = json.loads(base64.b64decode(content["content"]))
+    return render_plan(plan)
+
+
 def notice(candidate, release, status=None):
     rc = candidate.rc
     phase = release["phase"]
@@ -279,6 +291,7 @@ def notice(candidate, release, status=None):
 - Candidate commit: `{candidate.sha}`; ATR revision: `{revision}`.
 - [RC builds](https://github.com/{REPO}/actions?query=branch%3Av{rc}) · [Publication runs](https://github.com/{REPO}/actions/workflows/release_publish.yml)
 
+{version_notes(candidate)}
 ### Release manager: next actions
 
 1. Check required build results and language staging, including the closed Nexus repository. Dispatch acceptance alone is not build success.
@@ -738,7 +751,7 @@ def publish(candidate):
             {
                 "tag_name": f"v{candidate.version}",
                 "name": f"Apache OpenDAL {candidate.version}",
-                "body": body,
+                "body": body + "\n" + version_notes(candidate),
                 "draft": False,
                 "prerelease": False,
                 "generate_release_notes": True,

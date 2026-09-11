@@ -80,7 +80,12 @@ Start a [tracking issue on GitHub](https://github.com/apache/opendal/issues/new?
 
 ## Release List
 
-Update the version list in the `dev/src/release/package.rs` file.
+Weekly releases calculate versions from the optional breaking change declarations
+in merged PRs; see [Declaring breaking changes](weekly.md#declaring-breaking-changes).
+Compatible PRs need no additional metadata. The candidate Discussion includes the
+frozen version plan and migration instructions.
+
+For a manual release, update the version list in `dev/src/release/package.rs`.
 
 This file is the source of truth for the split source release layout. Each entry in this list produces an independent source archive named `apache-opendal-{package}-{version}-src.tar.gz`.
 

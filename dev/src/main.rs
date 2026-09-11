@@ -70,6 +70,12 @@ enum Commands {
         /// Raise package versions to the baseline without adding another patch.
         #[arg(long)]
         sync: bool,
+        /// Packages with declared breaking changes; repeat for each package.
+        #[arg(long, requires = "patch")]
+        breaking: Vec<String>,
+        /// Write the version decisions as JSON for the candidate release plan.
+        #[arg(long, requires = "patch")]
+        report: Option<PathBuf>,
     },
     /// Create all the release artifacts.
     Release {
@@ -90,7 +96,15 @@ fn main() -> anyhow::Result<()> {
             baseline,
             patch,
             sync,
-        } => release::update_version(baseline.as_deref(), patch, sync),
+            breaking,
+            report,
+        } => release::update_version(
+            baseline.as_deref(),
+            patch,
+            sync,
+            &breaking,
+            report.as_deref(),
+        ),
         Commands::Release { unsigned } => release::archive_package(!unsigned),
         Commands::ReleasePackages => release::print_packages(),
     }

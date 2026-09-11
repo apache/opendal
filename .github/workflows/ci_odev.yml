@@ -32,6 +32,8 @@ on:
       - "scripts/verify_source_reproducibility.py"
       - "scripts/sign_source_release.py"
       - "scripts/test_sign_source_release.py"
+      - "scripts/release_impact.py"
+      - "scripts/test_release_impact.py"
       - "scripts/release_lifecycle.py"
       - "scripts/test_release_lifecycle.py"
       - ".github/workflows/weekly_release.yml"
@@ -72,6 +74,7 @@ jobs:
           python-version: '3.12'
       - run: python3 -m unittest discover -s scripts -p 'test_sign_source_release.py'
       - run: python3 -m unittest discover -s scripts -p 'test_release_lifecycle.py'
+      - run: python3 -m unittest discover -s scripts -p 'test_release_impact.py'
 
   test_dev:
     runs-on: ubuntu-latest

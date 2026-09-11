@@ -63,6 +63,39 @@ pub fn validate_release_versions(
     Ok(())
 }
 
+/// Raise integration versions when their public dependencies cross compatibility lines.
+pub(super) fn prepare_public_dependencies(
+    packages: &mut [Package],
+    baseline: &str,
+) -> anyhow::Result<std::collections::BTreeMap<String, String>> {
+    let mut reasons = std::collections::BTreeMap::new();
+    loop {
+        let mut targets = std::collections::BTreeMap::new();
+        for package in packages.iter() {
+            if !package.public_compat_dependencies().is_empty()
+                && let Some(violation) = validate_package(package, baseline)?
+            {
+                reasons.insert(
+                    package.name().to_string(),
+                    violation
+                        .changes
+                        .iter()
+                        .map(|change| {
+                            format!("{}: {} -> {}", change.name, change.previous, change.target)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                );
+                targets.insert(package.name().to_string(), violation.required);
+            }
+        }
+        if targets.is_empty() {
+            return Ok(reasons);
+        }
+        super::package::apply_versions(packages, &targets);
+    }
+}
+
 fn validate_package(package: &Package, baseline: &str) -> anyhow::Result<Option<Violation>> {
     let baseline_manifest = manifest_at(baseline, package)?;
     let current_manifest = CargoManifest::read(package.path().join("Cargo.toml"))?;
@@ -305,7 +338,7 @@ fn same_cargo_compatibility_line(previous: &Version, target: &Version) -> bool {
     previous.patch == target.patch
 }
 
-fn next_incompatible_version(version: &Version) -> Version {
+pub(super) fn next_incompatible_version(version: &Version) -> Version {
     if version.major != 0 {
         Version::new(version.major + 1, 0, 0)
     } else if version.minor != 0 {

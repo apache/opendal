@@ -37,6 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pull-requests: read
     outputs:
       sha: ${{ steps.candidate.outputs.sha }}
       rc: ${{ steps.candidate.outputs.rc }}
@@ -72,9 +73,11 @@ jobs:
             echo "SOURCE_SHA=$sha"
             echo "BASELINE=$baseline"
           } >> "$GITHUB_ENV"
-      - name: Prepare versions with existing release tools
+      - name: Prepare versions from breaking change declarations
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          cargo run --quiet --manifest-path dev/Cargo.toml -- update-version --baseline "$BASELINE" --patch
+          python3 scripts/release_impact.py prepare --baseline "$BASELINE" --source "$SOURCE_SHA"
           while IFS= read -r lock; do
             cargo update --workspace --manifest-path "${lock%Cargo.lock}Cargo.toml"
           done < <(git ls-files '*Cargo.lock')

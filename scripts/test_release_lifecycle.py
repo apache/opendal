@@ -270,7 +270,10 @@ class LifecycleTests(unittest.TestCase):
             patch.object(release, "final_refs"),
             patch.object(release, "publish_builds", return_value=True),
             patch.object(release, "nexus_release", return_value=True),
-            patch.object(release, "api", return_value=None),
+            patch.object(release, "api", return_value=None) as github,
+            patch.object(
+                release, "version_notes", return_value="Frozen migration instructions"
+            ),
             patch.object(
                 release, "request_json", side_effect=[{"value": "test-jwt"}, {}]
             ) as http,
@@ -292,6 +295,9 @@ class LifecycleTests(unittest.TestCase):
             release.publish(self.candidate)
             self.assertEqual(
                 http.call_args.args[0], f"{release.ATR}/api/publisher/release/announce"
+            )
+            self.assertIn(
+                "Frozen migration instructions", github.call_args.args[1]["body"]
             )
             payload = http.call_args.args[1]
             self.assertEqual(payload["version"], self.candidate.rc)

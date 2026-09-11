@@ -38,6 +38,12 @@ Rules:
 - Use `opendal_version` for the final release tag and ASF SVN `dist/release/opendal/${opendal_version}/`.
 - Use package-specific versions for generated source archive names, package repository checks, and language binding or integration readiness.
 - When verifying artifacts, build an explicit package-to-version map from `dev/src/release/package.rs`; do not infer binding or integration versions from `opendal_version`.
+- Weekly versions use the optional PR **Breaking changes** section and
+  `breaking-changes` label. Require affected package names and migration text only
+  for breaking PRs; do not ask compatible PRs to declare their impact. Follow
+  `website/community/release/weekly.md#declaring-breaking-changes` for the format.
+- Inspect `.release/plan.json` at the candidate SHA for the frozen declarations,
+  baseline and version decisions. Editing a PR does not change an existing RC.
 - When checking upgrade docs, only check released bindings and integrations that appear in the current package list, and only add upgrade notes for components with breaking changes.
 
 ## Release State Model

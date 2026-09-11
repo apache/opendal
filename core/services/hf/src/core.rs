@@ -24,9 +24,11 @@ use http::StatusCode;
 use http::header;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex as StdMutex;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use xet::xet_session::{XetDownloadStreamGroup, XetSession, XetSessionBuilder, XetUploadCommit};
 
@@ -295,6 +297,123 @@ pub(super) struct LastCommit {
     pub date: String,
 }
 
+pub(super) enum HfReadResponse {
+    Http(Response<HttpBody>),
+    Xet(XetFileResponse),
+}
+
+impl HfReadResponse {
+    async fn from_response(resp: Response<HttpBody>, mode: HfDownloadMode) -> Result<Self> {
+        if mode != HfDownloadMode::Xet || !resp.headers().contains_key("x-xet-hash") {
+            return Ok(Self::Http(resp));
+        }
+        let (_, mut body) = resp.into_parts();
+        let buf = body.to_buffer().await?;
+        let info = serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
+        Ok(Self::Xet(info))
+    }
+}
+
+// Bound entries, paths, and HTTP URIs. Busy entries are never evicted:
+// recreating their slots would allow two concurrent resolutions for one path.
+const RESOLVED_FILE_MAX_ENTRIES: usize = 512;
+const RESOLVED_FILE_MAX_PATH_BYTES: usize = 4096;
+const HTTP_DOWNLOAD_MAX_URI_BYTES: usize = 8192;
+const HTTP_DOWNLOAD_EXPIRY_MARGIN: Duration = Duration::from_secs(30);
+
+#[derive(Default)]
+struct ResolvedFiles {
+    entries: StdMutex<HashMap<String, ResolvedFileEntry>>,
+}
+
+struct ResolvedFileEntry {
+    accessed: Instant,
+    state: Arc<Mutex<ResolvedFile>>,
+}
+
+#[derive(Default)]
+enum ResolvedFile {
+    #[default]
+    Empty,
+    Http(Arc<HttpDownload>),
+    Xet(XetFileResponse),
+    // The path is not XET-backed and has no reusable HTTP destination.
+    NotXet,
+    // Wake existing waiters onto the uncached path when a response cannot be
+    // admitted. Its slot leaves the table so later reads can try again.
+    Bypass,
+}
+
+struct HttpDownload {
+    redirect: HttpRedirect,
+    valid_until: Instant,
+}
+
+impl ResolvedFiles {
+    fn entry(&self, path: &str) -> Option<Arc<Mutex<ResolvedFile>>> {
+        if path.len() > RESOLVED_FILE_MAX_PATH_BYTES {
+            return None;
+        }
+
+        let mut entries = self
+            .entries
+            .lock()
+            .expect("resolved file cache lock poisoned");
+        if entries.len() == RESOLVED_FILE_MAX_ENTRIES && !entries.contains_key(path) {
+            let oldest = entries
+                .iter()
+                .filter(|(_, entry)| Arc::strong_count(&entry.state) == 1)
+                .min_by_key(|(_, entry)| entry.accessed)
+                .map(|(path, _)| path.clone())?;
+            entries.remove(&oldest);
+        }
+        let entry = entries
+            .entry(path.to_string())
+            .or_insert_with(|| ResolvedFileEntry {
+                accessed: Instant::now(),
+                state: Arc::default(),
+            });
+        entry.accessed = Instant::now();
+        Some(entry.state.clone())
+    }
+}
+
+impl HttpDownload {
+    fn from_response(resp: &Response<HttpBody>) -> Option<Self> {
+        let redirect = resp.extensions().get::<HttpRedirect>()?;
+        let uri = redirect.uri().original_uri().parse::<http::Uri>().ok()?;
+        if uri.scheme_str() != Some("https")
+            || uri.authority()?.as_str().contains('@')
+            || redirect.uri().original_uri().len() > HTTP_DOWNLOAD_MAX_URI_BYTES
+        {
+            return None;
+        }
+
+        // HF's signed CDN destinations advertise their authorization deadline
+        // as Expires. Unknown signature formats fall back to fresh resolution.
+        let mut expirations = uri.query()?.split('&').filter_map(|pair| {
+            let (key, value) = pair.split_once('=')?;
+            (key == "Expires").then_some(value)
+        });
+        let expires = expirations.next()?.parse::<u64>().ok()?;
+        if expirations.next().is_some() {
+            return None;
+        }
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).ok()?;
+        let lifetime = Duration::from_secs(expires)
+            .checked_sub(now)?
+            .checked_sub(HTTP_DOWNLOAD_EXPIRY_MARGIN)?;
+        if lifetime.is_zero() {
+            return None;
+        }
+
+        Some(Self {
+            redirect: redirect.clone(),
+            valid_until: Instant::now().checked_add(lifetime)?,
+        })
+    }
+}
+
 // Core HuggingFace client that manages API interactions, authentication
 // and shared logic for reader/writer/lister.
 
@@ -308,6 +427,9 @@ pub struct HfCore {
     pub endpoint: String,
     pub xet_session: XetSession,
     pub download_mode: HfDownloadMode,
+    pub force_resolve: bool,
+    /// Shared file resolutions, keyed by paths relative to this core's root.
+    resolved_files: Arc<ResolvedFiles>,
     /// Cached CAS read token, shared by every `XetDownloadStreamGroup` this
     /// core creates, so at most one `xet-read-token` request happens per
     /// token lifetime instead of one per group (one per file read).
@@ -348,6 +470,8 @@ impl HfCore {
             endpoint,
             xet_session,
             download_mode,
+            force_resolve: false,
+            resolved_files: Arc::default(),
             xet_read_token: Arc::new(Mutex::new(None)),
             xet_write_token: Arc::new(Mutex::new(None)),
         }
@@ -522,14 +646,14 @@ impl HfCore {
         op: Operation,
         service_operation: &'static str,
     ) -> Result<http::request::Builder> {
-        // Every outbound HF/CAS request passes through here -- enable with
-        // `RUST_LOG=opendal_service_hf::core=debug` to see what's queried.
+        let url = HttpUri::new(url);
         debug!(
-            "hf request: service_operation={service_operation} operation={op} method={method} url={url}"
+            "hf request: service_operation={service_operation} operation={op} method={method} url={}",
+            url.redacted_uri()
         );
         let mut req = Request::builder()
             .method(method)
-            .uri(url)
+            .uri(url.original_uri())
             .extension(op)
             .extension(ServiceOperation(service_operation));
         match &self.token {
@@ -596,11 +720,13 @@ impl HfCore {
             format!("{}{path}", self.endpoint)
         };
 
-        debug!("hf request redirected: url={} -> {target}", retry.uri());
+        let target = HttpUri::new(target);
+        debug!("hf request redirected: url={}", target.redacted_uri());
         let (mut parts, body) = retry.into_parts();
         parts.uri = target
+            .original_uri()
             .parse()
-            .map_err(|err| new_http_uri_invalid_error(err).with_context("location", &target))?;
+            .map_err(new_http_uri_invalid_error)?;
         ctx.http_transport()
             .fetch(Request::from_parts(parts, body))
             .await
@@ -643,6 +769,125 @@ impl HfCore {
         }
 
         Ok(files.remove(0))
+    }
+
+    pub(super) async fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<HfReadResponse> {
+        let entry = if self.force_resolve {
+            None
+        } else {
+            self.resolved_files.entry(path)
+        };
+        let Some(entry) = entry else {
+            let resp = self.resolve(ctx, path, range, self.download_mode).await?;
+            return HfReadResponse::from_response(resp, self.download_mode).await;
+        };
+
+        let mut rejected: Option<Arc<HttpDownload>> = None;
+        loop {
+            let destination = {
+                let mut state = entry.lock().await;
+                match &*state {
+                    ResolvedFile::Xet(info) => return Ok(HfReadResponse::Xet(info.clone())),
+                    ResolvedFile::NotXet | ResolvedFile::Bypass => {
+                        drop(state);
+                        let resp = self.resolve(ctx, path, range, HfDownloadMode::Http).await?;
+                        return Ok(HfReadResponse::Http(resp));
+                    }
+                    ResolvedFile::Http(current)
+                        if current.valid_until > Instant::now()
+                            && !rejected
+                                .as_ref()
+                                .is_some_and(|old| Arc::ptr_eq(old, current)) =>
+                    {
+                        current.clone()
+                    }
+                    _ => {
+                        let mode = if matches!(&*state, ResolvedFile::Http(_)) {
+                            HfDownloadMode::Http
+                        } else {
+                            self.download_mode
+                        };
+                        // Serialize resolution and refresh. XET metadata is
+                        // independent of the range; a one-byte probe bounds the
+                        // body discarded when the file turns out to use HTTP.
+                        *state = ResolvedFile::Empty;
+                        let resolve_range = if mode == HfDownloadMode::Xet {
+                            BytesRange::new(0, Some(1))
+                        } else {
+                            range
+                        };
+                        let resp = self.resolve(ctx, path, resolve_range, mode).await?;
+                        let resp = match HfReadResponse::from_response(resp, mode).await? {
+                            HfReadResponse::Xet(info) => {
+                                *state = ResolvedFile::Xet(info.clone());
+                                return Ok(HfReadResponse::Xet(info));
+                            }
+                            HfReadResponse::Http(resp) => resp,
+                        };
+                        *state = match HttpDownload::from_response(&resp) {
+                            Some(download) => ResolvedFile::Http(Arc::new(download)),
+                            None if self.download_mode == HfDownloadMode::Xet => {
+                                ResolvedFile::NotXet
+                            }
+                            None => {
+                                // This live slot cannot have been evicted or
+                                // replaced while we hold an Arc to it.
+                                self.resolved_files
+                                    .entries
+                                    .lock()
+                                    .expect("resolved file cache lock poisoned")
+                                    .remove(path);
+                                ResolvedFile::Bypass
+                            }
+                        };
+                        if mode == HfDownloadMode::Http {
+                            // The response already contains the requested range.
+                            return Ok(HfReadResponse::Http(resp));
+                        }
+                        // The XET probe returned one byte of HTTP content.
+                        // Reuse its destination to fetch the caller's range.
+                        continue;
+                    }
+                }
+            };
+
+            let url = self
+                .repo
+                .uri(&self.root, path)
+                .resolve_url(&self.endpoint, self.repo.revision());
+            let mut req = self
+                .request(http::Method::GET, &url, Operation::Read, "Download")?
+                .extension(destination.redirect.clone());
+            if !range.is_full() {
+                req = req.header(header::RANGE, range.to_header());
+            }
+            let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+            let resp = ctx.http_transport().fetch(req).await?;
+            if resp.status().is_success() {
+                return Ok(HfReadResponse::Http(resp));
+            }
+            if rejected.is_none()
+                && matches!(
+                    resp.status(),
+                    StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+                )
+            {
+                // A late rejection must not discard another caller's refreshed
+                // destination. The next iteration compares the Arc generation.
+                rejected = Some(destination);
+                continue;
+            }
+            let (parts, _) = resp.into_parts();
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("Download")),
+                parts,
+            ));
+        }
     }
 
     /// Send `GET /resolve` and return the raw streaming response.
@@ -1618,7 +1863,8 @@ impl ErrorContext {
 }
 
 /// Parse an error response using its service request context.
-pub(crate) fn parse_error(ctx: ErrorContext, parts: http::response::Parts) -> Error {
+pub(crate) fn parse_error(ctx: ErrorContext, mut parts: http::response::Parts) -> Error {
+    let location = HttpUri::from_response_location(&mut parts).cloned();
     // HF sets x-error-message on every error response with a short human-readable
     // description. Using the header avoids reading the response body, which can be
     // a large HTML error page (e.g. 52 KB on 404s from the /resolve/ endpoint).
@@ -1626,15 +1872,10 @@ pub(crate) fn parse_error(ctx: ErrorContext, parts: http::response::Parts) -> Er
         .headers
         .get("x-error-message")
         .and_then(|v| v.to_str().ok());
-    let location = parts
-        .headers
-        .get(header::LOCATION)
-        .and_then(|v| v.to_str().ok());
     let message = match (error_message, location) {
         (Some(message), _) => message.to_string(),
-        // A 3xx only reaches here when `HfCore::send` refused to follow it,
-        // so name the destination instead of "unknown error".
         (None, Some(location)) if parts.status.is_redirection() => {
+            let location = location.redacted_uri();
             format!("redirect to {location} not followed")
         }
         _ => "unknown error".to_string(),

@@ -412,6 +412,8 @@ class HfConfig(TypedDict):
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
     endpoint: NotRequired[str]
     """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
+    force_resolve: NotRequired[bool]
+    """Resolve every range through the Hugging Face Hub. Defaults to `false`.  Set to `true` to resolve every range through the Hub. See [`HfBuilder::force_resolve`] for cache and freshness semantics."""
     repo_id: NotRequired[str]
     """Repo id of this backend.  This is required."""
     repo_type: NotRequired[str]

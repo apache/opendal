@@ -16,9 +16,10 @@
 // under the License.
 
 use super::backend::*;
-use super::core::{HfCore, HfDownloadMode, XetFileResponse};
+#[cfg(test)]
+use super::core::HfDownloadMode;
+use super::core::{HfCore, HfReadResponse};
 use asyncband::once::OnceCell;
-use bytes::Buf;
 use http::Response;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -45,8 +46,7 @@ fn xet_range(range: BytesRange) -> Option<Range<u64>> {
 
 impl HfReadStream {
     /// Build the stream directly from an already-known XET hash + size,
-    /// whether that came from a resolve response just parsed in [`HfReader::open`]
-    /// or was reused from its cache.
+    /// resolved or reused by [`HfCore`].
     async fn new_xet(
         group: &XetDownloadStreamGroup,
         hash: &str,
@@ -79,22 +79,6 @@ impl HfReadStream {
         let metadata = parse_into_metadata(path, resp.headers())?;
         Ok((RpRead::new(metadata), Self::Http(resp.into_body())))
     }
-
-    /// Retrieve a resolve response's XET metadata, or hand the response
-    /// back untouched if it doesn't carry any -- its body is then the
-    /// actual range content, still there for [`Self::new_http`].
-    async fn maybe_xet(
-        resp: Response<HttpBody>,
-    ) -> Result<std::result::Result<XetFileResponse, Response<HttpBody>>> {
-        if !resp.headers().contains_key("x-xet-hash") {
-            return Ok(Err(resp));
-        }
-        let (_, mut body) = resp.into_parts();
-        let buf = body.to_buffer().await?;
-        let info: XetFileResponse =
-            serde_json::from_reader(buf.reader()).map_err(new_json_deserialize_error)?;
-        Ok(Ok(info))
-    }
 }
 
 fn map_session_error(e: SessionError) -> Error {
@@ -119,16 +103,6 @@ pub struct HfReader {
     backend: HfBackend,
     ctx: OperationContext,
     path: String,
-    // `Some((hash, size))`/`None` once this path is known to be (or not be)
-    // XET-backed; only consulted in `HfDownloadMode::Xet`. Single-flighted via
-    // `get_or_try_init`, so concurrent cold opens share one probe and every
-    // later range reuses it. If not XET-backed, every open falls back to its
-    // own fresh resolve -- one wasted request per reader, not per range.
-    //
-    // Never re-validated for this reader's life, so a file changed mid-read
-    // (e.g. a new commit on a floating `main`) can serve stale content --
-    // scoped to one reader, not the `Operator`, to bound that window.
-    resolved: OnceCell<Option<(String, u64)>>,
     // Built once per reader and reused for every later XET range, seeded
     // from `HfCore`'s cached CAS token. Reuse across concurrent ranges
     // relies on the `xet` crate's documented (not type-enforced) support
@@ -142,7 +116,6 @@ impl HfReader {
             backend,
             ctx,
             path: path.to_string(),
-            resolved: OnceCell::new(),
             xet_group: OnceCell::new(),
         }
     }
@@ -169,54 +142,11 @@ impl oio::StreamRead for HfReader {
         let core = &self.backend.core;
         let path = self.path.as_str();
 
-        if core.download_mode != HfDownloadMode::Xet {
-            // Http mode: resolve() is itself the byte-fetching request, done
-            // fresh per range -- there is no metadata step to cache. HF puts
-            // `x-xet-hash` on the 302 it answers with, not on the CDN
-            // response the transport follows it to, so there is nothing to
-            // classify here either.
-            let resp = core
-                .resolve(&self.ctx, path, range, core.download_mode)
-                .await?;
-            let (rp, stream) = HfReadStream::new_http(path, resp)?;
-            return Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>));
-        }
-
-        // Xet mode: classification is single-flighted, see `resolved`'s
-        // doc comment for why that's free for the XET outcome and cheap
-        // (one extra request, once per reader) for the NotXet one.
-        //
-        // The probe asks for one byte rather than the caller's range. HF
-        // returns whole-file XET metadata regardless of range, so one shared
-        // response is correct for every range; and when the path turns out
-        // not to be XET-backed the discarded body is a byte instead of the
-        // caller's range.
-        let classification = self
-            .resolved
-            .get_or_try_init(|| async {
-                let resp = core
-                    .resolve(
-                        &self.ctx,
-                        path,
-                        BytesRange::new(0, Some(1)),
-                        HfDownloadMode::Xet,
-                    )
-                    .await?;
-                match HfReadStream::maybe_xet(resp).await? {
-                    Ok(info) => Ok(Some((info.hash, info.size))),
-                    Err(_) => Ok(None),
-                }
-            })
-            .await?;
-
-        let (rp, stream) = match classification {
-            Some((hash, size)) => self.xet_stream(core, hash, *size, range).await?,
-            None => {
-                let resp = core
-                    .resolve(&self.ctx, path, range, HfDownloadMode::Http)
-                    .await?;
-                HfReadStream::new_http(path, resp)?
+        let (rp, stream) = match core.read(&self.ctx, path, range).await? {
+            HfReadResponse::Xet(info) => {
+                self.xet_stream(core, &info.hash, info.size, range).await?
             }
+            HfReadResponse::Http(resp) => HfReadStream::new_http(path, resp)?,
         };
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))

@@ -1687,6 +1687,12 @@ public interface ServiceConfig {
          */
         public final String endpoint;
         /**
+         * <p>Resolve every range through the Hugging Face Hub. Defaults to <code>false</code>.</p>
+         * <p>Set to <code>true</code> to resolve every range through the Hub. See
+         * [<code>HfBuilder::force_resolve</code>] for cache and freshness semantics.</p>
+         */
+        public final Boolean forceResolve;
+        /**
          * <p>Repo id of this backend.</p>
          * <p>This is required.</p>
          */
@@ -1724,6 +1730,9 @@ public interface ServiceConfig {
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
+            }
+            if (forceResolve != null) {
+                map.put("force_resolve", String.valueOf(forceResolve));
             }
             if (repoId != null) {
                 map.put("repo_id", repoId);

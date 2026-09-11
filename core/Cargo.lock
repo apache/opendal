@@ -7039,7 +7039,6 @@ version = "0.59.1"
 dependencies = [
  "asyncband",
  "bytes",
- "futures",
  "goosefs-sdk",
  "log",
  "opendal",

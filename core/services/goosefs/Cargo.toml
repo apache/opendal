@@ -49,6 +49,7 @@ opendal-core = { path = "../../core", version = "0.59.1", default-features = fal
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
+futures = { workspace = true }
 opendal = { path = "../..", version = "0.59.1", features = [
   "services-goosefs",
 ] }

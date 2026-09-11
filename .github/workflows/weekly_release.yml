@@ -82,7 +82,12 @@ jobs:
           done < <(git ls-files '*Cargo.lock')
           python3 scripts/dependencies.py generate
           version=$(cargo run --quiet --manifest-path dev/Cargo.toml -- release-packages | jq -er '.[] | select(.path == "core") | .version')
-          export RC="$version-rc.$((GITHUB_RUN_ID * 1000 + GITHUB_RUN_ATTEMPT))"
+          # Choose the first unused RC number, including manually prepared tags.
+          rc_number=1
+          while git show-ref --verify --quiet "refs/tags/v$version-rc.$rc_number"; do
+            rc_number=$((rc_number + 1))
+          done
+          export RC="$version-rc.$rc_number"
           echo "RC=$RC" >> "$GITHUB_ENV"
           python3 - <<'PYTHON'
           import os
@@ -133,7 +138,14 @@ jobs:
           SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           # GITHUB_TOKEN pushes do not trigger the existing tag workflows.
-          for workflow in ci_bindings_{c,cpp,d,dart,dotnet,go,haskell,java,lua,nodejs,ocaml,php,ruby,swift,zig}.yml release_{dart,dotnet,java,nodejs,python,ruby,rust}.yml docs.yml; do
+          for workflow in ci_bindings_{c,cpp,d,dart,dotnet,go,haskell,java,lua,moonbit,nodejs,ocaml,php,ruby,swift,zig}.yml release_{dart,dotnet,java,nodejs,python,ruby,rust}.yml docs.yml; do
+            state=$(gh api "repos/apache/opendal/actions/workflows/$workflow" --jq .state)
+            case "$state" in
+              disabled_*)
+                echo "Skipped $workflow ($state)." >> "$GITHUB_STEP_SUMMARY"
+                continue
+                ;;
+            esac
             # Reuse runs already accepted before a partial dispatch failure.
             count=$(gh run list --repo apache/opendal --workflow "$workflow" --commit "$SHA" --event workflow_dispatch --limit 1 --json databaseId --jq length)
             if [ "$count" -gt 0 ]; then continue; fi

@@ -33,7 +33,11 @@ Each attempt commits the version, dependency and changelog updates on a fresh
 `release-candidates/weekly-<run>-<attempt>` branch. It pushes that branch and its RC
 lightweight tag together, then passes the resulting SHA to compose in the same workflow run.
 Compose signs the source archives; the lightweight tag itself is unsigned.
-The RC suffix identifies the Actions run and attempt. Compatibility or preparation
+RC tags use `v<version>-rc.1`, `rc.2`, and so on. Preparation chooses the first
+unused positive RC number for that version from the fetched tags, including
+manual candidates. Existing tags are preserved, including legacy tags whose
+suffix contains an Actions run ID. The candidate branch retains the run and
+attempt for traceability. A conflicting tag push fails without replacing the tag. Compatibility or preparation
 failures stop the run before compose; correct the cause and start another run.
 
 Preparing a new candidate does not cancel an existing vote or replace approved
@@ -43,6 +47,7 @@ another vote. Abandoned branches and ATR drafts can be cleaned up separately.
 ## Configuration
 
 Reuse the existing `GPG_SECRET_KEY` secret and `SOURCE_SIGNING_FINGERPRINT` variable.
+Source signing accepts both scheduled and manually dispatched runs.
 Register the weekly workflow for ATR compose OIDC, since the reusable workflow
 retains its caller's identity. The actor initiating a manual run or owning the
 schedule must have the required ASF-linked project permissions. An RM should
@@ -56,7 +61,8 @@ not trigger downstream push workflows for tags created with `GITHUB_TOKEN`.
 These dispatches retain the RC behavior: Java stages to Nexus, Python uses
 TestPyPI, NodeJS performs a publish dry run, Ruby and .NET retain artifacts, and
 Rust does not publish. Documentation retains RC staging without deploying to
-nightlies. A retry skips workflows already dispatched for the candidate commit;
+nightlies. Disabled workflows are skipped and recorded in the run summary.
+A retry skips workflows already dispatched for the candidate commit;
 rerun failed downstream jobs from their own runs.
 
 After ATR upload and dispatch succeed, the workflow posts a candidate preparation

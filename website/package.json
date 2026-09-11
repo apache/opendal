@@ -39,7 +39,6 @@
   "devDependencies": {
     "@docusaurus/module-type-aliases": "^3.10.1",
     "@docusaurus/types": "^3.10.1",
-    "crates-llms-txt": "^0.1.1",
     "docusaurus-plugin-llms-builder": "^0.1.13"
   },
   "browserslist": {

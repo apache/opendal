@@ -97,11 +97,35 @@ jobs:
         env:
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+      # Cargo replaces the facade's HTML when switching to rustdoc JSON.
       - name: Upload docs
         uses: actions/upload-artifact@v7
         with:
           name: rust-documentation
           path: ./core/target/doc
+
+      - name: Build Rustdoc JSON
+        working-directory: core
+        # Match the HTML build's workspace features to reuse compiled dependencies.
+        run: |
+          RUSTDOCFLAGS="$RUSTDOCFLAGS -Z unstable-options --output-format json" \
+            cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc \
+            --workspace --lib --no-deps --all-features
+        env:
+          LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: "website/.node-version"
+
+      - name: Generate Rust LLM documentation
+        run: node website/scripts/generate-rustdoc-llms.cjs core/target/doc/opendal.json core/target/llms.json
+
+      - name: Upload Rust LLM documentation
+        uses: actions/upload-artifact@v7
+        with:
+          name: rust-llms-documentation
+          path: ./core/target/llms.json
 
   build-java-doc:
     runs-on: ubuntu-latest
@@ -496,6 +520,9 @@ jobs:
 
   build-website:
     runs-on: ubuntu-latest
+    env:
+      DOCUSAURUS_PERF_LOGGER: "true"
+      OPENDAL_RUSTDOC_LLMS: ${{ github.workspace }}/website/static/docs/rust/llms.json
     permissions:
       contents: write
     needs:
@@ -553,6 +580,8 @@ jobs:
 
           # Becasue `website/static/docs/` maps to `/docs/` on website, we want to organize paths
           mv static/docs/rust-documentation/ static/docs/rust/
+          mv static/docs/rust-llms-documentation/llms.json static/docs/rust/llms.json
+          rmdir static/docs/rust-llms-documentation/
           mv static/docs/binding-java-documentation/ static/docs/java/
           mv static/docs/binding-nodejs-documentation/ static/docs/nodejs/
           mv static/docs/binding-python-documentation/ static/docs/python/

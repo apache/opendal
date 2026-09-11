@@ -133,20 +133,19 @@ impl HfBuilder {
         self
     }
 
-    /// Resolve every range through the Hugging Face Hub.
+    /// Enable caching of resolved HTTP download addresses and XET file metadata.
     ///
-    /// Defaults to `false`: readers share resolved HTTP download addresses and
-    /// XET file metadata on the same backend. HTTP addresses refresh near expiry.
-    /// Set to `true` to resolve every range through the Hub in either mode.
-    /// This bypasses cached HTTP addresses and XET file metadata.
+    /// Defaults to `false`: every range resolves through the Hub in either
+    /// download mode. Set to `true` to share resolve results across readers on
+    /// the same backend. HTTP addresses refresh near expiry.
     ///
-    /// Enable this when paths can be overwritten, deleted and reused, or moved
-    /// to different content by another client or a floating repository revision.
-    /// With reuse enabled, an issued download URL can remain usable until expiry
-    /// even after Hub permissions change. Separate authorization identities must
-    /// use separately constructed backends.
-    pub fn force_resolve(mut self, enabled: bool) -> Self {
-        self.config.force_resolve = enabled;
+    /// Enable this only when previously written files are not modified. Changed
+    /// files can remain invisible while cached results are reused, including
+    /// changes from other clients or a floating repository revision. Issued
+    /// download URLs can remain usable until expiry after Hub permissions change.
+    /// Separate authorization identities must use separately constructed backends.
+    pub fn enable_resolve_cache(mut self, enabled: bool) -> Self {
+        self.config.enable_resolve_cache = enabled;
         self
     }
 
@@ -284,7 +283,7 @@ impl Builder for HfBuilder {
         debug!("backend repo uri: {:?}", repo.uri(&root, ""));
 
         let mut core = HfCore::build(info, capability, repo, root, token, endpoint, download_mode)?;
-        core.force_resolve = self.config.force_resolve;
+        core.enable_resolve_cache = self.config.enable_resolve_cache;
         Ok(HfBackend {
             core: Arc::new(core),
         })
@@ -640,6 +639,33 @@ mod tests {
         let mode = HfBuilder::default().hf_download_mode();
         unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
         assert_eq!(mode, HfDownloadMode::Xet);
+    }
+
+    #[tokio::test]
+    async fn build_resolve_cache_requires_opt_in() -> Result<()> {
+        use super::super::core::test_utils::MockHttpTransport;
+
+        for enabled in [None, Some(false), Some(true)] {
+            let mut builder = HfBuilder::default()
+                .repo_type("model")
+                .repo_id("org/repo")
+                .download_mode("xet");
+            if let Some(enabled) = enabled {
+                builder = builder.enable_resolve_cache(enabled);
+            }
+            let transport = MockHttpTransport::new();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+            let op = Operator::new(builder)?.with_context(ctx);
+            for reads in 1..=2 {
+                assert_eq!(op.read("plain.txt").await?.to_vec(), b"hello");
+                assert_eq!(
+                    transport.request_count(),
+                    reads + usize::from(enabled == Some(true))
+                );
+            }
+        }
+        Ok(())
     }
 
     #[test]

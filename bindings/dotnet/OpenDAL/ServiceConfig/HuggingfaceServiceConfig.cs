@@ -33,13 +33,13 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? DownloadMode { get; init; }
         /// <summary>
+        /// Enable caching of resolved HTTP download addresses and XET file metadata. Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. See [`HfBuilder::enable_resolve_cache`] for freshness semantics.
+        /// </summary>
+        public bool? EnableResolveCache { get; init; }
+        /// <summary>
         /// Endpoint of the Hugging Face Hub. The default is `https://huggingface.co`.
         /// </summary>
         public string? Endpoint { get; init; }
-        /// <summary>
-        /// Resolve every range through the Hugging Face Hub. Defaults to `false`. Set to `true` to resolve every range through the Hub. See [`HfBuilder::force_resolve`] for cache and freshness semantics.
-        /// </summary>
-        public bool? ForceResolve { get; init; }
         /// <summary>
         /// Repo id of this backend. This is required.
         /// </summary>
@@ -70,13 +70,13 @@ namespace OpenDAL.ServiceConfig
             {
                 map["download_mode"] = Utilities.ToOptionString(DownloadMode);
             }
+            if (EnableResolveCache is not null)
+            {
+                map["enable_resolve_cache"] = Utilities.ToOptionString(EnableResolveCache);
+            }
             if (Endpoint is not null)
             {
                 map["endpoint"] = Utilities.ToOptionString(Endpoint);
-            }
-            if (ForceResolve is not null)
-            {
-                map["force_resolve"] = Utilities.ToOptionString(ForceResolve);
             }
             if (RepoId is not null)
             {

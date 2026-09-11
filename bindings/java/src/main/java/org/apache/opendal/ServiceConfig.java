@@ -1682,16 +1682,18 @@ public interface ServiceConfig {
          */
         public final String downloadMode;
         /**
+         * <p>Enable caching of resolved HTTP download addresses and XET file metadata.</p>
+         * <p>Defaults to <code>false</code>. Set to <code>true</code> to share resolve results across readers
+         * on the same backend. Changed files may remain invisible while cached
+         * results are reused. See [<code>HfBuilder::enable_resolve_cache</code>] for freshness
+         * semantics.</p>
+         */
+        public final Boolean enableResolveCache;
+        /**
          * <p>Endpoint of the Hugging Face Hub.</p>
          * <p>The default is <code>https://huggingface.co</code>.</p>
          */
         public final String endpoint;
-        /**
-         * <p>Resolve every range through the Hugging Face Hub. Defaults to <code>false</code>.</p>
-         * <p>Set to <code>true</code> to resolve every range through the Hub. See
-         * [<code>HfBuilder::force_resolve</code>] for cache and freshness semantics.</p>
-         */
-        public final Boolean forceResolve;
         /**
          * <p>Repo id of this backend.</p>
          * <p>This is required.</p>
@@ -1728,11 +1730,11 @@ public interface ServiceConfig {
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
             }
+            if (enableResolveCache != null) {
+                map.put("enable_resolve_cache", String.valueOf(enableResolveCache));
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
-            }
-            if (forceResolve != null) {
-                map.put("force_resolve", String.valueOf(forceResolve));
             }
             if (repoId != null) {
                 map.put("repo_id", repoId);

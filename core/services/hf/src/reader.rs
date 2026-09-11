@@ -186,6 +186,29 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_default_reads_resolve_each_range_across_readers() -> Result<()> {
+        for mode in [HfDownloadMode::Http, HfDownloadMode::Xet] {
+            let (mut core, ctx, mock_client) = create_test_core(
+                HfRepoType::Model,
+                "test-user/test-repo",
+                "main",
+                "https://huggingface.co",
+            );
+            core.download_mode = mode;
+            let core = Arc::new(core);
+            let first = hf_reader_from_arc(core.clone(), ctx.clone(), "plain.txt");
+            let second = hf_reader_from_arc(core, ctx, "plain.txt");
+
+            for (index, reader) in [&first, &first, &second].into_iter().enumerate() {
+                let (_, mut stream) = reader.open(BytesRange::new(index as u64, Some(1))).await?;
+                assert!(!stream.read().await?.is_empty());
+                assert_eq!(mock_client.request_count(), index + 1);
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_http_read_uses_resolve_url() -> Result<()> {
         let (core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
@@ -237,12 +260,13 @@ mod tests {
     /// classification already cached).
     #[tokio::test]
     async fn test_non_xet_reads_cache_classification_but_still_fetch_each_range() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.enable_resolve_cache = true;
         let reader = hf_reader(core, ctx, "plain.txt");
 
         let (_, mut s1) = reader.open(BytesRange::new(0, Some(1))).await?;
@@ -261,12 +285,13 @@ mod tests {
     /// stuck erroring for the reader's whole lifetime.
     #[tokio::test]
     async fn test_classification_retries_after_resolve_failure() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.enable_resolve_cache = true;
         let reader = hf_reader(core, ctx, "plain.txt");
         mock_client.fail_next_requests(1);
 
@@ -295,12 +320,13 @@ mod tests {
     /// racing to build its own group.
     #[tokio::test]
     async fn test_concurrent_cold_opens_on_xet_file_share_one_group() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.enable_resolve_cache = true;
         mock_client.set_xet_backed(&"00".repeat(32), 4);
         mock_client.set_xet_token_expires_at(u64::MAX);
         let reader = hf_reader(core, ctx, "xet-file.bin");
@@ -330,12 +356,13 @@ mod tests {
     /// (248,987 B measured before this).
     #[tokio::test]
     async fn test_xet_probe_uses_fixed_single_byte_range() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.enable_resolve_cache = true;
         mock_client.set_xet_backed(&"00".repeat(32), 64);
         mock_client.set_xet_token_expires_at(u64::MAX);
         let reader = hf_reader(core, ctx, "xet-file.bin");
@@ -385,12 +412,13 @@ mod tests {
     /// it isn't XET-backed. Each still fetches its own range afterward.
     #[tokio::test]
     async fn test_concurrent_cold_opens_share_one_classifying_resolve() -> Result<()> {
-        let (core, ctx, mock_client) = create_test_core(
+        let (mut core, ctx, mock_client) = create_test_core(
             HfRepoType::Model,
             "test-user/test-repo",
             "main",
             "https://huggingface.co",
         );
+        core.enable_resolve_cache = true;
         let reader = hf_reader(core, ctx, "plain.txt");
 
         let (r1, r2, r3) = futures::join!(
@@ -533,8 +561,8 @@ mod tests {
 
     /// Exercises the group-reuse path for real: two ranges fetched through
     /// the same `Reader` (mirroring `object_store::get_ranges`) must both
-    /// return correct bytes even though only the first call resolves the
-    /// XET hash and builds the CAS download group.
+    /// return correct bytes while each call resolves the XET hash and the
+    /// reader reuses its CAS download group.
     #[tokio::test]
     #[ignore = "requires network access"]
     async fn test_read_xet_multiple_ranges_on_one_reader() {

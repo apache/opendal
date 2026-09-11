@@ -36,11 +36,11 @@ asyncband = { workspace = true, features = ["rwlock"] }
 bytes = { workspace = true }
 goosefs-sdk = "0.1.9"
 log = { workspace = true }
-opendal-core = { path = "../../core", version = "0.59.1", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.2", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-opendal = { path = "../..", version = "0.59.1", features = [
+opendal = { path = "../..", version = "0.59.2", features = [
   "services-goosefs",
 ] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -1,3 +1,7 @@
+# v0.59.2
+
+- [Changes since v0.59.1](https://github.com/apache/opendal/compare/v0.59.1...6f79bb8170b1ff7b869304cb8482c1bb6f3fb6cf)
+
 # Change Log
 
 All notable changes to this project will be documented in this file.

@@ -23,6 +23,8 @@ which means it connects directly to GooseFS Master (port 9200) and
 Worker (port 9203) without requiring a Proxy component.
 
 Features:
+- **Read metadata**: Streams expose full-file metadata from the SDK reader before
+  consuming the body. Bounded reads do not issue a separate stat to obtain it.
 - **HA support**: Comma-separated master addresses for automatic Primary Master discovery.
 - **Block-level I/O**: Data reads/writes go through block-level gRPC bidirectional streaming.
 - **Consistent hash routing**: Worker selection uses consistent hashing on block IDs.

@@ -62,10 +62,10 @@ impl HttpUri {
     /// The original header is not changed.
     pub fn from_response_location(parts: &mut http::response::Parts) -> Option<&Self> {
         let location = parts.headers.get(http::header::LOCATION)?.to_str().ok()?;
-        if !parts
+        if parts
             .extensions
             .get::<Self>()
-            .is_some_and(|uri| uri.original_uri() == location)
+            .is_none_or(|uri| uri.original_uri() != location)
         {
             let uri = Self::new(location);
             parts.extensions.insert(uri);

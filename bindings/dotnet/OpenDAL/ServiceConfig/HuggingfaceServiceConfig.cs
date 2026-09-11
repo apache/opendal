@@ -37,6 +37,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Endpoint { get; init; }
         /// <summary>
+        /// Resolve every range through the Hugging Face Hub. Defaults to `false`. Set to `true` to resolve every range through the Hub. See [`HfBuilder::force_resolve`] for cache and freshness semantics.
+        /// </summary>
+        public bool? ForceResolve { get; init; }
+        /// <summary>
         /// Repo id of this backend. This is required.
         /// </summary>
         public string? RepoId { get; init; }
@@ -69,6 +73,10 @@ namespace OpenDAL.ServiceConfig
             if (Endpoint is not null)
             {
                 map["endpoint"] = Utilities.ToOptionString(Endpoint);
+            }
+            if (ForceResolve is not null)
+            {
+                map["force_resolve"] = Utilities.ToOptionString(ForceResolve);
             }
             if (RepoId is not null)
             {

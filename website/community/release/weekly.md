@@ -65,9 +65,10 @@ Migration:
 Use comma-separated package names from `dev/src/release/package.rs`. Include
 bindings whose public behavior changes even when their source files do not.
 Explain the migration or the available alternatives for removed functionality.
-The required **Breaking change declaration** check validates the label, package
-names and migration text on PR changes and label/description edits. It does not
-require compatible PRs to list packages or declare `none`.
+The **Breaking change declaration** CI check provides feedback on the label,
+package names and migration text on PR changes and label/description edits. It
+does not add a required merge check. Weekly preparation validates declarations
+before choosing versions. Compatible PRs need not list packages or declare `none`.
 
 Reviewers identify API, behavior, default-value and runtime requirement breaks.
 This contract does not detect unmarked breaking changes automatically. Before the

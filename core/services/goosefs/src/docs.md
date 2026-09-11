@@ -32,6 +32,9 @@ Features:
 - **Rename parent directories**: `rename` creates a missing destination parent only
   when Master reports it missing. Write-via-temp publish does not call
   `CreateDirectory` for a parent that `CreateFile(recursive)` already created.
+- **Optional client caches**: `goosefs-sdk` 0.2.1 keeps metadata and page caches
+  behind Cargo features so the default build stays a gRPC client. Enable them
+  on this crate; see [Optional client caches](#optional-client-caches).
 
 ## Configuration
 
@@ -48,9 +51,8 @@ first:
    list or the SDK's `gfs://h1:9200,h2:9200/root` URI form;
 2. `goosefs.master.rpc.addresses` or `goosefs.master.hostname` in
    `goosefs-site.properties`, discovered through `$GOOSEFS_CONFIG_FILE`,
-   `$GOOSEFS_HOME/conf`, `~/.goosefs`, and `/etc/goosefs`. `goosefs-sdk` 0.1.9
-   documents `$GOOSEFS_CONF_DIR` as a search path but does not read it, so use
-   `$GOOSEFS_CONFIG_FILE` to point at a file outside those directories;
+   `$GOOSEFS_CONF_DIR`, `$GOOSEFS_HOME/conf`, `~/.goosefs`, and `/etc/goosefs`.
+   Use `$GOOSEFS_CONFIG_FILE` to point at a file outside those directories;
 3. the `master_addr` config key, which also receives the URI authority of
    `goosefs://host:port/path`.
 
@@ -67,6 +69,43 @@ address; it never falls back to `127.0.0.1:9200`.
 | absent, or no master keys | set | any | `GOOSEFS_MASTER_ADDR` |
 | absent, or no master keys | unset | set | `master_addr` |
 | absent, or no master keys | unset | absent | none — `ConfigInvalid` |
+
+### Optional client caches
+
+`goosefs-sdk` 0.2.1 compiles the client metadata cache and the disk-backed page
+cache only when their Cargo features are enabled. The default
+`services-goosefs` / `opendal-service-goosefs` build stays a gRPC client.
+
+Enable a cache on this crate. Applications that use the `opendal` facade still
+add `opendal-service-goosefs` as a direct dependency so Cargo unifies the
+features into the same build:
+
+| Feature | Compiles |
+| --- | --- |
+| `metadata-cache` | Process-local status / listing LRU |
+| `page-cache` | Disk-backed page cache via `tokio::fs` |
+| `page-cache-io-uring` | Page cache plus the Linux io_uring backend |
+
+```shell
+cargo add opendal --features services-goosefs
+cargo add opendal-service-goosefs --features metadata-cache,page-cache-io-uring
+```
+
+`page-cache-io-uring` already enables `page-cache`. On non-Linux targets the
+SDK still builds the portable `tokio::fs` store; io_uring is Linux-only.
+
+Compiling a cache does not replace runtime configuration. `build()` loads
+`goosefs-site.properties` and `GOOSEFS_*` environment variables through
+`GoosefsConfig::from_properties_auto()`:
+
+- **Metadata cache**: on by default once `metadata-cache` is compiled. Set
+  `GOOSEFS_METADATA_CACHE_ENABLED=false` to disable it.
+- **Page cache**: off by default. Set `GOOSEFS_USER_CLIENT_CACHE_ENABLED=true`
+  and configure cache directories through
+  `goosefs.user.client.cache.dirs` / `GOOSEFS_USER_CLIENT_CACHE_DIRS`.
+
+See [goosefs-sdk client configuration](https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md)
+for the full cache knob list.
 
 ## Example
 

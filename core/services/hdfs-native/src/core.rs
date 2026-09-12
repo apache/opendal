@@ -166,7 +166,7 @@ impl HdfsNativeCore {
         Ok(Some((p, current_path)))
     }
 
-    pub async fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
         let from_path = build_rooted_abs_path(&self.root, from);
         let to_path = build_rooted_abs_path(&self.root, to);
 
@@ -175,6 +175,12 @@ impl HdfsNativeCore {
                 if status.isdir {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
                         .with_context("input", &to_path));
+                } else if args.if_not_exists() {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "target path already exists while if_not_exists is set",
+                    )
+                    .with_context("input", &to_path));
                 } else {
                     self.client
                         .delete(&to_path, true)

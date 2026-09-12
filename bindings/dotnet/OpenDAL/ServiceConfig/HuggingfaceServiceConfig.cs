@@ -33,7 +33,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? DownloadMode { get; init; }
         /// <summary>
-        /// Enable caching of resolved HTTP download addresses and XET file metadata. Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. See [`HfBuilder::enable_resolve_cache`] for freshness semantics.
+        /// Enable caching of resolved HTTP download addresses and XET file metadata. Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. A reader retains XET metadata from its first read for its lifetime. Create a new reader to resolve the path again when this option is disabled. See [`HfBuilder::enable_resolve_cache`] for freshness semantics.
         /// </summary>
         public bool? EnableResolveCache { get; init; }
         /// <summary>

@@ -411,7 +411,7 @@ class HfConfig(TypedDict):
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
     enable_resolve_cache: NotRequired[bool]
-    """Enable caching of resolved HTTP download addresses and XET file metadata.  Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. See [`HfBuilder::enable_resolve_cache`] for freshness semantics."""
+    """Enable caching of resolved HTTP download addresses and XET file metadata.  Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. A reader retains XET metadata from its first read for its lifetime. Create a new reader to resolve the path again when this option is disabled. See [`HfBuilder::enable_resolve_cache`] for freshness semantics."""
     endpoint: NotRequired[str]
     """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
     repo_id: NotRequired[str]

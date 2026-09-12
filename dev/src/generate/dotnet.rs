@@ -24,9 +24,9 @@
 //! All three files are rendered from `core/core/src/types/capability.rs` so
 //! they cannot drift from core or from each other.
 //!
-//! The metadata payload follows the same pattern with one more file: the
-//! marshaller that turns the interop struct into the public class. All four
-//! are rendered from the accessors of `core/core/src/types/metadata.rs`.
+//! The metadata payload follows the same pattern, with the interop struct
+//! also carrying the conversion into the public class. All three files are
+//! rendered from the accessors of `core/core/src/types/metadata.rs`.
 //!
 //! The typed `*ServiceConfig` classes mirror each service's config struct and
 //! are rendered from the same parsed service definitions the Java and Python
@@ -85,7 +85,7 @@ struct MetadataField {
     rs_release: String,
     /// The public C# type of the property.
     cs_type: String,
-    /// Expression that reads the public value from `payload` in the marshaller.
+    /// Expression that reads the public value from the interop struct's fields.
     cs_read: String,
 }
 
@@ -181,10 +181,6 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
         include_str!("dotnet/metadata_interop_cs.j2"),
     )?;
     env.add_template(
-        "metadata_marshaller_cs",
-        include_str!("dotnet/metadata_marshaller_cs.j2"),
-    )?;
-    env.add_template(
         "metadata_public_cs",
         include_str!("dotnet/metadata_public_cs.j2"),
     )?;
@@ -194,10 +190,6 @@ fn generate_metadata(workspace_dir: &Path) -> Result<()> {
         (
             "metadata_interop_cs",
             "bindings/dotnet/OpenDAL/Interop/NativeObject/OpenDALMetadata.cs",
-        ),
-        (
-            "metadata_marshaller_cs",
-            "bindings/dotnet/OpenDAL/Interop/Marshalling/MetadataMarshaller.cs",
         ),
         ("metadata_public_cs", "bindings/dotnet/OpenDAL/Metadata.cs"),
     ];
@@ -244,35 +236,35 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
             format!("crate::utils::entry_mode_code(metadata.{name}())"),
             String::new(),
             "EntryMode",
-            format!("Utilities.ToEntryMode(payload.{pascal})"),
+            format!("Utilities.ToEntryMode({pascal})"),
         ),
         MetadataKind::Bool => (
             vec![part("", "u8", "byte")],
             format!("u8::from(metadata.{name}())"),
             String::new(),
             "bool",
-            format!("payload.{pascal} != 0"),
+            format!("{pascal} != 0"),
         ),
         MetadataKind::U64 => (
             vec![part("", "u64", "ulong")],
             format!("metadata.{name}()"),
             String::new(),
             "ulong",
-            format!("payload.{pascal}"),
+            pascal.clone(),
         ),
         MetadataKind::OptionBool => (
             vec![part("_has_value", "u8", "byte"), part("", "u8", "byte")],
             format!("crate::utils::optional_bool(metadata.{name}())"),
             String::new(),
             "bool?",
-            format!("payload.{pascal}HasValue != 0 ? payload.{pascal} != 0 : null"),
+            format!("{pascal}HasValue != 0 ? {pascal} != 0 : null"),
         ),
         MetadataKind::OptionStr => (
             vec![part("", "*mut c_char", "IntPtr")],
             format!("crate::utils::optional_c_string(metadata.{name}())"),
             format!("crate::utils::release_c_string(&mut metadata.{name});"),
             "string?",
-            format!("Utilities.ReadNullableUtf8(payload.{pascal})"),
+            format!("Utilities.ReadNullableUtf8({pascal})"),
         ),
         MetadataKind::OptionTimestamp => (
             vec![
@@ -284,7 +276,7 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
             String::new(),
             "DateTimeOffset?",
             format!(
-                "payload.{pascal}HasValue != 0 ? Utilities.ToDateTimeOffset(payload.{pascal}Second, payload.{pascal}Nanosecond) : null"
+                "{pascal}HasValue != 0 ? Utilities.ToDateTimeOffset({pascal}Second, {pascal}Nanosecond) : null"
             ),
         ),
         MetadataKind::OptionUserMetadata => (
@@ -300,7 +292,7 @@ fn metadata_field(f: metadata::MetadataField) -> MetadataField {
             ),
             "IReadOnlyDictionary<string, string>?",
             format!(
-                "payload.{pascal}HasValue != 0 ? Utilities.ReadStringPairs(payload.{pascal}Keys, payload.{pascal}Values, payload.{pascal}Len, StringComparer.Ordinal) : null"
+                "{pascal}HasValue != 0 ? Utilities.ReadStringPairs({pascal}Keys, {pascal}Values, {pascal}Len, StringComparer.Ordinal) : null"
             ),
         ),
     };

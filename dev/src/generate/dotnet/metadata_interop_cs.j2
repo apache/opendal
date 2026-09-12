@@ -36,4 +36,16 @@ internal struct OpenDALMetadata
     public {{ p.interop_type }} {{ p.pascal }};
 {%- endfor %}
 {%- endfor %}
+
+    /// <summary>
+    /// Converts this native payload into managed metadata.
+    /// </summary>
+    public readonly Metadata ToMetadata()
+    {
+        return new Metadata(
+{%- for f in fields %}
+            {{ f.cs_read }}{% if not loop.last %},{% endif %}
+{%- endfor %}
+        );
+    }
 }

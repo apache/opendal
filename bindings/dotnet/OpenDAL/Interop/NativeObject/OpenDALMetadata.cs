@@ -50,4 +50,26 @@ internal struct OpenDALMetadata
     public IntPtr UserMetadataKeys;
     public IntPtr UserMetadataValues;
     public nuint UserMetadataLen;
+
+    /// <summary>
+    /// Converts this native payload into managed metadata.
+    /// </summary>
+    public readonly Metadata ToMetadata()
+    {
+        return new Metadata(
+            Utilities.ToEntryMode(Mode),
+            IsCurrentHasValue != 0 ? IsCurrent != 0 : null,
+            IsDeleted != 0,
+            Utilities.ReadNullableUtf8(CacheControl),
+            ContentLength,
+            Utilities.ReadNullableUtf8(ContentMd5),
+            Utilities.ReadNullableUtf8(ContentType),
+            Utilities.ReadNullableUtf8(ContentEncoding),
+            LastModifiedHasValue != 0 ? Utilities.ToDateTimeOffset(LastModifiedSecond, LastModifiedNanosecond) : null,
+            Utilities.ReadNullableUtf8(ETag),
+            Utilities.ReadNullableUtf8(ContentDisposition),
+            Utilities.ReadNullableUtf8(Version),
+            UserMetadataHasValue != 0 ? Utilities.ReadStringPairs(UserMetadataKeys, UserMetadataValues, UserMetadataLen, StringComparer.Ordinal) : null
+        );
+    }
 }

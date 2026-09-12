@@ -34,8 +34,12 @@ accepted values, defaults, and environment interaction.
 
 ### Caching resolve results
 
-By default, every range resolves through the Hugging Face Hub in both HTTP and
-XET download modes. Enable
+By default, each new reader resolves through the Hugging Face Hub. An XET-mode
+reader retains the XET metadata returned by its first read for its lifetime.
+Subsequent ranges, including concurrent reads, use that file version. Create a
+new reader to resolve an updated path. HTTP reads resolve each range.
+
+Enable
 [`enable_resolve_cache`](crate::Hf::enable_resolve_cache) to share resolved HTTP
 download addresses and XET file metadata across readers and batches on the same
 backend:

@@ -1685,8 +1685,10 @@ public interface ServiceConfig {
          * <p>Enable caching of resolved HTTP download addresses and XET file metadata.</p>
          * <p>Defaults to <code>false</code>. Set to <code>true</code> to share resolve results across readers
          * on the same backend. Changed files may remain invisible while cached
-         * results are reused. See [<code>HfBuilder::enable_resolve_cache</code>] for freshness
-         * semantics.</p>
+         * results are reused. A reader retains XET metadata from its first read for
+         * its lifetime. Create a new reader to resolve the path again when this
+         * option is disabled.
+         * See [<code>HfBuilder::enable_resolve_cache</code>] for freshness semantics.</p>
          */
         public final Boolean enableResolveCache;
         /**

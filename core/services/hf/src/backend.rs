@@ -135,9 +135,14 @@ impl HfBuilder {
 
     /// Enable caching of resolved HTTP download addresses and XET file metadata.
     ///
-    /// Defaults to `false`: every range resolves through the Hub in either
-    /// download mode. Set to `true` to share resolve results across readers on
-    /// the same backend. HTTP addresses refresh near expiry.
+    /// Defaults to `false`: each new reader resolves through the Hub. An XET-mode
+    /// reader retains the XET metadata returned by its first read for its lifetime,
+    /// even when this option is disabled. Its subsequent ranges use that file
+    /// version. Create a new reader to resolve the path again. HTTP reads resolve
+    /// each range.
+    ///
+    /// Set to `true` to share resolve results across readers on the same backend.
+    /// HTTP addresses refresh near expiry.
     ///
     /// Enable this only when previously written files are not modified. Changed
     /// files can remain invisible while cached results are reused, including

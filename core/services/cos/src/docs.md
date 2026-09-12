@@ -51,3 +51,19 @@ async fn main() -> Result<()> {
     Ok(())
 }
 ```
+
+## Restore
+
+Restore requires a bucket with versioning enabled and permission to list object
+versions, delete specific versions, and copy objects. `Operator::restore` removes
+the current delete marker, or succeeds without changing an already-live object.
+Each call removes only one current marker; repeated deletions can require repeated
+restore calls. An unknown path returns `NotFound`.
+
+`Operator::restore_with(...).version(...)` copies the selected historical version
+to the same path as a new current version. Conditional restore with
+`if_not_exists` is not supported.
+
+COS version listings can briefly retain a deleted marker. If the listed marker
+no longer exists, restore returns a temporary error rather than reporting that
+another deletion was restored. Use `RetryLayer` to retry after the listing updates.

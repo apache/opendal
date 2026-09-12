@@ -92,6 +92,43 @@ public class Main {
 Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 `CompletableFuture`-based calls.
 
+## Tune input stream reads
+
+`ReadOptions` selects the logical byte range. `ReaderOptions` controls how the
+stream executes reads. Existing `createInputStream(path)` and
+`createInputStream(path, readOptions)` calls keep unchunked streaming defaults.
+
+```java
+ReaderOptions readerOptions = ReaderOptions.builder()
+        .concurrent(4)
+        .chunk(8 * 1024 * 1024L)
+        .prefetch(2)
+        .build();
+
+try (OperatorInputStream in = op.createInputStream(
+        "large.bin", ReadOptions.builder().build(), readerOptions)) {
+    byte[] buffer = new byte[8192];
+    int count;
+    while ((count = in.read(buffer)) != -1) {
+        // Process buffer[0..count).
+    }
+}
+```
+
+A positive `chunk` enables internal range requests. `concurrent` limits these
+requests, not application transfers or Java threads; `prefetch` counts completed
+chunks, not bytes. Setting `concurrent` alone keeps unchunked streaming.
+See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for
+all defaults, valid values, and content length hint semantics.
+
+Payload memory usage generally grows with chunk size,
+concurrency, and prefetching; SDK, JNI, and Java buffers add further overhead.
+These options do not imply a fixed memory formula or a throughput guarantee.
+
+The core `gap` option only affects multi-range `Reader::fetch` and is not
+applicable to this continuous stream API. Version and conditional read options
+are outside this API's current scope.
+
 ## Documentation
 
 The full user guide — getting started, connecting to services, common tasks, and

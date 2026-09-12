@@ -40,8 +40,21 @@ public class OperatorInputStream extends InputStream {
     private byte[] bytes = new byte[0];
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
+        this(operator, path, options, ReaderOptions.builder().build());
+    }
+
+    /**
+     * Creates a stream with a logical range and independent execution controls.
+     *
+     * @param operator operator that reads the object
+     * @param path object path
+     * @param readOptions logical offset and length
+     * @param readerOptions internal chunk request and buffering controls
+     * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
+     */
+    public OperatorInputStream(Operator operator, String path, ReadOptions readOptions, ReaderOptions readerOptions) {
         final long op = operator.nativeHandle;
-        this.reader = new Reader(constructReader(op, path, options));
+        this.reader = new Reader(constructReader(op, path, readOptions, readerOptions));
     }
 
     @Override
@@ -99,7 +112,8 @@ public class OperatorInputStream extends InputStream {
         reader.close();
     }
 
-    private static native long constructReader(long op, String path, ReadOptions options);
+    private static native long constructReader(
+            long op, String path, ReadOptions readOptions, ReaderOptions readerOptions);
 
     private static native void disposeReader(long reader);
 

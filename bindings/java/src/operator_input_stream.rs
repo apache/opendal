@@ -39,11 +39,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constr
     _: JClass<'local>,
     op: *mut blocking::Operator,
     path: JString<'local>,
-    options: JObject<'local>,
+    read_options: JObject<'local>,
+    reader_options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| {
         let op_ref = unsafe { &mut *op };
-        intern_construct_reader(env, op_ref, path, options)
+        intern_construct_reader(env, op_ref, path, read_options, reader_options)
     })
     .resolve::<ThrowException>()
 }
@@ -52,16 +53,17 @@ fn intern_construct_reader(
     env: &mut Env,
     op: &mut blocking::Operator,
     path: JString,
-    options: JObject,
+    read_options: JObject,
+    reader_options: JObject,
 ) -> crate::Result<jlong> {
     use crate::convert;
     use crate::make_reader_options;
 
     let path = jstring_to_string(env, &path)?;
-    let reader_options = make_reader_options(env, &options)?;
+    let reader_options = make_reader_options(env, &reader_options)?;
 
-    let offset = convert::read_int64_field(env, &options, "offset")?;
-    let length = convert::read_int64_field(env, &options, "length")?;
+    let offset = convert::read_int64_field(env, &read_options, "offset")?;
+    let length = convert::read_int64_field(env, &read_options, "length")?;
     let range = convert::offset_length_to_range(offset, length)?;
 
     let reader = op

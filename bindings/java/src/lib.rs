@@ -292,9 +292,104 @@ fn make_read_options<'a>(
     })
 }
 
-fn make_reader_options<'a>(
-    _: &mut Env<'a>,
-    _: &JObject,
+fn make_reader_options(
+    env: &mut Env,
+    options: &JObject,
 ) -> Result<opendal::options::ReaderOptions> {
-    Ok(opendal::options::ReaderOptions::default())
+    Ok(build_reader_options(
+        convert::read_int_field(env, options, "concurrent")?,
+        convert::read_int64_field(env, options, "chunk")?,
+        convert::read_int_field(env, options, "prefetch")?,
+        convert::read_int64_field(env, options, "contentLengthHint")?,
+    )?)
+}
+
+fn build_reader_options(
+    concurrent: i32,
+    chunk: i64,
+    prefetch: i32,
+    content_length_hint: i64,
+) -> opendal::Result<opendal::options::ReaderOptions> {
+    use opendal::{Error, ErrorKind};
+
+    if concurrent <= 0 {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "concurrent must be positive",
+        ));
+    }
+    let concurrent = usize::try_from(concurrent)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "concurrent is too large"))?;
+    let chunk = match chunk {
+        -1 => None,
+        value if value > 0 => Some(
+            usize::try_from(value)
+                .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "chunk is too large"))?,
+        ),
+        _ => {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "chunk must be -1 or positive",
+            ));
+        }
+    };
+    let prefetch = usize::try_from(prefetch)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "prefetch must be non-negative"))?;
+    let content_length_hint = match content_length_hint {
+        -1 => None,
+        value => Some(u64::try_from(value).map_err(|_| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "contentLengthHint must be -1 or non-negative",
+            )
+        })?),
+    };
+
+    Ok(opendal::options::ReaderOptions {
+        concurrent,
+        chunk,
+        prefetch,
+        content_length_hint,
+        ..Default::default()
+    })
+}
+
+#[cfg(test)]
+mod reader_options_tests {
+    use super::build_reader_options;
+    use opendal::ErrorKind;
+
+    #[test]
+    fn default_reader_options() {
+        let options = build_reader_options(1, -1, 0, -1).unwrap();
+        assert_eq!(options.concurrent, 1);
+        assert_eq!(options.chunk, None);
+        assert_eq!(options.prefetch, 0);
+        assert_eq!(options.content_length_hint, None);
+    }
+
+    #[test]
+    fn tuned_reader_options() {
+        let options = build_reader_options(4, 8 * 1024 * 1024, 2, 128 * 1024 * 1024).unwrap();
+        assert_eq!(options.concurrent, 4);
+        assert_eq!(options.chunk, Some(8 * 1024 * 1024));
+        assert_eq!(options.prefetch, 2);
+        assert_eq!(options.content_length_hint, Some(128 * 1024 * 1024));
+    }
+
+    #[test]
+    fn empty_content_length_hint() {
+        let options = build_reader_options(1, 1, 0, 0).unwrap();
+        assert_eq!(options.content_length_hint, Some(0));
+    }
+
+    #[test]
+    fn chunk_conversion_respects_native_width() {
+        let options = build_reader_options(1, i64::MAX, 0, -1);
+        if usize::BITS < 64 {
+            assert_eq!(options.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        } else {
+            assert_eq!(options.unwrap().chunk, usize::try_from(i64::MAX).ok());
+        }
+    }
 }

@@ -20,7 +20,7 @@ use crate::{
     entry::into_entry_list_ptr,
     error::OpenDALError,
     executor::executor_or_default,
-    metadata::{OpendalMetadata, into_metadata_ptr},
+    metadata::OpendalMetadata,
     operator_info::{OpendalOperatorInfo, into_operator_info},
     options::{
         parse_delete_options, parse_list_options, parse_read_options, parse_stat_options,
@@ -49,6 +49,13 @@ use asyncband::mutex::Mutex;
 use futures::StreamExt;
 
 use crate::executor::Executor;
+
+/// Box metadata into the payload of an `OpendalMetadataResult`.
+///
+/// The pointer is released by `opendal_metadata_result_release`.
+fn into_metadata_ptr(metadata: opendal::Metadata) -> *mut OpendalMetadata {
+    Box::into_raw(Box::new(OpendalMetadata::from_metadata(metadata)))
+}
 
 /// The operator handle handed to .NET: the opendal operator plus the executor
 /// it was bound to at construction. Every operation runs on that executor, and

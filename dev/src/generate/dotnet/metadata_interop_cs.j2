@@ -31,25 +31,11 @@ namespace OpenDAL.Interop.NativeObject;
 [StructLayout(LayoutKind.Sequential)]
 internal struct OpenDALMetadata
 {
-    public int Mode;
-    public byte IsCurrentHasValue;
-    public byte IsCurrent;
-    public byte IsDeleted;
-    public IntPtr CacheControl;
-    public ulong ContentLength;
-    public IntPtr ContentMd5;
-    public IntPtr ContentType;
-    public IntPtr ContentEncoding;
-    public byte LastModifiedHasValue;
-    public long LastModifiedSecond;
-    public int LastModifiedNanosecond;
-    public IntPtr ETag;
-    public IntPtr ContentDisposition;
-    public IntPtr Version;
-    public byte UserMetadataHasValue;
-    public IntPtr UserMetadataKeys;
-    public IntPtr UserMetadataValues;
-    public nuint UserMetadataLen;
+{%- for f in fields %}
+{%- for p in f.parts %}
+    public {{ p.interop_type }} {{ p.pascal }};
+{%- endfor %}
+{%- endfor %}
 
     /// <summary>
     /// Converts this native payload into managed metadata.
@@ -57,19 +43,9 @@ internal struct OpenDALMetadata
     public readonly Metadata ToMetadata()
     {
         return new Metadata(
-            Utilities.ToEntryMode(Mode),
-            IsCurrentHasValue != 0 ? IsCurrent != 0 : null,
-            IsDeleted != 0,
-            Utilities.ReadNullableUtf8(CacheControl),
-            ContentLength,
-            Utilities.ReadNullableUtf8(ContentMd5),
-            Utilities.ReadNullableUtf8(ContentType),
-            Utilities.ReadNullableUtf8(ContentEncoding),
-            LastModifiedHasValue != 0 ? Utilities.ToDateTimeOffset(LastModifiedSecond, LastModifiedNanosecond) : null,
-            Utilities.ReadNullableUtf8(ETag),
-            Utilities.ReadNullableUtf8(ContentDisposition),
-            Utilities.ReadNullableUtf8(Version),
-            UserMetadataHasValue != 0 ? Utilities.ReadStringPairs(UserMetadataKeys, UserMetadataValues, UserMetadataLen, StringComparer.Ordinal) : null
+{%- for f in fields %}
+            {{ f.cs_read }}{% if not loop.last %},{% endif %}
+{%- endfor %}
         );
     }
 }

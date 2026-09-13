@@ -52,16 +52,26 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>
     _: JClass<'local>,
     scheme: JString<'local>,
     map: JObject<'local>,
+    executor: *const Executor,
 ) -> jlong {
-    env.with_env(|env| intern_constructor(env, scheme, map))
+    env.with_env(|env| intern_constructor(env, scheme, map, executor))
         .resolve::<ThrowException>()
 }
 
-fn intern_constructor(env: &mut Env, scheme: JString, map: JObject) -> Result<jlong> {
+fn intern_constructor(
+    env: &mut Env,
+    scheme: JString,
+    map: JObject,
+    executor: *const Executor,
+) -> Result<jlong> {
     let scheme = jstring_to_string(env, &scheme)?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
-    Ok(Box::into_raw(Box::new(op)) as jlong)
+    let executor = executor_or_default(executor)?;
+    let ctx = op
+        .context()
+        .with_executor(opendal::Executor::with(executor));
+    Ok(Box::into_raw(Box::new(op.with_context(ctx))) as jlong)
 }
 
 /// # Safety
@@ -116,7 +126,7 @@ fn intern_write(
     content: JByteArray,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let write_opts = make_write_options(env, &options)?;
@@ -157,7 +167,7 @@ fn intern_stat(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -238,7 +248,7 @@ fn intern_delete(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -321,7 +331,7 @@ fn intern_create_dir(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -360,7 +370,7 @@ fn intern_copy(
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
@@ -400,7 +410,7 @@ fn intern_rename(
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
@@ -438,7 +448,7 @@ fn intern_remove_all(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -477,7 +487,7 @@ fn intern_list(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -528,7 +538,7 @@ fn intern_presign_read(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -564,7 +574,7 @@ fn intern_presign_write(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -601,7 +611,7 @@ fn intern_presign_stat(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;

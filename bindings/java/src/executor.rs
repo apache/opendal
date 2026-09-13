@@ -22,14 +22,10 @@ use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread::available_parallelism;
 
-use jni::Env;
 use jni::EnvUnowned;
 use jni::JavaVM;
-use jni::jni_sig;
-use jni::jni_str;
 use jni::objects::JClass;
 use jni::objects::JObject;
-use jni::objects::JValue;
 use jni::sys::{jint, jlong};
 use tokio::task::JoinHandle;
 
@@ -121,24 +117,6 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
             let id = counter.fetch_add(1, Ordering::SeqCst);
             format!("opendal-tokio-worker-{id}")
         })
-        .on_thread_start(|| {
-            // `attach_current_thread` creates a permanent attachment; the thread
-            // is detached automatically when it exits.
-            let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-            vm.attach_current_thread(set_current_thread_name)
-                .expect("attach current thread must succeed");
-        })
-        .on_thread_stop(|| {
-            // Typically, the thread attached to the JVM will be detached automatically
-            // when the thread exits. However, there are some edge cases on Windows that
-            // may lead to deadlocks. To mitigate this, we explicitly detach the thread here.
-            //
-            // See https://github.com/apache/opendal/issues/6869 and
-            // https://github.com/jni-rs/jni-rs/issues/701 for more details.
-            if let Ok(vm) = JavaVM::singleton() {
-                let _ = vm.detach_current_thread();
-            }
-        })
         .enable_all()
         .build()
         .map_err(|e| {
@@ -149,28 +127,6 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
             .set_source(e)
         })?;
     Ok(Executor::Tokio(executor))
-}
-
-fn set_current_thread_name(env: &mut Env) -> Result<()> {
-    let current_thread = env
-        .call_static_method(
-            jni_str!("java/lang/Thread"),
-            jni_str!("currentThread"),
-            jni_sig!("()Ljava/lang/Thread;"),
-            &[],
-        )?
-        .l()?;
-    let thread_name = match std::thread::current().name() {
-        Some(thread_name) => env.new_string(thread_name)?,
-        None => unreachable!("thread name must be set"),
-    };
-    env.call_method(
-        &current_thread,
-        jni_str!("setName"),
-        jni_sig!("(Ljava/lang/String;)V"),
-        &[JValue::Object(&thread_name)],
-    )?;
-    Ok(())
 }
 
 /// # Panic

@@ -17,6 +17,8 @@
 
 use std::time::Duration;
 
+use jni::AttachConfig;
+use jni::DEFAULT_LOCAL_FRAME_CAPACITY;
 use jni::Env;
 use jni::EnvUnowned;
 use jni::JavaVM;
@@ -27,6 +29,7 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
+use jni::strings::JNIString;
 use jni::sys::jlong;
 use jni::sys::jsize;
 use opendal::Entry;
@@ -617,40 +620,44 @@ fn intern_presign_stat(
 
 /// Complete the Java `CompletableFuture` identified by `id`.
 ///
-/// This runs on a `tokio` worker thread that was permanently attached to the
-/// JVM in `on_thread_start`, so `attach_current_thread` only pushes a scoped
-/// JNI frame here. The `build` closure turns the awaited operation result into a
-/// Java object within that frame; on error the future is completed
-/// exceptionally. All local references created during completion live and die
-/// within the frame.
+/// Attach the worker only while completing the future, so idle runtime threads
+/// do not prevent the JVM from exiting. The `build` closure turns the awaited
+/// operation result into a Java object; on error the future is completed
+/// exceptionally. All local references are released before the worker detaches.
 fn complete_future<F>(id: jlong, build: F)
 where
     F: for<'a> FnOnce(&mut Env<'a>) -> Result<JObject<'a>>,
 {
     let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-    vm.attach_current_thread(|env| -> Result<()> {
-        let future = get_future(env, id)?;
-        match build(env) {
-            Ok(object) => {
-                env.call_method(
-                    &future,
-                    jni_str!("complete"),
-                    jni_sig!("(Ljava/lang/Object;)Z"),
-                    &[JValue::Object(&object)],
-                )?;
+    let thread = std::thread::current();
+    let thread_name = JNIString::from(thread.name().expect("executor thread name must be set"));
+    vm.attach_current_thread_with_config(
+        || AttachConfig::new().scoped(true).thread_name(&thread_name),
+        Some(DEFAULT_LOCAL_FRAME_CAPACITY),
+        |env| -> Result<()> {
+            let future = get_future(env, id)?;
+            match build(env) {
+                Ok(object) => {
+                    env.call_method(
+                        &future,
+                        jni_str!("complete"),
+                        jni_sig!("(Ljava/lang/Object;)Z"),
+                        &[JValue::Object(&object)],
+                    )?;
+                }
+                Err(err) => {
+                    let exception = err.to_exception(env)?;
+                    env.call_method(
+                        &future,
+                        jni_str!("completeExceptionally"),
+                        jni_sig!("(Ljava/lang/Throwable;)Z"),
+                        &[JValue::Object(&exception)],
+                    )?;
+                }
             }
-            Err(err) => {
-                let exception = err.to_exception(env)?;
-                env.call_method(
-                    &future,
-                    jni_str!("completeExceptionally"),
-                    jni_sig!("(Ljava/lang/Throwable;)Z"),
-                    &[JValue::Object(&exception)],
-                )?;
-            }
-        }
-        Ok(())
-    })
+            Ok(())
+        },
+    )
     .expect("complete future must succeed");
 }
 

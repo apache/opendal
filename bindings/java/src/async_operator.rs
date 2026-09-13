@@ -17,8 +17,6 @@
 
 use std::time::Duration;
 
-use jni::AttachConfig;
-use jni::DEFAULT_LOCAL_FRAME_CAPACITY;
 use jni::Env;
 use jni::EnvUnowned;
 use jni::JavaVM;
@@ -29,7 +27,6 @@ use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
 use jni::objects::JValue;
-use jni::strings::JNIString;
 use jni::sys::jlong;
 use jni::sys::jsize;
 use opendal::Entry;
@@ -55,16 +52,26 @@ pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>
     _: JClass<'local>,
     scheme: JString<'local>,
     map: JObject<'local>,
+    executor: *const Executor,
 ) -> jlong {
-    env.with_env(|env| intern_constructor(env, scheme, map))
+    env.with_env(|env| intern_constructor(env, scheme, map, executor))
         .resolve::<ThrowException>()
 }
 
-fn intern_constructor(env: &mut Env, scheme: JString, map: JObject) -> Result<jlong> {
+fn intern_constructor(
+    env: &mut Env,
+    scheme: JString,
+    map: JObject,
+    executor: *const Executor,
+) -> Result<jlong> {
     let scheme = jstring_to_string(env, &scheme)?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
-    Ok(Box::into_raw(Box::new(op)) as jlong)
+    let executor = executor_or_default(executor)?;
+    let ctx = op
+        .context()
+        .with_executor(opendal::Executor::with(executor));
+    Ok(Box::into_raw(Box::new(op.with_context(ctx))) as jlong)
 }
 
 /// # Safety
@@ -119,7 +126,7 @@ fn intern_write(
     content: JByteArray,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let write_opts = make_write_options(env, &options)?;
@@ -160,7 +167,7 @@ fn intern_stat(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -241,7 +248,7 @@ fn intern_delete(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -324,7 +331,7 @@ fn intern_create_dir(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -363,7 +370,7 @@ fn intern_copy(
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
@@ -403,7 +410,7 @@ fn intern_rename(
     source_path: JString,
     target_path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
@@ -441,7 +448,7 @@ fn intern_remove_all(
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -480,7 +487,7 @@ fn intern_list(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -531,7 +538,7 @@ fn intern_presign_read(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -567,7 +574,7 @@ fn intern_presign_write(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -604,7 +611,7 @@ fn intern_presign_stat(
     path: JString,
     expire: jlong,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op }.clone();
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -620,44 +627,40 @@ fn intern_presign_stat(
 
 /// Complete the Java `CompletableFuture` identified by `id`.
 ///
-/// Attach the worker only while completing the future, so idle runtime threads
-/// do not prevent the JVM from exiting. The `build` closure turns the awaited
-/// operation result into a Java object; on error the future is completed
-/// exceptionally. All local references are released before the worker detaches.
+/// This runs on a `tokio` worker thread that was permanently attached to the
+/// JVM in `on_thread_start`, so `attach_current_thread` only pushes a scoped
+/// JNI frame here. The `build` closure turns the awaited operation result into a
+/// Java object within that frame; on error the future is completed
+/// exceptionally. All local references created during completion live and die
+/// within the frame.
 fn complete_future<F>(id: jlong, build: F)
 where
     F: for<'a> FnOnce(&mut Env<'a>) -> Result<JObject<'a>>,
 {
     let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-    let thread = std::thread::current();
-    let thread_name = JNIString::from(thread.name().expect("executor thread name must be set"));
-    vm.attach_current_thread_with_config(
-        || AttachConfig::new().scoped(true).thread_name(&thread_name),
-        Some(DEFAULT_LOCAL_FRAME_CAPACITY),
-        |env| -> Result<()> {
-            let future = get_future(env, id)?;
-            match build(env) {
-                Ok(object) => {
-                    env.call_method(
-                        &future,
-                        jni_str!("complete"),
-                        jni_sig!("(Ljava/lang/Object;)Z"),
-                        &[JValue::Object(&object)],
-                    )?;
-                }
-                Err(err) => {
-                    let exception = err.to_exception(env)?;
-                    env.call_method(
-                        &future,
-                        jni_str!("completeExceptionally"),
-                        jni_sig!("(Ljava/lang/Throwable;)Z"),
-                        &[JValue::Object(&exception)],
-                    )?;
-                }
+    vm.attach_current_thread(|env| -> Result<()> {
+        let future = get_future(env, id)?;
+        match build(env) {
+            Ok(object) => {
+                env.call_method(
+                    &future,
+                    jni_str!("complete"),
+                    jni_sig!("(Ljava/lang/Object;)Z"),
+                    &[JValue::Object(&object)],
+                )?;
             }
-            Ok(())
-        },
-    )
+            Err(err) => {
+                let exception = err.to_exception(env)?;
+                env.call_method(
+                    &future,
+                    jni_str!("completeExceptionally"),
+                    jni_sig!("(Ljava/lang/Throwable;)Z"),
+                    &[JValue::Object(&exception)],
+                )?;
+            }
+        }
+        Ok(())
+    })
     .expect("complete future must succeed");
 }
 

@@ -32,6 +32,11 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * AsyncOperator represents an underneath OpenDAL operator that
  * accesses data asynchronously.
+ *
+ * <p>Operators without an explicit executor share a default executor. Operators,
+ * derived streams, and outstanding operations keep it alive. Closing the last
+ * operator and stream releases it after outstanding operations complete; a later
+ * operator creates a new default executor.</p>
  */
 public class AsyncOperator extends NativeObject {
 
@@ -153,7 +158,7 @@ public class AsyncOperator extends NativeObject {
      */
     public static AsyncOperator of(String scheme, Map<String, String> map, AsyncExecutor executor) {
         final long executorHandle = executor != null ? executor.nativeHandle : 0;
-        final long nativeHandle = constructor(scheme, map);
+        final long nativeHandle = constructor(scheme, map, executorHandle);
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
         return new AsyncOperator(nativeHandle, executorHandle, info);
     }
@@ -304,7 +309,7 @@ public class AsyncOperator extends NativeObject {
 
     private static native long duplicate(long nativeHandle);
 
-    private static native long constructor(String scheme, Map<String, String> map);
+    private static native long constructor(String scheme, Map<String, String> map, long executorHandle);
 
     private static native long read(long nativeHandle, long executorHandle, String path, ReadOptions options);
 

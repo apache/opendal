@@ -18,21 +18,27 @@
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::OnceLock;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 use std::thread::available_parallelism;
 
+use jni::Env;
 use jni::EnvUnowned;
 use jni::JavaVM;
+use jni::jni_sig;
+use jni::jni_str;
 use jni::objects::JClass;
 use jni::objects::JObject;
+use jni::objects::JValue;
 use jni::sys::{jint, jlong};
 use tokio::task::JoinHandle;
 
 use crate::Result;
 use crate::error::ThrowException;
 
-static mut RUNTIME: OnceLock<Executor> = OnceLock::new();
+// Operators, derived resources, and in-flight tasks own the runtime. The cache
+// must not keep JVM-attached workers alive after those owners are released.
+static DEFAULT_RUNTIME: Mutex<Weak<Runtime>> = Mutex::new(Weak::new());
 
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: *mut c_void) -> jint {
@@ -43,19 +49,29 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: *mut c_vo
     jni::sys::JNI_VERSION_1_8
 }
 
-/// # Safety
-///
-/// This function could be only called by java vm when unload this lib.
-#[allow(static_mut_refs)]
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn JNI_OnUnload(_: *mut jni::sys::JavaVM, _: *mut c_void) {
-    unsafe {
-        RUNTIME.take();
+#[derive(Clone)]
+pub struct Executor {
+    runtime: Arc<Runtime>,
+}
+
+struct Runtime {
+    inner: Option<tokio::runtime::Runtime>,
+}
+
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        // The last owner can be released by a completion callback on a worker.
+        // Initiate shutdown without blocking that worker waiting for itself.
+        if let Some(runtime) = self.inner.take() {
+            runtime.shutdown_background();
+        }
     }
 }
 
-pub enum Executor {
-    Tokio(tokio::runtime::Runtime),
+impl opendal::Execute for Executor {
+    fn execute(&self, future: opendal::raw::BoxedStaticFuture<()>) {
+        let _handle = self.spawn(future);
+    }
 }
 
 impl Executor {
@@ -63,12 +79,13 @@ impl Executor {
     where
         F: FnOnce() -> R,
     {
-        match self {
-            Executor::Tokio(e) => {
-                let _guard = e.enter();
-                f()
-            }
-        }
+        let runtime = self
+            .runtime
+            .inner
+            .as_ref()
+            .expect("runtime must be initialized");
+        let _guard = runtime.enter();
+        f()
     }
 
     pub fn spawn<F>(&self, future: F) -> JoinHandle<F::Output>
@@ -76,9 +93,17 @@ impl Executor {
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        match self {
-            Executor::Tokio(e) => e.spawn(future),
-        }
+        let owner = self.clone();
+        let runtime = self
+            .runtime
+            .inner
+            .as_ref()
+            .expect("runtime must be initialized");
+        runtime.spawn(async move {
+            let result = future.await;
+            drop(owner);
+            result
+        })
     }
 }
 
@@ -117,6 +142,24 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
             let id = counter.fetch_add(1, Ordering::SeqCst);
             format!("opendal-tokio-worker-{id}")
         })
+        .on_thread_start(|| {
+            // `attach_current_thread` creates a permanent attachment; the thread
+            // is detached automatically when it exits.
+            let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
+            vm.attach_current_thread(set_current_thread_name)
+                .expect("attach current thread must succeed");
+        })
+        .on_thread_stop(|| {
+            // Typically, the thread attached to the JVM will be detached automatically
+            // when the thread exits. However, there are some edge cases on Windows that
+            // may lead to deadlocks. To mitigate this, we explicitly detach the thread here.
+            //
+            // See https://github.com/apache/opendal/issues/6869 and
+            // https://github.com/jni-rs/jni-rs/issues/701 for more details.
+            if let Ok(vm) = JavaVM::singleton() {
+                let _ = vm.detach_current_thread();
+            }
+        })
         .enable_all()
         .build()
         .map_err(|e| {
@@ -126,37 +169,52 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
             )
             .set_source(e)
         })?;
-    Ok(Executor::Tokio(executor))
+    Ok(Executor {
+        runtime: Arc::new(Runtime {
+            inner: Some(executor),
+        }),
+    })
 }
 
-/// # Panic
-///
-/// Crash if the executor is disposed.
+fn set_current_thread_name(env: &mut Env) -> Result<()> {
+    let current_thread = env
+        .call_static_method(
+            jni_str!("java/lang/Thread"),
+            jni_str!("currentThread"),
+            jni_sig!("()Ljava/lang/Thread;"),
+            &[],
+        )?
+        .l()?;
+    let thread_name = match std::thread::current().name() {
+        Some(thread_name) => env.new_string(thread_name)?,
+        None => unreachable!("thread name must be set"),
+    };
+    env.call_method(
+        &current_thread,
+        jni_str!("setName"),
+        jni_sig!("(Ljava/lang/String;)V"),
+        &[JValue::Object(&thread_name)],
+    )?;
+    Ok(())
+}
+
+/// Clone the supplied executor, or share the runtime owned by default operators.
 #[inline]
-pub(crate) fn executor_or_default(executor: *const Executor) -> Result<&'static Executor> {
-    unsafe {
-        if executor.is_null() {
-            default_executor()
-        } else {
-            // SAFETY: executor must be valid
-            Ok(&*executor)
-        }
-    }
-}
-
-/// # Safety
-///
-/// This function could be only when the lib is loaded.
-#[allow(static_mut_refs)]
-unsafe fn default_executor() -> Result<&'static Executor> {
-    // Return the executor if it's already initialized
-    if let Some(runtime) = unsafe { RUNTIME.get() } {
-        return Ok(runtime);
+pub(crate) fn executor_or_default(executor: *const Executor) -> Result<Executor> {
+    if !executor.is_null() {
+        // SAFETY: The caller must keep a supplied executor alive until its operators close.
+        return Ok(unsafe { &*executor }.clone());
     }
 
-    // Try to initialize the executor
+    let mut cached = DEFAULT_RUNTIME
+        .lock()
+        .expect("default runtime lock must not be poisoned");
+    if let Some(runtime) = cached.upgrade() {
+        return Ok(Executor { runtime });
+    }
+
     let executor =
         make_tokio_executor(available_parallelism().map(NonZeroUsize::get).unwrap_or(1))?;
-
-    Ok(unsafe { RUNTIME.get_or_init(|| executor) })
+    *cached = Arc::downgrade(&executor.runtime);
+    Ok(executor)
 }

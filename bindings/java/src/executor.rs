@@ -43,7 +43,7 @@ pub unsafe extern "system" fn JNI_OnLoad(vm: *mut jni::sys::JavaVM, _: *mut c_vo
     // Register the JavaVM singleton so worker threads can attach to the JVM
     // later via `JavaVM::singleton()`.
     let _ = unsafe { JavaVM::from_raw(vm) };
-    opendal::init_default_registry();
+    opendal::install_default();
     jni::sys::JNI_VERSION_1_8
 }
 

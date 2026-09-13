@@ -37,6 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * derived streams, and outstanding operations keep it alive. Closing the last
  * operator and stream releases it after outstanding operations complete; a later
  * operator creates a new default executor.</p>
+ *
+ * <p>The default executor uses the same worker context class loader behavior as {@link AsyncExecutor}.</p>
  */
 public class AsyncOperator extends NativeObject {
 

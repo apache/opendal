@@ -28,6 +28,7 @@ use jni::JavaVM;
 use jni::jni_sig;
 use jni::jni_str;
 use jni::objects::JClass;
+use jni::objects::JClassLoader;
 use jni::objects::JObject;
 use jni::objects::JValue;
 use jni::sys::{jint, jlong};
@@ -113,8 +114,8 @@ pub extern "system" fn Java_org_apache_opendal_AsyncExecutor_makeTokioExecutor<'
     _: JClass<'local>,
     cores: usize,
 ) -> jlong {
-    env.with_env(|_env| -> Result<jlong> {
-        let executor = make_tokio_executor(cores)?;
+    env.with_env(|env| -> Result<jlong> {
+        let executor = make_tokio_executor(env, cores)?;
         Ok(Box::into_raw(Box::new(executor)) as jlong)
     })
     .resolve::<ThrowException>()
@@ -134,7 +135,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncExecutor_disposeInter
     }
 }
 
-pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
+fn make_tokio_executor(env: &mut Env, cores: usize) -> Result<Executor> {
+    // FindClass uses the declaring native method's loader on this Java caller.
+    // Retain that loader in the runtime's startup hook so native workers can
+    // resolve OpenDAL classes even when the system loader cannot see them.
+    let class = env.find_class(jni_str!("org/apache/opendal/AsyncExecutor"))?;
+    let class_loader = class.get_class_loader(env)?;
+    let class_loader = env.new_global_ref(class_loader)?;
     let counter = AtomicUsize::new(0);
     let executor = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(cores)
@@ -142,11 +149,11 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
             let id = counter.fetch_add(1, Ordering::SeqCst);
             format!("opendal-tokio-worker-{id}")
         })
-        .on_thread_start(|| {
+        .on_thread_start(move || {
             // `attach_current_thread` creates a permanent attachment; the thread
             // is detached automatically when it exits.
             let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
-            vm.attach_current_thread(set_current_thread_name)
+            vm.attach_current_thread(|env| initialize_current_thread(env, &class_loader))
                 .expect("attach current thread must succeed");
         })
         .on_thread_stop(|| {
@@ -176,7 +183,7 @@ pub(crate) fn make_tokio_executor(cores: usize) -> Result<Executor> {
     })
 }
 
-fn set_current_thread_name(env: &mut Env) -> Result<()> {
+fn initialize_current_thread(env: &mut Env, class_loader: &JClassLoader) -> Result<()> {
     let current_thread = env
         .call_static_method(
             jni_str!("java/lang/Thread"),
@@ -185,6 +192,13 @@ fn set_current_thread_name(env: &mut Env) -> Result<()> {
             &[],
         )?
         .l()?;
+    // jni-rs consults the context class loader before falling back to FindClass.
+    env.call_method(
+        &current_thread,
+        jni_str!("setContextClassLoader"),
+        jni_sig!("(Ljava/lang/ClassLoader;)V"),
+        &[JValue::Object(class_loader)],
+    )?;
     let thread_name = match std::thread::current().name() {
         Some(thread_name) => env.new_string(thread_name)?,
         None => unreachable!("thread name must be set"),
@@ -200,7 +214,7 @@ fn set_current_thread_name(env: &mut Env) -> Result<()> {
 
 /// Clone the supplied executor, or share the runtime owned by default operators.
 #[inline]
-pub(crate) fn executor_or_default(executor: *const Executor) -> Result<Executor> {
+pub(crate) fn executor_or_default(env: &mut Env, executor: *const Executor) -> Result<Executor> {
     if !executor.is_null() {
         // SAFETY: The caller must keep a supplied executor alive until its operators close.
         return Ok(unsafe { &*executor }.clone());
@@ -213,8 +227,10 @@ pub(crate) fn executor_or_default(executor: *const Executor) -> Result<Executor>
         return Ok(Executor { runtime });
     }
 
-    let executor =
-        make_tokio_executor(available_parallelism().map(NonZeroUsize::get).unwrap_or(1))?;
+    let executor = make_tokio_executor(
+        env,
+        available_parallelism().map(NonZeroUsize::get).unwrap_or(1),
+    )?;
     *cached = Arc::downgrade(&executor.runtime);
     Ok(executor)
 }

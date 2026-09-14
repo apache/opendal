@@ -36,7 +36,9 @@ runs:
     - name: Setup env
       shell: bash
       run: |
+        # Behavior tests overwrite paths and must observe the updated content.
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HF_REPO_TYPE=dataset
+        OPENDAL_HF_FORCE_RESOLVE=true
         RUST_TEST_THREADS=1
         EOF

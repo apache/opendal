@@ -210,7 +210,7 @@ mod tests {
 
         assert_eq!(
             mock_client.get_captured_url(),
-            "https://huggingface.co/api/models/test-user/test-repo/tree/main/?expand=True"
+            "https://huggingface.co/api/models/test-user/test-repo/tree/main?expand=True"
         );
         assert!(page_ctx.done);
         let entry = page_ctx.entries.pop_front().expect("entry must exist");

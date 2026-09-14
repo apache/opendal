@@ -21,14 +21,24 @@ using System.Runtime.InteropServices;
 
 namespace OpenDAL.Interop.NativeObject;
 
+/// <summary>
+/// Mirror of the native <c>OpendalMetadata</c> struct. Fields follow the
+/// accessor order of <c>opendal::Metadata</c>.
+/// </summary>
 [StructLayout(LayoutKind.Sequential)]
 internal struct OpenDALMetadata
 {
     public int Mode;
 
-    public ulong ContentLength;
+    public byte IsCurrentHasValue;
 
-    public IntPtr ContentDisposition;
+    public byte IsCurrent;
+
+    public byte IsDeleted;
+
+    public IntPtr CacheControl;
+
+    public ulong ContentLength;
 
     public IntPtr ContentMd5;
 
@@ -36,15 +46,23 @@ internal struct OpenDALMetadata
 
     public IntPtr ContentEncoding;
 
-    public IntPtr CacheControl;
-
-    public IntPtr ETag;
-
     public byte LastModifiedHasValue;
 
     public long LastModifiedSecond;
 
     public int LastModifiedNanosecond;
 
-    public IntPtr Version;    
+    public IntPtr ETag;
+
+    public IntPtr ContentDisposition;
+
+    public IntPtr Version;
+
+    public byte UserMetadataHasValue;
+
+    public IntPtr UserMetadataKeys;
+
+    public IntPtr UserMetadataValues;
+
+    public nuint UserMetadataLen;
 }

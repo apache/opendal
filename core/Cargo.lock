@@ -1324,7 +1324,7 @@ dependencies = [
  "futures",
  "hex",
  "libc",
- "memmap2 0.5.10",
+ "memmap2",
  "miette",
  "reflink-copy",
  "serde",
@@ -3836,27 +3836,25 @@ dependencies = [
 
 [[package]]
 name = "goosefs-sdk"
-version = "0.1.9"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ea4eee6dcbc31b25ab4fd577adc55b677d2bed3aa3016c44c58fbe1b2298a5"
+checksum = "6f521e3beacc809ced36a8aff4a468b1bf61302c8f4dca41c3f21ac0557c22ed"
 dependencies = [
  "arc-swap",
  "async-trait",
  "bytes",
  "dashmap 6.2.1",
  "fastrand",
+ "foyer-common",
+ "foyer-memory",
  "futures",
  "hostname",
  "io-uring 0.7.12",
  "itoa",
  "libc",
  "lru 0.18.4",
- "memmap2 0.9.11",
- "moka",
  "prost 0.14.3",
- "prost-types",
  "rand 0.9.4",
- "reqwest 0.12.28",
  "serde",
  "thiserror 2.0.18",
  "tokio",
@@ -4506,7 +4504,6 @@ dependencies = [
  "tokio",
  "tokio-rustls 0.26.4",
  "tower-service",
- "webpki-roots 1.0.7",
 ]
 
 [[package]]
@@ -5616,15 +5613,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "memmap2"
-version = "0.9.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1219ed1b7f229ee7104d281dd01d6802fe28bb6e95d292942c4daacdeb798c0"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "memoffset"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6312,7 +6300,7 @@ dependencies = [
  "opendal-service-yandex-disk",
  "opendal-testkit",
  "rand 0.10.1",
- "reqwest 0.13.4",
+ "reqwest",
  "sha2 0.11.0",
  "size",
  "tokio",
@@ -6426,7 +6414,7 @@ dependencies = [
  "http 1.4.2",
  "http-body 1.1.0",
  "opendal-core",
- "reqwest 0.13.4",
+ "reqwest",
 ]
 
 [[package]]
@@ -9262,44 +9250,6 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.28"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
-dependencies = [
- "base64 0.22.1",
- "bytes",
- "futures-core",
- "http 1.4.2",
- "http-body 1.1.0",
- "http-body-util",
- "hyper 1.9.0",
- "hyper-rustls 0.27.9",
- "hyper-util",
- "js-sys",
- "log",
- "percent-encoding",
- "pin-project-lite",
- "quinn",
- "rustls 0.23.40",
- "rustls-pki-types",
- "serde",
- "serde_json",
- "serde_urlencoded",
- "sync_wrapper 1.0.2",
- "tokio",
- "tokio-rustls 0.26.4",
- "tower 0.5.3",
- "tower-http",
- "tower-service",
- "url",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "webpki-roots 1.0.7",
-]
-
-[[package]]
-name = "reqwest"
 version = "0.13.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
@@ -9354,7 +9304,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "http 1.4.2",
- "reqwest 0.13.4",
+ "reqwest",
  "thiserror 2.0.18",
  "tower-service",
 ]
@@ -10758,7 +10708,7 @@ dependencies = [
  "indexmap 2.14.0",
  "js-sys",
  "path-clean",
- "reqwest 0.13.4",
+ "reqwest",
  "ring",
  "rustls 0.23.40",
  "rustls-pki-types",
@@ -10936,7 +10886,7 @@ dependencies = [
  "papaya",
  "rand 0.9.4",
  "regex",
- "reqwest 0.13.4",
+ "reqwest",
  "rust_decimal",
  "semver",
  "serde",
@@ -13062,7 +13012,7 @@ dependencies = [
  "more-asserts",
  "rand 0.10.1",
  "redb 3.1.3",
- "reqwest 0.13.4",
+ "reqwest",
  "reqwest-middleware",
  "serde",
  "serde_json",
@@ -13169,7 +13119,7 @@ dependencies = [
  "oneshot",
  "pin-project",
  "rand 0.10.1",
- "reqwest 0.13.4",
+ "reqwest",
  "serde",
  "serde_json",
  "shellexpand",

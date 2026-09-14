@@ -63,28 +63,8 @@ file, so subsequent reads may observe changes.
 Version selection and conditions require service support. Unsupported options
 fail with `Unsupported`; a failed condition on an existing file fails with
 `ConditionNotMatch`. Conditions apply to all requests through the reader,
-including its streams and fetches. Errors may surface when creating the reader
+including its streams. Errors may surface when creating the reader
 or while reading from it.
-
-For multiple bounded ranges, use `fetch`:
-
-```java
-import org.apache.opendal.ReadOptions;
-
-ReaderOptions options = ReaderOptions.builder().gap(4096).build();
-try (OperatorReader reader = op.reader("path/to/file", options)) {
-    byte[][] parts = reader.fetch(
-            ReadOptions.builder().offset(0).length(1024).build(),
-            ReadOptions.builder().offset(2048).length(1024).build());
-}
-```
-
-The returned arrays follow input order. Fetch requires non-negative offsets
-and lengths; it does not accept `-1` lengths. The `gap` option merges nearby
-ranges to reduce requests while excluding gap bytes from the results. Set it
-to `0` to disable merging across gaps, or leave it at `-1` for the core default
-of 1 MiB. Overlapping and adjacent ranges still merge. `gap` does not affect
-single-range reads or streams.
 
 ## Stream a large file
 

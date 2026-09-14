@@ -16,12 +16,9 @@
 // under the License.
 
 use jni::EnvUnowned;
-use jni::jni_str;
-use jni::objects::{JByteArray, JClass, JLongArray, JObject, JObjectArray, JString};
+use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::jlong;
-use jni::sys::jsize;
 use opendal::blocking;
-use std::ops::Bound;
 
 use crate::convert;
 use crate::error::ThrowException;
@@ -83,59 +80,6 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_createBytes
         let range = convert::offset_length_to_range(offset, length)?;
         let iter = reader.clone().into_bytes_iterator(range)?;
         Ok(Box::into_raw(Box::new(iter)) as jlong)
-    })
-    .resolve::<ThrowException>()
-}
-
-/// # Safety
-///
-/// `reader` must point to a live blocking reader for the duration of this call.
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_fetchRanges<'local>(
-    mut env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    reader: *const blocking::Reader,
-    offsets: JLongArray<'local>,
-    lengths: JLongArray<'local>,
-) -> JObjectArray<'local> {
-    env.with_env(|env| -> crate::Result<_> {
-        let count = offsets.len(env)?;
-        if lengths.len(env)? != count {
-            return Err(opendal::Error::new(
-                opendal::ErrorKind::RangeNotSatisfied,
-                "offsets and lengths must have the same size",
-            )
-            .into());
-        }
-        let mut starts = vec![0; count];
-        let mut sizes = vec![0; count];
-        offsets.get_region(env, 0, &mut starts)?;
-        lengths.get_region(env, 0, &mut sizes)?;
-        let ranges = starts
-            .into_iter()
-            .zip(sizes)
-            .map(
-                |(offset, length)| match convert::offset_length_to_range(offset, length)? {
-                    (Bound::Included(start), Bound::Excluded(end)) => Ok(start..end),
-                    _ => Err(opendal::Error::new(
-                        opendal::ErrorKind::RangeNotSatisfied,
-                        "fetch requires non-negative lengths",
-                    )
-                    .into()),
-                },
-            )
-            .collect::<crate::Result<Vec<_>>>()?;
-        let reader = unsafe { &*reader };
-        let buffers = reader.fetch(ranges)?;
-        let output = env.new_object_array(count as jsize, jni_str!("[B"), JObject::null())?;
-        for (index, buffer) in buffers.into_iter().enumerate() {
-            env.with_local_frame(2, |env| -> crate::Result<()> {
-                let bytes = convert::bytes_to_jbytearray(env, buffer.to_vec())?;
-                output.set_element(env, index, &bytes)?;
-                Ok(())
-            })?;
-        }
-        Ok(output)
     })
     .resolve::<ThrowException>()
 }

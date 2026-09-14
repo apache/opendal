@@ -131,7 +131,7 @@ public class Operator extends NativeObject {
      * each read selects its own byte range. The reader can outlive this operator.
      * Creation does not read file contents or guarantee that the file exists.
      * Version selection and conditions apply to all requests through the reader, including
-     * streams and fetches. All conditions must hold; a failed condition on an existing file
+     * streams. All conditions must hold; a failed condition on an existing file
      * fails with ConditionNotMatch and a missing file fails with NotFound. Depending on the
      * service, errors may surface at creation or during reading.
      *

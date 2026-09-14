@@ -79,9 +79,6 @@ public class OperatorReaderTest {
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
             assertThatThrownBy(() -> reader.createInputStream(offset, length))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
-            assertThatThrownBy(() -> reader.fetch(
-                            ReadOptions.builder().offset(offset).length(length).build()))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
         }
     }
 
@@ -111,7 +108,6 @@ public class OperatorReaderTest {
                     reader.close();
                     op.close();
                     assertThatThrownBy(reader::createInputStream).isInstanceOf(IllegalStateException.class);
-                    assertThatThrownBy(reader::fetch).isInstanceOf(IllegalStateException.class);
                     assertThat(first.read()).isEqualTo('0');
                     assertThat(second.read()).isEqualTo('4');
                     first.close();
@@ -139,16 +135,6 @@ public class OperatorReaderTest {
     }
 
     @Test
-    void testFetchRequiresBoundedRanges() {
-        try (Operator op = Operator.of(
-                        ServiceConfig.Fs.builder().root(tempDir.toString()).build());
-                OperatorReader reader = op.reader("missing")) {
-            assertThatThrownBy(() -> reader.fetch(ReadOptions.builder().build()))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
-        }
-    }
-
-    @Test
     void testUnsupportedReaderCondition() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
@@ -159,12 +145,9 @@ public class OperatorReaderTest {
     }
 
     @Test
-    void testInvalidGapAndTimestamp() {
+    void testInvalidTimestamp() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
-            assertThatThrownBy(() ->
-                            op.reader("missing", ReaderOptions.builder().gap(-2).build()))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid));
             assertThatThrownBy(() -> op.reader(
                             "missing",
                             ReaderOptions.builder().ifModifiedSince(Instant.MIN).build()))

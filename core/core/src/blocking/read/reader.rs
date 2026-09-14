@@ -15,8 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::ops::Range;
-
 use bytes::BufMut;
 
 use super::BufferIterator;
@@ -59,50 +57,6 @@ impl Reader {
             .as_ref()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
         self.handle.block_on(inner.read(range))
-    }
-
-    /// Fetch multiple byte ranges into buffers in the same order as the input.
-    ///
-    /// Overlapping and adjacent ranges are merged. The reader's
-    /// [`options::ReaderOptions::gap`] also allows merging ranges separated by
-    /// at most that many bytes; `0` disables merging across gaps. The reader
-    /// splits merged requests using `chunk` and executes them with `concurrent`
-    /// and `prefetch`. Returned buffers contain only the requested bytes and
-    /// may share their underlying storage.
-    ///
-    /// Empty or reversed ranges return empty buffers. An empty input returns
-    /// an empty vector without reading. A failed request fails the whole call.
-    /// A request that returns fewer bytes than planned fails with
-    /// [`ErrorKind::Unexpected`]. The reader's version and conditions apply to
-    /// every request: a missing file returns [`ErrorKind::NotFound`], a failed
-    /// condition returns [`ErrorKind::ConditionNotMatch`], and an unsupported
-    /// condition returns [`ErrorKind::Unsupported`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use opendal_core::{Operator, Result, blocking, services};
-    ///
-    /// # fn main() -> Result<()> {
-    /// let runtime = tokio::runtime::Runtime::new().unwrap();
-    /// let op = {
-    ///     let _guard = runtime.enter();
-    ///     blocking::Operator::new(Operator::new(services::Memory::default())?)?
-    /// };
-    /// op.write("file", "0123456789")?;
-    /// let reader = op.reader("file")?;
-    /// let buffers = reader.fetch(vec![6..8, 0..2])?;
-    /// assert_eq!(buffers[0].to_vec(), b"67");
-    /// assert_eq!(buffers[1].to_vec(), b"01");
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn fetch(&self, ranges: Vec<Range<u64>>) -> Result<Vec<Buffer>> {
-        let inner = self
-            .inner
-            .as_ref()
-            .ok_or_else(|| Error::new(ErrorKind::Unexpected, "reader has been dropped"))?;
-        self.handle.block_on(inner.fetch(ranges))
     }
 
     ///

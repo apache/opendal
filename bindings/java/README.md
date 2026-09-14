@@ -107,7 +107,7 @@ try (OperatorReader reader = op.reader("large.bin", options)) {
 ```
 
 The [Java task guide](../../website/docs/20-bindings/java/04-tasks.md#read-part-of-a-file)
-covers streams, multi-range `fetch`, and resource lifetimes.
+covers streams and resource lifetimes.
 See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for all
 supported options, defaults, and constraints.
 

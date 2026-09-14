@@ -318,7 +318,6 @@ fn make_reader_options(
             convert::read_int64_field(env, options, "chunk")?,
             convert::read_int_field(env, options, "prefetch")?,
             convert::read_int64_field(env, options, "contentLengthHint")?,
-            convert::read_int64_field(env, options, "gap")?,
         )?
     })
 }
@@ -328,7 +327,6 @@ fn build_reader_options(
     chunk: i64,
     prefetch: i32,
     content_length_hint: i64,
-    gap: i64,
 ) -> opendal::Result<opendal::options::ReaderOptions> {
     use opendal::{Error, ErrorKind};
 
@@ -364,22 +362,12 @@ fn build_reader_options(
             )
         })?),
     };
-    let gap = match gap {
-        -1 => None,
-        value => Some(usize::try_from(value).map_err(|_| {
-            Error::new(
-                ErrorKind::ConfigInvalid,
-                "gap must be -1 or a non-negative native-sized integer",
-            )
-        })?),
-    };
 
     Ok(opendal::options::ReaderOptions {
         concurrent,
         chunk,
         prefetch,
         content_length_hint,
-        gap,
         ..Default::default()
     })
 }
@@ -391,42 +379,35 @@ mod reader_options_tests {
 
     #[test]
     fn default_reader_options() {
-        let options = build_reader_options(1, -1, 0, -1, -1).unwrap();
+        let options = build_reader_options(1, -1, 0, -1).unwrap();
         assert_eq!(options.concurrent, 1);
         assert_eq!(options.chunk, None);
         assert_eq!(options.prefetch, 0);
         assert_eq!(options.content_length_hint, None);
-        assert_eq!(options.gap, None);
     }
 
     #[test]
     fn tuned_reader_options() {
-        let options = build_reader_options(4, 8 * 1024 * 1024, 2, 128 * 1024 * 1024, 16).unwrap();
+        let options = build_reader_options(4, 8 * 1024 * 1024, 2, 128 * 1024 * 1024).unwrap();
         assert_eq!(options.concurrent, 4);
         assert_eq!(options.chunk, Some(8 * 1024 * 1024));
         assert_eq!(options.prefetch, 2);
         assert_eq!(options.content_length_hint, Some(128 * 1024 * 1024));
-        assert_eq!(options.gap, Some(16));
     }
 
     #[test]
     fn empty_content_length_hint() {
-        let options = build_reader_options(1, 1, 0, 0, 0).unwrap();
+        let options = build_reader_options(1, 1, 0, 0).unwrap();
         assert_eq!(options.content_length_hint, Some(0));
-        assert_eq!(options.gap, Some(0));
     }
 
     #[test]
-    fn reader_sizes_respect_native_width() {
-        for (chunk, gap) in [(i64::MAX, -1), (-1, i64::MAX)] {
-            let options = build_reader_options(1, chunk, 0, -1, gap);
-            if usize::BITS < 64 {
-                assert_eq!(options.unwrap_err().kind(), ErrorKind::ConfigInvalid);
-            } else {
-                let options = options.unwrap();
-                assert_eq!(options.chunk, usize::try_from(chunk).ok());
-                assert_eq!(options.gap, usize::try_from(gap).ok());
-            }
+    fn chunk_conversion_respects_native_width() {
+        let options = build_reader_options(1, i64::MAX, 0, -1);
+        if usize::BITS < 64 {
+            assert_eq!(options.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        } else {
+            assert_eq!(options.unwrap().chunk, usize::try_from(i64::MAX).ok());
         }
     }
 }

@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * Reads a file synchronously through a reusable Rust core reader.
  * Each read selects its own range and does not advance a shared cursor.
- * Reader options apply to every request, including streams and fetches.
+ * Reader options apply to every request, including streams.
  * A reader does not snapshot the file;
  * changes to the file may be visible to subsequent reads.
  *
@@ -79,34 +79,6 @@ public final class OperatorReader extends NativeObject {
     public byte[] read(ReadOptions options) {
         Objects.requireNonNull(options, "options");
         return read(options.offset, options.length);
-    }
-
-    /**
-     * Fetches multiple bounded ranges into byte arrays in the same order as the input.
-     * Overlapping and adjacent ranges are merged; {@link ReaderOptions#gap} also allows
-     * merging nearby ranges. Chunking, concurrency, prefetch, version, and conditions apply
-     * to all requests. Empty ranges produce empty arrays, and empty input performs no reads.
-     * A failed request fails the whole call. This method does not advance a shared cursor.
-     *
-     * @param ranges ranges with non-negative offsets and lengths; -1 lengths are not supported
-     * @return one byte array per input range, including duplicates and empty ranges
-     * @throws OpenDALException if a range is invalid (RangeNotSatisfied), a request returns
-     *     fewer bytes than planned (Unexpected), a condition fails (ConditionNotMatch), or reading fails
-     * @throws IllegalStateException if this reader is closed
-     */
-    public synchronized byte[][] fetch(ReadOptions... ranges) {
-        if (isDisposed()) {
-            throw new IllegalStateException("OperatorReader is closed");
-        }
-        Objects.requireNonNull(ranges, "ranges");
-        long[] offsets = new long[ranges.length];
-        long[] lengths = new long[ranges.length];
-        for (int i = 0; i < ranges.length; i++) {
-            ReadOptions range = Objects.requireNonNull(ranges[i], "range");
-            offsets[i] = range.offset;
-            lengths[i] = range.length;
-        }
-        return fetchRanges(nativeHandle, offsets, lengths);
     }
 
     /**
@@ -166,8 +138,6 @@ public final class OperatorReader extends NativeObject {
     }
 
     private static native byte[] readBytes(long reader, long offset, long length);
-
-    private static native byte[][] fetchRanges(long reader, long[] offsets, long[] lengths);
 
     private static native long createBytesIterator(long reader, long offset, long length);
 

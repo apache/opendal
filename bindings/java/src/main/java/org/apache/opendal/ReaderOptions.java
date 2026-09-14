@@ -27,7 +27,7 @@ import lombok.Builder;
  * All conditions must hold for data to be returned. Missing files fail with NotFound;
  * failed conditions on existing files fail with ConditionNotMatch. Unsupported conditions
  * fail with Unsupported. Depending on the service, errors can surface when creating the
- * reader or while reading. Conditions apply to every request, including streams and fetches.
+ * reader or while reading. Conditions apply to every request, including streams.
  * Null version and condition fields leave those options unset.
  *
  * <p>Execution options apply independently of each logical range.
@@ -93,17 +93,6 @@ public final class ReaderOptions {
      */
     @Builder.Default
     public final long chunk = -1L;
-
-    /**
-     * Maximum gap in bytes between ranges that {@link OperatorReader#fetch(ReadOptions...)}
-     * may merge into one request. The unrequested bytes are discarded from the returned arrays.
-     * Zero disables merging across gaps; overlapping and adjacent ranges still merge.
-     * The default of -1 uses the core default (1 MiB). Values below -1 are invalid,
-     * and non-negative values must fit the native platform's unsigned pointer-sized integer.
-     * This option does not affect read or createInputStream calls.
-     */
-    @Builder.Default
-    public final long gap = -1L;
 
     /**
      * Maximum number of completed chunks buffered ahead of consumption, not a byte count.

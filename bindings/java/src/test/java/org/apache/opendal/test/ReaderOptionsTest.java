@@ -35,7 +35,6 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorReader;
-import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ReaderOptions;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
@@ -43,8 +42,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 
 /** Verifies Java-to-core option forwarding against recorded local HTTP requests. */
 @Timeout(10)
@@ -164,31 +161,6 @@ public class ReaderOptionsTest {
         assertThat(urls.get(0).getQuery()).contains("ifGenerationMatch=17", "ifGenerationNotMatch=18");
     }
 
-    @ParameterizedTest
-    @CsvSource({"-1, 1", "0, 2", "2, 1"})
-    void testFetchGapAndRangeOrdering(long gap, int requestCount) {
-        try (Operator op = Operator.of(
-                        ServiceConfig.Http.builder().endpoint(endpoint).build());
-                OperatorReader reader =
-                        op.reader("file", ReaderOptions.builder().gap(gap).build())) {
-            byte[][] data = reader.fetch(
-                    ReadOptions.builder().offset(6).length(2).build(),
-                    ReadOptions.builder().offset(0).length(2).build(),
-                    ReadOptions.builder().offset(2).length(2).build(),
-                    ReadOptions.builder().offset(6).length(2).build(),
-                    ReadOptions.builder().offset(4).length(0).build());
-            assertThat(data).isDeepEqualTo(new byte[][] {
-                "67".getBytes(StandardCharsets.UTF_8),
-                "01".getBytes(StandardCharsets.UTF_8),
-                "23".getBytes(StandardCharsets.UTF_8),
-                "67".getBytes(StandardCharsets.UTF_8),
-                new byte[0]
-            });
-            assertThat(reader.fetch()).isEmpty();
-        }
-        assertThat(requests).hasSize(requestCount);
-    }
-
     @Test
     void testConditionalErrorsKeepTheirCode() {
         try (Operator op = Operator.of(
@@ -196,9 +168,6 @@ public class ReaderOptionsTest {
                 OperatorReader reader = op.reader(
                         "file", ReaderOptions.builder().ifMatch("changed").build())) {
             assertThatThrownBy(() -> reader.read(0, 2))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConditionNotMatch));
-            assertThatThrownBy(
-                            () -> reader.fetch(ReadOptions.builder().length(2).build()))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConditionNotMatch));
             try (OperatorInputStream in = reader.createInputStream(0, 2)) {
                 assertThatThrownBy(in::read)

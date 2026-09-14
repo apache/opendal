@@ -92,79 +92,24 @@ public class Main {
 Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 `CompletableFuture`-based calls.
 
-## Reuse a reader and tune reads
+## Reuse a reader
 
-`Operator.reader(path, readerOptions)` creates an `OperatorReader` backed by a
-Rust core reader. `ReaderOptions` selects versions, conditions, and execution
-controls; each call to `read`, `fetch`, or `createInputStream` selects its own
-logical byte ranges. `ReadOptions`
-can also supply that range. Existing `Operator.createInputStream` overloads use
-the same abstraction and preserve their defaults.
+`Operator.reader(path, readerOptions)` creates an `OperatorReader` for repeated
+reads. `ReaderOptions` selects versions, conditions, and execution controls;
+each call selects its own byte range.
 
 ```java
-ReaderOptions readerOptions = ReaderOptions.builder()
-        .concurrent(4)
-        .chunk(8 * 1024 * 1024L)
-        .prefetch(2)
-        .build();
-
-try (OperatorReader reader = op.reader("large.bin", readerOptions);
-        OperatorInputStream in = reader.createInputStream()) {
-    byte[] buffer = new byte[8192];
-    int count;
-    while ((count = in.read(buffer)) != -1) {
-        // Process buffer[0..count).
-    }
-}
-```
-
-Use `reader.read(offset, length)` to collect a range into a byte array, or
-`reader.createInputStream(offset, length)` to stream it. A length of `-1` reads
-to the end; zero selects an empty range. Repeated reads do not share a cursor.
-Close each reader and stream separately. Streams remain usable after their
-reader closes, and readers remain usable after their operator closes. A reader
-does not snapshot the file, so later reads may observe changes.
-
-A positive `chunk` enables internal range requests. `concurrent` limits these
-requests, not application transfers or Java threads; `prefetch` counts completed
-chunks, not bytes. Setting `concurrent` alone keeps unchunked streaming.
-See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for
-all defaults, valid values, and content length hint semantics.
-
-Payload memory usage generally grows with chunk size,
-concurrency, and prefetching; SDK, JNI, and Java buffers add further overhead.
-These options do not imply a fixed memory formula or a throughput guarantee.
-
-`ReaderOptions` exposes every Rust core reader option:
-
-- `version` selects a stored version instead of the current file.
-- `ifMatch` and `ifNoneMatch` check the file's ETag.
-- `ifVersionMatch` and `ifVersionNotMatch` check the file's version.
-- `ifModifiedSince` and `ifUnmodifiedSince` accept `java.time.Instant` values.
-- `concurrent`, `chunk`, `prefetch`, and `contentLengthHint` control execution.
-- `gap` controls merging nearby ranges during `fetch`.
-
-Versions and conditions require service support. Unsupported options fail with
-`Unsupported`; a failed condition on an existing file fails with
-`ConditionNotMatch`, and a missing file fails with `NotFound`. Errors may
-surface at reader creation or during a read. All conditions must hold for each
-request, including requests from streams and `fetch`.
-
-Use `fetch` to read multiple bounded ranges in one call:
-
-```java
-ReaderOptions options = ReaderOptions.builder().gap(4096).build();
+ReaderOptions options = ReaderOptions.builder().chunk(8 * 1024 * 1024L).build();
 try (OperatorReader reader = op.reader("large.bin", options)) {
-    byte[][] parts = reader.fetch(
-            ReadOptions.builder().offset(0).length(1024).build(),
-            ReadOptions.builder().offset(2048).length(1024).build());
+    byte[] first = reader.read(0, 1024);
+    byte[] next = reader.read(1024, 1024);
 }
 ```
 
-Results preserve input order, including duplicates and empty ranges. Fetch
-requires non-negative lengths, so `-1` is not valid here. A `gap` of `0` disables
-merging across gaps; `-1` uses the core default of 1 MiB. Gap bytes are excluded
-from results. This option does not affect `read` or `createInputStream`.
+The [Java task guide](../../website/docs/20-bindings/java/04-tasks.md#read-part-of-a-file)
+covers streams, multi-range `fetch`, and resource lifetimes.
+See [ReaderOptions](src/main/java/org/apache/opendal/ReaderOptions.java) for all
+supported options, defaults, and constraints.
 
 ## Documentation
 

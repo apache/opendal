@@ -81,7 +81,7 @@ impl Reader {
     /// # Examples
     ///
     /// ```
-    /// use opendal_core::{Operator, Result, blocking, options, services};
+    /// use opendal_core::{Operator, Result, blocking, services};
     ///
     /// # fn main() -> Result<()> {
     /// let runtime = tokio::runtime::Runtime::new().unwrap();
@@ -90,15 +90,10 @@ impl Reader {
     ///     blocking::Operator::new(Operator::new(services::Memory::default())?)?
     /// };
     /// op.write("file", "0123456789")?;
-    /// let reader = op.reader_options("file", options::ReaderOptions {
-    ///     gap: Some(2),
-    ///     ..Default::default()
-    /// })?;
-    /// let buffers = reader.fetch(vec![6..8, 0..2, 3..3, 0..2])?;
+    /// let reader = op.reader("file")?;
+    /// let buffers = reader.fetch(vec![6..8, 0..2])?;
     /// assert_eq!(buffers[0].to_vec(), b"67");
     /// assert_eq!(buffers[1].to_vec(), b"01");
-    /// assert!(buffers[2].is_empty());
-    /// assert_eq!(buffers[3].to_vec(), b"01");
     /// # Ok(())
     /// # }
     /// ```

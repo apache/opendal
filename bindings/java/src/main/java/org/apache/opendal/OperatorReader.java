@@ -24,18 +24,16 @@ import java.util.Objects;
 /**
  * Reads a file synchronously through a reusable Rust core reader.
  * Each read selects its own range and does not advance a shared cursor.
- * Reader options apply to every read. A reader does not snapshot the file;
+ * Reader options apply to every request, including streams and fetches.
+ * A reader does not snapshot the file;
  * changes to the file may be visible to subsequent reads.
- * Version selection and conditions require service support. Unsupported options fail with
- * Unsupported, failed conditions on existing files fail with ConditionNotMatch, and missing
- * files fail with NotFound. These errors may surface at creation or during reads, streams,
- * and fetches. All configured conditions must hold for each request.
  *
  * <p>Close the reader when it is no longer needed, preferably with try-with-resources.
  * Closing the operator that created it does not close the reader.
  * Calls on one reader are serialized, including close.
  *
  * @see Operator#reader(String, ReaderOptions)
+ * @see ReaderOptions
  */
 public final class OperatorReader extends NativeObject {
     OperatorReader(long nativeHandle) {

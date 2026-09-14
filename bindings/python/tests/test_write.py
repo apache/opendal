@@ -274,6 +274,8 @@ def test_sync_writer_options(service_name, operator, async_operator):
 @pytest.mark.parametrize("flush", [False, True])
 @pytest.mark.parametrize("chunk", [None, 8 * 1024 * 1024])
 def test_sync_writer_owned_buffers(operator, sizes, flush, chunk):
+    if not any(sizes) and not operator.capability().write_can_empty:
+        pytest.skip("empty writes are not supported")
     filename = f"test_owned_{uuid4()}"
     expected = bytearray()
     try:
@@ -327,11 +329,14 @@ def test_sync_writer_drop_releases_pending_owner(service_name):
     assert not op.exists("unclosed")
 
 
-@pytest.mark.need_capability("write", "delete")
+@pytest.mark.need_capability("write", "read", "delete")
 def test_sync_writer_preserves_bytes_only_input(operator):
     filename = f"test_input_{uuid4()}"
+    expected = b"valid bytes"
     with operator.open(filename, "wb") as file:
         for content in (bytearray(b"mutable"), memoryview(b"view"), [1, 2]):
             with pytest.raises(TypeError):
                 file.write(content)
+        assert file.write(expected) == len(expected)
+    assert operator.read(filename) == expected
     operator.delete(filename)

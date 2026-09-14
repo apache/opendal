@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Operator represents an underneath OpenDAL operator that accesses data
@@ -113,6 +114,40 @@ public class Operator extends NativeObject {
     public byte[] read(String path, ReadOptions options) {
         return read(nativeHandle, path, options);
     }
+
+    /**
+     * Creates a reusable reader for a file with default execution options.
+     *
+     * @param path file path
+     * @return a reader that the caller must close
+     * @see #reader(String, ReaderOptions)
+     */
+    public OperatorReader reader(String path) {
+        return reader(path, ReaderOptions.builder().build());
+    }
+
+    /**
+     * Creates a reusable reader for a file. Options apply to every read through the reader;
+     * each read selects its own byte range. The reader can outlive this operator.
+     * Creation does not read file contents or guarantee that the file exists.
+     *
+     * @param path file path
+     * @param options reader execution options
+     * @return a reader that the caller must close
+     * @throws OpenDALException if options are invalid (ConfigInvalid), the path is a directory
+     *     (IsADirectory), or the service does not support reads (Unsupported)
+     * @throws IllegalStateException if this operator is closed
+     */
+    public OperatorReader reader(String path, ReaderOptions options) {
+        if (isDisposed()) {
+            throw new IllegalStateException("Operator is closed");
+        }
+        Objects.requireNonNull(path, "path");
+        Objects.requireNonNull(options, "options");
+        return new OperatorReader(reader(nativeHandle, path, options));
+    }
+
+    private static native long reader(long operator, String path, ReaderOptions options);
 
     public OperatorInputStream createInputStream(String path) {
         return createInputStream(

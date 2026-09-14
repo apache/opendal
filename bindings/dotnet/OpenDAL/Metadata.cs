@@ -43,30 +43,39 @@ public enum EntryMode
 /// <summary>
 /// Metadata associated with a path.
 /// </summary>
+/// <remarks>
+/// Members follow the accessor order of <c>opendal::Metadata</c>.
+/// </remarks>
 public sealed class Metadata
 {
     internal Metadata(
         EntryMode mode,
+        bool? isCurrent,
+        bool isDeleted,
+        string? cacheControl,
         ulong contentLength,
-        string? contentDisposition,
         string? contentMd5,
         string? contentType,
         string? contentEncoding,
-        string? cacheControl,
-        string? etag,
         DateTimeOffset? lastModified,
-        string? version)
+        string? etag,
+        string? contentDisposition,
+        string? version,
+        IReadOnlyDictionary<string, string>? userMetadata)
     {
         Mode = mode;
+        IsCurrent = isCurrent;
+        IsDeleted = isDeleted;
+        CacheControl = cacheControl;
         ContentLength = contentLength;
-        ContentDisposition = contentDisposition;
         ContentMd5 = contentMd5;
         ContentType = contentType;
         ContentEncoding = contentEncoding;
-        CacheControl = cacheControl;
-        ETag = etag;
         LastModified = lastModified;
+        ETag = etag;
+        ContentDisposition = contentDisposition;
         Version = version;
+        UserMetadata = userMetadata;
     }
 
     /// <summary>
@@ -75,14 +84,44 @@ public sealed class Metadata
     public EntryMode Mode { get; }
 
     /// <summary>
+    /// Gets whether this metadata represents a file.
+    /// </summary>
+    public bool IsFile => Mode == EntryMode.File;
+
+    /// <summary>
+    /// Gets whether this metadata represents a directory.
+    /// </summary>
+    public bool IsDir => Mode == EntryMode.Dir;
+
+    /// <summary>
+    /// Gets whether this metadata describes the current version of the object.
+    /// </summary>
+    /// <remarks>
+    /// <see langword="null"/> means the service did not report whether the
+    /// version is current. Listing with <see cref="Options.ListOptions.Versions"/>
+    /// is the usual source of non-current versions.
+    /// </remarks>
+    public bool? IsCurrent { get; }
+
+    /// <summary>
+    /// Gets whether this metadata describes a deleted object or a delete marker.
+    /// </summary>
+    /// <remarks>
+    /// Deleted entries only appear when listing with
+    /// <see cref="Options.ListOptions.Deleted"/> on a service that supports
+    /// <see cref="Capability.ListWithDeleted"/>.
+    /// </remarks>
+    public bool IsDeleted { get; }
+
+    /// <summary>
+    /// Gets <c>Cache-Control</c> header value, if available.
+    /// </summary>
+    public string? CacheControl { get; }
+
+    /// <summary>
     /// Gets content length in bytes.
     /// </summary>
     public ulong ContentLength { get; }
-
-    /// <summary>
-    /// Gets <c>Content-Disposition</c> header value, if available.
-    /// </summary>
-    public string? ContentDisposition { get; }
 
     /// <summary>
     /// Gets <c>Content-MD5</c> header value, if available.
@@ -100,9 +139,10 @@ public sealed class Metadata
     public string? ContentEncoding { get; }
 
     /// <summary>
-    /// Gets <c>Cache-Control</c> header value, if available.
+    /// Gets last-modified timestamp, if available.
+    /// The value is materialized from native Unix seconds and nanoseconds.
     /// </summary>
-    public string? CacheControl { get; }
+    public DateTimeOffset? LastModified { get; }
 
     /// <summary>
     /// Gets entity tag (<c>ETag</c>) value, if available.
@@ -110,10 +150,9 @@ public sealed class Metadata
     public string? ETag { get; }
 
     /// <summary>
-    /// Gets last-modified timestamp, if available.
-    /// The value is materialized from native Unix seconds and nanoseconds.
+    /// Gets <c>Content-Disposition</c> header value, if available.
     /// </summary>
-    public DateTimeOffset? LastModified { get; }
+    public string? ContentDisposition { get; }
 
     /// <summary>
     /// Gets object version, if available.
@@ -121,12 +160,12 @@ public sealed class Metadata
     public string? Version { get; }
 
     /// <summary>
-    /// Gets whether this metadata represents a file.
+    /// Gets user-defined metadata attached to the object, if the service reported any.
     /// </summary>
-    public bool IsFile => Mode == EntryMode.File;
-
-    /// <summary>
-    /// Gets whether this metadata represents a directory.
-    /// </summary>
-    public bool IsDir => Mode == EntryMode.Dir;
+    /// <remarks>
+    /// Written through <see cref="Options.WriteOptions.UserMetadata"/> on services
+    /// that support <see cref="Capability.WriteWithUserMetadata"/>. Keys are compared
+    /// ordinally; services may normalize key casing.
+    /// </remarks>
+    public IReadOnlyDictionary<string, string>? UserMetadata { get; }
 }

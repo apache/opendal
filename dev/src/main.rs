@@ -65,8 +65,17 @@ enum Commands {
         #[arg(long)]
         baseline: Option<String>,
         /// Prepare at least a patch increment from the baseline for every package.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "sync")]
         patch: bool,
+        /// Raise package versions to the baseline without adding another patch.
+        #[arg(long)]
+        sync: bool,
+        /// Packages with declared breaking changes; repeat for each package.
+        #[arg(long, requires = "patch")]
+        breaking: Vec<String>,
+        /// Write the version decisions as JSON for the candidate release plan.
+        #[arg(long, requires = "patch")]
+        report: Option<PathBuf>,
     },
     /// Create all the release artifacts.
     Release {
@@ -83,9 +92,19 @@ fn main() -> anyhow::Result<()> {
 
     match Cmd::parse().command {
         Commands::Generate { language } => generate::run(&language),
-        Commands::UpdateVersion { baseline, patch } => {
-            release::update_version(baseline.as_deref(), patch)
-        }
+        Commands::UpdateVersion {
+            baseline,
+            patch,
+            sync,
+            breaking,
+            report,
+        } => release::update_version(
+            baseline.as_deref(),
+            patch,
+            sync,
+            &breaking,
+            report.as_deref(),
+        ),
         Commands::Release { unsigned } => release::archive_package(!unsigned),
         Commands::ReleasePackages => release::print_packages(),
     }

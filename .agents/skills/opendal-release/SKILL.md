@@ -38,6 +38,12 @@ Rules:
 - Use `opendal_version` for the final release tag and ASF SVN `dist/release/opendal/${opendal_version}/`.
 - Use package-specific versions for generated source archive names, package repository checks, and language binding or integration readiness.
 - When verifying artifacts, build an explicit package-to-version map from `dev/src/release/package.rs`; do not infer binding or integration versions from `opendal_version`.
+- Weekly versions use the optional PR **Breaking changes** section and
+  `breaking-changes` label. Require affected package names and migration text only
+  for breaking PRs; do not ask compatible PRs to declare their impact. Follow
+  `website/community/release/weekly.md#declaring-breaking-changes` for the format.
+- Inspect `.release/plan.json` at the candidate SHA for the frozen declarations,
+  baseline and version decisions. Editing a PR does not change an existing RC.
 - When checking upgrade docs, only check released bindings and integrations that appear in the current package list, and only add upgrade notes for components with breaking changes.
 
 ## Release State Model
@@ -56,7 +62,11 @@ Use these states explicitly when reporting status:
 10. `vote-passed`: at least 72 hours elapsed and binding vote requirements are met.
 11. `official-release`: final tag, approved source publication, package repositories, GitHub release, and announcement are complete.
 
-Weekly preparation replaces the manual bump-PR path and can compose sources while downstream builds run. A candidate-ready Discussion confirms upload and dispatch, not readiness to vote.
+Weekly preparation replaces the manual bump-PR path and can compose sources while downstream builds run. A candidate Discussion confirms upload and dispatch, not readiness to vote.
+For new `releases/<version>-rc.N` branches, hourly ATR synchronization maintains
+that Discussion. Resolving a vote as passed starts final publication, announcement,
+version-sync PR creation and same-version RC branch cleanup. Do not duplicate
+those operations manually. Older weekly branches stay on the manual path.
 
 Retry transient failures against the same candidate and reuse existing signed artifacts. Create a new RC when source or workflow changes must be included, or the candidate is rejected; do not regenerate an RC merely to recover a missing dispatch or a staging permission failure.
 

@@ -29,7 +29,17 @@ ATR candidates, inspect ATR checks and pin the verified candidate revision; use
 the live ATR vote path and its artifact links. Do not substitute an unpopulated
 SVN directory in the vote text. The template below applies to SVN-staged votes.
 
-## Start Vote Discussion
+## ATR voting for new weekly candidates
+
+Use the commands and exact revision in `Release candidate: <RC>`. Start voting
+with `--auto-publish` after verification and RM authorization. Inspect the tally
+before resolving. A `passed` resolution initiates the automatic final publication
+path, including public announcements. `failed` and `cancelled` do not publish.
+Hourly synchronization updates the candidate Discussion and posts one reminder
+per vote round; do not manually create a duplicate GitHub vote or result thread.
+See `website/community/release/weekly.md` for CLI usage and recovery.
+
+## Start Vote Discussion (manual SVN path)
 
 Create the discussion in the `General` category of `apache/opendal`.
 
@@ -91,7 +101,7 @@ Before claiming the result:
 - Use voters' real names, public profile names, or Apache IDs in the result.
 - Check that the vote discussion is not closed and that a result discussion has not already been posted.
 
-Create the result discussion with:
+For the manual SVN path, create the result discussion with:
 
 - Title: `[RESULT][VOTE] Release Apache OpenDAL ${release_version} - Vote Round 1`
 - Body containing binding votes, non-binding votes, `+0`, `-1`, and the vote thread URL.

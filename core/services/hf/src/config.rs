@@ -60,6 +60,15 @@ pub struct HfConfig {
     ///
     /// See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>.
     pub download_mode: Option<HfDownloadMode>,
+    /// Enable caching of resolved HTTP download addresses and XET file metadata.
+    ///
+    /// Defaults to `false`. Set to `true` to share resolve results across readers
+    /// on the same backend. Changed files may remain invisible while cached
+    /// results are reused. A reader retains XET metadata from its first read for
+    /// its lifetime. Create a new reader to resolve the path again when this
+    /// option is disabled.
+    /// See [`HfBuilder::enable_resolve_cache`] for freshness semantics.
+    pub enable_resolve_cache: bool,
 }
 
 impl Debug for HfConfig {
@@ -73,6 +82,7 @@ impl Debug for HfConfig {
             .field("revision", &self.revision)
             .field("root", &self.root)
             .field("download_mode", &self.download_mode)
+            .field("enable_resolve_cache", &self.enable_resolve_cache)
             .finish_non_exhaustive()
     }
 }
@@ -106,6 +116,19 @@ impl opendal_core::Configurator for HfConfig {
             .map(|s| HfDownloadMode::parse(s))
             .transpose()?;
 
+        let enable_resolve_cache = opts
+            .get("enable_resolve_cache")
+            .map(|value| value.parse::<bool>())
+            .transpose()
+            .map_err(|err| {
+                opendal_core::Error::new(
+                    opendal_core::ErrorKind::ConfigInvalid,
+                    "enable_resolve_cache must be true or false",
+                )
+                .set_source(err)
+            })?
+            .unwrap_or_default();
+
         if !path.is_empty() {
             // Full URI like "hf://datasets/user/repo@rev/path"
             let parsed = HfUri::parse(&path)?;
@@ -117,6 +140,7 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                enable_resolve_cache,
             })
         } else {
             // Bare scheme from via_iter, all config is in options.
@@ -138,6 +162,7 @@ impl opendal_core::Configurator for HfConfig {
                 token: opts.get("token").cloned(),
                 endpoint: opts.get("endpoint").cloned(),
                 download_mode,
+                enable_resolve_cache,
             })
         }
     }
@@ -221,5 +246,40 @@ mod tests {
 
         let cfg = HfConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.download_mode.unwrap_or_default(), HfDownloadMode::Xet);
+    }
+
+    #[test]
+    fn from_uri_resolve_cache_options() {
+        for scheme in ["hf://datasets/user/repo", "huggingface"] {
+            for (value, expected) in [(None, false), (Some("false"), false), (Some("true"), true)] {
+                let mut options = vec![("repo_type", "dataset"), ("repo_id", "user/repo")];
+                if let Some(value) = value {
+                    options.push(("enable_resolve_cache", value));
+                }
+                let uri = OperatorUri::new(
+                    scheme,
+                    options
+                        .into_iter()
+                        .map(|(key, value)| (key.to_string(), value.to_string())),
+                )
+                .unwrap();
+                assert_eq!(
+                    HfConfig::from_uri(&uri).unwrap().enable_resolve_cache,
+                    expected
+                );
+            }
+
+            let uri = OperatorUri::new(
+                scheme,
+                [("enable_resolve_cache".to_string(), "invalid".to_string())],
+            )
+            .unwrap();
+            let err = HfConfig::from_uri(&uri).unwrap_err();
+            assert_eq!(err.kind(), opendal_core::ErrorKind::ConfigInvalid);
+            assert!(
+                err.to_string()
+                    .contains("enable_resolve_cache must be true or false")
+            );
+        }
     }
 }

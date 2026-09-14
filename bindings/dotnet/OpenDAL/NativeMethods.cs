@@ -244,7 +244,7 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "operator_write_bytes_with_options", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_write_bytes_with_options(
+    internal static partial OpenDALMetadataResult operator_write_bytes_with_options(
         Operator op,
         string path,
         [In] byte[] data,
@@ -260,13 +260,13 @@ internal partial class NativeMethods
         [In] byte[] data,
         nuint len,
         IntPtr options,
-        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
         long context
     );
 
     [LibraryImport(__DllName, EntryPoint = "operator_write_with_options", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_write_with_options(
+    internal static partial OpenDALMetadataResult operator_write_with_options(
         Operator op,
         string path,
         IntPtr buffer,
@@ -282,7 +282,7 @@ internal partial class NativeMethods
         IntPtr buffer,
         nuint committedInCurrent,
         IntPtr options,
-        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
         long context
     );
 
@@ -400,7 +400,7 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "operator_copy", StringMarshalling = StringMarshalling.Utf8)]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALResult operator_copy(
+    internal static partial OpenDALMetadataResult operator_copy(
         Operator op,
         string sourcePath,
         string targetPath
@@ -412,7 +412,7 @@ internal partial class NativeMethods
         Operator op,
         string sourcePath,
         string targetPath,
-        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
         long context
     );
 

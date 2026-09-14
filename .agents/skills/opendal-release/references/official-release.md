@@ -2,22 +2,45 @@
 
 Repository paths and shell commands are relative to the repository root.
 
-## Official Release
+## Automatic publication for new weekly candidates
 
-After the vote passes, the release manager initiates publication. The weekly
-workflow does not observe the vote result or create a final tag. Use the exact
-commit approved in the vote, even when main has advanced.
+Read `website/community/release/weekly.md` and `scripts/release_lifecycle.py` for
+`releases/<version>-rc.N` candidates. Verify ATR reports a resolved passing vote;
+never infer it from comments or elapsed time. Hourly synchronization calls the
+publication workflow with the scheduler's identity. ATR finish permissions must
+allow both the hourly caller and manual publication workflow, with an ASF-linked
+actor. Existing Nexus credentials must allow promotion.
 
-A final tag pushed with the release manager's credentials triggers the existing
-release workflows. Rust, Python, Node.js, Ruby and .NET publish through their
-final-tag paths; Java stages artifacts and still needs Nexus promotion. Dart
-builds artifacts. Verify workflow results and package-specific registry versions.
-Creating a GitHub Release is a separate step, not the trigger described here.
+Final branch and signed tag use the RC branch SHA, cross-checked against its tag.
+Ignore ATR `commit_hash` as the tag target: OIDC can record the main workflow SHA.
+The workflow explicitly dispatches final package jobs, promotes the Java RC's
+closed staging repository, waits for publication, and completes GitHub/ATR
+announcements. It creates a draft main version-sync PR and removes same-version
+RC branches while retaining their tags and the final branch. Review and merge
+that PR through normal repository checks; versions must never regress. A PR
+created with `GITHUB_TOKEN` does not start CI: after review, close and reopen it
+with the maintainer's credentials (or push an update) to trigger required checks.
 
-Do not replace this push with a `GITHUB_TOKEN` push and assume the same result:
-that token suppresses downstream push triggers. Final-tag automation would need
-its own dispatch design, including Ruby's push-only publishing condition. The
-weekly RC dispatch flags are not a general final-publication recipe.
+Inspect the candidate Discussion and actual downstream results. A completed
+publication run can mean it deferred while packages are still running. Recover
+failed package jobs using their existing runs. Resume the lifecycle after fixing
+configuration; do not dispatch another candidate or duplicate emails and Nexus
+promotion. The same announcement draft is shown before voting and reused for
+publication. A closed, unmerged sync PR blocks cleanup; reopen it to resume.
+
+```bash
+gh workflow run release_publish.yml --repo apache/opendal --ref main \
+  -f rc="${release_version}"
+```
+
+## Manual official release
+
+Use this path only for candidates outside the new branch namespace. After the
+vote passes, the RM creates the final tag at the approved commit. A tag pushed
+with the RM's credentials triggers existing final-tag workflows. A
+`GITHUB_TOKEN` tag push needs explicit downstream dispatch. Java stages artifacts
+on tag runs; promote the approved RC staging repository instead of replacing it
+with a newly staged final-tag build.
 
 For sources staged in ATR, follow the live ATR voting/publication path for the
 approved candidate revision. The SVN commands below apply to SVN-staged sources;
@@ -120,7 +143,7 @@ temporarily report the previous version even after the version-specific endpoint
 and simple index show the new release.
 
 6. Create GitHub Release for `v${opendal_version}`:
-   - Target branch is `main`.
+   - Select the existing final tag at the approved RC commit.
    - Generate release notes.
    - Prepend upgrade notes only for components with breaking changes.
 

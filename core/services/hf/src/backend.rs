@@ -133,6 +133,27 @@ impl HfBuilder {
         self
     }
 
+    /// Enable caching of resolved HTTP download addresses and XET file metadata.
+    ///
+    /// Defaults to `false`: each new reader resolves through the Hub. An XET-mode
+    /// reader retains the XET metadata returned by its first read for its lifetime,
+    /// even when this option is disabled. Its subsequent ranges use that file
+    /// version. Create a new reader to resolve the path again. HTTP reads resolve
+    /// each range.
+    ///
+    /// Set to `true` to share resolve results across readers on the same backend.
+    /// HTTP addresses refresh near expiry.
+    ///
+    /// Enable this only when previously written files are not modified. Changed
+    /// files can remain invisible while cached results are reused, including
+    /// changes from other clients or a floating repository revision. Issued
+    /// download URLs can remain usable until expiry after Hub permissions change.
+    /// Separate authorization identities must use separately constructed backends.
+    pub fn enable_resolve_cache(mut self, enabled: bool) -> Self {
+        self.config.enable_resolve_cache = enabled;
+        self
+    }
+
     /// Set the Hub base URL.
     ///
     /// Configure this when your organization uses a
@@ -266,16 +287,10 @@ impl Builder for HfBuilder {
         let repo = HfRepo::new(repo_type, repo_id, Some(revision.clone()));
         debug!("backend repo uri: {:?}", repo.uri(&root, ""));
 
+        let mut core = HfCore::build(info, capability, repo, root, token, endpoint, download_mode)?;
+        core.enable_resolve_cache = self.config.enable_resolve_cache;
         Ok(HfBackend {
-            core: Arc::new(HfCore::build(
-                info,
-                capability,
-                repo,
-                root,
-                token,
-                endpoint,
-                download_mode,
-            )?),
+            core: Arc::new(core),
         })
     }
 }
@@ -629,6 +644,33 @@ mod tests {
         let mode = HfBuilder::default().hf_download_mode();
         unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
         assert_eq!(mode, HfDownloadMode::Xet);
+    }
+
+    #[tokio::test]
+    async fn build_resolve_cache_requires_opt_in() -> Result<()> {
+        use super::super::core::test_utils::MockHttpTransport;
+
+        for enabled in [None, Some(false), Some(true)] {
+            let mut builder = HfBuilder::default()
+                .repo_type("model")
+                .repo_id("org/repo")
+                .download_mode("xet");
+            if let Some(enabled) = enabled {
+                builder = builder.enable_resolve_cache(enabled);
+            }
+            let transport = MockHttpTransport::new();
+            let ctx = OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()));
+            let op = Operator::new(builder)?.with_context(ctx);
+            for reads in 1..=2 {
+                assert_eq!(op.read("plain.txt").await?.to_vec(), b"hello");
+                assert_eq!(
+                    transport.request_count(),
+                    reads + usize::from(enabled == Some(true))
+                );
+            }
+        }
+        Ok(())
     }
 
     #[test]

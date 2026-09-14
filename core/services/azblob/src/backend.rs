@@ -22,11 +22,13 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use sha2::Digest;
@@ -73,6 +75,7 @@ impl From<AzureConnectionConfig> for AzblobConfig {
 #[derive(Default)]
 pub struct AzblobBuilder {
     pub(super) config: AzblobConfig,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for AzblobBuilder {
@@ -240,6 +243,12 @@ impl AzblobBuilder {
         self
     }
 
+    /// Replace the credential providers with a custom chain.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
+
     /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
     #[deprecated(
         since = "0.57.0",
@@ -367,24 +376,29 @@ impl Builder for AzblobBuilder {
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut credential = DefaultCredentialProvider::new();
+        let mut credential_providers =
+            ProvideCredentialChain::new().push(DefaultCredentialProvider::new());
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
         {
-            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
-                account_name,
-                account_key,
-            ));
+            credential_providers = credential_providers.push_front(
+                StaticCredentialProvider::new_shared_key(account_name, account_key),
+            );
         }
 
         if let Some(sas_token) = self.config.sas_token.as_deref() {
-            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+            credential_providers =
+                credential_providers.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        if let Some(customized_credential_chain) = self.credential_providers {
+            credential_providers = customized_credential_chain;
         }
 
         let signer = Signer::new(
             ctx,
-            credential,
+            credential_providers,
             RequestSigner::new().with_service_sas_permissions("racwd"),
         );
 

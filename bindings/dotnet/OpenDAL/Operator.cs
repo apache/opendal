@@ -152,7 +152,8 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="content">Bytes to write.</param>
     /// <param name="options">Additional write options.</param>
-    public void Write(string path, byte[] content, WriteOptions? options = null)
+    /// <returns>Metadata of the written object.</returns>
+    public Metadata Write(string path, byte[] content, WriteOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
@@ -166,7 +167,7 @@ public partial class Operator : SafeHandle
             GetOptionsHandle(nativeOptionsHandle)
         );
 
-        ThrowIfErrorAndRelease(result);
+        return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
     }
 
     /// <summary>
@@ -190,11 +191,12 @@ public partial class Operator : SafeHandle
     /// without growing; it is an estimate, not a limit.
     /// </param>
     /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <returns>Metadata of the written object.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="fill"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeHint"/> is negative.</exception>
     /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
     /// <exception cref="OpenDALException">Native write fails.</exception>
-    public void Write(
+    public Metadata Write(
         string path,
         Action<IBufferWriter<byte>> fill,
         int sizeHint = 0,
@@ -206,7 +208,7 @@ public partial class Operator : SafeHandle
         using var buffer = AllocateWriteBuffer(
             sizeHint > 0 ? sizeHint : WriteBuffer.DefaultInitialCapacity);
         fill(buffer);
-        Write(path, buffer, options);
+        return Write(path, buffer, options);
     }
 
     /// <summary>
@@ -225,10 +227,11 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="content">Allocated buffer holding the bytes to write.</param>
     /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
+    /// <returns>Metadata of the written object.</returns>
     /// <exception cref="ObjectDisposedException">The operator or buffer has been disposed.</exception>
     /// <exception cref="InvalidOperationException">The buffer contents were already consumed by a write.</exception>
     /// <exception cref="OpenDALException">Native write fails.</exception>
-    internal void Write(string path, WriteBuffer content, WriteOptions? options = null)
+    internal Metadata Write(string path, WriteBuffer content, WriteOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
@@ -250,7 +253,7 @@ public partial class Operator : SafeHandle
             content.MarkConsumed();
         }
 
-        ThrowIfErrorAndRelease(result);
+        return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
     }
 
     /// <summary>
@@ -259,7 +262,8 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="content">Bytes to write.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    public Task WriteAsync(string path, byte[] content, CancellationToken cancellationToken)
+    /// <returns>A task that resolves with the metadata of the written object.</returns>
+    public Task<Metadata> WriteAsync(string path, byte[] content, CancellationToken cancellationToken)
     {
         return WriteAsync(path, content, options: null, cancellationToken);
     }
@@ -271,8 +275,8 @@ public partial class Operator : SafeHandle
     /// <param name="content">Bytes to write.</param>
     /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that completes when the native callback reports completion.</returns>
-    public Task WriteAsync(
+    /// <returns>A task that resolves with the metadata of the written object.</returns>
+    public Task<Metadata> WriteAsync(
         string path,
         byte[] content,
         WriteOptions? options = null,
@@ -281,7 +285,7 @@ public partial class Operator : SafeHandle
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation<bool, WriteOptions>(options, DispatchWriteBytesAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata, WriteOptions>(options, DispatchWriteBytesAsync, cancellationToken);
 
         OpenDALResult DispatchWriteBytesAsync(long context, IntPtr optionsHandle)
         {
@@ -345,12 +349,12 @@ public partial class Operator : SafeHandle
     /// <param name="content">Allocated buffer holding the bytes to write.</param>
     /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that completes when the native callback reports completion.</returns>
+    /// <returns>A task that resolves with the metadata of the written object.</returns>
     /// <exception cref="ObjectDisposedException">The operator or buffer has been disposed.</exception>
     /// <exception cref="InvalidOperationException">The buffer contents were already consumed by a write.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
     /// <exception cref="OpenDALException">Native write submission fails immediately.</exception>
-    internal Task WriteAsync(
+    internal Task<Metadata> WriteAsync(
         string path,
         WriteBuffer content,
         WriteOptions? options = null,
@@ -364,7 +368,7 @@ public partial class Operator : SafeHandle
         var bufferHandle = content.Handle;
         var committedInTail = content.TailWritten;
 
-        return SubmitAsyncOperation<bool, WriteOptions>(options, DispatchWriteBufferAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata, WriteOptions>(options, DispatchWriteBufferAsync, cancellationToken);
 
         OpenDALResult DispatchWriteBufferAsync(long context, IntPtr optionsHandle)
         {
@@ -412,13 +416,13 @@ public partial class Operator : SafeHandle
     /// </param>
     /// <param name="options">Additional write options, or <see langword="null"/> for default behavior.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that completes when the native callback reports completion.</returns>
+    /// <returns>A task that resolves with the metadata of the written object.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="fill"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="sizeHint"/> is negative.</exception>
     /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
     /// <exception cref="OpenDALException">Native write submission fails immediately.</exception>
-    public async Task WriteAsync(
+    public async Task<Metadata> WriteAsync(
         string path,
         Action<IBufferWriter<byte>> fill,
         int sizeHint = 0,
@@ -431,7 +435,7 @@ public partial class Operator : SafeHandle
         using var buffer = AllocateWriteBuffer(
             sizeHint > 0 ? sizeHint : WriteBuffer.DefaultInitialCapacity);
         fill(buffer);
-        await WriteAsync(path, buffer, options, cancellationToken).ConfigureAwait(false);
+        return await WriteAsync(path, buffer, options, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -845,11 +849,12 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
-    public void Copy(string sourcePath, string targetPath)
+    /// <returns>Metadata of the copied object at <paramref name="targetPath"/>.</returns>
+    public Metadata Copy(string sourcePath, string targetPath)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
         var result = NativeMethods.operator_copy(this, sourcePath, targetPath);
-        ThrowIfErrorAndRelease(result);
+        return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
     }
 
     /// <summary>
@@ -858,15 +863,15 @@ public partial class Operator : SafeHandle
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that completes when the native callback reports completion.</returns>
-    public Task CopyAsync(
+    /// <returns>A task that resolves with the metadata of the copied object.</returns>
+    public Task<Metadata> CopyAsync(
         string sourcePath,
         string targetPath,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation(SubmitCopyAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata>(SubmitCopyAsync, cancellationToken);
 
         OpenDALResult SubmitCopyAsync(long context)
         {
@@ -1500,9 +1505,9 @@ public partial class Operator : SafeHandle
     /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
     /// <param name="result">Write completion result returned by the native layer.</param>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnWriteCompleted(long context, OpenDALResult result)
+    private static void OnWriteCompleted(long context, OpenDALMetadataResult result)
     {
-        CompleteAsyncCallback(context, result);
+        CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
     }
 
     /// <summary>
@@ -1555,9 +1560,9 @@ public partial class Operator : SafeHandle
     /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
     /// <param name="result">Copy completion result returned by the native layer.</param>
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
-    private static void OnCopyCompleted(long context, OpenDALResult result)
+    private static void OnCopyCompleted(long context, OpenDALMetadataResult result)
     {
-        CompleteAsyncCallback(context, result);
+        CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
     }
 
     /// <summary>

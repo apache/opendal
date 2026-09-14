@@ -1523,7 +1523,10 @@ public interface ServiceConfig {
         public final String root;
         /**
          * <p>Default write type for new files.</p>
-         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;cache_through&quot;</code>, <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>.
+         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;try_cache&quot;</code>, <code>&quot;cache_through&quot;</code>,
+         * <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>. Matching is case-insensitive.
+         * <code>build()</code> fails with <code>ConfigInvalid</code> when the value is not one of
+         * these.
          * Default: <code>&quot;must_cache&quot;</code>.</p>
          */
         public final String writeType;
@@ -1682,6 +1685,16 @@ public interface ServiceConfig {
          */
         public final String downloadMode;
         /**
+         * <p>Enable caching of resolved HTTP download addresses and XET file metadata.</p>
+         * <p>Defaults to <code>false</code>. Set to <code>true</code> to share resolve results across readers
+         * on the same backend. Changed files may remain invisible while cached
+         * results are reused. A reader retains XET metadata from its first read for
+         * its lifetime. Create a new reader to resolve the path again when this
+         * option is disabled.
+         * See [<code>HfBuilder::enable_resolve_cache</code>] for freshness semantics.</p>
+         */
+        public final Boolean enableResolveCache;
+        /**
          * <p>Endpoint of the Hugging Face Hub.</p>
          * <p>The default is <code>https://huggingface.co</code>.</p>
          */
@@ -1721,6 +1734,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
+            }
+            if (enableResolveCache != null) {
+                map.put("enable_resolve_cache", String.valueOf(enableResolveCache));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);

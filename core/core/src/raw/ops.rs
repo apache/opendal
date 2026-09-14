@@ -1520,6 +1520,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn compact_operation_layouts() {
         assert_eq!(size_of::<OpRead>(), 16);
         assert_eq!(size_of::<OpStat>(), 16);

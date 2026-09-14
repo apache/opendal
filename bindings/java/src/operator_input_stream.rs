@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::Env;
 use jni::EnvUnowned;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
@@ -46,23 +45,16 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNe
     _: JClass<'local>,
     reader: *mut StdBytesIterator,
 ) -> JByteArray<'local> {
-    env.with_env(|env| {
-        let reader_ref = unsafe { &mut *reader };
-        intern_read_next_bytes(env, reader_ref)
+    env.with_env(|env| -> crate::Result<_> {
+        let reader = unsafe { &mut *reader };
+        match reader.next().transpose().map_err(|err| {
+            err.downcast::<opendal::Error>().unwrap_or_else(|err| {
+                opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
+            })
+        })? {
+            None => Ok(JByteArray::default()),
+            Some(content) => Ok(env.byte_array_from_slice(&content)?),
+        }
     })
     .resolve::<ThrowException>()
-}
-
-fn intern_read_next_bytes<'local>(
-    env: &mut Env<'local>,
-    reader: &mut StdBytesIterator,
-) -> crate::Result<JByteArray<'local>> {
-    match reader.next().transpose().map_err(|err| {
-        err.downcast::<opendal::Error>().unwrap_or_else(|err| {
-            opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
-        })
-    })? {
-        None => Ok(JByteArray::default()),
-        Some(content) => Ok(env.byte_array_from_slice(&content)?),
-    }
 }

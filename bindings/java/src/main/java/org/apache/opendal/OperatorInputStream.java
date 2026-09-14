@@ -96,10 +96,6 @@ public class OperatorInputStream extends InputStream {
         if (reader.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
-        if (len == 0) {
-            return 0;
-        }
-
         int read = 0;
         while (len > 0) {
             while (bytes != null && offset >= bytes.length) {

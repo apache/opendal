@@ -95,8 +95,9 @@ Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 ## Reuse a reader and tune reads
 
 `Operator.reader(path, readerOptions)` creates an `OperatorReader` backed by a
-Rust core reader. `ReaderOptions` controls how it executes reads; each call to
-`read` or `createInputStream` selects its own logical byte range. `ReadOptions`
+Rust core reader. `ReaderOptions` selects versions, conditions, and execution
+controls; each call to `read`, `fetch`, or `createInputStream` selects its own
+logical byte ranges. `ReadOptions`
 can also supply that range. Existing `Operator.createInputStream` overloads use
 the same abstraction and preserve their defaults.
 
@@ -134,9 +135,36 @@ Payload memory usage generally grows with chunk size,
 concurrency, and prefetching; SDK, JNI, and Java buffers add further overhead.
 These options do not imply a fixed memory formula or a throughput guarantee.
 
-The core `gap` option only affects multi-range `Reader::fetch` and is not
-applicable to this continuous stream API. Version and conditional read options
-are outside this API's current scope.
+`ReaderOptions` exposes every Rust core reader option:
+
+- `version` selects a stored version instead of the current file.
+- `ifMatch` and `ifNoneMatch` check the file's ETag.
+- `ifVersionMatch` and `ifVersionNotMatch` check the file's version.
+- `ifModifiedSince` and `ifUnmodifiedSince` accept `java.time.Instant` values.
+- `concurrent`, `chunk`, `prefetch`, and `contentLengthHint` control execution.
+- `gap` controls merging nearby ranges during `fetch`.
+
+Versions and conditions require service support. Unsupported options fail with
+`Unsupported`; a failed condition on an existing file fails with
+`ConditionNotMatch`, and a missing file fails with `NotFound`. Errors may
+surface at reader creation or during a read. All conditions must hold for each
+request, including requests from streams and `fetch`.
+
+Use `fetch` to read multiple bounded ranges in one call:
+
+```java
+ReaderOptions options = ReaderOptions.builder().gap(4096).build();
+try (OperatorReader reader = op.reader("large.bin", options)) {
+    byte[][] parts = reader.fetch(
+            ReadOptions.builder().offset(0).length(1024).build(),
+            ReadOptions.builder().offset(2048).length(1024).build());
+}
+```
+
+Results preserve input order, including duplicates and empty ranges. Fetch
+requires non-negative lengths, so `-1` is not valid here. A `gap` of `0` disables
+merging across gaps; `-1` uses the core default of 1 MiB. Gap bytes are excluded
+from results. This option does not affect `read` or `createInputStream`.
 
 ## Documentation
 

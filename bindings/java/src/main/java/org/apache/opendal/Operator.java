@@ -130,12 +130,16 @@ public class Operator extends NativeObject {
      * Creates a reusable reader for a file. Options apply to every read through the reader;
      * each read selects its own byte range. The reader can outlive this operator.
      * Creation does not read file contents or guarantee that the file exists.
+     * Version selection and conditions apply to all requests through the reader, including
+     * streams and fetches. All conditions must hold; a failed condition on an existing file
+     * fails with ConditionNotMatch and a missing file fails with NotFound. Depending on the
+     * service, errors may surface at creation or during reading.
      *
      * @param path file path
      * @param options reader execution options
      * @return a reader that the caller must close
      * @throws OpenDALException if options are invalid (ConfigInvalid), the path is a directory
-     *     (IsADirectory), or the service does not support reads (Unsupported)
+     *     (IsADirectory), or the service does not support reads or a requested option (Unsupported)
      * @throws IllegalStateException if this operator is closed
      */
     public OperatorReader reader(String path, ReaderOptions options) {

@@ -57,11 +57,11 @@ fn intern_read_next_bytes<'local>(
     env: &mut Env<'local>,
     reader: &mut StdBytesIterator,
 ) -> crate::Result<JByteArray<'local>> {
-    match reader
-        .next()
-        .transpose()
-        .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()))?
-    {
+    match reader.next().transpose().map_err(|err| {
+        err.downcast::<opendal::Error>().unwrap_or_else(|err| {
+            opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
+        })
+    })? {
         None => Ok(JByteArray::default()),
         Some(content) => Ok(env.byte_array_from_slice(&content)?),
     }

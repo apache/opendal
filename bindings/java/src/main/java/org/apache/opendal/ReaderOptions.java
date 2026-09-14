@@ -19,15 +19,66 @@
 
 package org.apache.opendal;
 
+import java.time.Instant;
 import lombok.Builder;
 
 /**
- * Controls how an {@link OperatorReader} and its streams execute reads, independently of each logical range.
+ * Selects a file version, read conditions, and execution options for an {@link OperatorReader}.
+ * All conditions must hold for data to be returned. Missing files fail with NotFound;
+ * failed conditions on existing files fail with ConditionNotMatch. Unsupported conditions
+ * fail with Unsupported. Depending on the service, errors can surface when creating the
+ * reader or while reading. Conditions apply to every request, including streams and fetches.
+ * Null version and condition fields leave those options unset.
+ *
+ * <p>Execution options apply independently of each logical range.
  * Setting concurrent without setting chunk does not enable concurrent range reads.
- * Invalid values cause an OpenDALException with code ConfigInvalid when the reader is created.
+ * Invalid execution values fail with ConfigInvalid when the reader is created.
+ * An Instant outside the Rust core timestamp range fails with Unexpected.
  */
 @Builder
 public final class ReaderOptions {
+    /**
+     * Selects a stored file version instead of the current one. This is not a condition.
+     * Requires service support for reading versions; a missing version fails with NotFound.
+     */
+    public final String version;
+
+    /**
+     * Reads only when the file has this exact ETag. Requires service support for if-match reads.
+     * Only concrete ETags are portable; a wildcard such as "*" has no portable meaning.
+     */
+    public final String ifMatch;
+
+    /**
+     * Reads only when the file exists with a different ETag. Requires service support for
+     * if-none-match reads. Only concrete ETags are portable; "*" has no portable meaning.
+     */
+    public final String ifNoneMatch;
+
+    /**
+     * Reads only when the file has this exact version. Requires service support for version-match reads.
+     * This checks the selected file's identity rather than selecting a stored version.
+     */
+    public final String ifVersionMatch;
+
+    /**
+     * Reads only when the file exists with a different version.
+     * Requires service support for version-not-match reads.
+     */
+    public final String ifVersionNotMatch;
+
+    /**
+     * Reads only when the file was modified after this time.
+     * Requires service support for if-modified-since reads.
+     */
+    public final Instant ifModifiedSince;
+
+    /**
+     * Reads only when the file was not modified after this time.
+     * Requires service support for if-unmodified-since reads.
+     */
+    public final Instant ifUnmodifiedSince;
+
     /**
      * Maximum number of internal chunk requests executed concurrently. Must be positive.
      * This is not the number of application transfers or Java threads and only affects chunked reads.
@@ -42,6 +93,17 @@ public final class ReaderOptions {
      */
     @Builder.Default
     public final long chunk = -1L;
+
+    /**
+     * Maximum gap in bytes between ranges that {@link OperatorReader#fetch(ReadOptions...)}
+     * may merge into one request. The unrequested bytes are discarded from the returned arrays.
+     * Zero disables merging across gaps; overlapping and adjacent ranges still merge.
+     * The default of -1 uses the core default (1 MiB). Values below -1 are invalid,
+     * and non-negative values must fit the native platform's unsigned pointer-sized integer.
+     * This option does not affect read or createInputStream calls.
+     */
+    @Builder.Default
+    public final long gap = -1L;
 
     /**
      * Maximum number of completed chunks buffered ahead of consumption, not a byte count.

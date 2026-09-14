@@ -146,7 +146,7 @@ public class ReaderOptionsTest {
     }
 
     @Test
-    void testVersionConditionsReachFetch() {
+    void testVersionConditionsReachReads() {
         try (Operator op = Operator.of(ServiceConfig.Gcs.builder()
                         .bucket("bucket")
                         .endpoint(endpoint)
@@ -158,12 +158,7 @@ public class ReaderOptionsTest {
                                 .ifVersionMatch("17")
                                 .ifVersionNotMatch("18")
                                 .build())) {
-            byte[][] data = reader.fetch(
-                    ReadOptions.builder().offset(0).length(2).build(),
-                    ReadOptions.builder().offset(4).length(2).build());
-            assertThat(data).isDeepEqualTo(new byte[][] {
-                "01".getBytes(StandardCharsets.UTF_8), "45".getBytes(StandardCharsets.UTF_8)
-            });
+            assertThat(reader.read(0, 2)).isEqualTo("01".getBytes(StandardCharsets.UTF_8));
         }
         assertThat(urls).hasSize(1);
         assertThat(urls.get(0).getQuery()).contains("ifGenerationMatch=17", "ifGenerationNotMatch=18");

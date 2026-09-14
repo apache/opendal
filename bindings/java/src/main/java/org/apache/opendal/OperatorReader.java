@@ -78,6 +78,51 @@ public final class OperatorReader extends NativeObject {
         return read(options.offset, options.length);
     }
 
+    /**
+     * Creates an independent stream over the whole file.
+     *
+     * @return a stream that the caller must close
+     * @see #createInputStream(long, long)
+     */
+    public OperatorInputStream createInputStream() {
+        return createInputStream(0, -1);
+    }
+
+    /**
+     * Creates a stream over a byte range using this reader's options.
+     * Each stream has its own cursor and native resources. Closing this reader does not
+     * close its streams, and closing a stream does not close this reader or its other streams.
+     *
+     * @param offset non-negative starting byte offset
+     * @param length number of bytes to read, or -1 to read to the end; zero creates an empty stream
+     * @return a stream that the caller must close
+     * @throws OpenDALException if the range is invalid (RangeNotSatisfied) or opening the stream fails
+     * @throws IllegalStateException if this reader is closed
+     */
+    public OperatorInputStream createInputStream(long offset, long length) {
+        return new OperatorInputStream(createBytesIterator(offset, length));
+    }
+
+    /**
+     * Creates a stream over the range selected by the supplied options.
+     *
+     * @param options logical offset and length
+     * @return a stream that the caller must close
+     * @see #createInputStream(long, long)
+     */
+    public OperatorInputStream createInputStream(ReadOptions options) {
+        Objects.requireNonNull(options, "options");
+        return createInputStream(options.offset, options.length);
+    }
+
+    // The caller owns the returned iterator independently of this reader.
+    synchronized long createBytesIterator(long offset, long length) {
+        if (isDisposed()) {
+            throw new IllegalStateException("OperatorReader is closed");
+        }
+        return createBytesIterator(nativeHandle, offset, length);
+    }
+
     /** Releases this reader's native resources. Repeated calls have no effect. */
     @Override
     public synchronized void close() {
@@ -90,6 +135,8 @@ public final class OperatorReader extends NativeObject {
     }
 
     private static native byte[] readBytes(long reader, long offset, long length);
+
+    private static native long createBytesIterator(long reader, long offset, long length);
 
     private static native void disposeReader(long reader);
 }

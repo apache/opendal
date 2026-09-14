@@ -19,62 +19,13 @@ use jni::Env;
 use jni::EnvUnowned;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
-use jni::objects::JObject;
-use jni::objects::JString;
-use jni::sys::jlong;
-use opendal::blocking;
 use opendal::blocking::StdBytesIterator;
 
-use crate::convert::jstring_to_string;
 use crate::error::ThrowException;
 
 /// # Safety
 ///
-/// This function should not be called before the Operator is ready.
-#[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader<
-    'local,
->(
-    mut env: EnvUnowned<'local>,
-    _: JClass<'local>,
-    op: *mut blocking::Operator,
-    path: JString<'local>,
-    read_options: JObject<'local>,
-    reader_options: JObject<'local>,
-) -> jlong {
-    env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
-        intern_construct_reader(env, op_ref, path, read_options, reader_options)
-    })
-    .resolve::<ThrowException>()
-}
-
-fn intern_construct_reader(
-    env: &mut Env,
-    op: &mut blocking::Operator,
-    path: JString,
-    read_options: JObject,
-    reader_options: JObject,
-) -> crate::Result<jlong> {
-    use crate::convert;
-    use crate::make_reader_options;
-
-    let path = jstring_to_string(env, &path)?;
-    let reader_options = make_reader_options(env, &reader_options)?;
-
-    let offset = convert::read_int64_field(env, &read_options, "offset")?;
-    let length = convert::read_int64_field(env, &read_options, "length")?;
-    let range = convert::offset_length_to_range(offset, length)?;
-
-    let reader = op
-        .reader_options(&path, reader_options)?
-        .into_bytes_iterator(range)?;
-    Ok(Box::into_raw(Box::new(reader)) as jlong)
-}
-
-/// # Safety
-///
-/// This function should not be called before the Operator is ready.
+/// `reader` must point to a live iterator, with no other calls in progress.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader<'local>(
     _: EnvUnowned<'local>,
@@ -88,7 +39,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_dispos
 
 /// # Safety
 ///
-/// This function should not be called before the Operator is ready.
+/// `reader` must point to a live iterator, with no other calls in progress.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes<'local>(
     mut env: EnvUnowned<'local>,

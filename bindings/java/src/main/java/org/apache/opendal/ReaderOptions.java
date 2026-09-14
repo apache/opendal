@@ -22,9 +22,9 @@ package org.apache.opendal;
 import lombok.Builder;
 
 /**
- * Controls how an input stream executes reads, independently of its logical range.
+ * Controls how an {@link OperatorReader} and its streams execute reads, independently of each logical range.
  * Setting concurrent without setting chunk does not enable concurrent range reads.
- * Invalid values cause an OpenDALException with code ConfigInvalid when the stream is created.
+ * Invalid values cause an OpenDALException with code ConfigInvalid when the reader is created.
  */
 @Builder
 public final class ReaderOptions {

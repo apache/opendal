@@ -34,6 +34,29 @@ String text = new String(data);
 byte[] data = op.read("path/to/file", 0, 1024);
 ```
 
+For repeated reads from the same file, create an `OperatorReader`. It uses a
+Rust core reader and lets each call select an independent byte range:
+
+```java
+import org.apache.opendal.OperatorReader;
+import org.apache.opendal.ReaderOptions;
+
+ReaderOptions options = ReaderOptions.builder()
+        .chunk(8 * 1024 * 1024L)
+        .concurrent(4)
+        .prefetch(2)
+        .build();
+try (OperatorReader reader = op.reader("path/to/file", options)) {
+    byte[] first = reader.read(0, 1024);
+    byte[] next = reader.read(1024, 1024);
+}
+```
+
+A positive `chunk` enables internal range requests; `concurrent` limits those
+requests and `prefetch` counts completed chunks buffered ahead. Setting
+`concurrent` alone keeps unchunked streaming. A reader does not snapshot the
+file, so subsequent reads may observe changes.
+
 ## Stream a large file
 
 Don't load gigabytes into memory — read through an `InputStream` in chunks:
@@ -49,6 +72,12 @@ try (InputStream in = op.createInputStream("big.bin")) {
     }
 }
 ```
+
+For a configured reader, use `reader.createInputStream()` for the whole file
+or `reader.createInputStream(offset, length)` for a range. A length of `-1`
+reads to the end; zero selects an empty range. Each stream has its own cursor.
+Close each reader and stream separately: closing a reader does not close its
+streams, and closing the operator does not close its readers.
 
 ## Write a whole file
 

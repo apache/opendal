@@ -92,11 +92,13 @@ public class Main {
 Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 `CompletableFuture`-based calls.
 
-## Tune input stream reads
+## Reuse a reader and tune reads
 
-`ReadOptions` selects the logical byte range. `ReaderOptions` controls how the
-stream executes reads. Existing `createInputStream(path)` and
-`createInputStream(path, readOptions)` calls keep unchunked streaming defaults.
+`Operator.reader(path, readerOptions)` creates an `OperatorReader` backed by a
+Rust core reader. `ReaderOptions` controls how it executes reads; each call to
+`read` or `createInputStream` selects its own logical byte range. `ReadOptions`
+can also supply that range. Existing `Operator.createInputStream` overloads use
+the same abstraction and preserve their defaults.
 
 ```java
 ReaderOptions readerOptions = ReaderOptions.builder()
@@ -105,8 +107,8 @@ ReaderOptions readerOptions = ReaderOptions.builder()
         .prefetch(2)
         .build();
 
-try (OperatorInputStream in = op.createInputStream(
-        "large.bin", ReadOptions.builder().build(), readerOptions)) {
+try (OperatorReader reader = op.reader("large.bin", readerOptions);
+        OperatorInputStream in = reader.createInputStream()) {
     byte[] buffer = new byte[8192];
     int count;
     while ((count = in.read(buffer)) != -1) {
@@ -114,6 +116,13 @@ try (OperatorInputStream in = op.createInputStream(
     }
 }
 ```
+
+Use `reader.read(offset, length)` to collect a range into a byte array, or
+`reader.createInputStream(offset, length)` to stream it. A length of `-1` reads
+to the end; zero selects an empty range. Repeated reads do not share a cursor.
+Close each reader and stream separately. Streams remain usable after their
+reader closes, and readers remain usable after their operator closes. A reader
+does not snapshot the file, so later reads may observe changes.
 
 A positive `chunk` enables internal range requests. `concurrent` limits these
 requests, not application transfers or Java threads; `prefetch` counts completed

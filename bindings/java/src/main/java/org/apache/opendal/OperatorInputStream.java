@@ -22,9 +22,14 @@ package org.apache.opendal;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Reads a byte range sequentially through an {@link OperatorReader}.
+ * Each stream owns its native iterator and must be closed independently of its source reader.
+ * Reading a closed stream throws {@link IllegalStateException}.
+ */
 public class OperatorInputStream extends InputStream {
-    private static class Reader extends NativeObject {
-        private Reader(long nativeHandle) {
+    private static class BytesIterator extends NativeObject {
+        private BytesIterator(long nativeHandle) {
             super(nativeHandle);
         }
 
@@ -34,10 +39,14 @@ public class OperatorInputStream extends InputStream {
         }
     }
 
-    private final Reader reader;
+    private final BytesIterator reader;
 
     private int offset = 0;
     private byte[] bytes = new byte[0];
+
+    OperatorInputStream(long nativeHandle) {
+        this.reader = new BytesIterator(nativeHandle);
+    }
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         this(operator, path, options, ReaderOptions.builder().build());
@@ -53,13 +62,18 @@ public class OperatorInputStream extends InputStream {
      * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
      */
     public OperatorInputStream(Operator operator, String path, ReadOptions readOptions, ReaderOptions readerOptions) {
-        final long op = operator.nativeHandle;
-        this.reader = new Reader(constructReader(op, path, readOptions, readerOptions));
+        Objects.requireNonNull(readOptions, "readOptions");
+        try (OperatorReader source = operator.reader(path, readerOptions)) {
+            this.reader = new BytesIterator(source.createBytesIterator(readOptions.offset, readOptions.length));
+        }
     }
 
     @Override
-    public int read() {
-        if (bytes != null && offset >= bytes.length) {
+    public synchronized int read() {
+        if (reader.isDisposed()) {
+            throw new IllegalStateException("OperatorInputStream is closed");
+        }
+        while (bytes != null && offset >= bytes.length) {
             bytes = readNextBytes(reader.nativeHandle);
             offset = 0;
         }
@@ -72,17 +86,23 @@ public class OperatorInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte[] b, int off, int len) {
+    public synchronized int read(byte[] b, int off, int len) {
         Objects.requireNonNull(b);
         if ((b.length | off | len) < 0 || len > b.length - off) {
             // Objects.checkFromIndexSize has only been available since Java 9
             throw new IndexOutOfBoundsException(
                     String.format("Range [%s, %<s + %s) out of bounds for length %s", off, len, b.length));
         }
+        if (reader.isDisposed()) {
+            throw new IllegalStateException("OperatorInputStream is closed");
+        }
+        if (len == 0) {
+            return 0;
+        }
 
         int read = 0;
         while (len > 0) {
-            if (bytes != null && offset >= bytes.length) {
+            while (bytes != null && offset >= bytes.length) {
                 bytes = readNextBytes(reader.nativeHandle);
                 offset = 0;
             }
@@ -99,21 +119,14 @@ public class OperatorInputStream extends InputStream {
             len -= n;
         }
 
-        if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(reader.nativeHandle);
-            offset = 0;
-        }
-
-        return bytes != null ? read : (read != 0 ? read : -1);
+        return read;
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         reader.close();
+        bytes = null;
     }
-
-    private static native long constructReader(
-            long op, String path, ReadOptions readOptions, ReaderOptions readerOptions);
 
     private static native void disposeReader(long reader);
 

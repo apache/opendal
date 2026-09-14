@@ -167,6 +167,8 @@ public class Operator extends NativeObject {
      * @param readerOptions internal chunk request and buffering controls
      * @return a stream that the caller must close
      * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
+     * @see #reader(String, ReaderOptions)
+     * @see OperatorReader#createInputStream(ReadOptions)
      */
     public OperatorInputStream createInputStream(String path, ReadOptions readOptions, ReaderOptions readerOptions) {
         return new OperatorInputStream(this, path, readOptions, readerOptions);

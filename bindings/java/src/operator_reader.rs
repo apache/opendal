@@ -66,6 +66,26 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_readBytes<'
 
 /// # Safety
 ///
+/// `reader` must point to a live blocking reader for the duration of this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_createBytesIterator<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    reader: *const blocking::Reader,
+    offset: jlong,
+    length: jlong,
+) -> jlong {
+    env.with_env(|_| -> crate::Result<_> {
+        let reader = unsafe { &*reader };
+        let range = convert::offset_length_to_range(offset, length)?;
+        let iter = reader.clone().into_bytes_iterator(range)?;
+        Ok(Box::into_raw(Box::new(iter)) as jlong)
+    })
+    .resolve::<ThrowException>()
+}
+
+/// # Safety
+///
 /// `reader` must be a live handle allocated by `Operator.reader`, with no calls in progress.
 /// It must not be used after this call.
 #[unsafe(no_mangle)]

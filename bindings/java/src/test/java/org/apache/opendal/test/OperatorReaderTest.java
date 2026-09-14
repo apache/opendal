@@ -23,8 +23,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import org.apache.commons.io.IOUtils;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
+import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorReader;
 import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ReaderOptions;
@@ -74,6 +76,8 @@ public class OperatorReaderTest {
                 OperatorReader reader = op.reader("missing")) {
             assertThatThrownBy(() -> reader.read(offset, length))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
+            assertThatThrownBy(() -> reader.createInputStream(offset, length))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
         }
     }
 
@@ -83,6 +87,49 @@ public class OperatorReaderTest {
                         ServiceConfig.Fs.builder().root(tempDir.toString()).build());
                 OperatorReader reader = op.reader("missing")) {
             assertThatThrownBy(reader::read).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        }
+    }
+
+    @Test
+    void testIndependentStreams() throws Exception {
+        try (Operator op =
+                Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
+            op.write("file", "0123456789");
+            try (OperatorReader reader =
+                    op.reader("file", ReaderOptions.builder().chunk(2).build())) {
+                try (OperatorInputStream in = reader.createInputStream(
+                        ReadOptions.builder().offset(4).length(3).build())) {
+                    assertThat(IOUtils.toByteArray(in)).isEqualTo("456".getBytes(StandardCharsets.UTF_8));
+                }
+                assertThat(reader.read(0, 2)).isEqualTo("01".getBytes(StandardCharsets.UTF_8));
+                try (OperatorInputStream first = reader.createInputStream();
+                        OperatorInputStream second = reader.createInputStream(4, 5)) {
+                    reader.close();
+                    op.close();
+                    assertThatThrownBy(reader::createInputStream).isInstanceOf(IllegalStateException.class);
+                    assertThat(first.read()).isEqualTo('0');
+                    assertThat(second.read()).isEqualTo('4');
+                    first.close();
+                    first.close();
+                    assertThatThrownBy(first::read).isInstanceOf(IllegalStateException.class);
+                    assertThatThrownBy(() -> first.read(new byte[2], 0, 2)).isInstanceOf(IllegalStateException.class);
+                    assertThat(IOUtils.toByteArray(second)).isEqualTo("5678".getBytes(StandardCharsets.UTF_8));
+                    assertThat(second.read()).isEqualTo(-1);
+                }
+            }
+        }
+    }
+
+    @Test
+    void testZeroLengthStreamReads() {
+        try (Operator op = Operator.of(
+                        ServiceConfig.Fs.builder().root(tempDir.toString()).build());
+                OperatorReader reader = op.reader("missing");
+                OperatorInputStream in = reader.createInputStream(0, 0)) {
+            byte[] bytes = new byte[1];
+            assertThat(in.read(bytes, 0, 0)).isZero();
+            assertThat(in.read()).isEqualTo(-1);
+            assertThat(in.read(bytes, 0, 0)).isZero();
         }
     }
 

@@ -39,7 +39,12 @@ class RequestState:
         self.slow_release = slow_release
 
     def _methods(self) -> list[str]:
-        return list(self._requests)
+        return [
+            entry[0] if isinstance(entry, tuple) else entry for entry in self._requests
+        ]
+
+    def _uploads(self) -> list[bytes]:
+        return [entry[1] for entry in self._requests if isinstance(entry, tuple)]
 
     def _reset(self) -> None:
         self._requests[:] = []
@@ -56,6 +61,18 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
             self.send_response(200)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(CONTENT)))
+            self.end_headers()
+
+        def do_PUT(self) -> None:
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            requests.append(("PUT", body))
+            if self.path == "/slow":
+                slow_started.set()
+                slow_release.wait(timeout=5)
+            uploads = [entry for entry in requests if isinstance(entry, tuple)]
+            status = 403 if self.path == "/retry" and len(uploads) == 1 else 201
+            self.send_response(status)
+            self.send_header("Content-Length", "0")
             self.end_headers()
 
         def do_GET(self) -> None:
@@ -376,3 +393,57 @@ async def test_async_file_cancelled_read_can_close(request_server):
     assert await file.closed
     assert state._methods() == ["GET"]
     state.slow_release.set()
+
+
+@pytest.mark.asyncio
+async def test_async_file_coalesces_small_writes(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator(
+        "webdav", endpoint=endpoint, root="/", disable_create_dir="true"
+    )
+    async with await op.open("file", "wb") as file:
+        for _ in range(1000):
+            assert await file.write(b"small") == 5
+        assert state._methods() == []
+    assert state._uploads() == [b"small" * 1000]
+
+
+@pytest.mark.asyncio
+async def test_async_file_close_error_can_retry(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator(
+        "webdav", endpoint=endpoint, root="/", disable_create_dir="true"
+    )
+    file = await op.open("retry", "wb")
+    assert await file.write(CONTENT) == len(CONTENT)
+    with pytest.raises(opendal.exceptions.PermissionDenied):
+        await file.close()
+    assert not await file.closed
+    await file.close()
+    assert await file.closed
+    assert state._uploads() == [CONTENT, CONTENT]
+
+
+@pytest.mark.asyncio
+async def test_async_file_cancelled_close_resumes_request(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator(
+        "webdav", endpoint=endpoint, root="/", disable_create_dir="true"
+    )
+    file = await op.open("slow", "wb")
+    assert await file.write(CONTENT) == len(CONTENT)
+    pending = asyncio.ensure_future(file.close())
+    try:
+        assert await asyncio.to_thread(state.slow_started.wait, 2)
+        pending.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending
+        assert not await file.closed
+    finally:
+        state.slow_release.set()
+    await asyncio.wait_for(file.close(), timeout=2)
+    assert await file.closed
+    assert state._uploads() == [CONTENT]

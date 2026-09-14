@@ -38,6 +38,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? DisableCreateDir { get; init; }
         /// <summary>
+        /// Enable conditional delete support. When enabled (the default), OpenDAL forwards `If-Match` to the server on `DELETE`, so the object is removed only while the caller's ETag still matches. Disable this for servers whose ETags can't express a safe condition: nginx-dav omits ETags from PROPFIND, and ownCloud derives them from a one-second mtime, so two writes in the same second share one tag. Setting this to `false` drops `delete_with_if_match`, so `delete_with(path).if_match(...)` returns `ErrorKind::Unsupported` locally instead of deleting a revision the caller never observed. Default: true
+        /// </summary>
+        public bool? EnableConditionalDelete { get; init; }
+        /// <summary>
         /// Enable conditional read support. When enabled (the default), OpenDAL forwards the RFC 7232 headers `If-Match`, `If-None-Match`, `If-Modified-Since` and `If-Unmodified-Since` to the server when callers provide them. Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags in PROPFIND or don't honor these headers on GET. Setting this to `false` drops the four `read_with_if_*` capabilities, so calls like `reader_with(path).if_match(...)` return `ErrorKind::Unsupported` locally instead of being silently ignored by the server. Default: true
         /// </summary>
         public bool? EnableConditionalRead { get; init; }
@@ -89,6 +93,10 @@ namespace OpenDAL.ServiceConfig
             if (DisableCreateDir is not null)
             {
                 map["disable_create_dir"] = Utilities.ToOptionString(DisableCreateDir);
+            }
+            if (EnableConditionalDelete is not null)
+            {
+                map["enable_conditional_delete"] = Utilities.ToOptionString(EnableConditionalDelete);
             }
             if (EnableConditionalRead is not null)
             {

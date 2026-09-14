@@ -89,6 +89,21 @@ pub struct WebdavConfig {
     ///
     /// Default: true
     pub enable_conditional_read: bool,
+    /// Enable conditional delete support.
+    ///
+    /// When enabled (the default), OpenDAL forwards `If-Match` to the server
+    /// on `DELETE`, so the object is removed only while the caller's ETag
+    /// still matches.
+    ///
+    /// Disable this for servers whose ETags can't express a safe condition:
+    /// nginx-dav omits ETags from PROPFIND, and ownCloud derives them from a
+    /// one-second mtime, so two writes in the same second share one tag.
+    /// Setting this to `false` drops `delete_with_if_match`, so
+    /// `delete_with(path).if_match(...)` returns `ErrorKind::Unsupported`
+    /// locally instead of deleting a revision the caller never observed.
+    ///
+    /// Default: true
+    pub enable_conditional_delete: bool,
 }
 
 #[allow(deprecated)]
@@ -106,6 +121,7 @@ impl Default for WebdavConfig {
             user_metadata_prefix: None,
             user_metadata_uri: None,
             enable_conditional_read: true,
+            enable_conditional_delete: true,
         }
     }
 }
@@ -120,6 +136,7 @@ impl Debug for WebdavConfig {
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
             .field("enable_conditional_read", &self.enable_conditional_read)
+            .field("enable_conditional_delete", &self.enable_conditional_delete)
             .finish_non_exhaustive()
     }
 }

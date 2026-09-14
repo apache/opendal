@@ -171,6 +171,25 @@ impl WebdavBuilder {
         self.config.enable_conditional_read = enable;
         self
     }
+
+    /// Enable conditional delete support.
+    ///
+    /// When enabled (the default), OpenDAL forwards `If-Match` to the server
+    /// on `DELETE`, so the object is removed only while the caller's ETag
+    /// still matches.
+    ///
+    /// Disable this for servers whose ETags can't express a safe condition:
+    /// nginx-dav omits ETags from PROPFIND, and ownCloud derives them from a
+    /// one-second mtime, so two writes in the same second share one tag.
+    /// Setting this to `false` drops `delete_with_if_match`, so
+    /// `delete_with(path).if_match(...)` returns `ErrorKind::Unsupported`
+    /// locally instead of deleting a revision the caller never observed.
+    ///
+    /// Default: true
+    pub fn enable_conditional_delete(mut self, enable: bool) -> Self {
+        self.config.enable_conditional_delete = enable;
+        self
+    }
 }
 
 impl Builder for WebdavBuilder {
@@ -212,6 +231,7 @@ impl Builder for WebdavBuilder {
         }
 
         let conditional_read = self.config.enable_conditional_read;
+        let conditional_delete = self.config.enable_conditional_delete;
 
         let core = Arc::new(WebdavCore {
             info: ServiceInfo::new(WEBDAV_SCHEME, &root, ""),
@@ -231,6 +251,7 @@ impl Builder for WebdavBuilder {
 
                 create_dir: true,
                 delete: true,
+                delete_with_if_match: conditional_delete,
 
                 copy: true,
 

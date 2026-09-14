@@ -24,6 +24,7 @@ releases own their respective completion records; this module keeps no journal.
 import argparse
 import base64
 import dataclasses
+import hashlib
 import json
 import os
 import re
@@ -179,16 +180,9 @@ def discussion(title, body, category="General"):
     if len(matches) > 1:
         raise ValueError(f"multiple discussions named {title}")
     if matches:
-        current = matches[0]
-        if current["body"] != body:
-            api(
-                "graphql",
-                {
-                    "query": "mutation($id:ID!,$body:String!){updateDiscussion(input:{discussionId:$id,body:$body}){discussion{id}}}",
-                    "variables": {"id": current["id"], "body": body},
-                },
-            )
-        return current
+        # Actions tokens can create Discussions but cannot edit their bodies.
+        # Publish lifecycle changes as comments on the original entry point.
+        return matches[0]
     result = api(
         "graphql",
         {
@@ -284,7 +278,10 @@ def notice(candidate, release, status=None):
         if release["phase"] == "release"
         else candidate.branch
     )
-    body = f"""**{status}**
+    body = f"""**Release candidate: {rc}**
+
+ATR is the release authority. Follow the latest status replies below and the ATR
+vote page for current progress; this opening post contains candidate instructions.
 
 - [ATR checks]({ATR}/checks/opendal/{rc}) · [Download candidate]({ATR}/download/path/opendal/{rc}) · [Vote]({ATR}/vote/opendal/{rc})
 - [Candidate branch](https://github.com/{REPO}/tree/{branch}) · [RC tag](https://github.com/{REPO}/releases/tag/v{rc})
@@ -294,8 +291,8 @@ def notice(candidate, release, status=None):
 {version_notes(candidate)}
 ### Release manager: next actions
 
-1. Check required build results and language staging, including the closed Nexus repository. Dispatch acceptance alone is not build success.
-2. Independently download, verify signatures and checksums, inspect licenses, and build the source candidate. Review the announcement draft below.
+1. Review the candidate in ATR. Other builds and language package staging are optional and do not block starting the ATR vote.
+2. Review the source artifacts and announcement draft below.
 3. Start the vote on the verified revision. After the voting period, inspect the tally and resolve according to the result.
 
 ### CLI for release managers and agents
@@ -344,7 +341,19 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
         comment_once(
             current["id"],
             f"<!-- opendal-vote:{rc}:{seq} -->",
-            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Please verify the candidate and vote there or in the dev mailing-list thread.",
+            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Follow ATR and these status replies for current progress; the opening post records candidate preparation. Other builds and language package staging are optional and do not block this vote.",
+        )
+    else:
+        progress = f"""**{status}**
+
+- ATR revision: `{revision}`; [current ATR status]({ATR}/vote/opendal/{rc}).
+- [Source branch](https://github.com/{REPO}/tree/{branch}) · [Publication runs](https://github.com/{REPO}/actions/workflows/release_publish.yml).
+"""
+        digest = hashlib.sha256(progress.encode()).hexdigest()
+        comment_once(
+            current["id"],
+            f"<!-- opendal-status:{rc}:{release.get('current_vote_seq')}:{digest} -->",
+            progress,
         )
     return current
 

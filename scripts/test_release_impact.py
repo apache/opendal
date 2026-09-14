@@ -256,7 +256,10 @@ class ImpactTests(unittest.TestCase):
             self.assertIn(candidate.sha, api.call_args.args[0])
         with (
             patch.object(release, "version_notes", return_value=notes),
-            patch.object(release, "discussion", return_value={}) as discussion,
+            patch.object(
+                release, "discussion", return_value={"id": "discussion"}
+            ) as discussion,
+            patch.object(release, "comment_once"),
         ):
             release.notice(
                 candidate,

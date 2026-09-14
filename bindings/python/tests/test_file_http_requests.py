@@ -172,6 +172,39 @@ def test_sync_file_sequential_read_uses_one_request(request_server):
         file.read(1)
 
 
+def test_sync_file_flush_keeps_small_writes_coalesced(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.Operator("webdav", endpoint=endpoint, disable_create_dir="true")
+    with op.open("file", "wb") as file:
+        for _ in range(1000):
+            assert file.write(b"small") == 5
+        file.flush()
+        file.flush()
+        assert not file.closed
+        assert state._uploads() == []
+        assert file.write(CONTENT) == len(CONTENT)
+    assert state._uploads() == [b"small" * 1000 + CONTENT]
+    file.close()
+    file.flush()
+    assert len(state._uploads()) == 1
+
+
+def test_sync_file_close_error_retains_input_for_retry(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.Operator("webdav", endpoint=endpoint, disable_create_dir="true")
+    file = op.open("retry", "wb")
+    assert file.write(CONTENT) == len(CONTENT)
+    file.flush()
+    with pytest.raises(opendal.exceptions.PermissionDenied):
+        file.close()
+    assert not file.closed
+    file.close()
+    assert file.closed
+    assert state._uploads() == [CONTENT, CONTENT]
+
+
 def test_sync_file_start_and_current_seek_do_not_fetch_length(request_server):
     endpoint, state = request_server
     state._reset()

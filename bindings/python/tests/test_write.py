@@ -258,3 +258,80 @@ def test_sync_writer_options(service_name, operator, async_operator):
         with operator.open(filename, "wb", if_not_exists=True) as w:
             w.write(content)
         assert "ConditionNotMatch" in str(excinfo.value)
+
+
+@pytest.mark.need_capability("write", "write_can_multi", "read", "delete")
+@pytest.mark.parametrize(
+    "sizes",
+    [
+        [0],
+        [1] * 20,
+        [256 * 1024 - 1, 1, 256 * 1024, 256 * 1024 + 1],
+        [8 * 1024 * 1024],
+        [1, 8 * 1024 * 1024 + 7, 3, 256 * 1024],
+    ],
+)
+@pytest.mark.parametrize("flush", [False, True])
+@pytest.mark.parametrize("chunk", [None, 8 * 1024 * 1024])
+def test_sync_writer_owned_buffers(operator, sizes, flush, chunk):
+    filename = f"test_owned_{uuid4()}"
+    expected = bytearray()
+    try:
+        options = {} if chunk is None else {"chunk": chunk}
+        with operator.open(filename, "wb", **options) as file:
+            for size in sizes:
+                content = os.urandom(size)
+                expected.extend(content)
+                assert file.write(content) == size
+                del content
+                if flush:
+                    file.flush()
+                    file.flush()
+        assert file.closed
+        assert operator.read(filename) == expected
+        with pytest.raises(OSError, match="closed file"):
+            file.write(b"")
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="requires reference counts")
+@pytest.mark.parametrize("size", [17, 256 * 1024, 8 * 1024 * 1024 + 7])
+def test_sync_writer_retains_bytes(service_name, size):
+    if service_name != "memory":
+        pytest.skip("inspect ownership with the memory service")
+    op = opendal.Operator("memory")
+    content = os.urandom(size)
+    references = sys.getrefcount(content)
+    with op.open("owned", "wb", chunk=8 * 1024 * 1024) as file:
+        assert file.write(content) == len(content)
+        assert sys.getrefcount(content) > references
+    assert op.read("owned") == content
+    op.delete("owned")
+    assert sys.getrefcount(content) == references
+
+
+@pytest.mark.skipif(not hasattr(sys, "getrefcount"), reason="requires reference counts")
+def test_sync_writer_drop_releases_pending_owner(service_name):
+    if service_name != "memory":
+        pytest.skip("inspect ownership with the memory service")
+    op = opendal.Operator("memory")
+    content = os.urandom(17)
+    references = sys.getrefcount(content)
+    file = op.open("unclosed", "wb")
+    file.write(content)
+    assert sys.getrefcount(content) > references
+    del file
+    gc.collect()
+    assert sys.getrefcount(content) == references
+    assert not op.exists("unclosed")
+
+
+@pytest.mark.need_capability("write", "delete")
+def test_sync_writer_preserves_bytes_only_input(operator):
+    filename = f"test_input_{uuid4()}"
+    with operator.open(filename, "wb") as file:
+        for content in (bytearray(b"mutable"), memoryview(b"view"), [1, 2]):
+            with pytest.raises(TypeError):
+                file.write(content)
+    operator.delete(filename)

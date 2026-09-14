@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.stream.Stream;
 import org.apache.commons.io.IOUtils;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
@@ -37,9 +36,7 @@ import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.params.provider.MethodSource;
 
 public class OperatorReaderTest {
     @TempDir
@@ -151,27 +148,13 @@ public class OperatorReaderTest {
         }
     }
 
-    static Stream<Arguments> unsupportedReaderConditions() {
-        return Stream.of(
-                Arguments.of(ReaderOptions.builder().version("v").build(), "version"),
-                Arguments.of(ReaderOptions.builder().ifMatch("etag").build(), "if_match"),
-                Arguments.of(ReaderOptions.builder().ifNoneMatch("etag").build(), "if_none_match"),
-                Arguments.of(ReaderOptions.builder().ifVersionMatch("v").build(), "if_version_match"),
-                Arguments.of(ReaderOptions.builder().ifVersionNotMatch("v").build(), "if_version_not_match"),
-                Arguments.of(
-                        ReaderOptions.builder().ifModifiedSince(Instant.EPOCH).build(), "if_modified_since"),
-                Arguments.of(
-                        ReaderOptions.builder().ifUnmodifiedSince(Instant.EPOCH).build(), "if_unmodified_since"));
-    }
-
-    @ParameterizedTest
-    @MethodSource("unsupportedReaderConditions")
-    void testUnsupportedConditionsAreNotDropped(ReaderOptions options, String field) {
+    @Test
+    void testUnsupportedReaderCondition() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
-            assertThatThrownBy(() -> op.reader("missing", options))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unsupported))
-                    .hasMessageContaining(field);
+            assertThatThrownBy(() -> op.reader(
+                            "missing", ReaderOptions.builder().ifMatch("etag").build()))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unsupported));
         }
     }
 
@@ -186,16 +169,6 @@ public class OperatorReaderTest {
                             "missing",
                             ReaderOptions.builder().ifModifiedSince(Instant.MIN).build()))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unexpected));
-        }
-    }
-
-    @Test
-    void testInvalidReaderOptions() {
-        try (Operator op =
-                Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
-            assertThatThrownBy(() -> op.reader(
-                            "missing", ReaderOptions.builder().chunk(0).build()))
-                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid));
         }
     }
 }

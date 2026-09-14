@@ -28,7 +28,7 @@ Features:
 - **HA support**: Comma-separated master addresses for automatic Primary Master discovery.
 - **Block-level I/O**: Data reads/writes go through block-level gRPC bidirectional streaming.
 - **Consistent hash routing**: Worker selection uses consistent hashing on block IDs.
-- **All WriteTypes**: Supports MUST_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH.
+- **All WriteTypes**: Supports MUST_CACHE, TRY_CACHE, CACHE_THROUGH, THROUGH, and ASYNC_THROUGH. Unknown `write_type` values fail at `build()` with `ConfigInvalid`.
 - **Conditional Create**: `write_with_if_not_exists` publishes via Master no-replace
   rename (`rename_with_if_not_exists`); destination is never deleted on the Create path.
 - **Rename parent directories**: `rename` creates a missing destination parent only

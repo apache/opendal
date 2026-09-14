@@ -53,7 +53,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Root { get; init; }
         /// <summary>
-        /// Default write type for new files. Supported values: `"must_cache"`, `"cache_through"`, `"through"`, `"async_through"`. Default: `"must_cache"`.
+        /// Default write type for new files. Supported values: `"must_cache"`, `"try_cache"`, `"cache_through"`, `"through"`, `"async_through"`. Matching is case-insensitive. `build()` fails with `ConfigInvalid` when the value is not one of these. Default: `"must_cache"`.
         /// </summary>
         public string? WriteType { get; init; }
 

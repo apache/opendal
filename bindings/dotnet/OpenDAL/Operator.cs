@@ -257,18 +257,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Writes the specified content to a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="content">Bytes to write.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the metadata of the written object.</returns>
-    public Task<Metadata> WriteAsync(string path, byte[] content, CancellationToken cancellationToken)
-    {
-        return WriteAsync(path, content, options: null, cancellationToken);
-    }
-
-    /// <summary>
     /// Writes the specified content to a path asynchronously with optional write options and executor.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -447,17 +435,6 @@ public partial class Operator : SafeHandle
     public byte[] Read(string path, ReadOptions? options = null)
     {
         return Read(path, static sequence => sequence.ToArray(), options);
-    }
-
-    /// <summary>
-    /// Reads all bytes from a path asynchronously.
-    /// </summary>
-    /// <param name="path">Source path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the read content.</returns>
-    public Task<byte[]> ReadAsync(string path, CancellationToken cancellationToken)
-    {
-        return ReadAsync(path, options: null, cancellationToken);
     }
 
     /// <summary>
@@ -646,17 +623,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Gets metadata of a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the path metadata.</returns>
-    public Task<Metadata> StatAsync(string path, CancellationToken cancellationToken)
-    {
-        return StatAsync(path, options: null, cancellationToken);
-    }
-
-    /// <summary>
     /// Gets metadata for the specified path asynchronously.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -702,17 +668,6 @@ public partial class Operator : SafeHandle
         result = NativeMethods.operator_list_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
 
         return ToValueOrThrowAndRelease<IReadOnlyList<Entry>, OpenDALEntryListResult>(result);
-    }
-
-    /// <summary>
-    /// Lists entries under a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the listed entries.</returns>
-    public Task<IReadOnlyList<Entry>> ListAsync(string path, CancellationToken cancellationToken)
-    {
-        return ListAsync(path, options: null, cancellationToken);
     }
 
     /// <summary>

@@ -258,33 +258,31 @@ For new `releases/<version>-rc.N` candidates, the hourly workflow calls
    `releases/<version>` branch and signed `v<version>` tag at that commit. Existing
    final refs must agree; they are never moved. ATR's OIDC `commit_hash` is not
    used because the upload workflow starts on main before generating the RC.
-2. Explicitly dispatches the existing Rust, Python, Node.js, Ruby, .NET, Dart and
-   Docs workflows at the final tag, skipping disabled workflows. Ruby accepts
-   final-tag manual dispatch. Publication waits for successful runs; failures
-   require rerunning the failed jobs in their existing run. Dart retains its
-   existing artifact-only behavior. Go belongs to its separate repository.
-3. Promotes the closed Nexus repository from the successful Java RC run, without
-   staging another build, then waits for that Java package version on Maven Central.
-   A disabled Java workflow is skipped like other disabled publishers.
-4. Creates the GitHub Release and asks ATR to send the announcement to
+2. Creates the GitHub Release and asks ATR to send the announcement to
    `announce@apache.org`. ATR checks source publication and download propagation.
-   Posts the same reviewed announcement text in GitHub Announcements, which the
-   repository mirrors to dev@opendal.apache.org.
-5. Opens a draft version-sync PR from the latest main. `update-version --baseline
+   Posts the reviewed announcement in GitHub Announcements, which the repository
+   mirrors to dev@opendal.apache.org.
+3. Opens a draft version-sync PR from the latest main. `update-version --baseline
    v<version> --sync` takes the higher of main and released versions per package,
    preserves new packages and development changes, and regenerates dependencies,
-   lockfiles and the changelog entry. Normal review/CI and merge complete the sync;
-   the workflow does not merge the release branch into main or auto-merge the PR.
-   Because `GITHUB_TOKEN` does not trigger PR CI, a maintainer closes and reopens
-   the reviewed PR (or pushes an update) to start required checks before merging.
-6. Links the release and sync PR in the candidate Discussion, then deletes all
-   `releases/<version>-rc.N` branches for that version. Each deletion requires its
-   RC tag to retain the branch commit. The approved branch is deleted last so a
-   partial cleanup remains discoverable. Final branch, final tag and RC tags stay.
+   lockfiles and the changelog entry. Review and merge complete the sync; the
+   workflow does not merge the release branch or auto-merge the PR. Because
+   `GITHUB_TOKEN` does not trigger PR CI, a maintainer closes and reopens the
+   reviewed PR (or pushes an update) to start checks.
+4. Independently follows optional language distributions: dispatches existing
+   Rust, Python, Node.js, Ruby, .NET, Dart and Docs workflows at the final tag,
+   skipping disabled workflows, and promotes the approved Java Nexus staging
+   repository. Go belongs to its separate repository. Pending or failed package
+   jobs do not block the GitHub Release, announcements or version-sync PR.
+5. Reports optional distribution progress in the candidate Discussion. Retains
+   RC branches while distribution needs follow-up so hourly discovery can resume
+   it. Once complete, removes same-version RC branches; each deletion requires
+   its RC tag to retain the commit. The approved branch is deleted last so partial
+   cleanup remains discoverable. Final branch, final tag and RC tags stay.
 
 Each hourly run checks external completion records and resumes unfinished work.
-Pending packages or Maven propagation defer announcements and cleanup. A failed
-job appears in Actions and in the candidate notice; rerun the failed downstream
+Optional package failures remain visible in their own Actions runs and in the
+candidate notice; the source release is already published. Rerun failed package
 jobs, then wait for the next hourly pass or resume explicitly:
 
 ```bash

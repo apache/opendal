@@ -13,10 +13,11 @@ actor. Existing Nexus credentials must allow promotion.
 
 Final branch and signed tag use the RC branch SHA, cross-checked against its tag.
 Ignore ATR `commit_hash` as the tag target: OIDC can record the main workflow SHA.
-The workflow explicitly dispatches final package jobs, promotes the Java RC's
-closed staging repository, waits for publication, and completes GitHub/ATR
-announcements. It creates a draft main version-sync PR and removes same-version
-RC branches while retaining their tags and the final branch. Review and merge
+The workflow creates the GitHub Release, completes GitHub/ATR announcements and
+opens a draft main version-sync PR before following optional package distribution.
+Package or Nexus failures do not block the source release. It retains RC branches
+for hourly distribution retries, then removes them once follow-up completes,
+while retaining their tags and the final branch. Review and merge
 that PR through normal repository checks; versions must never regress. A PR
 created with `GITHUB_TOKEN` does not start CI: after review, close and reopen it
 with the maintainer's credentials (or push an update) to trigger required checks.

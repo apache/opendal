@@ -60,7 +60,7 @@ public class OperatorInputStream extends InputStream {
         if (reader.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
-        while (bytes != null && offset >= bytes.length) {
+        if (bytes != null && offset >= bytes.length) {
             bytes = readNextBytes(reader.nativeHandle);
             offset = 0;
         }
@@ -85,7 +85,7 @@ public class OperatorInputStream extends InputStream {
         }
         int read = 0;
         while (len > 0) {
-            while (bytes != null && offset >= bytes.length) {
+            if (bytes != null && offset >= bytes.length) {
                 bytes = readNextBytes(reader.nativeHandle);
                 offset = 0;
             }
@@ -102,13 +102,17 @@ public class OperatorInputStream extends InputStream {
             len -= n;
         }
 
-        return read;
+        if (bytes != null && offset >= bytes.length) {
+            bytes = readNextBytes(reader.nativeHandle);
+            offset = 0;
+        }
+
+        return bytes != null ? read : (read != 0 ? read : -1);
     }
 
     @Override
     public synchronized void close() {
         reader.close();
-        bytes = null;
     }
 
     private static native void disposeReader(long reader);

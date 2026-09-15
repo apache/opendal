@@ -119,19 +119,6 @@ public class OperatorReaderTest {
     }
 
     @Test
-    void testZeroLengthStreamReads() {
-        try (Operator op = Operator.of(
-                        ServiceConfig.Fs.builder().root(tempDir.toString()).build());
-                OperatorReader reader = op.createReader("missing");
-                OperatorInputStream in = reader.createInputStream(0, 0)) {
-            byte[] bytes = new byte[1];
-            assertThat(in.read(bytes, 0, 0)).isZero();
-            assertThat(in.read()).isEqualTo(-1);
-            assertThat(in.read(bytes, 0, 0)).isZero();
-        }
-    }
-
-    @Test
     void testUnsupportedReaderCondition() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {

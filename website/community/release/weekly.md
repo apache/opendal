@@ -152,8 +152,10 @@ credentials belong in the CLI's hidden prompt. The CLI is an interactive RM tool
 CI reads ATR's JSON API and uses its trusted-publisher announcement endpoint.
 
 `release_lifecycle.yml` runs hourly at minute 17 (GitHub can delay scheduled runs).
-It updates the same candidate Discussion and posts one reminder per ATR vote
-round. GitHub subscribers receive that comment through their notification
+It keeps the candidate Discussion's opening post unchanged and appends status
+changes as comments, including one reminder per ATR vote round. Unchanged status
+does not generate another comment. Follow the latest replies and ATR for current
+progress. GitHub subscribers receive comments through their notification
 settings. The official vote remains in ATR and the dev mailing-list thread; the
 Discussion does not create another ballot. To synchronize sooner:
 

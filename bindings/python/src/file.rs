@@ -19,20 +19,19 @@ use std::io::BufRead;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use std::io::Write;
 use std::ops::DerefMut;
 use std::sync::Arc;
 
 use asyncband::mutex::Mutex;
 use futures::AsyncSeekExt;
-use futures::AsyncWriteExt;
+use futures::SinkExt;
 use pyo3::IntoPyObjectExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
-use pyo3::pybacked::PyBackedBytes;
 use pyo3::types::PyBytes;
 use pyo3_async_runtimes::tokio::future_into_py;
+use pyo3_async_runtimes::tokio::get_runtime;
 
 use crate::*;
 
@@ -46,18 +45,28 @@ use crate::*;
 pub struct File(FileState);
 
 enum FileState {
-    Reader(ocore::blocking::StdReader),
-    Writer(ocore::blocking::StdWriter),
+    Reader(Box<ocore::blocking::StdReader>),
+    Writer(ocore::BufferSink),
     Closed,
 }
 
 impl File {
     pub fn new_reader(reader: ocore::blocking::StdReader) -> Self {
-        Self(FileState::Reader(reader))
+        Self(FileState::Reader(Box::new(reader)))
     }
 
-    pub fn new_writer(writer: ocore::blocking::Writer) -> Self {
-        Self(FileState::Writer(writer.into_std_write()))
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(FileState::Writer(writer.into_sink()))
+    }
+}
+
+impl Drop for File {
+    fn drop(&mut self) {
+        if matches!(self.0, FileState::Writer(_)) {
+            // Pending operations can own runtime resources even without close.
+            let _guard = get_runtime().enter();
+            drop(std::mem::replace(&mut self.0, FileState::Closed));
+        }
     }
 }
 #[pymethods]
@@ -242,9 +251,13 @@ impl File {
             }
         };
 
-        let bs = PyBackedBytes::from(bs.clone());
-        py.detach(|| writer.write_all(&bs))
-            .map(|_| bs.len())
+        let bs = py_bytes_like_into_buffer(bs.as_any())?;
+        let len = bs.len();
+        if len == 0 {
+            return Ok(0);
+        }
+        py.detach(|| get_runtime().handle().block_on(writer.send(bs)))
+            .map(|_| len)
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
@@ -335,13 +348,14 @@ impl File {
     /// A closed file cannot be used for further I/O operations.
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
         py.detach(|| {
+            let _guard = get_runtime().enter();
             if let FileState::Writer(w) = &mut self.0 {
-                w.close()?;
+                get_runtime().handle().block_on(w.close())?;
             }
             self.0 = FileState::Closed;
             Ok(())
         })
-        .map_err(format_pyerr_from_io_error)
+        .map_err(format_pyerr)
     }
 
     pub fn __enter__(slf: PyRef<'_, Self>) -> Py<Self> {
@@ -367,14 +381,16 @@ impl File {
     ///
     /// Notes
     /// -----
+    /// Passes pending input to the core writer. Storage chunks can remain
+    /// buffered until more data arrives or `close()` completes the write.
     /// Is a no-op if the file is not `writable`.
     pub fn flush(&mut self, py: Python<'_>) -> PyResult<()> {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
         } else if let FileState::Writer(w) = &mut self.0 {
-            match py.detach(|| w.flush()) {
+            match py.detach(|| get_runtime().handle().block_on(w.flush())) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(e.into()),
+                Err(e) => Err(std::io::Error::from(e).into()),
             }
         } else {
             Ok(())
@@ -437,18 +453,22 @@ impl File {
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
-    Reader(ocore::FuturesAsyncReader),
-    Writer(ocore::FuturesAsyncWriter),
+    Reader(Box<ocore::FuturesAsyncReader>),
+    Writer(ocore::BufferSink),
     Closed,
 }
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Reader(reader))))
+        Self(Arc::new(Mutex::new(AsyncFileState::Reader(Box::new(
+            reader,
+        )))))
     }
 
-    pub fn new_writer(writer: ocore::FuturesAsyncWriter) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(writer))))
+    pub fn new_writer(writer: ocore::Writer) -> Self {
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(
+            writer.into_sink(),
+        ))))
     }
 }
 #[pymethods]
@@ -519,7 +539,7 @@ impl AsyncFile {
         bs: &Bound<PyBytes>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
-        let bs = PyBackedBytes::from(bs.clone());
+        let bs = py_bytes_like_into_buffer(bs.as_any())?;
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
@@ -538,8 +558,11 @@ impl AsyncFile {
             };
 
             let len = bs.len();
+            if len == 0 {
+                return Ok(0);
+            }
             writer
-                .write_all(&bs)
+                .send(bs)
                 .await
                 .map(|_| len)
                 .map_err(|err| PyIOError::new_err(err.to_string()))
@@ -656,7 +679,7 @@ impl AsyncFile {
         future_into_py(py, async move {
             let mut state = state.lock().await;
             if let AsyncFileState::Writer(w) = &mut *state {
-                w.close().await.map_err(format_pyerr_from_io_error)?;
+                w.close().await.map_err(format_pyerr)?;
             }
             *state = AsyncFileState::Closed;
             Ok(())
@@ -747,5 +770,88 @@ impl AsyncFile {
             let state = state.lock().await;
             Ok(matches!(*state, AsyncFileState::Closed))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use asyncband::semaphore::Semaphore;
+    use futures::poll;
+    use ocore::layers::ConcurrentLimitLayer;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_cancelled_send_keeps_owned_buffer() {
+        Python::initialize();
+        let (buffer, source_ptr) = Python::attach(|py| {
+            let source = PyBytes::new(py, b"owned Python bytes");
+            let source_ptr = source.as_bytes().as_ptr();
+            let buffer = py_bytes_like_into_buffer(source.as_any()).unwrap();
+            (buffer, source_ptr)
+        });
+        let semaphore = Arc::new(Semaphore::new(0));
+        let op = ocore::Operator::via_iter("memory", [])
+            .unwrap()
+            .layer(ConcurrentLimitLayer::with_semaphore(semaphore.clone()));
+        let file = AsyncFile::new_writer(op.writer_with("cancelled").chunk(4).await.unwrap());
+        let mut state = file.0.lock().await;
+        let AsyncFileState::Writer(sink) = &mut *state else {
+            unreachable!();
+        };
+
+        // Poll into an underlying write blocked on the semaphore, then drop
+        // the caller's future. The sink must retain both the future and input.
+        {
+            let send = sink.send(buffer);
+            futures::pin_mut!(send);
+            assert!(poll!(send).is_pending());
+        }
+        semaphore.release(1);
+        sink.close().await.unwrap();
+        drop(state);
+        drop(file);
+
+        let result = op.read("cancelled").await.unwrap();
+        assert_eq!(result.to_vec(), b"owned Python bytes");
+        assert_eq!(result.current().as_ptr(), source_ptr);
+    }
+
+    struct RuntimeOwnedBytes(Arc<AtomicBool>);
+
+    impl AsRef<[u8]> for RuntimeOwnedBytes {
+        fn as_ref(&self) -> &[u8] {
+            b"pending input"
+        }
+    }
+
+    impl Drop for RuntimeOwnedBytes {
+        fn drop(&mut self) {
+            self.0.store(
+                tokio::runtime::Handle::try_current().is_ok(),
+                Ordering::SeqCst,
+            );
+        }
+    }
+
+    #[test]
+    fn test_unclosed_file_drops_pending_input_in_runtime() {
+        let op = ocore::Operator::via_iter("memory", []).unwrap();
+        let writer = get_runtime()
+            .block_on(async { op.writer_with("pending").chunk(256 * 1024).await })
+            .unwrap();
+        let dropped_in_runtime = Arc::new(AtomicBool::new(false));
+        let data = bytes::Bytes::from_owner(RuntimeOwnedBytes(dropped_in_runtime.clone()));
+        let mut file = File::new_writer(writer);
+        let FileState::Writer(sink) = &mut file.0 else {
+            unreachable!();
+        };
+        get_runtime().block_on(sink.send(data.into())).unwrap();
+        assert!(!dropped_in_runtime.load(Ordering::SeqCst));
+        assert!(tokio::runtime::Handle::try_current().is_err());
+        drop(file);
+        assert!(dropped_in_runtime.load(Ordering::SeqCst));
     }
 }

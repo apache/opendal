@@ -316,6 +316,83 @@ class LifecycleTests(unittest.TestCase):
             release.comment_once("discussion", marker, "Vote now")
             api.assert_not_called()
 
+    def test_sync_announces_vote_without_editing_existing_discussion(self):
+        discussion = {
+            "id": "discussion",
+            "title": f"Release candidate: {self.candidate.rc}",
+            "body": "Candidate uploaded; RM verification is next.",
+        }
+        comments = []
+
+        def github_read(*args):
+            return json.dumps([{"data": {"node": {"comments": {"nodes": comments}}}}])
+
+        def github_write(path, payload):
+            self.assertIn("addDiscussionComment(", payload["query"])
+            comments.append({"body": payload["variables"]["body"]})
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"GITHUB_OUTPUT": f"{directory}/outputs"}),
+            patch.object(release, "candidates", return_value=[self.candidate.rc]),
+            patch.object(release.Candidate, "load", return_value=self.candidate),
+            patch.object(
+                release.Candidate,
+                "atr",
+                return_value=self.atr
+                | {"phase": "release_candidate", "vote_resolved": None},
+            ),
+            patch.object(release, "version_notes", return_value="Package versions"),
+            patch.object(
+                release, "discussion_data", return_value=("repo", {}, [discussion])
+            ),
+            patch.object(release, "gh", side_effect=github_read),
+            patch.object(release, "api", side_effect=github_write),
+        ):
+            release.sync()
+            release.sync()
+        self.assertEqual(len(comments), 1)
+        self.assertIn("Voting is now open", comments[0]["body"])
+        self.assertEqual(
+            discussion["body"], "Candidate uploaded; RM verification is next."
+        )
+
+    def test_publication_status_comments_only_change_with_progress(self):
+        comments = []
+
+        def github_write(path, payload):
+            self.assertIn("addDiscussionComment(", payload["query"])
+            comments.append({"body": payload["variables"]["body"]})
+
+        with (
+            patch.object(release, "version_notes", return_value="Package versions"),
+            patch.object(release, "discussion", return_value={"id": "discussion"}),
+            patch.object(
+                release,
+                "gh",
+                side_effect=lambda *args: json.dumps(
+                    [{"data": {"node": {"comments": {"nodes": comments}}}}]
+                ),
+            ),
+            patch.object(release, "api", side_effect=github_write),
+        ):
+            release.notice(self.candidate, self.atr, "Publication is running.")
+            release.notice(self.candidate, self.atr, "Publication is running.")
+            release.notice(
+                self.candidate,
+                self.atr | {"phase": "release"},
+                "Publication is complete.",
+            )
+            release.notice(
+                self.candidate,
+                self.atr | {"phase": "release"},
+                "Publication is complete.",
+            )
+        self.assertEqual(len(comments), 2)
+        self.assertIn("Publication is running.", comments[0]["body"])
+        self.assertIn("Publication is complete.", comments[1]["body"])
+        self.assertIn("tree/releases/0.59.3)", comments[1]["body"])
+
     def test_baseline_does_not_require_git_ancestry(self):
         releases = [
             {

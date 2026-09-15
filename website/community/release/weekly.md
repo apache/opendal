@@ -12,8 +12,9 @@ from the selected branch commit at the time of dispatch.
 Preparation creates no version PR and requires no manual merge.
 
 The release manager then follows the [release procedure](release.md) to verify
-the candidate, start and resolve the vote. Hourly synchronization then finishes
-publication and opens the version-sync PR.
+the candidate and start the vote with automatic resolution and publication
+enabled in ATR. Hourly synchronization then finishes publication and opens the
+version-sync PR after ATR records a passing result.
 
 ## Preparation
 
@@ -141,13 +142,49 @@ revision into these commands:
 
 ```bash
 atr check status opendal 0.59.3-rc.1 00001
-atr vote start opendal 0.59.3-rc.1 00001 -m dev@opendal.apache.org --auto-publish
+uv run --python 3.13 --with "apache-trusted-releases @ git+https://github.com/apache/tooling-releases-client" python - <<'PYTHON'
+from atrclient import api
+from atrclient.models.api import VoteStartArgs
+
+task = api.vote_start(VoteStartArgs(
+    project="opendal",
+    version="0.59.3-rc.1",
+    revision="00001",
+    email_to="dev@opendal.apache.org",
+    automatic_resolve_when_finished=True,
+    automatic_publish_when_resolved=True,
+    notify_when_finished=True,
+)).task
+print(task.model_dump_json(indent=2))
+assert task.task_args["automatic_resolve_when_finished"] is True
+assert task.task_args["automatic_publish_when_resolved"] is True
+PYTHON
+```
+
+This runs the official ATR Python client with the same authentication configuration
+as `atr`, and checks both automation flags in the returned task. The dedicated
+`atr vote start --auto-publish` command only enables publication, not resolution;
+the generic `atr api post` command sends strings instead of the required booleans.
+If a flag check fails, inspect the task in ATR; do not repeat the start command.
+To read the task again, use `atr api get /task/get/TASK_ID`, replacing `TASK_ID`
+with the returned task ID. Do not repeat the start command on an active vote.
+
+At the scheduled vote end, ATR checks its Trusted Vote ballots and automatically
+resolves a passing vote, then publishes the approved source files. If the vote
+does not pass at that check, ATR leaves it unresolved for manual follow-up. Later
+ballots do not guarantee another automatic attempt. End notifications are enabled
+so the release manager can follow up. GitHub and email discussion replies do not
+count as ATR Trusted Vote ballots; follow ATR's instructions to cast a ballot.
+
+For manual recovery, inspect the tally and resolve according to the result:
+
+```bash
 atr vote tabulate opendal 0.59.3-rc.1
 atr vote resolve opendal 0.59.3-rc.1 passed
 ```
 
-Read the tally and resolve with `passed`, `failed` or `cancelled` according to the
-formal result. Agents use the same CLI after the RM authorizes the voting action;
+Use ATR's browser controls to cancel a vote or inspect the tally if the CLI is
+unavailable. Agents use the same CLI after the RM authorizes the voting action;
 credentials belong in the CLI's hidden prompt. The CLI is an interactive RM tool;
 CI reads ATR's JSON API and uses its trusted-publisher announcement endpoint.
 
@@ -155,7 +192,10 @@ CI reads ATR's JSON API and uses its trusted-publisher announcement endpoint.
 It keeps the candidate Discussion's opening post unchanged and appends status
 changes as comments, including one reminder per ATR vote round. Unchanged status
 does not generate another comment. Follow the latest replies and ATR for current
-progress. GitHub subscribers receive comments through their notification
+progress. Failure notices link to the workflow run lists so hourly retries do not
+change the notice solely because the run ID changed. Scheduled publication runs
+appear under `release_lifecycle.yml`; manual runs appear under `release_publish.yml`.
+GitHub subscribers receive comments through their notification
 settings. The official vote remains in ATR and the dev mailing-list thread; the
 Discussion does not create another ballot. To synchronize sooner:
 
@@ -163,10 +203,10 @@ Discussion does not create another ballot. To synchronize sooner:
 gh workflow run release_lifecycle.yml --repo apache/opendal --ref main
 ```
 
-Synchronization never starts or resolves a vote. A failed or cancelled vote cannot
-trigger publication. `--auto-publish` lets ATR publish the approved source files
-when the vote passes. If omitted, the RM must publish the approved files in ATR
-before the final announcement can succeed.
+GitHub synchronization never starts or resolves a vote; ATR owns those actions.
+A failed or cancelled vote cannot trigger publication. Existing votes retain
+their original settings: changing the command for future candidates does not
+enable automatic resolution on a vote that has already started.
 
 ## Recovering an existing candidate
 

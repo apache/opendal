@@ -505,7 +505,6 @@ impl Service for CosBackend {
                 &self.capability(),
                 options::CopyOptions {
                     source_version: Some(version.to_owned()),
-                    if_not_exists: args.if_not_exists(),
                     ..Default::default()
                 },
             )?;
@@ -520,13 +519,6 @@ impl Service for CosBackend {
                     resp,
                 )),
             };
-        }
-
-        if args.if_not_exists() {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "if_not_exists requires a restore version",
-            ));
         }
 
         let resp = self
@@ -568,7 +560,7 @@ impl Service for CosBackend {
         let delete_args = OpDelete::from_options(
             &self.capability(),
             options::DeleteOptions {
-                version: Some(marker.version_id.clone()),
+                version: Some(marker.version_id),
                 ..Default::default()
             },
         )?;

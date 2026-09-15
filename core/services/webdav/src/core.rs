@@ -359,6 +359,7 @@ impl WebdavCore {
         ctx: &OperationContext,
         from: &str,
         to: &str,
+        if_not_exists: bool,
     ) -> Result<Response<Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(ctx, from).await?;
@@ -378,7 +379,7 @@ impl WebdavCore {
         }
 
         req = req.header(HEADER_DESTINATION, target_uri);
-        req = req.header(HEADER_OVERWRITE, "T");
+        req = req.header(HEADER_OVERWRITE, if if_not_exists { "F" } else { "T" });
 
         let req = req
             .extension(Operation::Rename)

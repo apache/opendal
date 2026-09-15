@@ -522,9 +522,7 @@ def publish_builds(candidate):
             and r["event"] in {"push", "workflow_dispatch"}
         ]
         if not runs:
-            fields = (
-                {"release_type": "none"} if workflow == "release_dotnet.yml" else {}
-            )
+            fields = {}
             if workflow == "release_nodejs.yml":
                 fields = {"nodejs-publish": "true", "nodejs-publish-dry-run": "false"}
             if workflow == "docs.yml":

@@ -86,7 +86,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_createBytes
 
 /// # Safety
 ///
-/// `reader` must be a live handle allocated by `Operator.reader`, with no calls in progress.
+/// `reader` must be a live handle allocated by `Operator.createReader`, with no calls in progress.
 /// It must not be used after this call.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_disposeReader<'local>(

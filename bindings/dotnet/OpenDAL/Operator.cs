@@ -37,14 +37,9 @@ namespace OpenDAL;
 /// </summary>
 public partial class Operator : SafeHandle
 {
-    private Lazy<OperatorInfo> info;
+    private readonly OperatorInfo info;
 
-    private Operator() : base(IntPtr.Zero, true)
-    {
-        info = CreateInfoLazy();
-    }
-
-    private Operator(IntPtr nativeHandle) : this()
+    private Operator(IntPtr nativeHandle) : base(IntPtr.Zero, true)
     {
         if (nativeHandle == IntPtr.Zero)
         {
@@ -52,6 +47,7 @@ public partial class Operator : SafeHandle
         }
 
         SetHandle(nativeHandle);
+        info = CreateOperatorInfo();
     }
 
     /// <summary>
@@ -64,7 +60,7 @@ public partial class Operator : SafeHandle
         get
         {
             ObjectDisposedException.ThrowIf(IsInvalid, this);
-            return info.Value;
+            return info;
         }
     }
 
@@ -92,26 +88,8 @@ public partial class Operator : SafeHandle
         Executor? executor = null) : base(IntPtr.Zero, true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
-        info = CreateInfoLazy();
-
-        using var nativeOptionsHandle = CreateConstructorOptionsHandle(options);
-        var executorAddRefed = false;
-        try
-        {
-            executor?.DangerousAddRef(ref executorAddRefed);
-            var result = NativeMethods.operator_construct(
-                scheme,
-                GetOptionsHandle(nativeOptionsHandle),
-                executor?.DangerousGetHandle() ?? IntPtr.Zero);
-            SetHandle(ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result));
-        }
-        finally
-        {
-            if (executorAddRefed)
-            {
-                executor!.DangerousRelease();
-            }
-        }
+        SetHandle(Construct(scheme, options, executor));
+        info = CreateOperatorInfo();
     }
 
     /// <summary>
@@ -124,11 +102,36 @@ public partial class Operator : SafeHandle
     /// <param name="config">Typed service configuration for the target backend service.</param>
     /// <exception cref="ArgumentNullException"><paramref name="config"/> is null.</exception>
     /// <exception cref="OpenDALException">Native operator construction fails.</exception>
-    public Operator(IServiceConfig config, Executor? executor = null) : this(
-        config?.Scheme ?? throw new ArgumentNullException(nameof(config)),
-        config.ToOptions(),
-        executor)
+    public Operator(IServiceConfig config, Executor? executor = null) : base(IntPtr.Zero, true)
     {
+        ArgumentNullException.ThrowIfNull(config);
+        SetHandle(Construct(config.Scheme, config.ToOptions(), executor));
+        info = CreateOperatorInfo();
+    }
+
+    private static IntPtr Construct(
+        string scheme,
+        IReadOnlyDictionary<string, string>? options,
+        Executor? executor)
+    {
+        using var nativeOptionsHandle = CreateConstructorOptionsHandle(options);
+        var executorAddRefed = false;
+        try
+        {
+            executor?.DangerousAddRef(ref executorAddRefed);
+            var result = NativeMethods.operator_construct(
+                scheme,
+                GetOptionsHandle(nativeOptionsHandle),
+                executor?.DangerousGetHandle() ?? IntPtr.Zero);
+            return ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result);
+        }
+        finally
+        {
+            if (executorAddRefed)
+            {
+                executor!.DangerousRelease();
+            }
+        }
     }
 
     /// <summary>
@@ -1114,15 +1117,6 @@ public partial class Operator : SafeHandle
     private static IntPtr GetOptionsHandle(NativeOptionsHandle? options)
     {
         return options is null ? IntPtr.Zero : options.DangerousGetHandle();
-    }
-
-    /// <summary>
-    /// Creates the lazily-evaluated operator info loader.
-    /// </summary>
-    /// <returns>A thread-safe lazy loader for <see cref="OperatorInfo"/>.</returns>
-    private Lazy<OperatorInfo> CreateInfoLazy()
-    {
-        return new Lazy<OperatorInfo>(CreateOperatorInfo, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     /// <summary>

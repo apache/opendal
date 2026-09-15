@@ -28,8 +28,8 @@ import java.util.Objects;
  * Reading a closed stream throws {@link IllegalStateException}.
  */
 public class OperatorInputStream extends InputStream {
-    private static class BytesIterator extends NativeObject {
-        private BytesIterator(long nativeHandle) {
+    private static class NativeIteratorHandle extends NativeObject {
+        private NativeIteratorHandle(long nativeHandle) {
             super(nativeHandle);
         }
 
@@ -39,19 +39,19 @@ public class OperatorInputStream extends InputStream {
         }
     }
 
-    private final BytesIterator reader;
+    private final NativeIteratorHandle reader;
 
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
     OperatorInputStream(long nativeHandle) {
-        this.reader = new BytesIterator(nativeHandle);
+        this.reader = new NativeIteratorHandle(nativeHandle);
     }
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         Objects.requireNonNull(options, "options");
         try (OperatorReader source = operator.createReader(path)) {
-            this.reader = new BytesIterator(source.createBytesIterator(options.offset, options.length));
+            this.reader = new NativeIteratorHandle(source.createBytesIterator(options.offset, options.length));
         }
     }
 

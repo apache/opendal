@@ -46,7 +46,7 @@ ReaderOptions options = ReaderOptions.builder()
         .concurrent(4)
         .prefetch(2)
         .build();
-try (OperatorReader reader = op.reader("path/to/file", options)) {
+try (OperatorReader reader = op.createReader("path/to/file", options)) {
     byte[] first = reader.read(0, 1024);
     byte[] next = reader.read(1024, 1024);
 }

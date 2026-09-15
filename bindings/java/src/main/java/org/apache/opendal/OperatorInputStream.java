@@ -28,8 +28,8 @@ import java.util.Objects;
  * Reading a closed stream throws {@link IllegalStateException}.
  */
 public class OperatorInputStream extends InputStream {
-    private static class NativeIteratorHandle extends NativeObject {
-        private NativeIteratorHandle(long nativeHandle) {
+    private static class NativeIterator extends NativeObject {
+        private NativeIterator(long nativeHandle) {
             super(nativeHandle);
         }
 
@@ -39,29 +39,29 @@ public class OperatorInputStream extends InputStream {
         }
     }
 
-    private final NativeIteratorHandle iteratorHandle;
+    private final NativeIterator iterator;
 
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
     OperatorInputStream(long nativeHandle) {
-        this.iteratorHandle = new NativeIteratorHandle(nativeHandle);
+        this.iterator = new NativeIterator(nativeHandle);
     }
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         Objects.requireNonNull(options, "options");
         try (OperatorReader source = operator.createReader(path)) {
-            this.iteratorHandle = new NativeIteratorHandle(source.createBytesIterator(options.offset, options.length));
+            this.iterator = new NativeIterator(source.createBytesIterator(options.offset, options.length));
         }
     }
 
     @Override
     public synchronized int read() {
-        if (iteratorHandle.isDisposed()) {
+        if (iterator.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
         if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(iteratorHandle.nativeHandle);
+            bytes = readNextBytes(iterator.nativeHandle);
             offset = 0;
         }
 
@@ -80,13 +80,13 @@ public class OperatorInputStream extends InputStream {
             throw new IndexOutOfBoundsException(
                     String.format("Range [%s, %<s + %s) out of bounds for length %s", off, len, b.length));
         }
-        if (iteratorHandle.isDisposed()) {
+        if (iterator.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
         int read = 0;
         while (len > 0) {
             if (bytes != null && offset >= bytes.length) {
-                bytes = readNextBytes(iteratorHandle.nativeHandle);
+                bytes = readNextBytes(iterator.nativeHandle);
                 offset = 0;
             }
 
@@ -103,7 +103,7 @@ public class OperatorInputStream extends InputStream {
         }
 
         if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(iteratorHandle.nativeHandle);
+            bytes = readNextBytes(iterator.nativeHandle);
             offset = 0;
         }
 
@@ -112,10 +112,10 @@ public class OperatorInputStream extends InputStream {
 
     @Override
     public synchronized void close() {
-        iteratorHandle.close();
+        iterator.close();
     }
 
-    private static native void disposeIterator(long iteratorHandle);
+    private static native void disposeIterator(long nativeHandle);
 
-    private static native byte[] readNextBytes(long iteratorHandle);
+    private static native byte[] readNextBytes(long nativeHandle);
 }

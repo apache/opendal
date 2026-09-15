@@ -145,7 +145,12 @@ and simple index show the new release.
 
 6. Create GitHub Release for `v${opendal_version}`:
    - Select the existing final tag at the approved RC commit.
+   - Use `v${opendal_version}` as the release title.
    - Generate release notes.
+   - Check the previous final tag and compare the listed PRs with that release
+     range. Unlabeled PRs belong in the catch-all category; they must not vanish
+     from the notes. Existing releases need an explicit notes update after a
+     generation fix.
    - Prepend upgrade notes only for components with breaking changes.
 
 7. Send announcement:

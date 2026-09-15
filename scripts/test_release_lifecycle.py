@@ -146,10 +146,15 @@ class LifecycleTests(unittest.TestCase):
             with self.subTest(outcome=outcome):
 
                 def distribute(candidate, outcome=outcome):
-                    self.assertIn(
-                        "repos/apache/opendal/releases",
-                        [call.args[0] for call in github.call_args_list],
-                    )
+                    created = [
+                        call.args[1]
+                        for call in github.call_args_list
+                        if call.args[0] == "repos/apache/opendal/releases"
+                    ]
+                    self.assertEqual(len(created), 1)
+                    self.assertEqual(created[0]["name"], "v0.59.3")
+                    self.assertEqual(created[0]["tag_name"], "v0.59.3")
+                    self.assertTrue(created[0]["generate_release_notes"])
                     self.assertEqual(
                         http.call_args.args[0],
                         f"{release.ATR}/api/publisher/release/announce",

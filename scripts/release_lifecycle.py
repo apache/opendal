@@ -774,7 +774,7 @@ def publish(candidate):
             f"repos/{REPO}/releases",
             {
                 "tag_name": f"v{candidate.version}",
-                "name": f"Apache OpenDAL {candidate.version}",
+                "name": f"v{candidate.version}",
                 "body": body + "\n" + version_notes(candidate),
                 "draft": False,
                 "prerelease": False,

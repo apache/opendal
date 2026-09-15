@@ -93,9 +93,15 @@ jobs:
           echo "CANDIDATE_BRANCH=releases/$RC" >> "$GITHUB_ENV"
           python3 - <<'PYTHON'
           import os
+          import sys
           from pathlib import Path
+
+          sys.path.insert(0, "scripts")
+          import release_lifecycle as release
+
           p = Path("CHANGELOG.md")
           p.write_text(f"# v{os.environ['RC'].split('-rc.')[0]}\n\n- [Changes since {os.environ['BASELINE']}](https://github.com/apache/opendal/compare/{os.environ['BASELINE']}...{os.environ['SOURCE_SHA']})\n\n" + p.read_text())
+          release.sync_core_changelog(Path("."))
           PYTHON
       - name: Push prepared candidate
         id: candidate

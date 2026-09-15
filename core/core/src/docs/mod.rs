@@ -31,6 +31,8 @@ pub mod performance;
 pub mod specs;
 
 /// Changes log for all OpenDAL released versions.
+// Keep `core/core/CHANGELOG.md` as a regular file. A symlink to the
+// repository changelog is not enough for `include_str!`.
 #[doc = include_str!("../../CHANGELOG.md")]
 #[cfg(not(doctest))]
 #[allow(rustdoc::broken_intra_doc_links, rustdoc::invalid_rust_codeblocks)]

@@ -54,6 +54,12 @@ jobs:
       - name: Add wasm target
         run: rustup target add wasm32-unknown-unknown
 
+      - name: Check opendal-core changelog
+        run: |
+          test -f core/core/CHANGELOG.md
+          test ! -L core/core/CHANGELOG.md
+          cmp -s CHANGELOG.md core/core/CHANGELOG.md
+
       - name: Cargo doc
         working-directory: core
         env:

@@ -109,7 +109,7 @@ running the command.
 
 ### Update docs
 
-- Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information.
+- Update `CHANGELOG.md`, refer to [Generate Release Note](reference/generate_release_note.md) for more information. Copy that file to `core/core/CHANGELOG.md` as a regular file so rustc `include_str!` can embed it.
 - Update `core/core/src/docs/upgrade.md` if there are breaking changes in `core`
 - Make sure every released bindings' `upgrade.md` has been updated.
     - java: `bindings/java/upgrade.md`

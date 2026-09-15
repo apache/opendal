@@ -58,6 +58,20 @@ def command(*args, data=None, cwd=None):
     return result.stdout.strip()
 
 
+def sync_core_changelog(root: Path) -> None:
+    """Copy the repository changelog into opendal-core as a regular file.
+
+    rustc `include_str!` reads `core/core/CHANGELOG.md`. A symlink to the
+    repository root fails when that target is missing from the checkout.
+    """
+    src = root / "CHANGELOG.md"
+    dst = root / "core" / "core" / "CHANGELOG.md"
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    if dst.is_symlink() or dst.exists():
+        dst.unlink()
+    dst.write_bytes(src.read_bytes())
+
+
 def gh(*args):
     return command("gh", *args)
 
@@ -640,6 +654,7 @@ def sync_versions(candidate):
                     changelog.write_text(
                         f"{heading}\n\n- [Release notes](https://github.com/{REPO}/releases/tag/v{candidate.version})\n\n{text}"
                     )
+                sync_core_changelog(Path(directory))
                 if not command("git", "status", "--porcelain", cwd=directory):
                     return "main already includes the released versions"
                 command("git", "add", "--all", cwd=directory)

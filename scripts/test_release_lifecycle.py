@@ -39,6 +39,18 @@ class LifecycleTests(unittest.TestCase):
             "current_vote_seq": 1,
         }
 
+    def test_sync_core_changelog_replaces_symlink_with_regular_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            src = root / "CHANGELOG.md"
+            dst = root / "core" / "core" / "CHANGELOG.md"
+            dst.parent.mkdir(parents=True)
+            src.write_text("notes\n")
+            dst.symlink_to("../../CHANGELOG.md")
+            release.sync_core_changelog(root)
+            self.assertFalse(dst.is_symlink())
+            self.assertEqual(dst.read_text(), "notes\n")
+
     def test_rc_branch_and_tag_must_agree(self):
         with (
             patch.object(release, "ref_sha", side_effect=["a" * 40, "b" * 40]),

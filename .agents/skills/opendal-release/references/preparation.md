@@ -47,6 +47,7 @@ When preparing a bump PR:
 
 - Run `just update-version` only after confirming the desired package versions.
 - Update `CHANGELOG.md`.
+- Copy `CHANGELOG.md` to `core/core/CHANGELOG.md` as a regular file, not a symlink.
 - Update `core/core/src/docs/upgrade.md` only for core breaking changes.
 - Update binding upgrade docs only for released bindings that have breaking changes:
   - `bindings/java/upgrade.md`

@@ -154,7 +154,6 @@ jobs:
             args=()
             case "$workflow" in
               release_nodejs.yml) args=(-f nodejs-publish=false -f nodejs-publish-dry-run=false) ;;
-              release_dotnet.yml) args=(-f release_type=none) ;;
               docs.yml) args=(-f release_version="v$RC" -f deploy-nightlies=false) ;;
             esac
             gh workflow run "$workflow" --repo apache/opendal --ref "v$RC" "${args[@]}"

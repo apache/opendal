@@ -235,8 +235,8 @@ before dispatching: it must support `workflow_dispatch` there, not only on main.
 Use the workflow list and inputs in the weekly `builds` job as the maintained
 reference for other missing builds. In particular, NodeJS uses
 `nodejs-publish=false` and `nodejs-publish-dry-run=false` (the RC tag enables its
-dry run), .NET uses `release_type=none`, and Docs uses the RC tag as
-`release_version` with `deploy-nightlies=false`. An old tag without a required
+dry run), and Docs uses the RC tag as `release_version` with
+`deploy-nightlies=false`. An old tag without a required
 input or dispatch trigger needs a separate recovery decision; do not move it.
 
 A successful dispatch only confirms acceptance. Find the resulting run and follow

@@ -120,10 +120,10 @@ public class Operator extends NativeObject {
      *
      * @param path file path
      * @return a reader that the caller must close
-     * @see #reader(String, ReaderOptions)
+     * @see #createReader(String, ReaderOptions)
      */
-    public OperatorReader reader(String path) {
-        return reader(path, ReaderOptions.builder().build());
+    public OperatorReader createReader(String path) {
+        return createReader(path, ReaderOptions.builder().build());
     }
 
     /**
@@ -142,40 +142,23 @@ public class Operator extends NativeObject {
      *     (IsADirectory), or the service does not support reads or a requested option (Unsupported)
      * @throws IllegalStateException if this operator is closed
      */
-    public OperatorReader reader(String path, ReaderOptions options) {
+    public OperatorReader createReader(String path, ReaderOptions options) {
         if (isDisposed()) {
             throw new IllegalStateException("Operator is closed");
         }
         Objects.requireNonNull(path, "path");
         Objects.requireNonNull(options, "options");
-        return new OperatorReader(reader(nativeHandle, path, options));
+        return new OperatorReader(createReader(nativeHandle, path, options));
     }
 
-    private static native long reader(long operator, String path, ReaderOptions options);
+    private static native long createReader(long operator, String path, ReaderOptions options);
 
     public OperatorInputStream createInputStream(String path) {
-        return createInputStream(
-                path, ReadOptions.builder().build(), ReaderOptions.builder().build());
+        return createInputStream(path, ReadOptions.builder().build());
     }
 
     public OperatorInputStream createInputStream(String path, ReadOptions options) {
-        return createInputStream(path, options, ReaderOptions.builder().build());
-    }
-
-    /**
-     * Creates a stream over the requested range using the supplied reader execution options.
-     * The stream ends at the range boundary. Closing it releases its native reader.
-     *
-     * @param path object path
-     * @param readOptions logical offset and length
-     * @param readerOptions internal chunk request and buffering controls
-     * @return a stream that the caller must close
-     * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
-     * @see #reader(String, ReaderOptions)
-     * @see OperatorReader#createInputStream(ReadOptions)
-     */
-    public OperatorInputStream createInputStream(String path, ReadOptions readOptions, ReaderOptions readerOptions) {
-        return new OperatorInputStream(this, path, readOptions, readerOptions);
+        return new OperatorInputStream(this, path, options);
     }
 
     public void delete(String path) {

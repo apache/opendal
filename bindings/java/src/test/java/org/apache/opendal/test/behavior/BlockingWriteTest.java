@@ -29,7 +29,7 @@ import org.apache.opendal.Capability;
 import org.apache.opendal.Metadata;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.OperatorInputStream;
-import org.apache.opendal.ReadOptions;
+import org.apache.opendal.OperatorReader;
 import org.apache.opendal.ReaderOptions;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.BeforeAll;
@@ -79,8 +79,8 @@ class BlockingWriteTest extends BehaviorTestBase {
                     .chunk(256 * 1024L)
                     .prefetch(2)
                     .build();
-            try (final OperatorInputStream in =
-                    op().createInputStream(path, ReadOptions.builder().build(), options)) {
+            try (final OperatorReader reader = op().createReader(path, options);
+                    final OperatorInputStream in = reader.createInputStream()) {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo(content);
                 assertThat(in.read()).isEqualTo(-1);
             }

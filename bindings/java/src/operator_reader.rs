@@ -27,7 +27,7 @@ use crate::error::ThrowException;
 ///
 /// `op` must point to a live blocking operator for the duration of this call.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_Operator_reader<'local>(
+pub unsafe extern "system" fn Java_org_apache_opendal_Operator_createReader<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *const blocking::Operator,

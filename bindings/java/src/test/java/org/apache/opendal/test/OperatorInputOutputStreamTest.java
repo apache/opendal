@@ -33,6 +33,7 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorOutputStream;
+import org.apache.opendal.OperatorReader;
 import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ReaderOptions;
 import org.apache.opendal.ServiceConfig;
@@ -110,8 +111,8 @@ public class OperatorInputOutputStreamTest {
                     .chunk(64 * 1024L)
                     .prefetch(2)
                     .build();
-            try (final OperatorInputStream in =
-                    op.createInputStream(path, ReadOptions.builder().build(), options)) {
+            try (final OperatorReader reader = op.createReader(path, options);
+                    final OperatorInputStream in = reader.createInputStream()) {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo(content);
                 assertThat(in.read()).isEqualTo(-1);
             }
@@ -125,14 +126,14 @@ public class OperatorInputOutputStreamTest {
         try (final Operator op = Operator.of(fs)) {
             final String path = "chunked-range.txt";
             op.write(path, "0123456789");
-            final ReadOptions range = ReadOptions.builder().offset(4).length(5).build();
             final ReaderOptions options = ReaderOptions.builder()
                     .concurrent(2)
                     .chunk(2)
                     .prefetch(1)
                     .contentLengthHint(10)
                     .build();
-            try (final OperatorInputStream in = op.createInputStream(path, range, options)) {
+            try (final OperatorReader reader = op.createReader(path, options);
+                    final OperatorInputStream in = reader.createInputStream(4, 5)) {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo("45678".getBytes(StandardCharsets.UTF_8));
                 assertThat(in.read()).isEqualTo(-1);
             }
@@ -148,8 +149,8 @@ public class OperatorInputOutputStreamTest {
             op.write(path, new byte[0]);
             final ReaderOptions options =
                     ReaderOptions.builder().chunk(2).contentLengthHint(0).build();
-            try (final OperatorInputStream in =
-                    op.createInputStream(path, ReadOptions.builder().build(), options)) {
+            try (final OperatorReader reader = op.createReader(path, options);
+                    final OperatorInputStream in = reader.createInputStream()) {
                 assertThat(in.read()).isEqualTo(-1);
             }
         }
@@ -172,8 +173,8 @@ public class OperatorInputOutputStreamTest {
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         try (final Operator op = Operator.of(fs)) {
             assertThatThrownBy(() -> {
-                        try (final OperatorInputStream in = op.createInputStream(
-                                "invalid-options", ReadOptions.builder().build(), options)) {
+                        try (final OperatorReader reader = op.createReader("invalid-options", options);
+                                final OperatorInputStream in = reader.createInputStream()) {
                             in.read();
                         }
                     })

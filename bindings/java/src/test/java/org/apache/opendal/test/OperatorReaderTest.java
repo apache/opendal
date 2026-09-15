@@ -29,7 +29,6 @@ import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
 import org.apache.opendal.OperatorReader;
-import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ReaderOptions;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
@@ -48,7 +47,7 @@ public class OperatorReaderTest {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
             op.write("file", "0123456789");
-            reader = op.reader(
+            reader = op.createReader(
                     "file",
                     ReaderOptions.builder()
                             .concurrent(2)
@@ -59,8 +58,7 @@ public class OperatorReaderTest {
         }
         try (OperatorReader r = reader) {
             assertThat(r.read(4, 5)).isEqualTo("45678".getBytes(StandardCharsets.UTF_8));
-            assertThat(r.read(ReadOptions.builder().offset(1).length(2).build()))
-                    .isEqualTo("12".getBytes(StandardCharsets.UTF_8));
+            assertThat(r.read(1, 2)).isEqualTo("12".getBytes(StandardCharsets.UTF_8));
             assertThat(r.read(8, -1)).isEqualTo("89".getBytes(StandardCharsets.UTF_8));
             assertThat(r.read(0, 0)).isEmpty();
             assertThat(r.read()).isEqualTo("0123456789".getBytes(StandardCharsets.UTF_8));
@@ -74,7 +72,7 @@ public class OperatorReaderTest {
     void testInvalidRange(long offset, long length) {
         try (Operator op = Operator.of(
                         ServiceConfig.Fs.builder().root(tempDir.toString()).build());
-                OperatorReader reader = op.reader("missing")) {
+                OperatorReader reader = op.createReader("missing")) {
             assertThatThrownBy(() -> reader.read(offset, length))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RangeNotSatisfied));
             assertThatThrownBy(() -> reader.createInputStream(offset, length))
@@ -86,7 +84,7 @@ public class OperatorReaderTest {
     void testMissingFileFailsOnRead() {
         try (Operator op = Operator.of(
                         ServiceConfig.Fs.builder().root(tempDir.toString()).build());
-                OperatorReader reader = op.reader("missing")) {
+                OperatorReader reader = op.createReader("missing")) {
             assertThatThrownBy(reader::read).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
         }
     }
@@ -97,9 +95,8 @@ public class OperatorReaderTest {
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
             op.write("file", "0123456789");
             try (OperatorReader reader =
-                    op.reader("file", ReaderOptions.builder().chunk(2).build())) {
-                try (OperatorInputStream in = reader.createInputStream(
-                        ReadOptions.builder().offset(4).length(3).build())) {
+                    op.createReader("file", ReaderOptions.builder().chunk(2).build())) {
+                try (OperatorInputStream in = reader.createInputStream(4, 3)) {
                     assertThat(IOUtils.toByteArray(in)).isEqualTo("456".getBytes(StandardCharsets.UTF_8));
                 }
                 assertThat(reader.read(0, 2)).isEqualTo("01".getBytes(StandardCharsets.UTF_8));
@@ -125,7 +122,7 @@ public class OperatorReaderTest {
     void testZeroLengthStreamReads() {
         try (Operator op = Operator.of(
                         ServiceConfig.Fs.builder().root(tempDir.toString()).build());
-                OperatorReader reader = op.reader("missing");
+                OperatorReader reader = op.createReader("missing");
                 OperatorInputStream in = reader.createInputStream(0, 0)) {
             byte[] bytes = new byte[1];
             assertThat(in.read(bytes, 0, 0)).isZero();
@@ -138,7 +135,7 @@ public class OperatorReaderTest {
     void testUnsupportedReaderCondition() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
-            assertThatThrownBy(() -> op.reader(
+            assertThatThrownBy(() -> op.createReader(
                             "missing", ReaderOptions.builder().ifMatch("etag").build()))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unsupported));
         }
@@ -148,7 +145,7 @@ public class OperatorReaderTest {
     void testInvalidTimestamp() {
         try (Operator op =
                 Operator.of(ServiceConfig.Fs.builder().root(tempDir.toString()).build())) {
-            assertThatThrownBy(() -> op.reader(
+            assertThatThrownBy(() -> op.createReader(
                             "missing",
                             ReaderOptions.builder().ifModifiedSince(Instant.MIN).build()))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.Unexpected));

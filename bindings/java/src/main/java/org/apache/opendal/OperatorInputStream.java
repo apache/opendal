@@ -49,22 +49,9 @@ public class OperatorInputStream extends InputStream {
     }
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
-        this(operator, path, options, ReaderOptions.builder().build());
-    }
-
-    /**
-     * Creates a stream with a logical range and independent execution controls.
-     *
-     * @param operator operator that reads the object
-     * @param path object path
-     * @param readOptions logical offset and length
-     * @param readerOptions internal chunk request and buffering controls
-     * @throws OpenDALException if reader options are invalid (ConfigInvalid) or creation fails
-     */
-    public OperatorInputStream(Operator operator, String path, ReadOptions readOptions, ReaderOptions readerOptions) {
-        Objects.requireNonNull(readOptions, "readOptions");
-        try (OperatorReader source = operator.reader(path, readerOptions)) {
-            this.reader = new BytesIterator(source.createBytesIterator(readOptions.offset, readOptions.length));
+        Objects.requireNonNull(options, "options");
+        try (OperatorReader source = operator.createReader(path)) {
+            this.reader = new BytesIterator(source.createBytesIterator(options.offset, options.length));
         }
     }
 

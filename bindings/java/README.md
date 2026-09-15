@@ -94,13 +94,13 @@ Use the synchronous `Operator` for blocking calls, or `AsyncOperator` for
 
 ## Reuse a reader
 
-`Operator.reader(path, readerOptions)` creates an `OperatorReader` for repeated
+`Operator.createReader(path, readerOptions)` creates an `OperatorReader` for repeated
 reads. `ReaderOptions` selects versions, conditions, and execution controls;
 each call selects its own byte range.
 
 ```java
 ReaderOptions options = ReaderOptions.builder().chunk(8 * 1024 * 1024L).build();
-try (OperatorReader reader = op.reader("large.bin", options)) {
+try (OperatorReader reader = op.createReader("large.bin", options)) {
     byte[] first = reader.read(0, 1024);
     byte[] next = reader.read(1024, 1024);
 }

@@ -19,8 +19,6 @@
 
 package org.apache.opendal;
 
-import java.util.Objects;
-
 /**
  * Reads a file synchronously through a reusable Rust core reader.
  * Each read selects its own range and does not advance a shared cursor.
@@ -32,7 +30,7 @@ import java.util.Objects;
  * Closing the operator that created it does not close the reader.
  * Calls on one reader are serialized, including close.
  *
- * @see Operator#reader(String, ReaderOptions)
+ * @see Operator#createReader(String, ReaderOptions)
  * @see ReaderOptions
  */
 public final class OperatorReader extends NativeObject {
@@ -70,18 +68,6 @@ public final class OperatorReader extends NativeObject {
     }
 
     /**
-     * Reads the range selected by the supplied options.
-     *
-     * @param options logical offset and length
-     * @return contents of the requested range
-     * @see #read(long, long)
-     */
-    public byte[] read(ReadOptions options) {
-        Objects.requireNonNull(options, "options");
-        return read(options.offset, options.length);
-    }
-
-    /**
      * Creates an independent stream over the whole file.
      *
      * @return a stream that the caller must close
@@ -104,18 +90,6 @@ public final class OperatorReader extends NativeObject {
      */
     public OperatorInputStream createInputStream(long offset, long length) {
         return new OperatorInputStream(createBytesIterator(offset, length));
-    }
-
-    /**
-     * Creates a stream over the range selected by the supplied options.
-     *
-     * @param options logical offset and length
-     * @return a stream that the caller must close
-     * @see #createInputStream(long, long)
-     */
-    public OperatorInputStream createInputStream(ReadOptions options) {
-        Objects.requireNonNull(options, "options");
-        return createInputStream(options.offset, options.length);
     }
 
     // The caller owns the returned iterator independently of this reader.

@@ -105,7 +105,7 @@ public class ReaderOptionsTest {
                 .build();
         try (Operator op = Operator.of(
                         ServiceConfig.Http.builder().endpoint(endpoint).build());
-                OperatorReader reader = op.reader("file", options)) {
+                OperatorReader reader = op.createReader("file", options)) {
             assertThat(reader.read(0, 4)).isEqualTo("0123".getBytes(StandardCharsets.UTF_8));
             try (OperatorInputStream in = reader.createInputStream(4, 4)) {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo("4567".getBytes(StandardCharsets.UTF_8));
@@ -129,7 +129,7 @@ public class ReaderOptionsTest {
                         .endpoint(endpoint)
                         .skipSignature(true)
                         .build());
-                OperatorReader reader = op.reader(
+                OperatorReader reader = op.createReader(
                         "file", ReaderOptions.builder().version("version-one").build())) {
             assertThat(reader.read(0, 2)).isEqualTo("01".getBytes(StandardCharsets.UTF_8));
             try (OperatorInputStream in = reader.createInputStream(4, 2)) {
@@ -149,7 +149,7 @@ public class ReaderOptionsTest {
                         .endpoint(endpoint)
                         .skipSignature(true)
                         .build());
-                OperatorReader reader = op.reader(
+                OperatorReader reader = op.createReader(
                         "file",
                         ReaderOptions.builder()
                                 .ifVersionMatch("17")
@@ -165,7 +165,7 @@ public class ReaderOptionsTest {
     void testConditionalErrorsKeepTheirCode() {
         try (Operator op = Operator.of(
                         ServiceConfig.Http.builder().endpoint(endpoint).build());
-                OperatorReader reader = op.reader(
+                OperatorReader reader = op.createReader(
                         "file", ReaderOptions.builder().ifMatch("changed").build())) {
             assertThatThrownBy(() -> reader.read(0, 2))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConditionNotMatch));

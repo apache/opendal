@@ -141,19 +141,67 @@ class LifecycleTests(unittest.TestCase):
                 release.publish_builds(self.candidate)
             dispatch.assert_not_called()
 
-    def test_waiting_for_packages_does_not_announce_or_cleanup(self):
-        with (
-            patch.object(release.Candidate, "atr", return_value=self.atr),
-            patch.object(release, "final_refs"),
-            patch.object(release, "publish_builds", return_value=False),
-            patch.object(release, "nexus_release", return_value=True),
-            patch.object(release, "notice"),
-            patch.object(release, "api") as api,
-            patch.object(release, "cleanup") as cleanup,
-        ):
-            release.publish(self.candidate)
-            api.assert_not_called()
-            cleanup.assert_not_called()
+    def test_optional_distribution_does_not_block_source_publication(self):
+        for outcome in (False, RuntimeError("Dart publication failed")):
+            with self.subTest(outcome=outcome):
+
+                def distribute(candidate, outcome=outcome):
+                    created = [
+                        call.args[1]
+                        for call in github.call_args_list
+                        if call.args[0] == "repos/apache/opendal/releases"
+                    ]
+                    self.assertEqual(len(created), 1)
+                    self.assertEqual(created[0]["name"], "v0.59.3")
+                    self.assertEqual(created[0]["tag_name"], "v0.59.3")
+                    self.assertTrue(created[0]["generate_release_notes"])
+                    self.assertEqual(
+                        http.call_args.args[0],
+                        f"{release.ATR}/api/publisher/release/announce",
+                    )
+                    sync_pr.assert_called_once()
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+
+                with (
+                    patch.object(
+                        release.Candidate,
+                        "atr",
+                        side_effect=[self.atr, self.atr | {"phase": "release"}],
+                    ),
+                    patch.object(release, "final_refs"),
+                    patch.object(release, "publish_builds", side_effect=distribute),
+                    patch.object(release, "nexus_release", return_value=True) as nexus,
+                    patch.object(release, "api", return_value=None) as github,
+                    patch.object(release, "version_notes", return_value=""),
+                    patch.object(
+                        release, "request_json", side_effect=[{"value": "jwt"}, {}]
+                    ) as http,
+                    patch.object(release, "discussion"),
+                    patch.object(
+                        release, "sync_versions", return_value="sync-pr"
+                    ) as sync_pr,
+                    patch.object(
+                        release, "notice", return_value={"id": "discussion"}
+                    ) as notice,
+                    patch.object(release, "comment_once"),
+                    patch.object(release, "cleanup") as cleanup,
+                    patch.dict(
+                        os.environ,
+                        {
+                            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.invalid/token?request=1",
+                            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "test",
+                        },
+                    ),
+                ):
+                    release.publish(self.candidate)
+                    nexus.assert_called_once_with(self.candidate)
+                    cleanup.assert_not_called()
+                    self.assertIn("has been released", notice.call_args.args[2])
+                    self.assertIn(
+                        "Optional package distribution", notice.call_args.args[2]
+                    )
 
     def test_announcement_resume_uses_external_completion_records(self):
         atr = self.atr | {"phase": "release"}

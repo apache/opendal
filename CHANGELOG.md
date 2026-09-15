@@ -1,3 +1,7 @@
+# v0.59.2
+
+- [Release notes](https://github.com/apache/opendal/releases/tag/v0.59.2)
+
 # Change Log
 
 All notable changes to this project will be documented in this file.

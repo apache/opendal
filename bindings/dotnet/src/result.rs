@@ -20,9 +20,27 @@ use std::ffi::c_void;
 use crate::buffer::{OpendalReadBuffer, OpendalWriteBuffer, read_buffer_free};
 use crate::entry::entry_list_free;
 use crate::error::OpenDALError;
-use crate::metadata::metadata_free;
+use crate::metadata::{OpendalMetadata, metadata_release_fields};
 use crate::operator::operator_info_free;
 use crate::presign::presigned_request_free;
+
+/// Free a boxed metadata payload together with its heap-allocated fields.
+///
+/// # Safety
+///
+/// - `metadata` must be null or a pointer produced by `Box::into_raw` for an
+///   `OpendalMetadata` built by `from_metadata`.
+/// - Must be called at most once for the same pointer.
+unsafe fn metadata_free(metadata: *mut OpendalMetadata) {
+    if metadata.is_null() {
+        return;
+    }
+
+    unsafe {
+        let mut metadata = Box::from_raw(metadata);
+        metadata_release_fields(&mut metadata);
+    }
+}
 
 #[repr(C)]
 /// Result for operations that only report success or failure.

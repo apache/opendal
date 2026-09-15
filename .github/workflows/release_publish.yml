@@ -82,4 +82,4 @@ jobs:
           RC: ${{ inputs.rc }}
         run: >-
           python3 scripts/release_lifecycle.py notify --rc "$RC"
-          --status "Publication needs attention. Inspect https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID and rerun the failed jobs before resuming."
+          --status "Publication needs attention. Inspect the latest failed run in the publication links below and rerun the failed jobs before resuming."

@@ -202,6 +202,8 @@ class File:
 
         Notes
         -----
+        Passes pending input to the core writer. Storage chunks can remain
+        buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
         """
     def read(self, /, size: int | None = None) -> bytes:

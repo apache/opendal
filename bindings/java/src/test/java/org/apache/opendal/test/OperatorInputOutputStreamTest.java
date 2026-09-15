@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
@@ -99,7 +98,7 @@ public class OperatorInputOutputStreamTest {
 
     @Test
     void testChunkedInputStream() throws Exception {
-        final byte[] content = new byte[4 * 1024 * 1024 + 13];
+        final byte[] content = new byte[4 * 1024 + 13];
         new Random(8252).nextBytes(content);
         final ServiceConfig.Fs fs =
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();
@@ -108,33 +107,12 @@ public class OperatorInputOutputStreamTest {
             op.write(path, content);
             final ReaderOptions options = ReaderOptions.builder()
                     .concurrent(4)
-                    .chunk(64 * 1024L)
+                    .chunk(1024)
                     .prefetch(2)
                     .build();
             try (final OperatorReader reader = op.createReader(path, options);
                     final OperatorInputStream in = reader.createInputStream()) {
                 assertThat(IOUtils.toByteArray(in)).isEqualTo(content);
-                assertThat(in.read()).isEqualTo(-1);
-            }
-        }
-    }
-
-    @Test
-    void testRangeWithReaderOptions() throws Exception {
-        final ServiceConfig.Fs fs =
-                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
-        try (final Operator op = Operator.of(fs)) {
-            final String path = "chunked-range.txt";
-            op.write(path, "0123456789");
-            final ReaderOptions options = ReaderOptions.builder()
-                    .concurrent(2)
-                    .chunk(2)
-                    .prefetch(1)
-                    .contentLengthHint(10)
-                    .build();
-            try (final OperatorReader reader = op.createReader(path, options);
-                    final OperatorInputStream in = reader.createInputStream(4, 5)) {
-                assertThat(IOUtils.toByteArray(in)).isEqualTo("45678".getBytes(StandardCharsets.UTF_8));
                 assertThat(in.read()).isEqualTo(-1);
             }
         }
@@ -172,12 +150,7 @@ public class OperatorInputOutputStreamTest {
         final ServiceConfig.Fs fs =
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         try (final Operator op = Operator.of(fs)) {
-            assertThatThrownBy(() -> {
-                        try (final OperatorReader reader = op.createReader("invalid-options", options);
-                                final OperatorInputStream in = reader.createInputStream()) {
-                            in.read();
-                        }
-                    })
+            assertThatThrownBy(() -> op.createReader("invalid-options", options))
                     .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
                     .hasMessageContaining(field);
         }

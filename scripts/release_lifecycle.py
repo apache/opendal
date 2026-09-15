@@ -765,15 +765,6 @@ def publish(candidate):
     if not passed(release):
         raise ValueError("ATR has not resolved this vote as passed")
     final_refs(candidate)
-    complete = publish_builds(candidate)
-    java_complete = nexus_release(candidate)
-    if not complete or not java_complete:
-        notice(
-            candidate,
-            release,
-            "Vote passed; publication jobs or Nexus promotion are still running.",
-        )
-        return
     body = announcement(candidate)
     existing = api(f"repos/{REPO}/releases/tags/v{candidate.version}", optional=True)
     if existing and (existing["draft"] or existing["prerelease"]):
@@ -833,8 +824,30 @@ def publish(candidate):
         current["id"],
         f"<!-- opendal-published:{candidate.rc} -->",
         f"[Apache OpenDAL {candidate.version}](https://github.com/{REPO}/releases/tag/v{candidate.version}) is available. "
-        f"[Source branch](https://github.com/{REPO}/tree/releases/{candidate.version}). Version sync: {sync_pr}. RC tags are retained; candidate branches are being removed.",
+        f"[Source branch](https://github.com/{REPO}/tree/releases/{candidate.version}). Version sync: {sync_pr}. RC tags are retained.",
     )
+    # Language distributions are conveniences, not prerequisites for the ASF release.
+    complete = True
+    errors = []
+    for distribute in (publish_builds, nexus_release):
+        try:
+            if not distribute(candidate):
+                complete = False
+        except (RuntimeError, ValueError, OSError) as error:
+            complete = False
+            errors.append(str(error))
+    if not complete:
+        status = (
+            f"Apache OpenDAL {candidate.version} has been released. "
+            "Optional package distribution "
+        )
+        status += (
+            "needs attention: " + "; ".join(errors) if errors else "is still running."
+        )
+        print(status)
+        notice(candidate, release, status)
+        # Discovery uses RC branches; retain them until optional follow-up completes.
+        return
     cleanup(candidate)
 
 

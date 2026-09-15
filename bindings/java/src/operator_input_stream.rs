@@ -24,30 +24,32 @@ use crate::error::ThrowException;
 
 /// # Safety
 ///
-/// `reader` must point to a live iterator, with no other calls in progress.
+/// `iterator` must point to a live iterator, with no other calls in progress.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader<'local>(
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeIterator<
+    'local,
+>(
     _: EnvUnowned<'local>,
     _: JClass<'local>,
-    reader: *mut StdBytesIterator,
+    iterator: *mut StdBytesIterator,
 ) {
     unsafe {
-        drop(Box::from_raw(reader));
+        drop(Box::from_raw(iterator));
     }
 }
 
 /// # Safety
 ///
-/// `reader` must point to a live iterator, with no other calls in progress.
+/// `iterator` must point to a live iterator, with no other calls in progress.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    reader: *mut StdBytesIterator,
+    iterator: *mut StdBytesIterator,
 ) -> JByteArray<'local> {
     env.with_env(|env| -> crate::Result<_> {
-        let reader = unsafe { &mut *reader };
-        match reader.next().transpose().map_err(|err| {
+        let iterator = unsafe { &mut *iterator };
+        match iterator.next().transpose().map_err(|err| {
             err.downcast::<opendal::Error>().unwrap_or_else(|err| {
                 opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string())
             })

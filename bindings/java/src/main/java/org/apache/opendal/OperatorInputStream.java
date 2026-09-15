@@ -35,33 +35,33 @@ public class OperatorInputStream extends InputStream {
 
         @Override
         protected void disposeInternal(long handle) {
-            disposeReader(handle);
+            disposeIterator(handle);
         }
     }
 
-    private final NativeIteratorHandle reader;
+    private final NativeIteratorHandle iteratorHandle;
 
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
     OperatorInputStream(long nativeHandle) {
-        this.reader = new NativeIteratorHandle(nativeHandle);
+        this.iteratorHandle = new NativeIteratorHandle(nativeHandle);
     }
 
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
         Objects.requireNonNull(options, "options");
         try (OperatorReader source = operator.createReader(path)) {
-            this.reader = new NativeIteratorHandle(source.createBytesIterator(options.offset, options.length));
+            this.iteratorHandle = new NativeIteratorHandle(source.createBytesIterator(options.offset, options.length));
         }
     }
 
     @Override
     public synchronized int read() {
-        if (reader.isDisposed()) {
+        if (iteratorHandle.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
         if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(reader.nativeHandle);
+            bytes = readNextBytes(iteratorHandle.nativeHandle);
             offset = 0;
         }
 
@@ -80,13 +80,13 @@ public class OperatorInputStream extends InputStream {
             throw new IndexOutOfBoundsException(
                     String.format("Range [%s, %<s + %s) out of bounds for length %s", off, len, b.length));
         }
-        if (reader.isDisposed()) {
+        if (iteratorHandle.isDisposed()) {
             throw new IllegalStateException("OperatorInputStream is closed");
         }
         int read = 0;
         while (len > 0) {
             if (bytes != null && offset >= bytes.length) {
-                bytes = readNextBytes(reader.nativeHandle);
+                bytes = readNextBytes(iteratorHandle.nativeHandle);
                 offset = 0;
             }
 
@@ -103,7 +103,7 @@ public class OperatorInputStream extends InputStream {
         }
 
         if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(reader.nativeHandle);
+            bytes = readNextBytes(iteratorHandle.nativeHandle);
             offset = 0;
         }
 
@@ -112,10 +112,10 @@ public class OperatorInputStream extends InputStream {
 
     @Override
     public synchronized void close() {
-        reader.close();
+        iteratorHandle.close();
     }
 
-    private static native void disposeReader(long reader);
+    private static native void disposeIterator(long iteratorHandle);
 
-    private static native byte[] readNextBytes(long reader);
+    private static native byte[] readNextBytes(long iteratorHandle);
 }

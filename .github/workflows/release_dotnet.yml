@@ -132,10 +132,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          # Release tags decide the suffix regardless of how the run was
+          # started: the release automation pushes final tags with
+          # GITHUB_TOKEN and then dispatches this workflow on the tag, so a
+          # final release can arrive as a workflow_dispatch event.
           suffix=""
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.([0-9]+)$ ]]; then
+          if [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.([0-9]+)$ ]]; then
             suffix="rc.${BASH_REMATCH[1]}"
-          elif [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          elif [[ "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             suffix=""
           else
             case "${{ inputs.release_type }}" in

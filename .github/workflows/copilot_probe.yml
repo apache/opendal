@@ -42,7 +42,7 @@ jobs:
         run: |
           copilot --version
           copilot -p 'Reply with exactly COPILOT_ACTIONS_OK. Do not use any tools.' \
-            --silent --disable-builtin-mcps --allow-all-tools --deny-tool '*' \
+            --silent --disable-builtin-mcps --allow-all-tools --available-tools= \
             --max-ai-credits 30 > "$RUNNER_TEMP/copilot-response.txt"
           cat "$RUNNER_TEMP/copilot-response.txt"
           python3 - <<'PYTHON'

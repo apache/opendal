@@ -4001,20 +4001,6 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable conditional delete support.</p>
-         * <p>When enabled (the default), OpenDAL forwards <code>If-Match</code> to the server
-         * on <code>DELETE</code>, so the object is removed only while the caller's ETag
-         * still matches.</p>
-         * <p>Disable this for servers whose ETags can't express a safe condition:
-         * nginx-dav omits ETags from PROPFIND, and ownCloud derives them from a
-         * one-second mtime, so two writes in the same second share one tag.
-         * Setting this to <code>false</code> drops <code>delete_with_if_match</code>, so
-         * <code>delete_with(path).if_match(...)</code> returns <code>ErrorKind::Unsupported</code>
-         * locally instead of deleting a revision the caller never observed.</p>
-         * <p>Default: true</p>
-         */
-        public final Boolean enableConditionalDelete;
-        /**
          * <p>Enable conditional read support.</p>
          * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
          * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
@@ -4082,9 +4068,6 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
-            }
-            if (enableConditionalDelete != null) {
-                map.put("enable_conditional_delete", String.valueOf(enableConditionalDelete));
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));

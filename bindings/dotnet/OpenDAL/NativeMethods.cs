@@ -352,6 +352,22 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region Check
+
+    [LibraryImport(__DllName, EntryPoint = "operator_check")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALResult operator_check(Operator op);
+
+    [LibraryImport(__DllName, EntryPoint = "operator_check_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_check_async(
+        Operator op,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
+    #endregion
+
     #region List
 
     [LibraryImport(__DllName, EntryPoint = "operator_list_with_options", StringMarshalling = StringMarshalling.Utf8)]

@@ -2311,6 +2311,71 @@ fn operator_exists_async_inner(
     Ok(())
 }
 
+/// Check whether the operator can reach its service.
+/// # Safety
+///
+/// - `op_handle` must be a valid operator pointer from `operator_construct`.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_check(op_handle: *const OperatorHandle) -> OpendalResult {
+    match operator_check_inner(op_handle) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_check_inner(op_handle: *const OperatorHandle) -> Result<(), OpenDALError> {
+    let handle = require_op_handle(op_handle)?;
+    let executor = handle.executor.clone();
+
+    executor
+        .block_on(handle.check())
+        .map_err(OpenDALError::from_opendal_error)
+}
+
+/// Check whether the operator can reach its service asynchronously.
+///
+/// The callback is invoked exactly once with the final result.
+/// # Safety
+///
+/// - `op_handle` must be a valid operator pointer from `operator_construct`.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_check_async(
+    op_handle: *const OperatorHandle,
+    callback: Option<VoidCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_check_async_inner(op_handle, callback, context) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_check_async_inner(
+    op_handle: *const OperatorHandle,
+    callback: Option<VoidCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    let handle = require_op_handle(op_handle)?;
+    let executor = handle.executor.clone();
+    let callback = require_callback(callback)?;
+
+    let op = handle.operator();
+    executor.spawn(async move {
+        let result = op.check().await.map_err(OpenDALError::from_opendal_error);
+
+        callback(
+            context,
+            match result {
+                Ok(()) => OpendalResult::ok(),
+                Err(error) => OpendalResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
+}
+
 /// List entries from `path` synchronously with options.
 ///
 /// On success, returned payload must be released with `opendal_entry_list_result_release`.

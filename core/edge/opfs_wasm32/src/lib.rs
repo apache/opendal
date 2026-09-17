@@ -39,8 +39,7 @@ mod tests {
     wasm_bindgen_test_configure!(run_in_dedicated_worker);
 
     fn new_operator() -> Operator {
-        Operator::from_config(OpfsConfig::default())
-            .expect("failed to create opfs operator")
+        Operator::from_config(OpfsConfig::default()).expect("failed to create opfs operator")
     }
 
     #[wasm_bindgen_test]

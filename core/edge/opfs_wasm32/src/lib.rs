@@ -33,12 +33,14 @@ mod tests {
         };
     }
 
+    #[cfg(not(feature = "worker"))]
     wasm_bindgen_test_configure!(run_in_browser);
+    #[cfg(feature = "worker")]
+    wasm_bindgen_test_configure!(run_in_dedicated_worker);
 
     fn new_operator() -> Operator {
         Operator::from_config(OpfsConfig::default())
             .expect("failed to create opfs operator")
-            .finish()
     }
 
     #[wasm_bindgen_test]

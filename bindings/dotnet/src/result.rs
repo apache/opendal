@@ -110,7 +110,7 @@ pub struct OpendalPresignedRequestResult {
 /// On success the caller owns the buffer handle; there is no dedicated
 /// release API for this result because the handle's lifecycle is managed by
 /// `write_buffer_free`, and the error message by `opendal_error_release`.
-pub struct OpendalWriteBufferResult {
+pub struct OpendalWriteResult {
     pub buffer: OpendalWriteBuffer,
     pub error: OpenDALError,
 }
@@ -204,7 +204,7 @@ define_result!(
 );
 
 define_result!(
-    OpendalWriteBufferResult,
+    OpendalWriteResult,
     field = buffer: OpendalWriteBuffer,
     error_value = OpendalWriteBuffer::empty()
 );

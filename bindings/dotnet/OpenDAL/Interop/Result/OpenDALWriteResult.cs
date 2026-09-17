@@ -32,7 +32,7 @@ namespace OpenDAL.Interop.Result;
 /// <see cref="Release"/> only frees the error message; the handle itself is
 /// released later through <c>write_buffer_free</c>.
 /// </remarks>
-internal struct OpenDALWriteBufferResult : INativeValueResult<OpenDALWriteBuffer>
+internal struct OpenDALWriteResult : INativeValueResult<OpenDALWriteBuffer>
 {
     /// <summary>
     /// Allocated buffer payload on success.

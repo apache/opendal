@@ -319,7 +319,7 @@ public partial class Operator : SafeHandle
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(initialCapacity);
 
         var result = NativeMethods.write_buffer_create((nuint)initialCapacity);
-        var buffer = ToValueOrThrowAndRelease<OpenDALWriteBuffer, OpenDALWriteBufferResult>(result);
+        var buffer = ToValueOrThrowAndRelease<OpenDALWriteBuffer, OpenDALWriteResult>(result);
         return new WriteBuffer(buffer.Handle, buffer.Data, checked((int)buffer.Capacity));
     }
 

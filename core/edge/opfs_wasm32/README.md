@@ -22,7 +22,7 @@ NOTE:
 - OPFS requires a browser context (no Node.js support).
 - Headless Chrome may not work for OPFS tests.
 
-Some code execution path differ whether it's running in the main thread or in a web worker, use the 2 following command to test both cases:
+Some code execution path differ whether it's running in the main thread or in a web worker, use the 2 following commands to test both cases:
 
 ### Main thread
 ```shell

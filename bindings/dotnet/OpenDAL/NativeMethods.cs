@@ -332,6 +332,26 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region Exists
+
+    [LibraryImport(__DllName, EntryPoint = "operator_exists", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALBoolResult operator_exists(
+        Operator op,
+        string path
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_exists_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_exists_async(
+        Operator op,
+        string path,
+        delegate* unmanaged[Cdecl]<long, OpenDALBoolResult, void> callback,
+        long context
+    );
+
+    #endregion
+
     #region List
 
     [LibraryImport(__DllName, EntryPoint = "operator_list_with_options", StringMarshalling = StringMarshalling.Utf8)]

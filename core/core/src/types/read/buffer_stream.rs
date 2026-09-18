@@ -180,51 +180,50 @@ impl ChunkedReader {
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
     }
 
-    /// Generate the next range to read, advancing internal state.
-    fn next_range(&mut self) -> Option<BytesRange> {
+    /// Return the next range without consuming it before submission succeeds.
+    fn next_range(&self) -> Option<BytesRange> {
         if self.remaining == Some(0) {
             return None;
         }
 
-        let next_offset = self.offset;
-        let next_size = match self.remaining {
-            None => {
-                self.remaining = Some(0);
-                None
-            }
-            Some(remaining) => {
-                let read_size = self
-                    .ctx
-                    .options()
-                    .chunk()
-                    .map_or(remaining, |chunk| remaining.min(chunk as u64));
-                self.offset += read_size;
-                self.remaining = Some(remaining - read_size);
-                Some(read_size)
-            }
-        };
+        let next_size = self.remaining.map(|remaining| {
+            self.ctx
+                .options()
+                .chunk()
+                .map_or(remaining, |chunk| remaining.min(chunk as u64))
+        });
 
-        Some(BytesRange::new(next_offset, next_size))
+        Some(BytesRange::new(self.offset, next_size))
+    }
+
+    async fn schedule_next_range(&mut self) -> Result<()> {
+        let Some(range) = self.next_range() else {
+            self.done = true;
+            return Ok(());
+        };
+        let input = self.opened.take().unwrap_or_else(|| ChunkedReadInput {
+            ctx: self.ctx.clone(),
+            range,
+            reader: None,
+        });
+        self.tasks.execute(input).await?;
+
+        // A completed failure can invalidate has_remaining() before execute().
+        // Keep the range available if submission fails or is canceled.
+        if let Some(size) = range.size() {
+            self.offset += size;
+            self.remaining = self.remaining.map(|remaining| remaining - size);
+        } else {
+            self.remaining = Some(0);
+        }
+        Ok(())
     }
 }
 
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(input) = self.opened.take() {
-                self.tasks.execute(input).await?;
-            } else if let Some(range) = self.next_range() {
-                self.tasks
-                    .execute(ChunkedReadInput {
-                        ctx: self.ctx.clone(),
-                        range,
-                        reader: None,
-                    })
-                    .await?;
-            } else {
-                self.done = true;
-                break;
-            }
+            self.schedule_next_range().await?;
             if self.tasks.has_result() {
                 break;
             }
@@ -369,10 +368,15 @@ impl Stream for BufferStream {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     use bytes::Buf;
     use bytes::Bytes;
+    use futures::StreamExt;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
 
@@ -394,6 +398,156 @@ mod tests {
             options,
             reader,
         ))
+    }
+
+    #[derive(Default)]
+    struct PausedExecutor {
+        running: AtomicBool,
+        pending: Mutex<VecDeque<BoxedStaticFuture<()>>>,
+    }
+
+    impl Execute for Arc<PausedExecutor> {
+        fn execute(&self, future: BoxedStaticFuture<()>) {
+            if self.running.load(Ordering::Relaxed) {
+                tokio::spawn(future);
+            } else {
+                self.pending.lock().unwrap().push_back(future);
+            }
+        }
+    }
+
+    impl PausedExecutor {
+        fn resume(&self) {
+            self.running.store(true, Ordering::Relaxed);
+            for future in std::mem::take(&mut *self.pending.lock().unwrap()) {
+                tokio::spawn(future);
+            }
+        }
+    }
+
+    struct FailOnceReader {
+        inner: oio::Reader,
+        fail: AtomicBool,
+    }
+
+    impl oio::Read for FailOnceReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            if self.fail.swap(false, Ordering::Relaxed) {
+                return Err(Error::new(ErrorKind::Unexpected, "retry read").set_temporary());
+            }
+            self.inner.open(range).await
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            if self.fail.swap(false, Ordering::Relaxed) {
+                return Err(Error::new(ErrorKind::Unexpected, "retry read").set_temporary());
+            }
+            self.inner.read(range).await
+        }
+    }
+
+    async fn failing_read_context(executor: Executor) -> Result<Arc<ReadContext>> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("test", "0123456789").await?;
+        let ctx = op.context().with_executor(executor);
+        let args = OpRead::new();
+        let inner = op.service().read(&ctx, "test", args.clone())?;
+        Ok(Arc::new(ReadContext::new(
+            ctx,
+            op.service().clone(),
+            "test".to_string(),
+            args,
+            OpReader::new().with_chunk(3).with_concurrent(3),
+            Box::new(FailOnceReader {
+                inner,
+                fail: AtomicBool::new(true),
+            }),
+        )))
+    }
+
+    #[tokio::test]
+    async fn test_chunked_read_keeps_range_rejected_after_capacity_check() -> Result<()> {
+        let executor = Arc::new(PausedExecutor::default());
+        let ctx = failing_read_context(Executor::with(executor.clone())).await?;
+        let mut reader = ChunkedReader::new(ctx.clone(), BytesRange::new(2, Some(7)));
+        reader.schedule_next_range().await?;
+        assert!(reader.tasks.has_remaining());
+
+        // Complete the earlier request after read()'s capacity check but before
+        // its next submission, without depending on thread scheduling or sleeps.
+        let failure = executor.pending.lock().unwrap().pop_front().unwrap();
+        failure.await;
+        assert!(
+            reader
+                .schedule_next_range()
+                .await
+                .unwrap_err()
+                .is_temporary()
+        );
+
+        executor.resume();
+        let stream = BufferStream {
+            ctx,
+            state: State::Idle(Some(TwoWays::Two(reader))),
+        };
+        let buffers: Vec<Buffer> = stream.try_collect().await?;
+        let content: Buffer = buffers.into_iter().flatten().collect();
+        assert_eq!(content.to_bytes().as_ref(), b"2345678");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_read_keeps_range_when_submission_is_canceled() -> Result<()> {
+        let executor = Arc::new(PausedExecutor::default());
+        let ctx = failing_read_context(Executor::with(executor.clone())).await?;
+        let mut reader = ChunkedReader::new(ctx.clone(), BytesRange::new(2, Some(7)));
+        reader.schedule_next_range().await?;
+        reader.schedule_next_range().await?;
+        assert!(reader.tasks.has_remaining());
+
+        let head = executor.pending.lock().unwrap().pop_front().unwrap();
+        let failure = executor.pending.lock().unwrap().pop_front().unwrap();
+        failure.await;
+        {
+            let submission = reader.schedule_next_range();
+            futures::pin_mut!(submission);
+            assert!(futures::poll!(submission).is_pending());
+        }
+        head.await;
+        executor.resume();
+
+        let mut stream = BufferStream {
+            ctx,
+            state: State::Idle(Some(TwoWays::Two(reader))),
+        };
+        let mut content = Vec::new();
+        let mut errors = 0;
+        while let Some(buffer) = stream.next().await {
+            match buffer {
+                Ok(buffer) => content.extend_from_slice(&buffer.to_bytes()),
+                Err(error) => {
+                    assert!(error.is_temporary());
+                    errors += 1;
+                    assert_eq!(errors, 1);
+                }
+            }
+        }
+        assert_eq!(errors, 1);
+        assert_eq!(content, b"2345678");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_metadata_open_retry_keeps_first_range() -> Result<()> {
+        let ctx = failing_read_context(Executor::default()).await?;
+        let mut stream = BufferStream::new(ctx, 2, Some(7));
+        assert!(stream.metadata().await.unwrap_err().is_temporary());
+        assert_eq!(stream.metadata().await?.content_length(), 10);
+
+        let buffers: Vec<Buffer> = stream.try_collect().await?;
+        let content: Buffer = buffers.into_iter().flatten().collect();
+        assert_eq!(content.to_bytes().as_ref(), b"2345678");
+        Ok(())
     }
 
     #[tokio::test]

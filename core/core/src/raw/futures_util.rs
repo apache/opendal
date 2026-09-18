@@ -67,6 +67,7 @@ impl<T> MaybeSend for T {}
 ///
 /// Submit inputs with [`Self::execute`] and collect outputs with [`Self::next`].
 /// The queue owns the task handles and tracks their completion for concurrency control.
+/// Completed failures stop new submissions until they are collected in submission order.
 ///
 /// ConcurrentTasks has two generic types:
 ///
@@ -137,16 +138,12 @@ pub struct ConcurrentTasks<I, O> {
 
     /// The maximum number of concurrent tasks.
     concurrent: usize,
-    /// The maximum number of completed tasks that can be buffered.
+    /// The extra queue capacity available for completed tasks.
     prefetch: usize,
-    /// Tracks the number of tasks that have finished execution but have not yet been collected.
-    /// This count is subtracted from the total concurrency capacity, ensuring that the system
-    /// always schedules new tasks to maintain the user's desired concurrency level.
-    ///
-    /// Example: If `concurrency = 10` and `completed_but_unretrieved = 3`,
-    ///          the system can still spawn 7 new tasks (since 3 slots are "logically occupied"
-    ///          by uncollected results).
+    /// Completed tasks still held in the queue can provide prefetch capacity.
     completed_but_unretrieved: Arc<AtomicUsize>,
+    /// Failed tasks still retain their inputs and must be collected before submitting more work.
+    failed_but_unretrieved: Arc<AtomicUsize>,
     /// hitting the last unrecoverable error.
     ///
     /// If concurrent tasks hit an unrecoverable error, it will stop executing new tasks and return
@@ -173,6 +170,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             concurrent,
             prefetch,
             completed_but_unretrieved: Arc::default(),
+            failed_but_unretrieved: Arc::default(),
             errored: false,
         }
     }
@@ -189,12 +187,20 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     pub fn clear(&mut self) {
         self.tasks.clear();
         self.results.clear();
+        // Canceled tasks may still finish on the executor. Keep their accounting
+        // separate from tasks submitted after clearing the queue.
+        self.completed_but_unretrieved = Arc::default();
+        self.failed_but_unretrieved = Arc::default();
     }
 
     /// Check if there are remaining space to push new tasks.
     #[inline]
     pub fn has_remaining(&self) -> bool {
-        let completed = self.completed_but_unretrieved.load(Ordering::Relaxed);
+        // Observe failures before using the capacity provided by their completion.
+        let completed = self.completed_but_unretrieved.load(Ordering::Acquire);
+        if self.failed_but_unretrieved.load(Ordering::Relaxed) > 0 {
+            return false;
+        }
         // Allow up to `prefetch` completed tasks to be buffered
         self.tasks.len() < self.concurrent + completed.min(self.prefetch)
     }
@@ -207,12 +213,16 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
     fn spawn_task(&self, input: I) -> Task<Result<O, (I, Error)>> {
         let completed = self.completed_but_unretrieved.clone();
+        let failed = self.failed_but_unretrieved.clone();
         let fut = (self.factory)(input)
             // Completed tasks can remain queued while the caller produces more work.
             // Only failures need to retain their input for a retry.
             .map(|(input, result)| result.map_err(|err| (input, err)))
-            .inspect(move |_| {
-                completed.fetch_add(1, Ordering::Relaxed);
+            .inspect(move |result| {
+                if result.is_err() {
+                    failed.fetch_add(1, Ordering::Relaxed);
+                }
+                completed.fetch_add(1, Ordering::Release);
             });
 
         self.executor.execute(fut)
@@ -222,7 +232,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     ///
     /// - Execute the task in the current thread if is not concurrent.
     /// - Execute the task in the background if there are available slots.
-    /// - Await the first task in the queue if there is no available slots.
+    /// - Collect tasks in submission order while the queue is full or has a completed failure.
     pub async fn execute(&mut self, input: I) -> Result<()> {
         if self.errored {
             return Err(Error::new(
@@ -244,7 +254,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
             };
         }
 
-        if !self.has_remaining() {
+        while !self.has_remaining() {
             let result = self
                 .tasks
                 .front_mut()
@@ -258,6 +268,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     self.results.push_back(o)
                 }
                 Err((i, err)) => {
+                    self.failed_but_unretrieved.fetch_sub(1, Ordering::Relaxed);
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
                         let task = self.spawn_task(i);
@@ -301,6 +312,7 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
                     Some(Ok(o))
                 }
                 Err((i, err)) => {
+                    self.failed_but_unretrieved.fetch_sub(1, Ordering::Relaxed);
                     // Retry this task if the error is temporary
                     if err.is_temporary() {
                         let task = self.spawn_task(i);
@@ -323,12 +335,230 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use pretty_assertions::assert_eq;
     use rand::RngExt;
     use tokio::time::sleep;
 
     use super::*;
     use crate::raw::Duration;
+
+    #[derive(Clone, Default)]
+    struct ControlledExecutor(Arc<Mutex<VecDeque<BoxedStaticFuture<()>>>>);
+
+    impl Execute for ControlledExecutor {
+        fn execute(&self, future: BoxedStaticFuture<()>) {
+            self.0.lock().unwrap().push_back(future);
+        }
+    }
+
+    impl ControlledExecutor {
+        async fn complete_pending(&self) {
+            let pending = std::mem::take(&mut *self.0.lock().unwrap());
+            for future in pending {
+                // Await the entire Remote future, including completion accounting.
+                future.await;
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_completed_failure_blocks_prefetch_and_new_input() {
+        for temporary in [false, true] {
+            let executor = ControlledExecutor::default();
+            let mut tasks = ConcurrentTasks::new(
+                Executor::with(executor.clone()),
+                8,
+                8192,
+                |mut input: (Arc<Vec<u8>>, Option<bool>)| {
+                    Box::pin(async move {
+                        let result = match input.1.take() {
+                            Some(true) => {
+                                Err(Error::new(ErrorKind::Unexpected, "retry").set_temporary())
+                            }
+                            Some(false) => Err(Error::new(ErrorKind::PermissionDenied, "stop")),
+                            None => Ok(input.0[0]),
+                        };
+                        (input, result)
+                    })
+                },
+            );
+            tasks.execute((Arc::new(vec![0]), None)).await.unwrap();
+            tasks.execute((Arc::new(vec![1]), None)).await.unwrap();
+            let failed_payload = Arc::new(vec![2; 1024]);
+            tasks
+                .execute((failed_payload.clone(), Some(temporary)))
+                .await
+                .unwrap();
+            executor.complete_pending().await;
+
+            assert!(
+                !tasks.has_remaining(),
+                "completed failures must stop prefetch"
+            );
+            let new_payload = Arc::new(vec![3; 1024]);
+            let error = tasks
+                .execute((new_payload.clone(), None))
+                .await
+                .unwrap_err();
+            assert_eq!(error.is_temporary(), temporary);
+            assert_eq!(
+                error.kind(),
+                if temporary {
+                    ErrorKind::Unexpected
+                } else {
+                    ErrorKind::PermissionDenied
+                }
+            );
+            assert_eq!(
+                Arc::strong_count(&new_payload),
+                1,
+                "new input was not accepted"
+            );
+            assert_eq!(
+                Arc::strong_count(&failed_payload),
+                if temporary { 2 } else { 1 }
+            );
+
+            executor.complete_pending().await;
+            assert_eq!(Arc::strong_count(&failed_payload), 1);
+            if temporary {
+                let mut outputs = Vec::new();
+                while let Some(output) = tasks.next().await {
+                    outputs.push(output.unwrap());
+                }
+                assert_eq!(outputs, vec![0, 1, 2]);
+            } else {
+                assert!(tasks.next().await.unwrap().is_err());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_repeated_failures_do_not_accumulate_inputs() {
+        let executor = ControlledExecutor::default();
+        let mut tasks = ConcurrentTasks::new(Executor::with(executor.clone()), 8, 8192, |input| {
+            Box::pin(async move {
+                (
+                    input,
+                    Err::<(), _>(Error::new(ErrorKind::Unexpected, "retry").set_temporary()),
+                )
+            })
+        });
+        let payload = Arc::new(vec![42; 1024]);
+        tasks.execute(payload.clone()).await.unwrap();
+        executor.complete_pending().await;
+
+        for _ in 0..32 {
+            assert!(
+                tasks
+                    .execute(payload.clone())
+                    .await
+                    .unwrap_err()
+                    .is_temporary()
+            );
+            executor.complete_pending().await;
+            assert_eq!(
+                Arc::strong_count(&payload),
+                2,
+                "only the original retry input may remain"
+            );
+        }
+        tasks.clear();
+        assert_eq!(Arc::strong_count(&payload), 1);
+    }
+
+    #[tokio::test]
+    async fn test_failure_backpressure_is_cancel_safe_behind_pending_head() {
+        let executor = ControlledExecutor::default();
+        let mut tasks = ConcurrentTasks::new(
+            Executor::with(executor.clone()),
+            4,
+            8192,
+            |mut input: (usize, Option<futures::channel::oneshot::Receiver<()>>, bool)| {
+                Box::pin(async move {
+                    if let Some(receiver) = input.1.take() {
+                        receiver.await.unwrap();
+                    }
+                    let result = if std::mem::take(&mut input.2) {
+                        Err(Error::new(ErrorKind::Unexpected, "retry").set_temporary())
+                    } else {
+                        Ok(input.0)
+                    };
+                    (input, result)
+                })
+            },
+        );
+        let (sender, receiver) = futures::channel::oneshot::channel();
+        tasks.execute((0, Some(receiver), false)).await.unwrap();
+        tasks.execute((1, None, true)).await.unwrap();
+        tasks.execute((2, None, false)).await.unwrap();
+        let head = executor.0.lock().unwrap().pop_front().unwrap();
+        let head = tokio::spawn(head);
+        executor.complete_pending().await;
+
+        assert!(!tasks.has_remaining());
+        {
+            let submission = tasks.execute((3, None, false));
+            futures::pin_mut!(submission);
+            assert!(futures::poll!(submission).is_pending());
+        }
+        sender.send(()).unwrap();
+        head.await.unwrap();
+        assert!(
+            tasks
+                .execute((3, None, false))
+                .await
+                .unwrap_err()
+                .is_temporary()
+        );
+        executor.complete_pending().await;
+        tasks.execute((3, None, false)).await.unwrap();
+        executor.complete_pending().await;
+
+        let mut outputs = Vec::new();
+        while let Some(output) = tasks.next().await {
+            outputs.push(output.unwrap());
+        }
+        assert_eq!(outputs, vec![0, 1, 2, 3]);
+    }
+
+    #[tokio::test]
+    async fn test_clear_discards_completion_accounting() {
+        for fail in [false, true] {
+            let executor = ControlledExecutor::default();
+            let mut tasks =
+                ConcurrentTasks::new(Executor::with(executor.clone()), 4, 8192, |fail| {
+                    Box::pin(async move {
+                        let result = if fail {
+                            Err(Error::new(ErrorKind::Unexpected, "retry").set_temporary())
+                        } else {
+                            Ok(())
+                        };
+                        (fail, result)
+                    })
+                });
+            for _ in 0..4 {
+                tasks.execute(fail).await.unwrap();
+            }
+            executor.complete_pending().await;
+            tasks.clear();
+
+            for _ in 0..4 {
+                tasks.execute(false).await.unwrap();
+            }
+            assert!(
+                !tasks.has_remaining(),
+                "cleared completions must not provide capacity"
+            );
+            executor.complete_pending().await;
+            for _ in 0..4 {
+                tasks.next().await.unwrap().unwrap();
+            }
+            assert!(tasks.next().await.is_none());
+        }
+    }
 
     #[tokio::test]
     async fn test_concurrent_tasks() {

@@ -154,21 +154,12 @@ impl WebdavBuilder {
         self
     }
 
-    /// Enable conditional read support.
-    ///
-    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
-    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
-    /// `If-Unmodified-Since` to the server when callers provide them.
-    ///
-    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-    /// in PROPFIND or don't honor these headers on GET. Setting this to
-    /// `false` drops the four `read_with_if_*` capabilities, so calls like
-    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
-    /// locally instead of being silently ignored by the server.
-    ///
-    /// Default: true
-    pub fn enable_conditional_read(mut self, enable: bool) -> Self {
-        self.config.enable_conditional_read = enable;
+    /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+    #[deprecated(
+        since = "0.60.0",
+        note = "WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."
+    )]
+    pub fn enable_conditional_read(self, _enable: bool) -> Self {
         self
     }
 }
@@ -211,8 +202,6 @@ impl Builder for WebdavBuilder {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
-        let conditional_read = self.config.enable_conditional_read;
-
         let core = Arc::new(WebdavCore {
             info: ServiceInfo::new(WEBDAV_SCHEME, &root, ""),
             capability: Capability {
@@ -220,10 +209,10 @@ impl Builder for WebdavBuilder {
 
                 read: true,
                 read_with_suffix: true,
-                read_with_if_match: conditional_read,
-                read_with_if_none_match: conditional_read,
-                read_with_if_modified_since: conditional_read,
-                read_with_if_unmodified_since: conditional_read,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_if_modified_since: true,
+                read_with_if_unmodified_since: true,
 
                 write: true,
                 write_can_empty: true,

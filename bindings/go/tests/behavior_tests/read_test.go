@@ -49,17 +49,17 @@ func testsRead(cap *opendal.Capability) []behaviorTest {
 		tests = append(tests, testIOCopy)
 		tests = append(tests, testReadWithWriteOptions)
 	}
-	if cap.ReadWithIfMatch() {
+	if isCapEnabled(cap.ReadWithIfMatch, "read_with_if_match") {
 		tests = append(tests, testReadWithIfMatch)
 		tests = append(tests, testReaderWithIfMatch)
 	}
-	if cap.ReadWithIfNoneMatch() {
+	if isCapEnabled(cap.ReadWithIfNoneMatch, "read_with_if_none_match") {
 		tests = append(tests, testReadWithIfNoneMatch)
 	}
-	if cap.ReadWithIfModifiedSince() {
+	if isCapEnabled(cap.ReadWithIfModifiedSince, "read_with_if_modified_since") {
 		tests = append(tests, testReadWithIfModifiedSince)
 	}
-	if cap.ReadWithIfUnmodifiedSince() {
+	if isCapEnabled(cap.ReadWithIfUnmodifiedSince, "read_with_if_unmodified_since") {
 		tests = append(tests, testReadWithIfUnmodifiedSince)
 	}
 	if cap.ReadWithVersion() {

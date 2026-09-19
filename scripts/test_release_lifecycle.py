@@ -204,7 +204,7 @@ class LifecycleTests(unittest.TestCase):
                     )
 
     def test_announcement_resume_uses_external_completion_records(self):
-        atr = self.atr | {"phase": "release"}
+        atr = self.atr | {"phase": "release", "latest_revision_number": None}
         with (
             patch.object(release.Candidate, "atr", return_value=atr),
             patch.object(release, "final_refs"),
@@ -214,11 +214,12 @@ class LifecycleTests(unittest.TestCase):
                 release, "api", return_value={"draft": False, "prerelease": False}
             ) as api,
             patch.object(release, "request_json") as http,
-            patch.object(release, "discussion"),
+            patch.object(
+                release, "discussion", return_value={"id": "discussion"}
+            ) as discussion,
             patch.object(
                 release, "sync_versions", return_value="https://example.invalid/pr"
             ),
-            patch.object(release, "notice", return_value={"id": "discussion"}),
             patch.object(release, "comment_once"),
             patch.object(release, "cleanup") as cleanup,
         ):
@@ -226,6 +227,25 @@ class LifecycleTests(unittest.TestCase):
             http.assert_not_called()  # ATR has already sent the email.
             self.assertEqual(api.call_count, 1)  # GitHub Release already exists.
             cleanup.assert_called_once_with(self.candidate)
+            notice_body = discussion.call_args.args[1]
+            self.assertIn("has been released", notice_body)
+            self.assertNotIn("VoteStartArgs", notice_body)
+            self.assertNotIn("None", notice_body)
+
+    def test_unpublished_notice_requires_revision(self):
+        for phase in (
+            "release_candidate_draft",
+            "release_candidate",
+            "release_preview",
+        ):
+            with (
+                self.subTest(phase=phase),
+                self.assertRaisesRegex(ValueError, "revision"),
+            ):
+                release.notice(
+                    self.candidate,
+                    self.atr | {"phase": phase, "latest_revision_number": None},
+                )
 
     def test_sync_pr_can_recover_after_branch_push(self):
         with (

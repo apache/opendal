@@ -1,0 +1,224 @@
+{
+  "baseline": "v0.59.2",
+  "source": "5f1947faa7e7fd7e2bf696bf1249dae78dea0c28",
+  "pulls": [
+    {
+      "number": 8285,
+      "url": "https://github.com/apache/opendal/pull/8285",
+      "commit": "af79667fc961ef0b57abaf0091e69239735f127b",
+      "breaking": null
+    },
+    {
+      "number": 8288,
+      "url": "https://github.com/apache/opendal/pull/8288",
+      "commit": "11078f1c57603e826fe766919dfb09b827b6adde",
+      "breaking": null
+    },
+    {
+      "number": 8289,
+      "url": "https://github.com/apache/opendal/pull/8289",
+      "commit": "dba38bbd479af3005a6d169e9cf7cbf31db3023a",
+      "breaking": null
+    },
+    {
+      "number": 8293,
+      "url": "https://github.com/apache/opendal/pull/8293",
+      "commit": "164b17524fedcff7f9567a8231fceb4c1d9d2fb3",
+      "breaking": null
+    },
+    {
+      "number": 8297,
+      "url": "https://github.com/apache/opendal/pull/8297",
+      "commit": "ed461c2059782a3584f1f3b706f3afc7fd765d2f",
+      "breaking": null
+    },
+    {
+      "number": 8299,
+      "url": "https://github.com/apache/opendal/pull/8299",
+      "commit": "38f0be3da42394d10d129c51b79923d2f7b78c0d",
+      "breaking": null
+    },
+    {
+      "number": 8294,
+      "url": "https://github.com/apache/opendal/pull/8294",
+      "commit": "1d1ac97550cf502926b63b95efc69bd1dd511d27",
+      "breaking": null
+    },
+    {
+      "number": 8295,
+      "url": "https://github.com/apache/opendal/pull/8295",
+      "commit": "32d791ee3d7838b3ef025a9683ca4526eb310889",
+      "breaking": null
+    },
+    {
+      "number": 8298,
+      "url": "https://github.com/apache/opendal/pull/8298",
+      "commit": "82fee6cdb2944417a1227c24e5640d1cbce18b17",
+      "breaking": null
+    },
+    {
+      "number": 8300,
+      "url": "https://github.com/apache/opendal/pull/8300",
+      "commit": "a042fea984d874978f4fd70b97c3f27f768a0ea8",
+      "breaking": null
+    },
+    {
+      "number": 8301,
+      "url": "https://github.com/apache/opendal/pull/8301",
+      "commit": "b4a47e212d173cb6e7e958d132791237b6443a64",
+      "breaking": null
+    },
+    {
+      "number": 8303,
+      "url": "https://github.com/apache/opendal/pull/8303",
+      "commit": "585f2223d20c0d5cdcf54bc55187ffccf8cf185c",
+      "breaking": null
+    },
+    {
+      "number": 8304,
+      "url": "https://github.com/apache/opendal/pull/8304",
+      "commit": "2261c3700cf32b08496dcb84167312f509ad0bb9",
+      "breaking": null
+    },
+    {
+      "number": 8305,
+      "url": "https://github.com/apache/opendal/pull/8305",
+      "commit": "4ea9c19ee2f75d35e14ae32425524fb7b98ed79d",
+      "breaking": null
+    },
+    {
+      "number": 8307,
+      "url": "https://github.com/apache/opendal/pull/8307",
+      "commit": "3a8c21b89309a08286416faf4b117067ebdc3a0a",
+      "breaking": null
+    },
+    {
+      "number": 8287,
+      "url": "https://github.com/apache/opendal/pull/8287",
+      "commit": "1798c4c5ed7036f5f5f048f78be717b8140b39e9",
+      "breaking": null
+    },
+    {
+      "number": 8308,
+      "url": "https://github.com/apache/opendal/pull/8308",
+      "commit": "e1620ba07517787574090c14f5f5e366d34d5da5",
+      "breaking": null
+    },
+    {
+      "number": 8312,
+      "url": "https://github.com/apache/opendal/pull/8312",
+      "commit": "cccd7c9542fded18f499ec3d4b6df76527c31677",
+      "breaking": null
+    },
+    {
+      "number": 8311,
+      "url": "https://github.com/apache/opendal/pull/8311",
+      "commit": "2698e90a1131a477fc3382465f1c28bd2202395e",
+      "breaking": null
+    },
+    {
+      "number": 8322,
+      "url": "https://github.com/apache/opendal/pull/8322",
+      "commit": "5f1947faa7e7fd7e2bf696bf1249dae78dea0c28",
+      "breaking": null
+    }
+  ],
+  "versions": [
+    {
+      "package": "core",
+      "previous": "0.59.2",
+      "configured": "0.59.2",
+      "target": "0.59.3",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/dav-server",
+      "previous": "0.7.8",
+      "configured": "0.7.8",
+      "target": "0.7.9",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/object_store",
+      "previous": "0.60.2",
+      "configured": "0.60.2",
+      "target": "0.60.3",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/parquet",
+      "previous": "0.10.2",
+      "configured": "0.10.2",
+      "target": "0.10.3",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/unftp-sbe",
+      "previous": "0.4.8",
+      "configured": "0.4.8",
+      "target": "0.4.9",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/c",
+      "previous": "0.47.5",
+      "configured": "0.47.5",
+      "target": "0.47.6",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/cpp",
+      "previous": "0.45.32",
+      "configured": "0.45.32",
+      "target": "0.45.33",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/java",
+      "previous": "0.50.5",
+      "configured": "0.50.5",
+      "target": "0.50.6",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/nodejs",
+      "previous": "0.49.10",
+      "configured": "0.49.10",
+      "target": "0.49.11",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/python",
+      "previous": "0.47.9",
+      "configured": "0.47.9",
+      "target": "0.47.10",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/ruby",
+      "previous": "0.1.13",
+      "configured": "0.1.13",
+      "target": "0.1.14",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/dotnet",
+      "previous": "0.2.2",
+      "configured": "0.2.2",
+      "target": "0.2.3",
+      "breaking": false,
+      "public_dependency_reason": null
+    }
+  ]
+}

@@ -532,6 +532,7 @@ type Reader struct {
 }
 
 var _ io.ReadSeekCloser = (*Reader)(nil)
+var _ io.WriterTo = (*Reader)(nil)
 
 // Read reads data from the underlying storage into the provided buffer.
 //
@@ -640,6 +641,16 @@ func (r *Reader) Read(buf []byte) (int, error) {
 // if the underlying storage system has restrictions on seeking.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
+}
+
+// WriteTo copies data from the Reader into dst. It stops at EOF or an error.
+// WriteTo returns the number of bytes copied. At EOF, WriteTo returns a nil error.
+// WriteTo uses one 256 KiB buffer for the copy.
+//
+// WriteTo writes the bytes from each Read call before it reads more data.
+// WriteTo leaves both streams open. The caller must close each stream.
+func (r *Reader) WriteTo(dst io.Writer) (int64, error) {
+	return io.CopyBuffer(struct{ io.Writer }{dst}, struct{ io.Reader }{r}, make([]byte, streamCopyBufferSize))
 }
 
 // Close releases resources associated with the OperatorReader.

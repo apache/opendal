@@ -360,6 +360,8 @@ func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
 	return writer, nil
 }
 
+const streamCopyBufferSize = 256 * 1024
+
 type Writer struct {
 	inner *opendalWriter
 	ctx   context.Context
@@ -396,6 +398,16 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
 }
 
+// ReadFrom copies data from src into the Writer. It stops at EOF or an error.
+// ReadFrom returns the number of bytes copied. At EOF, ReadFrom returns a nil error.
+// ReadFrom uses one 256 KiB buffer for the copy.
+//
+// ReadFrom leaves both streams open.
+// The caller must call Writer.Close to complete the write and get its metadata.
+func (w *Writer) ReadFrom(src io.Reader) (int64, error) {
+	return io.CopyBuffer(struct{ io.Writer }{w}, struct{ io.Reader }{src}, make([]byte, streamCopyBufferSize))
+}
+
 // Close finishes the write and releases the resources associated with the
 // Writer, returning the metadata of the written object (such as etag, version,
 // or last modified) as reported by the underlying service.
@@ -417,6 +429,7 @@ func (w *Writer) Close() (*Metadata, error) {
 }
 
 var _ io.Writer = (*Writer)(nil)
+var _ io.ReaderFrom = (*Writer)(nil)
 
 var ffiOperatorWriteWithMetadata = newFFI(ffiOpts{
 	sym:    "opendal_operator_write_with_metadata",

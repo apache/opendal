@@ -37,14 +37,9 @@ namespace OpenDAL;
 /// </summary>
 public partial class Operator : SafeHandle
 {
-    private Lazy<OperatorInfo> info;
+    private readonly OperatorInfo info;
 
-    private Operator() : base(IntPtr.Zero, true)
-    {
-        info = CreateInfoLazy();
-    }
-
-    private Operator(IntPtr nativeHandle) : this()
+    private Operator(IntPtr nativeHandle) : base(IntPtr.Zero, true)
     {
         if (nativeHandle == IntPtr.Zero)
         {
@@ -52,6 +47,7 @@ public partial class Operator : SafeHandle
         }
 
         SetHandle(nativeHandle);
+        info = CreateOperatorInfo();
     }
 
     /// <summary>
@@ -64,7 +60,7 @@ public partial class Operator : SafeHandle
         get
         {
             ObjectDisposedException.ThrowIf(IsInvalid, this);
-            return info.Value;
+            return info;
         }
     }
 
@@ -92,26 +88,8 @@ public partial class Operator : SafeHandle
         Executor? executor = null) : base(IntPtr.Zero, true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(scheme);
-        info = CreateInfoLazy();
-
-        using var nativeOptionsHandle = CreateConstructorOptionsHandle(options);
-        var executorAddRefed = false;
-        try
-        {
-            executor?.DangerousAddRef(ref executorAddRefed);
-            var result = NativeMethods.operator_construct(
-                scheme,
-                GetOptionsHandle(nativeOptionsHandle),
-                executor?.DangerousGetHandle() ?? IntPtr.Zero);
-            SetHandle(ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result));
-        }
-        finally
-        {
-            if (executorAddRefed)
-            {
-                executor!.DangerousRelease();
-            }
-        }
+        SetHandle(Construct(scheme, options, executor));
+        info = CreateOperatorInfo();
     }
 
     /// <summary>
@@ -124,11 +102,36 @@ public partial class Operator : SafeHandle
     /// <param name="config">Typed service configuration for the target backend service.</param>
     /// <exception cref="ArgumentNullException"><paramref name="config"/> is null.</exception>
     /// <exception cref="OpenDALException">Native operator construction fails.</exception>
-    public Operator(IServiceConfig config, Executor? executor = null) : this(
-        config?.Scheme ?? throw new ArgumentNullException(nameof(config)),
-        config.ToOptions(),
-        executor)
+    public Operator(IServiceConfig config, Executor? executor = null) : base(IntPtr.Zero, true)
     {
+        ArgumentNullException.ThrowIfNull(config);
+        SetHandle(Construct(config.Scheme, config.ToOptions(), executor));
+        info = CreateOperatorInfo();
+    }
+
+    private static IntPtr Construct(
+        string scheme,
+        IReadOnlyDictionary<string, string>? options,
+        Executor? executor)
+    {
+        using var nativeOptionsHandle = CreateConstructorOptionsHandle(options);
+        var executorAddRefed = false;
+        try
+        {
+            executor?.DangerousAddRef(ref executorAddRefed);
+            var result = NativeMethods.operator_construct(
+                scheme,
+                GetOptionsHandle(nativeOptionsHandle),
+                executor?.DangerousGetHandle() ?? IntPtr.Zero);
+            return ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result);
+        }
+        finally
+        {
+            if (executorAddRefed)
+            {
+                executor!.DangerousRelease();
+            }
+        }
     }
 
     /// <summary>
@@ -257,18 +260,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Writes the specified content to a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="content">Bytes to write.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the metadata of the written object.</returns>
-    public Task<Metadata> WriteAsync(string path, byte[] content, CancellationToken cancellationToken)
-    {
-        return WriteAsync(path, content, options: null, cancellationToken);
-    }
-
-    /// <summary>
     /// Writes the specified content to a path asynchronously with optional write options and executor.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -328,7 +319,7 @@ public partial class Operator : SafeHandle
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(initialCapacity);
 
         var result = NativeMethods.write_buffer_create((nuint)initialCapacity);
-        var buffer = ToValueOrThrowAndRelease<OpenDALWriteBuffer, OpenDALWriteBufferResult>(result);
+        var buffer = ToValueOrThrowAndRelease<OpenDALWriteBuffer, OpenDALWriteResult>(result);
         return new WriteBuffer(buffer.Handle, buffer.Data, checked((int)buffer.Capacity));
     }
 
@@ -447,17 +438,6 @@ public partial class Operator : SafeHandle
     public byte[] Read(string path, ReadOptions? options = null)
     {
         return Read(path, static sequence => sequence.ToArray(), options);
-    }
-
-    /// <summary>
-    /// Reads all bytes from a path asynchronously.
-    /// </summary>
-    /// <param name="path">Source path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the read content.</returns>
-    public Task<byte[]> ReadAsync(string path, CancellationToken cancellationToken)
-    {
-        return ReadAsync(path, options: null, cancellationToken);
     }
 
     /// <summary>
@@ -646,17 +626,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Gets metadata of a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the path metadata.</returns>
-    public Task<Metadata> StatAsync(string path, CancellationToken cancellationToken)
-    {
-        return StatAsync(path, options: null, cancellationToken);
-    }
-
-    /// <summary>
     /// Gets metadata for the specified path asynchronously.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -702,17 +671,6 @@ public partial class Operator : SafeHandle
         result = NativeMethods.operator_list_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
 
         return ToValueOrThrowAndRelease<IReadOnlyList<Entry>, OpenDALEntryListResult>(result);
-    }
-
-    /// <summary>
-    /// Lists entries under a path asynchronously.
-    /// </summary>
-    /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
-    /// <returns>A task that resolves with the listed entries.</returns>
-    public Task<IReadOnlyList<Entry>> ListAsync(string path, CancellationToken cancellationToken)
-    {
-        return ListAsync(path, options: null, cancellationToken);
     }
 
     /// <summary>
@@ -1159,15 +1117,6 @@ public partial class Operator : SafeHandle
     private static IntPtr GetOptionsHandle(NativeOptionsHandle? options)
     {
         return options is null ? IntPtr.Zero : options.DangerousGetHandle();
-    }
-
-    /// <summary>
-    /// Creates the lazily-evaluated operator info loader.
-    /// </summary>
-    /// <returns>A thread-safe lazy loader for <see cref="OperatorInfo"/>.</returns>
-    private Lazy<OperatorInfo> CreateInfoLazy()
-    {
-        return new Lazy<OperatorInfo>(CreateOperatorInfo, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
     /// <summary>

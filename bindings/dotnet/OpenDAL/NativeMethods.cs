@@ -222,11 +222,11 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "write_buffer_create")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALWriteBufferResult write_buffer_create(nuint capacity);
+    internal static partial OpenDALWriteResult write_buffer_create(nuint capacity);
 
     [LibraryImport(__DllName, EntryPoint = "write_buffer_add_segment")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALWriteBufferResult write_buffer_add_segment(
+    internal static partial OpenDALWriteResult write_buffer_add_segment(
         IntPtr handle,
         nuint committedInCurrent,
         nuint minCapacity

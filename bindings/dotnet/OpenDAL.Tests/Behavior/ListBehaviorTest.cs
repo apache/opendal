@@ -66,8 +66,8 @@ public sealed class ListBehaviorTest : BehaviorTestBase
         var b = $"{dir}nested/b.txt";
 
         await Op.CreateDirAsync(dir, CT);
-        await Op.WriteAsync(a, RandomBytes(10), CT);
-        await Op.WriteAsync(b, RandomBytes(20), CT);
+        await Op.WriteAsync(a, RandomBytes(10), cancellationToken: CT);
+        await Op.WriteAsync(b, RandomBytes(20), cancellationToken: CT);
 
         var entries = await Op.ListAsync(dir, new ListOptions { Recursive = true }, CT);
 
@@ -89,7 +89,7 @@ public sealed class ListBehaviorTest : BehaviorTestBase
         {
             var path = $"{dir}file-{i}.txt";
             files.Add(path);
-            await Op.WriteAsync(path, RandomBytes(8), CT);
+            await Op.WriteAsync(path, RandomBytes(8), cancellationToken: CT);
         }
 
         var entries = await Op.ListAsync(dir, new ListOptions { Recursive = true, Limit = 3 }, CT);

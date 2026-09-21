@@ -91,9 +91,9 @@ impl std::ops::Deref for OperatorHandle {
 /// Callback signatures for async completion.
 ///
 /// The callbacks are provided by the .NET side and must remain valid until
-/// invoked by Rust. `WriteCallback` reports success or failure only, while
+/// invoked by Rust. `VoidCallback` reports success or failure only, while
 /// `MetadataCallback` carries the metadata that write, copy, and stat return.
-type WriteCallback = extern "C" fn(context: i64, result: OpendalResult);
+type VoidCallback = extern "C" fn(context: i64, result: OpendalResult);
 type ReadCallback = extern "C" fn(context: i64, result: OpendalReadResult);
 type MetadataCallback = extern "C" fn(context: i64, result: OpendalMetadataResult);
 type ListCallback = extern "C" fn(context: i64, result: OpendalEntryListResult);
@@ -723,7 +723,7 @@ pub extern "C" fn operator_delete_with_options_async(
     op_handle: *const OperatorHandle,
     path: *const c_char,
     options: *const opendal::options::DeleteOptions,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_delete_with_options_async_inner(op_handle, path, options, callback, context) {
@@ -736,7 +736,7 @@ fn operator_delete_with_options_async_inner(
     op_handle: *const OperatorHandle,
     path: *const c_char,
     options: *const opendal::options::DeleteOptions,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
     let handle = require_op_handle(op_handle)?;
@@ -810,7 +810,7 @@ fn operator_create_dir_inner(
 pub extern "C" fn operator_create_dir_async(
     op_handle: *const OperatorHandle,
     path: *const c_char,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_create_dir_async_inner(op_handle, path, callback, context) {
@@ -822,7 +822,7 @@ pub extern "C" fn operator_create_dir_async(
 fn operator_create_dir_async_inner(
     op_handle: *const OperatorHandle,
     path: *const c_char,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
     let handle = require_op_handle(op_handle)?;
@@ -986,7 +986,7 @@ pub extern "C" fn operator_rename_async(
     op_handle: *const OperatorHandle,
     source_path: *const c_char,
     target_path: *const c_char,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_rename_async_inner(op_handle, source_path, target_path, callback, context) {
@@ -999,7 +999,7 @@ fn operator_rename_async_inner(
     op_handle: *const OperatorHandle,
     source_path: *const c_char,
     target_path: *const c_char,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
     let handle = require_op_handle(op_handle)?;
@@ -1554,7 +1554,7 @@ pub unsafe extern "C" fn operator_output_stream_write_async(
     stream: *mut c_void,
     data: *const u8,
     len: usize,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_output_stream_write_async_inner(stream, data, len, callback, context) {
@@ -1567,7 +1567,7 @@ fn operator_output_stream_write_async_inner(
     stream: *mut c_void,
     data: *const u8,
     len: usize,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
     if stream.is_null() {
@@ -1671,7 +1671,7 @@ fn operator_output_stream_close_inner(stream: *mut c_void) -> Result<(), OpenDAL
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn operator_output_stream_close_async(
     stream: *mut c_void,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> OpendalResult {
     match operator_output_stream_close_async_inner(stream, callback, context) {
@@ -1682,7 +1682,7 @@ pub unsafe extern "C" fn operator_output_stream_close_async(
 
 fn operator_output_stream_close_async_inner(
     stream: *mut c_void,
-    callback: Option<WriteCallback>,
+    callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
     if stream.is_null() {

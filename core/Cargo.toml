@@ -117,6 +117,7 @@ http-transport-reqwest-rustls-no-provider = [
   "opendal-http-transport-reqwest/rustls-no-provider",
 ]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
+layers-aimd = ["dep:opendal-layer-aimd"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
 layers-capability-check = ["dep:opendal-layer-capability-check"]
@@ -248,6 +249,7 @@ required-features = ["tests"]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.59.2", default-features = false }
 opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.59.2", optional = true, default-features = false }
+opendal-layer-aimd = { path = "layers/aimd", version = "0.59.2", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.59.2", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.59.2", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.59.2", optional = true, default-features = false }

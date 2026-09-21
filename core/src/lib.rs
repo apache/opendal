@@ -422,6 +422,8 @@ pub mod services {
 /// combining retries, timeouts, caching, or observability.
 pub mod layers {
     pub use opendal_core::layers::*;
+    #[cfg(feature = "layers-aimd")]
+    pub use opendal_layer_aimd::*;
     #[cfg(feature = "layers-async-backtrace")]
     pub use opendal_layer_async_backtrace::*;
     #[cfg(feature = "layers-await-tree")]

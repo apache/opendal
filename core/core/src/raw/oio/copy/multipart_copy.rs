@@ -159,7 +159,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             completed: false,
             metadata: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
                     let size = input
                         .range

@@ -54,7 +54,7 @@ impl Package {
     pub(super) fn release_dependency_version(&self, crate_name: &str) -> Option<&Version> {
         self.dependencies
             .iter()
-            .find(|dependency| dependency.crate_name() == Some(crate_name))
+            .find(|dependency| dependency.crate_names().contains(&crate_name))
             .map(|dependency| &dependency.version)
     }
 
@@ -90,7 +90,8 @@ pub fn all_packages() -> Vec<Package> {
     let core = make_package("core", "0.59.2", vec![]);
 
     // Integrations
-    let dav_server = make_package("integrations/dav-server", "0.7.8", vec![core.clone()]);
+    let dav_server = make_package("integrations/dav-server", "0.7.8", vec![core.clone()])
+        .with_public_compat_dependencies(&["opendal-core"]);
     let object_store = make_package("integrations/object_store", "0.60.2", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "object_store"]);
     let parquet = make_package("integrations/parquet", "0.10.2", vec![core.clone()])
@@ -544,10 +545,10 @@ fn lexical_normalize(path: &Path) -> PathBuf {
 }
 
 impl Package {
-    fn crate_name(&self) -> Option<&'static str> {
+    fn crate_names(&self) -> &'static [&'static str] {
         match self.name.as_str() {
-            "core" => Some("opendal"),
-            _ => None,
+            "core" => &["opendal", "opendal-core"],
+            _ => &[],
         }
     }
 }
@@ -685,6 +686,10 @@ mod tests {
         packages[1].version = reviewed.clone();
         for _ in 0..2 {
             prepare_versions(&mut packages, baseline, true, &breaking).unwrap();
+            assert_eq!(
+                packages[1].release_dependency_version("opendal-core"),
+                Some(packages[0].version())
+            );
             for package in &packages {
                 let previous = &old[package.name()];
                 let expected = if breaking.iter().any(|name| name == package.name()) {
@@ -802,9 +807,11 @@ mod tests {
     #[test]
     fn integrations_track_public_compatibility_dependencies() {
         let core = release_package("core");
+        let dav = release_package("integrations/dav-server");
         let object_store = release_package("integrations/object_store");
         let parquet = release_package("integrations/parquet");
 
+        assert_eq!(dav.public_compat_dependencies(), ["opendal-core"]);
         assert_eq!(
             object_store.public_compat_dependencies(),
             ["opendal", "object_store"]

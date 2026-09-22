@@ -5,8 +5,8 @@ sidebar_position: 4
 
 # Weekly source releases
 
-The weekly workflow prepares a release branch each Friday from the Friday
-00:00 UTC main cutoff and directly calls the existing `release-compose.yml` to
+The weekly workflow is scheduled each Thursday at 00:00 UTC. It prepares a release
+branch from the Thursday 00:00 UTC main cutoff and calls `release-compose.yml` to
 build, sign and upload the candidate to ATR. Manual dispatch runs the same flow
 from the selected branch commit at the time of dispatch.
 Preparation creates no version PR and requires no manual merge.
@@ -15,6 +15,11 @@ The release manager then follows the [release procedure](release.md) to verify
 the candidate and start the vote with automatic resolution and publication
 enabled in ATR. Hourly synchronization then finishes publication and opens the
 version-sync PR after ATR records a passing result.
+
+Starting preparation on Thursday leaves time for a Monday release. The 72-hour
+vote period starts when the RM opens the vote, not when preparation starts.
+Scheduled-run delays, a later vote start or insufficient votes can delay publication;
+Monday is a target, not a forced publication deadline.
 
 ## Preparation
 

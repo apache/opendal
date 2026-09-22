@@ -224,8 +224,11 @@ impl HdfsCore {
                             .with_context("to", &to_path),
                     );
                 }
-                // hdfsCopy uses FileUtil.copy with overwrite=true, so an existing
-                // destination file is replaced in the subsequent copy_file call.
+                // hdfsCopy has been verified to overwrite natively via
+                // FileUtil.copy(..., overwrite=true).
+                self.client
+                    .remove_file(&to_path)
+                    .map_err(new_std_io_error)?;
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 // hdrs copy_file requires the destination parent to already exist.

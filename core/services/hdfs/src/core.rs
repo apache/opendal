@@ -215,6 +215,76 @@ impl HdfsCore {
 
         Ok(())
     }
+
+    pub async fn hdfs_copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        use futures::AsyncWriteExt;
+
+        let from_path = build_rooted_abs_path(&self.root, from);
+        // Verify the source exists and is a file.
+        let from_meta = self.client.metadata(&from_path).map_err(new_std_io_error)?;
+        if !from_meta.is_file() {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path should be a file")
+                    .with_context("input", from),
+            );
+        }
+
+        let to_path = build_rooted_abs_path(&self.root, to);
+        match self.client.metadata(&to_path) {
+            Ok(meta) => {
+                if meta.is_dir() {
+                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
+                        .with_context("to", &to_path));
+                }
+                // Overwrite existing destination files.
+                self.client
+                    .remove_file(&to_path)
+                    .map_err(new_std_io_error)?;
+            }
+            Err(err) if err.kind() == io::ErrorKind::NotFound => {
+                // Ensure the parent directory of the destination exists.
+                let parent = std::path::PathBuf::from(&to_path)
+                    .parent()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "path should have parent but not, it must be malformed",
+                        )
+                        .with_context("input", &to_path)
+                    })?
+                    .to_path_buf();
+
+                self.client
+                    .create_dir(&parent.to_string_lossy())
+                    .map_err(new_std_io_error)?;
+            }
+            Err(err) => return Err(new_std_io_error(err)),
+        }
+
+        let mut reader = {
+            let mut open_options = self.client.open_file();
+            open_options.read(true);
+            open_options
+                .async_open(&from_path)
+                .await
+                .map_err(new_std_io_error)?
+        };
+        let mut writer = {
+            let mut open_options = self.client.open_file();
+            open_options.write(true).create(true).truncate(true);
+            open_options
+                .async_open(&to_path)
+                .await
+                .map_err(new_std_io_error)?
+        };
+
+        let size = futures::io::copy(&mut reader, &mut writer)
+            .await
+            .map_err(new_std_io_error)?;
+        writer.close().await.map_err(new_std_io_error)?;
+
+        Ok(MetadataBuilder::file(size).build())
+    }
 }
 
 #[cfg(test)]

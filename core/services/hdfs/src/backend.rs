@@ -174,6 +174,8 @@ impl Builder for HdfsBuilder {
 
                     shared: true,
 
+                    copy: true,
+
                     ..Default::default()
                 },
                 root,
@@ -195,7 +197,7 @@ impl Service for HdfsBackend {
     type Writer = HdfsLazyWriter;
     type Lister = Option<HdfsLister>;
     type Deleter = oio::OneShotDeleter<HdfsDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -258,14 +260,16 @@ impl Service for HdfsBackend {
     fn copy(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
+        from: &str,
+        to: &str,
         _args: OpCopy,
     ) -> Result<Self::Copier> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let core = self.core.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            core.hdfs_copy(&from, &to).await
+        }))
     }
 
     async fn rename(

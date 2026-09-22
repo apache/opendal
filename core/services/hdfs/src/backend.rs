@@ -268,7 +268,7 @@ impl Service for HdfsBackend {
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
-            core.hdfs_copy(&from, &to).await
+            core.hdfs_copy(&from, &to)
         }))
     }
 

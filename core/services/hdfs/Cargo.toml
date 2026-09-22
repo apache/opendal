@@ -36,7 +36,7 @@ opendal-core = { path = "../../core", version = "0.59.3", default-features = fal
 
 bytes = { workspace = true }
 futures = { workspace = true }
-hdrs = { version = "0.3.2", features = ["async_file"] }
+hdrs = { version = "0.3.3", features = ["async_file"] }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt"] }

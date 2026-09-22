@@ -169,12 +169,12 @@ impl Builder for HdfsBuilder {
 
                     list: true,
 
+                    copy: true,
+
                     rename: true,
                     rename_with_if_not_exists: true,
 
                     shared: true,
-
-                    copy: true,
 
                     ..Default::default()
                 },
@@ -267,8 +267,11 @@ impl Service for HdfsBackend {
         let core = self.core.clone();
         let from = from.to_string();
         let to = to.to_string();
-        Ok(oio::OneShotCopier::new(async move {
-            core.hdfs_copy(&from, &to)
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let from = from.clone();
+            let to = to.clone();
+            async move { core.hdfs_copy(&from, &to).await }
         }))
     }
 

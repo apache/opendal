@@ -124,8 +124,7 @@ impl HdfsCore {
         });
 
         if !target_exists {
-            let parent = get_parent(&target_path);
-            self.client.create_dir(parent).map_err(new_std_io_error)?;
+            self.ensure_parent_dir(&target_path)?;
         }
         if !should_append {
             initial_size = 0;
@@ -175,20 +174,7 @@ impl HdfsCore {
                     return Err(new_std_io_error(err));
                 }
 
-                let parent = std::path::PathBuf::from(&to_path)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path should have parent but not, it must be malformed",
-                        )
-                        .with_context("to", &to_path)
-                    })?
-                    .to_path_buf();
-
-                self.client
-                    .create_dir(&parent.to_string_lossy())
-                    .map_err(new_std_io_error)?;
+                self.ensure_parent_dir(&to_path)?;
             }
             Ok(metadata) => {
                 if metadata.is_file() {
@@ -216,55 +202,53 @@ impl HdfsCore {
         Ok(())
     }
 
-    pub fn hdfs_copy(&self, from: &str, to: &str) -> Result<Metadata> {
+    pub async fn hdfs_copy(&self, from: &str, to: &str) -> Result<Metadata> {
         let from_path = build_rooted_abs_path(&self.root, from);
-        // Verify the source exists and is a file.
+        // FileUtil.copy recurses when the source is a directory.
         let from_meta = self.client.metadata(&from_path).map_err(new_std_io_error)?;
         if !from_meta.is_file() {
             return Err(
                 Error::new(ErrorKind::IsADirectory, "from path should be a file")
-                    .with_context("input", from),
+                    .with_context("from", &from_path),
             );
         }
 
         let to_path = build_rooted_abs_path(&self.root, to);
         match self.client.metadata(&to_path) {
             Ok(meta) => {
+                // FileUtil.checkDest rewrites a directory destination to dst/<srcName>
+                // and copies into it without error.
                 if meta.is_dir() {
-                    return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
-                        .with_context("to", &to_path));
+                    return Err(
+                        Error::new(ErrorKind::IsADirectory, "to path should be a file")
+                            .with_context("to", &to_path),
+                    );
                 }
-                // Overwrite existing destination files. hdrs copy_file does not
-                // document overwrite.
-                self.client
-                    .remove_file(&to_path)
-                    .map_err(new_std_io_error)?;
+                // hdfsCopy uses FileUtil.copy with overwrite=true, so an existing
+                // destination file is replaced in the subsequent copy_file call.
             }
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
                 // hdrs copy_file requires the destination parent to already exist.
-                let parent = std::path::PathBuf::from(&to_path)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "path should have parent but not, it must be malformed",
-                        )
-                        .with_context("input", &to_path)
-                    })?
-                    .to_path_buf();
-
-                self.client
-                    .create_dir(&parent.to_string_lossy())
-                    .map_err(new_std_io_error)?;
+                self.ensure_parent_dir(&to_path)?;
             }
             Err(err) => return Err(new_std_io_error(err)),
         }
 
-        self.client
-            .copy_file(&from_path, &to_path)
+        let client = self.client.clone();
+        let copy_from = from_path.clone();
+        let copy_to = to_path.clone();
+        tokio::task::spawn_blocking(move || client.copy_file(&copy_from, &copy_to))
+            .await
+            .map_err(|e| Error::new(ErrorKind::Unexpected, "tokio task join failed").set_source(e))?
             .map_err(new_std_io_error)?;
 
         Ok(MetadataBuilder::file(from_meta.len()).build())
+    }
+
+    fn ensure_parent_dir(&self, path: &str) -> Result<()> {
+        self.client
+            .create_dir(get_parent(path))
+            .map_err(new_std_io_error)
     }
 }
 

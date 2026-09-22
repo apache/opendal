@@ -1,6 +1,6 @@
 {
   "name": "@opendal/lib-darwin-x64",
-  "version": "0.49.10",
+  "version": "0.49.11",
   "cpu": [
     "x64"
   ],

@@ -17,6 +17,14 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Copy behavior
+
+The HDFS service copies files to exact destination file paths and rejects
+directory sources and destinations. Copy overwrites an existing destination by
+removing it before copying the source. This replacement is not atomic: if the
+copy fails after removing the destination, the destination can be missing or
+incomplete.
+
 ## Differences with webhdfs
 
 The [WebHDFS service](https://docs.rs/opendal-service-webhdfs) uses HDFS's

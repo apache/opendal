@@ -204,7 +204,8 @@ impl HdfsCore {
 
     pub async fn hdfs_copy(&self, from: &str, to: &str) -> Result<Metadata> {
         let from_path = build_rooted_abs_path(&self.root, from);
-        // FileUtil.copy recurses when the source is a directory.
+        // OpenDAL copy is file-to-file only. Reject directory sources before
+        // the HDFS API can recursively copy their contents.
         let from_meta = self.client.metadata(&from_path).map_err(new_std_io_error)?;
         if !from_meta.is_file() {
             return Err(
@@ -216,16 +217,16 @@ impl HdfsCore {
         let to_path = build_rooted_abs_path(&self.root, to);
         match self.client.metadata(&to_path) {
             Ok(meta) => {
-                // FileUtil.checkDest rewrites a directory destination to dst/<srcName>
-                // and copies into it without error.
+                // OpenDAL treats `to` as the exact destination file path. Reject
+                // an existing directory instead of copying the source into it.
                 if meta.is_dir() {
                     return Err(
                         Error::new(ErrorKind::IsADirectory, "to path should be a file")
                             .with_context("to", &to_path),
                     );
                 }
-                // hdfsCopy has been verified to overwrite natively via
-                // FileUtil.copy(..., overwrite=true).
+                // The HDFS copy API does not replace an existing destination,
+                // so remove it first to preserve OpenDAL's overwrite semantics.
                 self.client
                     .remove_file(&to_path)
                     .map_err(new_std_io_error)?;

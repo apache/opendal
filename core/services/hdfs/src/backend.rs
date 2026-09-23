@@ -267,6 +267,7 @@ impl Service for HdfsBackend {
         let core = self.core.clone();
         let from = from.to_string();
         let to = to.to_string();
+        // Recreate the future so retry layers can rerun the copy after a temporary error.
         Ok(oio::OneShotCopier::new_with(move || {
             let core = core.clone();
             let from = from.clone();

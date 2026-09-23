@@ -657,6 +657,94 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
+    /// Checks whether the specified path exists.
+    /// </summary>
+    /// <remarks>
+    /// A <c>NotFound</c> error from the backend yields <see langword="false"/>;
+    /// any other error is thrown.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <returns><see langword="true"/> when the path exists.</returns>
+    public bool Exists(string path)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var result = NativeMethods.operator_exists(this, path);
+        return ToValueOrThrowAndRelease<bool, OpenDALBoolResult>(result);
+    }
+
+    /// <summary>
+    /// Checks whether the specified path exists asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// A <c>NotFound</c> error from the backend yields <see langword="false"/>;
+    /// any other error is thrown.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that resolves with <see langword="true"/> when the path exists.</returns>
+    public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation<bool>(SubmitExistsAsync, cancellationToken);
+
+        OpenDALResult SubmitExistsAsync(long context)
+        {
+            unsafe
+            {
+                return NativeMethods.operator_exists_async(
+                    this,
+                    path,
+                    &OnExistsCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks whether the operator can reach its service.
+    /// </summary>
+    /// <remarks>
+    /// Lists the root with a limit of one entry. A <c>NotFound</c> error is
+    /// treated as success; any other error is thrown.
+    /// </remarks>
+    public void Check()
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var result = NativeMethods.operator_check(this);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    /// <summary>
+    /// Checks whether the operator can reach its service asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// Lists the root with a limit of one entry. A <c>NotFound</c> error is
+    /// treated as success; any other error is thrown.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    public Task CheckAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation(SubmitCheckAsync, cancellationToken);
+
+        OpenDALResult SubmitCheckAsync(long context)
+        {
+            unsafe
+            {
+                return NativeMethods.operator_check_async(
+                    this,
+                    &OnCheckCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
     /// Lists entries under the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -1468,6 +1556,28 @@ public partial class Operator : SafeHandle
     private static void OnStatCompleted(long context, OpenDALMetadataResult result)
     {
         CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous exists operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Exists completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnExistsCompleted(long context, OpenDALBoolResult result)
+    {
+        CompleteAsyncCallback<bool, OpenDALBoolResult>(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous check operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Check completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnCheckCompleted(long context, OpenDALResult result)
+    {
+        CompleteAsyncCallback(context, result);
     }
 
     /// <summary>

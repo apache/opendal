@@ -32,6 +32,28 @@ public sealed class ListBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public void ListBehavior_Check_Succeeds()
+    {
+        if (!Supports(c => c.Read && c.Write && c.List))
+        {
+            return;
+        }
+
+        Op.Check();
+    }
+
+    [Fact]
+    public async Task ListBehavior_Check_SucceedsAsync()
+    {
+        if (!Supports(c => c.Read && c.Write && c.List))
+        {
+            return;
+        }
+
+        await Op.CheckAsync(CT);
+    }
+
+    [Fact]
     public void ListBehavior_ListsEntriesUnderPrefix()
     {
         if (!Supports(c => c.List && c.Write && c.CreateDir))

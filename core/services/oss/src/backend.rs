@@ -523,8 +523,8 @@ impl Builder for OssBuilder {
         }
         let mut provider = provider
             .push(EnvCredentialProvider::new())
-            .push(EcsRamRoleCredentialProvider::new())
-            .push(assume_role);
+            .push(assume_role)
+            .push(EcsRamRoleCredentialProvider::new());
 
         if let Some(role_arn) = &self.config.role_arn {
             let mut assume_role_with_ak = AssumeRoleCredentialProvider::new()
@@ -857,5 +857,146 @@ impl Service for OssBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use reqsign_core::{FileRead, HttpSend};
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct OidcTokenFile;
+
+    impl FileRead for OidcTokenFile {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            assert_eq!(path, "/test/oidc-token");
+            Ok(b"test-oidc-token".to_vec())
+        }
+    }
+
+    #[derive(Clone, Debug, Default)]
+    struct CredentialHttpSend {
+        requests: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl HttpSend for CredentialHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<Bytes>,
+        ) -> reqsign_core::Result<http::Response<Bytes>> {
+            let host = req.uri().host().unwrap();
+            let path = req.uri().path();
+            self.requests.lock().unwrap().push(format!("{host}{path}"));
+            let body = match (host, path) {
+                ("sts.aliyuncs.com", "/") => {
+                    assert!(
+                        req.uri()
+                            .query()
+                            .unwrap()
+                            .contains("Action=AssumeRoleWithOIDC")
+                    );
+                    r#"{"Credentials":{"AccessKeyId":"oidc-ak","AccessKeySecret":"oidc-secret","SecurityToken":"oidc-token","Expiration":"2099-01-01T00:00:00Z"}}"#
+                }
+                ("100.100.100.200", "/latest/api/token") => "metadata-token",
+                ("100.100.100.200", "/latest/meta-data/ram/security-credentials/") => "node-role",
+                ("100.100.100.200", "/latest/meta-data/ram/security-credentials/node-role") => {
+                    r#"{"Code":"Success","AccessKeyId":"ecs-ak","AccessKeySecret":"ecs-secret","SecurityToken":"ecs-token","Expiration":"2099-01-01T00:00:00Z"}"#
+                }
+                _ => panic!("unexpected credential request: {}", req.uri()),
+            };
+            Ok(http::Response::new(Bytes::from_static(body.as_bytes())))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_credential_precedence() {
+        for (static_keys, env_keys, oidc, expected_key, expected_token) in [
+            (true, true, true, "static-ak", "static-token"),
+            (false, true, true, "env-ak", "env-token"),
+            (false, false, true, "oidc-ak", "oidc-token"),
+            (false, false, false, "ecs-ak", "ecs-token"),
+        ] {
+            let mut builder = OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com");
+            if static_keys {
+                builder = builder
+                    .access_key_id("static-ak")
+                    .access_key_secret("static-secret")
+                    .security_token("static-token");
+            }
+            let backend = builder.build().unwrap();
+            let backend = (&backend as &dyn std::any::Any)
+                .downcast_ref::<OssBackend>()
+                .unwrap();
+            let mut envs = HashMap::new();
+            if env_keys {
+                envs.extend([
+                    ("ALIBABA_CLOUD_ACCESS_KEY_ID".into(), "env-ak".into()),
+                    (
+                        "ALIBABA_CLOUD_ACCESS_KEY_SECRET".into(),
+                        "env-secret".into(),
+                    ),
+                    ("ALIBABA_CLOUD_SECURITY_TOKEN".into(), "env-token".into()),
+                ]);
+            }
+            if oidc {
+                envs.extend([
+                    (
+                        "ALIBABA_CLOUD_ROLE_ARN".into(),
+                        "acs:ram::123456789012:role/pod-role".into(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_OIDC_PROVIDER_ARN".into(),
+                        "acs:ram::123456789012:oidc-provider/test".into(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_OIDC_TOKEN_FILE".into(),
+                        "/test/oidc-token".into(),
+                    ),
+                ]);
+            }
+            let http = CredentialHttpSend::default();
+            let ctx = Context::new()
+                .with_env(StaticEnv {
+                    home_dir: None,
+                    envs,
+                })
+                .with_file_read(OidcTokenFile)
+                .with_http_send(http.clone());
+            let signer = backend.core.signer.clone().with_context(ctx);
+            let (mut parts, _) = http::Request::builder()
+                .method(http::Method::PUT)
+                .uri("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/manifest.json")
+                .body(())
+                .unwrap()
+                .into_parts();
+            signer.sign(&mut parts, None).await.unwrap();
+            assert!(
+                parts.headers[http::header::AUTHORIZATION]
+                    .to_str()
+                    .unwrap()
+                    .starts_with(&format!("OSS {expected_key}:"))
+            );
+            assert_eq!(parts.headers["x-oss-security-token"], expected_token);
+            let expected_requests = if static_keys || env_keys {
+                vec![]
+            } else if oidc {
+                vec!["sts.aliyuncs.com/"]
+            } else {
+                vec![
+                    "100.100.100.200/latest/api/token",
+                    "100.100.100.200/latest/meta-data/ram/security-credentials/",
+                    "100.100.100.200/latest/meta-data/ram/security-credentials/node-role",
+                ]
+            };
+            assert_eq!(*http.requests.lock().unwrap(), expected_requests);
+        }
     }
 }

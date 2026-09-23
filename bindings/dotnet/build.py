@@ -29,6 +29,8 @@ def classifier_to_target(classifier: str) -> str:
         return "aarch64-apple-darwin"
     if classifier == "linux-x86_64":
         return "x86_64-unknown-linux-gnu"
+    if classifier == "linux-aarch_64":
+        return "aarch64-unknown-linux-gnu"
     if classifier == "windows-x86_64":
         return "x86_64-pc-windows-msvc"
     raise Exception(f"Unsupported classifier: {classifier}")
@@ -37,7 +39,7 @@ def classifier_to_target(classifier: str) -> str:
 def get_cargo_artifact_name(classifier: str) -> str:
     if classifier == "osx-aarch_64":
         return "libopendal_dotnet.dylib"
-    if classifier == "linux-x86_64":
+    if classifier == "linux-x86_64" or classifier == "linux-aarch_64":
         return "libopendal_dotnet.so"
     if classifier == "windows-x86_64":
         return "opendal_dotnet.dll"

@@ -52,6 +52,9 @@ jobs:
           - os: ubuntu-latest
             classifier: linux-x86_64
             artifact: libopendal_dotnet.so
+          - os: ubuntu-24.04-arm
+            classifier: linux-aarch_64
+            artifact: libopendal_dotnet.so
           - os: windows-latest
             classifier: windows-x86_64
             artifact: opendal_dotnet.dll
@@ -98,11 +101,13 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      # Keep one directory per artifact: the Linux x64 and Linux arm64 builds
+      # share the libopendal_dotnet.so file name, so merging them into a single
+      # directory would drop one of the two libraries.
       - name: Download native artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: native-*
-          merge-multiple: true
           path: bindings/dotnet/target/release-assets
 
       - name: Prepare runtime assets
@@ -110,11 +115,13 @@ jobs:
         run: |
           mkdir -p OpenDAL/runtimes/win-x64/native
           mkdir -p OpenDAL/runtimes/linux-x64/native
+          mkdir -p OpenDAL/runtimes/linux-arm64/native
           mkdir -p OpenDAL/runtimes/osx-arm64/native
 
-          cp target/release-assets/opendal_dotnet.dll OpenDAL/runtimes/win-x64/native/
-          cp target/release-assets/libopendal_dotnet.so OpenDAL/runtimes/linux-x64/native/
-          cp target/release-assets/libopendal_dotnet.dylib OpenDAL/runtimes/osx-arm64/native/
+          cp target/release-assets/native-windows-x86_64/opendal_dotnet.dll OpenDAL/runtimes/win-x64/native/
+          cp target/release-assets/native-linux-x86_64/libopendal_dotnet.so OpenDAL/runtimes/linux-x64/native/
+          cp target/release-assets/native-linux-aarch_64/libopendal_dotnet.so OpenDAL/runtimes/linux-arm64/native/
+          cp target/release-assets/native-osx-aarch_64/libopendal_dotnet.dylib OpenDAL/runtimes/osx-arm64/native/
 
       - name: Determine version suffix
         id: version

@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classopendal_1_1LayerBuilderMutator.html" title="Abstraction for applying layers during operator construction." alt="" coords="5,13,220,38"/>
+<area shape="rect" id="Node000001" href="$classopendal_1_1FfiLayerBuilderMutator.html" title="Applies layers through the cxx bridge." alt="" coords="268,5,448,45"/>
+<area shape="poly" id="edge1_Node000000_Node000001" title=" " alt="" coords="234,23,268,23,268,28,234,28"/>
+</map>

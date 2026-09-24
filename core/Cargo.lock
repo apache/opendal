@@ -4091,9 +4091,9 @@ dependencies = [
 
 [[package]]
 name = "hdfs-sys"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33e2d5cefba2d51a26b44d2a493f963a32725a0f6593c91be4a610ad449c49cb"
+checksum = "18138c3dacdf0e95f834369f996b21d2b6fa99e71787ef45e2ece09b37bd1dd1"
 dependencies = [
  "cc",
  "java-locator",
@@ -4101,9 +4101,9 @@ dependencies = [
 
 [[package]]
 name = "hdrs"
-version = "0.3.2"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7c42a693bfe5dc8fcad1f24044c5ec355c5f157b8ce63c7d62f51cecbc7878d"
+checksum = "c29b0c501a568c941c1ed9044284784978ac28dc173b173f1191ff771de9a27a"
 dependencies = [
  "blocking",
  "errno",

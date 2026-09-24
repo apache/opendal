@@ -86,14 +86,14 @@ md-5@0.11.0	X							X
 memchr@2.8.3								X			X	
 mio@1.2.3								X				
 once_cell@1.21.4	X							X				
-opendal@0.59.3	X											
-opendal-core@0.59.3	X											
+opendal@0.59.4	X											
+opendal-core@0.59.4	X											
 opendal-cpp@0.0.0	X											
-opendal-http-transport-reqwest@0.59.3	X											
-opendal-layer-concurrent-limit@0.59.3	X											
-opendal-layer-logging@0.59.3	X											
-opendal-layer-retry@0.59.3	X											
-opendal-layer-timeout@0.59.3	X											
+opendal-http-transport-reqwest@0.59.4	X											
+opendal-layer-concurrent-limit@0.59.4	X											
+opendal-layer-logging@0.59.4	X											
+opendal-layer-retry@0.59.4	X											
+opendal-layer-timeout@0.59.4	X											
 openssl-probe@0.2.1	X							X				
 percent-encoding@2.3.2	X							X				
 pin-project-lite@0.2.17	X							X				
@@ -137,8 +137,8 @@ syn@3.0.6	X							X
 sync_wrapper@1.0.2	X											
 synstructure@0.14.0								X				
 termcolor@1.4.1								X			X	
-thiserror@2.0.20	X							X				
-thiserror-impl@2.0.20	X							X				
+thiserror@2.0.21	X							X				
+thiserror-impl@2.0.21	X							X				
 tinystr@0.8.4										X		
 tokio@1.53.1								X				
 tokio-macros@2.7.2								X				

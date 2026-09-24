@@ -256,62 +256,62 @@ objc2-io-kit@0.3.2	X									X					X
 objc2-system-configuration@0.3.2	X									X					X
 once_cell@1.21.4	X									X					
 oneshot@0.1.13	X									X					
-opendal@0.59.3	X														
-opendal-core@0.59.3	X														
-opendal-http-transport-reqwest@0.59.3	X														
-opendal-layer-concurrent-limit@0.59.3	X														
-opendal-layer-logging@0.59.3	X														
-opendal-layer-mime-guess@0.59.3	X														
-opendal-layer-retry@0.59.3	X														
-opendal-layer-timeout@0.59.3	X														
-opendal-python@0.47.10	X														
-opendal-service-aliyun-drive@0.59.3	X														
-opendal-service-alluxio@0.59.3	X														
-opendal-service-azblob@0.59.3	X														
-opendal-service-azdls@0.59.3	X														
-opendal-service-azfile@0.59.3	X														
-opendal-service-azure-common@0.59.3	X														
-opendal-service-b2@0.59.3	X														
-opendal-service-cacache@0.59.3	X														
-opendal-service-cos@0.59.3	X														
-opendal-service-dashmap@0.59.3	X														
-opendal-service-dropbox@0.59.3	X														
-opendal-service-fs@0.59.3	X														
-opendal-service-ftp@0.59.3	X														
-opendal-service-gcs@0.59.3	X														
-opendal-service-gcs-grpc@0.59.3	X														
-opendal-service-gdrive@0.59.3	X														
-opendal-service-ghac@0.59.3	X														
-opendal-service-gridfs@0.59.3	X														
-opendal-service-hdfs-native@0.59.3	X														
-opendal-service-hf@0.59.3	X														
-opendal-service-http@0.59.3	X														
-opendal-service-ipfs@0.59.3	X														
-opendal-service-ipmfs@0.59.3	X														
-opendal-service-koofr@0.59.3	X														
-opendal-service-memcached@0.59.3	X														
-opendal-service-mini-moka@0.59.3	X														
-opendal-service-moka@0.59.3	X														
-opendal-service-mongodb@0.59.3	X														
-opendal-service-mysql@0.59.3	X														
-opendal-service-obs@0.59.3	X														
-opendal-service-onedrive@0.59.3	X														
-opendal-service-oss@0.59.3	X														
-opendal-service-persy@0.59.3	X														
-opendal-service-postgresql@0.59.3	X														
-opendal-service-redb@0.59.3	X														
-opendal-service-redis@0.59.3	X														
-opendal-service-s3@0.59.3	X														
-opendal-service-seafile@0.59.3	X														
-opendal-service-sled@0.59.3	X														
-opendal-service-sqlite@0.59.3	X														
-opendal-service-swift@0.59.3	X														
-opendal-service-tos@0.59.3	X														
-opendal-service-upyun@0.59.3	X														
-opendal-service-vercel-artifacts@0.59.3	X														
-opendal-service-webdav@0.59.3	X														
-opendal-service-webhdfs@0.59.3	X														
-opendal-service-yandex-disk@0.59.3	X														
+opendal@0.59.4	X														
+opendal-core@0.59.4	X														
+opendal-http-transport-reqwest@0.59.4	X														
+opendal-layer-concurrent-limit@0.59.4	X														
+opendal-layer-logging@0.59.4	X														
+opendal-layer-mime-guess@0.59.4	X														
+opendal-layer-retry@0.59.4	X														
+opendal-layer-timeout@0.59.4	X														
+opendal-python@0.47.11	X														
+opendal-service-aliyun-drive@0.59.4	X														
+opendal-service-alluxio@0.59.4	X														
+opendal-service-azblob@0.59.4	X														
+opendal-service-azdls@0.59.4	X														
+opendal-service-azfile@0.59.4	X														
+opendal-service-azure-common@0.59.4	X														
+opendal-service-b2@0.59.4	X														
+opendal-service-cacache@0.59.4	X														
+opendal-service-cos@0.59.4	X														
+opendal-service-dashmap@0.59.4	X														
+opendal-service-dropbox@0.59.4	X														
+opendal-service-fs@0.59.4	X														
+opendal-service-ftp@0.59.4	X														
+opendal-service-gcs@0.59.4	X														
+opendal-service-gcs-grpc@0.59.4	X														
+opendal-service-gdrive@0.59.4	X														
+opendal-service-ghac@0.59.4	X														
+opendal-service-gridfs@0.59.4	X														
+opendal-service-hdfs-native@0.59.4	X														
+opendal-service-hf@0.59.4	X														
+opendal-service-http@0.59.4	X														
+opendal-service-ipfs@0.59.4	X														
+opendal-service-ipmfs@0.59.4	X														
+opendal-service-koofr@0.59.4	X														
+opendal-service-memcached@0.59.4	X														
+opendal-service-mini-moka@0.59.4	X														
+opendal-service-moka@0.59.4	X														
+opendal-service-mongodb@0.59.4	X														
+opendal-service-mysql@0.59.4	X														
+opendal-service-obs@0.59.4	X														
+opendal-service-onedrive@0.59.4	X														
+opendal-service-oss@0.59.4	X														
+opendal-service-persy@0.59.4	X														
+opendal-service-postgresql@0.59.4	X														
+opendal-service-redb@0.59.4	X														
+opendal-service-redis@0.59.4	X														
+opendal-service-s3@0.59.4	X														
+opendal-service-seafile@0.59.4	X														
+opendal-service-sled@0.59.4	X														
+opendal-service-sqlite@0.59.4	X														
+opendal-service-swift@0.59.4	X														
+opendal-service-tos@0.59.4	X														
+opendal-service-upyun@0.59.4	X														
+opendal-service-vercel-artifacts@0.59.4	X														
+opendal-service-webdav@0.59.4	X														
+opendal-service-webhdfs@0.59.4	X														
+opendal-service-yandex-disk@0.59.4	X														
 openssl-probe@0.2.1	X									X					
 option-ext@0.2.0												X			
 ordered-multimap@0.7.3										X					
@@ -472,9 +472,9 @@ tap@1.0.1										X
 target-lexicon@0.13.5		X													
 tempfile@3.27.0	X									X					
 thiserror@1.0.69	X									X					
-thiserror@2.0.20	X									X					
+thiserror@2.0.21	X									X					
 thiserror-impl@1.0.69	X									X					
-thiserror-impl@2.0.20	X									X					
+thiserror-impl@2.0.21	X									X					
 thread_local@1.1.10	X									X					
 time@0.3.55	X									X					
 time-core@0.1.9	X									X					

@@ -160,29 +160,29 @@ num-integer@0.1.47		X									X
 num-iter@0.1.46		X									X					
 num-traits@0.2.19		X									X					
 once_cell@1.21.4		X									X					
-opendal@0.59.3		X														
-opendal-core@0.59.3		X														
-opendal-http-transport-reqwest@0.59.3		X														
-opendal-layer-concurrent-limit@0.59.3		X														
-opendal-layer-logging@0.59.3		X														
-opendal-layer-retry@0.59.3		X														
-opendal-layer-timeout@0.59.3		X														
+opendal@0.59.4		X														
+opendal-core@0.59.4		X														
+opendal-http-transport-reqwest@0.59.4		X														
+opendal-layer-concurrent-limit@0.59.4		X														
+opendal-layer-logging@0.59.4		X														
+opendal-layer-retry@0.59.4		X														
+opendal-layer-timeout@0.59.4		X														
 opendal-php@0.0.0		X														
-opendal-service-azblob@0.59.3		X														
-opendal-service-azdls@0.59.3		X														
-opendal-service-azfile@0.59.3		X														
-opendal-service-azure-common@0.59.3		X														
-opendal-service-cos@0.59.3		X														
-opendal-service-fs@0.59.3		X														
-opendal-service-gcs@0.59.3		X														
-opendal-service-ghac@0.59.3		X														
-opendal-service-http@0.59.3		X														
-opendal-service-ipmfs@0.59.3		X														
-opendal-service-obs@0.59.3		X														
-opendal-service-oss@0.59.3		X														
-opendal-service-s3@0.59.3		X														
-opendal-service-webdav@0.59.3		X														
-opendal-service-webhdfs@0.59.3		X														
+opendal-service-azblob@0.59.4		X														
+opendal-service-azdls@0.59.4		X														
+opendal-service-azfile@0.59.4		X														
+opendal-service-azure-common@0.59.4		X														
+opendal-service-cos@0.59.4		X														
+opendal-service-fs@0.59.4		X														
+opendal-service-gcs@0.59.4		X														
+opendal-service-ghac@0.59.4		X														
+opendal-service-http@0.59.4		X														
+opendal-service-ipmfs@0.59.4		X														
+opendal-service-obs@0.59.4		X														
+opendal-service-oss@0.59.4		X														
+opendal-service-s3@0.59.4		X														
+opendal-service-webdav@0.59.4		X														
+opendal-service-webhdfs@0.59.4		X														
 openssl@0.10.81		X														
 openssl-macros@0.1.1		X									X					
 openssl-probe@0.2.1		X									X					
@@ -283,8 +283,8 @@ syn@3.0.6		X									X
 sync_wrapper@1.0.2		X														
 synstructure@0.14.0											X					
 tempfile@3.27.0		X									X					
-thiserror@2.0.20		X									X					
-thiserror-impl@2.0.20		X									X					
+thiserror@2.0.21		X									X					
+thiserror-impl@2.0.21		X									X					
 time@0.3.55		X									X					
 time-core@0.1.9		X									X					
 tiny-keccak@2.0.2							X									

@@ -1,0 +1,175 @@
+{
+  "baseline": "v0.59.3",
+  "source": "ef036cded461c2765dea1a85770e2134df94e9cf",
+  "pulls": [
+    {
+      "number": 8327,
+      "url": "https://github.com/apache/opendal/pull/8327",
+      "commit": "ecafb921fb9132f8fd0d7e966e843248e1253393",
+      "breaking": null
+    },
+    {
+      "number": 8317,
+      "url": "https://github.com/apache/opendal/pull/8317",
+      "commit": "cd3cdf3c88013ae496a368339bb2fded210a7040",
+      "breaking": null
+    },
+    {
+      "number": 8316,
+      "url": "https://github.com/apache/opendal/pull/8316",
+      "commit": "73644bd18f93b8897984dae85b98d1ffaa450d6e",
+      "breaking": {
+        "packages": [
+          "bindings/dotnet"
+        ],
+        "migration": "- Replace `op.ReadAsync(path, token)` with `op.ReadAsync(path, cancellationToken: token)`.\n- Replace `op.WriteAsync(path, bytes, token)` with `op.WriteAsync(path, bytes, cancellationToken: token)`.\n- Replace `op.StatAsync(path, token)` with `op.StatAsync(path, cancellationToken: token)`.\n- Replace `op.ListAsync(path, token)` with `op.ListAsync(path, cancellationToken: token)`.\n\nCalls that already pass options positionally, and calls that pass no token, are unaffected."
+      }
+    },
+    {
+      "number": 8314,
+      "url": "https://github.com/apache/opendal/pull/8314",
+      "commit": "d2033d8282bbb93280d302df7ebfb46345ed3df4",
+      "breaking": null
+    },
+    {
+      "number": 8328,
+      "url": "https://github.com/apache/opendal/pull/8328",
+      "commit": "65d5941d9f3ea40376b2b4b8ece40f6423935af9",
+      "breaking": null
+    },
+    {
+      "number": 8334,
+      "url": "https://github.com/apache/opendal/pull/8334",
+      "commit": "159c7c858543cc247e7ad7182da257212f685d72",
+      "breaking": null
+    },
+    {
+      "number": 8320,
+      "url": "https://github.com/apache/opendal/pull/8320",
+      "commit": "fc44df101820faa266996a13461869e1bfd68e1f",
+      "breaking": null
+    },
+    {
+      "number": 8335,
+      "url": "https://github.com/apache/opendal/pull/8335",
+      "commit": "ee2f0a713026680d5402aa0188f8b785e9c763a8",
+      "breaking": null
+    },
+    {
+      "number": 8339,
+      "url": "https://github.com/apache/opendal/pull/8339",
+      "commit": "8eb647c3d301c925c6b7ee62d7bb478b8f1d8db0",
+      "breaking": null
+    },
+    {
+      "number": 8337,
+      "url": "https://github.com/apache/opendal/pull/8337",
+      "commit": "23c466f5a52e1231236b10be483affa622b04255",
+      "breaking": null
+    },
+    {
+      "number": 8336,
+      "url": "https://github.com/apache/opendal/pull/8336",
+      "commit": "ef036cded461c2765dea1a85770e2134df94e9cf",
+      "breaking": null
+    }
+  ],
+  "versions": [
+    {
+      "package": "core",
+      "previous": "0.59.3",
+      "configured": "0.59.3",
+      "target": "0.59.4",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/dav-server",
+      "previous": "0.7.9",
+      "configured": "0.7.9",
+      "target": "0.7.10",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/object_store",
+      "previous": "0.60.3",
+      "configured": "0.60.3",
+      "target": "0.60.4",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/parquet",
+      "previous": "0.10.3",
+      "configured": "0.10.3",
+      "target": "0.10.4",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/unftp-sbe",
+      "previous": "0.4.9",
+      "configured": "0.4.9",
+      "target": "0.4.10",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/c",
+      "previous": "0.47.6",
+      "configured": "0.47.6",
+      "target": "0.47.7",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/cpp",
+      "previous": "0.45.33",
+      "configured": "0.45.33",
+      "target": "0.45.34",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/java",
+      "previous": "0.50.6",
+      "configured": "0.50.6",
+      "target": "0.50.7",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/nodejs",
+      "previous": "0.49.11",
+      "configured": "0.49.11",
+      "target": "0.49.12",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/python",
+      "previous": "0.47.10",
+      "configured": "0.47.10",
+      "target": "0.47.11",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/ruby",
+      "previous": "0.1.14",
+      "configured": "0.1.14",
+      "target": "0.1.15",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/dotnet",
+      "previous": "0.2.3",
+      "configured": "0.2.3",
+      "target": "0.3.0",
+      "breaking": true,
+      "public_dependency_reason": null
+    }
+  ]
+}

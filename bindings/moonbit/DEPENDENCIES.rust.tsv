@@ -43,8 +43,8 @@ log@0.4.34	X		X
 md-5@0.11.0	X		X		
 memchr@2.8.3			X		X
 once_cell@1.21.4	X		X		
-opendal@0.59.3	X				
-opendal-core@0.59.3	X				
+opendal@0.59.4	X				
+opendal-core@0.59.4	X				
 opendal-moonbit@0.0.0	X				
 percent-encoding@2.3.2	X		X		
 pin-project-lite@0.2.17	X		X		

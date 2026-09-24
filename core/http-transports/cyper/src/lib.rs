@@ -37,6 +37,8 @@ use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
 use send_wrapper::SendWrapper;
 
+// Cyper clients are thread-affine, so each runtime thread needs its own client
+// and connection pool.
 thread_local! {
     static CLIENT: cyper::Client =
         cyper::Client::new().expect("default Cyper client must initialize");
@@ -44,9 +46,9 @@ thread_local! {
 
 /// A Cyper-backed HTTP transport for Compio runtimes.
 ///
-/// Each runtime thread lazily creates and reuses its own [`cyper::Client`]. The
-/// request future and response body must stay on the Compio runtime thread that
-/// first polls them. Moving either after polling begins will result in a panic.
+/// Each runtime thread reuses its own thread-affine [`cyper::Client`].
+/// [`SendWrapper`] satisfies OpenDAL's `Send` and `Sync` bounds while enforcing
+/// that Cyper futures and streams stay on their originating thread.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct CyperTransport {}
 
@@ -62,6 +64,7 @@ impl HttpTransport for CyperTransport {
         CLIENT
             .with(|client| {
                 let client = client.clone();
+                // Adapt Cyper's thread-affine future to HttpTransport's Send bound.
                 SendWrapper::new(async move { fetch(&client, req).await })
             })
             .await
@@ -124,6 +127,7 @@ async fn fetch(client: &cyper::Client, req: Request<Buffer>) -> Result<Response<
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err)
         });
+    // Adapt Cyper's thread-affine stream to HttpBody's Send + Sync bounds.
     let body = HttpBody::new(SendWrapper::new(stream), content_length);
 
     Ok(builder.body(body).expect("response must build succeed"))

@@ -6,9 +6,11 @@ Cyper-based HTTP transport for [Apache OpenDAL](https://opendal.apache.org).
 [Cyper](https://crates.io/crates/cyper), an HTTP client for the Compio runtime.
 It keeps one client and connection pool per runtime thread.
 
-Poll each request future and response body on the Compio runtime thread where
-polling started. Moving a partially polled request or response body to another
-runtime thread is unsupported.
+## Current limitation
+
+OpenDAL does not yet provide a Compio runtime executor. This transport can be
+configured, but applications cannot use it for operations until that runtime
+support is added.
 
 ## TLS configuration
 
@@ -17,7 +19,8 @@ platform TLS backend.
 
 ## Use through `opendal`
 
-Disable the default Reqwest transport, then enable the Cyper transport:
+The following configuration enables the transport, but the execution limitation
+above currently prevents using it for operations:
 
 ```toml
 [dependencies]
@@ -28,18 +31,13 @@ opendal = { version = "0.59", default-features = false, features = [
 ] }
 ```
 
-Run operations that use this transport inside a Compio runtime. Applications
-that use concurrent OpenDAL operations must also configure an executor that can
-run those operations without moving Cyper response bodies between runtime
-threads.
-
 Use `http-transport-cyper-native-tls` instead of `http-transport-cyper` to
 select the platform TLS backend.
 
 ## Use with `opendal-core`
 
-Applications that use the split crates can attach Cyper to an operator without
-installing a process-wide default transport:
+Applications that use the split crates can configure Cyper directly while
+working on a Compio-aware execution path:
 
 ```rust,ignore
 use opendal_core::Builder;
@@ -57,8 +55,8 @@ fn build_operator<B: Builder>(builder: B) -> Result<Operator> {
 }
 ```
 
-Pass a configured service builder to `build_operator`, then use the resulting
-operator inside a Compio runtime.
+Pass a configured service builder to `build_operator`. The resulting operator
+remains subject to the execution limitation described above.
 
 ## License and Trademarks
 

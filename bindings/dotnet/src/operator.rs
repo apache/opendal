@@ -1250,6 +1250,16 @@ struct InputStream {
     inner: Arc<Mutex<opendal::FuturesBytesStream>>,
 }
 
+fn require_input_stream<'a>(stream: *mut c_void) -> Result<&'a InputStream, OpenDALError> {
+    if stream.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "input stream pointer is null",
+        ));
+    }
+
+    Ok(unsafe { &*(stream as *const InputStream) })
+}
+
 /// Convert one polled chunk into an FFI read payload.
 ///
 /// EOF becomes an empty buffer, matching the one-shot read contract.
@@ -1331,13 +1341,7 @@ pub extern "C" fn operator_input_stream_read_next(stream: *mut c_void) -> Openda
 fn operator_input_stream_read_next_inner(
     stream: *mut c_void,
 ) -> Result<OpendalReadBuffer, OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "input stream pointer is null",
-        ));
-    }
-
-    let stream = unsafe { &*(stream as *const InputStream) };
+    let stream = require_input_stream(stream)?;
     let inner = stream.inner.clone();
     let value = stream
         .executor
@@ -1373,14 +1377,9 @@ fn operator_input_stream_read_next_async_inner(
     callback: Option<ReadCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "input stream pointer is null",
-        ));
-    }
+    let stream = require_input_stream(stream)?;
     let callback = require_callback(callback)?;
 
-    let stream = unsafe { &*(stream as *const InputStream) };
     let inner = stream.inner.clone();
     stream.executor.spawn(async move {
         let value = inner.lock().await.next().await;
@@ -1442,6 +1441,16 @@ struct OutputStream {
     inner: Arc<Mutex<opendal::Writer>>,
 }
 
+fn require_output_stream<'a>(stream: *mut c_void) -> Result<&'a OutputStream, OpenDALError> {
+    if stream.is_null() {
+        return Err(crate::utils::config_invalid_error(
+            "output stream pointer is null",
+        ));
+    }
+
+    Ok(unsafe { &*(stream as *const OutputStream) })
+}
+
 fn operator_output_stream_create_inner(
     op_handle: *const OperatorHandle,
     path: *const c_char,
@@ -1489,14 +1498,9 @@ fn operator_output_stream_write_inner(
     data: *const u8,
     len: usize,
 ) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "output stream pointer is null",
-        ));
-    }
+    let stream = require_output_stream(stream)?;
     require_data_ptr(data, len)?;
 
-    let stream = unsafe { &*(stream as *const OutputStream) };
     let payload = if len == 0 {
         bytes::Bytes::new()
     } else {
@@ -1543,15 +1547,10 @@ fn operator_output_stream_write_async_inner(
     callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "output stream pointer is null",
-        ));
-    }
+    let stream = require_output_stream(stream)?;
     require_data_ptr(data, len)?;
     let callback = require_callback(callback)?;
 
-    let stream = unsafe { &*(stream as *const OutputStream) };
     let payload = if len == 0 {
         bytes::Bytes::new()
     } else {
@@ -1596,12 +1595,7 @@ pub extern "C" fn operator_output_stream_flush(stream: *mut c_void) -> OpendalRe
 }
 
 fn operator_output_stream_flush_inner(stream: *mut c_void) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "output stream pointer is null",
-        ));
-    }
-
+    require_output_stream(stream)?;
     Ok(())
 }
 
@@ -1618,13 +1612,7 @@ pub extern "C" fn operator_output_stream_close(stream: *mut c_void) -> OpendalRe
 }
 
 fn operator_output_stream_close_inner(stream: *mut c_void) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "output stream pointer is null",
-        ));
-    }
-
-    let stream = unsafe { &*(stream as *const OutputStream) };
+    let stream = require_output_stream(stream)?;
     let inner = stream.inner.clone();
     stream
         .executor
@@ -1658,14 +1646,9 @@ fn operator_output_stream_close_async_inner(
     callback: Option<VoidCallback>,
     context: i64,
 ) -> Result<(), OpenDALError> {
-    if stream.is_null() {
-        return Err(crate::utils::config_invalid_error(
-            "output stream pointer is null",
-        ));
-    }
+    let stream = require_output_stream(stream)?;
     let callback = require_callback(callback)?;
 
-    let stream = unsafe { &*(stream as *const OutputStream) };
     let inner = stream.inner.clone();
     stream.executor.spawn(async move {
         let result = inner

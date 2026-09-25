@@ -103,6 +103,39 @@ type MetadataCallback = extern "C" fn(context: i64, result: OpendalMetadataResul
 type ListCallback = extern "C" fn(context: i64, result: OpendalEntryListResult);
 type PresignCallback = extern "C" fn(context: i64, result: OpendalPresignedRequestResult);
 
+/// Collect key/value arrays, parse them with `parse`, and box the result into
+/// an options payload released by the matching `*_option_free`.
+///
+/// # Safety
+///
+/// Same contract as the exported `*_option_build` functions.
+unsafe fn build_options<T>(
+    keys: *const *const c_char,
+    values: *const *const c_char,
+    len: usize,
+    parse: impl FnOnce(HashMap<String, String>) -> Result<T, OpenDALError>,
+) -> OpendalOptionsResult {
+    match unsafe { collect_options(keys, values, len) }.and_then(parse) {
+        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
+        Err(error) => OpendalOptionsResult::from_error(error),
+    }
+}
+
+/// Release an options payload produced by `build_options`.
+///
+/// # Safety
+///
+/// - `options` must be null or a pointer returned by `build_options` for the
+///   same `T`.
+/// - This function must be called at most once for the same pointer.
+unsafe fn free_options<T>(options: *mut T) {
+    if options.is_null() {
+        return;
+    }
+
+    drop(unsafe { Box::from_raw(options) });
+}
+
 /// Build constructor options from raw C string key/value arrays.
 ///
 /// On success, the returned pointer must be released by
@@ -118,10 +151,7 @@ pub unsafe extern "C" fn constructor_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) } {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, Ok) }
 }
 
 /// # Safety
@@ -131,12 +161,7 @@ pub unsafe extern "C" fn constructor_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub extern "C" fn constructor_option_free(options: *mut HashMap<String, String>) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Build read options from raw C string key/value arrays.
@@ -153,12 +178,7 @@ pub unsafe extern "C" fn read_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) }
-        .and_then(|values| parse_read_options(&values))
-    {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, |values| parse_read_options(&values)) }
 }
 
 /// # Safety
@@ -167,12 +187,7 @@ pub unsafe extern "C" fn read_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn read_option_free(options: *mut opendal::options::ReadOptions) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Build write options from raw C string key/value arrays.
@@ -189,12 +204,7 @@ pub unsafe extern "C" fn write_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) }
-        .and_then(|values| parse_write_options(&values))
-    {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, |values| parse_write_options(&values)) }
 }
 
 /// # Safety
@@ -203,12 +213,7 @@ pub unsafe extern "C" fn write_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn write_option_free(options: *mut opendal::options::WriteOptions) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Build stat options from raw C string key/value arrays.
@@ -225,12 +230,7 @@ pub unsafe extern "C" fn stat_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) }
-        .and_then(|values| parse_stat_options(&values))
-    {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, |values| parse_stat_options(&values)) }
 }
 
 /// # Safety
@@ -239,12 +239,7 @@ pub unsafe extern "C" fn stat_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn stat_option_free(options: *mut opendal::options::StatOptions) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Build list options from raw C string key/value arrays.
@@ -261,12 +256,7 @@ pub unsafe extern "C" fn list_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) }
-        .and_then(|values| parse_list_options(&values))
-    {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, |values| parse_list_options(&values)) }
 }
 
 /// # Safety
@@ -275,12 +265,7 @@ pub unsafe extern "C" fn list_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn list_option_free(options: *mut opendal::options::ListOptions) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Build delete options from raw C string key/value arrays.
@@ -297,12 +282,7 @@ pub unsafe extern "C" fn delete_option_build(
     values: *const *const c_char,
     len: usize,
 ) -> OpendalOptionsResult {
-    match unsafe { collect_options(keys, values, len) }
-        .and_then(|values| parse_delete_options(&values))
-    {
-        Ok(options) => OpendalOptionsResult::ok(Box::into_raw(Box::new(options)) as *mut c_void),
-        Err(error) => OpendalOptionsResult::from_error(error),
-    }
+    unsafe { build_options(keys, values, len, |values| parse_delete_options(&values)) }
 }
 
 /// # Safety
@@ -311,12 +291,7 @@ pub unsafe extern "C" fn delete_option_build(
 /// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn delete_option_free(options: *mut opendal::options::DeleteOptions) {
-    if options.is_null() {
-        return;
-    }
-    unsafe {
-        drop(Box::from_raw(options));
-    }
+    unsafe { free_options(options) }
 }
 
 /// Construct an OpenDAL operator instance from a scheme and key/value options.

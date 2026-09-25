@@ -28,7 +28,6 @@ using OpenDAL.Layer.Abstractions;
 using OpenDAL.Options;
 using OpenDAL.Options.Abstractions;
 using OpenDAL.ServiceConfig.Abstractions;
-using System.Diagnostics.CodeAnalysis;
 
 namespace OpenDAL;
 
@@ -1384,25 +1383,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Attempts to retrieve and remove async state for a callback context.
-    /// </summary>
-    /// <typeparam name="T">Async state result type.</typeparam>
-    /// <param name="context">Native callback context id.</param>
-    /// <param name="state">Resolved async state when found.</param>
-    /// <returns><see langword="true"/> if an async state is found; otherwise <see langword="false"/>.</returns>
-    private static bool TryTakeAsyncState<T>(long context, [NotNullWhen(true)] out AsyncState<T>? state)
-    {
-        if (AsyncStateRegistry.TryTake<AsyncState<T>>(context, out var current))
-        {
-            state = current;
-            return true;
-        }
-
-        state = null;
-        return false;
-    }
-
-    /// <summary>
     /// Completes a value-producing async state from a native callback result.
     /// </summary>
     /// <typeparam name="TOutput">Managed output type.</typeparam>
@@ -1412,7 +1392,7 @@ public partial class Operator : SafeHandle
     private static void CompleteAsyncState<TOutput, TResult>(long context, TResult result)
         where TResult : struct, INativeValueResult<TOutput>
     {
-        if (!TryTakeAsyncState(context, out AsyncState<TOutput>? state))
+        if (!AsyncStateRegistry.TryTake<AsyncState<TOutput>>(context, out var state))
         {
             return;
         }
@@ -1444,7 +1424,7 @@ public partial class Operator : SafeHandle
     private static void CompleteAsyncState<TResult>(long context, TResult result)
         where TResult : struct, INativeResult
     {
-        if (!TryTakeAsyncState(context, out AsyncState<bool>? state))
+        if (!AsyncStateRegistry.TryTake<AsyncState<bool>>(context, out var state))
         {
             return;
         }

@@ -2161,9 +2161,7 @@ fn operator_stat_with_options_inner(
     let metadata = executor
         .block_on(handle.stat_options(path, options))
         .map_err(OpenDALError::from_opendal_error)?;
-    Ok(Box::into_raw(Box::new(OpendalMetadata::from_metadata(
-        metadata,
-    ))))
+    Ok(into_metadata_ptr(metadata))
 }
 
 /// Stat `path` asynchronously with options.
@@ -2212,8 +2210,7 @@ fn operator_stat_with_options_async_inner(
         let result = op
             .stat_options(&path, options)
             .await
-            .map(OpendalMetadata::from_metadata)
-            .map(|v| Box::into_raw(Box::new(v)))
+            .map(into_metadata_ptr)
             .map_err(OpenDALError::from_opendal_error);
 
         callback(

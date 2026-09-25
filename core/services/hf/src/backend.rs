@@ -167,6 +167,14 @@ impl HfBuilder {
         self
     }
 
+    /// Disable loading the token from the environment.
+    ///
+    /// See [`HfConfig::disable_config_load`] for details.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Resolve the Hub base URL: an explicit config value wins, then
     /// `HF_ENDPOINT`, then the public Hub. A trailing slash is trimmed
     /// because every URL is built by appending `/api/...` to this, and HF
@@ -207,10 +215,14 @@ impl HfBuilder {
     }
 
     /// Resolve the authentication token using the same priority order as hf-hub:
-    /// explicit config → HF_HUB_DISABLE_IMPLICIT_TOKEN check → HF_TOKEN env → token file.
+    /// explicit config → disable_config_load → HF_HUB_DISABLE_IMPLICIT_TOKEN check →
+    /// HF_TOKEN env → token file.
     fn hf_token(&self) -> Option<String> {
         if let Some(t) = self.config.token.clone() {
             return Some(t);
+        }
+        if self.config.disable_config_load {
+            return None;
         }
         if let Ok(val) = std::env::var("HF_HUB_DISABLE_IMPLICIT_TOKEN")
             && !val.is_empty()
@@ -556,6 +568,54 @@ mod tests {
         unsafe { std::env::remove_var("HF_HUB_DISABLE_IMPLICIT_TOKEN") };
         unsafe { std::env::remove_var("HF_TOKEN") };
         assert_eq!(result, None);
+    }
+
+    #[test]
+    fn hf_token_disable_config_load_ignores_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        let dir = std::env::temp_dir().join("opendal-hf-disable-config-load");
+        std::fs::create_dir_all(dir.join("huggingface")).unwrap();
+        std::fs::write(dir.join("token"), "file-token").unwrap();
+        std::fs::write(dir.join("huggingface/token"), "xdg-token").unwrap();
+
+        // Each source alone yields a token, unless config loading is disabled.
+        let keys = ["HF_TOKEN", "HF_TOKEN_PATH", "HF_HOME", "XDG_CACHE_HOME"];
+        let values = [
+            std::ffi::OsString::from("env-token"),
+            dir.join("token").into(),
+            dir.clone().into(),
+            dir.clone().into(),
+        ];
+        let saved = keys.map(std::env::var_os);
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_IMPLICIT_TOKEN") };
+        let mut results = Vec::new();
+        for (key, value) in keys.iter().zip(&values) {
+            for key in keys {
+                unsafe { std::env::remove_var(key) };
+            }
+            unsafe { std::env::set_var(key, value) };
+            results.push((
+                *key,
+                builder_no_token().hf_token(),
+                builder_no_token().disable_config_load().hf_token(),
+            ));
+        }
+        let explicit = builder_with_token("config-token")
+            .disable_config_load()
+            .hf_token();
+        for (key, value) in keys.iter().zip(saved) {
+            match value {
+                Some(value) => unsafe { std::env::set_var(key, value) },
+                None => unsafe { std::env::remove_var(key) },
+            }
+        }
+        std::fs::remove_dir_all(&dir).ok();
+
+        for (key, loaded, disabled) in results {
+            assert!(loaded.is_some(), "{key} should provide a token");
+            assert_eq!(disabled, None, "{key} should be ignored");
+        }
+        assert_eq!(explicit.as_deref(), Some("config-token"));
     }
 
     #[test]

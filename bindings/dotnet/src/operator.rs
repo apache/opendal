@@ -32,7 +32,10 @@ use crate::{
         OpendalOperatorInfoResult, OpendalOperatorResult, OpendalOptionsResult,
         OpendalPresignedRequestResult, OpendalReadResult, OpendalResult,
     },
-    utils::{collect_options, require_callback, require_cstr, require_data_ptr, require_op_handle},
+    utils::{
+        collect_options, release_c_string, require_callback, require_cstr, require_data_ptr,
+        require_op_handle,
+    },
     validators::prelude::{
         validate_concurrent_limit_options, validate_retry_options, validate_throttle_options,
         validate_timeout_options,
@@ -408,16 +411,10 @@ pub(crate) unsafe fn operator_info_free(info: *mut OpendalOperatorInfo) {
     }
 
     unsafe {
-        let info = Box::from_raw(info);
-        if !info.scheme.is_null() {
-            drop(std::ffi::CString::from_raw(info.scheme));
-        }
-        if !info.root.is_null() {
-            drop(std::ffi::CString::from_raw(info.root));
-        }
-        if !info.name.is_null() {
-            drop(std::ffi::CString::from_raw(info.name));
-        }
+        let mut info = Box::from_raw(info);
+        release_c_string(&mut info.scheme);
+        release_c_string(&mut info.root);
+        release_c_string(&mut info.name);
     }
 }
 

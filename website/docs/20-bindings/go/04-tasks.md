@@ -75,8 +75,8 @@ err := op.Write("path/to/file", []byte("Hello, World!"))
 
 ## Stream a large upload
 
-Use a `Writer` for data produced incrementally. It implements `io.Writer`;
-call `Write` repeatedly, then `Close` to commit and return the object's metadata.
+Use a `Writer` to write data in chunks. It implements `io.Writer`.
+Call `Write` for each chunk. Call `Close` to complete the write and get the object's metadata.
 
 ```go
 w, err := op.Writer("big.bin")
@@ -89,7 +89,6 @@ if _, err := w.Write(firstChunk); err != nil {
 if _, err := w.Write(secondChunk); err != nil {
 	log.Fatal(err)
 }
-// Close finishes the write; data may be lost if you skip it.
 if _, err := w.Close(); err != nil {
 	log.Fatal(err)
 }
@@ -98,17 +97,22 @@ if _, err := w.Close(); err != nil {
 ## Copy between streams
 
 Use `io.Copy(w, src)` to upload from an `io.Reader`, such as an open local file.
-`Writer.ReadFrom` provides a bounded copy buffer when `io.Copy` delegates to the
-writer. Call `w.Close()` after the copy, and check both the copy and close errors.
+Use `io.Copy(dst, r)` to download to an `io.Writer`.
 
-For downloads, `io.Copy(dst, r)` uses `Reader.WriteTo`.
-It writes the bytes from each `Read` call before it reads more data.
-Close the reader and destination after the copy.
+The copy uses native buffers between an OpenDAL `Reader` and `Writer`.
+Both must use the same native library. They can belong to different operators.
+The copy reads up to one buffer ahead of the current write.
+After a write error, the reader can have consumed more bytes than the copy reports.
+The byte count excludes partial writes from a failed buffer.
 
-Both methods reuse a bounded buffer for the duration of the copy. They do not
-close either stream or choose the storage service's multipart upload size.
-`io.CopyBuffer` uses the same interface dispatch, so its supplied buffer is
-ignored when one of these methods handles the copy.
+For other readers and writers, `ReadFrom` and `WriteTo` use one 256 KiB Go buffer
+per call. Each call reuses its buffer until the copy stops.
+
+The copy leaves both streams open. Call `w.Close()` to complete the write.
+Check both the copy and close errors. Close the reader after use.
+
+`io.CopyBuffer` also calls `ReadFrom` or `WriteTo` when available.
+These methods do not use the buffer supplied to `io.CopyBuffer`.
 
 ## Upload concurrently
 

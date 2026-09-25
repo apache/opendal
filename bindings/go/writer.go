@@ -360,7 +360,7 @@ func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
 	return writer, nil
 }
 
-const streamCopyBufferSize = 256 * 1024
+const copyBufferSize = 256 * 1024
 
 type Writer struct {
 	inner *opendalWriter
@@ -398,14 +398,30 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
 }
 
-// ReadFrom copies data from src into the Writer. It stops at EOF or an error.
-// ReadFrom returns the number of bytes copied. At EOF, ReadFrom returns a nil error.
-// ReadFrom uses one 256 KiB buffer for the copy.
+// ReadFrom copies data from src to w until EOF or an error.
+// It returns the number of bytes copied. At EOF, it returns a nil error.
 //
-// ReadFrom leaves both streams open.
-// The caller must call Writer.Close to complete the write and get its metadata.
+// For a *Reader, ReadFrom copies native buffers.
+// The reader and writer must use the same native library.
+// It reads up to one buffer ahead of the current write.
+// A write error stops the copy without waiting for a pending read.
+// The reader can consume more bytes than the returned count.
+// The count excludes bytes from a failed buffer.
+//
+// For other readers, ReadFrom uses one 256 KiB Go buffer per call.
+// ReadFrom leaves both streams open. Call [Writer.Close] to complete the write
+// and get its metadata.
 func (w *Writer) ReadFrom(src io.Reader) (int64, error) {
-	return io.CopyBuffer(struct{ io.Writer }{w}, struct{ io.Reader }{src}, make([]byte, streamCopyBufferSize))
+	if r, ok := src.(*Reader); ok {
+		return ffiWriterReadFrom.symbol(w.ctx)(w.inner, r.inner)
+	}
+
+	buf := make([]byte, copyBufferSize)
+
+	// Hide WriteTo and ReadFrom to prevent recursive calls from io.CopyBuffer.
+	reader := struct{ io.Reader }{Reader: src}
+	writer := struct{ io.Writer }{Writer: w}
+	return io.CopyBuffer(writer, reader, buf)
 }
 
 // Close finishes the write and releases the resources associated with the
@@ -673,6 +689,18 @@ var ffiWriterWrite = newFFI(ffiOpts{
 			return 0, parseError(ctx, result.error)
 		}
 		return int(result.size), nil
+	}
+})
+
+var ffiWriterReadFrom = newFFI(ffiOpts{
+	sym:    "opendal_writer_read_from",
+	rType:  &typeResultStreamCopy,
+	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
+}, func(ctx context.Context, ffiCall ffiCall) func(*opendalWriter, *opendalReader) (int64, error) {
+	return func(writer *opendalWriter, reader *opendalReader) (int64, error) {
+		var result resultStreamCopy
+		ffiCall(unsafe.Pointer(&result), unsafe.Pointer(&writer), unsafe.Pointer(&reader))
+		return int64(result.size), parseError(ctx, result.error)
 	}
 })
 

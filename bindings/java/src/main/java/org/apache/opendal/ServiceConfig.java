@@ -1677,6 +1677,12 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
         /**
+         * <p>Disable loading the token from the environment: <code>HF_TOKEN</code>,
+         * <code>HF_TOKEN_PATH</code>, or the <code>token</code> file under <code>HF_HOME</code>,
+         * <code>$XDG_CACHE_HOME/huggingface</code> or <code>~/.cache/huggingface</code>.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
          * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
          * environment variable: a non-empty value forces <code>http</code>, otherwise it
@@ -1732,6 +1738,9 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
             }

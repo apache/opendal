@@ -163,6 +163,9 @@ class File:
     A file-like object for reading and writing data.
 
     Created by the `open` method of the `Operator` class.
+
+    Storage I/O releases the Python GIL while waiting. Concurrent operations on
+    the same file are rejected; use separate files for I/O from multiple threads.
     """
 
     def __enter__(self, /) -> File: ...
@@ -199,6 +202,8 @@ class File:
 
         Notes
         -----
+        Passes pending input to the core writer. Storage chunks can remain
+        buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
         """
     def read(self, /, size: int | None = None) -> bytes:

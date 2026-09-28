@@ -18,13 +18,12 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use asyncband::rwlock::RwLock;
+use asyncband::once::OnceCell;
 use log::debug;
 
 use super::SEAFILE_SCHEME;
 use super::config::SeafileConfig;
 use super::core::SeafileCore;
-use super::core::SeafileSigner;
 use super::core::parse_dir_detail;
 use super::core::parse_file_detail;
 use super::deleter::SeafileDeleter;
@@ -178,7 +177,7 @@ impl Builder for SeafileBuilder {
                 username,
                 password,
                 repo_name: self.config.repo_name.clone(),
-                signer: Arc::new(RwLock::new(SeafileSigner::default())),
+                auth_info: Arc::new(OnceCell::new()),
             }),
         })
     }

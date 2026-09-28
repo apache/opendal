@@ -186,7 +186,7 @@ impl<W: MultipartWrite> MultipartWriter<W> {
             cache: None,
             next_part_number: 0,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin({
                     async move {
                         let fut = async {

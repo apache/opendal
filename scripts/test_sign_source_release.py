@@ -60,7 +60,7 @@ class SourceSigningTests(unittest.TestCase):
     def write_report(self):
         (self.bundle / "report.json").write_text(json.dumps(self.report))
 
-    def test_dispatch_from_release_branch(self):
+    def test_signing_entrypoint_events_and_reachability(self):
         repository = self.root / "repository"
         repository.mkdir()
         previous = Path.cwd()
@@ -113,8 +113,23 @@ class SourceSigningTests(unittest.TestCase):
                 patch("sys.argv", argv),
                 patch.object(signing, "sign") as sign,
             ):
-                signing.main()
-                sign.assert_called_once()
+                for event in ("workflow_dispatch", "schedule"):
+                    with self.subTest(event=event), patch.dict(
+                        os.environ, {"GITHUB_EVENT_NAME": event}
+                    ):
+                        sign.reset_mock()
+                        signing.main()
+                        sign.assert_called_once_with(
+                            self.bundle, candidate, self.rc, self.root / "signed"
+                        )
+                for event in ("push", "pull_request", "pull_request_target", ""):
+                    with self.subTest(event=event), patch.dict(
+                        os.environ, {"GITHUB_EVENT_NAME": event}
+                    ):
+                        sign.reset_mock()
+                        with self.assertRaisesRegex(ValueError, "scheduled run"):
+                            signing.main()
+                        sign.assert_not_called()
                 # The same candidate is not reachable when dispatching from main.
                 signing.run("git", "checkout", "main")
                 sign.reset_mock()

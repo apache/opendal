@@ -366,8 +366,21 @@ impl Operator {
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else if mode == "wb" {
+            let mut writer_opts = writer_opts;
+            // Keep small writes coalesced without the std::io adapter when
+            // neither the caller nor the service supplies a chunk size.
+            if writer_opts.chunk.is_none()
+                && this.info().capability().write_multi_min_size.is_none()
+            {
+                writer_opts.chunk = Some(256 * 1024);
+            }
             let writer = py
-                .detach(move || this.writer_options(&path, writer_opts.into()))
+                .detach(move || {
+                    let op: ocore::Operator = this.into();
+                    pyo3_async_runtimes::tokio::get_runtime()
+                        .handle()
+                        .block_on(op.writer_options(&path, writer_opts.into()))
+                })
                 .map_err(format_pyerr)?;
             Ok(File::new_writer(writer))
         } else {
@@ -1120,12 +1133,19 @@ impl AsyncOperator {
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
             } else if mode == "wb" {
+                let mut writer_opts = writer_opts;
+                // Keep small writes coalesced when neither the caller nor the
+                // service supplies a chunk size, as the AsyncWrite adapter did.
+                if writer_opts.chunk.is_none()
+                    && this.info().capability().write_multi_min_size.is_none()
+                {
+                    writer_opts.chunk = Some(256 * 1024);
+                }
                 let writer = this
                     .writer_options(&path, writer_opts.into())
                     .await
                     .map_err(format_pyerr)?;
-                let w = writer.into_futures_async_write();
-                Ok(AsyncFile::new_writer(w))
+                Ok(AsyncFile::new_writer(writer))
             } else {
                 Err(Unsupported::new_err(format!(
                     "OpenDAL doesn't support mode: {mode}"

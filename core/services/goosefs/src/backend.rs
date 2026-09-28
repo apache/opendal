@@ -90,7 +90,9 @@ impl GoosefsBuilder {
 
     /// Set default write type.
     ///
-    /// Values: `"must_cache"`, `"cache_through"`, `"through"`, `"async_through"`
+    /// Values: `"must_cache"`, `"try_cache"`, `"cache_through"`, `"through"`,
+    /// `"async_through"`. Matching is case-insensitive. `build()` fails with
+    /// [`ErrorKind::ConfigInvalid`] when the value is not one of these.
     pub fn write_type(mut self, wt: &str) -> Self {
         if !wt.is_empty() {
             self.config.write_type = Some(wt.to_string());
@@ -228,11 +230,9 @@ fn detect_master_addr_source() -> MasterAddrSource {
         return MasterAddrSource::Env;
     }
 
-    // The SDK searches `$GOOSEFS_CONFIG_FILE`, `$GOOSEFS_HOME/conf`,
-    // `~/.goosefs`, and `/etc/goosefs` for `goosefs-site.properties`. It
-    // documents `$GOOSEFS_CONF_DIR` as well, but 0.1.9 looks up the Java
-    // property name `goosefs.conf.dir` as the environment variable, so that
-    // path never matches. An unreadable file is left to
+    // The SDK searches `$GOOSEFS_CONFIG_FILE`, `$GOOSEFS_CONF_DIR`,
+    // `$GOOSEFS_HOME/conf`, `~/.goosefs`, and `/etc/goosefs` for
+    // `goosefs-site.properties`. An unreadable file is left to
     // `from_properties_auto()`, which already failed the build above.
     if let Some(path) = goosefs_sdk::config::discover_config_file()
         && let Ok(content) = std::fs::read_to_string(&path)
@@ -342,22 +342,18 @@ impl Builder for GoosefsBuilder {
             goosefs_config.chunk_size = chunk_size;
         }
 
-        // Parse write_type string → goosefs_sdk::WritePType i32.
-        //
-        // Normalise case once up front so we don't need to enumerate both
-        // `must_cache` and `MUST_CACHE` branches — this mirrors how the
-        // GooseFS server-side config parser (`WritePType::valueOf`) treats
-        // the value as case-insensitive.
+        // Parse write_type through the SDK so unknown values fail instead of
+        // silently becoming MUST_CACHE. `with_write_type_str` is
+        // case-insensitive, matching GooseFS `WritePType::valueOf`.
         if let Some(ref wt) = self.config.write_type {
-            let wt_i32 = match wt.to_lowercase().as_str() {
-                "must_cache" => 1,
-                "try_cache" => 2,
-                "cache_through" => 3,
-                "through" => 4,
-                "async_through" => 5,
-                _ => 1, // default to MUST_CACHE
-            };
-            goosefs_config.write_type = Some(wt_i32);
+            goosefs_config = goosefs_config.with_write_type_str(wt).map_err(|e| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    format!("invalid write_type: {}", e),
+                )
+                .with_operation("Builder::build")
+                .with_context("service", GOOSEFS_SCHEME)
+            })?;
         }
 
         // Parse auth_type string → goosefs_sdk::auth::AuthType
@@ -775,6 +771,35 @@ mod tests {
             err.to_string().contains("master_addr is empty"),
             "unexpected error message: {err}"
         );
+    }
+
+    #[test]
+    fn test_builder_unknown_write_type_fails() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        for wt in ["INVALID_WT", "cache_throughh"] {
+            let err = GoosefsBuilder::default()
+                .root("/data")
+                .master_addr("127.0.0.1:9200")
+                .write_type(wt)
+                .build()
+                .expect_err("build must fail on unknown write_type");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(
+                err.to_string().contains("write_type"),
+                "unexpected error message for {wt}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_builder_write_type_is_case_insensitive() {
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let backend = GoosefsBuilder::default()
+            .root("/data")
+            .master_addr("127.0.0.1:9200")
+            .write_type("CACHE_THROUGH")
+            .build();
+        assert!(backend.is_ok());
     }
 
     #[test]

@@ -21,8 +21,8 @@ local source edits therefore change the release bytes. It does not regenerate
 source files as part of packaging.
 
 The source package inventory comes from `dev/src/release/package.rs`. Each archive
-includes the package, its declared source dependencies, and the root LICENSE and
-NOTICE files. Paths are sorted. Tar entries use timestamp zero, numeric owner and
+includes the package, its declared source dependencies, and the root LICENSE,
+NOTICE and CHANGELOG.md files. Paths are sorted. Tar entries use timestamp zero, numeric owner and
 group zero, empty owner/group names, and Git's regular/executable file modes.
 Symlinks retain their link target and are not followed. Gzip includes neither a
 filename nor a timestamp. The checked-in `dev/Cargo.lock` fixes the compression

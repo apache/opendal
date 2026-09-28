@@ -338,3 +338,29 @@ def test_sync_conditional_reads(service_name, operator):
     # Should fail: file was modified after `before`
     with pytest.raises(ConditionNotMatch):
         operator.read(path, if_unmodified_since=before)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_buffer_boundaries(operator):
+    filename = f"readinto_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with operator.open(filename, "rb") as reader:
+            with pytest.raises(OSError, match="not writable"):
+                reader.readinto(b"readonly")
+            with pytest.raises(OSError, match="not C contiguous"):
+                reader.readinto(memoryview(bytearray(8))[::2])
+            assert reader.tell() == 0
+            assert reader.readinto(bytearray()) == 0
+            assert reader.tell() == 0
+            target = bytearray(b"??????????")
+            assert reader.readinto(memoryview(target)[2:5]) == 3
+            assert target == b"??abc?????"
+            assert reader.tell() == 3
+            assert reader.readinto(memoryview(target)[5:]) == 3
+            assert target == b"??abcdef??"
+            assert reader.tell() == 6
+            assert reader.readinto(target) == 0
+            assert target == b"??abcdef??"
+    finally:
+        operator.delete(filename)

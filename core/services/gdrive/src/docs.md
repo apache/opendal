@@ -21,6 +21,8 @@ Google Drive allows duplicate file or directory names under the same parent.
 When multiple entries match the same path, OpenDAL resolves the most recently
 modified match, falling back to the newer creation time if needed.
 
+Concurrent directory creation through an operator and its clones reuses work for shared ancestors and allows independent paths to progress concurrently.
+
 ## Configuration
 
 Use [`crate::GdriveConfig`] for serializable configuration and this builder's

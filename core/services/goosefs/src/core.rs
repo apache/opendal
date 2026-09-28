@@ -19,12 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use asyncband::rwlock::RwLock;
 use goosefs_sdk::client::MasterClient;
 use goosefs_sdk::config::GoosefsConfig as ClientConfig;
 use goosefs_sdk::context::FileSystemContext;
 use goosefs_sdk::io::{GoosefsFileReader, GoosefsFileWriter};
 use goosefs_sdk::proto::grpc::file::FileInfo;
-use tokio::sync::RwLock;
 
 use opendal_core::raw::*;
 use opendal_core::*;

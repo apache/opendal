@@ -7,7 +7,7 @@
 This package provides a native Python binding for **Apache OpenDAL™**, a data access
 layer that allows you to access various storage services in a unified way.
 
-![OpenDAL Python Usage Demo](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![OpenDAL Architecture](https://opendal.apache.org/img/architectural.png)
 
 We release the OpenDAL Python binding independently of the
 [`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
@@ -28,6 +28,12 @@ Install from PyPI:
 
 ```bash
 pip install opendal
+```
+
+Or install from [Anaconda main](https://anaconda.org/main/opendal):
+
+```bash
+conda install opendal
 ```
 
 Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):

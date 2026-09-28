@@ -365,11 +365,12 @@ fn new_tasks(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
     use std::time::Duration;
 
+    use asyncband::latch::Latch;
+    use asyncband::mutex::Mutex;
     use futures::stream;
     use http::Method;
     use http::Response;
@@ -378,28 +379,25 @@ mod tests {
     use reqsign_core::Signer;
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
-    use tokio::sync::Notify;
 
     use super::*;
     use opendal_core::raw::oio::Compose;
 
     struct ComposeTransport {
-        started: AtomicUsize,
+        started: Latch,
         active: AtomicUsize,
         max_active: AtomicUsize,
         generation: AtomicUsize,
-        notify: Notify,
         requests: Mutex<Vec<serde_json::Value>>,
     }
 
     impl ComposeTransport {
         fn new() -> Self {
             Self {
-                started: AtomicUsize::new(0),
+                started: Latch::new(2),
                 active: AtomicUsize::new(0),
                 max_active: AtomicUsize::new(0),
                 generation: AtomicUsize::new(1),
-                notify: Notify::new(),
                 requests: Mutex::new(Vec::new()),
             }
         }
@@ -432,21 +430,13 @@ mod tests {
 
             let value: serde_json::Value = serde_json::from_slice(&req.body().to_bytes())
                 .expect("compose request body must be valid JSON");
-            self.0.requests.lock().unwrap().push(value.clone());
+            self.0.requests.lock().await.push(value.clone());
 
             if req.uri().path().contains("__opendal%2Fcompose%2F") {
                 let active = self.0.active.fetch_add(1, Ordering::SeqCst) + 1;
                 self.0.max_active.fetch_max(active, Ordering::SeqCst);
-                self.0.started.fetch_add(1, Ordering::SeqCst);
-                self.0.notify.notify_waiters();
-
-                loop {
-                    let notified = self.0.notify.notified();
-                    if self.0.started.load(Ordering::SeqCst) >= 2 {
-                        break;
-                    }
-                    notified.await;
-                }
+                self.0.started.count_down();
+                self.0.started.wait().await;
                 self.0.active.fetch_sub(1, Ordering::SeqCst);
             }
 
@@ -485,7 +475,7 @@ mod tests {
 
             if req.method() == Method::GET {
                 self.0.metadata_reads.fetch_add(1, Ordering::SeqCst);
-                let token = self.0.token.lock().unwrap().clone().unwrap();
+                let token = self.0.token.lock().await.clone().unwrap();
                 let body = Buffer::from(
                     serde_json::to_vec(&serde_json::json!({
                         "size": "32",
@@ -504,7 +494,7 @@ mod tests {
                     .as_str()
                     .unwrap()
                     .to_string();
-                *self.0.token.lock().unwrap() = Some(token);
+                *self.0.token.lock().await = Some(token);
 
                 if self.0.intermediate_posts.fetch_add(1, Ordering::SeqCst) == 0 {
                     return Err(Error::new(
@@ -586,7 +576,7 @@ mod tests {
             .expect("composition must succeed");
 
         assert_eq!(transport.max_active.load(Ordering::SeqCst), 2);
-        let requests = transport.requests.lock().unwrap();
+        let requests = transport.requests.lock().await;
         assert_eq!(requests.len(), 3);
 
         let source_lists: Vec<&Vec<serde_json::Value>> = requests
@@ -672,7 +662,7 @@ mod tests {
         }
         composer.close().await.expect("composition must succeed");
 
-        let requests = transport.requests.lock().unwrap();
+        let requests = transport.requests.lock().await;
         assert_eq!(requests.len(), 34);
         let source_lists: Vec<&Vec<serde_json::Value>> = requests
             .iter()

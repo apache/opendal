@@ -33,6 +33,14 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  labels:
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Test label classification and event handling
+        run: python3 -m unittest discover -s scripts -p test_label.py
+
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -123,6 +131,9 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Test website image processing
+        run: pnpm test
 
       - name: Check dependencies
         run: |

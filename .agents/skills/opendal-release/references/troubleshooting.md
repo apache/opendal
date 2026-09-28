@@ -4,6 +4,20 @@ Repository paths and shell commands are relative to the repository root.
 
 ## Common Failure Patterns
 
+### An RC tag exists but release workflows did not start
+
+A tag pushed with `GITHUB_TOKEN` does not trigger downstream push workflows.
+Inspect the tag SHA, weekly run revision and `builds` job before diagnosing an
+individual binding. `Release Python Binding` is dispatched through
+`release_python.yml`; it is not implied by source compose success.
+
+Use the recovery procedure in `website/community/release/weekly.md`. Query runs
+without restricting the event to `push`, then dispatch only missing workflows at
+the existing RC tag. Reuse an existing failed run for retries. Read the workflow
+at that tag: adding `workflow_dispatch` on main does not add it to an old tag.
+An unsupported old-tag workflow requires a separate recovery decision, not moving
+the RC tag. A new weekly run prepares a new candidate and is not a backfill.
+
 ### Required CI is green except unrelated workflows
 
 Use the agreed gate. For 0.56.0, the blocking gate was Rust / Java / Python / NodeJS. Dotnet RC NuGet publishing was outside that gate and was fixed separately.
@@ -55,3 +69,21 @@ Inspect the response body. If it says the staging repo exists but is `open` or `
 ### Vote has comments but may not have passed
 
 Count binding votes explicitly and verify the 72-hour rule. Do not move artifacts to `dist/release` or release Maven artifacts until the result is formally posted.
+
+### ATR vote passed but automatic publication is incomplete
+
+Automatic discovery covers only `releases/<version>-rc.N`. Inspect
+`release_lifecycle.yml`, `release_publish.yml`, the candidate Discussion and
+actual downstream runs. The hourly scheduler can be delayed. Reuse the same
+candidate and rerun failed package jobs rather than starting new runs.
+
+For ATR finish OIDC failures, check both the allowed caller workflow and ASF-linked
+actor. Register the hourly caller and manual publish workflow; do not dispatch
+ATR publication as `github-actions[bot]`. For Nexus promotion permission errors,
+verify the existing staging credentials have release permission. A GitHub Release
+can exist before ATR confirms announcement; it alone does not prove completion.
+
+For sync-PR creation failures, enable workflow PR creation and resume; the pushed
+sync branch is reused. Reopen a closed, unmerged sync PR. Cleanup deletes the
+approved RC branch last and preserves all RC tags; do not remove that recovery
+entry point manually while publication is incomplete.

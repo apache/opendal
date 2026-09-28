@@ -36,10 +36,10 @@ runs:
         set -e
         aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
 
-        curl -fLO https://dl.min.io/client/mc/release/linux-amd64/mc
-        chmod +x mc
-        ./mc alias set local http://127.0.0.1:9000/ minioadmin minioadmin
-        ./mc anonymous set public local/test
+        # MinIO archived community client downloads, so dl.min.io now returns
+        # HTTP 410 for `mc`. Apply the same readwrite bucket policy that
+        # `mc anonymous set public` used to set.
+        aws --endpoint-url http://127.0.0.1:9000/ s3api put-bucket-policy --bucket test --policy '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetBucketLocation","s3:ListBucket","s3:ListBucketMultipartUploads"],"Resource":["arn:aws:s3:::test"]},{"Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject","s3:PutObject","s3:DeleteObject","s3:AbortMultipartUpload","s3:ListMultipartUploadParts"],"Resource":["arn:aws:s3:::test/*"]}]}'
     - name: Setup
       shell: bash
       run: |

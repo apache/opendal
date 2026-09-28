@@ -25,6 +25,22 @@ Repository paths and shell commands are relative to the repository root.
    - Package-specific versions from `dev/src/release/package.rs`.
    - Existing RC numbers. Use the next RC number only when the previous RC is intentionally abandoned because artifacts or release gates failed, the vote failed, or the release manager explicitly wants a new commit included.
 
+## Weekly Version Planning
+
+Weekly preparation collects merged PRs since the last published source cutoff.
+Only breaking PRs need the `breaking-changes` label, affected package names and
+migration instructions in the optional PR-template section. Follow the format in
+`website/community/release/weekly.md`; do not add release metadata to compatible
+PRs or introduce per-PR files.
+
+The existing version updater applies scoped incompatible increments and public
+dependency propagation while preserving higher configured versions. Review the
+candidate's `.release/plan.json` and Discussion for version and migration evidence.
+Missing associations or malformed declarations fail with a commit or PR reference;
+fix the declaration before preparing another candidate. Do not edit an existing
+RC's plan or retag it. Before enabling the first run, check unreleased breaking PRs
+for missing declarations; published history does not need migration.
+
 ## Bump And Release Notes
 
 When preparing a bump PR:

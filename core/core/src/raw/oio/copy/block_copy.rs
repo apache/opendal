@@ -133,7 +133,7 @@ impl<C: BlockCopy> BlockCopier<C> {
             completed: false,
             metadata: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
                     let size = input.range.size().expect("block copy range must be sized");
                     let fut = input.copier.copy_block(input.block_id, input.range);

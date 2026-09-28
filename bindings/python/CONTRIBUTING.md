@@ -110,11 +110,22 @@ makes it easy to ensure your code meets our quality standards.
 
 ### Building Documentation
 
-The API documentation is built using `mkdocs`. This is automatically handled when you
-build the project.
+The documentation is built with [Zensical](https://zensical.org/), which reads the
+existing `mkdocs.yml`. The example notebooks under `docs/examples/` are converted to
+Markdown with `nbconvert` before the site is built; the generated `.md` files are not
+tracked by Git.
 
 ```shell
-# Building the project also builds the docs
+# Build the docs into site/
+just docs-build
+
+# Serve the docs locally with live reload
+just docs-serve
+```
+
+Building the project also builds the docs:
+
+```shell
 just build-dev
 ```
 

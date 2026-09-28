@@ -39,13 +39,13 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        Capability capability = op().info.fullCapability;
+        Capability capability = op().info.capability;
         assumeTrue(capability.read && capability.write && capability.stat);
     }
 
     @Test
     void testStatWithIfMatch() {
-        assumeTrue(op().info.fullCapability.statWithIfMatch);
+        assumeTrue(op().info.capability.statWithIfMatch);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -66,7 +66,7 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfNoneMatch() {
-        assumeTrue(op().info.fullCapability.statWithIfNoneMatch);
+        assumeTrue(op().info.capability.statWithIfNoneMatch);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -88,7 +88,7 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfModifiedSince() {
-        assumeTrue(op().info.fullCapability.statWithIfModifiedSince);
+        assumeTrue(op().info.capability.statWithIfModifiedSince);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -117,7 +117,7 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfUnmodifiedSince() {
-        assumeTrue(op().info.fullCapability.statWithIfUnmodifiedSince);
+        assumeTrue(op().info.capability.statWithIfUnmodifiedSince);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -148,7 +148,7 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithVersion() {
-        assumeTrue(op().info.fullCapability.statWithVersion);
+        assumeTrue(op().info.capability.statWithVersion);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -174,7 +174,7 @@ public class BlockingStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithNotExistingVersion() {
-        assumeTrue(op().info.fullCapability.statWithVersion);
+        assumeTrue(op().info.capability.statWithVersion);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();

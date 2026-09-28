@@ -29,7 +29,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithCacheControl() {
-        assumeTrue(op().info.fullCapability.writeWithCacheControl);
+        assumeTrue(op().info.capability.writeWithCacheControl);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
@@ -44,7 +44,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithContentType() {
-        assumeTrue(op().info.fullCapability.writeWithContentType);
+        assumeTrue(op().info.capability.writeWithContentType);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
@@ -59,7 +59,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithContentDisposition() {
-        assumeTrue(op().info.fullCapability.writeWithContentDisposition);
+        assumeTrue(op().info.capability.writeWithContentDisposition);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes();
@@ -75,7 +75,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithAppend() {
-        assumeTrue(op().info.fullCapability.writeCanAppend);
+        assumeTrue(op().info.capability.writeCanAppend);
 
         final String path = UUID.randomUUID().toString();
         final byte[] contentOne = "Test".getBytes();
@@ -92,7 +92,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithChunk() {
-        assumeTrue(op().info.fullCapability.writeCanMulti);
+        assumeTrue(op().info.capability.writeCanMulti);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes(5 * 1024 * 1024);
@@ -107,7 +107,7 @@ public class BlockingWriteOptionTest extends BehaviorTestBase {
 
     @Test
     void testWriteWithConcurrentChunk() {
-        assumeTrue(op().info.fullCapability.writeCanMulti);
+        assumeTrue(op().info.capability.writeCanMulti);
 
         final String path = UUID.randomUUID().toString();
         final byte[] content = generateBytes(5 * 1024 * 1024);

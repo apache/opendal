@@ -140,8 +140,10 @@ public class Metadata {
                     return EntryMode.FILE;
                 case 1:
                     return EntryMode.DIR;
-                default:
+                case 2:
                     return EntryMode.UNKNOWN;
+                default:
+                    throw new IllegalArgumentException("invalid EntryMode: " + mode);
             }
         }
     }

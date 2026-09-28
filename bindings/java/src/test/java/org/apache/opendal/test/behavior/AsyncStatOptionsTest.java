@@ -39,13 +39,13 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        Capability capability = asyncOp().info.fullCapability;
+        Capability capability = asyncOp().info.capability;
         assumeTrue(capability.read && capability.write && capability.stat);
     }
 
     @Test
     void testStatWithIfMatch() {
-        assumeTrue(asyncOp().info.fullCapability.statWithIfMatch);
+        assumeTrue(asyncOp().info.capability.statWithIfMatch);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -66,7 +66,7 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfNoneMatch() {
-        assumeTrue(asyncOp().info.fullCapability.statWithIfNoneMatch);
+        assumeTrue(asyncOp().info.capability.statWithIfNoneMatch);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -88,7 +88,7 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfModifiedSince() {
-        assumeTrue(asyncOp().info.fullCapability.statWithIfModifiedSince);
+        assumeTrue(asyncOp().info.capability.statWithIfModifiedSince);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -116,7 +116,7 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithIfUnmodifiedSince() {
-        assumeTrue(asyncOp().info.fullCapability.statWithIfUnmodifiedSince);
+        assumeTrue(asyncOp().info.capability.statWithIfUnmodifiedSince);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -147,7 +147,7 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithVersion() {
-        assumeTrue(asyncOp().info.fullCapability.statWithVersion);
+        assumeTrue(asyncOp().info.capability.statWithVersion);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();
@@ -173,7 +173,7 @@ public class AsyncStatOptionsTest extends BehaviorTestBase {
 
     @Test
     void testStatWithNotExistingVersion() {
-        assumeTrue(asyncOp().info.fullCapability.statWithVersion);
+        assumeTrue(asyncOp().info.capability.statWithVersion);
 
         String path = UUID.randomUUID().toString();
         byte[] content = generateBytes();

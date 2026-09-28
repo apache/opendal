@@ -19,7 +19,7 @@
 
 import { test, assert } from 'vitest'
 
-import { RetryLayer, ConcurrentLimitLayer } from '../../index.mjs'
+import { RetryLayer, ConcurrentLimitLayer, TimeoutLayer, LoggingLayer, ThrottleLayer } from '../../index.mjs'
 
 /**
  * @param {import("../../index").Operator} op
@@ -48,6 +48,63 @@ export function run(op) {
     concurrentLimitLayer.httpPermits = 512
 
     const layerOp = op.layer(concurrentLimitLayer.build())
+
+    assert.ok(layerOp)
+    assert.ok(layerOp.capability())
+  })
+
+  test('test operator with timeout layer', () => {
+    const timeoutLayer = new TimeoutLayer()
+    timeoutLayer.timeout = 10000
+    timeoutLayer.ioTimeout = 5000
+
+    const layerOp = op.layer(timeoutLayer.build())
+
+    assert.ok(layerOp)
+    assert.ok(layerOp.capability())
+  })
+
+  test('test operator with timeout layer using default values', () => {
+    const timeoutLayer = new TimeoutLayer()
+
+    const layerOp = op.layer(timeoutLayer.build())
+
+    assert.ok(layerOp)
+    assert.ok(layerOp.capability())
+  })
+
+  test('test operator with logging layer', () => {
+    const loggingLayer = new LoggingLayer()
+
+    const layerOp = op.layer(loggingLayer.build())
+
+    assert.ok(layerOp)
+    assert.ok(layerOp.capability())
+  })
+
+  test('test operator with throttle layer', () => {
+    const throttleLayer = new ThrottleLayer(10 * 1024, 1024 * 1024)
+
+    const layerOp = op.layer(throttleLayer.build())
+
+    assert.ok(layerOp)
+    assert.ok(layerOp.capability())
+  })
+
+  test('test operator with multiple layers', () => {
+    const loggingLayer = new LoggingLayer()
+    const timeoutLayer = new TimeoutLayer()
+    timeoutLayer.timeout = 30000
+    timeoutLayer.ioTimeout = 10000
+    const retryLayer = new RetryLayer()
+    retryLayer.maxTimes = 3
+    const throttleLayer = new ThrottleLayer(100 * 1024, 10 * 1024 * 1024)
+
+    const layerOp = op
+      .layer(loggingLayer.build())
+      .layer(timeoutLayer.build())
+      .layer(retryLayer.build())
+      .layer(throttleLayer.build())
 
     assert.ok(layerOp)
     assert.ok(layerOp.capability())

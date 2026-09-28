@@ -2,14 +2,28 @@
 
 ## Installation
 
+Install from PyPI:
+
 ```bash
 pip install opendal
+```
+
+Or install from [Anaconda main](https://anaconda.org/main/opendal):
+
+```bash
+conda install opendal
+```
+
+Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
+
+```bash
+conda install conda-forge::opendal
 ```
 
 ## Local Usage
 Developer must set two required arguments to work with files locally:
 - `scheme`: which should be specified as `fs`
-- `root`: where OpenDAl considers the root of the directory for operations will be.
+- `root`: where OpenDAL considers the root of the directory for operations will be.
 
 For example in the following operator:
 `opendal.Operator("fs", root="/foo")`

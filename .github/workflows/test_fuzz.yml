@@ -25,10 +25,16 @@ on:
     branches:
       - main
     paths:
-      - "core/src/**"
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
       - "core/fuzz/**"
-      - "!core/src/docs/**"
-      - ".github/workflows/fuzz_test.yml"
+      - "core/layers/**"
+      - "core/services/**"
+      - "core/testkit/**"
+      - "!core/core/src/docs/**"
+      - ".github/workflows/test_fuzz.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -50,12 +56,13 @@ jobs:
           - { service: "s3", setup: "0_minio_s3" }
           - { service: "azblob", setup: "azurite_azblob" }
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
       - name: Set Rust Fuzz
         shell: bash
         run: |
+          sudo apt-get update
           sudo apt-get install -y libfuzzer-14-dev
           rustup install ${{ env.RUST_TOOLCHAIN }}
           cargo +${{ env.RUST_TOOLCHAIN }} install cargo-fuzz

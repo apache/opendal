@@ -21,7 +21,6 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
-use std::str::FromStr;
 use std::time::Duration;
 
 use futures::AsyncReadExt;
@@ -51,15 +50,41 @@ impl Operator {
     /// Note that the current options key is snake_case.
     #[napi(constructor, async_runtime)]
     pub fn new(scheme: String, options: Option<HashMap<String, String>>) -> Result<Self> {
-        let scheme = opendal::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                opendal::Error::new(opendal::ErrorKind::Unexpected, "not supported scheme")
-                    .set_source(err)
-            })
-            .map_err(format_napi_error)?;
         let options = options.unwrap_or_default();
 
         let async_op = opendal::Operator::via_iter(scheme, options).map_err(format_napi_error)?;
+
+        let blocking_op =
+            opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
+
+        Ok(Operator {
+            async_op,
+            blocking_op,
+        })
+    }
+
+    /// Create a new operator from a URI string.
+    ///
+    /// The URI encodes the scheme and configuration in a single string, e.g.
+    /// `memory://localhost/` or `s3://bucket/path?region=us-east-1`.
+    ///
+    /// Optional extra key-value options can be passed to override or supplement
+    /// the values encoded in the URI.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const op = Operator.fromUri("memory://localhost/");
+    /// const op2 = Operator.fromUri("s3://my-bucket/", { region: "us-east-1" });
+    /// ```
+    #[napi(factory, async_runtime)]
+    pub fn from_uri(uri: String, options: Option<HashMap<String, String>>) -> Result<Self> {
+        let options = options.unwrap_or_default();
+        let async_op = if options.is_empty() {
+            opendal::Operator::from_uri(uri).map_err(format_napi_error)?
+        } else {
+            opendal::Operator::from_uri((uri.as_str(), options)).map_err(format_napi_error)?
+        };
 
         let blocking_op =
             opendal::blocking::Operator::new(async_op.clone()).map_err(format_napi_error)?;
@@ -74,7 +99,7 @@ impl Operator {
     #[napi]
     pub fn capability(&self) -> Result<capability::Capability> {
         Ok(capability::Capability::new(
-            self.async_op.info().full_capability(),
+            self.async_op.info().capability(),
         ))
     }
 
@@ -397,6 +422,7 @@ impl Operator {
         self.async_op
             .copy(&from, &to)
             .await
+            .map(|_| ())
             .map_err(format_napi_error)
     }
 
@@ -408,7 +434,10 @@ impl Operator {
     /// ```
     #[napi]
     pub fn copy_sync(&self, from: String, to: String) -> Result<()> {
-        self.blocking_op.copy(&from, &to).map_err(format_napi_error)
+        self.blocking_op
+            .copy(&from, &to)
+            .map(|_| ())
+            .map_err(format_napi_error)
     }
 
     /// Rename file according to given `from` and `to` path.
@@ -523,7 +552,8 @@ impl Operator {
     #[napi]
     pub async fn remove_all(&self, path: String) -> Result<()> {
         self.async_op
-            .remove_all(&path)
+            .delete_with(&path)
+            .recursive(true)
             .await
             .map_err(format_napi_error)
     }
@@ -539,8 +569,15 @@ impl Operator {
     /// ```
     #[napi]
     pub fn remove_all_sync(&self, path: String) -> Result<()> {
+        use opendal::options::DeleteOptions;
         self.blocking_op
-            .remove_all(&path)
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(format_napi_error)
     }
 
@@ -638,6 +675,93 @@ impl Operator {
         Ok(l.into_iter().map(Entry).collect())
     }
 
+    /// Create a lister to list entries at given path.
+    ///
+    /// This function returns a Lister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/");
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = await op.lister("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = await lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub async fn lister(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<Lister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .async_op
+            .lister_options(&path, options)
+            .await
+            .map_err(format_napi_error)?;
+
+        Ok(Lister(l))
+    }
+
+    /// Create a lister to list entries at given path synchronously.
+    ///
+    /// This function returns a BlockingLister that can be used to iterate over entries
+    /// in a streaming manner, which is more memory-efficient for large directories.
+    ///
+    /// An error will be returned if given path doesn't end with `/`.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/");
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    ///
+    /// #### List recursively
+    ///
+    /// With `recursive` option, you can list recursively.
+    ///
+    /// ```javascript
+    /// const lister = op.listerSync("path/to/dir/", { recursive: true });
+    /// let entry;
+    /// while ((entry = lister.next()) !== null) {
+    ///   console.log(entry.path());
+    /// }
+    /// ```
+    #[napi]
+    pub fn lister_sync(
+        &self,
+        path: String,
+        options: Option<options::ListOptions>,
+    ) -> Result<BlockingLister> {
+        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let l = self
+            .blocking_op
+            .lister_options(&path, options)
+            .map_err(format_napi_error)?;
+
+        Ok(BlockingLister(l))
+    }
+
     /// Get a presigned request for read.
     ///
     /// Unit of `expires` is seconds.
@@ -706,6 +830,29 @@ impl Operator {
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
     }
+
+    /// Get a presigned request for delete.
+    ///
+    /// Unit of `expires` is seconds.
+    ///
+    /// ### Example
+    ///
+    /// ```javascript
+    /// const req = await op.presignDelete(path, parseInt(expires));
+    ///
+    /// console.log("method: ", req.method);
+    /// console.log("url: ", req.url);
+    /// console.log("headers: ", req.headers);
+    /// ```
+    #[napi]
+    pub async fn presign_delete(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+        let res = self
+            .async_op
+            .presign_delete(&path, Duration::from_secs(expires as u64))
+            .await
+            .map_err(format_napi_error)?;
+        Ok(PresignedRequest::new(res))
+    }
 }
 
 /// Entry returned by Lister or BlockingLister to represent a path, and it's a relative metadata.
@@ -718,6 +865,12 @@ impl Entry {
     #[napi]
     pub fn path(&self) -> String {
         self.0.path().to_string()
+    }
+
+    /// Return the name of this entry.
+    #[napi]
+    pub fn name(&self) -> String {
+        self.0.name().to_string()
     }
 
     /// Return the metadata of this entry.
@@ -811,7 +964,12 @@ impl Metadata {
     /// User Metadata of this object.
     #[napi(getter)]
     pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
-        self.0.user_metadata().cloned()
+        self.0.user_metadata().map(|metadata| {
+            metadata
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect()
+        })
     }
 
     /// ETag of this object.

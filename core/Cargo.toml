@@ -80,6 +80,9 @@ unused_async = "warn"
 
 [package.metadata.docs.rs]
 all-features = true
+# SurrealDB's diskann-wide dependency fails with nightly's new trait solver.
+# Remove this workaround once https://github.com/rust-lang/rust/issues/160895 is resolved.
+rustc-args = ["-Znext-solver=coherence"]
 
 [features]
 # Install facade defaults before `main`: register enabled services and, when

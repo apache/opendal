@@ -54,7 +54,7 @@ env:
   # This is the toolchain used by docs.rs
   #
   # Check this page for updating: https://docs.rs/crate/opendal/latest/builds
-  RUST_DOC_TOOLCHAIN: nightly-2026-04-30
+  RUST_DOC_TOOLCHAIN: nightly-2026-09-22
   # Enable cfg docsrs to make sure docs are built.
   RUSTDOCFLAGS: >-
     --cfg docsrs
@@ -65,6 +65,10 @@ env:
 jobs:
   build-rust-doc:
     runs-on: ubuntu-latest
+
+    # env:
+    #   # Match the docs.rs workaround for https://github.com/rust-lang/rust/issues/160895.
+    #   UNSTABLE_RUSTFLAGS: -Znext-solver=coherence
 
     steps:
       - uses: actions/checkout@v7
@@ -95,6 +99,7 @@ jobs:
             --package opendal-service-opfs --lib --no-deps --all-features \
             --target wasm32-unknown-unknown
         env:
+          # RUSTFLAGS: ${{ env.RUSTFLAGS }} ${{ env.UNSTABLE_RUSTFLAGS }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       # Cargo replaces the facade's HTML when switching to rustdoc JSON.
@@ -112,6 +117,7 @@ jobs:
             cargo +${{ env.RUST_DOC_TOOLCHAIN }} doc \
             --workspace --lib --no-deps --all-features
         env:
+          # RUSTFLAGS: ${{ env.RUSTFLAGS }} ${{ env.UNSTABLE_RUSTFLAGS }}
           LD_LIBRARY_PATH: ${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
       - uses: actions/setup-node@v6
@@ -457,7 +463,6 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
-      # Revert to nightly after https://github.com/apache/opendal/issues/4161 addressed
       - name: Setup Rust Nightly
         run: |
           rustup toolchain install ${{ env.RUST_DOC_TOOLCHAIN }}

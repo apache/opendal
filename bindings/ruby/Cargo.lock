@@ -1427,7 +1427,7 @@ dependencies = [
  "log",
  "md-5",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-core",
  "serde",
  "serde_json",
@@ -1514,7 +1514,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1534,7 +1534,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1551,7 +1551,7 @@ dependencies = [
  "log",
  "opendal-core",
  "opendal-service-azure-common",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-azure-storage",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1574,7 +1574,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-tencent-cos",
@@ -1603,7 +1603,7 @@ dependencies = [
  "log",
  "opendal-core",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-google",
@@ -1661,7 +1661,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-huaweicloud-obs",
@@ -1676,7 +1676,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-aliyun-oss",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1694,7 +1694,7 @@ dependencies = [
  "log",
  "md-5",
  "opendal-core",
- "quick-xml",
+ "quick-xml 0.42.0",
  "reqsign-aws-v4",
  "reqsign-core",
  "reqsign-file-read-tokio",
@@ -1711,7 +1711,7 @@ dependencies = [
  "http",
  "log",
  "opendal-core",
- "quick-xml",
+ "quick-xml 0.42.0",
  "serde",
 ]
 
@@ -1939,6 +1939,16 @@ name = "quick-xml"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e660451e55124f798a69a5af3f49ccfbefbd41910eefd25caf2393e1f3473ec1"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41b1177fdf999d2321d3fb46ff47159d9c1fb9ad66a4879f8c50a0b504615e9b"
 dependencies = [
  "memchr",
  "serde",
@@ -2212,7 +2222,7 @@ dependencies = [
  "http",
  "log",
  "percent-encoding",
- "quick-xml",
+ "quick-xml 0.41.0",
  "reqsign-core",
  "rust-ini",
  "serde",
@@ -2230,7 +2240,7 @@ dependencies = [
  "bytes",
  "http",
  "log",
- "quick-xml",
+ "quick-xml 0.41.0",
  "reqsign-aws-core",
  "reqsign-core",
  "serde",

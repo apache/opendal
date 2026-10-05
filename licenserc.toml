@@ -51,6 +51,8 @@ excludes = [
   "*generated*",
 ]
 
+# HawkEye's default mapping does not cover .NET project and solution files,
+# which are XML documents and accept XML comments.
 [[rules]]
 extensions = ["xml", "csproj", "slnx"]
 style_out = "xml_indent"

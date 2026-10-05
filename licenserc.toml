@@ -59,11 +59,11 @@ style_out = "xml_indent"
 
 # Preserve the existing indentation in XML license headers.
 [styles.xml_indent]
-kind = "block"
-start = "<!--"
-prefix = "    "
-suffix = ""
 end = "-->"
+kind = "block"
+prefix = "    "
+start = "<!--"
+suffix = ""
 
 [[rules]]
 filenames = ["mvnw.cmd"]
@@ -71,14 +71,14 @@ style_out = "maven_batch"
 
 # Preserve the Maven wrapper's banner around its license header.
 [styles.maven_batch]
-kind = "block"
-start = "@REM ----------------------------------------------------------------------------"
-prefix = "@REM "
-suffix = ""
 end = "@REM ----------------------------------------------------------------------------"
+kind = "block"
+prefix = "@REM "
+start = "@REM ----------------------------------------------------------------------------"
+suffix = ""
 
 # Keep Go license headers compatible with gofmt and build tags.
 [[rules]]
 extensions = ["go"]
-styles_in = ["doubleslash", "slashstar"]
 style_out = "doubleslash"
+styles_in = ["doubleslash", "slashstar"]

@@ -1089,6 +1089,50 @@ mod tests {
         );
     }
 
+    /// The same loss, but two levels down, where the restored `next_dir` has to
+    /// coexist with a non-empty `active_lister` stack.
+    ///
+    /// The flat cases above fail a directory while only the root's lister is on
+    /// the stack. Here `/` and `a/` are both open when `a/b/` fails, so a lost
+    /// entry would be masked by the parent resuming instead: the listing would
+    /// pop back to `/`, move on to `c/`, and return `Ok` without `deep.txt`.
+    #[tokio::test]
+    async fn servicer_flat_lister_retries_a_nested_directory() {
+        let state = Arc::new(TreeState {
+            tree: HashMap::from([
+                (
+                    "/".to_string(),
+                    vec![("a/".to_string(), true), ("c/".to_string(), true)],
+                ),
+                ("a/".to_string(), vec![("a/b/".to_string(), true)]),
+                (
+                    "a/b/".to_string(),
+                    vec![("a/b/deep.txt".to_string(), false)],
+                ),
+                ("c/".to_string(), vec![("c/two.txt".to_string(), false)]),
+            ]),
+            fail_first_next_on: Some("a/b/".to_string()),
+            ..Default::default()
+        });
+
+        let (files, errors, listed) = list_tree_with_one_fault(state).await;
+
+        assert_eq!(
+            errors, 1,
+            "the injected fault must surface; listed {listed:?}"
+        );
+        assert_eq!(
+            files,
+            vec!["a/b/deep.txt".to_string(), "c/two.txt".to_string()],
+            "the nested directory must be listed again, not skipped by the parent"
+        );
+        assert_eq!(
+            listed.iter().filter(|path| path.as_str() == "a/b/").count(),
+            2,
+            "a/b/ must be requested again after the temporary error; listed {listed:?}"
+        );
+    }
+
     /// A permanent error must still end the listing rather than lose entries
     /// silently, so the restored `next_dir` cannot mask a real failure.
     #[tokio::test]

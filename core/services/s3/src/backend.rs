@@ -494,6 +494,10 @@ impl S3Builder {
     }
 
     /// Replace the credential providers with a custom chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_aws_v4`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_providers = Some(chain);
         self

@@ -154,7 +154,7 @@ fmt: setup
     ## Fixes generated stubs
     @uv run ruff check --unsafe-fixes --fix --silent
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
-    @hawkeye format --config ../../licenserc.toml --fail-on-change .
+    @hawkeye format --config ../../licenserc.toml .
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"
     @taplo fmt --config ../../.taplo.toml
     @just --fmt --unstable

@@ -7030,6 +7030,7 @@ version = "0.59.4"
 dependencies = [
  "anyhow",
  "bytes",
+ "futures",
  "http 1.4.2",
  "log",
  "opendal-core",

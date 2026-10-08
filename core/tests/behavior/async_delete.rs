@@ -34,6 +34,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_delete_stream,
             test_remove_one_file,
             test_delete_with_version,
+            test_delete_with_version_keeps_newer_object,
             test_delete_with_not_existing_version,
             test_batch_delete,
             test_batch_delete_with_version
@@ -265,7 +266,9 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {
-    if !op.info().capability().delete_with_version {
+    let cap = op.info().capability();
+    // This test verifies deleted versions through versioned stat.
+    if !cap.delete_with_version || !cap.stat_with_version {
         return Ok(());
     }
 
@@ -296,6 +299,54 @@ pub async fn test_delete_with_version(op: Operator) -> Result<()> {
     let ret = op.stat_with(path.as_str()).version(version).await;
     assert!(ret.is_err());
     assert_eq!(ret.unwrap_err().kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+pub async fn test_delete_with_version_keeps_newer_object(op: Operator) -> Result<()> {
+    if !op.info().capability().delete_with_version {
+        return Ok(());
+    }
+
+    let (path, old_content, _) = TEST_FIXTURE.new_file(op.clone());
+    op.write(path.as_str(), old_content)
+        .await
+        .expect("write must success");
+    let old_version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    let (new_content, _) = gen_bytes(op.info().capability());
+    op.write(path.as_str(), new_content.clone())
+        .await
+        .expect("write must success");
+    let new_version = op
+        .stat(path.as_str())
+        .await
+        .expect("stat must success")
+        .version()
+        .expect("must have version")
+        .to_string();
+    assert_ne!(old_version, new_version);
+
+    // Deleting an older version must not touch the current object.
+    op.delete_with(path.as_str())
+        .version(old_version.as_str())
+        .await
+        .expect("delete must success");
+    let bs = op.read(path.as_str()).await.expect("read must success");
+    assert_eq!(bs.to_bytes(), new_content);
+
+    // Deleting the current version removes the object.
+    op.delete_with(path.as_str())
+        .version(new_version.as_str())
+        .await
+        .expect("delete must success");
+    assert!(!op.exists(path.as_str()).await?);
 
     Ok(())
 }
@@ -435,6 +486,10 @@ pub async fn test_batch_delete_with_version(op: Operator) -> Result<()> {
         .expect("batch delete must succeed");
 
     for (path, args) in files {
+        assert!(!op.exists(path.as_str()).await?);
+        if !cap.stat_with_version {
+            continue;
+        }
         let stat = op
             .stat_with(path.as_str())
             .version(args.version.as_deref().unwrap())

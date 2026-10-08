@@ -408,6 +408,8 @@ class HfConfig(TypedDict):
 
     scheme: Required[Literal["hf"]]
     """The service scheme; fixed to `"hf"`."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading the token from the environment: `HF_TOKEN`, `HF_TOKEN_PATH`, or the `token` file under `HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`."""
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
     enable_resolve_cache: NotRequired[bool]

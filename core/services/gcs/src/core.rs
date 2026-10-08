@@ -718,6 +718,16 @@ impl GcsCore {
         ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
+        let req = self.gcs_delete_objects_request(paths)?;
+
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub fn gcs_delete_objects_request(
+        &self,
+        paths: &[(String, OpDelete)],
+    ) -> Result<Request<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -733,10 +743,7 @@ impl GcsCore {
         let req = Request::post(uri)
             .extension(Operation::Delete)
             .extension(ServiceOperation("BatchDeleteObjects"));
-        let req = multipart.apply(req)?;
-
-        let req = self.sign(ctx, req).await?;
-        self.send(ctx, req).await
+        multipart.apply(req)
     }
 
     pub fn gcs_compose_object_request(
@@ -1542,6 +1549,69 @@ mod tests {
         let query = rewrite.uri().query().unwrap();
         assert!(query.contains("ifGenerationMatch=123"));
         assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+    }
+
+    fn delete_args(options: options::DeleteOptions) -> OpDelete {
+        OpDelete::from_options(&Capability::default(), options).unwrap()
+    }
+
+    #[test]
+    fn test_delete_object_request_with_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_delete_object_request(
+                "object",
+                &delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+            )
+            .expect("delete request must build");
+        assert_eq!(req.method(), http::Method::DELETE);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/object?generation=123"
+        );
+
+        let req = core
+            .gcs_delete_object_request(
+                "object",
+                &delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    if_version_match: Some("456".to_owned()),
+                    ..Default::default()
+                }),
+            )
+            .expect("delete request must build");
+        assert_eq!(
+            req.uri().query(),
+            Some("generation=123&ifGenerationMatch=456")
+        );
+    }
+
+    #[test]
+    fn test_delete_objects_request_with_version() {
+        let core = test_core();
+        let batch = vec![
+            (
+                "one".to_string(),
+                delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+            ),
+            ("two".to_string(), OpDelete::new()),
+        ];
+
+        let req = core
+            .gcs_delete_objects_request(&batch)
+            .expect("batch delete request must build");
+        let body = String::from_utf8(req.body().to_bytes().to_vec()).unwrap();
+
+        assert!(body.contains("DELETE /storage/v1/b/test-bucket/o/one?generation=123 HTTP/1.1"));
+        assert!(body.contains("DELETE /storage/v1/b/test-bucket/o/two HTTP/1.1"));
+        assert_eq!(body.matches("generation=").count(), 1);
     }
 
     #[test]

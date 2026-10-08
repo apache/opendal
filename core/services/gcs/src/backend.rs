@@ -381,6 +381,7 @@ impl Builder for GcsBuilder {
             },
 
             delete: true,
+            delete_with_version: true,
             delete_with_if_version_match: true,
             delete_with_if_version_not_match: true,
             delete_max_size: Some(100),
@@ -629,5 +630,23 @@ impl Service for GcsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_capability_supports_delete_with_version() {
+        let backend = GcsBuilder::default()
+            .bucket("test-bucket")
+            .token("test-token".to_string())
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build()
+            .expect("GCS backend must build");
+
+        assert!(backend.capability().delete_with_version);
     }
 }

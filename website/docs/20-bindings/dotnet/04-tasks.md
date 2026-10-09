@@ -128,6 +128,17 @@ buffered before flushing to the backend.
 
 ## Check existence and metadata
 
+`Exists` returns `false` instead of throwing when the path is missing:
+
+```csharp
+if (op.Exists("path/to/file"))
+{
+    Console.WriteLine("found");
+}
+```
+
+`Stat` returns the metadata:
+
 ```csharp
 var meta = op.Stat("path/to/file");
 Console.WriteLine($"{meta.ContentLength} bytes, dir = {meta.IsDir}");

@@ -222,11 +222,11 @@ internal partial class NativeMethods
 
     [LibraryImport(__DllName, EntryPoint = "write_buffer_create")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALWriteBufferResult write_buffer_create(nuint capacity);
+    internal static partial OpenDALWriteResult write_buffer_create(nuint capacity);
 
     [LibraryImport(__DllName, EntryPoint = "write_buffer_add_segment")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
-    internal static partial OpenDALWriteBufferResult write_buffer_add_segment(
+    internal static partial OpenDALWriteResult write_buffer_add_segment(
         IntPtr handle,
         nuint committedInCurrent,
         nuint minCapacity
@@ -327,6 +327,42 @@ internal partial class NativeMethods
         string path,
         IntPtr options,
         delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
+        long context
+    );
+
+    #endregion
+
+    #region Exists
+
+    [LibraryImport(__DllName, EntryPoint = "operator_exists", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALBoolResult operator_exists(
+        Operator op,
+        string path
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_exists_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_exists_async(
+        Operator op,
+        string path,
+        delegate* unmanaged[Cdecl]<long, OpenDALBoolResult, void> callback,
+        long context
+    );
+
+    #endregion
+
+    #region Check
+
+    [LibraryImport(__DllName, EntryPoint = "operator_check")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial OpenDALResult operator_check(Operator op);
+
+    [LibraryImport(__DllName, EntryPoint = "operator_check_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_check_async(
+        Operator op,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
         long context
     );
 

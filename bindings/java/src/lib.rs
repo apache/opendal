@@ -39,6 +39,7 @@ mod layer;
 mod operator;
 mod operator_input_stream;
 mod operator_output_stream;
+mod operator_reader;
 mod utility;
 
 pub(crate) type Result<T> = std::result::Result<T, error::Error>;
@@ -292,9 +293,64 @@ fn make_read_options<'a>(
     })
 }
 
-fn make_reader_options<'a>(
-    _: &mut Env<'a>,
-    _: &JObject,
+fn make_reader_options(
+    env: &mut Env,
+    options: &JObject,
 ) -> Result<opendal::options::ReaderOptions> {
-    Ok(opendal::options::ReaderOptions::default())
+    let concurrent = convert::read_int_field(env, options, "concurrent")?;
+    let chunk = convert::read_int64_field(env, options, "chunk")?;
+    let prefetch = convert::read_int_field(env, options, "prefetch")?;
+    let content_length_hint = convert::read_int64_field(env, options, "contentLengthHint")?;
+
+    if concurrent <= 0 {
+        return Err(Error::new(ErrorKind::ConfigInvalid, "concurrent must be positive").into());
+    }
+    let concurrent = usize::try_from(concurrent)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "concurrent is too large"))?;
+    let chunk = match chunk {
+        -1 => None,
+        value if value > 0 => Some(
+            usize::try_from(value)
+                .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "chunk is too large"))?,
+        ),
+        _ => {
+            return Err(
+                Error::new(ErrorKind::ConfigInvalid, "chunk must be -1 or positive").into(),
+            );
+        }
+    };
+    let prefetch = usize::try_from(prefetch)
+        .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "prefetch must be non-negative"))?;
+    let content_length_hint = match content_length_hint {
+        -1 => None,
+        value => Some(u64::try_from(value).map_err(|_| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "contentLengthHint must be -1 or non-negative",
+            )
+        })?),
+    };
+
+    Ok(opendal::options::ReaderOptions {
+        version: convert::read_string_field(env, options, "version")?,
+        if_match: convert::read_string_field(env, options, "ifMatch")?,
+        if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_version_match: convert::read_string_field(env, options, "ifVersionMatch")?,
+        if_version_not_match: convert::read_string_field(env, options, "ifVersionNotMatch")?,
+        if_modified_since: convert::read_instant_field_to_timestamp(
+            env,
+            options,
+            "ifModifiedSince",
+        )?,
+        if_unmodified_since: convert::read_instant_field_to_timestamp(
+            env,
+            options,
+            "ifUnmodifiedSince",
+        )?,
+        concurrent,
+        chunk,
+        prefetch,
+        content_length_hint,
+        ..Default::default()
+    })
 }

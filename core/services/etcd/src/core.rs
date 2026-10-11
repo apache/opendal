@@ -15,11 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use asyncband::pool::ManageObject;
+use asyncband::pool::ObjectStatus;
+use asyncband::pool::bounded;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -148,16 +148,10 @@ impl EtcdCore {
     }
 }
 
-mod error {
-    use etcd_client::Error as EtcdError;
+use etcd_client::Error as EtcdError;
 
-    use opendal_core::{Error, ErrorKind};
-
-    pub fn format_etcd_error(e: EtcdError) -> Error {
-        Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-            .set_source(e)
-            .set_temporary()
-    }
+pub fn format_etcd_error(e: EtcdError) -> Error {
+    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
+        .set_source(e)
+        .set_temporary()
 }
-
-pub(super) use error::*;

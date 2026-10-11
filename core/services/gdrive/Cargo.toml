@@ -32,14 +32,15 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-opendal-core = { path = "../../core", version = "0.58.1", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.4", default-features = false }
 
+asyncband = { workspace = true, features = ["mutex", "singleflight"] }
 bytes = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
-mea = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
+asyncband = { workspace = true, features = ["semaphore"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

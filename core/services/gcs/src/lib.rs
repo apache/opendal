@@ -21,6 +21,7 @@
 #![deny(missing_docs)]
 
 mod backend;
+mod composer;
 mod config;
 mod copier;
 mod core;

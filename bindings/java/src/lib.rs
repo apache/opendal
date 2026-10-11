@@ -236,6 +236,7 @@ fn make_write_options<'a>(
         user_metadata: convert::read_map_field(env, options, "userMetadata")?,
         concurrent,
         chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
+        ..Default::default()
     })
 }
 
@@ -274,6 +275,7 @@ fn make_stat_options(env: &mut Env, options: &JObject) -> Result<opendal::option
             options,
             "overrideContentDisposition",
         )?,
+        ..Default::default()
     })
 }
 

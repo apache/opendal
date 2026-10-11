@@ -23,13 +23,15 @@ on:
       - main
     tags:
       - "*"
+    paths: &paths
+      - "bindings/haskell/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_haskell.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/haskell/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_haskell.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -168,7 +170,7 @@ jobs:
 #          name: bindings-haskell-sdist
 #      - name: Load secret
 #        id: op-load-secret
-#        uses: 1Password/load-secrets-action@92467eb28f72e8255933372f1e0707c567ce2259 # v4.0.0
+#        uses: 1Password/load-secrets-action@eb2efd0703da22a93c467f2d1ffbb6826c11e19c # v4.1.1
 #        with:
 #          export-env: true
 #        env:

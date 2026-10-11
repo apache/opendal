@@ -209,6 +209,7 @@ impl Service for EtcdBackend {
     type Lister = oio::HierarchyLister<EtcdLazyLister>;
     type Deleter = oio::OneShotDeleter<EtcdDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -246,9 +247,12 @@ impl Service for EtcdBackend {
         // First check if it's a direct key
         match self.core.get(&abs_path).await? {
             Some(buffer) => {
-                let mut metadata = Metadata::new(EntryMode::from_path(&abs_path));
-                metadata.set_content_length(buffer.len() as u64);
-                Ok(RpStat::new(metadata))
+                let metadata = if abs_path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(buffer.len() as u64)
+                };
+                Ok(RpStat::new(metadata.build()))
             }
             None => {
                 // Check if it's a directory by looking for keys with this prefix
@@ -262,7 +266,7 @@ impl Service for EtcdBackend {
                 let has_children = self.core.has_prefix(&prefix).await?;
                 if has_children {
                     // Has children, it's a directory
-                    let metadata = Metadata::new(EntryMode::DIR);
+                    let metadata = MetadataBuilder::dir().build();
                     Ok(RpStat::new(metadata))
                 } else {
                     Err(Error::new(ErrorKind::NotFound, "path not found"))
@@ -324,7 +328,6 @@ impl Service for EtcdBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

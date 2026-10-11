@@ -60,7 +60,8 @@ impl Service for CompleteService {
     type Writer = CompleteWriter<oio::Writer>;
     type Lister = CompleteLister;
     type Deleter = oio::Deleter;
-    type Copier = oio::Copier;
+    type Copier = CompleteCopier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -96,9 +97,14 @@ impl Service for CompleteService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        let source_content_length_hint = args.source_content_length_hint();
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(CompleteCopier::new(copier, source_content_length_hint))
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn rename(
@@ -111,8 +117,18 @@ impl Service for CompleteService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.inner.stat(ctx, path, args).await
+        let metadata = self.inner.stat(ctx, path, args).await?.into_metadata();
+        Ok(RpStat::new(metadata))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -134,6 +150,74 @@ impl Service for CompleteService {
     }
 }
 
+pub struct CompleteCopier {
+    inner: oio::Copier,
+    source_content_length_hint: Option<u64>,
+    copied: Option<u64>,
+}
+
+impl CompleteCopier {
+    fn new(inner: oio::Copier, source_content_length_hint: Option<u64>) -> Self {
+        Self {
+            inner,
+            source_content_length_hint,
+            copied: None,
+        }
+    }
+
+    fn complete_metadata(&self, metadata: Metadata) -> Result<Metadata> {
+        if metadata.is_file() {
+            if let Some(copied) = self.copied
+                && metadata.content_length() != copied
+            {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "copy result content length does not match copied bytes",
+                )
+                .with_operation("CompleteCopier::close")
+                .with_context("expected", copied)
+                .with_context("actual", metadata.content_length()));
+            }
+
+            return Ok(metadata);
+        }
+
+        let Some(copied) = self.copied.or(self.source_content_length_hint) else {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "copy result does not contain enough information to determine content length",
+            )
+            .with_operation("CompleteCopier::close"));
+        };
+        let mut builder = metadata.into_builder();
+        builder.set_file(copied);
+        Ok(builder.build())
+    }
+}
+
+impl oio::Copy for CompleteCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        let progress = self.inner.next().await?;
+        if let Some(progress) = progress {
+            let copied = self.copied.unwrap_or_default();
+            self.copied = Some(copied.checked_add(progress as u64).ok_or_else(|| {
+                Error::new(ErrorKind::Unexpected, "copied byte count overflowed u64")
+                    .with_operation("CompleteCopier::next")
+            })?);
+        }
+        Ok(progress)
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let metadata = self.inner.close().await?;
+        self.complete_metadata(metadata)
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
 pub struct CompleteLister {
     inner: oio::Lister,
     ctx: OperationContext,
@@ -145,48 +229,44 @@ impl CompleteLister {
         Self { inner, ctx, srv }
     }
 
-    async fn ensure_file_content_length(&self, entry: &mut oio::Entry) -> Result<()> {
+    async fn complete_unknown_entry_mode(&self, entry: oio::Entry) -> Result<oio::Entry> {
         let path = entry.path().to_string();
         let version = entry.metadata().version().map(str::to_owned);
-        let mut op = OpStat::new();
-        if let Some(version) = version.as_deref() {
-            op = op.with_version(version);
+        let op = options::StatOptions {
+            version,
+            ..Default::default()
         }
+        .into();
 
         let stat_metadata = self.srv.stat(&self.ctx, &path, op).await?.into_metadata();
-        if !stat_metadata.has_content_length() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "content length is required for list file entries",
-            )
-            .with_operation("CompleteLister::ensure_file_content_length")
-            .with_context("service", self.srv.info().scheme().to_string())
-            .with_context("path", path));
+        if stat_metadata.mode() == EntryMode::Unknown {
+            return Ok(entry);
         }
 
-        entry
-            .metadata_mut()
-            .set_content_length(stat_metadata.content_length());
-        Ok(())
+        let (path, metadata) = entry.into_parts();
+        let mut builder = metadata.into_builder();
+        if stat_metadata.is_file() {
+            builder.set_file(stat_metadata.content_length());
+        } else {
+            builder.set_dir();
+        }
+        Ok(oio::Entry::with(path, builder.build()))
     }
 }
 
 impl oio::List for CompleteLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            let Some(mut entry) = self.inner.next().await? else {
+            let Some(entry) = self.inner.next().await? else {
                 return Ok(None);
             };
 
-            if !entry.mode().is_file()
-                || entry.metadata().is_deleted()
-                || entry.metadata().has_content_length()
-            {
+            if entry.mode() != EntryMode::Unknown || entry.metadata().is_deleted() {
                 return Ok(Some(entry));
             }
 
-            match self.ensure_file_content_length(&mut entry).await {
-                Ok(()) => return Ok(Some(entry)),
+            match self.complete_unknown_entry_mode(entry).await {
+                Ok(entry) => return Ok(Some(entry)),
                 Err(err) if err.kind() == ErrorKind::NotFound => continue,
                 Err(err) => return Err(err),
             }
@@ -211,12 +291,11 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
         } else {
             range.size()
         };
-        self.inner.open(range).await.map(|(rp, stream)| {
-            (
-                rp,
-                Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
-            )
-        })
+        let (rp, stream) = self.inner.open(range).await?;
+        Ok((
+            rp,
+            Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
+        ))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
@@ -324,7 +403,7 @@ impl<W> CompleteWriter<W> {
     }
 
     fn check(&self, content_length: u64) -> Result<()> {
-        if self.append || content_length == 0 {
+        if self.append {
             return Ok(());
         }
 
@@ -381,6 +460,25 @@ where
         Ok(())
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let w = self.inner.as_mut().ok_or_else(|| {
+            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
+        })?;
+        let size = range.size().ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "native writer copy requires a bounded range",
+            )
+        })?;
+
+        w.copy_from(path, args, range)
+            .await
+            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        self.size += size;
+        self.state.transition(CompleteState::Written);
+        Ok(())
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let w = self.inner.as_mut().ok_or_else(|| {
             debug_assert_ne!(
@@ -393,15 +491,27 @@ where
 
         // we must return `Err` before setting inner to None; otherwise,
         // we won't be able to retry `close` in `RetryLayer`.
-        let mut ret = w
+        let ret = w
             .close()
             .await
             .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        self.check(ret.content_length())
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        if ret.content_length() == 0 {
-            ret = ret.with_content_length(self.size);
-        }
+        let ret = if ret.is_file() {
+            self.check(ret.content_length())
+                .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+            ret
+        } else if self.append {
+            let err = Error::new(
+                ErrorKind::Unexpected,
+                "append result does not contain the final content length",
+            )
+            .with_operation("CompleteWriter::close");
+            self.state.transition(CompleteState::Error);
+            return Err(err);
+        } else {
+            let mut builder = ret.into_builder();
+            builder.set_file(self.size);
+            builder.build()
+        };
         self.inner = None;
         self.state.transition(CompleteState::Closed);
 
@@ -425,7 +535,131 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
+
     use super::*;
+    use crate::raw::oio::Copy as _;
+    use crate::raw::oio::Write as _;
+
+    struct MockCopier {
+        progress: VecDeque<usize>,
+        metadata: Metadata,
+    }
+
+    impl MockCopier {
+        fn new(progress: impl IntoIterator<Item = usize>, metadata: Metadata) -> Self {
+            Self {
+                progress: progress.into_iter().collect(),
+                metadata,
+            }
+        }
+    }
+
+    impl oio::Copy for MockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.progress.pop_front())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(self.metadata.clone())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn incomplete_copy_metadata() -> Metadata {
+        MetadataBuilder::unknown().build()
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_source_content_length_hint() -> Result<()> {
+        let inner = Box::new(MockCopier::new([], incomplete_copy_metadata()));
+        let mut copier = CompleteCopier::new(inner, Some(8));
+
+        let metadata = copier.close().await?;
+
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_reported_progress() -> Result<()> {
+        let inner = Box::new(MockCopier::new([3, 5], incomplete_copy_metadata()));
+        let mut copier = CompleteCopier::new(inner, Some(7));
+
+        while copier.next().await?.is_some() {}
+        let metadata = copier.close().await?;
+
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_uses_result_metadata_over_source_hint() -> Result<()> {
+        let metadata = MetadataBuilder::file(8);
+        let inner = Box::new(MockCopier::new([], metadata.build()));
+        let mut copier = CompleteCopier::new(inner, Some(7));
+
+        let metadata = copier.close().await?;
+
+        assert_eq!(metadata.content_length(), 8);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_requires_authoritative_content_length() {
+        let inner = Box::new(MockCopier::new([], incomplete_copy_metadata()));
+        let mut copier = CompleteCopier::new(inner, None);
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("copy without an authoritative content length must fail");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    struct UnsupportedCopyWriter;
+
+    impl oio::Write for UnsupportedCopyWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn copy_from(&mut self, _: &str, _: OpRead, _: BytesRange) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "copy is unsupported"))
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct MockWriter {
+        metadata: Metadata,
+    }
+
+    impl oio::Write for MockWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(self.metadata.clone())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
 
     struct MockReadReader {
         buffer: Buffer,
@@ -438,9 +672,7 @@ mod tests {
 
         async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
             Ok((
-                RpRead::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(self.buffer.len() as u64),
-                ),
+                RpRead::new(MetadataBuilder::file(self.buffer.len() as u64).build()),
                 self.buffer.clone(),
             ))
         }
@@ -471,6 +703,78 @@ mod tests {
             .await
             .expect_err("read should reject extra buffer");
 
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_error_is_terminal() {
+        let mut writer = CompleteWriter::new(UnsupportedCopyWriter, false);
+
+        let err = writer
+            .copy_from("source", OpRead::new(), BytesRange::new(0, Some(8)))
+            .await
+            .expect_err("copy_from should fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(writer.state, CompleteState::Error);
+
+        writer.abort().await.unwrap();
+        assert!(writer.inner.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_writer_promotes_unknown_metadata_with_written_size() -> Result<()> {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::unknown().build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+        writer.write(Buffer::from("abc")).await?;
+
+        let metadata = writer.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 3);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_preserves_explicit_empty_file_length() -> Result<()> {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::file(0).build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+
+        let metadata = writer.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_rejects_explicit_zero_after_writing() {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::file(0).build(),
+        };
+        let mut writer = CompleteWriter::new(inner, false);
+        writer.write(Buffer::from("a")).await.unwrap();
+
+        let err = writer
+            .close()
+            .await
+            .expect_err("an explicit empty-file result must not mean missing length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_append_requires_final_content_length() {
+        let inner = MockWriter {
+            metadata: MetadataBuilder::unknown().build(),
+        };
+        let mut writer = CompleteWriter::new(inner, true);
+        writer.write(Buffer::from("a")).await.unwrap();
+
+        let err = writer
+            .close()
+            .await
+            .expect_err("append without the final content length must fail");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 }

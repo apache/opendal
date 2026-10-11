@@ -1217,6 +1217,101 @@ public interface ServiceConfig {
     }
 
     /**
+     * Configuration for service gcs-grpc.
+     */
+    @Builder
+    @Data
+    @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
+    class GcsGrpc implements ServiceConfig {
+        /**
+         * <p>Bucket name.</p>
+         */
+        public final @NonNull String bucket;
+        /**
+         * <p>Base64-encoded service account credential.</p>
+         */
+        public final String credential;
+        /**
+         * <p>Path to a service account credential file.</p>
+         */
+        public final String credentialPath;
+        /**
+         * <p>Disable environment and well-known credential loading.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
+         * <p>Disable the GCE metadata credential provider.</p>
+         */
+        public final Boolean disableVmMetadata;
+        /**
+         * <p>gRPC endpoint.</p>
+         */
+        public final String endpoint;
+        /**
+         * <p>Root path for all operations.</p>
+         */
+        public final String root;
+        /**
+         * <p>OAuth 2.0 scope.</p>
+         */
+        public final String scope;
+        /**
+         * <p>Service account used by the GCE metadata server.</p>
+         */
+        public final String serviceAccount;
+        /**
+         * <p>Send requests without authentication.</p>
+         */
+        public final Boolean skipSignature;
+        /**
+         * <p>OAuth 2.0 access token.</p>
+         */
+        public final String token;
+
+        @Override
+        public String scheme() {
+            return "gcs-grpc";
+        }
+
+        @Override
+        public Map<String, String> configMap() {
+            final HashMap<String, String> map = new HashMap<>();
+            map.put("bucket", bucket);
+            if (credential != null) {
+                map.put("credential", credential);
+            }
+            if (credentialPath != null) {
+                map.put("credential_path", credentialPath);
+            }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
+            if (disableVmMetadata != null) {
+                map.put("disable_vm_metadata", String.valueOf(disableVmMetadata));
+            }
+            if (endpoint != null) {
+                map.put("endpoint", endpoint);
+            }
+            if (root != null) {
+                map.put("root", root);
+            }
+            if (scope != null) {
+                map.put("scope", scope);
+            }
+            if (serviceAccount != null) {
+                map.put("service_account", serviceAccount);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (token != null) {
+                map.put("token", token);
+            }
+            return map;
+        }
+    }
+
+    /**
      * Configuration for service gdrive.
      */
     @Builder
@@ -1406,12 +1501,17 @@ public interface ServiceConfig {
          * <p>Resolution precedence at <code>build()</code> time (highest → lowest), following
          * <a href="https://github.com/Tencent/tencent-goosefs-rust-sdk/blob/main/docs/CLIENT_CONFIGURATION.md">goosefs-sdk <code>docs/CLIENT_CONFIGURATION.md</code></a> §1:</p>
          * <ol>
-         * <li>This field (when set on the builder / OpenDAL config map)</li>
          * <li><code>GOOSEFS_MASTER_ADDR</code> environment variable</li>
          * <li><code>goosefs.master.rpc.addresses</code> / <code>goosefs.master.hostname</code> in
          * <code>goosefs-site.properties</code></li>
+         * <li>This field (from the builder, the OpenDAL config map, or the URI
+         * authority of <code>goosefs://host:port/path</code>)</li>
          * </ol>
-         * <p><code>build()</code> fails with <code>ConfigInvalid</code> only when <strong>none</strong> of the above
+         * <p>A site file that declares masters therefore outranks this field: the
+         * file carries the deployment's whole HA master list, which a single URI
+         * authority cannot express. Set <code>GOOSEFS_MASTER_ADDR</code> to override a
+         * deployed site file for one process.</p>
+         * <p><code>build()</code> fails with <code>ConfigInvalid</code> when <strong>none</strong> of the above
          * supplies a master address.</p>
          */
         public final String masterAddr;
@@ -1423,7 +1523,10 @@ public interface ServiceConfig {
         public final String root;
         /**
          * <p>Default write type for new files.</p>
-         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;cache_through&quot;</code>, <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>.
+         * <p>Supported values: <code>&quot;must_cache&quot;</code>, <code>&quot;try_cache&quot;</code>, <code>&quot;cache_through&quot;</code>,
+         * <code>&quot;through&quot;</code>, <code>&quot;async_through&quot;</code>. Matching is case-insensitive.
+         * <code>build()</code> fails with <code>ConfigInvalid</code> when the value is not one of
+         * these.
          * Default: <code>&quot;must_cache&quot;</code>.</p>
          */
         public final String writeType;
@@ -1582,6 +1685,16 @@ public interface ServiceConfig {
          */
         public final String downloadMode;
         /**
+         * <p>Enable caching of resolved HTTP download addresses and XET file metadata.</p>
+         * <p>Defaults to <code>false</code>. Set to <code>true</code> to share resolve results across readers
+         * on the same backend. Changed files may remain invisible while cached
+         * results are reused. A reader retains XET metadata from its first read for
+         * its lifetime. Create a new reader to resolve the path again when this
+         * option is disabled.
+         * See [<code>HfBuilder::enable_resolve_cache</code>] for freshness semantics.</p>
+         */
+        public final Boolean enableResolveCache;
+        /**
          * <p>Endpoint of the Hugging Face Hub.</p>
          * <p>The default is <code>https://huggingface.co</code>.</p>
          */
@@ -1621,6 +1734,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
+            }
+            if (enableResolveCache != null) {
+                map.put("enable_resolve_cache", String.valueOf(enableResolveCache));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -1992,12 +2108,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2014,10 +2130,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2047,12 +2163,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle"><code>moka::future::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live"><code>moka::future::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2072,10 +2188,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2320,9 +2436,9 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
-         * <p>Deprecated: OneDrive versioning capability is enabled by default.</p>
+         * <p>Deprecated: OneDrive supports version listing without this option.</p>
          *
-         * @deprecated OneDrive versioning capability is enabled by default and this option is no longer needed.
+         * @deprecated OneDrive supports version listing without this option.
          */
         public final Boolean enableVersioning;
         /**
@@ -3037,6 +3153,17 @@ public interface ServiceConfig {
          */
         public final String externalId;
         /**
+         * <p>AWS profile.</p>
+         * <p>By default, reqsign which is the default credential provider, supplies profile in order:</p>
+         * <ul>
+         * <li>explicit option</li>
+         * <li><code>AWS_PROFILE</code> environment variable, from which reqsign reads profile from:</li>
+         * <li><code>~/.aws/credentials</code> (or the path specified by <code>AWS_SHARED_CREDENTIALS_FILE</code>)</li>
+         * <li><code>~/.aws/config</code> (or the path specified by <code>AWS_CONFIG_FILE</code>)</li>
+         * </ul>
+         */
+        public final String profile;
+        /**
          * <p>Region represent the signing region of this endpoint. This is required
          * if you are using the default AWS S3 endpoint.</p>
          * <p>If using a custom endpoint,</p>
@@ -3184,6 +3311,9 @@ public interface ServiceConfig {
             }
             if (externalId != null) {
                 map.put("external_id", externalId);
+            }
+            if (profile != null) {
+                map.put("profile", profile);
             }
             if (region != null) {
                 map.put("region", region);
@@ -3871,16 +4001,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable conditional read support.</p>
-         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
-         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
-         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
-         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-         * in PROPFIND or don't honor these headers on GET. Setting this to
-         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
-         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
-         * locally instead of being silently ignored by the server.</p>
-         * <p>Default: true</p>
+         * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
+         *
+         * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
          */
         public final Boolean enableConditionalRead;
         /**

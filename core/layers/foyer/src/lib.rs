@@ -273,13 +273,32 @@ impl Service for FoyerService {
     type Lister = oio::Lister;
     type Deleter = Deleter<oio::Deleter>;
     type Copier = oio::Copier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability.compose = false;
+        capability.compose_with_content_type = false;
+        capability.compose_with_content_disposition = false;
+        capability.compose_with_content_encoding = false;
+        capability.compose_with_cache_control = false;
+        capability.compose_with_user_metadata = false;
+        capability.compose_with_if_match = false;
+        capability.compose_with_if_none_match = false;
+        capability.compose_with_if_version_match = false;
+        capability.compose_with_if_version_not_match = false;
+        capability.compose_with_if_not_exists = false;
+        capability.compose_with_source_version = false;
+        capability.compose_with_source_if_match = false;
+        capability.restore = false;
+        capability.restore_with_version = false;
+        capability.restore_with_if_not_exists = false;
+        capability
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -311,9 +330,8 @@ impl Service for FoyerService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -343,6 +361,18 @@ impl Service for FoyerService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpRestore,
+    ) -> Result<RpRestore> {
+        Err(
+            Error::new(ErrorKind::Unsupported, "operation is not supported")
+                .with_operation(Operation::Restore),
+        )
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,
@@ -361,7 +391,6 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::raw::Layer as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};
@@ -416,7 +445,10 @@ mod tests {
         }
 
         fn metadata(&self) -> Metadata {
-            Metadata::new(EntryMode::FILE).with_content_length(self.data.len() as _)
+            {
+                let metadata = MetadataBuilder::file(self.data.len() as _);
+                metadata.build()
+            }
         }
 
         fn rp_read(&self) -> RpRead {
@@ -475,6 +507,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -484,6 +517,9 @@ mod tests {
             Capability {
                 read: true,
                 stat: true,
+                restore: true,
+                restore_with_version: true,
+                restore_with_if_not_exists: true,
                 ..Default::default()
             }
         }
@@ -534,14 +570,7 @@ mod tests {
             ))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -571,6 +600,25 @@ mod tests {
 
     fn service_context(_: &Servicer) -> OperationContext {
         OperationContext::new()
+    }
+
+    #[tokio::test]
+    async fn test_restore_is_not_supported() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        assert!(source.capability().restore);
+
+        let service = FoyerLayer::new(cache).apply_service(source);
+        let capability = service.capability();
+        assert!(!capability.restore);
+        assert!(!capability.restore_with_version);
+        assert!(!capability.restore_with_if_not_exists);
+
+        let err = service
+            .restore(&OperationContext::new(), "test", OpRestore::new())
+            .await
+            .expect_err("FoyerLayer must reject restore operations");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     #[tokio::test]
@@ -632,7 +680,12 @@ mod tests {
             .apply_service(source);
         let ctx = service_context(&service);
 
-        let args = OpRead::default().with_version("v1").with_if_match("etag-1");
+        let (_, args, _) = options::ReadOptions {
+            version: Some("v1".to_owned()),
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
         let reader = service.read(&ctx, "test", args).unwrap();
         let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
         stream.read_all().await.unwrap();

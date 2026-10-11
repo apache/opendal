@@ -128,6 +128,7 @@ class AsyncOperator:
         *,
         version: str | None = None,
         recursive: bool | None = None,
+        if_match: str | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Delete a file at the given path.
@@ -150,6 +151,8 @@ class AsyncOperator:
         recursive : bool, optional
             If True, delete the path recursively.
             Only supported on backends that support recursive delete.
+        if_match : str, optional
+            If set, only delete when the existing object's ETag matches.
         """
     def exists(self, /, path: str | PathLike[str]) -> collections.abc.Awaitable[bool]:
         """
@@ -786,6 +789,7 @@ class Operator:
         *,
         version: str | None = None,
         recursive: bool | None = None,
+        if_match: str | None = None,
     ) -> None:
         """
         Delete a file at the given path.
@@ -803,6 +807,8 @@ class Operator:
         recursive : bool, optional
             If True, delete the path recursively.
             Only supported on backends that support recursive delete.
+        if_match : str, optional
+            If set, only delete when the existing object's ETag matches.
         """
     def exists(self, /, path: str | PathLike[str]) -> bool:
         """

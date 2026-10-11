@@ -107,7 +107,10 @@ impl PcloudCore {
                 }
                 Err(Error::new(ErrorKind::Unexpected, "hosts is empty"))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetFileLink")),
+                resp,
+            )),
         }
     }
 
@@ -158,7 +161,12 @@ impl PcloudCore {
                         return Err(Error::new(ErrorKind::Unexpected, format!("{resp:?}")));
                     }
                 }
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateFolderIfNotExists")),
+                        resp,
+                    ));
+                }
             }
         }
         Ok(())
@@ -429,6 +437,8 @@ impl PcloudCore {
 
         let path = path.trim_end_matches('/');
 
+        let path = if path.is_empty() { "/" } else { path };
+
         let url = format!(
             "{}/listfolder?path={}&username={}&password={}",
             self.endpoint,
@@ -452,34 +462,36 @@ impl PcloudCore {
 
 pub(super) fn parse_stat_metadata(content: StatMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::new(EntryMode::DIR)
+        MetadataBuilder::dir()
     } else {
-        Metadata::new(EntryMode::FILE)
+        MetadataBuilder::file(content.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "pcloud stat response does not contain file size",
+            )
+        })?)
     };
 
-    if let Some(size) = content.size {
-        md.set_content_length(size);
-    }
+    md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
-    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
-
-    Ok(md)
+    Ok(md.build())
 }
 
 pub(super) fn parse_list_metadata(content: ListMetadata) -> Result<Metadata> {
     let mut md = if content.isfolder {
-        Metadata::new(EntryMode::DIR)
+        MetadataBuilder::dir()
     } else {
-        Metadata::new(EntryMode::FILE)
+        MetadataBuilder::file(content.size.ok_or_else(|| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "pcloud list response does not contain file size",
+            )
+        })?)
     };
 
-    if let Some(size) = content.size {
-        md.set_content_length(size);
-    }
+    md.last_modified(Timestamp::parse_rfc2822(&content.modified)?);
 
-    md.set_last_modified(Timestamp::parse_rfc2822(&content.modified)?);
-
-    Ok(md)
+    Ok(md.build())
 }
 
 #[derive(Debug, Deserialize)]
@@ -517,53 +529,58 @@ pub struct ListMetadata {
     pub contents: Option<Vec<ListMetadata>>,
 }
 
-mod error {
-    use std::fmt::Debug;
+/// PcloudError is the error returned by Pcloud service.
+#[derive(Default, Deserialize)]
+pub(crate) struct PcloudError {
+    pub result: u32,
+    pub error: Option<String>,
+}
 
-    use http::Response;
-    use opendal_core::raw::*;
-    use opendal_core::*;
-    use serde::Deserialize;
-
-    /// PcloudError is the error returned by Pcloud service.
-    #[derive(Default, Deserialize)]
-    pub(crate) struct PcloudError {
-        pub result: u32,
-        pub error: Option<String>,
+impl Debug for PcloudError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PcloudError")
+            .field("result", &self.result)
+            .field("error", &self.error)
+            .finish_non_exhaustive()
     }
+}
 
-    impl Debug for PcloudError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("PcloudError")
-                .field("result", &self.result)
-                .field("error", &self.error)
-                .finish_non_exhaustive()
-        }
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
+}
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-        let message = String::from_utf8_lossy(&bs).into_owned();
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+    let message = String::from_utf8_lossy(&bs).into_owned();
 
-        let mut err = Error::new(ErrorKind::Unexpected, message);
+    let mut err = Error::new(ErrorKind::Unexpected, message);
 
-        err = with_error_response_context(err, parts);
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
 
-        err
-    }
+    err
+}
 
-    #[cfg(test)]
-    mod test {
-        use http::StatusCode;
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
 
-        use super::*;
+    use super::*;
 
-        #[tokio::test]
-        async fn test_parse_error() {
-            let err_res = vec![(
-                r#"<html>
+    #[tokio::test]
+    async fn test_parse_error() {
+        let err_res = vec![(
+            r#"<html>
 
                 <head>
                     <title>Invalid link</title>
@@ -572,21 +589,18 @@ mod error {
                 <body>This link was generated for another IP address. Try previous step again.</body>
 
                 </html> "#,
-                ErrorKind::Unexpected,
-                StatusCode::GONE,
-            )];
+            ErrorKind::Unexpected,
+            StatusCode::GONE,
+        )];
 
-            for res in err_res {
-                let bs = bytes::Bytes::from(res.0);
-                let body = Buffer::from(bs);
-                let resp = Response::builder().status(res.2).body(body).unwrap();
+        for res in err_res {
+            let bs = bytes::Bytes::from(res.0);
+            let body = Buffer::from(bs);
+            let resp = Response::builder().status(res.2).body(body).unwrap();
 
-                let err = parse_error(resp);
+            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
 
-                assert_eq!(err.kind(), res.1);
-            }
+            assert_eq!(err.kind(), res.1);
         }
     }
 }
-
-pub(super) use error::*;

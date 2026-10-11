@@ -23,6 +23,9 @@ package org.apache.opendal;
  * AsyncExecutor represents an underneath OpenDAL executor that runs async tasks spawned in the Rust world.
  *
  * <p>If the executor is passed to construct operators, the executor must outlive the operators.</p>
+ *
+ * <p>Worker threads use the class loader that defines OpenDAL as their context class loader.
+ * Completion callbacks that change it must restore it before returning.</p>
  */
 public class AsyncExecutor extends NativeObject {
     public static AsyncExecutor createTokioExecutor(int cores) {

@@ -20,21 +20,23 @@ use std::sync::Arc;
 
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
 use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZDLS_SCHEME;
 use super::config::AzdlsConfig;
-use super::core::AzdlsCore;
 use super::core::DIRECTORY;
 use super::core::parse_error;
+use super::core::{AzdlsCore, ErrorContext};
 use super::deleter::AzdlsDeleter;
 use super::lister::AzdlsLister;
 use super::reader::*;
@@ -69,6 +71,7 @@ impl From<AzureConnectionConfig> for AzdlsConfig {
 #[derive(Default)]
 pub struct AzdlsBuilder {
     pub(super) config: AzdlsConfig,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for AzdlsBuilder {
@@ -187,6 +190,12 @@ impl AzdlsBuilder {
         self
     }
 
+    /// Replace the credential providers with a custom chain.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
+
     /// Set authority_host of this backend.
     ///
     /// - If authority_host is set, we will take user's input first.
@@ -300,26 +309,35 @@ impl Builder for AzdlsBuilder {
                 envs,
             });
 
-        let mut credential = DefaultCredentialProvider::new();
+        let mut credential_providers =
+            ProvideCredentialChain::new().push(DefaultCredentialProvider::new());
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
         {
-            credential = credential.push_front(StaticCredentialProvider::new_shared_key(
-                account_name,
-                account_key,
-            ));
+            credential_providers = credential_providers.push_front(
+                StaticCredentialProvider::new_shared_key(account_name, account_key),
+            );
         }
         if let Some(sas_token) = self.config.sas_token.as_deref() {
-            credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+            credential_providers =
+                credential_providers.push_front(StaticCredentialProvider::new_sas_token(sas_token));
+        }
+
+        if let Some(customized_credential_chain) = self.credential_providers {
+            credential_providers = customized_credential_chain;
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
+        let signer = Signer::new(sign_ctx.clone(), credential_providers, RequestSigner::new());
 
         let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
         let capability = Capability {
             stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_if_modified_since: true,
+            stat_with_if_unmodified_since: true,
 
             read: true,
             read_with_if_match: true,
@@ -337,6 +355,7 @@ impl Builder for AzdlsBuilder {
             create_dir: true,
 
             delete: true,
+            delete_with_if_match: true,
             delete_with_recursive: true,
 
             rename: true,
@@ -375,6 +394,7 @@ impl Service for AzdlsBackend {
     type Lister = oio::PageLister<AzdlsLister>;
     type Deleter = oio::OneShotDeleter<AzdlsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -398,18 +418,21 @@ impl Service for AzdlsBackend {
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateDirectory")),
+                resp,
+            )),
         }
     }
 
-    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         // Stat root always returns a DIR.
         // TODO: include metadata for the root (#4746)
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
-        let metadata = self.core.azdls_stat_metadata(ctx, path).await?;
+        let metadata = self.core.azdls_stat_metadata(ctx, path, &args).await?;
         Ok(RpStat::new(metadata))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -486,7 +509,6 @@ impl Service for AzdlsBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -505,7 +527,12 @@ impl Service for AzdlsBackend {
             let status = resp.status();
             match status {
                 StatusCode::CREATED | StatusCode::CONFLICT => {}
-                _ => return Err(parse_error(resp)),
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateDirectory")),
+                        resp,
+                    ));
+                }
             }
         }
 
@@ -515,7 +542,10 @@ impl Service for AzdlsBackend {
 
         match status {
             StatusCode::CREATED => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("RenamePath")),
+                resp,
+            )),
         }
     }
 

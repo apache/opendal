@@ -310,6 +310,35 @@ class GcsConfig(TypedDict):
     """A Google Cloud OAuth2 token.  Takes precedence over `credential` and `credential_path`."""
 
 
+class GcsGrpcConfig(TypedDict):
+    """Configuration for the `gcs-grpc` service."""
+
+    scheme: Required[Literal["gcs-grpc"]]
+    """The service scheme; fixed to `"gcs-grpc"`."""
+    bucket: Required[str]
+    """Bucket name."""
+    credential: NotRequired[str]
+    """Base64-encoded service account credential."""
+    credential_path: NotRequired[str]
+    """Path to a service account credential file."""
+    disable_config_load: NotRequired[bool]
+    """Disable environment and well-known credential loading."""
+    disable_vm_metadata: NotRequired[bool]
+    """Disable the GCE metadata credential provider."""
+    endpoint: NotRequired[str]
+    """gRPC endpoint."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root path for all operations."""
+    scope: NotRequired[str]
+    """OAuth 2.0 scope."""
+    service_account: NotRequired[str]
+    """Service account used by the GCE metadata server."""
+    skip_signature: NotRequired[bool]
+    """Send requests without authentication."""
+    token: NotRequired[str]
+    """OAuth 2.0 access token."""
+
+
 class GdriveConfig(TypedDict):
     """Configuration for the `gdrive` service."""
 
@@ -381,6 +410,8 @@ class HfConfig(TypedDict):
     """The service scheme; fixed to `"hf"`."""
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
+    enable_resolve_cache: NotRequired[bool]
+    """Enable caching of resolved HTTP download addresses and XET file metadata.  Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. A reader retains XET metadata from its first read for its lifetime. Create a new reader to resolve the path again when this option is disabled. See [`HfBuilder::enable_resolve_cache`] for freshness semantics."""
     endpoint: NotRequired[str]
     """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
     repo_id: NotRequired[str]
@@ -487,9 +518,9 @@ class MiniMokaConfig(TypedDict):
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
     time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)"""
+    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle) A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)"""
+    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live) A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MokaConfig(TypedDict):
@@ -504,9 +535,9 @@ class MokaConfig(TypedDict):
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
     time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)"""
+    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle) A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)"""
+    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live) A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MongodbConfig(TypedDict):
@@ -576,7 +607,7 @@ class OnedriveConfig(TypedDict):
     client_secret: NotRequired[str]
     """Microsoft Graph API Application client secret that is in the Azure's app registration portal"""
     enable_versioning: NotRequired[bool]
-    """Deprecated: OneDrive versioning capability is enabled by default. [Deprecated since 0.57.0] OneDrive versioning capability is enabled by default and this option is no longer needed."""
+    """Deprecated: OneDrive supports version listing without this option. [Deprecated since 0.57.0] OneDrive supports version listing without this option."""
     refresh_token: NotRequired[str]
     """Microsoft Graph API (also OneDrive API) refresh token"""
     root: NotRequired[str | os.PathLike[str]]
@@ -747,6 +778,8 @@ class S3Config(TypedDict):
     """endpoint of this backend.  Endpoint must be full uri, e.g.  - AWS S3: `https://s3.amazonaws.com` or `https://s3.{region}.amazonaws.com` - Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` - Aliyun OSS: `https://{region}.aliyuncs.com` - Tencent COS: `https://cos.{region}.myqcloud.com` - Minio: `http://127.0.0.1:9000`  If user inputs endpoint without scheme like "s3.amazonaws.com", we will prepend "https://" before it.  - If endpoint is set, we will take user's input first. - If not, we will try to load it from environment. - If still not set, default to `https://s3.amazonaws.com`."""
     external_id: NotRequired[str]
     """external_id for this backend."""
+    profile: NotRequired[str]
+    """AWS profile.  By default, reqsign which is the default credential provider, supplies profile in order: - explicit option - `AWS_PROFILE` environment variable, from which reqsign reads profile from: - `~/.aws/credentials` (or the path specified by `AWS_SHARED_CREDENTIALS_FILE`) - `~/.aws/config` (or the path specified by `AWS_CONFIG_FILE`)"""
     region: NotRequired[str]
     """Region represent the signing region of this endpoint. This is required if you are using the default AWS S3 endpoint.  If using a custom endpoint, - If region is set, we will take user's input first. - If not, we will try to load it from environment."""
     role_arn: NotRequired[str]
@@ -934,7 +967,7 @@ class WebdavConfig(TypedDict):
     disable_create_dir: NotRequired[bool]
     """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
     enable_conditional_read: NotRequired[bool]
-    """Enable conditional read support.  When enabled (the default), OpenDAL forwards the RFC 7232 headers `If-Match`, `If-None-Match`, `If-Modified-Since` and `If-Unmodified-Since` to the server when callers provide them.  Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags in PROPFIND or don't honor these headers on GET. Setting this to `false` drops the four `read_with_if_*` capabilities, so calls like `reader_with(path).if_match(...)` return `ErrorKind::Unsupported` locally instead of being silently ignored by the server.  Default: true"""
+    """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
     enable_user_metadata: NotRequired[bool]
     """Deprecated: WebDAV user metadata capability is enabled by default. [Deprecated since 0.57.0] WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."""
     endpoint: NotRequired[str]
@@ -998,6 +1031,7 @@ ServiceConfig = (
     | FsConfig
     | FtpConfig
     | GcsConfig
+    | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
     | GridfsConfig
@@ -1052,6 +1086,7 @@ __all__ = [
     "FsConfig",
     "FtpConfig",
     "GcsConfig",
+    "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
     "GridfsConfig",

@@ -80,7 +80,10 @@ impl AlluxioCore {
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateDirectory")),
+                resp,
+            )),
         }
     }
 
@@ -119,7 +122,10 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFile")),
+                resp,
+            )),
         }
     }
 
@@ -148,7 +154,10 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(steam_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("OpenFile")),
+                resp,
+            )),
         }
     }
 
@@ -173,7 +182,7 @@ impl AlluxioCore {
         match status {
             StatusCode::OK => Ok(()),
             _ => {
-                let err = parse_error(resp);
+                let err = parse_error(ErrorContext::new(ServiceOperation("Delete")), resp);
                 if err.kind() == ErrorKind::NotFound {
                     return Ok(());
                 }
@@ -205,7 +214,10 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                resp,
+            )),
         }
     }
 
@@ -235,7 +247,10 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(file_info)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetStatus")),
+                resp,
+            )),
         }
     }
 
@@ -269,7 +284,10 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_deserialize_error)?;
                 Ok(file_infos)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListStatus")),
+                resp,
+            )),
         }
     }
 
@@ -329,7 +347,10 @@ impl AlluxioCore {
                     serde_json::from_reader(body.reader()).map_err(new_json_serialize_error)?;
                 Ok(size)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("WriteStream")),
+                resp,
+            )),
         }
     }
 
@@ -351,13 +372,18 @@ impl AlluxioCore {
 
         match status {
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CloseStream")),
+                resp,
+            )),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use http::StatusCode;
+
     use super::*;
 
     #[tokio::test]
@@ -376,6 +402,38 @@ mod tests {
         };
 
         assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+
+    /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+    #[test]
+    fn test_parse_error() {
+        let err_res = vec![
+            (
+                r#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exist"}"#,
+                ErrorKind::AlreadyExists,
+            ),
+            (
+                r#"{"statusCode":"NOT_FOUND","message":"The resource you requested does not exist"}"#,
+                ErrorKind::NotFound,
+            ),
+            (
+                r#"{"statusCode":"INTERNAL_SERVER_ERROR","message":"Internal server error"}"#,
+                ErrorKind::Unexpected,
+            ),
+        ];
+
+        for res in err_res {
+            let bs = bytes::Bytes::from(res.0);
+            let body = Buffer::from(bs);
+            let resp = Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(body)
+                .unwrap();
+
+            let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+
+            assert_eq!(err.kind(), res.1);
+        }
     }
 }
 
@@ -413,103 +471,64 @@ impl TryFrom<FileInfo> for Metadata {
 
     fn try_from(file_info: FileInfo) -> Result<Metadata> {
         let mut metadata = if file_info.folder {
-            Metadata::new(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::new(EntryMode::FILE)
+            MetadataBuilder::file(file_info.length)
         };
-        metadata
-            .set_content_length(file_info.length)
-            .set_last_modified(Timestamp::from_millisecond(
-                file_info.last_modification_time_ms,
-            )?);
-        Ok(metadata)
+        metadata.last_modified(Timestamp::from_millisecond(
+            file_info.last_modification_time_ms,
+        )?);
+        Ok(metadata.build())
     }
 }
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use serde::Deserialize;
+/// the error response of alluxio
+#[derive(Default, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[allow(dead_code)]
+struct AlluxioError {
+    status_code: String,
+    message: String,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    /// the error response of alluxio
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    #[allow(dead_code)]
-    struct AlluxioError {
-        status_code: String,
-        message: String,
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
+}
 
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
-        let mut kind = match parts.status.as_u16() {
-            500 => ErrorKind::Unexpected,
+    let mut kind = match parts.status.as_u16() {
+        500 => ErrorKind::Unexpected,
+        _ => ErrorKind::Unexpected,
+    };
+
+    let (message, alluxio_err) = serde_json::from_reader::<_, AlluxioError>(bs.clone().reader())
+        .map(|alluxio_err| (format!("{alluxio_err:?}"), Some(alluxio_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    if let Some(alluxio_err) = alluxio_err {
+        kind = match alluxio_err.status_code.as_str() {
+            "ALREADY_EXISTS" => ErrorKind::AlreadyExists,
+            "NOT_FOUND" => ErrorKind::NotFound,
             _ => ErrorKind::Unexpected,
-        };
-
-        let (message, alluxio_err) =
-            serde_json::from_reader::<_, AlluxioError>(bs.clone().reader())
-                .map(|alluxio_err| (format!("{alluxio_err:?}"), Some(alluxio_err)))
-                .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
-
-        if let Some(alluxio_err) = alluxio_err {
-            kind = match alluxio_err.status_code.as_str() {
-                "ALREADY_EXISTS" => ErrorKind::AlreadyExists,
-                "NOT_FOUND" => ErrorKind::NotFound,
-                _ => ErrorKind::Unexpected,
-            }
-        }
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use http::StatusCode;
-
-        use super::*;
-
-        /// Error response example is from https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
-        #[test]
-        fn test_parse_error() {
-            let err_res = vec![
-                (
-                    r#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exist"}"#,
-                    ErrorKind::AlreadyExists,
-                ),
-                (
-                    r#"{"statusCode":"NOT_FOUND","message":"The resource you requested does not exist"}"#,
-                    ErrorKind::NotFound,
-                ),
-                (
-                    r#"{"statusCode":"INTERNAL_SERVER_ERROR","message":"Internal server error"}"#,
-                    ErrorKind::Unexpected,
-                ),
-            ];
-
-            for res in err_res {
-                let bs = bytes::Bytes::from(res.0);
-                let body = Buffer::from(bs);
-                let resp = Response::builder()
-                    .status(StatusCode::INTERNAL_SERVER_ERROR)
-                    .body(body)
-                    .unwrap();
-
-                let err = parse_error(resp);
-
-                assert_eq!(err.kind(), res.1);
-            }
         }
     }
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    err
 }
-
-pub(super) use error::*;

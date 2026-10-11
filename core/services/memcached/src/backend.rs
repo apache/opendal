@@ -106,6 +106,18 @@ impl Builder for MemcachedBuilder {
                 .map(signed_duration_to_duration)
                 .transpose()?,
         };
+        if let Some(ttl) = default_ttl
+            && ttl.as_secs() > MAX_RELATIVE_EXPIRATION_SECS
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "default_ttl is larger than 30 days, which memcached reads as an absolute \
+                 unix timestamp rather than an offset, storing the entry already expired",
+            )
+            .with_context("service", MEMCACHED_SCHEME)
+            .with_context("default_ttl", ttl.as_secs().to_string()));
+        }
+
         let endpoint_raw = self.config.endpoint.clone().ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_context("service", MEMCACHED_SCHEME)
@@ -230,6 +242,7 @@ impl Service for MemcachedBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<MemcachedDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -255,13 +268,14 @@ impl Service for MemcachedBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p).await?;
             match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
-                )),
+                Some(bs) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(bs.len() as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in memcached")),
             }
         }
@@ -311,7 +325,6 @@ impl Service for MemcachedBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -342,5 +355,33 @@ impl Service for MemcachedBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    /// memcached reads an expiration over 30 days as an absolute unix timestamp,
+    /// so a longer offset would store the entry already expired. Refuse it at
+    /// build time rather than writing data that silently disappears.
+    #[test]
+    fn build_rejects_a_ttl_over_thirty_days() {
+        let thirty_days = Duration::from_secs(MAX_RELATIVE_EXPIRATION_SECS);
+
+        let ok = MemcachedBuilder::default()
+            .endpoint("tcp://127.0.0.1:11211")
+            .default_ttl(thirty_days)
+            .build();
+        assert!(ok.is_ok(), "thirty days exactly must still be accepted");
+
+        let err = MemcachedBuilder::default()
+            .endpoint("tcp://127.0.0.1:11211")
+            .default_ttl(thirty_days + Duration::from_secs(1))
+            .build()
+            .expect_err("a ttl over thirty days must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

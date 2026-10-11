@@ -9,6 +9,49 @@ Guidance for AI coding agents working in this repository.
 - Add tests when they verify real behavior or guard a regression; do not add placeholder tests.
 - Do not change public APIs or behavior tests unless the task explicitly requires it.
 
+## AI-Assisted Contributions
+
+Follow [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
+policy.
+
+- Do not publish an Issue, Pull Request, Discussion, or review comment unless a
+  human has meaningfully reviewed the content and explicitly asked you to submit
+  it.
+- Do not implement or submit a service-specific change based only on source-code
+  analysis, a mock or emulator, a synthetic malformed response, or another
+  service's implementation. Reproduce the problem against the actual service
+  first.
+- If actual-service reproduction is unavailable, stop before changing code or
+  opening a Pull Request. Raise the hypothesis in a Discussion unless a
+  maintainer has explicitly accepted it as a hardening or maintenance goal.
+- A test against a fabricated response can verify implementation behavior, but
+  it does not establish that the change solves a real-world problem.
+- In a Pull Request, disclose each materially contributing harness, model, and
+  reasoning effort setting, along with AI's role and any assumptions or unknowns
+  that affect review. Follow the AI Usage Statement requirements in
+  CONTRIBUTING.md. Do not repeat routine validation output.
+
+The human contributor remains responsible for every submitted claim and change.
+
+## Helper Functions
+
+- Extract a helper only when it owns a stable, cohesive responsibility, such as
+  a non-trivial invariant or algorithm, shared protocol encoding with identical
+  semantics, a state-machine transition, or a trait or interface boundary.
+- Do not introduce an intermediate type or helper merely to deduplicate a short
+  condition, merge, forwarding step, request parameter, or error mapping.
+  Prefer a few duplicated lines when they keep each operation easier to read
+  and maintain in isolation.
+- Keep operation-specific validation, lowering, request construction, and
+  response handling at the dispatch, request-builder, or response-processing
+  boundary that owns the behavior. A reader should be able to see how one
+  operation maps its options without following a chain of generic helpers.
+- Before sharing code, verify that the call sites have the same contract,
+  inputs, failure semantics, and reasons to change. Similar syntax alone does
+  not justify an abstraction.
+- Reuse an existing helper only when it already expresses the same contract. Do
+  not broaden it with operation-specific branches merely to obtain reuse.
+
 ## Documentation Style
 
 - Prefer active voice. Name the type or component that performs an action, for example, “`RetryLayer` retries failed operations.”
@@ -17,6 +60,41 @@ Guidance for AI coding agents working in this repository.
 - Describe API semantics precisely. Verify option types, capability requirements, error behavior, and overwrite or versioning semantics against the implementation.
 - Keep terminology consistent with the codebase, especially `service`, `layer`, `operator`, `storage` and `operation`.
 - Use parallel structure in lists and punctuate complete sentences consistently.
+
+## Documentation Architecture
+
+OpenDAL splits documentation by audience. The website carries only content
+that holds for OpenDAL across languages; Rust-specific documentation lives in
+rustdoc.
+
+- `core/core/src/docs/specs/` contains the living portable contracts, the one
+  set of documents published to both destinations. Rustdoc publishes them
+  under `opendal::docs::specs`; the website reads the same Markdown at
+  `/docs/specifications/`.
+- `core/core/src/docs/concepts.rs`, `core/core/src/docs/internals/`, and
+  `core/core/src/docs/performance/` contain the Rust core guides: Rust types,
+  traits, implementation architecture, runtime resources, and transport
+  tuning. They are rustdoc-only; do not publish them on the website.
+- `website/docs/` contains cross-language concepts and non-normative guidance,
+  plus the per-language guides. Content there must hold for OpenDAL as a
+  whole. Do not present Rust implementation detail as cross-language behavior,
+  and do not claim every binding exposes a feature (layers, builders,
+  concurrency controls) unless the bindings demonstrate it.
+- `core/core/src/docs/rfcs/` contains immutable accepted design history. An
+  accepted RFC records the proposal that reached consensus; update a
+  specification, not the accepted RFC, when the current contract changes.
+- `core/core/src/docs/upgrade.md` contains upgrade procedures, and
+  `CHANGELOG.md` contains the release changelog. Rustdoc exposes them through
+  `opendal::docs`.
+- `website/docusaurus.config.js` and `website/specifications.sidebars.js`
+  define website publication and navigation for the specifications. Do not add
+  a website section that republishes rustdoc content, and do not copy
+  specifications into `website/docs/`.
+
+Public API documentation under `core/core/src/types/` must explain the
+observable behavior, capability requirements, and relevant errors at the API
+site. Link to a specification only after the local API contract is
+self-contained.
 
 ## Rust Workspace Commands
 
@@ -145,7 +223,6 @@ When adding or changing a public optional layer:
 - Use `opendal_core::raw::Access`, `Layer`, and `LayeredAccess` for internal implementations.
 - Use `opendal_core::raw::oio::{ReadStream, Write, List, Delete}` for operation bodies.
 - Use `Operator` and `blocking::Operator` as the public API entry points.
-- Prefer existing helpers in `opendal-core` before adding service-local utilities.
 
 ## Security
 

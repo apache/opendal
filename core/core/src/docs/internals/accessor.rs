@@ -15,318 +15,87 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! The internal implementation details of [`Service`].
+//! Implementing a service.
 //!
-//! [`Service`] is the core trait of OpenDAL's raw API. We operate
-//! underlying storage services via APIs provided by [`Service`].
+//! Every OpenDAL backend implements the raw [`Service`] trait. A service owns
+//! protocol-specific request construction and response handling. The operator
+//! owns path normalization, option validation, layer composition, and
+//! dispatch.
 //!
-//! # Introduction
+//! Service crates live under `core/services/<name>/`. Their public builder and
+//! configuration types construct a typed backend; the backend then implements
+//! [`Service`].
 //!
-//! [`Service`] can be split in the following parts:
+//! # Service identity and capabilities
 //!
-//! ```ignore
-//! //                  <----------Trait Bound-------------->
-//! pub trait Service: Send + Sync + Debug + Unpin + 'static {
-//!     fn info(&self) -> ServiceInfo;
-//!     fn capability(&self) -> Capability;
+//! [`Service::info`] returns immutable identity such as the scheme, root, and
+//! namespace name. Runtime resources do not belong in [`ServiceInfo`];
+//! services read them from [`OperationContext`].
 //!
-//!     type Reader: oio::Read;
-//!     type Writer: oio::Write;
-//!     type Lister: oio::List;
-//!     type Deleter: oio::Delete;
-//!     type Copier: oio::Copy;
+//! [`Service::capability`] reports the behavior implemented by that service
+//! stack. Set an operation or option capability only when the implementation
+//! satisfies the corresponding public contract. Operators reject options whose
+//! required capability is absent.
 //!
-//!     fn read(
-//!         &self,
-//!         ctx: &OperationContext,
-//!         path: &str,
-//!         args: OpRead,
-//!     ) -> impl Future<Output = Result<Self::Reader>> + MaybeSend;
-//! }
+//! # Operation body types
+//!
+//! [`Service`] uses associated types for operation bodies:
+//!
+//! ```text
+//! type Reader: oio::Read;
+//! type Writer: oio::Write;
+//! type Lister: oio::List;
+//! type Deleter: oio::Delete;
+//! type Copier: oio::Copy;
 //! ```
 //!
-//! Let's go deep into [`Service`] line by line.
+//! A backend returns concrete body types so its implementation and typed
+//! wrappers do not pay for dynamic dispatch. Use `()` for an unsupported body
+//! type and return [`ErrorKind::Unsupported`] from the corresponding operation
+//! entry point.
 //!
-//! ## Trait Bound
+//! OpenDAL erases these types once, at [`ServiceDyn`]. [`Servicer`] is
+//! `Arc<dyn ServiceDyn>` and is the handle used by operators and runtime layer
+//! composition. A wrapper that receives a [`Servicer`] may forward erased
+//! `oio::*` bodies, but a backend should keep its own bodies concrete.
 //!
-//! First we will read the declaration of [`Service`] trait:
+//! # Operation methods
 //!
-//! ```ignore
-//! pub trait Service: Send + Sync + Debug + Unpin + 'static {}
-//! ```
+//! Each operation method receives normalized paths, an [`OperationContext`],
+//! and operation-specific arguments. The context supplies layer-composed
+//! runtime resources such as the HTTP transport and executor. Options such as
+//! ranges, versions, conditions, and concurrency remain in the operation
+//! arguments.
 //!
-//! There are many trait boundings here. For now, [`Service`] requires the following bound:
+//! An implementation must:
 //!
-//! - [`Send`]: Allow user to send between threads without extra wrapper.
-//! - [`Sync`]: Allow user to sync between threads without extra lock.
-//! - [`Debug`][std::fmt::Debug]: Allow users to print underlying debug information of service.
-//! - [`Unpin`]: Make sure `Service` can be safely moved after being pinned, so users don't need to `Pin<Box<A>>`.
-//! - `'static`: Make sure `Service` is not a short-time reference, allow users to use `Service` in closures and futures without playing with lifetime.
+//! - Map every advertised option to the native request without silently
+//!   dropping it.
+//! - Preserve the operation's public success, error, and atomicity contract.
+//! - Return structured OpenDAL errors with the correct [`ErrorKind`] and
+//!   useful context.
+//! - Keep credentials and other secrets out of `Debug` output and errors.
+//! - Forward cancellation and cleanup to protocol-specific readers, writers,
+//!   deleters, and copiers.
 //!
-//! Implementer of `Service` should take care of the following things:
+//! # Adding or changing a service
 //!
-//! - Implement `Debug` for backend, but don't leak credentials.
-//! - Make sure the backend is `Send` and `Sync`, wrap the internal struct with `Arc<Mutex<T>>` if necessary.
+//! Keep configuration, request construction, operation bodies, and error
+//! parsing at their existing service boundaries. Update the facade feature and
+//! service registration when the service must be available through the
+//! `opendal` crate.
 //!
-//! ## Associated Type
-//!
-//! The middle block of [`Service`] is our associated types. We require
-//! implementers to specify concrete operation body types, avoiding extra
-//! dynamic dispatch inside the backend and typed service wrappers.
-//!
-//! [`Service`] has five associated types so far:
-//!
-//! - `Reader`: reader returned by `read` operation.
-//! - `Writer`: writer returned by `write` operation.
-//! - `Lister`: lister returned by `list` operation.
-//! - `Deleter`: deleter returned by `delete` operation.
-//! - `Copier`: copier returned by `copy` operation.
-//!
-//! Backend implementers should take care of the following things:
-//!
-//! - Return concrete operation body types instead of dynamic trait objects like `oio::Reader`.
-//! - Use `()` as the type if the operation is not supported.
-//! - Implement every operation method; unsupported operations should return
-//!   [`ErrorKind::Unsupported`] explicitly.
-//!
-//! Runtime service wrappers that already receive a [`Servicer`] can forward the
-//! erased `oio::*` body types, but the original backend should not erase itself.
-//!
-//! OpenDAL erases these associated types at the [`ServiceDyn`] boundary.
-//! [`Servicer`] is `Arc<dyn ServiceDyn>` and is the handle used by
-//! [`Operator`] and runtime layer composition. This keeps backend and typed
-//! layer implementations concrete, while the composed operator stack can be
-//! stored and cloned through one object-safe service handle.
-//!
-//! ## API Style
-//!
-//! Every API of [`Service`] follows the same style:
-//!
-//! - All APIs have a unique [`Operation`] and [`Capability`]
-//! - All APIs are orthogonal and do not overlap with each other
-//! - Most APIs accept [`OperationContext`], `path` and `OpXxx`, and returns `RpXxx` with concrete operation bodies.
-//! - Most APIs have `async` and `blocking` variants, they share the same semantics but may have different underlying implementations.
-//!
-//! [`OperationContext`] carries operator resources composed by operator layers,
-//! such as HTTP client and executor. Backend implementations should use this
-//! context instead of storing mutable operator resources in [`ServiceInfo`].
-//!
-//! [`Service`] declares immutable identity facts via [`ServiceInfo`] and
-//! operation capability via [`Service::capability`]:
-//!
-//! ```ignore
-//! impl Service for MyBackend {
-//!     type Reader = MyReader;
-//!     type Writer = ();
-//!     type Lister = ();
-//!     type Deleter = ();
-//!     type Copier = ();
-//!
-//!     fn info(&self) -> ServiceInfo {
-//!         ServiceInfo::new(MY_SCHEME, "/", "")
-//!     }
-//!
-//!     fn capability(&self) -> Capability {
-//!         Capability {
-//!             read: true,
-//!             write: true,
-//!             ..Default::default()
-//!         }
-//!     }
-//! }
-//! ```
-//!
-//! Now that you have mastered [`Service`], let's go and implement our own backend!
-//!
-//! # Tutorial
-//!
-//! This tutorial implements a `duck` storage service that sends API
-//! requests to a super-powered duck. Gagaga!
-//!
-//! ## Scheme
-//!
-//! First of all, let's pick a good scheme for our duck service. The
-//! scheme should be unique and easy to understand. Normally we should
-//! use its formal name.
-//!
-//! For example, we will use `s3` for AWS S3 Compatible Storage Service
-//! instead of `aws` or `awss3`. This is because there are many storage
-//! vendors that provide s3-like RESTful APIs, and our s3 service is
-//! implemented to support all of them, not just AWS S3.
-//!
-//! Obviously, we can use `duck` as scheme, let's add a new constant string:
-//!
-//! ```ignore
-//! pub const DUCK_SCHEME: &str = "duck";
-//! ```
-//!
-//! ## Builder
-//!
-//! Then we can implement a builder for the duck service. The [`Builder`]
-//! will provide APIs for users to configure, and they will create an
-//! instance of a particular service.
-//!
-//! Let's create a `backend` mod under `services/duck` directory, and adding the following code.
-//!
-//! ```ignore
-//! use crate::raw::*;
-//! use crate::*;
-//!
-//! /// Duck Storage Service support. Gagaga!
-//! ///
-//! /// # Capabilities
-//! ///
-//! /// This service can be used to:
-//! ///
-//! /// - [x] read
-//! /// - [ ] write
-//! /// - [ ] list
-//! /// - [ ] presign
-//! ///
-//! /// # Configuration
-//! ///
-//! /// - `root`: Set the work dir for backend.
-//! ///
-//! /// ## Via Builder
-//! ///
-//! /// ```no_run
-//! /// use std::sync::Arc;
-//! ///
-//! /// use anyhow::Result;
-//! /// use opendal_core::services::Duck;
-//! /// use opendal_core::Operator;
-//! ///
-//! /// #[tokio::main]
-//! /// async fn main() -> Result<()> {
-//! ///     // Create Duck backend builder.
-//! ///     let mut builder = DuckBuilder::default();
-//! ///     // Set the root for duck, all operations will happen under this root.
-//! ///     //
-//! ///     // NOTE: the root must be absolute path.
-//! ///     builder.root("/path/to/dir");
-//! ///
-//! ///     let op: Operator = Operator::new(builder)?;
-//! ///
-//! ///     Ok(())
-//! /// }
-//! /// ```
-//! #[derive(Default, Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
-//! #[serde(default)]
-//! #[non_exhaustive]
-//! pub struct DuckConfig {
-//!     pub root: Option<String>,
-//! }
-//!
-//! #[derive(Default, Clone)]
-//! pub struct DuckBuilder {
-//!     config: DuckConfig,
-//! }
-//! ```
-//!
-//! Now let's implement the required APIs for `DuckConfig`:
-//!
-//! ```ignore
-//! impl Configurator for DuckConfig {
-//!     type Builder = DuckBuilder;
-//!
-//!     fn into_builder(self) -> Self::Builder {
-//!         DuckBuilder { config: self }
-//!     }
-//! }
-//! ```
-//!
-//! Note that `DuckBuilder` is part of our public API, so it needs to be
-//! documented. And any changes you make will directly affect users, so
-//! please take it seriously. Otherwise, you will be hunted down by many
-//! angry ducks.
-//!
-//! Then, we can implement required APIs for `DuckBuilder`:
-//!
-//! ```ignore
-//! impl DuckBuilder {
-//!     /// Set root of this backend.
-//!     ///
-//!     /// All operations will happen under this root.
-//!     pub fn root(&mut self, root: &str) -> &mut Self {
-//!         self.config.root = if root.is_empty() {
-//!             None
-//!         } else {
-//!             Some(root.to_string())
-//!         };
-//!
-//!         self
-//!     }
-//! }
-//!
-//! impl Builder for DuckBuilder {
-//!     type Config = DuckConfig;
-//!
-//!     fn build(self) -> Result<impl Service>  {
-//!         debug!("backend build started: {:?}", &self);
-//!
-//!         let root = normalize_root(&self.config.root.clone().unwrap_or_default());
-//!         debug!("backend use root {}", &root);
-//!
-//!         Ok(DuckBackend { root })
-//!     }
-//! }
-//! ```
-//!
-//! `DuckBuilder` is ready now, let's try to play with real ducks!
-//!
-//! ## Backend
-//!
-//! I'm sure you can see it already: `DuckBuilder` will build a
-//! `DuckBackend` that implements [`Service`]. The backend is what we used
-//! to communicate with the super-powered ducks!
-//!
-//! Let's keep adding more code under `backend.rs`:
-//!
-//! ```ignore
-//! /// Duck storage service backend
-//! #[derive(Clone, Debug)]
-//! pub struct DuckBackend {
-//!     root: String,
-//! }
-//!
-//! impl Service for DuckBackend {
-//!     type Reader = DuckReader;
-//!     type Writer = ();
-//!     type Lister = ();
-//!     type Deleter = ();
-//!     type Copier = ();
-//!
-//!     fn info(&self) -> ServiceInfo {
-//!         ServiceInfo::new(DUCK_SCHEME, &self.root, "")
-//!     }
-//!
-//!     fn capability(&self) -> Capability {
-//!         Capability {
-//!             read: true,
-//!             ..Default::default()
-//!         }
-//!     }
-//!
-//!     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-//!         gagaga!()
-//!     }
-//! }
-//! ```
-//!
-//! Congratulations, we have implemented a [`Service`] that can talk to
-//! Super Power Ducks!
-//!
-//! What!? There are no Super Power Ducks? So sad, but never mind, we have
-//! really powerful storage services [here](https://github.com/apache/opendal/issues/5). Welcome to pick one to implement. I promise you won't
-//! have to `gagaga!()` this time.
+//! Before advertising new behavior, reproduce it against the actual service
+//! and run the matching capability-gated behavior tests. Protocol
+//! documentation, emulators, and fabricated responses can explain an
+//! implementation, but they do not establish real-service conformance.
 //!
 //! [`Service`]: crate::raw::Service
+//! [`Service::info`]: crate::raw::Service::info
+//! [`Service::capability`]: crate::raw::Service::capability
+//! [`ServiceInfo`]: crate::raw::ServiceInfo
 //! [`ServiceDyn`]: crate::raw::ServiceDyn
 //! [`Servicer`]: crate::raw::Servicer
-//! [`Operation`]: crate::raw::Operation
-//! [`Capability`]: crate::Capability
-//! [`ServiceInfo`]: crate::raw::ServiceInfo
-//! [`OperationContext`]: crate::raw::OperationContext
-//! [`Operator`]: crate::Operator
-//! [`Builder`]: crate::Builder
-//! [`Configurator`]: crate::Configurator
+//! [`OperationContext`]: crate::OperationContext
+//! [`ErrorKind`]: crate::ErrorKind
+//! [`ErrorKind::Unsupported`]: crate::ErrorKind::Unsupported

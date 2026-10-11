@@ -117,6 +117,8 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     type Deleter: oio::Delete;
     /// Copier returned by `copy`.
     type Copier: oio::Copy;
+    /// Composer returned by `compose`.
+    type Composer: oio::Compose;
 
     /// Return the immutable identity and configuration for this service.
     fn info(&self) -> ServiceInfo;
@@ -185,7 +187,7 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
     /// # Behavior
     ///
     /// - The returned deleter handles one or more delete requests.
-    /// - Deleting a missing path should succeed.
+    /// - Deleting a missing path should succeed unless a condition requires a live target.
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter>;
 
     /// Invoke the `list` operation on the specified path.
@@ -212,8 +214,22 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier>;
+
+    /// Invoke the `compose` operation for the specified destination path.
+    ///
+    /// Requires [`Capability::compose`].
+    fn compose(
+        &self,
+        _ctx: &OperationContext,
+        _to: &str,
+        _args: OpCompose,
+    ) -> Result<Self::Composer> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
 
     /// Invoke the `rename` operation on the specified `from` path and `to` path.
     ///
@@ -229,6 +245,27 @@ pub trait Service: Send + Sync + Debug + Unpin + 'static {
         to: &str,
         args: OpRename,
     ) -> impl Future<Output = Result<RpRename>> + MaybeSend;
+
+    /// Invoke the `restore` operation on the specified path.
+    ///
+    /// Requires [`Capability::restore`].
+    ///
+    /// # Behavior
+    ///
+    /// - `path` is a normalized file path.
+    /// - Without a version, restore reverses the latest recoverable deletion state.
+    /// - With a version, restore promotes that historical version to the current version.
+    fn restore(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpRestore,
+    ) -> impl Future<Output = Result<RpRestore>> + MaybeSend {
+        std::future::ready(Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        )))
+    }
 
     /// Invoke the `presign` operation on the specified path.
     ///
@@ -300,8 +337,15 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier>;
+
+    /// Dyn version of [`Service::compose`].
+    fn compose_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        to: &'a str,
+        args: OpCompose,
+    ) -> Result<oio::Composer>;
 
     /// Dyn version of [`Service::rename`].
     fn rename_dyn<'a>(
@@ -311,6 +355,14 @@ pub trait ServiceDyn: Send + Sync + Debug + Unpin + 'static {
         to: &'a str,
         args: OpRename,
     ) -> BoxedFuture<'a, Result<RpRename>>;
+
+    /// Dyn version of [`Service::restore`].
+    fn restore_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRestore,
+    ) -> BoxedFuture<'a, Result<RpRestore>>;
 
     /// Dyn version of [`Service::presign`].
     fn presign_dyn<'a>(
@@ -388,9 +440,17 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         from: &'a str,
         to: &'a str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
-        Ok(Box::new(self.copy(ctx, from, to, args, opts)?) as oio::Copier)
+        Ok(Box::new(self.copy(ctx, from, to, args)?) as oio::Copier)
+    }
+
+    fn compose_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        to: &'a str,
+        args: OpCompose,
+    ) -> Result<oio::Composer> {
+        Ok(Box::new(self.compose(ctx, to, args)?) as oio::Composer)
     }
 
     fn rename_dyn<'a>(
@@ -401,6 +461,15 @@ impl<S: Service + ?Sized> ServiceDyn for S {
         args: OpRename,
     ) -> BoxedFuture<'a, Result<RpRename>> {
         Box::pin(self.rename(ctx, from, to, args))
+    }
+
+    fn restore_dyn<'a>(
+        &'a self,
+        ctx: &'a OperationContext,
+        path: &'a str,
+        args: OpRestore,
+    ) -> BoxedFuture<'a, Result<RpRestore>> {
+        Box::pin(self.restore(ctx, path, args))
     }
 
     fn presign_dyn<'a>(
@@ -420,6 +489,7 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.as_ref().info_dyn()
@@ -464,9 +534,12 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
-        self.as_ref().copy_dyn(ctx, from, to, args, opts)
+        self.as_ref().copy_dyn(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<oio::Composer> {
+        self.as_ref().compose_dyn(ctx, to, args)
     }
 
     async fn rename(
@@ -477,6 +550,15 @@ impl<T: ServiceDyn + ?Sized> Service for Arc<T> {
         args: OpRename,
     ) -> Result<RpRename> {
         self.as_ref().rename_dyn(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.as_ref().restore_dyn(ctx, path, args).await
     }
 
     async fn presign(
@@ -496,6 +578,7 @@ impl Service for () {
     type Lister = ();
     type Deleter = ();
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         ServiceInfo::with_scheme("dummy")
@@ -552,14 +635,7 @@ impl Service for () {
         ))
     }
 
-    fn copy(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: &str,
-        _: OpCopy,
-        _: OpCopier,
-    ) -> Result<Self::Copier> {
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

@@ -288,6 +288,21 @@ pub struct S3Config {
     /// <!-- @group Behavior -->
     #[serde(alias = "aws_checksum_algorithm")]
     pub checksum_algorithm: Option<String>,
+    /// Checksum type S3 stores for multipart uploads when `checksum_algorithm` is set.
+    ///
+    /// S3 stores a composite checksum for a multipart object by default: a checksum
+    /// over the part checksums, suffixed with the part count. With `full_object`,
+    /// the writer asks S3 to store the checksum of the whole object instead and
+    /// sends the whole-object value on `CompleteMultipartUpload`, so S3 rejects an
+    /// upload whose assembled data does not match it. Single-part writes always
+    /// carry a full-object checksum.
+    ///
+    /// Available options:
+    /// - "composite" (default)
+    /// - "full_object", requires `checksum_algorithm = "crc32c"`
+    ///
+    /// <!-- @group Behavior -->
+    pub checksum_type: Option<String>,
     /// Deprecated: S3 write with If-Match capability is enabled by default.
     ///
     /// <!-- @group Deprecated -->

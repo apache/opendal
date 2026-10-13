@@ -55,6 +55,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? ChecksumAlgorithm { get; init; }
         /// <summary>
+        /// Checksum type S3 stores for multipart uploads when `checksum_algorithm` is set. S3 stores a composite checksum for a multipart object by default: a checksum over the part checksums, suffixed with the part count. With `full_object`, the writer asks S3 to store the checksum of the whole object instead and sends the whole-object value on `CompleteMultipartUpload`, so S3 rejects an upload whose assembled data does not match it. Single-part writes always carry a full-object checksum. Available options: - "composite" (default) - "full_object", requires `checksum_algorithm = "crc32c"`
+        /// </summary>
+        public string? ChecksumType { get; init; }
+        /// <summary>
         /// Default ACL for new objects. Note that some s3 services like minio do not support this option.
         /// </summary>
         public string? DefaultAcl { get; init; }
@@ -200,6 +204,10 @@ namespace OpenDAL.ServiceConfig
             if (ChecksumAlgorithm is not null)
             {
                 map["checksum_algorithm"] = Utilities.ToOptionString(ChecksumAlgorithm);
+            }
+            if (ChecksumType is not null)
+            {
+                map["checksum_type"] = Utilities.ToOptionString(ChecksumType);
             }
             if (DefaultAcl is not null)
             {

@@ -72,6 +72,19 @@ impl S3Writer {
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
         ErrorContext::new(service_operation).with_caller_condition(self.op.is_conditional())
     }
+
+    /// The CRC32C of the whole object, combined from the parts S3 already verified.
+    fn full_object_checksum(&self, parts: &[oio::MultipartPart]) -> Result<String> {
+        let parts = parts.iter().map(|p| match (p.checksum.as_deref(), p.size) {
+            (Some(checksum), Some(size)) => Ok((checksum, size)),
+            _ => Err(Error::new(
+                ErrorKind::Unexpected,
+                "full-object checksum needs the checksum and size of every part",
+            )
+            .with_context("part_number", p.part_number.to_string())),
+        });
+        combine_crc32c_parts(parts.collect::<Result<Vec<_>>>()?)
+    }
 }
 
 impl oio::MultipartWrite for S3Writer {
@@ -172,7 +185,7 @@ impl oio::MultipartWrite for S3Writer {
                     part_number,
                     etag,
                     checksum,
-                    size: None,
+                    size: Some(size),
                 })
             }
             _ => Err(parse_error(
@@ -247,6 +260,11 @@ impl oio::MultipartWrite for S3Writer {
         upload_id: &str,
         parts: &[oio::MultipartPart],
     ) -> Result<Metadata> {
+        let full_object_checksum = match self.core.checksum_type {
+            ChecksumType::Composite => None,
+            ChecksumType::FullObject => Some(self.full_object_checksum(parts)?),
+        };
+
         let parts = parts
             .iter()
             .map(|p| match &self.core.checksum_algorithm {
@@ -272,7 +290,14 @@ impl oio::MultipartWrite for S3Writer {
 
         let resp = self
             .core
-            .s3_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
+            .s3_complete_multipart_upload(
+                &self.ctx,
+                &self.path,
+                upload_id,
+                parts,
+                full_object_checksum.as_deref(),
+                &self.op,
+            )
             .await?;
 
         let status = resp.status();

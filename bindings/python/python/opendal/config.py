@@ -750,6 +750,8 @@ class S3Config(TypedDict):
     """bucket name of this backend.  required."""
     checksum_algorithm: NotRequired[str]
     """Checksum Algorithm to use when sending checksums in HTTP headers. This is necessary when writing to AWS S3 Buckets with Object Lock enabled for example.  Available options: - "crc32c" - "md5\""""
+    checksum_type: NotRequired[str]
+    """Checksum type S3 stores for multipart uploads when `checksum_algorithm` is set.  S3 stores a composite checksum for a multipart object by default: a checksum over the part checksums, suffixed with the part count. With `full_object`, the writer asks S3 to store the checksum of the whole object instead and sends the whole-object value on `CompleteMultipartUpload`, so S3 rejects an upload whose assembled data does not match it. Single-part writes always carry a full-object checksum.  Available options: - "composite" (default) - "full_object", requires `checksum_algorithm = "crc32c"`"""
     default_acl: NotRequired[str]
     """Default ACL for new objects. Note that some s3 services like minio do not support this option."""
     default_storage_class: NotRequired[str]

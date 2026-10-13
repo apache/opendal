@@ -674,6 +674,17 @@ impl S3Builder {
         self
     }
 
+    /// Set checksum type S3 stores for multipart uploads.
+    ///
+    /// Available options:
+    /// - "composite" (default)
+    /// - "full_object", requires `checksum_algorithm("crc32c")`
+    pub fn checksum_type(mut self, checksum_type: &str) -> Self {
+        self.config.checksum_type = Some(checksum_type.to_string());
+
+        self
+    }
+
     /// Deprecated: S3 write with If-Match capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -905,6 +916,23 @@ impl Builder for S3Builder {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     format!("{v:?} is not a supported checksum_algorithm."),
+                ));
+            }
+        };
+
+        let checksum_type = match (config.checksum_type.as_deref(), &checksum_algorithm) {
+            (None, _) | (Some("composite"), _) => ChecksumType::Composite,
+            (Some("full_object"), Some(ChecksumAlgorithm::Crc32c)) => ChecksumType::FullObject,
+            (Some("full_object"), _) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "checksum_type \"full_object\" requires checksum_algorithm \"crc32c\".",
+                ));
+            }
+            (v, _) => {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    format!("{v:?} is not a supported checksum_type."),
                 ));
             }
         };
@@ -1159,6 +1187,7 @@ impl Builder for S3Builder {
                 enable_request_payer: config.enable_request_payer,
                 signers,
                 checksum_algorithm,
+                checksum_type,
                 default_acl: config.default_acl,
             }),
         })
@@ -2081,6 +2110,44 @@ mod tests {
             .build()
             .unwrap();
         assert!(!backend.capability().write_can_copy_from);
+    }
+
+    #[test]
+    fn test_checksum_type_requires_crc32c() {
+        let builder = || {
+            S3Builder::default()
+                .bucket("test")
+                .region("us-east-1")
+                .endpoint("http://127.0.0.1:9000")
+        };
+
+        builder()
+            .checksum_algorithm("crc32c")
+            .checksum_type("full_object")
+            .build()
+            .expect("full_object with crc32c must build");
+        builder()
+            .checksum_algorithm("crc32c")
+            .checksum_type("composite")
+            .build()
+            .expect("composite with crc32c must build");
+        builder()
+            .checksum_type("composite")
+            .build()
+            .expect("composite is the default and needs no algorithm");
+
+        let err = builder()
+            .checksum_type("full_object")
+            .build()
+            .expect_err("full_object without crc32c must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = builder()
+            .checksum_algorithm("crc32c")
+            .checksum_type("whole")
+            .build()
+            .expect_err("unknown checksum_type must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 
     #[test]

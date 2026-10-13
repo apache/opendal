@@ -3042,6 +3042,21 @@ public interface ServiceConfig {
          */
         public final String checksumAlgorithm;
         /**
+         * <p>Checksum type S3 stores for multipart uploads when <code>checksum_algorithm</code> is set.</p>
+         * <p>S3 stores a composite checksum for a multipart object by default: a checksum
+         * over the part checksums, suffixed with the part count. With <code>full_object</code>,
+         * the writer asks S3 to store the checksum of the whole object instead and
+         * sends the whole-object value on <code>CompleteMultipartUpload</code>, so S3 rejects an
+         * upload whose assembled data does not match it. Single-part writes always
+         * carry a full-object checksum.</p>
+         * <p>Available options:</p>
+         * <ul>
+         * <li>&quot;composite&quot; (default)</li>
+         * <li>&quot;full_object&quot;, requires <code>checksum_algorithm = &quot;crc32c&quot;</code></li>
+         * </ul>
+         */
+        public final String checksumType;
+        /**
          * <p>Default ACL for new objects.
          * Note that some s3 services like minio do not support this option.</p>
          */
@@ -3269,6 +3284,9 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (checksumAlgorithm != null) {
                 map.put("checksum_algorithm", checksumAlgorithm);
+            }
+            if (checksumType != null) {
+                map.put("checksum_type", checksumType);
             }
             if (defaultAcl != null) {
                 map.put("default_acl", defaultAcl);

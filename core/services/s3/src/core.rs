@@ -82,6 +82,7 @@ pub mod constants {
 
     pub const X_AMZ_VERSION_ID: &str = "x-amz-version-id";
     pub const X_AMZ_OBJECT_SIZE: &str = "x-amz-object-size";
+    pub const X_AMZ_CHECKSUM_TYPE: &str = "x-amz-checksum-type";
 
     pub const X_AMZ_ACL: &str = "x-amz-acl";
 
@@ -112,6 +113,7 @@ pub struct S3Core {
 
     pub(crate) signers: S3Signers,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+    pub checksum_type: ChecksumType,
 }
 
 pub(crate) enum S3Signers {
@@ -163,6 +165,33 @@ fn format_crc32c_iter(body: Buffer) -> String {
 
     let crc = digest.finalize() as u32;
     BASE64_STANDARD.encode(crc.to_be_bytes())
+}
+
+/// Combines the CRC32C values of consecutive parts into the CRC32C of their
+/// concatenation, which is the full-object checksum S3 stores for a multipart
+/// upload created with `x-amz-checksum-type: FULL_OBJECT`.
+///
+/// `parts` holds each part's base64 CRC32C and its length in bytes, in part order.
+pub fn combine_crc32c_parts<'a>(parts: impl IntoIterator<Item = (&'a str, u64)>) -> Result<String> {
+    let mut combined: Option<u64> = None;
+    for (checksum, len) in parts {
+        let bytes = BASE64_STANDARD.decode(checksum).map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "part checksum is not valid base64")
+                .with_context("checksum", checksum)
+                .set_source(err)
+        })?;
+        let bytes: [u8; 4] = bytes.as_slice().try_into().map_err(|_| {
+            Error::new(ErrorKind::Unexpected, "part checksum is not a CRC32C")
+                .with_context("checksum", checksum)
+        })?;
+        let crc = u32::from_be_bytes(bytes) as u64;
+        combined = Some(match combined {
+            None => crc,
+            Some(acc) => crc_fast::checksum_combine(CrcAlgorithm::Crc32Iscsi, acc, crc, len),
+        });
+    }
+    let crc = combined.unwrap_or(0) as u32;
+    Ok(BASE64_STANDARD.encode(crc.to_be_bytes()))
 }
 
 impl Debug for S3Core {
@@ -392,6 +421,9 @@ impl S3Core {
     ) -> http::request::Builder {
         if let Some(checksum_algorithm) = self.checksum_algorithm.as_ref() {
             req = req.header("x-amz-checksum-algorithm", checksum_algorithm.to_string());
+            if self.checksum_type == ChecksumType::FullObject {
+                req = req.header(constants::X_AMZ_CHECKSUM_TYPE, "FULL_OBJECT");
+            }
         }
         req
     }
@@ -1218,6 +1250,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        full_object_checksum: Option<&str>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
@@ -1233,6 +1266,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+
+        // Set the whole-object checksum so S3 verifies the assembled object before storing it.
+        if let Some(checksum) = full_object_checksum {
+            req = req.header(constants::X_AMZ_CHECKSUM_TYPE, "FULL_OBJECT");
+            req = self.insert_checksum_header(req, checksum);
+        }
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
@@ -1676,6 +1715,15 @@ pub enum ChecksumAlgorithm {
     /// Mapping to the `Content-MD5` header from S3.
     Md5,
 }
+
+/// How S3 derives the stored checksum of a multipart object.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChecksumType {
+    /// A checksum over the part checksums, suffixed with the part count. S3's default.
+    Composite,
+    /// The checksum of the whole object, verified by S3 on `CompleteMultipartUpload`.
+    FullObject,
+}
 impl ChecksumAlgorithm {
     pub fn to_header_name(&self) -> HeaderName {
         match self {
@@ -1703,6 +1751,46 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+
+    #[test]
+    fn test_combine_crc32c_parts_matches_whole_object() {
+        let data: Vec<u8> = (0..100_003u32)
+            .map(|i| (i.wrapping_mul(2654435761) >> 13) as u8)
+            .collect();
+        let whole = format_crc32c_iter(Buffer::from(Bytes::from(data.clone())));
+
+        let bounds = [0usize, 5 * 1024 + 7, 60_000, data.len()];
+        let parts: Vec<(String, u64)> = bounds
+            .windows(2)
+            .map(|w| {
+                let chunk = Bytes::copy_from_slice(&data[w[0]..w[1]]);
+                (
+                    format_crc32c_iter(Buffer::from(chunk)),
+                    (w[1] - w[0]) as u64,
+                )
+            })
+            .collect();
+
+        let combined = combine_crc32c_parts(parts.iter().map(|(c, l)| (c.as_str(), *l))).unwrap();
+        assert_eq!(combined, whole);
+    }
+
+    #[test]
+    fn test_combine_crc32c_parts_single_and_empty() {
+        let chunk = Buffer::from(Bytes::from_static(b"hello, full object"));
+        let single = format_crc32c_iter(chunk.clone());
+        assert_eq!(
+            combine_crc32c_parts([(single.as_str(), chunk.len() as u64)]).unwrap(),
+            single
+        );
+        assert_eq!(combine_crc32c_parts([]).unwrap(), "AAAAAA==");
+    }
+
+    #[test]
+    fn test_combine_crc32c_parts_rejects_non_crc32c() {
+        assert!(combine_crc32c_parts([("not base64!", 1)]).is_err());
+        assert!(combine_crc32c_parts([("AAAAAAAAAAA=", 1)]).is_err());
+    }
 
     /// This example is from https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html#API_CreateMultipartUpload_Examples
     #[test]

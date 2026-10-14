@@ -221,6 +221,9 @@ impl GcsCore {
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut query_args = Vec::new();
+        if let Some(version) = args.version() {
+            query_args.push(format!("generation={}", percent_encode_path(version)))
+        }
         if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "{}={}",
@@ -614,6 +617,9 @@ impl GcsCore {
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
         let mut query_args = Vec::new();
+        if let Some(version) = args.version() {
+            query_args.push(format!("generation={}", percent_encode_path(version)))
+        }
         if let Some(override_content_disposition) = args.override_content_disposition() {
             query_args.push(format!(
                 "{}={}",
@@ -1555,6 +1561,44 @@ mod tests {
         let query = rewrite.uri().query().unwrap();
         assert!(query.contains("ifGenerationMatch=123"));
         assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+    }
+
+    #[test]
+    fn test_xml_requests_with_version() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_xml_request(
+                "object",
+                BytesRange::default(),
+                &read_args(options::ReadOptions {
+                    version: Some("123".to_owned()),
+                    override_content_type: Some("text/plain".to_string()),
+                    ..Default::default()
+                }),
+            )
+            .expect("read request must build");
+        assert_eq!(read.method(), http::Method::GET);
+        assert_eq!(
+            read.uri().to_string(),
+            "https://storage.googleapis.com/test-bucket/object?generation=123&response-content-type=text/plain"
+        );
+
+        let stat = core
+            .gcs_head_object_xml_request(
+                "object",
+                &options::StatOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+        assert_eq!(stat.method(), http::Method::HEAD);
+        assert_eq!(
+            stat.uri().to_string(),
+            "https://storage.googleapis.com/test-bucket/object?generation=123"
+        );
     }
 
     #[test]

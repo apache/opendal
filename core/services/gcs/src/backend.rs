@@ -350,6 +350,7 @@ impl Builder for GcsBuilder {
             stat_with_if_version_not_match: true,
 
             read: true,
+            read_with_version: true,
             read_with_suffix: true,
 
             read_with_if_match: true,
@@ -650,6 +651,7 @@ mod tests {
 
         let capability = backend.capability();
         assert!(capability.stat_with_version);
+        assert!(capability.read_with_version);
         assert!(capability.delete_with_version);
     }
 }

@@ -1580,6 +1580,29 @@ mod tests {
     }
 
     #[test]
+    fn test_rewrite_object_request_with_source_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_rewrite_object_request(
+                "source",
+                "target",
+                &copy_args(options::CopyOptions {
+                    source_version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+                None,
+                Some("token"),
+            )
+            .expect("rewrite request must build");
+        assert_eq!(req.method(), http::Method::POST);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/source/rewriteTo/b/test-bucket/o/target?sourceGeneration=123&rewriteToken=token"
+        );
+    }
+
+    #[test]
     fn test_head_object_request_with_version() {
         let core = test_core();
 

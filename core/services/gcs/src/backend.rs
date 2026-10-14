@@ -389,6 +389,7 @@ impl Builder for GcsBuilder {
             delete_max_size: Some(100),
 
             copy: true,
+            copy_with_source_version: true,
             copy_with_if_version_match: true,
             copy_with_if_version_not_match: true,
             copy_can_multi: true,
@@ -652,6 +653,7 @@ mod tests {
         let capability = backend.capability();
         assert!(capability.stat_with_version);
         assert!(capability.read_with_version);
+        assert!(capability.copy_with_source_version);
         assert!(capability.delete_with_version);
     }
 }

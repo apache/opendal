@@ -571,6 +571,9 @@ impl GcsCore {
         );
 
         let mut url = QueryPairsWriter::new(&url);
+        if let Some(version) = args.version() {
+            url = url.push("generation", &gcs_percent_encode_path(version));
+        }
         if let Some(version) = args.if_version_match() {
             url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
         }
@@ -1549,6 +1552,28 @@ mod tests {
         let query = rewrite.uri().query().unwrap();
         assert!(query.contains("ifGenerationMatch=123"));
         assert_eq!(query.matches("ifGenerationMatch=").count(), 1);
+    }
+
+    #[test]
+    fn test_head_object_request_with_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_head_object_request(
+                "object",
+                &options::StatOptions {
+                    version: Some("123".to_owned()),
+                    if_version_match: Some("456".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+        assert_eq!(req.method(), http::Method::GET);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/object?generation=123&ifGenerationMatch=456"
+        );
     }
 
     fn delete_args(options: options::DeleteOptions) -> OpDelete {

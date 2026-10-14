@@ -343,6 +343,7 @@ impl Builder for GcsBuilder {
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
             stat: true,
+            stat_with_version: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
             stat_with_if_version_match: true,
@@ -638,7 +639,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_capability_supports_delete_with_version() {
+    fn test_capability_supports_versioned_operations() {
         let backend = GcsBuilder::default()
             .bucket("test-bucket")
             .token("test-token".to_string())
@@ -647,6 +648,8 @@ mod tests {
             .build()
             .expect("GCS backend must build");
 
-        assert!(backend.capability().delete_with_version);
+        let capability = backend.capability();
+        assert!(capability.stat_with_version);
+        assert!(capability.delete_with_version);
     }
 }

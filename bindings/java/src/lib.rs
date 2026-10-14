@@ -178,11 +178,14 @@ fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a
 
     let content_length = metadata.content_length() as jlong;
 
+    let user_metadata =
+        convert::hashmap_to_jmap(env, metadata.user_metadata().into_iter().flatten())?;
+
     let result = env
         .new_object(
             jni_str!("org/apache/opendal/Metadata"),
             jni_sig!(
-                "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;)V"
+                "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V"
             ),
             &[
                 JValue::Int(mode as jint),
@@ -194,6 +197,7 @@ fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a
                 JValue::Object(&etag),
                 JValue::Object(&last_modified),
                 JValue::Object(&version),
+                JValue::Object(&user_metadata),
             ],
         )?;
     Ok(result)

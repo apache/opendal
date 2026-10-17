@@ -924,6 +924,14 @@ public interface ServiceConfig {
          */
         public final String keyPath;
         /**
+         * <p>the maximum size in bytes of a gRPC response that the etcd client decodes.</p>
+         * <p>Set this to read values larger than the etcd client's own limit. The etcd
+         * server must also allow responses of that size.</p>
+         * <p>Refer to <a href="https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size"><code>etcd_client::KvClient::max_decoding_message_size</code></a></p>
+         * <p>default is None, which keeps the etcd client default of 4 MiB</p>
+         */
+        public final Long maxDecodingMessageSize;
+        /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
          */
@@ -958,6 +966,9 @@ public interface ServiceConfig {
             }
             if (keyPath != null) {
                 map.put("key_path", keyPath);
+            }
+            if (maxDecodingMessageSize != null) {
+                map.put("max_decoding_message_size", String.valueOf(maxDecodingMessageSize));
             }
             if (password != null) {
                 map.put("password", password);

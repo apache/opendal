@@ -57,6 +57,15 @@ pub struct EtcdConfig {
     ///
     /// default is None
     pub key_path: Option<String>,
+    /// the maximum size in bytes of a gRPC response that the etcd client decodes.
+    ///
+    /// Set this to read values larger than the etcd client's own limit. The etcd
+    /// server must also allow responses of that size.
+    ///
+    /// Refer to [`etcd_client::KvClient::max_decoding_message_size`](https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size)
+    ///
+    /// default is None, which keeps the etcd client default of 4 MiB
+    pub max_decoding_message_size: Option<usize>,
 }
 
 impl Debug for EtcdConfig {
@@ -68,6 +77,7 @@ impl Debug for EtcdConfig {
             .field("ca_path", &self.ca_path)
             .field("cert_path", &self.cert_path)
             .field("key_path", &self.key_path)
+            .field("max_decoding_message_size", &self.max_decoding_message_size)
             .finish_non_exhaustive()
     }
 }

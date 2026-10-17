@@ -7,7 +7,7 @@
     ],
     "require-dev": {
         "php": ">=8.1",
-        "pestphp/pest": "^2.9"
+        "pestphp/pest": "^4.7"
     },
     "license": "Apache-2.0",
     "scripts": {

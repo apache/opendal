@@ -81,8 +81,10 @@ jobs:
         with:
           tool: taplo-cli
 
-      - name: Setup hawkeye
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/korandoru/hawkeye/releases/download/v6.5.1/hawkeye-installer.sh | sh
+      - name: Install Hawkeye
+        uses: taiki-e/install-action@v2
+        with:
+          tool: hawkeye@7.2.0
 
       - name: Regenerate stubs
         working-directory: "bindings/python"

@@ -627,10 +627,10 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             Ok(Event::Start(ref e)) => {
                 // Extract namespace declarations from attributes
                 for attr in e.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    let key = attr.key.as_ref().to_string();
                     if key.starts_with("xmlns:") {
                         let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        let uri = attr.value.to_string();
                         if uri == namespace_uri && !target_prefixes.contains(&prefix) {
                             target_prefixes.push(prefix.clone());
                         }
@@ -639,7 +639,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 }
 
                 // Check if this element is in our target namespace
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -652,10 +652,10 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             Ok(Event::Empty(ref e)) => {
                 // Extract namespace declarations from attributes
                 for attr in e.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    let key = attr.key.as_ref().to_string();
                     if key.starts_with("xmlns:") {
                         let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        let uri = attr.value.to_string();
                         if uri == namespace_uri && !target_prefixes.contains(&prefix) {
                             target_prefixes.push(prefix.clone());
                         }
@@ -664,7 +664,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 }
 
                 // For Empty events (self-closing tags), immediately insert with empty value
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -675,13 +675,11 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             }
             Ok(Event::Text(ref e)) if current_prop_key.is_some() => {
                 // Text content - add directly (no escaping needed)
-                let text_str = String::from_utf8_lossy(e.as_ref());
-                current_prop_value.push_str(&text_str);
+                current_prop_value.push_str(e.as_ref());
             }
             Ok(Event::GeneralRef(ref e)) if current_prop_key.is_some() => {
                 // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
-                let entity_name = String::from_utf8_lossy(e.as_ref());
-                let decoded = match entity_name.as_ref() {
+                let decoded = match e.as_ref() {
                     "lt" => "<",
                     "gt" => ">",
                     "amp" => "&",
@@ -692,7 +690,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 current_prop_value.push_str(decoded);
             }
             Ok(Event::End(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -734,7 +732,7 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                let name = e.name().as_ref().to_lowercase();
                 // Match status element regardless of namespace prefix
                 if name.ends_with(":status") || name == "status" {
                     in_status = true;
@@ -742,11 +740,10 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                 }
             }
             Ok(Event::Text(ref e)) if in_status => {
-                let text_str = String::from_utf8_lossy(e.as_ref());
-                status_text.push_str(&text_str);
+                status_text.push_str(e.as_ref());
             }
             Ok(Event::End(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                let name = e.name().as_ref().to_lowercase();
                 if name.ends_with(":status") || name == "status" {
                     // Parse status code from "HTTP/1.1 XXX Description"
                     if let Some(code_str) = status_text.split_whitespace().nth(1)

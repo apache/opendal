@@ -53,10 +53,29 @@ impl oio::StreamRead for GithubReader {
         let status = resp.status();
 
         let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
-                RpRead::new(parse_into_metadata(path, resp.headers())?),
-                resp.into_body(),
-            ),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let (part, mut body) = resp.into_parts();
+                let meta = parse_into_metadata(path, &part.headers)?;
+
+                // GitHub ignores the Range header on authenticated requests
+                // and returns the full content with 200, so slice the body
+                // client-side when the server did not honor the range.
+                if status == StatusCode::PARTIAL_CONTENT || range.is_full() {
+                    (
+                        RpRead::new(meta),
+                        Box::new(body) as Box<dyn oio::ReadStreamDyn>,
+                    )
+                } else {
+                    let bs = body.to_buffer().await?;
+                    let total_size = bs.len() as u64;
+                    let sliced = bs.slice(range.to_content_range(bs.len())?);
+                    let meta = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                    (
+                        RpRead::new(meta),
+                        Box::new(sliced) as Box<dyn oio::ReadStreamDyn>,
+                    )
+                }
+            }
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
@@ -67,6 +86,6 @@ impl oio::StreamRead for GithubReader {
             }
         };
 
-        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
+        Ok((rp, stream))
     }
 }

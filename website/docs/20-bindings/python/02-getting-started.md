@@ -18,6 +18,12 @@ Install from PyPI:
 pip install opendal
 ```
 
+Or install from Anaconda main:
+
+```shell
+conda install opendal
+```
+
 Or install from conda-forge:
 
 ```shell

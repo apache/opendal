@@ -157,6 +157,11 @@ pub struct ConcurrentTasks<I, O> {
 impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
     /// Create a new concurrent tasks with given executor, concurrent, prefetch and factory.
     ///
+    /// `prefetch` is extra completed tasks allowed in the queue before
+    /// [`Self::execute`] waits to collect the head. Pass `0` when the caller
+    /// does not collect results while still submitting work; otherwise failed
+    /// tasks keep their inputs until collection.
+    ///
     /// The factory is a function pointer that shouldn't capture any context.
     pub fn new(
         executor: Executor,

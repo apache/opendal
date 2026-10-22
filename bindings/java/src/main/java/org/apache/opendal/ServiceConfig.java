@@ -924,6 +924,14 @@ public interface ServiceConfig {
          */
         public final String keyPath;
         /**
+         * <p>the maximum size in bytes of a gRPC response that the etcd client decodes.</p>
+         * <p>Set this to read values larger than the etcd client's own limit. The etcd
+         * server must also allow responses of that size.</p>
+         * <p>Refer to <a href="https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size"><code>etcd_client::KvClient::max_decoding_message_size</code></a></p>
+         * <p>default is None, which keeps the etcd client default of 4 MiB</p>
+         */
+        public final Long maxDecodingMessageSize;
+        /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
          */
@@ -958,6 +966,9 @@ public interface ServiceConfig {
             }
             if (keyPath != null) {
                 map.put("key_path", keyPath);
+            }
+            if (maxDecodingMessageSize != null) {
+                map.put("max_decoding_message_size", String.valueOf(maxDecodingMessageSize));
             }
             if (password != null) {
                 map.put("password", password);
@@ -4001,16 +4012,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable conditional read support.</p>
-         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
-         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
-         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
-         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-         * in PROPFIND or don't honor these headers on GET. Setting this to
-         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
-         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
-         * locally instead of being silently ignored by the server.</p>
-         * <p>Default: true</p>
+         * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
+         *
+         * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
          */
         public final Boolean enableConditionalRead;
         /**

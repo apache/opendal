@@ -49,6 +49,14 @@ pub struct OpendalResult {
 }
 
 #[repr(C)]
+/// Result for operations returning a boolean value.
+pub struct OpendalBoolResult {
+    /// `1` for true, `0` for false.
+    pub value: u8,
+    pub error: OpenDALError,
+}
+
+#[repr(C)]
 /// Result for operations returning an operator handle pointer.
 pub struct OpendalOperatorResult {
     pub ptr: *mut c_void,
@@ -110,7 +118,7 @@ pub struct OpendalPresignedRequestResult {
 /// On success the caller owns the buffer handle; there is no dedicated
 /// release API for this result because the handle's lifecycle is managed by
 /// `write_buffer_free`, and the error message by `opendal_error_release`.
-pub struct OpendalWriteBufferResult {
+pub struct OpendalWriteResult {
     pub buffer: OpendalWriteBuffer,
     pub error: OpenDALError,
 }
@@ -154,6 +162,12 @@ macro_rules! define_result {
 }
 
 define_result!(OpendalResult);
+
+define_result!(
+    OpendalBoolResult,
+    field = value: u8,
+    error_value = 0
+);
 
 define_result!(
     OpendalOperatorResult,
@@ -204,7 +218,7 @@ define_result!(
 );
 
 define_result!(
-    OpendalWriteBufferResult,
+    OpendalWriteResult,
     field = buffer: OpendalWriteBuffer,
     error_value = OpendalWriteBuffer::empty()
 );

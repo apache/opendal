@@ -158,7 +158,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
             await output.CompleteAsync(CT);
         }
 
-        Assert.Equal(content, await Op.ReadAsync(path, CT));
+        Assert.Equal(content, await Op.ReadAsync(path, cancellationToken: CT));
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
             await output.WriteAsync(content.AsMemory(), CT);
         }
 
-        Assert.Equal(content, await Op.ReadAsync(path, CT));
+        Assert.Equal(content, await Op.ReadAsync(path, cancellationToken: CT));
     }
 
     [Fact]

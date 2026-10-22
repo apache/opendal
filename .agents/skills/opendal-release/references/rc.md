@@ -6,7 +6,8 @@ Repository paths and shell commands are relative to the repository root.
 
 Read `website/community/release/weekly.md` and the selected revision of
 `.github/workflows/weekly_release.yml` before operating this path. Scheduled
-preparation uses the Friday cutoff; manual dispatch pins the selected commit.
+preparation runs on Thursday at 00:00 UTC and uses that cutoff; manual dispatch
+pins the selected commit.
 The workflow prepares package versions, pushes `releases/<version>-rc.N` and its lightweight
 RC tag with the first unused `rc.N` number for its version, and calls
 `release-compose.yml` to build, sign and upload source archives. Signing accepts

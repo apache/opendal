@@ -30,6 +30,12 @@ Install from PyPI:
 pip install opendal
 ```
 
+Or install from [Anaconda main](https://anaconda.org/main/opendal):
+
+```bash
+conda install opendal
+```
+
 Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
 
 ```bash

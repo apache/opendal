@@ -1,0 +1,182 @@
+{
+  "baseline": "v0.59.5",
+  "source": "9770e14705a13070c9be2fe4afa6173bd4f29b6e",
+  "pulls": [
+    {
+      "number": 8411,
+      "url": "https://github.com/apache/opendal/pull/8411",
+      "commit": "9addb73a93f48a2dacd3ceed922ead98f28d0ed3",
+      "breaking": null
+    },
+    {
+      "number": 8414,
+      "url": "https://github.com/apache/opendal/pull/8414",
+      "commit": "689d6617587e27c608ea9089e90170fbf25fb6e2",
+      "breaking": null
+    },
+    {
+      "number": 8408,
+      "url": "https://github.com/apache/opendal/pull/8408",
+      "commit": "00e82f1c56e029fe1134fa487b68d2bb8b7605cc",
+      "breaking": null
+    },
+    {
+      "number": 8402,
+      "url": "https://github.com/apache/opendal/pull/8402",
+      "commit": "f749d40a4101fff1090e5b52a3ca56654c16e819",
+      "breaking": null
+    },
+    {
+      "number": 8383,
+      "url": "https://github.com/apache/opendal/pull/8383",
+      "commit": "858f5a0de2168723edebc332ba72f8423ed5b87b",
+      "breaking": null
+    },
+    {
+      "number": 8373,
+      "url": "https://github.com/apache/opendal/pull/8373",
+      "commit": "798ab86b2cde528dde54499f9eed831ee361595d",
+      "breaking": null
+    },
+    {
+      "number": 8112,
+      "url": "https://github.com/apache/opendal/pull/8112",
+      "commit": "188557781ab478a9f3c0477ba47029a0e5d8abc6",
+      "breaking": null
+    },
+    {
+      "number": 8395,
+      "url": "https://github.com/apache/opendal/pull/8395",
+      "commit": "51bbbec98996474418aba6c4265331a00fe94f74",
+      "breaking": null
+    },
+    {
+      "number": 8409,
+      "url": "https://github.com/apache/opendal/pull/8409",
+      "commit": "719e87f0a43622a44644381649c4228476d2a679",
+      "breaking": null
+    },
+    {
+      "number": 8385,
+      "url": "https://github.com/apache/opendal/pull/8385",
+      "commit": "8984cfadc09bf1961cc0240e7401dc7b9c035d87",
+      "breaking": null
+    },
+    {
+      "number": 8396,
+      "url": "https://github.com/apache/opendal/pull/8396",
+      "commit": "452077b24fffd2b084f11fb2552f346b1293358e",
+      "breaking": null
+    },
+    {
+      "number": 8089,
+      "url": "https://github.com/apache/opendal/pull/8089",
+      "commit": "6be95285da1ef595e84c9ce8e04732bd78b02726",
+      "breaking": null
+    },
+    {
+      "number": 8331,
+      "url": "https://github.com/apache/opendal/pull/8331",
+      "commit": "9770e14705a13070c9be2fe4afa6173bd4f29b6e",
+      "breaking": null
+    }
+  ],
+  "versions": [
+    {
+      "package": "core",
+      "previous": "0.59.5",
+      "configured": "0.59.5",
+      "target": "0.59.6",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/dav-server",
+      "previous": "0.7.11",
+      "configured": "0.7.11",
+      "target": "0.7.12",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/object_store",
+      "previous": "0.60.5",
+      "configured": "0.60.5",
+      "target": "0.60.6",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/parquet",
+      "previous": "0.10.5",
+      "configured": "0.10.5",
+      "target": "0.10.6",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "integrations/unftp-sbe",
+      "previous": "0.4.11",
+      "configured": "0.4.11",
+      "target": "0.4.12",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/c",
+      "previous": "0.47.8",
+      "configured": "0.47.8",
+      "target": "0.47.9",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/cpp",
+      "previous": "0.45.35",
+      "configured": "0.45.35",
+      "target": "0.45.36",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/java",
+      "previous": "0.50.8",
+      "configured": "0.50.8",
+      "target": "0.50.9",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/nodejs",
+      "previous": "0.49.13",
+      "configured": "0.49.13",
+      "target": "0.49.14",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/python",
+      "previous": "0.47.12",
+      "configured": "0.47.12",
+      "target": "0.47.13",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/ruby",
+      "previous": "0.1.16",
+      "configured": "0.1.16",
+      "target": "0.1.17",
+      "breaking": false,
+      "public_dependency_reason": null
+    },
+    {
+      "package": "bindings/dotnet",
+      "previous": "0.3.1",
+      "configured": "0.3.1",
+      "target": "0.3.2",
+      "breaking": false,
+      "public_dependency_reason": null
+    }
+  ]
+}

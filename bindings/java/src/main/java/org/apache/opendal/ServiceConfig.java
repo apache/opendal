@@ -183,6 +183,10 @@ public interface ServiceConfig {
          */
         public final @NonNull String container;
         /**
+         * <p>Enable soft deletes for this storage account.</p>
+         */
+        public final Boolean enableSoftDeletes;
+        /**
          * <p>The encryption algorithm of Azblob service backend.</p>
          */
         public final String encryptionAlgorithm;
@@ -235,6 +239,9 @@ public interface ServiceConfig {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));
             }
             map.put("container", container);
+            if (enableSoftDeletes != null) {
+                map.put("enable_soft_deletes", String.valueOf(enableSoftDeletes));
+            }
             if (encryptionAlgorithm != null) {
                 map.put("encryption_algorithm", encryptionAlgorithm);
             }

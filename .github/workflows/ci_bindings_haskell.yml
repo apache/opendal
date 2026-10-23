@@ -43,7 +43,9 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # GHC's hsc2hs links with -fuse-ld=gold, which Ubuntu 26.04's
+    # binutils no longer ships.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install Haskell build tools
@@ -110,7 +112,9 @@ jobs:
             bindings/haskell/dist-newstyle
 
   package:
-    runs-on: ubuntu-latest
+    # GHC's hsc2hs links with -fuse-ld=gold, which Ubuntu 26.04's
+    # binutils no longer ships.
+    runs-on: ubuntu-24.04
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
       - uses: actions/checkout@v7

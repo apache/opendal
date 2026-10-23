@@ -350,6 +350,8 @@ class GdriveConfig(TypedDict):
     """Client id for gdrive."""
     client_secret: NotRequired[str]
     """Client secret for gdrive."""
+    drive_id: NotRequired[str]
+    """Shared drive (formerly Team Drive) id for gdrive.  When set, gdrive resolves `root` inside this shared drive instead of the user's My Drive."""
     refresh_token: NotRequired[str]
     """Refresh token for gdrive."""
     root: NotRequired[str | os.PathLike[str]]

@@ -1342,6 +1342,12 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
+         * <p>Shared drive (formerly Team Drive) id for gdrive.</p>
+         * <p>When set, gdrive resolves <code>root</code> inside this shared drive instead of
+         * the user's My Drive.</p>
+         */
+        public final String driveId;
+        /**
          * <p>Refresh token for gdrive.</p>
          */
         public final String refreshToken;
@@ -1366,6 +1372,9 @@ public interface ServiceConfig {
             }
             if (clientSecret != null) {
                 map.put("client_secret", clientSecret);
+            }
+            if (driveId != null) {
+                map.put("drive_id", driveId);
             }
             if (refreshToken != null) {
                 map.put("refresh_token", refreshToken);

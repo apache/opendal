@@ -291,6 +291,13 @@ fn make_read_options<'a>(
 
     Ok(opendal::options::ReadOptions {
         range: convert::offset_length_to_range(offset, length)?.into(),
+        override_content_type: convert::read_string_field(env, options, "overrideContentType")?,
+        override_cache_control: convert::read_string_field(env, options, "overrideCacheControl")?,
+        override_content_disposition: convert::read_string_field(
+            env,
+            options,
+            "overrideContentDisposition",
+        )?,
         ..Default::default()
     })
 }

@@ -46,6 +46,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Container { get; init; }
         /// <summary>
+        /// Enable soft deletes for this storage account.
+        /// </summary>
+        public bool? EnableSoftDeletes { get; init; }
+        /// <summary>
         /// The encryption algorithm of Azblob service backend.
         /// </summary>
         public string? EncryptionAlgorithm { get; init; }
@@ -96,6 +100,10 @@ namespace OpenDAL.ServiceConfig
             if (Container is not null)
             {
                 map["container"] = Utilities.ToOptionString(Container);
+            }
+            if (EnableSoftDeletes is not null)
+            {
+                map["enable_soft_deletes"] = Utilities.ToOptionString(EnableSoftDeletes);
             }
             if (EncryptionAlgorithm is not null)
             {

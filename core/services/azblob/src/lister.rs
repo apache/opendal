@@ -34,6 +34,7 @@ pub struct AzblobLister {
     path: String,
     delimiter: &'static str,
     limit: Option<usize>,
+    deleted: bool,
 }
 
 impl AzblobLister {
@@ -43,6 +44,7 @@ impl AzblobLister {
         path: String,
         recursive: bool,
         limit: Option<usize>,
+        deleted: bool,
     ) -> Self {
         let delimiter = if recursive { "" } else { "/" };
 
@@ -52,6 +54,7 @@ impl AzblobLister {
             path,
             delimiter,
             limit,
+            deleted,
         }
     }
 }
@@ -66,6 +69,7 @@ impl oio::PageList for AzblobLister {
                 &ctx.token,
                 self.delimiter,
                 self.limit,
+                self.deleted,
             )
             .await?;
 
@@ -117,6 +121,10 @@ impl oio::PageList for AzblobLister {
                 .last_modified(Timestamp::parse_rfc2822(
                     object.properties.last_modified.as_str(),
                 )?);
+
+            if object.deleted.unwrap_or(false) {
+                meta.is_deleted(true);
+            }
 
             let de = oio::Entry::with(path, meta.build());
             ctx.entries.push_back(de);

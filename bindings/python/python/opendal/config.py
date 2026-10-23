@@ -93,6 +93,8 @@ class AzblobConfig(TypedDict):
     """Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. [Deprecated since 0.57.0] Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
     container: Required[str]
     """The container name of Azblob service backend."""
+    enable_soft_deletes: NotRequired[bool]
+    """Enable soft deletes for this storage account."""
     encryption_algorithm: NotRequired[str]
     """The encryption algorithm of Azblob service backend."""
     encryption_key: NotRequired[str]

@@ -238,6 +238,7 @@ impl Builder for AzfileBuilder {
                 signer,
                 sign_ctx,
                 share_name: self.config.share_name.clone(),
+                sas_token: self.config.sas_token.clone(),
             }),
         })
     }

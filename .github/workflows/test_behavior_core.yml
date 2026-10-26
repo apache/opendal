@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-protoc: true
-          need-rocksdb: true
+          need-rocksdb: ${{ matrix.cases.service != 'hf3fs' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
@@ -58,3 +58,21 @@ jobs:
           setups: ${{ join(matrix.cases.setups, ',') }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
+
+      - name: Stop 3FS
+        if: always() && matrix.cases.service == 'hf3fs'
+        shell: bash
+        run: |
+          sudo journalctl -u opendal-hf3fs --no-pager > "$RUNNER_TEMP/hf3fs-journal.log" 2>&1 || true
+          sudo systemctl stop opendal-hf3fs || true
+          fusermount3 -u "$RUNNER_TEMP/hf3fs-cluster/mnt" 2>/dev/null || true
+          sudo rdma link delete opendal_rxe 2>/dev/null || true
+
+      - name: Upload 3FS logs
+        if: always() && matrix.cases.service == 'hf3fs'
+        uses: actions/upload-artifact@v7
+        with:
+          name: hf3fs-logs
+          path: |
+            ${{ runner.temp }}/hf3fs-journal.log
+            ${{ runner.temp }}/hf3fs-cluster/log

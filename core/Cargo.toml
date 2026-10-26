@@ -177,6 +177,7 @@ services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
 services-hf = ["dep:opendal-service-hf"]
+services-hf3fs = ["dep:opendal-service-hf3fs"]
 services-http = ["dep:opendal-service-http"]
 services-huggingface = ["services-hf"]
 services-ipfs = ["dep:opendal-service-ipfs"]
@@ -301,6 +302,7 @@ opendal-service-gridfs = { path = "services/gridfs", version = "0.59.5", optiona
 opendal-service-hdfs = { path = "services/hdfs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.59.5", optional = true, default-features = false }
 opendal-service-hf = { path = "services/hf", version = "0.59.5", optional = true, default-features = false }
+opendal-service-hf3fs = { path = "services/hf3fs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-http = { path = "services/http", version = "0.59.5", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-ipmfs = { path = "services/ipmfs", version = "0.59.5", optional = true, default-features = false }

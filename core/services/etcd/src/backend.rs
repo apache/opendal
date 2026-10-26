@@ -113,6 +113,14 @@ impl EtcdBuilder {
         }
         self
     }
+
+    /// Set the maximum size in bytes of a gRPC response that the etcd client decodes.
+    ///
+    /// default is None, which keeps the etcd client default of 4 MiB
+    pub fn max_decoding_message_size(mut self, size: usize) -> Self {
+        self.config.max_decoding_message_size = Some(size);
+        self
+    }
 }
 
 impl Builder for EtcdBuilder {
@@ -158,7 +166,7 @@ impl Builder for EtcdBuilder {
                 .as_str(),
         );
 
-        let core = EtcdCore::new(endpoints, options);
+        let core = EtcdCore::new(endpoints, options, self.config.max_decoding_message_size);
         Ok(EtcdBackend::new(core, &root))
     }
 }

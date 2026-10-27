@@ -16,7 +16,7 @@
 // under the License.
 
 //! Minimal bindings to the public `hf3fs_usrbio.h` ABI.
-//! https://github.com/deepseek-ai/3FS/blob/22fca04564c7cc230fd8b9523b8b92864e1dad47/src/lib/api/hf3fs_usrbio.h
+//! <https://github.com/deepseek-ai/3FS/blob/22fca04564c7cc230fd8b9523b8b92864e1dad47/src/lib/api/hf3fs_usrbio.h>
 
 use std::ffi::{CStr, c_char, c_int, c_void};
 use std::path::Path;

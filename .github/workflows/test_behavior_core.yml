@@ -41,6 +41,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           need-protoc: true
+          # 3FS builds its bundled RocksDB; its Rust service does not use this copy.
           need-rocksdb: ${{ matrix.cases.service != 'hf3fs' }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 

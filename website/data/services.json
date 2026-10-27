@@ -2358,6 +2358,57 @@
       ]
     },
     {
+      "name": "hf3fs",
+      "scheme": "hf3fs",
+      "groups": [
+        "General"
+      ],
+      "configs": [
+        {
+          "name": "root",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Existing absolute directory on a mounted 3FS instance. Required."
+        },
+        {
+          "name": "library_path",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "USRBIO shared library path. Defaults to `libhf3fs_api_shared.so`."
+        },
+        {
+          "name": "queue_depth",
+          "type": "integer",
+          "required": false,
+          "group": "General",
+          "comments": "Maximum in-flight requests per read or write ring. Defaults to 32."
+        },
+        {
+          "name": "block_size",
+          "type": "integer",
+          "required": false,
+          "group": "General",
+          "comments": "Maximum bytes per request. Defaults to 1 MiB.\nShared memory usage is approximately `3 * queue_depth * block_size`."
+        }
+      ],
+      "examples": [
+        {
+          "binding": "rust",
+          "language": "rust",
+          "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"hf3fs\", [\n])?;",
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"hf3fs\", [\n    // Existing absolute directory on a mounted 3FS instance. Required.\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // USRBIO shared library path. Defaults to `libhf3fs_api_shared.so`.\n    // (\"library_path\".to_string(), \"...\".to_string()),\n\n    // Maximum in-flight requests per read or write ring. Defaults to 32.\n    // (\"queue_depth\".to_string(), \"1000\".to_string()),\n\n    // Maximum bytes per request. Defaults to 1 MiB.\n    // Shared memory usage is approximately `3 * queue_depth * block_size`.\n    // (\"block_size\".to_string(), \"1000\".to_string()),\n])?;"
+        },
+        {
+          "binding": "go",
+          "language": "go",
+          "minimal": "import (\n\t\"github.com/apache/opendal-go-services/hf3fs\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hf3fs.Scheme, opendal.OperatorOptions{\n})",
+          "full": "import (\n\t\"github.com/apache/opendal-go-services/hf3fs\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(hf3fs.Scheme, opendal.OperatorOptions{\n\t// Existing absolute directory on a mounted 3FS instance. Required.\n\t// \"root\": \"...\",\n\n\t// USRBIO shared library path. Defaults to `libhf3fs_api_shared.so`.\n\t// \"library_path\": \"...\",\n\n\t// Maximum in-flight requests per read or write ring. Defaults to 32.\n\t// \"queue_depth\": \"1000\",\n\n\t// Maximum bytes per request. Defaults to 1 MiB.\n\t// Shared memory usage is approximately `3 * queue_depth * block_size`.\n\t// \"block_size\": \"1000\",\n})"
+        }
+      ]
+    },
+    {
       "name": "http",
       "scheme": "http",
       "groups": [

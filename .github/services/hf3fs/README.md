@@ -8,6 +8,8 @@ current Azure kernel disables RXE, so the behavior planner selects Ubuntu 22.04.
 CI caches the pinned 3FS build, runs the focused USRBIO tests and the standard
 behavior suite, and stops the cluster and removes the RXE device afterward.
 The first build is expensive; subsequent jobs restore the compiled backend.
+The job skips the common setup's standalone RocksDB build because the Rust
+service does not depend on it. 3FS builds its own bundled RocksDB.
 
 To test an existing Linux deployment, use a real 3FS FUSE mount and the matching
 USRBIO client library.

@@ -23,14 +23,14 @@ use futures::TryStreamExt;
 use opendal_core::{ErrorKind, Operator};
 use opendal_service_hf3fs::Hf3fs;
 
-fn fixture() -> (tempfile::TempDir, Operator) {
+fn fixture(block_size: usize) -> (tempfile::TempDir, Operator) {
     let root = std::env::var("OPENDAL_HF3FS_ROOT")
         .expect("set OPENDAL_HF3FS_ROOT to a real 3FS test directory");
     let dir = tempfile::tempdir_in(root).unwrap();
     let mut builder = Hf3fs::default()
         .root(dir.path().to_str().unwrap())
         .queue_depth(2)
-        .block_size(4096);
+        .block_size(block_size);
     if let Ok(library) = std::env::var("OPENDAL_HF3FS_LIBRARY_PATH") {
         builder = builder.library_path(&library);
     }
@@ -40,7 +40,7 @@ fn fixture() -> (tempfile::TempDir, Operator) {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn read_write_ranges_and_metadata() {
-    let (dir, op) = fixture();
+    let (dir, op) = fixture(4096);
     let data: Vec<u8> = (0..131_137).map(|i| (i % 251) as u8).collect();
     op.write("nested/data", data.clone()).await.unwrap();
     assert_eq!(std::fs::read(dir.path().join("nested/data")).unwrap(), data);
@@ -108,7 +108,7 @@ async fn read_write_ranges_and_metadata() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn retained_buffers_survive_reuse_and_operator_drop() {
-    let (dir, op) = fixture();
+    let (dir, op) = fixture(4096);
     std::fs::write(dir.path().join("data"), vec![0x31; 4096]).unwrap();
     let first = op.read("data").await.unwrap();
     let clone = first.clone();
@@ -126,7 +126,7 @@ async fn retained_buffers_survive_reuse_and_operator_drop() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn concurrent_reads_and_cancelled_callers() {
-    let (dir, op) = fixture();
+    let (dir, op) = fixture(4096);
     let data: Vec<u8> = (0..65_537).map(|i| (i % 251) as u8).collect();
     std::fs::write(dir.path().join("data"), &data).unwrap();
     let reader = op.reader("data").await.unwrap();
@@ -155,7 +155,7 @@ async fn concurrent_reads_and_cancelled_callers() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn overwrite_empty_and_exclusive_writes() {
-    let (dir, op) = fixture();
+    let (dir, op) = fixture(4096);
     op.write("data", vec![0x41; 9000]).await.unwrap();
     let err = op
         .write_with("data", "replacement")
@@ -176,7 +176,7 @@ async fn overwrite_empty_and_exclusive_writes() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "requires a real 3FS mount and USRBIO library"]
 async fn concurrent_streaming_writes() {
-    let (dir, op) = fixture();
+    let (dir, op) = fixture(4096);
     let mut writer = op
         .writer_with("data")
         .concurrent(4)
@@ -190,4 +190,57 @@ async fn concurrent_streaming_writes() {
     let expected: Vec<u8> = (0..32u8).flat_map(|byte| vec![byte; 4096]).collect();
     assert_eq!(std::fs::read(dir.path().join("data")).unwrap(), expected);
     assert_eq!(op.read("data").await.unwrap().to_vec(), expected);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "requires a real 3FS mount and USRBIO library"]
+async fn concurrent_writes_and_cancelled_callers() {
+    let (dir, op) = fixture(1024 * 1024);
+    let mut tasks = tokio::task::JoinSet::new();
+    let barrier = std::sync::Arc::new(tokio::sync::Barrier::new(33));
+    let mut cancelled = Vec::new();
+    for i in 0..32 {
+        let op = op.clone();
+        let barrier = barrier.clone();
+        let task = tasks.spawn(async move {
+            let path = format!("concurrent/{i}");
+            let data: Vec<u8> = (0..2 * 1024 * 1024 + 137)
+                .map(|j| ((i + j) % 251) as u8)
+                .collect();
+            barrier.wait().await;
+            op.write_with(&path, data.clone())
+                .chunk(1024 * 1024)
+                .concurrent(4)
+                .await
+                .unwrap();
+            (path, data)
+        });
+        if i % 2 == 0 {
+            cancelled.push(task);
+        }
+    }
+    barrier.wait().await;
+    tokio::time::sleep(Duration::from_millis(10)).await;
+    for task in cancelled {
+        task.abort();
+    }
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while let Some(result) = tasks.join_next().await {
+            match result {
+                Ok((path, data)) => {
+                    assert_eq!(std::fs::read(dir.path().join(path)).unwrap(), data);
+                }
+                Err(error) => assert!(error.is_cancelled()),
+            }
+        }
+        op.write("after-cancellation", vec![0x73; 65_537])
+            .await
+            .unwrap();
+        assert_eq!(
+            op.read("after-cancellation").await.unwrap().to_vec(),
+            vec![0x73; 65_537]
+        );
+    })
+    .await
+    .unwrap();
 }

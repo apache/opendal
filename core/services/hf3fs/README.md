@@ -44,7 +44,10 @@ Reads return shared-memory-backed buffers without copying while fewer than
 `queue_depth` slots remain retained by callers. Additional completions copy to
 ordinary buffers so collecting large files cannot exhaust the I/O pool and
 deadlock. Buffer clones retain their slot until the last clone is dropped,
-even after the operator is dropped. Writes copy their input into shared memory.
+even after the operator is dropped. Writes reserve a shared-memory slot and copy
+their input on the calling task before submitting it to the driver. Concurrent
+tasks can copy in parallel on a multithreaded runtime; the write pool remains
+bounded by `queue_depth`.
 
 Cancelling an awaiting future does not cancel submitted native I/O. The driver
 retains the file and buffer until completion. If submission or completion

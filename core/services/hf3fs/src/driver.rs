@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use bytes::Bytes;
 use opendal_core::raw::new_std_io_error;
 use opendal_core::{Buffer, Error, ErrorKind, Result};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot};
 
 use crate::ffi::{Api, Cqe, Ior, Iov};
 
@@ -63,10 +63,11 @@ struct Pool {
     block_size: usize,
     retain_limit: usize,
     slots: Mutex<Slots>,
+    permits: Arc<Semaphore>,
 }
 
-// The mapping is stable. Only the driver writes to exclusively checked-out
-// slots; completed, retained slots are immutable until their final owner drops.
+// The mapping is stable. Each slot has one owner until I/O completes;
+// completed, retained read slots are immutable until their final owner drops.
 unsafe impl Send for Pool {}
 unsafe impl Sync for Pool {}
 
@@ -92,6 +93,7 @@ impl Pool {
             iov,
             block_size,
             retain_limit: depth,
+            permits: Arc::new(Semaphore::new(depth)),
             slots: Mutex::new(Slots {
                 free: (0..count).collect(),
                 retained: 0,
@@ -112,6 +114,7 @@ struct Slot {
     index: usize,
     len: usize,
     retained: bool,
+    _permit: Option<OwnedSemaphorePermit>,
 }
 
 impl AsRef<[u8]> for Slot {
@@ -157,7 +160,7 @@ struct Request {
     file: Arc<RegisteredFile>,
     offset: usize,
     size: usize,
-    data: Option<Buffer>,
+    slot: Option<Slot>,
     reply: oneshot::Sender<Result<(usize, Buffer)>>,
 }
 
@@ -166,11 +169,12 @@ struct Pending {
     slot: Slot,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub(crate) struct IoDriver {
     tx: mpsc::Sender<Request>,
     pub block_size: usize,
     read: bool,
+    write_pool: Option<Arc<Pool>>,
 }
 
 impl IoDriver {
@@ -188,7 +192,7 @@ impl IoDriver {
             .spawn(
                 move || match Worker::new(api, &mount, depth, block_size, read, rx) {
                     Ok(mut worker) => {
-                        if ready_tx.send(Ok(())).is_ok()
+                        if ready_tx.send(Ok(worker.pool.clone())).is_ok()
                             && let Err(error) = worker.run()
                         {
                             worker.failure = error.to_string();
@@ -200,13 +204,14 @@ impl IoDriver {
                 },
             )
             .map_err(new_std_io_error)?;
-        ready_rx.recv().map_err(|e| {
+        let pool = ready_rx.recv().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "USRBIO driver initialization failed").set_source(e)
         })??;
         Ok(Self {
             tx,
             block_size,
             read,
+            write_pool: (!read).then_some(pool),
         })
     }
 
@@ -235,12 +240,42 @@ impl IoDriver {
             .set_source(e)
         })?;
         let (reply, result) = oneshot::channel();
+        let slot = if let Some(data) = data {
+            let pool = self.write_pool.as_ref().expect("write pool");
+            let permit = pool
+                .permits
+                .clone()
+                .acquire_owned()
+                .await
+                .map_err(|_| Error::new(ErrorKind::Unexpected, "USRBIO driver stopped"))?;
+            let index = pool.slots.lock().unwrap().free.pop().expect("write slot");
+            let slot = Slot {
+                pool: pool.clone(),
+                index,
+                len: size,
+                retained: false,
+                _permit: Some(permit),
+            };
+            // Copy on the caller's thread before handing the exclusive slot to
+            // the driver, so concurrent writers do not serialize their copies.
+            let dst = unsafe {
+                std::slice::from_raw_parts_mut(pool.iov.base.add(index * pool.block_size), size)
+            };
+            let mut offset = 0;
+            for part in data {
+                dst[offset..offset + part.len()].copy_from_slice(&part);
+                offset += part.len();
+            }
+            Some(slot)
+        } else {
+            None
+        };
         self.tx
             .send(Request {
                 file,
                 offset,
                 size,
-                data,
+                slot,
                 reply,
             })
             .await
@@ -302,34 +337,30 @@ impl Worker {
         })
     }
 
-    fn prepare(&mut self, request: Request) -> Option<Request> {
+    fn prepare(&mut self, mut request: Request) -> Option<Request> {
         if request.reply.is_closed() {
             return None;
         }
-        let index = self
-            .pool
-            .slots
-            .lock()
-            .unwrap()
-            .free
-            .pop()
-            .expect("reserved I/O slot");
-        let slot = Slot {
-            pool: self.pool.clone(),
-            index,
-            len: request.size,
-            retained: false,
-        };
+        let slot = request.slot.take().unwrap_or_else(|| {
+            let index = self
+                .pool
+                .slots
+                .lock()
+                .unwrap()
+                .free
+                .pop()
+                .expect("reserved I/O slot");
+            Slot {
+                pool: self.pool.clone(),
+                index,
+                len: request.size,
+                retained: false,
+                _permit: None,
+            }
+        });
+        let index = slot.index;
         // The slot is exclusive, and the request fits within one Iov block.
         let ptr = unsafe { self.pool.iov.base.add(index * self.pool.block_size) };
-        if let Some(data) = &request.data {
-            let dst = unsafe { std::slice::from_raw_parts_mut(ptr, request.size) };
-            let mut offset = 0;
-            for part in data.clone() {
-                dst[offset..offset + part.len()].copy_from_slice(&part);
-                offset += part.len();
-            }
-        }
         let result = unsafe {
             (self.pool.api.prep_io)(
                 self.ring.as_ref().unwrap(),
@@ -343,6 +374,7 @@ impl Worker {
             )
         };
         if result == -libc::EAGAIN {
+            request.slot = Some(slot);
             return Some(request);
         } else if result < 0 {
             let _ = request
@@ -450,6 +482,7 @@ impl Worker {
 
 impl Drop for Worker {
     fn drop(&mut self) {
+        self.pool.permits.close();
         let Some(mut ring) = self.ring.take() else {
             return;
         };

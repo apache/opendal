@@ -69,8 +69,10 @@ pub struct HfConfig {
     /// option is disabled.
     /// See [`HfBuilder::enable_resolve_cache`] for freshness semantics.
     pub enable_resolve_cache: bool,
-    /// Disable loading the token from the environment: `HF_TOKEN`,
-    /// `HF_TOKEN_PATH`, or the `token` file under `HF_HOME`,
+    /// Disable loading config from the environment.
+    ///
+    /// When set, the service ignores `HF_ENDPOINT`, `HF_HUB_DISABLE_XET`,
+    /// `HF_TOKEN`, `HF_TOKEN_PATH`, and the `token` file under `HF_HOME`,
     /// `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`.
     pub disable_config_load: bool,
 }

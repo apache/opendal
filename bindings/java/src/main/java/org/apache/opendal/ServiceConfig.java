@@ -1688,8 +1688,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
         /**
-         * <p>Disable loading the token from the environment: <code>HF_TOKEN</code>,
-         * <code>HF_TOKEN_PATH</code>, or the <code>token</code> file under <code>HF_HOME</code>,
+         * <p>Disable loading config from the environment.</p>
+         * <p>When set, the service ignores <code>HF_ENDPOINT</code>, <code>HF_HUB_DISABLE_XET</code>,
+         * <code>HF_TOKEN</code>, <code>HF_TOKEN_PATH</code>, and the <code>token</code> file under <code>HF_HOME</code>,
          * <code>$XDG_CACHE_HOME/huggingface</code> or <code>~/.cache/huggingface</code>.</p>
          */
         public final Boolean disableConfigLoad;

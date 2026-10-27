@@ -167,7 +167,7 @@ impl HfBuilder {
         self
     }
 
-    /// Disable loading the token from the environment.
+    /// Disable loading config from the environment.
     ///
     /// See [`HfConfig::disable_config_load`] for details.
     pub fn disable_config_load(mut self) -> Self {
@@ -176,26 +176,34 @@ impl HfBuilder {
     }
 
     /// Resolve the Hub base URL: an explicit config value wins, then
-    /// `HF_ENDPOINT`, then the public Hub. A trailing slash is trimmed
-    /// because every URL is built by appending `/api/...` to this, and HF
-    /// answers the resulting `//api/...` with a 404.
+    /// `HF_ENDPOINT` unless disable_config_load is set, then the public Hub.
+    /// A trailing slash is trimmed because every URL is built by appending
+    /// `/api/...` to this, and HF answers the resulting `//api/...` with a 404.
     fn hf_endpoint(&self) -> String {
         self.config
             .endpoint
             .clone()
-            .or_else(|| std::env::var("HF_ENDPOINT").ok())
+            .or_else(|| {
+                if self.config.disable_config_load {
+                    None
+                } else {
+                    std::env::var("HF_ENDPOINT").ok()
+                }
+            })
             .unwrap_or_else(|| "https://huggingface.co".to_string())
             .trim_end_matches('/')
             .to_string()
     }
 
-    /// Resolve the download mode: an explicit config value wins; otherwise a set,
-    /// non-empty HF_HUB_DISABLE_XET (a huggingface_hub env var) forces http; default Xet.
+    /// Resolve the download mode: an explicit config value wins; otherwise, unless
+    /// disable_config_load is set, a set, non-empty HF_HUB_DISABLE_XET (a
+    /// huggingface_hub env var) forces http; default Xet.
     fn hf_download_mode(&self) -> HfDownloadMode {
         if let Some(mode) = self.config.download_mode {
             return mode;
         }
-        if let Ok(val) = std::env::var("HF_HUB_DISABLE_XET")
+        if !self.config.disable_config_load
+            && let Ok(val) = std::env::var("HF_HUB_DISABLE_XET")
             && !val.is_empty()
         {
             return HfDownloadMode::Http;
@@ -703,6 +711,20 @@ mod tests {
         unsafe { std::env::set_var("HF_HUB_DISABLE_XET", "") };
         let mode = HfBuilder::default().hf_download_mode();
         unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(mode, HfDownloadMode::Xet);
+    }
+
+    #[test]
+    fn disable_config_load_ignores_endpoint_and_download_mode_env() {
+        let _guard = ENV_LOCK.lock().unwrap();
+        unsafe { std::env::set_var("HF_ENDPOINT", "https://env.example.com") };
+        unsafe { std::env::set_var("HF_HUB_DISABLE_XET", "1") };
+        let builder = HfBuilder::default().disable_config_load();
+        let endpoint = builder.hf_endpoint();
+        let mode = builder.hf_download_mode();
+        unsafe { std::env::remove_var("HF_ENDPOINT") };
+        unsafe { std::env::remove_var("HF_HUB_DISABLE_XET") };
+        assert_eq!(endpoint, "https://huggingface.co");
         assert_eq!(mode, HfDownloadMode::Xet);
     }
 

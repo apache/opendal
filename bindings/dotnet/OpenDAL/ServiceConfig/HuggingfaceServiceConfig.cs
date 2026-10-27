@@ -29,7 +29,7 @@ namespace OpenDAL.ServiceConfig
     public sealed class HuggingfaceServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// Disable loading the token from the environment: `HF_TOKEN`, `HF_TOKEN_PATH`, or the `token` file under `HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`.
+        /// Disable loading config from the environment. When set, the service ignores `HF_ENDPOINT`, `HF_HUB_DISABLE_XET`, `HF_TOKEN`, `HF_TOKEN_PATH`, and the `token` file under `HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`.
         /// </summary>
         public bool? DisableConfigLoad { get; init; }
         /// <summary>

@@ -29,10 +29,12 @@ async fn main() -> opendal_core::Result<()> {
 
 #[cfg(target_os = "linux")]
 mod bench {
+    use std::ffi::CString;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     use futures::TryStreamExt;
+    use libloading::os::unix::Library;
     use opendal_core::{Buffer, Operator, Result};
     use opendal_service_hf3fs::Hf3fs;
     use tokio::sync::Barrier;
@@ -104,12 +106,28 @@ mod bench {
     pub async fn run() -> Result<()> {
         let root = std::env::var("OPENDAL_HF3FS_ROOT").expect("set OPENDAL_HF3FS_ROOT");
         let directory = tempfile::tempdir_in(root).expect("create benchmark directory");
-        let root = directory.path().to_str().unwrap();
+        let root = std::fs::canonicalize(directory.path()).expect("canonical benchmark root");
+        let root = root.to_str().unwrap();
+        let cache = std::env::var("BENCH_CACHE").unwrap_or("direct".into());
+        assert!(matches!(cache.as_str(), "direct" | "buffered" | "hot"));
+        // The preload helper exports this probe and checks the covered directory.
+        let direct = unsafe {
+            Library::this()
+                .get::<unsafe extern "C" fn(*const libc::c_char) -> libc::c_int>(
+                    b"opendal_bench_direct_for\0",
+                )
+                .is_ok_and(|probe| probe(CString::new(root).unwrap().as_ptr()) != 0)
+        };
+        assert_eq!(
+            cache == "direct",
+            direct,
+            "BENCH_CACHE=direct requires bench_direct.so covering OPENDAL_HF3FS_ROOT; buffered/hot require no preload"
+        );
         let fs = Operator::new(opendal_service_fs::Fs::default().root(root))?;
         let seconds = setting("BENCH_SECONDS", 2.0_f64);
-        let rounds = setting("BENCH_ROUNDS", 3_usize);
-        let warm_reads = setting("BENCH_WARM_READS", false);
-        assert!(seconds.is_finite() && seconds > 0.0 && rounds > 0);
+        let rounds = setting("BENCH_ROUNDS", 4_usize);
+        let warm_reads = cache == "hot";
+        assert!(seconds.is_finite() && seconds > 0.0 && rounds > 0 && rounds.is_multiple_of(2));
         let duration = Duration::from_secs_f64(seconds);
         let block_sizes = std::env::var("BENCH_BS").unwrap_or("4096,65536,1048576,4194304".into());
         let concurrencies = std::env::var("BENCH_CONCURRENCY").unwrap_or("1,4,16,64".into());
@@ -121,36 +139,30 @@ mod bench {
             writer.write(payload.clone()).await?;
         }
         writer.close().await?;
-        let mut warmup = fs.reader("input").await?.into_stream(..).await?;
-        while let Some(buffer) = warmup.try_next().await? {
-            std::hint::black_box(buffer);
-        }
         eprintln!(
-            "file_bytes={FILE_SIZE} seconds={seconds} rounds={rounds} runtime_threads=8 queue_depth=64; warm_after_open={warm_reads}; Fs uses its default buffered read path; seqwrite latency measures write() admission; close/fsync is included in elapsed time"
+            "file_bytes={FILE_SIZE} seconds={seconds} rounds={rounds} runtime_threads=8 queue_depth=64; cache={cache}; each service has one Operator; native chunks are at most 1 MiB; seqwrite latency measures write() admission; close/fsync is included in elapsed time"
         );
         println!(
-            "round,service,workload,bs,concurrency,elapsed_s,read_ops,write_ops,read_mib_s,write_mib_s,iops,read_p50_us,read_p95_us,read_p99_us,write_p50_us,write_p95_us,write_p99_us,close_count,close_p50_us,close_p95_us,close_p99_us,cpu_cores"
+            "cache,round,service,workload,bs,io_bs,concurrency,elapsed_s,read_ops,write_ops,read_mib_s,write_mib_s,iops,read_p50_us,read_p95_us,read_p99_us,write_p50_us,write_p95_us,write_p99_us,close_count,close_p50_us,close_p95_us,close_p99_us,cpu_cores"
         );
         for round in 0..rounds {
             for size in block_sizes.split(',') {
                 let bs: usize = size.parse().expect("BENCH_BS");
-                assert!(bs > 0 && bs <= payload.len() && FILE_SIZE.is_multiple_of(bs));
-                let mut builder = Hf3fs::default().root(root).queue_depth(64).block_size(bs);
+                assert!(
+                    bs >= 4096
+                        && bs.is_multiple_of(4096)
+                        && bs <= payload.len()
+                        && FILE_SIZE.is_multiple_of(bs)
+                );
+                let io_bs = bs.min(1024 * 1024);
+                let mut builder = Hf3fs::default()
+                    .root(root)
+                    .queue_depth(64)
+                    .block_size(io_bs);
                 if let Ok(path) = std::env::var("OPENDAL_HF3FS_LIBRARY_PATH") {
                     builder = builder.library_path(&path);
                 }
                 let hf3fs = Operator::new(builder)?;
-                // Warm the native data path as well; it does not use the kernel page cache.
-                let mut warmup = hf3fs
-                    .reader_with("input")
-                    .chunk(4 * 1024 * 1024)
-                    .concurrent(16)
-                    .await?
-                    .into_stream(0..SEGMENT_SIZE as u64)
-                    .await?;
-                while let Some(buffer) = warmup.try_next().await? {
-                    std::hint::black_box(buffer);
-                }
                 for concurrency in concurrencies.split(',') {
                     let concurrency: usize = concurrency.parse().expect("BENCH_CONCURRENCY");
                     assert!(concurrency > 0 && concurrency <= 64);
@@ -180,13 +192,17 @@ mod bench {
                                 let payload = payload.slice(..bs);
                                 let reader = operator
                                     .reader_with("input")
-                                    .chunk(bs)
+                                    .chunk(io_bs)
                                     .concurrent(1)
                                     .await?;
                                 reader.read(0..bs as u64).await?;
                                 warm_reader = Some(reader.clone());
                                 let path = format!("output-{worker}");
-                                let mut writer = operator.writer_with(&path).concurrent(1).await?;
+                                let mut writer = operator
+                                    .writer_with(&path)
+                                    .chunk(io_bs)
+                                    .concurrent(1)
+                                    .await?;
                                 tasks.push(tokio::spawn(async move {
                                     let mut samples = Samples::default();
                                     let mut rng = worker as u64 + 1;
@@ -228,12 +244,17 @@ mod bench {
                                                     .push(start.elapsed().as_secs_f64() * 1e6);
                                                 writer = operator
                                                     .writer_with(&path)
+                                                    .chunk(io_bs)
                                                     .concurrent(1)
                                                     .await?;
                                                 written = 0;
                                             }
                                         } else {
-                                            operator.write(&path, payload.clone()).await?;
+                                            operator
+                                                .write_with(&path, payload.clone())
+                                                .chunk(io_bs)
+                                                .concurrent(1)
+                                                .await?;
                                             samples
                                                 .writes
                                                 .push(start.elapsed().as_secs_f64() * 1e6);
@@ -278,7 +299,7 @@ mod bench {
                             let [w50, w95, w99] = percentiles(&mut samples.writes);
                             let [c50, c95, c99] = percentiles(&mut samples.closes);
                             println!(
-                                "{round},{name},{},{bs},{concurrency},{elapsed:.6},{r},{w},{:.3},{:.3},{:.3},{r50:.3},{r95:.3},{r99:.3},{w50:.3},{w95:.3},{w99:.3},{close_count},{c50:.3},{c95:.3},{c99:.3},{cpu:.3}",
+                                "{cache},{round},{name},{},{bs},{io_bs},{concurrency},{elapsed:.6},{r},{w},{:.3},{:.3},{:.3},{r50:.3},{r95:.3},{r99:.3},{w50:.3},{w95:.3},{w99:.3},{close_count},{c50:.3},{c95:.3},{c99:.3},{cpu:.3}",
                                 workload.name(),
                                 r as f64 * bs as f64 / elapsed / 1048576.0,
                                 w as f64 * bs as f64 / elapsed / 1048576.0,

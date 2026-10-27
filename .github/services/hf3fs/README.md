@@ -29,39 +29,61 @@ The benchmark compares 1 MiB streaming reads at concurrency 1 and 16 against
 `Fs` on the same file and mount. It warms each path and reports four measured
 passes. Results depend on client configuration, caching, and cluster load.
 
-For the read/write matrix, run:
+For the read/write matrix, build the example from `core/`. The default profile
+requires direct I/O on the FUSE path. `Fs` has no direct-I/O builder option, so a
+Linux preload helper adds `O_DIRECT` only to files below the dedicated benchmark
+root. It also verifies each intercepted descriptor's flags. This helper is for
+benchmarking on a real 3FS mount, not for application use.
 
 ```shell
-cargo run --release -p opendal-service-hf3fs --example bench_matrix > matrix.csv
+cargo build --release -p opendal-service-hf3fs --example bench_matrix
+cc -shared -fPIC -O2 -Wall -Wextra -Werror \
+  ../.github/services/hf3fs/bench_direct.c -o /tmp/opendal-bench-direct.so -ldl -pthread
+OPENDAL_BENCH_DIRECT_ROOT="$OPENDAL_HF3FS_ROOT" \
+  LD_PRELOAD=/tmp/opendal-bench-direct.so \
+  target/release/examples/bench_matrix > matrix.csv
 ```
 
-The matrix uses 4 KiB, 64 KiB, 1 MiB, and 4 MiB application blocks with 1, 4,
-16, and 64 concurrent workers. Each worker issues one application operation at
-a time. Both services use the same 1 GiB input file. `Hf3fs` uses a queue depth
-of 64 per direction and a native block size matching the application block.
-`Fs` can split large application reads into smaller native requests.
+The benchmark refuses to label a run `direct` unless the helper covers its root.
+For a new client deployment, verify the data-file opens with `strace -f -e openat`
+and check page residency with `mincore` before interpreting results. The helper
+intercepts libc `open` and `open64`; it does not cover arbitrary direct syscalls
+or relative `openat` calls. It prints the verified read/write open counts on exit.
+Direct I/O bypasses the client's kernel page cache, not storage-server caches.
+
+Both services use one Operator, the same 1 GiB input file, application block
+sizes of 4 KiB, 64 KiB, 1 MiB, and 4 MiB, and 1, 4, 16, or 64 concurrent workers.
+Each worker issues one application operation at a time, with read and write
+concurrency set to one. Both paths split application operations into service
+chunks of `min(BS, 1 MiB)`; `Hf3fs` uses that native block size and queue depth 64
+per direction. Kernel and server request splitting can still differ. Internal
+threads, copies, and ring scheduling remain properties of each implementation;
+the benchmark does not add Operators to compensate for an implementation limit.
+Each worker performs one untimed input read before the start barrier.
 
 Workloads include sequential range reads, random range reads, streaming writes,
 single-block object overwrites, and mixed random reads/overwrites with 70% or
 50% reads by operation count. Mixed workloads use separate input and output
 files; they do not test random writes within an existing file. Overwrites include
 open, truncate, write, close, and fsync. Streaming writers close and synchronize
-every 64 MiB and at the end; their write latency measures API admission, while
-throughput includes final synchronization. These latency columns are not device
-completion latencies.
+every 64 MiB and at the end. Both services buffer writes, so streaming write
+latency measures API admission; throughput includes all writes and final
+synchronization. These latency columns are not device completion latencies.
 
-The default run preserves each service's normal cache behavior. Reopening the
-file on some 3FS deployments invalidates its kernel page cache; initial prewarming
-does not guarantee cache hits for new readers. Set `BENCH_WARM_READS=true` to
-prewarm the whole input through an existing `Fs` reader after all workers open
-the file. USRBIO bypasses that file cache. Neither profile isolates uncached
-transport performance. The benchmark uses constant payloads and checks returned
-lengths and sampled data. CPU usage covers the benchmark process, excluding the
-FUSE process and servers.
+For application-level cache comparisons, run without the preload and explicitly
+set `BENCH_CACHE=buffered` or `BENCH_CACHE=hot`. The latter warms the input through
+an existing `Fs` reader after all workers open the file. USRBIO bypasses that
+file cache in every profile. Keep buffered/hot results separate from the direct
+comparison; they do not isolate data-path performance. CSV rows include the
+cache profile and service chunk size to preserve these distinctions.
 
-Each case runs for 2 seconds and repeats 3 times, reversing service order on
-alternate rounds. CSV rows contain counts, throughput, IOPS, latency percentiles,
-and CPU usage. Set `BENCH_SECONDS`, `BENCH_ROUNDS`, `BENCH_BS` (bytes),
-`BENCH_CONCURRENCY`, or `BENCH_WORKLOADS` to override the defaults; the last three
-accept comma-separated lists. Short cases and shared-cluster load limit the
-precision of tail latencies. Temporary files are removed after a successful run.
+Each case runs for 2 seconds and repeats 4 times. Rounds must be a positive even
+number so each service runs first equally often. Set `BENCH_SECONDS`,
+`BENCH_ROUNDS`, `BENCH_BS` (bytes), `BENCH_CONCURRENCY`, or `BENCH_WORKLOADS` to
+override the defaults; the last three accept comma-separated lists. Use longer
+cases and additional rounds to confirm differences found in the matrix.
+
+The benchmark uses constant payloads and checks returned lengths and sampled
+data. CPU usage covers only the benchmark process, excluding the FUSE process
+and servers. Short cases and shared-cluster load limit the precision of tail
+latencies. Temporary files are removed after a successful run.

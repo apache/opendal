@@ -1455,6 +1455,92 @@ pub unsafe extern "C" fn operator_input_stream_free(stream: *mut c_void) {
     }
 }
 
+/// Delete `targets` synchronously, batching where the service supports it.
+/// # Safety
+///
+/// - `op_handle` must be a valid operator pointer from `operator_construct`.
+/// - When `targets_len > 0`, `targets` must point to `targets_len` valid
+///   items whose pointers stay valid for the duration of the call.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_delete_many(
+    op_handle: *const OperatorHandle,
+    targets: *const OpendalPathOptions<OpendalDeleteOptions>,
+    targets_len: usize,
+) -> OpendalResult {
+    match operator_delete_many_inner(op_handle, targets, targets_len) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_delete_many_inner(
+    op_handle: *const OperatorHandle,
+    targets: *const OpendalPathOptions<OpendalDeleteOptions>,
+    targets_len: usize,
+) -> Result<(), OpenDALError> {
+    let handle = require_op_handle(op_handle)?;
+    let executor = handle.executor.clone();
+    let targets = read_path_options(targets, targets_len, "targets")?;
+
+    executor
+        .block_on(handle.delete_iter(targets))
+        .map_err(OpenDALError::from_opendal_error)
+}
+
+/// Delete `targets` asynchronously, batching where the service supports it.
+///
+/// The callback is invoked exactly once with the final result.
+/// # Safety
+///
+/// - `op_handle` must be a valid operator pointer from `operator_construct`.
+/// - When `targets_len > 0`, `targets` must point to `targets_len` valid
+///   items whose pointers stay valid for the duration of the call.
+/// - `callback` must be a valid function pointer and remain callable until invoked.
+#[unsafe(no_mangle)]
+pub extern "C" fn operator_delete_many_async(
+    op_handle: *const OperatorHandle,
+    targets: *const OpendalPathOptions<OpendalDeleteOptions>,
+    targets_len: usize,
+    callback: Option<VoidCallback>,
+    context: i64,
+) -> OpendalResult {
+    match operator_delete_many_async_inner(op_handle, targets, targets_len, callback, context) {
+        Ok(()) => OpendalResult::ok(),
+        Err(error) => OpendalResult::from_error(error),
+    }
+}
+
+fn operator_delete_many_async_inner(
+    op_handle: *const OperatorHandle,
+    targets: *const OpendalPathOptions<OpendalDeleteOptions>,
+    targets_len: usize,
+    callback: Option<VoidCallback>,
+    context: i64,
+) -> Result<(), OpenDALError> {
+    let handle = require_op_handle(op_handle)?;
+    let executor = handle.executor.clone();
+    let targets = read_path_options(targets, targets_len, "targets")?;
+    let callback = require_callback(callback)?;
+
+    let op = handle.operator();
+    executor.spawn(async move {
+        let result = op
+            .delete_iter(targets)
+            .await
+            .map_err(OpenDALError::from_opendal_error);
+
+        callback(
+            context,
+            match result {
+                Ok(()) => OpendalResult::ok(),
+                Err(error) => OpendalResult::from_error(error),
+            },
+        );
+    });
+
+    Ok(())
+}
+
 /// Create an output stream for `path` with write options.
 ///
 /// Returned pointer must be released by `operator_output_stream_free`.

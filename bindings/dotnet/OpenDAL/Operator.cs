@@ -39,6 +39,15 @@ namespace OpenDAL;
 [SkipLocalsInit]
 public partial class Operator : SafeHandle
 {
+    /// <summary>
+    /// Maximum number of targets handed to one native delete call.
+    /// </summary>
+    /// <remarks>
+    /// Matches the largest batch most services accept in one request, so a
+    /// chunk boundary rarely splits a batch.
+    /// </remarks>
+    private const int DeleteManyChunkSize = 1000;
+
     private readonly OperatorInfo info;
 
     private Operator(IntPtr nativeHandle) : base(IntPtr.Zero, true)
@@ -870,6 +879,115 @@ public partial class Operator : SafeHandle
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Deletes several paths, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When this method throws, some of the targets may already be
+    /// deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    public void DeleteMany(IEnumerable<DeleteInput> targets)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            DeleteChunk(chunk, offset, nameof(targets));
+            offset += chunk.Length;
+        }
+    }
+
+    /// <summary>
+    /// Deletes several paths asynchronously, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When the task faults or is canceled, some of the targets may
+    /// already be deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when every deletion is applied.</returns>
+    public async Task DeleteManyAsync(IEnumerable<DeleteInput> targets, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            await SubmitDeleteChunkAsync(chunk, offset, nameof(targets), cancellationToken).ConfigureAwait(false);
+            offset += chunk.Length;
+        }
+    }
+
+    private unsafe void DeleteChunk(DeleteInput[] chunk, long offset, string paramName)
+    {
+        using var nativeTargets = NativeOptionsScope.Create(
+            ToPathOptions(chunk, offset, paramName),
+            stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_delete_many(
+            this,
+            nativeTargets.Pointer->Items,
+            nativeTargets.Pointer->Len);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    private Task SubmitDeleteChunkAsync(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName,
+        CancellationToken cancellationToken)
+    {
+        var pathOptions = ToPathOptions(chunk, offset, paramName);
+        return SubmitAsyncOperation(SubmitAsync, cancellationToken);
+
+        OpenDALResult SubmitAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeTargets = NativeOptionsScope.Create(
+                    pathOptions,
+                    stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_delete_many_async(
+                    this,
+                    nativeTargets.Pointer->Items,
+                    nativeTargets.Pointer->Len,
+                    &OnDeleteCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Encodes one chunk of targets; <paramref name="offset"/> is the chunk's
+    /// position in the whole sequence, so a null target is reported by its
+    /// index there.
+    /// </summary>
+    private static PathOptionsArray<OpenDALDeleteOptions> ToPathOptions(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName)
+    {
+        return PathOptionsArray<OpenDALDeleteOptions>.From(
+            chunk,
+            static target => target.Path,
+            static target => target.Options,
+            paramName,
+            offset);
     }
 
     /// <summary>

@@ -317,6 +317,24 @@ internal partial class NativeMethods
         long context
     );
 
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_many")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_delete_many(
+        Operator op,
+        OpenDALPathOptions* targets,
+        nuint targetsLen
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_many_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_delete_many_async(
+        Operator op,
+        OpenDALPathOptions* targets,
+        nuint targetsLen,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
     #endregion
 
     #region CreateDir

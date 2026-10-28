@@ -349,7 +349,8 @@ internal sealed class PathOptionsArray<TNative> : IOptions<OpenDALPathOptionsArr
         IEnumerable<T?> source,
         Func<T, string> path,
         Func<T, IOptions<TNative>?> options,
-        string paramName)
+        string paramName,
+        long indexOffset = 0)
         where T : class
     {
         var items = new List<(string, IOptions<TNative>?)>();
@@ -357,7 +358,7 @@ internal sealed class PathOptionsArray<TNative> : IOptions<OpenDALPathOptionsArr
         {
             if (item is null)
             {
-                throw new ArgumentException($"Item at index {items.Count} is null.", paramName);
+                throw new ArgumentException($"Item at index {indexOffset + items.Count} is null.", paramName);
             }
 
             items.Add((path(item), options(item)));

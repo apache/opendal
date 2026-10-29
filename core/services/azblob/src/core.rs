@@ -82,6 +82,7 @@ pub struct AzblobCore {
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
     pub skip_signature: bool,
+    pub sas_token: Option<String>,
     pub signer: Signer<Credential>,
 }
 
@@ -790,6 +791,10 @@ impl AzblobCore {
                 .push("versionid", &percent_encode_path(version))
                 .finish();
         }
+        if let Some(sas_token) = &self.sas_token {
+            let sep = if source.contains('?') { '&' } else { '?' };
+            source = format!("{source}{sep}{sas_token}");
+        }
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)
@@ -955,6 +960,7 @@ mod tests {
             encryption_key_sha256: None,
             encryption_algorithm: None,
             skip_signature: true,
+            sas_token: None,
             signer: Signer::new(
                 Context::new(),
                 StaticCredentialProvider::new_shared_key("acc", "a2V5"),

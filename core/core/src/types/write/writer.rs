@@ -495,4 +495,202 @@ mod tests {
             chain_same.copy_to_bytes(chain_same.remaining())
         );
     }
+
+    use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct FaultWriter {
+        received: Arc<Mutex<Vec<u8>>>,
+        fail_once: Arc<AtomicBool>,
+    }
+
+    impl oio::Write for FaultWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            if self.fail_once.swap(false, Ordering::SeqCst) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "simulated temporary flush failure")
+                        .set_temporary(),
+                );
+            }
+
+            self.received.lock().unwrap().extend(bs.to_vec());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct FaultService {
+        received: Arc<Mutex<Vec<u8>>>,
+        fail_once: Arc<AtomicBool>,
+    }
+
+    impl Service for FaultService {
+        type Reader = ();
+        type Writer = FaultWriter;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("fault")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                write: true,
+                write_can_multi: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(FaultWriter {
+                received: self.received.clone(),
+                fail_once: self.fail_once.clone(),
+            })
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_probe_public_writer_replay_after_flush_failure() {
+        let received = Arc::new(Mutex::new(Vec::new()));
+        let fail_once = Arc::new(AtomicBool::new(true));
+        let service = FaultService {
+            received: received.clone(),
+            fail_once: fail_once.clone(),
+        };
+
+        let ctx = WriteContext::new(
+            OperationContext::default(),
+            Arc::new(service) as Servicer,
+            "replay.txt".to_string(),
+            OpWrite::default(),
+            OpWriter::new().with_chunk(10),
+        );
+        let mut writer = Writer::new(ctx).expect("public Writer must construct");
+
+        // 18 bytes is deliberately larger than the exact chunk size of 10: the
+        // first generator call buffers 10 bytes and the second call flushes them.
+        let payload = (0_u8..18).collect::<Vec<_>>();
+
+        let err = writer
+            .write(payload.clone())
+            .await
+            .expect_err("first public write must surface the temporary flush error");
+        println!(
+            "first_error_kind={:?} temporary={} message={:?}",
+            err.kind(),
+            err.is_temporary(),
+            err.to_string()
+        );
+        assert!(
+            err.is_temporary(),
+            "first failure must be temporary: {err:?}"
+        );
+        assert!(
+            received.lock().unwrap().is_empty(),
+            "first attempt must fail before the underlying writer stores any chunk"
+        );
+
+        // Caller retries with the exact same public payload that failed.
+        writer
+            .write(payload.clone())
+            .await
+            .expect("retry of the same public payload must succeed");
+        writer
+            .close()
+            .await
+            .expect("close must flush the buffered tail");
+
+        let stored = received.lock().unwrap().clone();
+        println!(
+            "stored_bytes={} payload_bytes={}",
+            stored.len(),
+            payload.len()
+        );
+        assert_eq!(
+            stored, payload,
+            "replay comparison for one injected pre-store flush failure"
+        );
+    }
 }

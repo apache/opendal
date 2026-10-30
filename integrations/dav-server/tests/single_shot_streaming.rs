@@ -106,7 +106,7 @@ async fn small_multi_frame_write_bytes_works_with_single_shot_writer() {
         .await
         .unwrap();
     file.flush().await.unwrap();
-    assert_eq!(*stored.lock().unwrap(), b"helloworld");
+    assert_eq!(stored.lock().unwrap().as_slice(), b"helloworld");
 }
 
 #[tokio::test]
@@ -132,5 +132,5 @@ async fn small_multi_frame_write_buf_works_with_single_shot_writer() {
         .await
         .unwrap();
     file.flush().await.unwrap();
-    assert_eq!(*stored.lock().unwrap(), b"helloworld");
+    assert_eq!(stored.lock().unwrap().as_slice(), b"helloworld");
 }

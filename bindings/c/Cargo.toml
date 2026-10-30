@@ -37,7 +37,7 @@ cbindgen = "0.29.0"
 bytes = "1.4.0"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = ["blocking"] }
-tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread"] }
+tokio = { version = "1.27", features = ["fs", "macros", "rt-multi-thread", "sync"] }
 
 [features]
 default = []

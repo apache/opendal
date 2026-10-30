@@ -902,24 +902,28 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Etcd implements ServiceConfig {
         /**
-         * <p>certificate authority file path</p>
+         * <p>PEM certificate authority file used to verify the server.
+         * Enables TLS independently of <code>cert_path</code> and <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String caPath;
         /**
-         * <p>cert path</p>
+         * <p>PEM client certificate file used for mutual TLS.
+         * Must be configured together with <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String certPath;
         /**
          * <p>network address of the Etcd services.
-         * If use https, must set TLS options: <code>ca_path</code>, <code>cert_path</code>, <code>key_path</code>.
+         * Use HTTPS endpoints for TLS. Set <code>ca_path</code> to trust a custom certificate authority.
+         * Client authentication additionally requires both <code>cert_path</code> and <code>key_path</code>.
          * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
          * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
         public final String endpoints;
         /**
-         * <p>key path</p>
+         * <p>PEM client private key file used for mutual TLS.
+         * Must be configured together with <code>cert_path</code>.</p>
          * <p>default is None</p>
          */
         public final String keyPath;

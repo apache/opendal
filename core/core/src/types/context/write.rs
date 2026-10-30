@@ -181,10 +181,18 @@ impl WriteGenerator<oio::Writer> {
         // - write buffer + bs directly.
         if !self.exact {
             let fill_size = bs.len();
+            // Save old buffer before pushing bs, so we can restore only the old
+            // buffer on failure. The caller will retry with the same bs.
+            let old_buffer = self.buffer.clone();
             self.buffer.push(bs);
             let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
-            return Ok(fill_size);
+            match self.w.write(buf).await {
+                Ok(()) => return Ok(fill_size),
+                Err(err) => {
+                    self.buffer = old_buffer;
+                    return Err(err);
+                }
+            }
         }
 
         // Condition:
@@ -194,8 +202,12 @@ impl WriteGenerator<oio::Writer> {
         // Action:
         // - write existing buffer in chunk_size to make more rooms for writing data.
         if self.buffer.len() >= chunk_size {
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
+            let taken = self.buffer.take();
+            let buf = taken.clone().collect();
+            if let Err(err) = self.w.write(buf).await {
+                self.buffer = taken;
+                return Err(err);
+            }
         }
 
         // Condition
@@ -341,8 +353,12 @@ impl WriteGenerator<oio::Writer> {
                 break;
             }
 
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
+            let taken = self.buffer.take();
+            let buf = taken.clone().collect();
+            if let Err(err) = self.w.write(buf).await {
+                self.buffer = taken;
+                return Err(err);
+            }
         }
 
         self.w.close().await

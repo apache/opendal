@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::env;
+use std::num::NonZeroU64;
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -115,14 +116,14 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     if let Ok(value) = env::var("OPENDAL_TEST_IO_TIMEOUT")
         && value != OPENDAL_TEST_UNSET_VALUE
     {
-        let seconds = value.parse::<u64>().map_err(|err| {
+        let seconds = value.parse::<NonZeroU64>().map_err(|err| {
             Error::new(
                 ErrorKind::ConfigInvalid,
-                "OPENDAL_TEST_IO_TIMEOUT must be a whole number of seconds",
+                "OPENDAL_TEST_IO_TIMEOUT must be a positive whole number of seconds",
             )
             .set_source(err)
         })?;
-        timeout = timeout.with_io_timeout(Duration::from_secs(seconds));
+        timeout = timeout.with_io_timeout(Duration::from_secs(seconds.get()));
     }
 
     let op = op

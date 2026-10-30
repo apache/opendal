@@ -27,11 +27,11 @@ use crate::*;
 
 /// BytesRange carries a range of content.
 ///
-/// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
+/// `Display` formats the range without the `bytes=` prefix.
+/// [`BytesRange::to_header`] builds the HTTP `Range` header value.
 ///
-/// Ranges with no valid HTTP representation -- a zero size, or an end that
-/// overflows -- render as an empty string; [`BytesRange::to_header`] returns
-/// an empty string for them.
+/// Bounded ranges with a zero size or an overflowing end render as an empty
+/// string. [`BytesRange::to_header`] also returns an empty string for them.
 ///
 /// `<unit>` should always be `bytes`.
 ///
@@ -289,7 +289,7 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
             BytesRange::Range { offset, size: None } => write!(f, "{offset}-"),
-            // A zero-size range has no valid HTTP Range representation, and
+            // A zero-size bounded range has no valid HTTP Range representation, and
             // neither does a range whose end overflows u64. Display must stay
             // total -- returning Err makes `format!` panic -- so these render
             // as an empty string, which `to_header` maps to an empty header.

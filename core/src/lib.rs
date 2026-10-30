@@ -164,6 +164,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-hf")]
     opendal_service_hf::register_hf_service(registry);
 
+    #[cfg(all(feature = "services-hf3fs", target_os = "linux"))]
+    opendal_service_hf3fs::register_hf3fs_service(registry);
+
     #[cfg(feature = "services-ipfs")]
     opendal_service_ipfs::register_ipfs_service(registry);
 
@@ -345,6 +348,8 @@ pub mod services {
     pub use opendal_service_hdfs_native::*;
     #[cfg(feature = "services-hf")]
     pub use opendal_service_hf::*;
+    #[cfg(all(feature = "services-hf3fs", target_os = "linux"))]
+    pub use opendal_service_hf3fs::*;
     #[cfg(feature = "services-http")]
     pub use opendal_service_http::*;
     #[cfg(feature = "services-ipfs")]

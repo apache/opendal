@@ -18,7 +18,10 @@
 use std::collections::HashMap;
 use std::env;
 use std::sync::LazyLock;
+use std::time::Duration;
 
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 use opendal_core::Operator;
 use opendal_core::Result;
 use opendal_core::layers::CapabilityOverrideLayer;
@@ -108,9 +111,23 @@ pub fn init_test_service() -> Result<Option<Operator>> {
         op = op.layer(CapabilityOverrideLayer::from_overrides(&overrides)?);
     }
 
+    let mut timeout = TimeoutLayer::new();
+    if let Ok(value) = env::var("OPENDAL_TEST_IO_TIMEOUT")
+        && value != OPENDAL_TEST_UNSET_VALUE
+    {
+        let seconds = value.parse::<u64>().map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "OPENDAL_TEST_IO_TIMEOUT must be a whole number of seconds",
+            )
+            .set_source(err)
+        })?;
+        timeout = timeout.with_io_timeout(Duration::from_secs(seconds));
+    }
+
     let op = op
         .layer(LoggingLayer::default())
-        .layer(TimeoutLayer::new())
+        .layer(timeout)
         .layer(RetryLayer::new().with_max_times(4));
 
     Ok(Some(op))

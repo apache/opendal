@@ -40,5 +40,6 @@ runs:
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HF_REPO_TYPE=dataset
         OPENDAL_HF_FORCE_RESOLVE=true
+        OPENDAL_TEST_IO_TIMEOUT=30
         RUST_TEST_THREADS=1
         EOF

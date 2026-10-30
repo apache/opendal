@@ -96,7 +96,7 @@ class AzblobConfig(TypedDict):
     encryption_algorithm: NotRequired[str]
     """The encryption algorithm of Azblob service backend."""
     encryption_key: NotRequired[str]
-    """The encryption key of Azblob service backend."""
+    """The Base64-encoded AES-256 customer-provided encryption key.  The key must decode to exactly 32 bytes. Building an operator returns `ConfigInvalid` for invalid Base64 or a different decoded length."""
     encryption_key_sha256: NotRequired[str]
     """The encryption key sha256 of Azblob service backend."""
     endpoint: NotRequired[str]

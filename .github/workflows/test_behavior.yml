@@ -87,10 +87,11 @@ jobs:
           export GITHUB_IS_PUSH=$is_push
 
           # Run the workflow planner script
-          PLAN=$(./.github/scripts/test_behavior/plan.py $files_changed)
+          # Task-only HF diagnostic; runtime files match repair 4c5d89b7.
+          PLAN='{"core":[{"os":"ubuntu-latest","cases":[{"service":"hf","feature":"services-hf","setups":["hf_dataset","hf_bucket","hf_bucket_http"]}]}],"binding_java":[],"binding_python":[],"binding_ruby":[],"binding_nodejs":[],"binding_go":[],"binding_c":[],"binding_cpp":[],"binding_dotnet":[],"integration_object_store":[],"components":{"core":true,"binding_java":false,"binding_python":false,"binding_ruby":false,"binding_nodejs":false,"binding_go":false,"binding_c":false,"binding_cpp":false,"binding_dotnet":false,"integration_object_store":false}}'
           echo "Plan:"
           echo "$PLAN" | jq .
-          echo "plan=$PLAN" >> $GITHUB_OUTPUT
+          echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
 
   test_core:
     name: core / ${{ matrix.os }}

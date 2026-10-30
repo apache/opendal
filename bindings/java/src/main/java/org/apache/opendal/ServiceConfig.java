@@ -187,7 +187,9 @@ public interface ServiceConfig {
          */
         public final String encryptionAlgorithm;
         /**
-         * <p>The encryption key of Azblob service backend.</p>
+         * <p>The Base64-encoded AES-256 customer-provided encryption key.</p>
+         * <p>The key must decode to exactly 32 bytes. Building an operator returns
+         * <code>ConfigInvalid</code> for invalid Base64 or a different decoded length.</p>
          */
         public final String encryptionKey;
         /**

@@ -640,14 +640,12 @@ mod tests {
             fail_once: fail_once.clone(),
         };
 
-        let ctx = WriteContext::new(
-            OperationContext::default(),
-            Arc::new(service) as Servicer,
-            "replay.txt".to_string(),
-            OpWrite::default(),
-            OpWriter::new().with_chunk(10),
-        );
-        let mut writer = Writer::new(ctx).expect("public Writer must construct");
+        let op = Operator::from_inner(Arc::new(service) as Servicer);
+        let mut writer = op
+            .writer_with("replay.txt")
+            .chunk(10)
+            .await
+            .expect("operator writer must construct");
 
         // 18 bytes is deliberately larger than the exact chunk size of 10: the
         // first generator call buffers 10 bytes and the second call flushes them.

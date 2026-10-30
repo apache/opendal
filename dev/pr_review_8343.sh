@@ -30,6 +30,7 @@ git rev-parse HEAD > "$task_logs/tested-sha.txt"
 exec 9>/tmp/opendal-pr-delivery-20261031-build.lock
 flock 9
 export CARGO_BUILD_JOBS=4
+export PATH="$HOME/.cargo/bin:$PATH"
 
 run_check() {
     local check_name=$1

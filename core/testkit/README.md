@@ -22,7 +22,7 @@ The `opendal` facade also re-exports the testkit behind its `tests` feature.
 
 ## Test operator configuration
 
-`OPENDAL_TEST_IO_TIMEOUT` sets the behavior-test I/O timeout in whole seconds.
+`OPENDAL_TEST_IO_TIMEOUT` sets the behavior-test I/O timeout in positive whole seconds.
 When unset, the test operator uses the default from `TimeoutLayer`. Service
 fixtures can set this variable when their operations need a larger I/O budget.
 

@@ -25,6 +25,7 @@ use smb::ClientConfig;
 use smb::CreateDisposition;
 use smb::CreateOptions;
 use smb::FileAccessMask;
+use smb::FileAllInformation;
 use smb::FileAttributes;
 use smb::FileCreateArgs;
 use smb::Resource;
@@ -141,6 +142,34 @@ impl SmbCore {
                     .close()
                     .await
                     .map_err(parse_smb_error)?,
+                Resource::File(file) => {
+                    // Task-only diagnostic: never log the resource, client,
+                    // request body, credentials, or signature data.
+                    let file = RuntimeResource::new(file);
+                    let info = file.query_info::<FileAllInformation>().await;
+                    let close_result = file.close().await;
+                    let (query_info_ok, directory, readonly, hidden, system, archive, normal) =
+                        match info {
+                            Ok(info) => (
+                                true,
+                                info.basic.file_attributes.directory(),
+                                info.basic.file_attributes.readonly(),
+                                info.basic.file_attributes.hidden(),
+                                info.basic.file_attributes.system(),
+                                info.basic.file_attributes.archive(),
+                                info.basic.file_attributes.normal(),
+                            ),
+                            Err(_) => (false, false, false, false, false, false, false),
+                        };
+                    eprintln!(
+                        "SMB_CREATE_DIR_DIAG query_info_ok={query_info_ok} directory={directory} readonly={readonly} hidden={hidden} system={system} archive={archive} normal={normal} requested_directory_file=true requested_directory_attribute=true requested_create_disposition=OpenIf close_ok={}",
+                        close_result.is_ok()
+                    );
+                    return Err(Error::new(
+                        ErrorKind::NotADirectory,
+                        "parent is not a directory",
+                    ));
+                }
                 _ => {
                     return Err(Error::new(
                         ErrorKind::NotADirectory,

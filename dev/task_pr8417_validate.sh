@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 
 if [[ $# != 2 ]]; then
     printf 'Usage: %s WORKTREE ABSOLUTE_LOG_DIRECTORY\n' "$0" >&2

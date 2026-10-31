@@ -57,7 +57,7 @@ impl SingleShotAccess {
 
 impl Access for SingleShotAccess {
     type Reader = oio::Reader;
-    type Writer = oio::OneShotWriter<Store>;
+    type Writer = oio::Writer;
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
@@ -69,7 +69,7 @@ impl Access for SingleShotAccess {
     async fn write(&self, _: &str, _: OpWrite) -> opendal::Result<(RpWrite, Self::Writer)> {
         Ok((
             RpWrite::new(),
-            oio::OneShotWriter::new(Store(self.stored.clone())),
+            Box::new(oio::OneShotWriter::new(Store(self.stored.clone()))),
         ))
     }
 }
@@ -78,8 +78,9 @@ struct Store(Arc<Mutex<Vec<u8>>>);
 
 impl oio::OneShotWrite for Store {
     async fn write_once(&self, buffer: Buffer) -> opendal::Result<Metadata> {
+        let size = buffer.len() as u64;
         *self.0.lock().unwrap() = buffer.to_bytes().to_vec();
-        Ok(Metadata::default())
+        Ok(Metadata::new(opendal::EntryMode::FILE).with_content_length(size))
     }
 }
 

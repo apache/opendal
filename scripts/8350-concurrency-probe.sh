@@ -83,6 +83,7 @@ if [ "$fixture_status" -ne 0 ]; then
     exit "$fixture_status"
 fi
 
+cd "$repo_root/core"
 flock /tmp/opendal-pr-delivery-20261031-build.lock \
     env PATH=/home/xuanwo/.cargo/bin:/usr/bin:/bin \
     CARGO_BUILD_JOBS=4 \

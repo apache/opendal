@@ -30,6 +30,10 @@ on:
         description: "Upstream PR number (for mirrored runs)"
         required: false
         type: string
+      pr_review_8421_expected:
+        description: "Expected PR #8421 probe result: baseline_gzip_failure or fixed_identity_success"
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -38,6 +42,7 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.pr_number != '8421'
     outputs:
       plan: ${{ steps.plan.outputs.plan }}
 
@@ -91,6 +96,49 @@ jobs:
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
+
+  pr_review_8421_credential_path:
+    name: pr_review_8421 / ${{ inputs.pr_review_8421_expected }}
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.pr_number == '8421' &&
+      inputs.pr_review_8421_expected != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup 1Password Connect
+        shell: bash
+        env:
+          OP_CONNECT_HOST_VALUE: ${{ secrets.OP_CONNECT_HOST }}
+          OP_CONNECT_TOKEN_VALUE: ${{ secrets.OP_CONNECT_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '::add-mask::%s\n' "$OP_CONNECT_HOST_VALUE"
+          printf '::add-mask::%s\n' "$OP_CONNECT_TOKEN_VALUE"
+          printf 'OP_CONNECT_HOST=%s\n' "$OP_CONNECT_HOST_VALUE" >> "$GITHUB_ENV"
+          printf 'OP_CONNECT_TOKEN=%s\n' "$OP_CONNECT_TOKEN_VALUE" >> "$GITHUB_ENV"
+
+      - name: Load GCS fixture
+        uses: ./.github/services/gcs/gcs
+
+      - name: Run real credential_path gzip contrast
+        working-directory: core
+        shell: bash
+        run: |
+          cargo test --locked \
+            --test pr_review_8421_credential_path \
+            --features services-gcs,http-transport-reqwest \
+            -- --nocapture --test-threads=1
+        env:
+          PR_REVIEW_8421_EXPECTED: ${{ inputs.pr_review_8421_expected }}
+          RUST_LOG: opendal=info
 
   test_core:
     name: core / ${{ matrix.os }}

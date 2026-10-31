@@ -346,6 +346,7 @@ opendal-service-opfs = { path = "services/opfs", version = "0.59.5", optional = 
 
 [dev-dependencies]
 anyhow = "1.0"
+base64 = { workspace = true }
 bytes = { workspace = true }
 divan = "0.1"
 futures = { workspace = true, default-features = true }

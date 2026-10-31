@@ -5681,6 +5681,7 @@ name = "opendal"
 version = "0.59.5"
 dependencies = [
  "anyhow",
+ "base64 0.23.0",
  "bytes",
  "ctor",
  "divan",

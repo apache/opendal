@@ -30,6 +30,11 @@ on:
         description: "Upstream PR number (for mirrored runs)"
         required: false
         type: string
+      selector:
+        description: "Optional registered behavior-test selector"
+        required: false
+        default: ""
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
@@ -49,6 +54,8 @@ jobs:
 
       - name: Plan
         id: plan
+        env:
+          TEST_SELECTOR: ${{ inputs.selector }}
         run: |
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
@@ -88,6 +95,20 @@ jobs:
 
           # Run the workflow planner script
           PLAN=$(./.github/scripts/test_behavior/plan.py $files_changed)
+          if [ "$TEST_SELECTOR" == "gcs-versioned-presign" ]; then
+            PLAN=$(printf '%s' "$PLAN" | jq -c '
+              .components |= with_entries(.value = false)
+              | .components.core = true
+              | .core = [{
+                  "os": "ubuntu-latest",
+                  "cases": [{
+                    "setups": ["gcs"],
+                    "service": "gcs",
+                    "feature": "services-gcs"
+                  }]
+                }]
+            ')
+          fi
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT
@@ -105,6 +126,42 @@ jobs:
     with:
       os: ${{ matrix.os }}
       cases: ${{ toJson(matrix.cases) }}
+
+  test_gcs_versioned_presign:
+    name: gcs / versioned presign
+    needs: [ plan ]
+    if: inputs.selector == 'gcs-versioned-presign'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup 1Password Connect
+        shell: bash
+        env:
+          OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+          OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+        run: |
+          printf '::add-mask::%s\n' "$OP_CONNECT_HOST"
+          printf '::add-mask::%s\n' "$OP_CONNECT_TOKEN"
+          printf 'OP_CONNECT_HOST=%s\n' "$OP_CONNECT_HOST" >> "$GITHUB_ENV"
+          printf 'OP_CONNECT_TOKEN=%s\n' "$OP_CONNECT_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Setup GCS
+        uses: ./.github/services/gcs/gcs
+
+      - name: Test versioned presign GET and HEAD
+        working-directory: core
+        run: cargo test --locked --test versioned_presign --features tests,services-gcs -- --nocapture
+        env:
+          OPENDAL_TEST: gcs
+          OPENDAL_DISABLE_RANDOM_ROOT: "true"
+          RUST_LOG: off
 
   test_binding_java:
     name: binding_java / ${{ matrix.os }}

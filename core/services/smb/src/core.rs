@@ -162,7 +162,7 @@ impl SmbCore {
                             Err(_) => (false, false, false, false, false, false, false),
                         };
                     eprintln!(
-                        "SMB_CREATE_DIR_DIAG query_info_ok={query_info_ok} directory={directory} readonly={readonly} hidden={hidden} system={system} archive={archive} normal={normal} requested_directory_file=true requested_directory_attribute=true requested_create_disposition=OpenIf close_ok={}",
+                        "SMB_CREATE_DIR_DIAG component={current:?} query_info_ok={query_info_ok} directory={directory} readonly={readonly} hidden={hidden} system={system} archive={archive} normal={normal} requested_directory_file=true requested_directory_attribute=true requested_create_disposition=OpenIf close_ok={}",
                         close_result.is_ok()
                     );
                     return Err(Error::new(

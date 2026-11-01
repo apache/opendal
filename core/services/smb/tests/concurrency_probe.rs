@@ -155,7 +155,6 @@ async fn run_create_dir_pair(label: &str, precreate_parent: bool) {
             .expect("precreating parent must succeed");
     }
 
-    let cleanup_op = op1.clone();
     let barrier = Arc::new(Barrier::new(2));
     let barrier1 = barrier.clone();
     let barrier2 = barrier.clone();
@@ -177,7 +176,8 @@ async fn run_create_dir_pair(label: &str, precreate_parent: bool) {
         r2.as_ref().err().map(ToString::to_string)
     );
 
-    cleanup(&cleanup_op, &["parent/a/", "parent/b/", "parent/"]).await;
+    // The task runner observes the server's directory entries before teardown.
+    // Keep the unique tree intact on both success and failure.
     assert!(
         r1.is_ok() && r2.is_ok(),
         "concurrent create-dir pair failed: case={label} precreate_parent={precreate_parent}"

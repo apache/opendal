@@ -107,7 +107,7 @@ mod tests {
                 .header("content-type", "text/plain")
                 .header("etag", "\"fixture\"")
                 .body(HttpBody::new(
-                    futures::stream::iter([Ok(Buffer::from_static(b"0123456789"))]),
+                    futures::stream::iter([Ok(Buffer::from("0123456789"))]),
                     Some(10),
                 ))
                 .expect("response must build"))

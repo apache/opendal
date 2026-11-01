@@ -60,7 +60,7 @@ cargo --version > "$log_dir/toolchain.txt"
 rustc --version >> "$log_dir/toolchain.txt"
 cd core
 run_stage fmt cargo fmt --all
-run_stage bootstrap-check cargo check --offline -p opendal-service-smb
+run_stage bootstrap-check cargo check -p opendal-service-smb
 cd "$repo_root"
 run_stage generate-docs cargo run --quiet --manifest-path dev/Cargo.toml -- generate -l docs
 run_stage diff-check git diff --check

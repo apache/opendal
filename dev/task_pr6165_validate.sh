@@ -48,7 +48,7 @@ run_check() {
     printf '%s\n' "$task_status" > "$task_logs/$task_name.status"
     if test "$task_status" -ne 0; then task_failed=1; fi
 }
-run_check build cargo test --locked --test behavior --test task_pr6165_list --features tests,services-redb --no-run
+run_check build cargo test --locked --test behavior --features tests,services-redb --no-run
 test "$(cat "$task_logs/build.status")" -eq 0
 sha256sum Cargo.lock > "$task_logs/cargo-lock.sha256"
 cargo tree --locked --features tests,services-redb --invert redb --depth 1 > "$task_logs/dependency-tree.log" 2>&1
@@ -65,7 +65,7 @@ export OPENDAL_REDB_ROOT=/
 export OPENDAL_REDB_DATADIR="$task_logs/flat.redb"
 run_check list-flat cargo test --locked --test behavior --features tests,services-redb -- test_list_
 export OPENDAL_TASK_REDB_CONTROL_DIR="$task_logs/control"
-run_check blocking cargo test --locked --test task_pr6165_list --features tests,services-redb -- --nocapture
+run_check blocking cargo test --locked --test task_pr6165_list --features tests,services-redb,blocking -- --nocapture
 cd "$task_repo"
 git rev-parse HEAD > "$task_logs/head.after"
 git status --porcelain > "$task_logs/status.after"

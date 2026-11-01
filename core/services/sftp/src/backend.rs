@@ -474,14 +474,18 @@ mod tests {
                 .endpoint("unused.invalid")
                 .connect_timeout(timeout)
                 .build()
-                .err()
-                .expect("fractional OpenSSH timeout must be rejected");
+                .expect_err("fractional OpenSSH timeout must be rejected");
             assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
 
-            let mut config = SftpConfig::default();
-            config.endpoint = Some("unused.invalid".to_string());
-            config.connect_timeout = Some(format!("{timeout:?}"));
-            let error = config.into_builder().build().err().unwrap();
+            let config = SftpConfig {
+                endpoint: Some("unused.invalid".to_string()),
+                connect_timeout: Some(format!("{timeout:?}")),
+                ..Default::default()
+            };
+            let error = config
+                .into_builder()
+                .build()
+                .expect_err("fractional OpenSSH timeout must be rejected");
             assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
         }
     }
@@ -495,7 +499,10 @@ mod tests {
                         .map(|(key, value)| (key.to_string(), value.to_string())),
                 )
                 .unwrap();
-                let error = config.into_builder().build().err().unwrap();
+                let error = config
+                    .into_builder()
+                    .build()
+                    .expect_err("invalid timeout must be rejected");
                 assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
             }
         }

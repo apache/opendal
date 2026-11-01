@@ -5,7 +5,7 @@ set -Eeuo pipefail
 task_repo=$1
 task_logs=$2
 task_transport=$3
-task_product=87ded55d08f59411ad8f5786777b14e5572878cf
+task_product=151e3a05d73c3367eda31441d28de1c2bf52ceb7
 task_runner=$(git -C "$(dirname "$0")/../.." rev-parse --show-toplevel)
 [[ $(git -C "$task_runner" rev-parse HEAD) == "$task_transport" ]]
 [[ -z $(git -C "$task_repo" status --porcelain) ]]

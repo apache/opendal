@@ -125,7 +125,7 @@ impl<W: BlockWrite> BlockWriter<W> {
             block_ids: Vec::new(),
             cache: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
                     let fut = input
                         .w

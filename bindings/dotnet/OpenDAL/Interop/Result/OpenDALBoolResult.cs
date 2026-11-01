@@ -18,30 +18,15 @@
  */
 
 using System.Runtime.InteropServices;
-using OpenDAL.Interop.NativeObject;
 using OpenDAL.Interop.Result.Abstractions;
 
 namespace OpenDAL.Interop.Result;
 
 [StructLayout(LayoutKind.Sequential)]
-/// <summary>
-/// Result wrapper for operations returning a freshly allocated native write buffer.
-/// </summary>
-/// <remarks>
-/// On success the caller takes over the buffer handle, so
-/// <see cref="Release"/> only frees the error message; the handle itself is
-/// released later through <c>write_buffer_free</c>.
-/// </remarks>
-internal struct OpenDALWriteBufferResult : INativeValueResult<OpenDALWriteBuffer>
+internal struct OpenDALBoolResult : INativeValueResult<bool>
 {
-    /// <summary>
-    /// Allocated buffer payload on success.
-    /// </summary>
-    public OpenDALWriteBuffer Buffer;
+    public byte Value;
 
-    /// <summary>
-    /// Error details for the operation.
-    /// </summary>
     public OpenDALError Error;
 
     public readonly void Release()
@@ -54,8 +39,8 @@ internal struct OpenDALWriteBufferResult : INativeValueResult<OpenDALWriteBuffer
         return Error;
     }
 
-    public readonly OpenDALWriteBuffer ToValue()
+    public readonly bool ToValue()
     {
-        return Buffer;
+        return Value != 0;
     }
 }

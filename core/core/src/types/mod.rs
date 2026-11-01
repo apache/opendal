@@ -20,6 +20,7 @@ pub use mode::EntryMode;
 
 mod buffer;
 pub use buffer::Buffer;
+pub use buffer::BufferCursor;
 
 pub(crate) mod compact;
 

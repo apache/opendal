@@ -264,7 +264,7 @@ def notice(candidate, release, status=None):
     rc = candidate.rc
     phase = release["phase"]
     revision = release.get("latest_revision_number")
-    if not revision or not re.fullmatch(r"[0-9]+", revision):
+    if phase != "release" and (not revision or not re.fullmatch(r"[0-9]+", revision)):
         raise ValueError("ATR revision is missing")
     if status is None:
         status = {
@@ -278,7 +278,17 @@ def notice(candidate, release, status=None):
         if release["phase"] == "release"
         else candidate.branch
     )
-    body = f"""**Release candidate: {rc}**
+    body = (
+        f"""**Apache OpenDAL {candidate.version} has been released.**
+
+- [GitHub Release](https://github.com/{REPO}/releases/tag/v{candidate.version})
+- [ATR status]({ATR}/vote/opendal/{rc})
+- [Source branch](https://github.com/{REPO}/tree/{branch}); commit: `{candidate.sha}`.
+
+Follow the status replies below for optional package distribution and cleanup.
+"""
+        if phase == "release"
+        else f"""**Release candidate: {rc}**
 
 ATR is the release authority. Follow the latest status replies below and the ATR
 vote page for current progress; this opening post contains candidate instructions.
@@ -357,6 +367,7 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
 {announcement(candidate)}
 </details>
 """
+    )
     current = discussion(f"Release candidate: {rc}", body)
     if phase == "release_candidate":
         seq = release.get("current_vote_seq")
@@ -368,9 +379,14 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
             f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Follow ATR and these status replies for current progress; the opening post records candidate preparation. Other builds and language package staging are optional and do not block this vote.",
         )
     else:
+        atr_status = (
+            "ATR source release published"
+            if phase == "release"
+            else f"ATR revision: `{revision}`"
+        )
         progress = f"""**{status}**
 
-- ATR revision: `{revision}`; [current ATR status]({ATR}/vote/opendal/{rc}).
+- {atr_status}; [current ATR status]({ATR}/vote/opendal/{rc}).
 - [Source branch](https://github.com/{REPO}/tree/{branch}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml).
 """
         digest = hashlib.sha256(progress.encode()).hexdigest()

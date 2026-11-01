@@ -21,7 +21,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '7 0 * * 5'
+    - cron: '0 0 * * 4'
   workflow_dispatch:
 
 permissions:
@@ -59,8 +59,8 @@ jobs:
             cutoff=$(python3 - <<'PYTHON'
           import datetime as d
           now = d.datetime.now(d.timezone.utc)
-          friday = (now - d.timedelta(days=(now.weekday() - 4) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
-          print(friday.strftime("%Y-%m-%dT%H:%M:%SZ"))
+          thursday = (now - d.timedelta(days=(now.weekday() - 3) % 7)).replace(hour=0, minute=0, second=0, microsecond=0)
+          print(thursday.strftime("%Y-%m-%dT%H:%M:%SZ"))
           PYTHON
             )
             # Push run timestamps record arrival on main, unlike commit dates.

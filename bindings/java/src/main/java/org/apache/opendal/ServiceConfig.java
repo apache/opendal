@@ -187,7 +187,9 @@ public interface ServiceConfig {
          */
         public final String encryptionAlgorithm;
         /**
-         * <p>The encryption key of Azblob service backend.</p>
+         * <p>The Base64-encoded AES-256 customer-provided encryption key.</p>
+         * <p>The key must decode to exactly 32 bytes. Building an operator returns
+         * <code>ConfigInvalid</code> for invalid Base64 or a different decoded length.</p>
          */
         public final String encryptionKey;
         /**
@@ -902,27 +904,39 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Etcd implements ServiceConfig {
         /**
-         * <p>certificate authority file path</p>
+         * <p>PEM certificate authority file used to verify the server.
+         * Enables TLS independently of <code>cert_path</code> and <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String caPath;
         /**
-         * <p>cert path</p>
+         * <p>PEM client certificate file used for mutual TLS.
+         * Must be configured together with <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String certPath;
         /**
          * <p>network address of the Etcd services.
-         * If use https, must set TLS options: <code>ca_path</code>, <code>cert_path</code>, <code>key_path</code>.
+         * Use HTTPS endpoints for TLS. Set <code>ca_path</code> to trust a custom certificate authority.
+         * Client authentication additionally requires both <code>cert_path</code> and <code>key_path</code>.
          * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
          * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
         public final String endpoints;
         /**
-         * <p>key path</p>
+         * <p>PEM client private key file used for mutual TLS.
+         * Must be configured together with <code>cert_path</code>.</p>
          * <p>default is None</p>
          */
         public final String keyPath;
+        /**
+         * <p>the maximum size in bytes of a gRPC response that the etcd client decodes.</p>
+         * <p>Set this to read values larger than the etcd client's own limit. The etcd
+         * server must also allow responses of that size.</p>
+         * <p>Refer to <a href="https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size"><code>etcd_client::KvClient::max_decoding_message_size</code></a></p>
+         * <p>default is None, which keeps the etcd client default of 4 MiB</p>
+         */
+        public final Long maxDecodingMessageSize;
         /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
@@ -958,6 +972,9 @@ public interface ServiceConfig {
             }
             if (keyPath != null) {
                 map.put("key_path", keyPath);
+            }
+            if (maxDecodingMessageSize != null) {
+                map.put("max_decoding_message_size", String.valueOf(maxDecodingMessageSize));
             }
             if (password != null) {
                 map.put("password", password);
@@ -1677,6 +1694,13 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
         /**
+         * <p>Disable loading config from the environment.</p>
+         * <p>When set, the service ignores <code>HF_ENDPOINT</code>, <code>HF_HUB_DISABLE_XET</code>,
+         * <code>HF_TOKEN</code>, <code>HF_TOKEN_PATH</code>, and the <code>token</code> file under <code>HF_HOME</code>,
+         * <code>$XDG_CACHE_HOME/huggingface</code> or <code>~/.cache/huggingface</code>.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
          * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
          * environment variable: a non-empty value forces <code>http</code>, otherwise it
@@ -1732,6 +1756,9 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
             }
@@ -4001,16 +4028,9 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
-         * <p>Enable conditional read support.</p>
-         * <p>When enabled (the default), OpenDAL forwards the RFC 7232 headers
-         * <code>If-Match</code>, <code>If-None-Match</code>, <code>If-Modified-Since</code> and
-         * <code>If-Unmodified-Since</code> to the server when callers provide them.</p>
-         * <p>Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-         * in PROPFIND or don't honor these headers on GET. Setting this to
-         * <code>false</code> drops the four <code>read_with_if_*</code> capabilities, so calls like
-         * <code>reader_with(path).if_match(...)</code> return <code>ErrorKind::Unsupported</code>
-         * locally instead of being silently ignored by the server.</p>
-         * <p>Default: true</p>
+         * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
+         *
+         * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
          */
         public final Boolean enableConditionalRead;
         /**

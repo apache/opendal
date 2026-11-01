@@ -23,18 +23,17 @@
 #![allow(rustdoc::bare_urls, reason = "YARD's syntax for documentation")]
 
 use std::collections::HashMap;
-use std::str::FromStr;
 
-use magnus::class;
-use magnus::method;
-use magnus::prelude::*;
-use magnus::scan_args::get_kwargs;
-use magnus::scan_args::scan_args;
 use magnus::Error;
+use magnus::RHash;
 use magnus::RModule;
 use magnus::RString;
 use magnus::Ruby;
 use magnus::Value;
+use magnus::method;
+use magnus::prelude::*;
+use magnus::scan_args::get_kwargs;
+use magnus::scan_args::scan_args;
 
 use crate::capability::Capability;
 use crate::io::Io;
@@ -45,7 +44,7 @@ use crate::*;
 
 /// @yard
 /// The entrypoint for operating with file services and files.
-#[magnus::wrap(class = "OpenDAL::Operator", free_immediately, size)]
+#[magnus::wrap(class = "OpenDal::Operator", free_immediately, size)]
 pub struct Operator {
     // We keep a reference to an `Operator` because:
     // 1. Some builder functions exist only with the `Operator` struct.
@@ -57,23 +56,28 @@ pub struct Operator {
     // 3. Majority of use cases are still blocking.
     //
     // In practice, we will not use operator directly because of the async support.
-    pub operator: ocore::Operator,
+    pub async_op: ocore::Operator,
     // The cached blocking operator coming from `Operator::blocking`.
     // Important to keep in sync after making changes to the `Operator`.
     //
     // We declare this `BlockingOperator` to state the intent of assumptions instead of
     // getting a `BlockingOperator` for an operation dynamically every time.
-    pub blocking: ocore::BlockingOperator,
+    pub blocking_op: ocore::blocking::Operator,
 }
 
 impl Operator {
     // Convenience helper to construct operator
     #[inline]
     pub(crate) fn from_operator(operator: ocore::Operator) -> Operator {
-        // doesn't change `operator`'s state, but creates a new pointer to the inner accessor
-        let blocking = operator.blocking();
+        let handle = RUNTIME.handle();
+        let _enter = handle.enter();
+        let blocking_op = ocore::blocking::Operator::new(operator.clone())
+            .expect("initiate blocking operator must succeed");
 
-        Operator { operator, blocking }
+        Operator {
+            async_op: operator,
+            blocking_op,
+        }
     }
 }
 
@@ -83,12 +87,6 @@ impl Operator {
         scheme: String,
         options: Option<HashMap<String, String>>,
     ) -> Result<Self, Error> {
-        let scheme = ocore::Scheme::from_str(&scheme)
-            .map_err(|err| {
-                ocore::Error::new(ocore::ErrorKind::Unexpected, "unsupported scheme")
-                    .set_source(err)
-            })
-            .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         let options = options.unwrap_or_default();
 
         let op = ocore::Operator::via_iter(scheme, options)
@@ -104,7 +102,7 @@ impl Operator {
     /// @return [String]
     fn read(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bytes::Bytes, Error> {
         let buffer = rb_self
-            .blocking
+            .blocking_op
             .read(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
         Ok(buffer.to_bytes())
@@ -118,7 +116,7 @@ impl Operator {
     /// @return [nil]
     fn write(ruby: &Ruby, rb_self: &Self, path: String, bs: RString) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .write(&path, bs.to_bytes())
             .map(|_| ())
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
@@ -131,7 +129,7 @@ impl Operator {
     /// @return [Metadata]
     fn stat(ruby: &Ruby, rb_self: &Self, path: String) -> Result<Metadata, Error> {
         rb_self
-            .blocking
+            .blocking_op
             .stat(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
             .map(Metadata::new)
@@ -142,7 +140,7 @@ impl Operator {
     /// Gets capabilities of the current operator
     /// @return [Capability]
     fn capability(&self) -> Result<Capability, Error> {
-        let capability = self.blocking.info().full_capability();
+        let capability = self.blocking_op.info().capability();
         Ok(Capability::new(capability))
     }
 
@@ -154,7 +152,7 @@ impl Operator {
     /// @return [nil]
     fn create_dir(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .create_dir(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -166,7 +164,7 @@ impl Operator {
     /// @return [nil]
     fn delete(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .delete(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -178,7 +176,7 @@ impl Operator {
     /// @return [Boolean]
     fn exists(ruby: &Ruby, rb_self: &Self, path: String) -> Result<bool, Error> {
         rb_self
-            .blocking
+            .blocking_op
             .exists(&path)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -191,7 +189,7 @@ impl Operator {
     /// @return [nil]
     fn rename(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .rename(&from, &to)
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
@@ -202,9 +200,16 @@ impl Operator {
     /// @param path [String]
     /// @return [nil]
     fn remove_all(ruby: &Ruby, rb_self: &Self, path: String) -> Result<(), Error> {
+        use ocore::options::DeleteOptions;
         rb_self
-            .blocking
-            .remove_all(&path)
+            .blocking_op
+            .delete_options(
+                &path,
+                DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            )
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
@@ -216,8 +221,9 @@ impl Operator {
     /// @return [nil]
     fn copy(ruby: &Ruby, rb_self: &Self, from: String, to: String) -> Result<(), Error> {
         rb_self
-            .blocking
+            .blocking_op
             .copy(&from, &to)
+            .map(|_| ())
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))
     }
 
@@ -227,10 +233,19 @@ impl Operator {
     /// @param path [String] file path
     /// @param mode [String] operation mode, e.g., `r`, `w`, or `rb`.
     /// @raise [ArgumentError] invalid mode, or when the mode is not unique
-    /// @return [OpenDAL::IO]
-    fn open(ruby: &Ruby, rb_self: &Self, path: String, mode: String) -> Result<Io, Error> {
-        let operator = rb_self.blocking.clone();
-        Io::new(ruby, operator, path, mode)
+    /// @return [OpenDal::IO]
+    fn open(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Io, Error> {
+        let args = scan_args::<(String,), (Option<Value>, Option<Value>), (), (), RHash, ()>(args)?;
+        let (path,) = args.required;
+        let (option_mode, option_permission) = args.optional;
+        let kwargs = args.keywords;
+
+        // Ruby handles Qnil safely (will not assign to Qnil)
+        let mode = option_mode.unwrap_or(ruby.str_new("r").as_value());
+        let permission = option_permission.unwrap_or(ruby.qnil().as_value());
+
+        let operator = rb_self.blocking_op.clone();
+        Io::new(ruby, operator, path, mode, permission, kwargs)
     }
 
     /// @yard
@@ -250,22 +265,17 @@ impl Operator {
         )?;
         let (limit, start_after, recursive) = kwargs.optional;
 
-        let mut builder = rb_self.blocking.lister_with(&path);
-
-        if let Some(limit) = limit {
-            builder = builder.limit(limit);
-        }
-
-        if let Some(start_after) = start_after {
-            builder = builder.start_after(start_after.as_str());
-        }
-
-        if let Some(true) = recursive {
-            builder = builder.recursive(true);
-        }
-
-        let lister = builder
-            .call()
+        let lister = rb_self
+            .blocking_op
+            .lister_options(
+                &path,
+                ocore::options::ListOptions {
+                    limit,
+                    start_after,
+                    recursive: recursive.unwrap_or(false),
+                    ..Default::default()
+                },
+            )
             .map_err(|err| Error::new(ruby.exception_runtime_error(), err.to_string()))?;
 
         Ok(Lister::new(lister))
@@ -276,12 +286,12 @@ impl Operator {
     /// Gets meta information of the underlying accessor.
     /// @return [OperatorInfo]
     fn info(&self) -> Result<OperatorInfo, Error> {
-        Ok(OperatorInfo(self.blocking.info()))
+        Ok(OperatorInfo(self.blocking_op.info()))
     }
 }
 
-pub fn include(gem_module: &RModule) -> Result<(), Error> {
-    let class = gem_module.define_class("Operator", class::object())?;
+pub fn include(ruby: &Ruby, gem_module: &RModule) -> Result<(), Error> {
+    let class = gem_module.define_class("Operator", ruby.class_object())?;
     class.define_singleton_method("new", function!(Operator::new, 2))?;
     class.define_method("read", method!(Operator::read, 1))?;
     class.define_method("write", method!(Operator::write, 2))?;
@@ -293,7 +303,7 @@ pub fn include(gem_module: &RModule) -> Result<(), Error> {
     class.define_method("rename", method!(Operator::rename, 2))?;
     class.define_method("remove_all", method!(Operator::remove_all, 1))?;
     class.define_method("copy", method!(Operator::copy, 2))?;
-    class.define_method("open", method!(Operator::open, 2))?;
+    class.define_method("open", method!(Operator::open, -1))?;
     class.define_method("list", method!(Operator::list, -1))?;
     class.define_method("info", method!(Operator::info, 0))?;
 

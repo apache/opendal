@@ -22,8 +22,8 @@ use dav_server::fs::OpenOptions;
 use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use dav_server_opendalfs::OpendalFs;
 use futures::StreamExt;
-use opendal::services::Fs;
 use opendal::Operator;
+use opendal::services::Fs;
 use std::fs;
 use std::path::Path;
 
@@ -31,7 +31,7 @@ use std::path::Path;
 async fn test() -> Result<()> {
     let builder = Fs::default().root("/tmp");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
 
     let webdavfs = OpendalFs::new(op);
 
@@ -44,10 +44,29 @@ async fn test() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test]
+async fn test_create_dir_nested() {
+    let builder = opendal::services::Memory::default();
+    let op = Operator::new(builder).unwrap();
+    let webdavfs = OpendalFs::new(op.clone());
+
+    webdavfs
+        .create_dir(&DavPath::new("/a/").unwrap())
+        .await
+        .unwrap();
+    webdavfs
+        .create_dir(&DavPath::new("/a/b/").unwrap())
+        .await
+        .unwrap();
+
+    assert!(op.exists("/a/").await.unwrap());
+    assert!(op.exists("/a/b/").await.unwrap());
+}
+
 fn setup_temp(path: &str) -> Box<OpendalFs> {
     let _ = fs::remove_dir_all(path);
     let builder = Fs::default().root(path);
-    let op = Operator::new(builder).unwrap().finish();
+    let op = Operator::new(builder).unwrap();
     OpendalFs::new(op)
 }
 
@@ -187,7 +206,7 @@ async fn test_read_dir() {
         .iter()
         .map(|entry| String::from_utf8(entry.as_ref().unwrap().name()).unwrap())
         .collect::<Vec<_>>();
-    println!("{:?}", entries);
+    println!("{entries:?}");
     assert_eq!(entries.len(), 2);
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_1}/")));
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));

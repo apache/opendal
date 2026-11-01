@@ -15,84 +15,101 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use jni::Env;
+use jni::EnvUnowned;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::jbyteArray;
 use jni::sys::jlong;
-use jni::JNIEnv;
-use opendal::BlockingOperator;
-use opendal::StdBytesIterator;
+use opendal::blocking;
+use opendal::blocking::StdBytesIterator;
 
 use crate::convert::jstring_to_string;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader(
-    mut env: JNIEnv,
-    _: JClass,
-    op: *mut BlockingOperator,
-    path: JString,
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut blocking::Operator,
+    path: JString<'local>,
+    options: JObject<'local>,
 ) -> jlong {
-    intern_construct_reader(&mut env, &mut *op, path).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
+    env.with_env(|env| {
+        let op_ref = unsafe { &mut *op };
+        intern_construct_reader(env, op_ref, path, options)
     })
+    .resolve::<ThrowException>()
 }
 
 fn intern_construct_reader(
-    env: &mut JNIEnv,
-    op: &mut BlockingOperator,
+    env: &mut Env,
+    op: &mut blocking::Operator,
     path: JString,
+    options: JObject,
 ) -> crate::Result<jlong> {
+    use crate::convert;
+    use crate::make_reader_options;
+
     let path = jstring_to_string(env, &path)?;
-    let reader = op.reader(&path)?.into_bytes_iterator(..)?;
+    let reader_options = make_reader_options(env, &options)?;
+
+    let offset = convert::read_int64_field(env, &options, "offset")?;
+    let length = convert::read_int64_field(env, &options, "length")?;
+    let range = convert::offset_length_to_range(offset, length)?;
+
+    let reader = op
+        .reader_options(&path, reader_options)?
+        .into_bytes_iterator(range)?;
     Ok(Box::into_raw(Box::new(reader)) as jlong)
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader(
-    _: JNIEnv,
-    _: JClass,
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
     reader: *mut StdBytesIterator,
 ) {
-    drop(Box::from_raw(reader));
+    unsafe {
+        drop(Box::from_raw(reader));
+    }
 }
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
-#[no_mangle]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes(
-    mut env: JNIEnv,
-    _: JClass,
+#[unsafe(no_mangle)]
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     reader: *mut StdBytesIterator,
-) -> jbyteArray {
-    intern_read_next_bytes(&mut env, &mut *reader).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JByteArray::default().into_raw()
+) -> JByteArray<'local> {
+    env.with_env(|env| {
+        let reader_ref = unsafe { &mut *reader };
+        intern_read_next_bytes(env, reader_ref)
     })
+    .resolve::<ThrowException>()
 }
 
-fn intern_read_next_bytes(
-    env: &mut JNIEnv,
+fn intern_read_next_bytes<'local>(
+    env: &mut Env<'local>,
     reader: &mut StdBytesIterator,
-) -> crate::Result<jbyteArray> {
+) -> crate::Result<JByteArray<'local>> {
     match reader
         .next()
         .transpose()
         .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()))?
     {
-        None => Ok(JObject::null().into_raw()),
-        Some(content) => {
-            let result = env.byte_array_from_slice(&content)?;
-            Ok(result.into_raw())
-        }
+        None => Ok(JByteArray::default()),
+        Some(content) => Ok(env.byte_array_from_slice(&content)?),
     }
 }

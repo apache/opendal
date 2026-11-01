@@ -62,7 +62,7 @@ pub fn build(b: *std.Build) void {
     // =============== OpenDAL C bindings ===============
 
     // Creates a step for building the dependent C bindings
-    const libopendal_c_cmake = b.addSystemCommand(&[_][]const u8{ "cmake", "-S", "../c", "-B", "../c/build" });
+    const libopendal_c_cmake = b.addSystemCommand(&[_][]const u8{ "cmake", "-S", "../c", "-B", "../c/build", "-DFEATURES=opendal/services-memory" });
     const config_libopendal_c = b.step("libopendal_c_cmake", "Generate OpenDAL C binding CMake files");
     config_libopendal_c.dependOn(&libopendal_c_cmake.step);
     const libopendal_c = b.addSystemCommand(&[_][]const u8{ "make", "-C", "../c/build" });
@@ -122,4 +122,20 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&libopendal_c.step);
     test_step.dependOn(&run_lib_test.step);
     test_step.dependOn(&run_bdd_test.step);
+
+    // =============== Getting Started example ===============
+
+    const getting_started_exe = b.addExecutable(.{
+        .name = "getting-started",
+        .root_source_file = b.path("examples/getting_started.zig"),
+        .target = target,
+        .optimize = optimize,
+        .use_llvm = use_llvm,
+    });
+    getting_started_exe.root_module.addImport("opendal", opendal_module);
+
+    const run_getting_started = b.addRunArtifact(getting_started_exe);
+    run_getting_started.step.dependOn(&libopendal_c.step);
+    const run_example_step = b.step("run-example", "Build and run the getting-started example");
+    run_example_step.dependOn(&run_getting_started.step);
 }

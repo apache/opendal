@@ -28,4 +28,27 @@ public class ListOptions {
      * Return files in subdirectory as well.
      */
     public final boolean recursive;
+
+    /**
+     * The limit passed to underlying service to specify the max results
+     * that could return per-request.
+     */
+    @Builder.Default
+    public final long limit = -1;
+
+    /**
+     * The startAfter option passes to underlying service to specify the
+     * specified key to start listing from.
+     */
+    public final String startAfter;
+
+    /**
+     * The versions option is used to control whether the object versions should be returned.
+     */
+    public final boolean versions;
+
+    /**
+     * The deleted is used to control whether the deleted objects should be returned.
+     */
+    public final boolean deleted;
 }

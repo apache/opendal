@@ -33,10 +33,11 @@ import org.junit.jupiter.api.TestInstance;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class BlockingWriteTest extends BehaviorTestBase {
+
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
-        assumeTrue(capability.read && capability.write && capability.blocking);
+        final Capability capability = op().info.capability;
+        assumeTrue(capability.read && capability.write);
     }
 
     /**

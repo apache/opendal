@@ -53,7 +53,7 @@ impl Debug for OpendalFile {
 }
 
 enum State {
-    Read(FuturesAsyncReader),
+    Read(Box<FuturesAsyncReader>),
     Write(Option<Writer>),
 }
 
@@ -68,7 +68,7 @@ impl OpendalFile {
                 .into_futures_async_read(..)
                 .await
                 .map_err(convert_error)?;
-            State::Read(r)
+            State::Read(Box::new(r))
         } else if options.write {
             let w = op
                 .writer_with(&path)

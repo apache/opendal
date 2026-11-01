@@ -4,7 +4,7 @@ set -Eeuo pipefail
 task_repo=$1
 task_logs=$2
 task_transport=$3
-task_product=6ac1c2fcbd4230d78cd98d6121ba1abeed2230e3
+task_product=b694f5c6c331d66bca798b86ec739487c4a404dc
 task_runner=$(git -C "$(dirname "$0")/.." rev-parse --show-toplevel)
 [[ $(git -C "$task_runner" rev-parse HEAD) == "$task_transport" ]]
 [[ -z ${CARGO_TARGET_DIR:-} && -z ${CARGO_BUILD_BUILD_DIR:-} ]]

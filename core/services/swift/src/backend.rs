@@ -18,16 +18,16 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 
 use super::SWIFT_SCHEME;
 use super::SwiftConfig;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::SwiftDeleter;
-use super::error::parse_error;
 use super::lister::SwiftLister;
+use super::reader::*;
 use super::writer::SwiftWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -125,8 +125,8 @@ impl Builder for SwiftBuilder {
     type Config = SwiftConfig;
 
     /// Build a SwiftBackend.
-    fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", &self);
+    fn build(self) -> Result<impl Service> {
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -146,7 +146,7 @@ impl Builder for SwiftBuilder {
                 ));
             }
         };
-        debug!("backend use endpoint: {}", &endpoint);
+        debug!("backend use endpoint: {}", endpoint);
 
         let container = match self.config.container {
             Some(container) => container,
@@ -168,56 +168,53 @@ impl Builder for SwiftBuilder {
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
-                info: {
-                    let am = AccessorInfo::default();
-                    am.set_scheme(SWIFT_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-                            stat_with_if_modified_since: true,
-                            stat_with_if_unmodified_since: true,
+                info: ServiceInfo::new(SWIFT_SCHEME, &root, ""),
+                capability: Capability {
+                    stat: true,
+                    stat_with_if_match: true,
+                    stat_with_if_none_match: true,
+                    stat_with_if_modified_since: true,
+                    stat_with_if_unmodified_since: true,
 
-                            read: true,
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-                            read_with_if_modified_since: true,
-                            read_with_if_unmodified_since: true,
+                    read: true,
+                    read_with_suffix: true,
+                    read_with_if_match: true,
+                    read_with_if_none_match: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
 
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            write_with_content_type: true,
-                            write_with_content_disposition: true,
-                            write_with_content_encoding: true,
-                            write_with_cache_control: true,
-                            write_with_user_metadata: true,
+                    write: true,
+                    write_can_empty: true,
+                    write_can_multi: true,
+                    write_multi_min_size: Some(5 * 1024 * 1024),
+                    write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                        Some(5 * 1024 * 1024 * 1024)
+                    } else {
+                        Some(usize::MAX)
+                    },
+                    write_with_content_type: true,
+                    write_with_content_disposition: true,
+                    write_with_content_encoding: true,
+                    write_with_cache_control: true,
+                    write_with_user_metadata: true,
 
-                            delete: true,
-                            delete_max_size: Some(10000),
+                    delete: true,
+                    delete_max_size: Some(10000),
 
-                            copy: true,
+                    copy: true,
 
-                            list: true,
-                            list_with_recursive: true,
+                    list: true,
+                    list_with_recursive: true,
+                    list_with_start_after: true,
 
-                            presign: has_temp_url_key,
-                            presign_stat: has_temp_url_key,
-                            presign_read: has_temp_url_key,
-                            presign_write: has_temp_url_key,
+                    presign: has_temp_url_key,
+                    presign_stat: has_temp_url_key,
+                    presign_read: has_temp_url_key,
+                    presign_write: has_temp_url_key,
 
-                            shared: true,
+                    shared: true,
 
-                            ..Default::default()
-                        });
-                    am.into()
+                    ..Default::default()
                 },
                 root,
                 endpoint,
@@ -233,87 +230,126 @@ impl Builder for SwiftBuilder {
 /// Backend for Swift service
 #[derive(Debug, Clone)]
 pub struct SwiftBackend {
-    core: Arc<SwiftCore>,
+    pub(crate) core: Arc<SwiftCore>,
 }
 
-impl Access for SwiftBackend {
-    type Reader = HttpBody;
+impl Service for SwiftBackend {
+    type Reader = oio::StreamReader<SwiftReader>;
     type Writer = oio::MultipartWriter<SwiftWriter>;
     type Lister = oio::PageLister<SwiftLister>;
     type Deleter = oio::BatchDeleter<SwiftDeleter>;
+    type Copier = oio::OneShotCopier;
+    type Composer = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.swift_get_metadata(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.swift_get_metadata(ctx, path, &args).await?;
 
         match resp.status() {
             StatusCode::OK | StatusCode::NO_CONTENT => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?.into_builder();
                 let user_meta = parse_prefixed_headers(headers, "x-object-meta-");
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
+                resp,
+            )),
         }
     }
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SwiftReader> = {
+            Ok(oio::StreamReader::new(SwiftReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.swift_read(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let writer = SwiftWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = oio::MultipartWriter::new(self.core.info.clone(), writer, concurrent);
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: oio::MultipartWriter<SwiftWriter> = {
+            let concurrent = args.concurrent();
+            let writer = SwiftWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), writer, concurrent);
 
-        Ok((RpWrite::default(), w))
+            Ok(w)
+        }?;
+
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                SwiftDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<SwiftDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                SwiftDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
+            ))
+        }?;
+
+        Ok(output)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = SwiftLister::new(
-            self.core.clone(),
-            path.to_string(),
-            args.recursive(),
-            args.limit(),
-        );
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<SwiftLister> = {
+            let l = SwiftLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.recursive(),
+                args.limit(),
+                args.start_after().map(String::from),
+            );
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
 
         let method = match &op {
             PresignOperation::Stat(_) => http::Method::HEAD,
-            PresignOperation::Read(_) => http::Method::GET,
+            PresignOperation::Read(_, _) => http::Method::GET,
             PresignOperation::Write(_) => http::Method::PUT,
             _ => {
                 return Err(Error::new(
@@ -335,16 +371,69 @@ impl Access for SwiftBackend {
         )))
     }
 
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        // cannot copy objects larger than 5 GB.
-        // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
-        let resp = self.core.swift_copy(from, to).await?;
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
 
-        let status = resp.status();
+        Ok(oio::OneShotCopier::new(async move {
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => {
+                    let stat_args: OpStat = options::StatOptions {
+                        version: args.source_version().map(str::to_owned),
+                        ..Default::default()
+                    }
+                    .into();
+                    let resp = core.swift_get_metadata(&ctx, &from, &stat_args).await?;
+                    match resp.status() {
+                        StatusCode::OK | StatusCode::NO_CONTENT => {
+                            parse_into_metadata(&from, resp.headers())?.content_length()
+                        }
+                        _ => {
+                            return Err(parse_error(
+                                ErrorContext::new(ServiceOperation("ShowObjectMetadata")),
+                                resp,
+                            ));
+                        }
+                    }
+                }
+            };
+            // cannot copy objects larger than 5 GB.
+            // Reference: https://docs.openstack.org/api-ref/object-store/#copy-object
+            let resp = core.swift_copy(&ctx, &from, &to).await?;
 
-        match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp)),
-        }
+            let status = resp.status();
+
+            match status {
+                StatusCode::CREATED | StatusCode::OK => {
+                    Ok(MetadataBuilder::file(source_size).build())
+                }
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
+            }
+        }))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

@@ -8,7 +8,7 @@ when the cache is full.
 
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] stat
 - [x] read
@@ -17,7 +17,14 @@ This service can be used to:
 - [ ] list (not supported)
 - [ ] blocking (not supported)
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
+
+Use [`crate::FoyerConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 Foyer service can be configured in two ways:
 
@@ -44,20 +51,23 @@ use opendal::Operator;
 use opendal_service_foyer::Foyer;
 use opendal_service_foyer::FoyerKey;
 use opendal_service_foyer::FoyerValue;
-use foyer::{HybridCacheBuilder, Engine};
+use foyer::{BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCacheBuilder};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a foyer HybridCache with full control
+    let device = FsDeviceBuilder::new("/tmp/foyer")
+        .with_capacity(1024 * 1024 * 1024)
+        .build()?;
     let cache = HybridCacheBuilder::new()
         .memory(64 * 1024 * 1024) // 64MB memory cache
-        .storage(Engine::Large(Default::default()))
+        .storage()
+        .with_engine_config(BlockEngineConfig::new(device))
         .build()
         .await?;
 
     // Create operator
-    let op = Operator::new(Foyer::new().cache(cache))?
-        .finish();
+    let op = Operator::new(Foyer::new().cache(cache))?;
 
     // Use it like any other OpenDAL operator
     op.write("key", "value").await?;
@@ -85,7 +95,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .recover_mode("quiet")              // Recover on restart
             .shards(4)                          // 4 shards for concurrency
     )?
-    .finish();
+    ;
 
     op.write("key", "value").await?;
     let value = op.read("key").await?;
@@ -98,9 +108,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```rust,no_run
 use opendal::Operator;
+use opendal::OperatorRegistry;
+use opendal_service_foyer::register_foyer_service;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    register_foyer_service(OperatorRegistry::get());
+
     // Memory-only cache via URI
     let op = Operator::from_uri("foyer:///?memory=67108864")?;
 

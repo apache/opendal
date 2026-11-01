@@ -25,7 +25,6 @@ use pyo3::prelude::*;
 /// - Basic operations support (read, write, delete, etc.)
 /// - Advanced operation variants (conditional operations, metadata handling)
 /// - Operational constraints (size limits, batch limitations)
-#[crate::gen_stub_pyclass]
 #[pyclass(get_all, module = "opendal.capability")]
 pub struct Capability {
     /// If operator supports stat.
@@ -34,6 +33,10 @@ pub struct Capability {
     pub stat_with_if_match: bool,
     /// If operator supports stat with if none match.
     pub stat_with_if_none_match: bool,
+    /// If operator supports stat with if modified since.
+    pub stat_with_if_modified_since: bool,
+    /// If operator supports stat with if unmodified since.
+    pub stat_with_if_unmodified_since: bool,
     /// If operator supports stat with version.
     pub stat_with_version: bool,
 
@@ -143,6 +146,8 @@ impl Capability {
             stat: capability.stat,
             stat_with_if_match: capability.stat_with_if_match,
             stat_with_if_none_match: capability.stat_with_if_none_match,
+            stat_with_if_modified_since: capability.stat_with_if_modified_since,
+            stat_with_if_unmodified_since: capability.stat_with_if_unmodified_since,
             stat_with_version: capability.stat_with_version,
             read: capability.read,
             read_with_if_match: capability.read_with_if_match,

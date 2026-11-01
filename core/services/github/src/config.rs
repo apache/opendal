@@ -89,10 +89,10 @@ impl Configurator for GithubConfig {
         map.insert("owner".to_string(), owner.to_string());
         map.insert("repo".to_string(), repo.to_string());
 
-        if let Some(rest) = remainder {
-            if !rest.is_empty() {
-                map.insert("root".to_string(), rest.to_string());
-            }
+        if let Some(rest) = remainder
+            && !rest.is_empty()
+        {
+            map.insert("root".to_string(), rest.to_string());
         }
 
         Self::from_iter(map)

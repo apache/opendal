@@ -19,7 +19,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
 
@@ -51,7 +51,7 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
         loop {
             // since list should return path itself, we return it first
             if let Some(path) = self.current_path.take() {
-                let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
+                let e = oio::Entry::new(path.as_str(), MetadataBuilder::dir().build());
                 return Ok(Some(e));
             }
 
@@ -66,13 +66,13 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
             };
 
             let entry_path = de.path();
-            let rel_path = normalize_path(
-                &entry_path
-                    .strip_prefix(&self.root)
-                    .expect("cannot fail because the prefix is iterated")
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-            );
+            let raw = entry_path
+                .strip_prefix(&self.root)
+                .expect("cannot fail because the prefix is iterated")
+                .to_string_lossy();
+            #[cfg(windows)]
+            let raw = raw.replace('\\', "/");
+            let rel_path = normalize_path(&raw);
 
             let ft = match de.file_type().await {
                 Ok(ft) => ft,
@@ -106,11 +106,45 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
                 }
                 Err(e) => return Err(new_std_io_error(e)),
             };
-            let metadata = Metadata::new(mode)
-                .with_content_length(de_metadata.len())
-                .with_last_modified(Timestamp::try_from(last_modified)?);
+            let mut metadata = match mode {
+                EntryMode::FILE => MetadataBuilder::file(de_metadata.len()),
+                EntryMode::DIR => MetadataBuilder::dir(),
+                EntryMode::Unknown => MetadataBuilder::unknown(),
+            };
+            metadata.last_modified(Timestamp::try_from(last_modified)?);
 
-            return Ok(Some(oio::Entry::new(path, metadata)));
+            return Ok(Some(oio::Entry::new(path, metadata.build())));
         }
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::List;
+
+    #[tokio::test]
+    async fn list_file_with_backslash_in_name() {
+        let root = std::env::temp_dir().join("opendal-test-fs-lister-backslash");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+
+        std::fs::write(root.join("has\\slash"), b"data").unwrap();
+
+        let rd = tokio::fs::read_dir(&root).await.unwrap();
+        let mut lister = FsLister::new(&root, "/", rd);
+
+        let first = lister.next().await.unwrap().unwrap();
+        assert_eq!(first.mode(), EntryMode::DIR);
+
+        let file_entry = lister.next().await.unwrap().unwrap();
+        assert_eq!(file_entry.mode(), EntryMode::FILE);
+        assert!(
+            !file_entry.path().ends_with('/'),
+            "file path must not end with /: {}",
+            file_entry.path()
+        );
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

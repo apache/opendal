@@ -24,7 +24,10 @@ namespace OpenDAL.Tests;
 
 public sealed class BehaviorOperatorFixture : IDisposable
 {
+    private const string CapabilityOverridesEnv = "OPENDAL_TEST_CAPABILITY_OVERRIDES";
     private readonly Operator? op;
+    private readonly Capability capabilityBeforeOverrides;
+    private readonly Capability capability;
 
     public string? Scheme { get; }
 
@@ -49,13 +52,23 @@ public sealed class BehaviorOperatorFixture : IDisposable
         }
 
         op = new Operator(scheme, options).WithLayer(new RetryLayer());
+        capabilityBeforeOverrides = op.Info.Capability;
+        var capabilityOverrides = Environment.GetEnvironmentVariable(CapabilityOverridesEnv);
+        if (!string.IsNullOrWhiteSpace(capabilityOverrides))
+        {
+            op = op.WithLayer(new CapabilityOverrideLayer(capabilityOverrides));
+        }
+
+        capability = op.Info.Capability;
     }
 
     public bool IsEnabled => op is not null;
 
     public Operator Op => op ?? throw new InvalidOperationException("Behavior operator is not initialized.");
 
-    public Capability Capability => Op.Info.FullCapability;
+    public Capability CapabilityBeforeOverrides => capabilityBeforeOverrides;
+
+    public Capability Capability => capability;
 
     public void Dispose()
     {

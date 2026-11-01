@@ -36,7 +36,7 @@ class BlockingWriteTest extends BehaviorTestBase {
 
     @BeforeAll
     public void precondition() {
-        final Capability capability = op().info.fullCapability;
+        final Capability capability = op().info.capability;
         assumeTrue(capability.read && capability.write);
     }
 

@@ -18,7 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use log::debug;
 use reqsign_azure_storage::DefaultCredentialProvider;
@@ -33,11 +32,12 @@ use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
-use super::core::AzfileCore;
 use super::core::X_MS_META_PREFIX;
+use super::core::parse_error;
+use super::core::{AzfileCore, ErrorContext};
 use super::deleter::AzfileDeleter;
-use super::error::parse_error;
 use super::lister::AzfileLister;
+use super::reader::*;
 use super::writer::AzfileWriter;
 use super::writer::AzfileWriters;
 use opendal_core::raw::*;
@@ -163,8 +163,8 @@ impl AzfileBuilder {
 impl Builder for AzfileBuilder {
     type Config = AzfileConfig;
 
-    fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", &self);
+    fn build(self) -> Result<impl Service> {
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -175,7 +175,7 @@ impl Builder for AzfileBuilder {
                 .with_operation("Builder::build")
                 .with_context("service", AZFILE_SCHEME)),
         }?;
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
         let account_name_option = self
             .config
@@ -208,11 +208,8 @@ impl Builder for AzfileBuilder {
         }
 
         let os_env = OsEnv;
-        let info = Arc::new(AccessorInfo::default());
-
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -229,36 +226,40 @@ impl Builder for AzfileBuilder {
             credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
-        let signer = Signer::new(ctx, credential, RequestSigner::new());
+        let sign_ctx = ctx;
+        let signer = Signer::new(sign_ctx.clone(), credential, RequestSigner::new());
+
+        let info = ServiceInfo::new(AZFILE_SCHEME, &root, "");
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+
+            write: true,
+            write_with_user_metadata: true,
+            // Azure Files limits each Put Range update to 4 MiB.
+            // ref: <https://learn.microsoft.com/en-us/rest/api/storageservices/put-range>
+            write_total_max_size: Some(4 * 1024 * 1024),
+
+            create_dir: true,
+            delete: true,
+            rename: true,
+
+            list: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         Ok(AzfileBackend {
             core: Arc::new(AzfileCore {
-                info: {
-                    info.set_scheme(AZFILE_SCHEME)
-                        .set_root(&root)
-                        .set_native_capability(Capability {
-                            stat: true,
-
-                            read: true,
-
-                            write: true,
-                            write_with_user_metadata: true,
-
-                            create_dir: true,
-                            delete: true,
-                            rename: true,
-
-                            list: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 root,
                 endpoint,
                 signer,
+                sign_ctx,
                 share_name: self.config.share_name.clone(),
             }),
         })
@@ -268,22 +269,33 @@ impl Builder for AzfileBuilder {
 /// Backend for azfile services.
 #[derive(Debug, Clone)]
 pub struct AzfileBackend {
-    core: Arc<AzfileCore>,
+    pub(crate) core: Arc<AzfileCore>,
 }
 
-impl Access for AzfileBackend {
-    type Reader = HttpBody;
+impl Service for AzfileBackend {
+    type Reader = oio::StreamReader<AzfileReader>;
     type Writer = AzfileWriters;
     type Lister = oio::PageLister<AzfileLister>;
     type Deleter = oio::OneShotDeleter<AzfileDeleter>;
+    type Copier = ();
+    type Composer = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
-        self.core.ensure_parent_dir_exists(path).await?;
-        let resp = self.core.azfile_create_dir(path).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.core.ensure_parent_dir_exists(ctx, path).await?;
+        let resp = self.core.azfile_create_dir(ctx, path).await?;
         let status = resp.status();
 
         match status {
@@ -303,79 +315,142 @@ impl Access for AzfileBackend {
                 {
                     Ok(RpCreateDir::default())
                 } else {
-                    Err(parse_error(resp))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateDirectory")),
+                        resp,
+                    ))
                 }
             }
         }
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let resp = if path.ends_with('/') {
-            self.core.azfile_get_directory_properties(path).await?
+            self.core.azfile_get_directory_properties(ctx, path).await?
         } else {
-            self.core.azfile_get_file_properties(path).await?
+            self.core.azfile_get_file_properties(ctx, path).await?
         };
 
         let status = resp.status();
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?;
+                let mut meta = parse_into_metadata(path, headers)?.into_builder();
                 let user_meta = parse_prefixed_headers(headers, X_MS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(if path.ends_with('/') {
+                    ServiceOperation("GetDirectoryProperties")
+                } else {
+                    ServiceOperation("GetFileProperties")
+                }),
+                resp,
+            )),
         }
     }
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<AzfileReader> = {
+            Ok(oio::StreamReader::new(AzfileReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.azfile_read(path, args.range()).await?;
-
-        let status = resp.status();
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok((RpRead::new(), resp.into_body())),
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        self.core.ensure_parent_dir_exists(path).await?;
-        let w = AzfileWriter::new(self.core.clone(), args.clone(), path.to_string());
-        let w = if args.append() {
-            AzfileWriters::Two(oio::AppendWriter::new(w))
-        } else {
-            AzfileWriters::One(oio::OneShotWriter::new(w))
-        };
-        Ok((RpWrite::default(), w))
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: AzfileWriters = {
+            let w = AzfileWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                args.clone(),
+                path.to_string(),
+            );
+            let w = if args.append() {
+                AzfileWriters::Two(oio::AppendWriter::new(w))
+            } else {
+                AzfileWriters::One(oio::OneShotWriter::new(w))
+            };
+            Ok(w)
+        }?;
+
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(AzfileDeleter::new(self.core.clone())),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<AzfileDeleter> = {
+            Ok(oio::OneShotDeleter::new(AzfileDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<AzfileLister> = {
+            let l = AzfileLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path.to_string(),
+                args.limit(),
+            );
+
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+    ) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = AzfileLister::new(self.core.clone(), path.to_string(), args.limit());
-
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        self.core.ensure_parent_dir_exists(to).await?;
-        let resp = self.core.azfile_rename(from, to).await?;
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        self.core.ensure_parent_dir_exists(ctx, to).await?;
+        let resp = self.core.azfile_rename(ctx, from, to).await?;
         let status = resp.status();
         match status {
             StatusCode::OK => Ok(RpRename::default()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                resp,
+            )),
         }
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

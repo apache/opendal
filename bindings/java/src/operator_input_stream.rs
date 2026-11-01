@@ -15,38 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::JNIEnv;
+use jni::Env;
+use jni::EnvUnowned;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
-use jni::sys::jbyteArray;
 use jni::sys::jlong;
 use opendal::blocking;
 use opendal::blocking::StdBytesIterator;
 
 use crate::convert::jstring_to_string;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader(
-    mut env: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_constructReader<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     op: *mut blocking::Operator,
-    path: JString,
-    options: JObject,
+    path: JString<'local>,
+    options: JObject<'local>,
 ) -> jlong {
-    let op_ref = unsafe { &mut *op };
-    intern_construct_reader(&mut env, op_ref, path, options).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
+    env.with_env(|env| {
+        let op_ref = unsafe { &mut *op };
+        intern_construct_reader(env, op_ref, path, options)
     })
+    .resolve::<ThrowException>()
 }
 
 fn intern_construct_reader(
-    env: &mut JNIEnv,
+    env: &mut Env,
     op: &mut blocking::Operator,
     path: JString,
     options: JObject,
@@ -71,9 +74,9 @@ fn intern_construct_reader(
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader(
-    _: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeReader<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
     reader: *mut StdBytesIterator,
 ) {
     unsafe {
@@ -85,31 +88,28 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_dispos
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes(
-    mut env: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_readNextBytes<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     reader: *mut StdBytesIterator,
-) -> jbyteArray {
-    let reader_ref = unsafe { &mut *reader };
-    intern_read_next_bytes(&mut env, reader_ref).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JByteArray::default().into_raw()
+) -> JByteArray<'local> {
+    env.with_env(|env| {
+        let reader_ref = unsafe { &mut *reader };
+        intern_read_next_bytes(env, reader_ref)
     })
+    .resolve::<ThrowException>()
 }
 
-fn intern_read_next_bytes(
-    env: &mut JNIEnv,
+fn intern_read_next_bytes<'local>(
+    env: &mut Env<'local>,
     reader: &mut StdBytesIterator,
-) -> crate::Result<jbyteArray> {
+) -> crate::Result<JByteArray<'local>> {
     match reader
         .next()
         .transpose()
         .map_err(|err| opendal::Error::new(opendal::ErrorKind::Unexpected, err.to_string()))?
     {
-        None => Ok(JObject::null().into_raw()),
-        Some(content) => {
-            let result = env.byte_array_from_slice(&content)?;
-            Ok(result.into_raw())
-        }
+        None => Ok(JByteArray::default()),
+        Some(content) => Ok(env.byte_array_from_slice(&content)?),
     }
 }

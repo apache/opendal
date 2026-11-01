@@ -18,7 +18,6 @@
 use std::env;
 use std::fmt::Debug;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use ::ghac::v1 as ghac_types;
 use bytes::Buf;
@@ -37,7 +36,6 @@ use prost::Message;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -75,7 +73,8 @@ pub enum GhacVersion {
 /// Core for github action cache services.
 #[derive(Clone)]
 pub struct GhacCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     // root should end with "/"
     pub root: String,
@@ -99,7 +98,7 @@ impl Debug for GhacCore {
 }
 
 impl GhacCore {
-    async fn ghac_get_download_url(&self, path: &str) -> Result<String> {
+    async fn ghac_get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         match self.service_version {
@@ -119,16 +118,20 @@ impl GhacCore {
 
                 let req = req
                     .extension(Operation::Read)
+                    .extension(ServiceOperation("GetCacheEntry"))
                     .body(Buffer::new())
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let slc = resp.into_body();
                     let query_resp: GhacQueryResponse = serde_json::from_reader(slc.reader())
                         .map_err(new_json_deserialize_error)?;
                     query_resp.archive_location
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("GetCacheEntry")),
+                        resp,
+                    ));
                 };
                 Ok(location)
             }
@@ -153,9 +156,10 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Read)
+                    .extension(ServiceOperation("GetCacheEntryDownloadURL"))
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let slc = resp.into_body();
                     let query_resp = ghac_types::GetCacheEntryDownloadUrlResponse::decode(slc)
@@ -179,7 +183,10 @@ impl GhacCore {
                     }
                     query_resp.signed_download_url
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("GetCacheEntryDownloadUrl")),
+                        resp,
+                    ));
                 };
 
                 Ok(location)
@@ -187,20 +194,26 @@ impl GhacCore {
         }
     }
 
-    pub async fn ghac_stat(&self, path: &str) -> Result<Response<Buffer>> {
-        let location = self.ghac_get_download_url(path).await?;
+    pub async fn ghac_stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
+        let location = self.ghac_get_download_url(ctx, path).await?;
 
         let req = Request::get(location)
             .header(header::RANGE, "bytes=0-0")
             .extension(Operation::Stat)
+            .extension(ServiceOperation("DownloadCache"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn ghac_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
-        let location = self.ghac_get_download_url(path).await?;
+    pub async fn ghac_read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
+        let location = self.ghac_get_download_url(ctx, path).await?;
 
         let mut req = Request::get(location);
 
@@ -209,13 +222,14 @@ impl GhacCore {
         }
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("DownloadCache"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub async fn ghac_get_upload_url(&self, path: &str) -> Result<String> {
+    pub async fn ghac_get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
         let p = build_abs_path(&self.root, path);
 
         match self.service_version {
@@ -236,16 +250,21 @@ impl GhacCore {
 
                 let req = req
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("ReserveCache"))
                     .body(Buffer::from(Bytes::from(bs)))
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 let cache_id = if resp.status().is_success() {
                     let slc = resp.into_body();
                     let reserve_resp: GhacReserveResponse = serde_json::from_reader(slc.reader())
                         .map_err(new_json_deserialize_error)?;
                     reserve_resp.cache_id
                 } else {
-                    return Err(parse_error(resp).with_operation("Backend::ghac_reserve"));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ReserveCache")),
+                        resp,
+                    )
+                    .with_operation("Backend::ghac_reserve"));
                 };
 
                 let url = build_cache_url(
@@ -273,9 +292,10 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("CreateCacheEntry"))
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 let location = if resp.status() == StatusCode::OK {
                     let (parts, slc) = resp.into_parts();
                     let query_resp = ghac_types::CreateCacheEntryResponse::decode(slc)
@@ -289,7 +309,10 @@ impl GhacCore {
                     }
                     query_resp.signed_upload_url
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateCacheEntry")),
+                        resp,
+                    ));
                 };
                 Ok(location)
             }
@@ -298,6 +321,7 @@ impl GhacCore {
 
     pub async fn ghac_v1_write(
         &self,
+        ctx: &OperationContext,
         upload_url: &str,
         size: u64,
         offset: u64,
@@ -316,13 +340,20 @@ impl GhacCore {
         );
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadCache"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn ghac_finalize_upload(&self, path: &str, url: &str, size: u64) -> Result<()> {
+    pub async fn ghac_finalize_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        url: &str,
+        size: u64,
+    ) -> Result<()> {
         let p = build_abs_path(&self.root, path);
 
         match self.service_version {
@@ -336,13 +367,17 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_JSON)
                     .header(CONTENT_LENGTH, bs.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("CommitCache"))
                     .body(Buffer::from(bs))
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 if resp.status().is_success() {
                     Ok(())
                 } else {
-                    Err(parse_error(resp))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CommitCache")),
+                        resp,
+                    ))
                 }
             }
             GhacVersion::V2 => {
@@ -365,11 +400,15 @@ impl GhacCore {
                     .header(CONTENT_TYPE, CONTENT_TYPE_PROTOBUF)
                     .header(CONTENT_LENGTH, body.len())
                     .extension(Operation::Write)
+                    .extension(ServiceOperation("FinalizeCacheEntryUpload"))
                     .body(body)
                     .map_err(new_request_build_error)?;
-                let resp = self.info.http_client().send(req).await?;
+                let resp = ctx.http_transport().send(req).await?;
                 if resp.status() != StatusCode::OK {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("FinalizeCacheEntryUpload")),
+                        resp,
+                    ));
                 };
                 Ok(())
             }
@@ -503,4 +542,47 @@ mod tests {
             "https://results.actions.githubusercontent.com/twirp/github.actions.results.api.v1.CacheService/CreateCacheEntry"
         );
     }
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let bs = body.to_bytes();
+    let message = String::from_utf8_lossy(&bs);
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

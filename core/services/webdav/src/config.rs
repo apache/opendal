@@ -23,7 +23,7 @@ use serde::Serialize;
 use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct WebdavConfig {
@@ -37,7 +37,11 @@ pub struct WebdavConfig {
     pub token: Option<String>,
     /// root of this backend
     pub root: Option<String>,
-    /// WebDAV Service doesn't support copy.
+    /// Deprecated: WebDAV copy capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "WebDAV copy capability is enabled by default and this option is no longer needed."
+    )]
     pub disable_copy: bool,
     /// Disable automatic parent directory creation before write operations.
     ///
@@ -50,13 +54,11 @@ pub struct WebdavConfig {
     ///
     /// Default: false
     pub disable_create_dir: bool,
-    /// Enable user metadata support via WebDAV PROPPATCH.
-    ///
-    /// This feature requires the WebDAV server to support RFC4918 PROPPATCH method.
-    /// Not all WebDAV servers support this (e.g., nginx's basic WebDAV module doesn't).
-    /// Only enable this if your server supports PROPPATCH (e.g., Apache mod_dav, Nextcloud).
-    ///
-    /// Default: false
+    /// Deprecated: WebDAV user metadata capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."
+    )]
     pub enable_user_metadata: bool,
     /// The XML namespace prefix for user metadata properties.
     ///
@@ -73,6 +75,31 @@ pub struct WebdavConfig {
     ///
     /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
+    /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+    #[deprecated(
+        since = "0.60.0",
+        note = "WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."
+    )]
+    pub enable_conditional_read: bool,
+}
+
+#[allow(deprecated)]
+impl Default for WebdavConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: None,
+            username: None,
+            password: None,
+            token: None,
+            root: None,
+            disable_copy: false,
+            disable_create_dir: false,
+            enable_user_metadata: false,
+            user_metadata_prefix: None,
+            user_metadata_uri: None,
+            enable_conditional_read: true,
+        }
+    }
 }
 
 impl Debug for WebdavConfig {
@@ -81,9 +108,7 @@ impl Debug for WebdavConfig {
             .field("endpoint", &self.endpoint)
             .field("username", &self.username)
             .field("root", &self.root)
-            .field("disable_copy", &self.disable_copy)
             .field("disable_create_dir", &self.disable_create_dir)
-            .field("enable_user_metadata", &self.enable_user_metadata)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()
@@ -146,7 +171,8 @@ mod tests {
     }
 
     #[test]
-    fn from_uri_propagates_disable_copy() {
+    #[allow(deprecated)]
+    fn from_uri_accepts_deprecated_disable_copy() {
         let uri = OperatorUri::new(
             "webdav://dav.example.com",
             vec![("disable_copy".to_string(), "true".to_string())],

@@ -17,7 +17,6 @@
  * under the License.
  */
 
-using System.Runtime.InteropServices;
 using OpenDAL.Interop.Result;
 
 namespace OpenDAL.Options;

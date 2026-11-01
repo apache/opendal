@@ -105,5 +105,4 @@ def test_sync_write_with_if_none_match(service_name, operator, async_operator):
     if read_back != content:
         pytest.skip("backend does not enforce if_none_match on existing files")
 
-
     operator.delete(path)

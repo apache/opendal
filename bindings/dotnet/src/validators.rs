@@ -21,18 +21,11 @@ pub mod options;
 use crate::error::OpenDALError;
 use crate::utils::config_invalid_error;
 
-pub(crate) fn validate_non_zero_u64(value: u64, field: &str) -> Result<(), OpenDALError> {
-    if value == 0 {
-        return Err(config_invalid_error(format!(
-            "{field} must be greater than zero"
-        )));
-    }
-
-    Ok(())
-}
-
-pub(crate) fn validate_non_zero_usize(value: usize, field: &str) -> Result<(), OpenDALError> {
-    if value == 0 {
+pub(crate) fn validate_positive_integer<T: PartialOrd + From<u8>>(
+    value: T,
+    field: &str,
+) -> Result<(), OpenDALError> {
+    if value <= T::from(0) {
         return Err(config_invalid_error(format!(
             "{field} must be greater than zero"
         )));
@@ -62,7 +55,8 @@ pub(crate) fn validate_checked_add_u64(
 
 pub(crate) mod prelude {
     pub(crate) use super::layer::{
-        validate_concurrent_limit_options, validate_retry_options, validate_timeout_options,
+        validate_concurrent_limit_options, validate_retry_options, validate_throttle_options,
+        validate_timeout_options,
     };
     pub(crate) use super::options::{
         validate_list_limit, validate_read_chunk, validate_read_concurrent, validate_read_gap,

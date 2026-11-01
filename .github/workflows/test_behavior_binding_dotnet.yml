@@ -27,6 +27,10 @@ on:
         required: true
         type: string
 
+concurrency:
+  group: binding_dotnet-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }}
@@ -36,11 +40,12 @@ jobs:
       matrix:
         cases: ${{ fromJson(inputs.cases) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup dotnet toolchain
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
+          cache: false # no NuGet dependency
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:

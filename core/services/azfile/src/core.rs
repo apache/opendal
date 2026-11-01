@@ -17,7 +17,6 @@
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::sync::Arc;
 
 use http::HeaderName;
 use http::HeaderValue;
@@ -29,9 +28,8 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::RANGE;
 use reqsign_azure_storage::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, Signer};
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -44,11 +42,13 @@ const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-ex
 pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
 pub struct AzfileCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
     pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
 }
 
 impl Debug for AzfileCore {
@@ -62,7 +62,15 @@ impl Debug for AzfileCore {
 }
 
 impl AzfileCore {
-    pub async fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signer.clone().with_context(
+            self.sign_ctx
+                .clone()
+                .with_http_send(ctx.http_transport().clone()),
+        )
+    }
+
+    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 
         // Insert x-ms-version header for normal requests.
@@ -72,7 +80,7 @@ impl AzfileCore {
             HeaderValue::from_static("2022-11-02"),
         );
 
-        self.signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
@@ -81,11 +89,20 @@ impl AzfileCore {
     }
 
     #[inline]
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
-        self.info.http_client().send(req).await
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn azfile_read(&self, path: &str, range: BytesRange) -> Result<Response<HttpBody>> {
+    pub async fn azfile_read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        range: BytesRange,
+    ) -> Result<Response<HttpBody>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -101,15 +118,18 @@ impl AzfileCore {
             req = req.header(RANGE, range.to_header());
         }
 
-        let req = req.extension(Operation::Read);
+        let req = req
+            .extension(Operation::Read)
+            .extension(ServiceOperation("GetFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.info.http_client().fetch(req).await
+        let req = self.sign(ctx, req).await?;
+        ctx.http_transport().fetch(req).await
     }
 
     pub async fn azfile_create_file(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: usize,
         args: &OpWrite,
@@ -150,15 +170,18 @@ impl AzfileCore {
             }
         }
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CreateFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn azfile_update(
         &self,
+        ctx: &OperationContext,
         path: &str,
         size: u64,
         position: u64,
@@ -186,14 +209,20 @@ impl AzfileCore {
             BytesRange::from(position..position + size).to_header(),
         );
 
-        let req = req.extension(Operation::Write);
+        let req = req
+            .extension(Operation::Write)
+            .extension(ServiceOperation("PutRange"));
 
         let req = req.body(body).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_get_file_properties(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_get_file_properties(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
@@ -204,14 +233,20 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetFileProperties"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_get_directory_properties(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_get_directory_properties(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
@@ -223,14 +258,21 @@ impl AzfileCore {
 
         let req = Request::head(&url);
 
-        let req = req.extension(Operation::Stat);
+        let req = req
+            .extension(Operation::Stat)
+            .extension(ServiceOperation("GetDirectoryProperties"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_rename(&self, path: &str, new_path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_rename(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        new_path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -275,14 +317,20 @@ impl AzfileCore {
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
-        let req = req.extension(Operation::Rename);
+        let req = req
+            .extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_create_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -298,14 +346,20 @@ impl AzfileCore {
 
         req = req.header(CONTENT_LENGTH, 0);
 
-        let req = req.extension(Operation::CreateDir);
+        let req = req
+            .extension(Operation::CreateDir)
+            .extension(ServiceOperation("CreateDirectory"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_delete_file(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_delete_file(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -319,14 +373,20 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteFile"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn azfile_delete_dir(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn azfile_delete_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -340,15 +400,18 @@ impl AzfileCore {
 
         let req = Request::delete(&url);
 
-        let req = req.extension(Operation::Delete);
+        let req = req
+            .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteDirectory"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
     pub async fn azfile_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         limit: &Option<usize>,
         continuation: &str,
@@ -370,7 +433,7 @@ impl AzfileCore {
             .push("include", "Timestamps,ETag");
 
         if !continuation.is_empty() {
-            url = url.push("marker", continuation);
+            url = url.push("marker", &percent_encode_path(continuation));
         }
 
         if let Some(limit) = limit {
@@ -379,14 +442,16 @@ impl AzfileCore {
 
         let req = Request::get(url.finish());
 
-        let req = req.extension(Operation::List);
+        let req = req
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListDirectoriesAndFiles"));
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
-        let req = self.sign(req).await?;
-        self.send(req).await
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
     }
 
-    pub async fn ensure_parent_dir_exists(&self, path: &str) -> Result<()> {
+    pub async fn ensure_parent_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
         let mut dirs = VecDeque::default();
         // azure file service does not support recursive directory creation
         let mut p = path;
@@ -397,7 +462,7 @@ impl AzfileCore {
 
         let mut pop_dir_count = dirs.len();
         for dir in dirs.iter().rev() {
-            let resp = self.azfile_get_directory_properties(dir).await?;
+            let resp = self.azfile_get_directory_properties(ctx, dir).await?;
             if resp.status() == StatusCode::NOT_FOUND {
                 pop_dir_count -= 1;
                 continue;
@@ -406,7 +471,7 @@ impl AzfileCore {
         }
 
         for dir in dirs.iter().skip(pop_dir_count) {
-            let resp = self.azfile_create_dir(dir).await?;
+            let resp = self.azfile_create_dir(ctx, dir).await?;
 
             if resp.status() == StatusCode::CREATED {
                 continue;
@@ -422,9 +487,221 @@ impl AzfileCore {
                 continue;
             }
 
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateDirectory")),
+                resp,
+            ));
         }
 
         Ok(())
+    }
+}
+
+use bytes::Buf;
+use opendal_core::raw::ServiceOperation;
+use opendal_service_azure_common::with_azure_error_response_context;
+use quick_xml::de;
+use serde::Deserialize;
+
+/// AzfileError is the error returned by azure file service.
+#[derive(Default, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct AzfileError {
+    code: String,
+    message: String,
+    query_parameter_name: String,
+    query_parameter_value: String,
+    reason: String,
+}
+
+impl Debug for AzfileError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut de = f.debug_struct("AzfileError");
+        de.field("code", &self.code);
+        // replace `\n` to ` ` for better reading.
+        de.field("message", &self.message.replace('\n', " "));
+
+        if !self.query_parameter_name.is_empty() {
+            de.field("query_parameter_name", &self.query_parameter_name);
+        }
+        if !self.query_parameter_value.is_empty() {
+            de.field("query_parameter_value", &self.query_parameter_value);
+        }
+        if !self.reason.is_empty() {
+            de.field("reason", &self.reason);
+        }
+
+        de.finish()
+    }
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let mut azfile_error = de::from_reader::<_, AzfileError>(bs.clone().reader()).ok();
+    if azfile_error.as_ref().is_none_or(|err| err.code.is_empty())
+        && let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|value| value.to_str().ok())
+    {
+        azfile_error.get_or_insert_with(AzfileError::default).code = code.to_string();
+    }
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(azfile_error) = &azfile_error {
+        match azfile_error.code.as_str() {
+            "ParentNotFound" => {
+                (kind, retryable) = (ErrorKind::NotFound, false);
+            }
+            "ResourceAlreadyExists" => {
+                (kind, retryable) = (ErrorKind::AlreadyExists, false);
+            }
+            "DeletePending" | "ShareBeingDeleted"
+                if ctx.service_operation == ServiceOperation("CreateDirectory") =>
+            {
+                (kind, retryable) = (ErrorKind::Conflict, true);
+            }
+            "CannotDeleteFileOrDirectory"
+            | "ContainerQuotaDowngradeNotAllowed"
+            | "DeletePending"
+            | "DeleteShareWhenSnapshotLeased"
+            | "DirectoryNotEmpty"
+            | "FileGenerationMismatch"
+            | "FileLockConflict"
+            | "FileOpenBySmbClient"
+            | "LeaseAcquireDuringShareDelete"
+            | "LeaseIdMismatchWithFileLeaseOperation"
+            | "LeaseIdMismatchWithFileOperation"
+            | "LeaseIdMismatchWithFileShareLeaseOperation"
+            | "LeaseIdMismatchWithFileShareOperation"
+            | "LeaseIdMissingWithFileOperation"
+            | "LeaseIdMissingWithFileShareOperation"
+            | "LeaseLostWithFileOperation"
+            | "LeaseLostWithFileShareOperation"
+            | "LeaseNotPresentWithFileLeaseOperation"
+            | "LeaseNotPresentWithFileOperation"
+            | "LeaseNotPresentWithFileShareLeaseOperation"
+            | "LeaseNotPresentWithFileShareOperation"
+            | "PreviousSnapshotNotFound"
+            | "PreviousSnapshotOperationNotSupported"
+            | "ReadOnlyAttribute"
+            | "RenameCannotOverwriteDestinationFile"
+            | "RenameCycle"
+            | "RenameDirectoryHasOpenFiles"
+            | "ShareAlreadyExists"
+            | "ShareBeingDeleted"
+            | "ShareHasSnapshots"
+            | "ShareSnapshotInProgress"
+            | "SharingViolation" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
+    }
+
+    let message = azfile_error
+        .map(|err| format!("{err:?}"))
+        .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
+
+    let mut err = Error::new(kind, &message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_azure_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_native_error(operation: &'static str, status: StatusCode, code: &str) -> Error {
+        let resp = Response::builder()
+            .status(status)
+            .header("x-ms-error-code", code)
+            .body(Buffer::new())
+            .expect("response must build");
+        parse_error(ErrorContext::new(ServiceOperation(operation)), resp)
+    }
+
+    #[test]
+    fn test_parse_native_conflict_codes() {
+        let err = parse_native_error("CreateDirectory", StatusCode::CONFLICT, "DeletePending");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.is_temporary());
+
+        let err = parse_native_error("PutRange", StatusCode::CONFLICT, "FileLockConflict");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+
+        let err = parse_native_error(
+            "GetFileProperties",
+            StatusCode::PRECONDITION_FAILED,
+            "LeaseIdMismatchWithFileOperation",
+        );
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_non_conflict_native_codes() {
+        assert_eq!(
+            parse_native_error(
+                "CreateDirectory",
+                StatusCode::CONFLICT,
+                "ResourceAlreadyExists"
+            )
+            .kind(),
+            ErrorKind::AlreadyExists
+        );
+        assert_eq!(
+            parse_native_error("CreateDirectory", StatusCode::NOT_FOUND, "ParentNotFound").kind(),
+            ErrorKind::NotFound
+        );
+        assert_eq!(
+            parse_native_error(
+                "GetFileProperties",
+                StatusCode::PRECONDITION_FAILED,
+                "UnknownPrecondition"
+            )
+            .kind(),
+            ErrorKind::Unexpected
+        );
     }
 }

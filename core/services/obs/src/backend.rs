@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
 use http::StatusCode;
 use http::Uri;
 use log::debug;
@@ -36,11 +35,12 @@ use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
 use super::OBS_SCHEME;
 use super::config::ObsConfig;
-use super::core::ObsCore;
 use super::core::constants;
+use super::core::parse_error;
+use super::core::{ErrorContext, ObsCore};
 use super::deleter::ObsDeleter;
-use super::error::parse_error;
 use super::lister::ObsLister;
+use super::reader::*;
 use super::writer::ObsWriter;
 use super::writer::ObsWriters;
 
@@ -121,10 +121,12 @@ impl ObsBuilder {
         self
     }
 
-    /// Set bucket versioning status for this backend
-    pub fn enable_versioning(mut self, enabled: bool) -> Self {
-        self.config.enable_versioning = enabled;
-
+    /// Deprecated: OBS versioning capability is not controlled by service config.
+    #[deprecated(
+        since = "0.57.0",
+        note = "OBS versioning capability is not controlled by this option and this option is no longer needed."
+    )]
+    pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
     }
 }
@@ -132,8 +134,8 @@ impl ObsBuilder {
 impl Builder for ObsBuilder {
     type Config = ObsConfig;
 
-    fn build(self) -> Result<impl Access> {
-        debug!("backend build started: {:?}", &self);
+    fn build(self) -> Result<impl Service> {
+        debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
         debug!("backend use root {root}");
@@ -145,7 +147,7 @@ impl Builder for ObsBuilder {
                     .with_context("service", OBS_SCHEME),
             ),
         }?;
-        debug!("backend use bucket {}", &bucket);
+        debug!("backend use bucket {}", bucket);
 
         let uri = match &self.config.endpoint {
             Some(endpoint) => endpoint.parse::<Uri>().map_err(|err| {
@@ -172,14 +174,9 @@ impl Builder for ObsBuilder {
                 (host, false)
             }
         };
-        debug!("backend use endpoint {}", &endpoint);
+        debug!("backend use endpoint {}", endpoint);
 
-        let info = Arc::new(AccessorInfo::default());
-
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
-            .with_env(OsEnv);
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut provider = ProvideCredentialChain::new().push(EnvCredentialProvider::new());
 
@@ -198,64 +195,64 @@ impl Builder for ObsBuilder {
         let request_signer = RequestSigner::new(if is_obs_default { &bucket } else { &endpoint });
         let signer = Signer::new(ctx, provider, request_signer);
 
+        let info = ServiceInfo::new(OBS_SCHEME, &root, &bucket);
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_modified_since: true,
+            read_with_if_unmodified_since: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_append: true,
+            write_can_multi: true,
+            write_with_content_type: true,
+            write_with_cache_control: true,
+            // The min multipart size of OBS is 5 MiB.
+            //
+            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+            write_multi_min_size: Some(5 * 1024 * 1024),
+            // The max multipart size of OBS is 5 GiB.
+            //
+            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+            write_with_user_metadata: true,
+
+            delete: true,
+            copy: true,
+
+            list: true,
+            list_with_recursive: true,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         debug!("backend build finished");
         Ok(ObsBackend {
             core: Arc::new(ObsCore {
-                info: {
-                    info.set_scheme(OBS_SCHEME)
-                        .set_root(&root)
-                        .set_name(&bucket)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-
-                            read: true,
-
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-
-                            write: true,
-                            write_can_empty: true,
-                            write_can_append: true,
-                            write_can_multi: true,
-                            write_with_content_type: true,
-                            write_with_cache_control: true,
-                            // The min multipart size of OBS is 5 MiB.
-                            //
-                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            // The max multipart size of OBS is 5 GiB.
-                            //
-                            // ref: <https://support.huaweicloud.com/intl/en-us/ugobs-obs/obs_41_0021.html>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-                            write_with_user_metadata: true,
-
-                            delete: true,
-                            copy: true,
-
-                            list: true,
-                            list_with_recursive: true,
-
-                            presign: true,
-                            presign_stat: true,
-                            presign_read: true,
-                            presign_write: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 bucket,
                 root,
-                endpoint: format!("{}://{}", &scheme, &endpoint),
+                endpoint: format!("{}://{}", scheme, endpoint),
                 signer,
             }),
         })
@@ -265,21 +262,39 @@ impl Builder for ObsBuilder {
 /// Backend for Huaweicloud OBS services.
 #[derive(Debug, Clone)]
 pub struct ObsBackend {
-    core: Arc<ObsCore>,
+    pub(crate) core: Arc<ObsCore>,
 }
 
-impl Access for ObsBackend {
-    type Reader = HttpBody;
+impl Service for ObsBackend {
+    type Reader = oio::StreamReader<ObsReader>;
     type Writer = ObsWriters;
     type Lister = oio::PageLister<ObsLister>;
     type Deleter = oio::OneShotDeleter<ObsDeleter>;
+    type Copier = oio::OneShotCopier;
+    type Composer = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.obs_head_object(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let resp = self.core.obs_head_object(ctx, path, &args).await?;
         let headers = resp.headers();
 
         let status = resp.status();
@@ -287,7 +302,7 @@ impl Access for ObsBackend {
         // The response is very similar to azblob.
         match status {
             StatusCode::OK => {
-                let mut meta = parse_into_metadata(path, headers)?;
+                let meta = parse_into_metadata(path, headers)?;
                 let user_meta = headers
                     .iter()
                     .filter_map(|(name, _)| {
@@ -301,86 +316,144 @@ impl Access for ObsBackend {
                     })
                     .collect::<HashMap<_, _>>();
 
+                let mut meta = meta.into_builder();
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
             StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                Ok(RpStat::new(MetadataBuilder::dir().build()))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<ObsReader> = {
+            Ok(oio::StreamReader::new(ObsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.obs_get_object(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let writer = ObsWriter::new(self.core.clone(), path, args.clone());
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let output: ObsWriters = {
+            let writer = ObsWriter::new(self.core.clone(), ctx.clone(), path, args.clone());
 
-        let w = if args.append() {
-            ObsWriters::Two(oio::AppendWriter::new(writer))
-        } else {
-            ObsWriters::One(oio::MultipartWriter::new(
-                self.core.info.clone(),
-                writer,
-                args.concurrent(),
-            ))
-        };
+            let w = if args.append() {
+                ObsWriters::Two(oio::AppendWriter::new(writer))
+            } else {
+                ObsWriters::One(oio::MultipartWriter::new(
+                    ctx.executor().clone(),
+                    writer,
+                    args.concurrent(),
+                ))
+            };
 
-        Ok((RpWrite::default(), w))
+            Ok(w)
+        }?;
+
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(ObsDeleter::new(self.core.clone())),
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<ObsDeleter> = {
+            Ok(oio::OneShotDeleter::new(ObsDeleter::new(
+                self.core.clone(),
+                ctx.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<ObsLister> = {
+            let l = ObsLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+            );
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        let backend = self.clone();
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
+        Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
+            let resp = core.obs_copy_object(&ctx, &from, &to).await?;
+
+            let status = resp.status();
+
+            match status {
+                StatusCode::OK => Ok(MetadataBuilder::file(source_size).build()),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("CopyObject")),
+                    resp,
+                )),
+            }
+        }))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = ObsLister::new(self.core.clone(), path, args.recursive(), args.limit());
-        Ok((RpList::default(), oio::PageLister::new(l)))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _args: OpCopy) -> Result<RpCopy> {
-        let resp = self.core.obs_copy_object(from, to).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(RpCopy::default()),
-            _ => Err(parse_error(resp)),
-        }
-    }
-
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.obs_head_object_request(path, v),
-            PresignOperation::Read(v) => {
-                self.core
-                    .obs_get_object_request(path, BytesRange::default(), v)
-            }
+            PresignOperation::Read(range, v) => self.core.obs_get_object_request(path, *range, v),
             PresignOperation::Write(v) => {
                 self.core
                     .obs_put_object_request(path, None, v, Buffer::new())
@@ -395,7 +468,7 @@ impl Access for ObsBackend {
             )),
         };
         let req = req?;
-        let req = self.core.sign_query(req, args.expire()).await?;
+        let req = self.core.sign_query(ctx, req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

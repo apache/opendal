@@ -23,13 +23,15 @@ on:
       - main
     tags:
       - '*'
+    paths: &paths
+      - "bindings/lua/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_lua.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/lua/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_lua.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:
@@ -41,7 +43,8 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04's lua-busted installs Lua 5.1, which opendal-lua doesn't support.
+    runs-on: ubuntu-24.04
 
     steps:
       - uses: actions/checkout@v7

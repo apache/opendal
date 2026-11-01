@@ -150,7 +150,7 @@ impl SimulateService {
         let capability = self.srv.capability();
 
         if path == "/" {
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         if path.ends_with('/') {
@@ -171,15 +171,20 @@ impl SimulateService {
                 return Ok(RpStat::new(meta));
             }
 
-            if self.config.stat_dir && capability.list_with_recursive {
+            if self.config.stat_dir && capability.list {
                 let mut l = self.srv.list(
                     ctx,
                     path,
-                    OpList::default().with_recursive(true).with_limit(1),
+                    options::ListOptions {
+                        recursive: capability.list_with_recursive,
+                        limit: Some(1),
+                        ..Default::default()
+                    }
+                    .into(),
                 )?;
 
                 return if l.next().await?.is_some() {
-                    Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                    Ok(RpStat::new(MetadataBuilder::dir().build()))
                 } else {
                     Err(Error::new(
                         ErrorKind::NotFound,
@@ -261,15 +266,24 @@ impl SimulateService {
             ));
         }
 
-        let non_recursive = args.clone().with_recursive(false);
+        let mut non_recursive = args;
+        non_recursive.set_recursive(false);
 
-        let mut lister = self.simulate_list(ctx, path, OpList::new().with_recursive(true))?;
+        let mut lister = self.simulate_list(
+            ctx,
+            path,
+            options::ListOptions {
+                recursive: true,
+                ..Default::default()
+            }
+            .into(),
+        )?;
 
         while let Some(entry) = lister.next().await? {
             let entry = entry.into_entry();
             let mut entry_args = non_recursive.clone();
             if let Some(version) = entry.metadata().version() {
-                entry_args = entry_args.with_version(version);
+                entry_args = entry_args.into_version(version);
             }
             deleter.delete(entry.path(), entry_args).await?;
         }
@@ -284,6 +298,7 @@ impl Service for SimulateService {
     type Lister = SimulateLister;
     type Deleter = SimulateDeleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.srv.info()
@@ -328,9 +343,12 @@ impl Service for SimulateService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.srv.copy(ctx, from, to, args, opts)
+        self.srv.copy(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.srv.compose(ctx, to, args)
     }
 
     async fn rename(
@@ -341,6 +359,15 @@ impl Service for SimulateService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.srv.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.srv.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -411,10 +438,11 @@ impl SimulateReader {
             return Ok(v);
         }
 
-        let mut op = OpStat::new();
-        if let Some(version) = self.args.version() {
-            op = op.with_version(version);
+        let op = options::StatOptions {
+            version: self.args.version().map(str::to_owned),
+            ..Default::default()
         }
+        .into();
 
         Ok(self
             .srv
@@ -463,7 +491,7 @@ impl ServicerFlatLister {
         Self {
             ctx,
             srv,
-            next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
+            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }
@@ -625,12 +653,28 @@ mod tests {
         capability: Capability,
     }
 
+    struct MockLister(bool);
+
+    impl oio::List for MockLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            if self.0 {
+                return Ok(None);
+            }
+            self.0 = true;
+            Ok(Some(oio::Entry::new(
+                "parent/file",
+                MetadataBuilder::file(0).build(),
+            )))
+        }
+    }
+
     impl Service for MockService {
         type Reader = ();
         type Writer = ();
-        type Lister = ();
+        type Lister = MockLister;
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -681,20 +725,13 @@ mod tests {
         }
 
         fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))
+            if self.capability.list {
+                return Ok(MockLister(false));
+            }
+            Err(Error::new(ErrorKind::Unsupported, "list is not supported"))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -730,7 +767,10 @@ mod tests {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Box::new(Buffer::new()),
             ))
         }
@@ -738,7 +778,10 @@ mod tests {
         async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
             *self.observed_range.lock().expect("mutex must not poison") = Some(range);
             Ok((
-                RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0)),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(0);
+                    metadata.build()
+                }),
                 Buffer::new(),
             ))
         }
@@ -772,6 +815,26 @@ mod tests {
             .apply_service(srv);
 
         assert!(!srv.capability().read_with_suffix);
+    }
+
+    #[tokio::test]
+    async fn simulate_stat_dir_without_recursive_list() -> Result<()> {
+        let capability = Capability {
+            stat: true,
+            list: true,
+            list_with_recursive: false,
+            ..Default::default()
+        };
+        let srv = Arc::new(MockService { capability }) as Servicer;
+        let srv = SimulateLayer::default().apply_service(srv);
+
+        let metadata = srv
+            .stat(&OperationContext::new(), "parent/", OpStat::default())
+            .await?
+            .into_metadata();
+
+        assert_eq!(metadata.mode(), EntryMode::DIR);
+        Ok(())
     }
 
     #[tokio::test]

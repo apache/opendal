@@ -15,65 +15,97 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::os::raw::c_int;
-
-use pyo3::IntoPyObjectExt;
+use bytes::Buf;
+use bytes::Bytes;
+use pyo3::exceptions::PyOverflowError;
 use pyo3::ffi;
 use pyo3::prelude::*;
+use pyo3::pybacked::PyBackedBytes;
+use pyo3::types::PyAny;
+use pyo3::types::PyBytes;
 
-/// A bytes-like object that implements buffer protocol.
-#[pyclass(module = "opendal")]
-pub struct Buffer {
-    inner: Vec<u8>,
+use crate::ocore;
+
+/// Keep immutable Python bytes alive inside an OpenDAL buffer without copying.
+pub fn py_bytes_like_into_buffer(value: &Bound<PyAny>) -> PyResult<ocore::Buffer> {
+    if let Ok(value) = value.cast::<PyBytes>() {
+        let owner = PyBackedBytes::from(value.clone());
+        return Ok(Bytes::from_owner(owner).into());
+    }
+
+    value.extract::<Vec<u8>>().map(Into::into)
 }
 
-impl Buffer {
-    pub fn new(inner: Vec<u8>) -> Self {
-        Buffer { inner }
-    }
+/// Copy an OpenDAL buffer directly into a new Python `bytes` object.
+pub fn buffer_into_py_bytes<'py>(
+    py: Python<'py>,
+    mut buffer: ocore::Buffer,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let len = buffer.remaining();
+    let py_len = len
+        .try_into()
+        .map_err(|_| PyOverflowError::new_err("buffer is too large for Python bytes"))?;
 
-    /// Consume self to build a bytes
-    pub fn into_bytes(self, py: Python) -> PyResult<Py<PyAny>> {
-        let buffer = self.into_py_any(py)?;
+    unsafe {
+        let bytes = Bound::from_owned_ptr_or_err(
+            py,
+            ffi::PyBytes_FromStringAndSize(std::ptr::null(), py_len),
+        )?
+        .cast_into_unchecked::<PyBytes>();
 
-        unsafe {
-            Bound::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr()))
-                .map(Bound::unbind)
-        }
-    }
+        // PyBytes_FromStringAndSize with a null source allocates an uninitialized
+        // buffer. `buffer` has exactly `len` remaining bytes, so copy_to_slice
+        // initializes the entire Python object before it becomes observable.
+        let dst =
+            std::slice::from_raw_parts_mut(ffi::PyBytes_AsString(bytes.as_ptr()).cast::<u8>(), len);
+        buffer.copy_to_slice(dst);
 
-    /// Consume self to build a bytes
-    pub fn into_bytes_ref(self, py: Python) -> PyResult<Bound<PyAny>> {
-        let buffer = self.into_py_any(py)?;
-        let view =
-            unsafe { Bound::from_owned_ptr_or_err(py, ffi::PyBytes_FromObject(buffer.as_ptr()))? };
-
-        Ok(view)
+        Ok(bytes)
     }
 }
 
-#[pymethods]
-impl Buffer {
-    unsafe fn __getbuffer__(
-        slf: PyRefMut<Self>,
-        view: *mut ffi::Py_buffer,
-        flags: c_int,
-    ) -> PyResult<()> {
-        let bytes = slf.inner.as_slice();
-        let ret = unsafe {
-            ffi::PyBuffer_FillInfo(
-                view,
-                slf.as_ptr() as *mut _,
-                bytes.as_ptr() as *mut _,
-                bytes.len().try_into().unwrap(),
-                1, // read only
-                flags,
-            )
-        };
-        if ret == -1 {
-            return Err(PyErr::fetch(slf.py()));
-        }
-        Ok(())
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use pyo3::types::PyBytesMethods;
+
+    use super::*;
+
+    #[test]
+    fn test_buffer_into_py_bytes() {
+        Python::initialize();
+        Python::attach(|py| {
+            let buffer = [Bytes::from_static(b"hello, "), Bytes::from_static(b"world")]
+                .into_iter()
+                .collect();
+            let result = buffer_into_py_bytes(py, buffer).unwrap();
+            assert_eq!(result.as_bytes(), b"hello, world");
+
+            let result = buffer_into_py_bytes(py, ocore::Buffer::new()).unwrap();
+            assert!(result.as_bytes().is_empty());
+        });
+    }
+
+    #[test]
+    fn test_py_bytes_like_into_buffer() {
+        Python::initialize();
+        let (buffer, source_ptr) = Python::attach(|py| {
+            let value = PyBytes::new(py, b"hello, world");
+            let source_ptr = value.as_bytes().as_ptr();
+            let buffer = py_bytes_like_into_buffer(value.as_any()).unwrap();
+            (buffer, source_ptr)
+        });
+
+        assert_eq!(buffer.current().as_ptr(), source_ptr);
+        assert_eq!(buffer.to_vec(), b"hello, world");
+
+        let buffer = Python::attach(|py| {
+            let value = pyo3::types::PyByteArray::new(py, b"mutable");
+            let buffer = py_bytes_like_into_buffer(value.as_any()).unwrap();
+            value.set_item(0, b'M').unwrap();
+            buffer
+        });
+        assert_eq!(buffer.to_vec(), b"mutable");
     }
 }
 

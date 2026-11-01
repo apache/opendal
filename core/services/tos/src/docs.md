@@ -10,7 +10,7 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] list
 - [x] copy
 - [ ] rename
-- [ ] presign
+- [x] presign
 
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.

@@ -81,7 +81,10 @@ impl oio::PageList for GcsLister {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjects")),
+                resp,
+            ));
         }
         let bytes = resp.into_body();
 
@@ -97,7 +100,7 @@ impl oio::PageList for GcsLister {
         for prefix in output.prefixes {
             let de = oio::Entry::new(
                 &build_rel_path(&self.core.root, &prefix),
-                Metadata::new(EntryMode::DIR),
+                MetadataBuilder::dir().build(),
             );
 
             ctx.entries.push_back(de);
@@ -113,23 +116,29 @@ impl oio::PageList for GcsLister {
                 continue;
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
-
-            // set metadata fields
-            meta.set_content_md5(object.md5_hash.as_str());
-            meta.set_etag(object.etag.as_str());
-
             let size = object.size.parse().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "parse u64 from list response").set_source(e)
             })?;
-            meta.set_content_length(size);
-            if !object.content_type.is_empty() {
-                meta.set_content_type(&object.content_type);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(size)
+            };
+
+            // set metadata fields
+            meta.content_md5(object.md5_hash.as_str());
+            meta.etag(object.etag.as_str());
+            if !object.generation.is_empty() {
+                meta.version(&object.generation);
             }
 
-            meta.set_last_modified(object.updated.parse::<Timestamp>()?);
+            if !object.content_type.is_empty() {
+                meta.content_type(&object.content_type);
+            }
 
-            let de = oio::Entry::with(path, meta);
+            meta.last_modified(object.updated.parse::<Timestamp>()?);
+
+            let de = oio::Entry::with(path, meta.build());
 
             ctx.entries.push_back(de);
         }

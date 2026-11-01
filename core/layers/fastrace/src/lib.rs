@@ -141,6 +141,7 @@ impl Service for FastraceAccessor {
     type Lister = FastraceWrapper<oio::Lister>;
     type Deleter = FastraceWrapper<oio::Deleter>;
     type Copier = FastraceWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -148,6 +149,10 @@ impl Service for FastraceAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -186,10 +191,9 @@ impl Service for FastraceAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let _guard = Span::enter_with_local_parent(Operation::Copy.into_static());
-        self.inner.copy(ctx, from, to, args, opts).map(|c| {
+        self.inner.copy(ctx, from, to, args).map(|c| {
             FastraceWrapper::new(
                 Span::enter_with_local_parent(Operation::Copy.into_static()),
                 c,
@@ -206,6 +210,16 @@ impl Service for FastraceAccessor {
     ) -> Result<RpRename> {
         let _guard = Span::enter_with_local_parent(Operation::Rename.into_static());
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let _guard = Span::enter_with_local_parent(Operation::Restore.into_static());
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -305,6 +319,18 @@ impl<R: oio::Write> oio::Write for FastraceWrapper<R> {
         let _guard = self.span.set_local_parent();
         let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
         self.inner.write(bs)
+    }
+
+    fn copy_from(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        range: BytesRange,
+    ) -> impl Future<Output = Result<()>> + MaybeSend {
+        let _guard = self.span.set_local_parent();
+        let _span = LocalSpan::enter_with_local_parent(Operation::Write.into_static());
+        let path = path.to_string();
+        async move { self.inner.copy_from(&path, args, range).await }
     }
 
     fn abort(&mut self) -> impl Future<Output = Result<()>> + MaybeSend {

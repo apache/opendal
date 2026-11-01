@@ -734,6 +734,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     type Lister = MetricsWrapper<oio::Lister, I>;
     type Deleter = MetricsWrapper<oio::Deleter, I>;
     type Copier = MetricsWrapper<oio::Copier, I>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -741,6 +742,10 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -842,7 +847,6 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
@@ -853,7 +857,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.copy(ctx, from, to, args, opts.clone()) {
+        match self.inner.copy(ctx, from, to, args) {
             Ok(copier) => {
                 guard.defuse();
                 Ok(MetricsWrapper::new(
@@ -893,6 +897,41 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
         let res = self
             .inner
             .rename(ctx, from, to, args)
+            .await
+            .inspect(|_| {
+                self.interceptor.observe(
+                    labels.clone(),
+                    MetricValue::OperationDurationSeconds(start.elapsed()),
+                );
+            })
+            .inspect_err(|err| {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+            });
+
+        guard.complete();
+        res
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let labels = MetricLabels::new(self.info.clone(), Operation::Restore.into_static());
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        let res = self
+            .inner
+            .restore(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -1213,6 +1252,20 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             .await
             .inspect(|_| {
                 self.size += size as u64;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|_| {
+                self.size += size;
             })
             .inspect_err(|err| self.record_error(err))
     }

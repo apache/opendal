@@ -36,7 +36,7 @@ class AwsFailure(Exception):
 
 
 def main():
-    result_dir = Path(os.environ["OPENDAL_TASK_RESULT_DIR"])
+    result_dir = Path(os.environ["RUNNER_TEMP"]) / "task-pr6531"
     result_dir.mkdir(parents=True, exist_ok=False)
     summary = {"cases": [], "cleanup_verified": 0, "passed": False}
     owned = []
@@ -112,10 +112,12 @@ def main():
                     flags = [] if value is None else [
                         "--bucket-key-enabled" if value else "--no-bucket-key-enabled"
                     ]
+                    item = {"suffix": suffix, "version": None, "put_confirmed": False}
+                    owned.append(item)
                     put = request("put-object", suffix, "--body", str(body),
                                   "--server-side-encryption", "aws:kms", *flags)
                     version_id = put.get("VersionId")
-                    owned.append({"suffix": suffix, "version": version_id})
+                    item.update(version=version_id, put_confirmed=True)
                     selector = ["--version-id", version_id] if version_id is not None else []
                     head = request("head-object", suffix, *selector)
                     if version_id is not None:
@@ -135,8 +137,17 @@ def main():
                     print("CASE " + json.dumps(case), flush=True)
             finally:
                 for item in reversed(owned):
-                    selector = ["--version-id", item["version"]] if item["version"] is not None else []
                     try:
+                        if not item["put_confirmed"]:
+                            try:
+                                discovered = request("head-object", item["suffix"])
+                            except AwsFailure as failure:
+                                if failure.code in ("404", "NotFound", "NoSuchKey", "NoSuchVersion"):
+                                    summary["cleanup_verified"] += 1
+                                    continue
+                                raise
+                            item["version"] = discovered.get("VersionId")
+                        selector = ["--version-id", item["version"]] if item["version"] is not None else []
                         request("delete-object", item["suffix"], *selector)
                         request("head-object", item["suffix"], *selector, expected_absent=True)
                         summary["cleanup_verified"] += 1

@@ -20,11 +20,6 @@ run-name: Task PR6531 real AWS Bucket Key baseline
 
 on:
   workflow_dispatch:
-    inputs:
-      pr_number:
-        required: true
-        default: "6531"
-        type: string
 
 permissions:
   contents: read
@@ -34,16 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      OPENDAL_TASK_RESULT_DIR: ${{ runner.temp }}/task-pr6531
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
     steps:
       - uses: actions/checkout@v7
-      - name: Setup 1Password Connect
-        shell: bash
-        run: |
-          echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
-          echo "::add-mask::${{ secrets.OP_CONNECT_TOKEN }}"
-          echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
-          echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
       - name: Setup existing AWS S3 fixture
         uses: ./.github/services/s3/aws_s3
       - name: Verify object-level SSE-KMS Bucket Key behavior

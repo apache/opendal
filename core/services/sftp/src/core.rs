@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use asyncband::pool::{ManageObject, ObjectStatus, bounded};
+use asyncband::pool::{ManageObject, ObjectStatus, unbounded};
+use asyncband::semaphore::{OwnedSemaphorePermit, Semaphore};
 use log::debug;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -24,6 +25,7 @@ use openssh::SessionBuilder;
 use openssh_sftp_client::Sftp;
 use openssh_sftp_client::SftpOptions;
 use std::fmt::Debug;
+use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -33,7 +35,9 @@ pub struct SftpCore {
     pub capability: Capability,
     pub endpoint: String,
     pub root: String,
-    client: Arc<bounded::Pool<Manager>>,
+    client: Arc<unbounded::Pool<Sftp, Manager>>,
+    capacity: Arc<Semaphore>,
+    acquire_timeout: Option<Duration>,
 }
 
 impl Debug for SftpCore {
@@ -49,22 +53,12 @@ impl SftpCore {
     pub fn new(
         info: ServiceInfo,
         capability: Capability,
-        endpoint: String,
-        root: String,
-        user: Option<String>,
-        key: Option<String>,
-        known_hosts_strategy: KnownHosts,
+        manager: Manager,
+        acquire_timeout: Option<Duration>,
     ) -> Self {
-        let client = bounded::Pool::new(
-            bounded::PoolConfig::new(64),
-            Manager {
-                endpoint: endpoint.clone(),
-                root: root.clone(),
-                user,
-                key,
-                known_hosts_strategy,
-            },
-        );
+        let endpoint = manager.endpoint.clone();
+        let root = manager.root.clone();
+        let client = unbounded::Pool::new(unbounded::PoolConfig::default(), manager);
 
         SftpCore {
             info,
@@ -72,30 +66,56 @@ impl SftpCore {
             endpoint,
             root,
             client,
+            capacity: Arc::new(Semaphore::new(64)),
+            acquire_timeout,
         }
     }
 
-    pub async fn connect(&self) -> Result<bounded::Object<Manager>> {
-        let fut = self.client.get();
+    pub async fn connect(&self) -> Result<SftpConnection> {
+        let acquire = self.capacity.clone().acquire_owned(1);
+        let permit = match self.acquire_timeout {
+            Some(timeout) => tokio::time::timeout(timeout, acquire)
+                .await
+                .map_err(|err| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "waiting for SFTP connection capacity timed out",
+                    )
+                    .set_temporary()
+                    .set_source(err)
+                })?,
+            None => acquire.await,
+        };
 
-        tokio::select! {
-            _ = tokio::time::sleep(Duration::from_secs(10)) => {
-                Err(Error::new(ErrorKind::Unexpected, "connection request: timeout").set_temporary())
-            }
-            result = fut => match result {
-                Ok(conn) => Ok(conn),
-                Err(err) => Err(err),
-            }
-        }
+        let object = self.client.get().await?;
+        Ok(SftpConnection {
+            object,
+            _permit: permit,
+        })
+    }
+}
+
+pub struct SftpConnection {
+    // Return the object to the pool before releasing capacity to another checkout.
+    object: unbounded::Object<Sftp, Manager>,
+    _permit: OwnedSemaphorePermit,
+}
+
+impl Deref for SftpConnection {
+    type Target = Sftp;
+
+    fn deref(&self) -> &Self::Target {
+        &self.object
     }
 }
 
 pub struct Manager {
-    endpoint: String,
-    root: String,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: KnownHosts,
+    pub(super) endpoint: String,
+    pub(super) root: String,
+    pub(super) user: Option<String>,
+    pub(super) key: Option<String>,
+    pub(super) known_hosts_strategy: KnownHosts,
+    pub(super) connect_timeout: Option<Duration>,
 }
 
 impl ManageObject for Manager {
@@ -111,6 +131,10 @@ impl ManageObject for Manager {
 
         if let Some(key) = &self.key {
             session.keyfile(key);
+        }
+
+        if let Some(timeout) = self.connect_timeout {
+            session.connect_timeout(timeout);
         }
 
         session.known_hosts_check(self.known_hosts_strategy.clone());
@@ -252,3 +276,35 @@ mod utils {
 }
 
 pub(super) use utils::*;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn saturated_capacity_times_out_before_connection_creation() {
+        let core = SftpCore::new(
+            ServiceInfo::new("sftp", "", ""),
+            Capability::default(),
+            Manager {
+                endpoint: String::new(),
+                root: String::new(),
+                user: None,
+                key: None,
+                known_hosts_strategy: KnownHosts::Strict,
+                connect_timeout: None,
+            },
+            Some(Duration::from_millis(1)),
+        );
+        let held = core.capacity.clone().acquire_owned(64).await;
+
+        let error = core.connect().await.err().expect("all checkouts are held");
+        assert_eq!(error.kind(), ErrorKind::Unexpected);
+        assert!(error.is_temporary());
+        assert!(error.message().contains("capacity"));
+        assert_eq!(core.capacity.available_permits(), 0);
+
+        drop(held);
+        assert_eq!(core.capacity.available_permits(), 64);
+    }
+}

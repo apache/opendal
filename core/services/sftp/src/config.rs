@@ -37,6 +37,16 @@ pub struct SftpConfig {
     pub key: Option<String>,
     /// known_hosts_strategy of this backend
     pub known_hosts_strategy: Option<String>,
+    /// Timeout for the TCP connection and initial SSH handshake/key exchange.
+    ///
+    /// Defaults to `10s`. Accepts whole seconds; `0s` uses OpenSSH configuration.
+    /// Authentication and SFTP initialization are outside this timeout.
+    pub connect_timeout: Option<String>,
+    /// Timeout for waiting for an available pooled connection checkout.
+    ///
+    /// Defaults to `10s`. Accepts subsecond durations; `0s` disables this timeout.
+    /// It does not limit connection creation or validation after admission.
+    pub acquire_timeout: Option<String>,
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",

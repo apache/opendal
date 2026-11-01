@@ -3454,6 +3454,18 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
+         * <p>Timeout for waiting for an available pooled connection checkout.</p>
+         * <p>Defaults to <code>10s</code>. Accepts subsecond durations; <code>0s</code> disables this timeout.
+         * It does not limit connection creation or validation after admission.</p>
+         */
+        public final String acquireTimeout;
+        /**
+         * <p>Timeout for the TCP connection and initial SSH handshake/key exchange.</p>
+         * <p>Defaults to <code>10s</code>. Accepts whole seconds; <code>0s</code> uses OpenSSH configuration.
+         * Authentication and SFTP initialization are outside this timeout.</p>
+         */
+        public final String connectTimeout;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3488,6 +3500,12 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (acquireTimeout != null) {
+                map.put("acquire_timeout", acquireTimeout);
+            }
+            if (connectTimeout != null) {
+                map.put("connect_timeout", connectTimeout);
+            }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));
             }

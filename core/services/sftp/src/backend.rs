@@ -18,12 +18,14 @@
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use log::debug;
 use openssh::KnownHosts;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
+use super::core::Manager;
 use super::core::SftpCore;
 use super::core::is_sftp_protocol_error;
 use super::core::parse_sftp_error;
@@ -110,6 +112,29 @@ impl SftpBuilder {
         self
     }
 
+    /// Sets the TCP connection and initial SSH handshake/key exchange timeout.
+    ///
+    /// Defaults to 10 seconds. Zero uses OpenSSH's configured timeout.
+    /// OpenSSH accepts only whole seconds; a fractional-second value returns
+    /// [`ErrorKind::ConfigInvalid`] when building the service.
+    /// This does not limit authentication or SFTP
+    /// initialization. Use [`opendal_core::layers::TimeoutLayer`] for an overall
+    /// operation deadline.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.config.connect_timeout = Some(format!("{timeout:?}"));
+        self
+    }
+
+    /// Sets the timeout for waiting for an available connection checkout.
+    ///
+    /// Defaults to 10 seconds. Zero disables this timeout. Subsecond durations
+    /// retain their precision. After admission, this timeout does not limit
+    /// connection creation or validation.
+    pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
+        self.config.acquire_timeout = Some(format!("{timeout:?}"));
+        self
+    }
+
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -131,6 +156,30 @@ impl Builder for SftpBuilder {
         };
 
         let user = self.config.user.clone();
+
+        let connect_timeout = self
+            .config
+            .connect_timeout
+            .as_deref()
+            .map(signed_to_duration)
+            .transpose()?
+            .unwrap_or(Duration::from_secs(10));
+        if connect_timeout.subsec_nanos() != 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "connect_timeout must be a whole number of seconds",
+            ));
+        }
+        let connect_timeout = (!connect_timeout.is_zero()).then_some(connect_timeout);
+
+        let acquire_timeout = self
+            .config
+            .acquire_timeout
+            .as_deref()
+            .map(signed_to_duration)
+            .transpose()?
+            .unwrap_or(Duration::from_secs(10));
+        let acquire_timeout = (!acquire_timeout.is_zero()).then_some(acquire_timeout);
 
         let root = self
             .config
@@ -185,11 +234,15 @@ impl Builder for SftpBuilder {
         let core = Arc::new(SftpCore::new(
             info,
             capability,
-            endpoint,
-            root,
-            user,
-            self.config.key.clone(),
-            known_hosts_strategy,
+            Manager {
+                endpoint,
+                root,
+                user,
+                key: self.config.key.clone(),
+                known_hosts_strategy,
+                connect_timeout,
+            },
+            acquire_timeout,
         ));
 
         debug!("sftp backend finished: {:?}", self);
@@ -297,16 +350,15 @@ impl Service for SftpBackend {
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
-            let client = backend.core.connect().await?;
-
-            let mut fs = client.fs();
-            fs.set_cwd(&backend.core.root);
-
             if let Some((dir, _)) = to.rsplit_once('/') {
                 backend
                     .create_dir(&ctx, dir, OpCreateDir::default())
                     .await?;
             }
+
+            let client = backend.core.connect().await?;
+            let mut fs = client.fs();
+            fs.set_cwd(&backend.core.root);
 
             let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
             let dst = fs.canonicalize(&to).await.map_err(parse_sftp_error)?;
@@ -344,14 +396,13 @@ impl Service for SftpBackend {
         to: &str,
         _: OpRename,
     ) -> Result<RpRename> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
         if let Some((dir, _)) = to.rsplit_once('/') {
             self.create_dir(ctx, dir, OpCreateDir::default()).await?;
         }
+
+        let client = self.core.connect().await?;
+        let mut fs = client.fs();
+        fs.set_cwd(&self.core.root);
         fs.rename(from, to).await.map_err(parse_sftp_error)?;
 
         Ok(RpRename::default())
@@ -367,5 +418,86 @@ impl Service for SftpBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn acquire_timeout_builder_preserves_precision() {
+        for timeout in [
+            Duration::ZERO,
+            Duration::from_nanos(1),
+            Duration::from_millis(500),
+            Duration::from_millis(1500),
+        ] {
+            let builder = SftpBuilder::default()
+                .endpoint("unused.invalid")
+                .acquire_timeout(timeout);
+            let encoded = builder.config.acquire_timeout.as_deref().unwrap();
+            assert_eq!(signed_to_duration(encoded).unwrap(), timeout);
+            assert!(builder.build().is_ok());
+        }
+    }
+
+    #[test]
+    fn timeout_options_from_map() {
+        for connect in ["0s", "2s", "PT10S"] {
+            let config = SftpConfig::from_iter(
+                [
+                    ("endpoint", "unused.invalid"),
+                    ("connect_timeout", connect),
+                    ("acquire_timeout", "1500ms"),
+                ]
+                .map(|(key, value)| (key.to_string(), value.to_string())),
+            )
+            .unwrap();
+            assert!(config.into_builder().build().is_ok());
+        }
+
+        assert!(
+            SftpBuilder::default()
+                .endpoint("unused.invalid")
+                .connect_timeout(Duration::ZERO)
+                .acquire_timeout(Duration::ZERO)
+                .build()
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn fractional_connect_timeout_is_rejected() {
+        for timeout in [Duration::from_millis(500), Duration::from_millis(1500)] {
+            let error = SftpBuilder::default()
+                .endpoint("unused.invalid")
+                .connect_timeout(timeout)
+                .build()
+                .err()
+                .expect("fractional OpenSSH timeout must be rejected");
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+
+            let mut config = SftpConfig::default();
+            config.endpoint = Some("unused.invalid".to_string());
+            config.connect_timeout = Some(format!("{timeout:?}"));
+            let error = config.into_builder().build().err().unwrap();
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn invalid_timeout_options_are_rejected() {
+        for value in ["-1s", "invalid", "999999999999999999999999s"] {
+            for option in ["connect_timeout", "acquire_timeout"] {
+                let config = SftpConfig::from_iter(
+                    [("endpoint", "unused.invalid"), (option, value)]
+                        .map(|(key, value)| (key.to_string(), value.to_string())),
+                )
+                .unwrap();
+                let error = config.into_builder().build().err().unwrap();
+                assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+            }
+        }
     }
 }

@@ -832,6 +832,10 @@ class SftpConfig(TypedDict):
 
     scheme: Required[Literal["sftp"]]
     """The service scheme; fixed to `"sftp"`."""
+    acquire_timeout: NotRequired[str]
+    """Timeout for waiting for an available pooled connection checkout.  Defaults to `10s`. Accepts subsecond durations; `0s` disables this timeout. It does not limit connection creation or validation after admission."""
+    connect_timeout: NotRequired[str]
+    """Timeout for the TCP connection and initial SSH handshake/key exchange.  Defaults to `10s`. Accepts whole seconds; `0s` uses OpenSSH configuration. Authentication and SFTP initialization are outside this timeout."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]

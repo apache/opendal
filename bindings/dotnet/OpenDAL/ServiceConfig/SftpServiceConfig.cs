@@ -29,6 +29,14 @@ namespace OpenDAL.ServiceConfig
     public sealed class SftpServiceConfig : IServiceConfig
     {
         /// <summary>
+        /// Timeout for waiting for an available pooled connection checkout. Defaults to `10s`. Accepts subsecond durations; `0s` disables this timeout. It does not limit connection creation or validation after admission.
+        /// </summary>
+        public string? AcquireTimeout { get; init; }
+        /// <summary>
+        /// Timeout for the TCP connection and initial SSH handshake/key exchange. Defaults to `10s`. Accepts whole seconds; `0s` uses OpenSSH configuration. Authentication and SFTP initialization are outside this timeout.
+        /// </summary>
+        public string? ConnectTimeout { get; init; }
+        /// <summary>
         /// Deprecated: SFTP copy capability is enabled by default.
         /// </summary>
         [System.Obsolete("SFTP copy capability is enabled by default and this option is no longer needed.")]
@@ -59,6 +67,14 @@ namespace OpenDAL.ServiceConfig
         public IReadOnlyDictionary<string, string> ToOptions()
         {
             var map = new Dictionary<string, string>();
+            if (AcquireTimeout is not null)
+            {
+                map["acquire_timeout"] = Utilities.ToOptionString(AcquireTimeout);
+            }
+            if (ConnectTimeout is not null)
+            {
+                map["connect_timeout"] = Utilities.ToOptionString(ConnectTimeout);
+            }
 #pragma warning disable CS0618
             if (EnableCopy is not null)
             {

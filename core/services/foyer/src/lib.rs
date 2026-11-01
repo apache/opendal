@@ -15,22 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Foyer service implementation for Apache OpenDAL.
-//!
-//! Foyer is a high-performance hybrid cache library that supports both
-//! in-memory and on-disk caching. This service provides foyer as a
-//! volatile KV storage backend, similar to using Redis as a cache.
-//!
-//! Note: Data stored in foyer may be evicted when the cache is full.
-//! Do not use this service for persistent storage.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
 mod backend;
 mod config;
 mod core;
 mod deleter;
+mod reader;
 mod writer;
 
 use std::ops::Deref;
@@ -43,16 +37,44 @@ use opendal_core::Buffer;
 pub use backend::FoyerBuilder as Foyer;
 pub use config::FoyerConfig;
 
-/// Default scheme for foyer service.
+/// URI scheme used for service registration and scheme-driven construction.
 pub const FOYER_SCHEME: &str = "foyer";
 
 /// [`FoyerKey`] is a key for the foyer cache.
 ///
-/// It uses bincode (via serde) for efficient serialization.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+/// It implements foyer's [`Code`] trait directly, so the service does not depend on
+/// foyer's `serde` feature (and its bincode dependency).
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
     /// The path of the key.
     pub path: String,
+}
+
+impl Code for FoyerKey {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
+        let path = self.path.as_bytes();
+        writer.write_all(&(path.len() as u64).to_le_bytes())?;
+        writer.write_all(path)?;
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
+    where
+        Self: Sized,
+    {
+        let mut len_bytes = [0u8; 8];
+        reader.read_exact(&mut len_bytes)?;
+        let len = u64::from_le_bytes(len_bytes) as usize;
+        let mut buf = vec![0u8; len];
+        reader.read_exact(&mut buf)?;
+        let path = String::from_utf8(buf)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+        Ok(FoyerKey { path })
+    }
+
+    fn estimated_size(&self) -> usize {
+        8 + self.path.len()
+    }
 }
 
 /// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
@@ -92,7 +114,12 @@ impl Code for FoyerValue {
     }
 }
 
-/// Register this service into the given registry.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 pub fn register_foyer_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Foyer>(FOYER_SCHEME);
 }
@@ -102,6 +129,7 @@ mod tests {
     use foyer::{
         BlockEngineConfig, DeviceBuilder, FsDeviceBuilder, HybridCacheBuilder, RecoverMode,
     };
+    use opendal_core::ErrorKind;
     use opendal_core::Operator;
     use size::consts::MiB;
 
@@ -137,7 +165,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap();
 
         // Write some data
         for i in 0..10 {
@@ -190,7 +218,7 @@ mod tests {
             .await
             .unwrap();
 
-        let op = Operator::new(Foyer::new().cache(cache)).unwrap().finish();
+        let op = Operator::new(Foyer::new().cache(cache)).unwrap();
 
         let data: Vec<u8> = (0..100).collect();
         op.write("test", data.clone()).await.unwrap();
@@ -198,6 +226,18 @@ mod tests {
         // Range read
         let buf = op.read_with("test").range(10..20).await.unwrap();
         assert_eq!(buf.to_vec(), data[10..20]);
+
+        let err = op.read_with("test").range(95..105).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let buf = op.read_with("test").range(100..).await.unwrap();
+        assert!(buf.is_empty());
+
+        let buf = op.read_with("test").range(200..).await.unwrap();
+        assert!(buf.is_empty());
+
+        let buf = op.read_with("test").range(200..200).await.unwrap();
+        assert!(buf.is_empty());
     }
 
     #[tokio::test]
@@ -214,8 +254,7 @@ mod tests {
                 .recover_mode("none")
                 .shards(1),
         )
-        .unwrap()
-        .finish();
+        .unwrap();
 
         // Write some data
         for i in 0..5 {

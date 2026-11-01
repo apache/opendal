@@ -28,8 +28,14 @@ use super::backend::GcsBuilder;
 #[non_exhaustive]
 pub struct GcsConfig {
     /// root URI, all operations happens under `root`
+    ///
+    /// <!-- @group General -->
+    /// <!-- @default / -->
     pub root: Option<String>,
     /// bucket name
+    ///
+    /// <!-- @group General -->
+    /// <!-- @example my-bucket -->
     #[serde(
         alias = "google_bucket",
         alias = "google_bucket_name",
@@ -38,10 +44,17 @@ pub struct GcsConfig {
     pub bucket: String,
     /// endpoint URI of GCS service,
     /// default is `https://storage.googleapis.com`
+    ///
+    /// <!-- @group General -->
+    /// <!-- @default https://storage.googleapis.com -->
     pub endpoint: Option<String>,
     /// Scope for gcs.
+    ///
+    /// <!-- @group General -->
     pub scope: Option<String>,
     /// Service Account for gcs.
+    ///
+    /// <!-- @group Credentials -->
     #[serde(
         alias = "google_service_account",
         alias = "google_service_account_path",
@@ -49,20 +62,32 @@ pub struct GcsConfig {
     )]
     pub service_account: Option<String>,
     /// Credentials string for GCS service OAuth2 authentication.
+    ///
+    /// <!-- @group Credentials -->
     #[serde(alias = "google_service_account_key", alias = "service_account_key")]
     pub credential: Option<String>,
     /// Local path to credentials file for GCS service OAuth2 authentication.
+    ///
+    /// <!-- @group Credentials -->
     #[serde(alias = "google_application_credentials")]
     pub credential_path: Option<String>,
     /// The predefined acl for GCS.
+    ///
+    /// <!-- @group Behavior -->
     pub predefined_acl: Option<String>,
     /// The default storage class used by gcs.
+    ///
+    /// <!-- @group Behavior -->
     pub default_storage_class: Option<String>,
     /// Skip signature will skip loading credentials and signing requests.
+    ///
+    /// <!-- @group Credentials -->
     #[serde(alias = "google_skip_signature")]
     pub skip_signature: bool,
     /// Allow opendal to send requests without signing when credentials are not
     /// loaded.
+    ///
+    /// <!-- @group Deprecated -->
     #[deprecated(
         since = "0.57.0",
         note = "Please use `skip_signature` instead of `allow_anonymous`"
@@ -70,12 +95,18 @@ pub struct GcsConfig {
     pub allow_anonymous: bool,
     /// Disable attempting to load credentials from the GCE metadata server when
     /// running within Google Cloud.
+    ///
+    /// <!-- @group Credentials -->
     pub disable_vm_metadata: bool,
     /// Disable loading configuration from the environment.
+    ///
+    /// <!-- @group Credentials -->
     pub disable_config_load: bool,
     /// A Google Cloud OAuth2 token.
     ///
     /// Takes precedence over `credential` and `credential_path`.
+    ///
+    /// <!-- @group Credentials -->
     pub token: Option<String>,
 }
 

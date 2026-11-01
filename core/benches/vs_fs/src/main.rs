@@ -32,7 +32,7 @@ fn main() {
 
 fn bench_vs_fs(c: &mut Criterion) {
     let cfg = services::Fs::default().root("/tmp/opendal/");
-    let op = Operator::new(cfg).unwrap().finish();
+    let op = Operator::new(cfg).unwrap();
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let _guard = runtime.enter();

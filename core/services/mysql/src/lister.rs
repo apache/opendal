@@ -18,10 +18,10 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::oio::{Entry, List};
 use opendal_core::raw::{build_abs_path, build_rel_path};
-use opendal_core::{EntryMode, Metadata};
 
 use super::core::MysqlCore;
 
@@ -47,7 +47,45 @@ impl List for MysqlLister {
         if path.is_empty() {
             path = "/".to_string();
         }
-        let meta = Metadata::new(EntryMode::from_path(&path));
-        Ok(Some(Entry::new(&path, meta)))
+        let meta = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::unknown()
+        };
+        Ok(Some(Entry::new(&path, meta.build())))
+    }
+}
+
+pub struct MysqlLazyLister {
+    core: Arc<MysqlCore>,
+    root: String,
+    path: String,
+    inner: Option<MysqlLister>,
+}
+
+impl MysqlLazyLister {
+    pub fn new(core: Arc<MysqlCore>, root: String, path: String) -> Self {
+        Self {
+            core,
+            root,
+            path,
+            inner: None,
+        }
+    }
+}
+
+impl List for MysqlLazyLister {
+    async fn next(&mut self) -> Result<Option<Entry>> {
+        if self.inner.is_none() {
+            self.inner = Some(
+                MysqlLister::new(self.core.clone(), self.root.clone(), self.path.clone()).await?,
+            );
+        }
+
+        self.inner
+            .as_mut()
+            .expect("lister must be initialized")
+            .next()
+            .await
     }
 }

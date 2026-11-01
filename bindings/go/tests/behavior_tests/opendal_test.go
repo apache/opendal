@@ -1,21 +1,19 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 package opendal_test
 
@@ -26,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -62,7 +61,7 @@ type behaviorTest = func(assert *require.Assertions, op *opendal.Operator, fixtu
 func TestBehavior(t *testing.T) {
 	assert := require.New(t)
 
-	cap := op.Info().GetFullCapability()
+	cap := op.Info().GetCapability()
 
 	var tests []behaviorTest
 
@@ -154,6 +153,49 @@ func assertErrorCode(err error) opendal.ErrorCode {
 	return err.(*opendal.Error).Code()
 }
 
+// parsedOverrides is lazily parsed from OPENDAL_TEST_CAPABILITY_OVERRIDES.
+var parsedOverrides map[string]bool
+
+func getCapOverrides() map[string]bool {
+	if parsedOverrides != nil {
+		return parsedOverrides
+	}
+	raw := os.Getenv("OPENDAL_TEST_CAPABILITY_OVERRIDES")
+	parsedOverrides = make(map[string]bool)
+	if raw == "" {
+		return parsedOverrides
+	}
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		v, err := strconv.ParseBool(strings.TrimSpace(kv[1]))
+		if err != nil {
+			continue
+		}
+		parsedOverrides[strings.TrimSpace(kv[0])] = v
+	}
+	return parsedOverrides
+}
+
+// isCapEnabled checks both the capability reported by the operator and any
+// test-level overrides set via OPENDAL_TEST_CAPABILITY_OVERRIDES.
+func isCapEnabled(check func() bool, name string) bool {
+	if !check() {
+		return false
+	}
+	overrides := getCapOverrides()
+	if v, ok := overrides[name]; ok {
+		return v
+	}
+	return true
+}
+
 func genBytesWithRange(min, max uint) ([]byte, uint) {
 	diff := max - min
 	n, _ := rand.Int(rand.Reader, big.NewInt(int64(diff+1)))
@@ -212,7 +254,7 @@ func (f *fixture) NewFile() (string, []byte, uint) {
 }
 
 func (f *fixture) NewFileWithPath(path string) (string, []byte, uint) {
-	maxSize := contentMaxSize(f.op.Info().GetFullCapability())
+	maxSize := contentMaxSize(f.op.Info().GetCapability())
 	return f.NewFileWithRange(path, 1, maxSize)
 }
 
@@ -232,7 +274,7 @@ func contentMaxSize(cap *opendal.Capability) uint {
 }
 
 func (f *fixture) Cleanup(assert *require.Assertions) {
-	if !f.op.Info().GetFullCapability().Delete() {
+	if !f.op.Info().GetCapability().Delete() {
 		return
 	}
 	f.lock.Lock()

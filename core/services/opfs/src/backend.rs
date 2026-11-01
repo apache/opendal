@@ -20,15 +20,15 @@ use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::File;
-use web_sys::FileSystemWritableFileStream;
 
 use super::config::OpfsConfig;
 use super::core::OpfsCore;
+use super::core::*;
+use super::core::*;
 use super::deleter::OpfsDeleter;
-use super::error::*;
 use super::lister::OpfsLister;
-use super::reader::OpfsReader;
-use super::utils::*;
+use super::reader::OpfsReadStream;
+use super::reader::*;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -54,7 +54,7 @@ impl OpfsBuilder {
 impl Builder for OpfsBuilder {
     type Config = OpfsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         let root = normalize_root(&self.config.root.unwrap_or_default());
         let core = Arc::new(OpfsCore::new(root));
         Ok(OpfsBackend { core })
@@ -64,29 +64,31 @@ impl Builder for OpfsBuilder {
 /// OPFS Service backend
 #[derive(Debug, Clone)]
 pub struct OpfsBackend {
-    core: Arc<OpfsCore>,
+    pub(crate) core: Arc<OpfsCore>,
 }
 
-impl Access for OpfsBackend {
-    type Reader = OpfsReader;
-
+impl Service for OpfsBackend {
+    type Reader = oio::StreamReader<OpfsReader>;
     type Writer = OpfsWriter;
-
     type Lister = OpfsLister;
-
     type Deleter = oio::OneShotDeleter<OpfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, _args: OpStat) -> Result<RpStat> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
         let p = build_abs_path(&self.core.root, path);
 
         if p.ends_with('/') {
             get_directory_handle(&p, false).await?;
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         // File: get metadata via getFile().
@@ -96,30 +98,37 @@ impl Access for OpfsBackend {
             .and_then(JsCast::dyn_into)
             .map_err(parse_js_error)?;
 
-        let mut meta = Metadata::new(EntryMode::FILE);
-        meta.set_content_length(file.size() as u64);
+        let mut meta = MetadataBuilder::file(file.size() as u64);
         if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
-            meta.set_last_modified(t);
+            meta.last_modified(t);
         }
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
+    }
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<OpfsReader> = {
+            Ok(oio::StreamReader::new(OpfsReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
+
+        Ok(output)
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let p = build_abs_path(&self.core.root, path);
-        let handle = get_file_handle(&p, false).await?;
+    fn list(&self, _ctx: &OperationContext, path: &str, _args: OpList) -> Result<Self::Lister> {
+        let output: OpfsLister = { Ok(OpfsLister::new(self.core.clone(), path.to_string())) }?;
 
-        Ok((RpRead::new(), OpfsReader::new(handle, args.range())))
+        Ok(output)
     }
 
-    async fn list(&self, path: &str, _args: OpList) -> Result<(RpList, Self::Lister)> {
-        let p = build_abs_path(&self.core.root, path);
-        let dir = get_directory_handle(&p, false).await?;
-
-        Ok((RpList::default(), OpfsLister::new(dir, path.to_string())))
-    }
-
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         debug_assert!(path != "/", "root path should be handled upstream");
         let p = build_abs_path(&self.core.root, path);
         get_directory_handle(&p, true).await?;
@@ -127,21 +136,46 @@ impl Access for OpfsBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn write(&self, path: &str, _args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let p = build_abs_path(&self.core.root, path);
-        let handle = get_file_handle(&p, true).await?;
-        let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
-            .await
-            .and_then(JsCast::dyn_into)
-            .map_err(parse_js_error)?;
+    fn write(&self, _ctx: &OperationContext, path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        let output: OpfsWriter = { Ok(OpfsWriter::new(self.core.clone(), path.to_string())) }?;
 
-        Ok((RpWrite::default(), OpfsWriter::new(stream)))
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(OpfsDeleter::new(self.core.clone())),
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<OpfsDeleter> = {
+            Ok(oio::OneShotDeleter::new(OpfsDeleter::new(
+                self.core.clone(),
+            )))
+        }?;
+
+        Ok(output)
+    }
+
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
         ))
     }
 }

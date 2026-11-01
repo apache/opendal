@@ -27,7 +27,7 @@ use reqwest::Url;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write && cap.presign {
         tests.extend(async_trials!(
@@ -43,8 +43,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 /// Presign write should succeed.
 pub async fn test_presign_write(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    debug!("Generate a random file: {}", path);
+    let (content, size) = gen_bytes(op.info().capability());
 
     let signed_req = op.presign_write(&path, Duration::from_secs(3600)).await?;
     debug!("Generated request: {signed_req:?}");
@@ -75,8 +75,8 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
 
 pub async fn test_presign_stat(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    debug!("Generate a random file: {}", path);
+    let (content, size) = gen_bytes(op.info().capability());
     op.write(&path, content.clone())
         .await
         .expect("write must succeed");
@@ -105,8 +105,8 @@ pub async fn test_presign_stat(op: Operator) -> Result<()> {
 // Presign read should read content successfully.
 pub async fn test_presign_read(op: Operator) -> Result<()> {
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, size) = gen_bytes(op.info().full_capability());
+    debug!("Generate a random file: {}", path);
+    let (content, size) = gen_bytes(op.info().capability());
 
     op.write(&path, content.clone())
         .await
@@ -136,14 +136,14 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
 
 /// Presign delete should succeed.
 pub async fn test_presign_delete(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     if !cap.presign_delete {
         return Ok(());
     }
 
     let path = uuid::Uuid::new_v4().to_string();
-    debug!("Generate a random file: {}", &path);
-    let (content, _size) = gen_bytes(op.info().full_capability());
+    debug!("Generate a random file: {}", path);
+    let (content, _size) = gen_bytes(op.info().capability());
     // create a file
     op.write(&path, content.clone())
         .await

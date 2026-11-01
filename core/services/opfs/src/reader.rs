@@ -15,22 +15,29 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use send_wrapper::SendWrapper;
-use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::JsFuture;
-use web_sys::FileSystemFileHandle;
-
-use super::error::*;
+use super::backend::*;
+use super::config::OpfsConfig;
+use super::core::OpfsCore;
+use super::core::*;
+use super::deleter::OpfsDeleter;
+use super::lister::OpfsLister;
+use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
+use send_wrapper::SendWrapper;
+use std::sync::Arc;
+use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
+use web_sys::File;
+use web_sys::FileSystemFileHandle;
 
-pub struct OpfsReader {
+pub struct OpfsReadStream {
     handle: SendWrapper<FileSystemFileHandle>,
     range: BytesRange,
     done: bool,
 }
 
-impl OpfsReader {
+impl OpfsReadStream {
     pub fn new(handle: FileSystemFileHandle, range: BytesRange) -> Self {
         Self {
             handle: SendWrapper::new(handle),
@@ -40,7 +47,7 @@ impl OpfsReader {
     }
 }
 
-impl oio::Read for OpfsReader {
+impl oio::ReadStream for OpfsReadStream {
     async fn read(&mut self) -> Result<Buffer> {
         if self.done {
             return Ok(Buffer::new());
@@ -71,5 +78,34 @@ impl oio::Read for OpfsReader {
         let uint8_array = js_sys::Uint8Array::new(&array_buffer);
 
         Ok(Buffer::from(uint8_array.to_vec()))
+    }
+}
+
+/// Reader returned by this backend.
+pub struct OpfsReader {
+    backend: OpfsBackend,
+    path: String,
+}
+
+impl OpfsReader {
+    pub(super) fn new(backend: OpfsBackend, path: &str, _: OpRead) -> Self {
+        Self {
+            backend,
+            path: path.to_string(),
+        }
+    }
+}
+
+impl oio::StreamRead for OpfsReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let backend = &self.backend;
+        let path = self.path.as_str();
+
+        let p = build_abs_path(&backend.core.root, path);
+        let handle = get_file_handle(&p, false).await?;
+        let rp = RpRead::default();
+        let stream = OpfsReadStream::new(handle, range);
+
+        Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
     }
 }

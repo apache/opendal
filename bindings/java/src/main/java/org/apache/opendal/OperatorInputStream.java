@@ -101,7 +101,7 @@ public class OperatorInputStream extends InputStream {
 
     private static native long constructReader(long op, String path, ReadOptions options);
 
-    private static native long disposeReader(long reader);
+    private static native void disposeReader(long reader);
 
     private static native byte[] readNextBytes(long reader);
 }

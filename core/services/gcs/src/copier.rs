@@ -19,16 +19,18 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
+use super::core::ErrorContext;
 use super::core::GcsCore;
 use super::core::RewriteResponse;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
 use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
-use super::error::parse_error;
+use super::core::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct GcsCopier {
     core: Arc<GcsCore>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -41,14 +43,21 @@ pub struct GcsCopier {
 }
 
 impl GcsCopier {
-    pub fn new(core: Arc<GcsCore>, from: &str, to: &str, args: OpCopy, opts: OpCopier) -> Self {
-        let chunk = opts.chunk().map(|v| {
+    pub fn new(
+        core: Arc<GcsCore>,
+        ctx: OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Self {
+        let chunk = args.chunk().map(|v| {
             let v = v.clamp(GCS_REWRITE_MIN_CHUNK_SIZE, GCS_REWRITE_MAX_CHUNK_SIZE);
             v / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE
         });
 
         Self {
             core,
+            ctx,
             from: from.to_string(),
             to: to.to_string(),
             args,
@@ -70,6 +79,7 @@ impl oio::Copy for GcsCopier {
         let resp = self
             .core
             .gcs_rewrite_object(
+                &self.ctx,
                 &self.from,
                 &self.to,
                 &self.args,
@@ -79,7 +89,11 @@ impl oio::Copy for GcsCopier {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("RewriteObject"))
+                    .with_caller_condition(self.args.is_conditional()),
+                resp,
+            ));
         }
 
         let result: RewriteResponse = serde_json::from_reader(resp.into_body().reader())
@@ -143,7 +157,13 @@ impl oio::Copy for GcsCopier {
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        let metadata = self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let mut builder = metadata.into_builder();
+        builder.set_file(self.total_bytes_rewritten);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

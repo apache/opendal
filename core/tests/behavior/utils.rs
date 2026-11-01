@@ -139,7 +139,7 @@ impl Fixture {
 
     /// Create a new file with random content
     pub fn new_file(&self, op: impl Into<Operator>) -> (String, Vec<u8>, usize) {
-        let max_size = content_max_size(op.into().info().full_capability());
+        let max_size = content_max_size(op.into().info().capability());
 
         self.new_file_with_range(uuid::Uuid::new_v4().to_string(), 1..max_size)
     }
@@ -149,7 +149,7 @@ impl Fixture {
         op: impl Into<Operator>,
         path: &str,
     ) -> (String, Vec<u8>, usize) {
-        let max_size = content_max_size(op.into().info().full_capability());
+        let max_size = content_max_size(op.into().info().capability());
 
         self.new_file_with_range(path, 1..max_size)
     }
@@ -176,7 +176,7 @@ impl Fixture {
     pub async fn cleanup(&self, op: impl Into<Operator>) {
         let op = op.into();
         // Don't cleanup data if delete is not supported
-        if !op.info().full_capability().delete {
+        if !op.info().capability().delete {
             return;
         }
 

@@ -19,14 +19,13 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use asyncband::rwlock::RwLock;
 use goosefs_sdk::client::MasterClient;
 use goosefs_sdk::config::GoosefsConfig as ClientConfig;
 use goosefs_sdk::context::FileSystemContext;
 use goosefs_sdk::io::{GoosefsFileReader, GoosefsFileWriter};
 use goosefs_sdk::proto::grpc::file::FileInfo;
-use tokio::sync::RwLock;
 
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -69,7 +68,8 @@ use opendal_core::*;
 /// fresh `FileSystemContext::connect` is performed.
 #[derive(Clone)]
 pub struct GoosefsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     /// Normalized root path (e.g. `/data/`)
     pub root: String,
     /// GooseFS client configuration (also used to seed the context).
@@ -98,9 +98,15 @@ impl GoosefsCore {
     ///
     /// The [`FileSystemContext`] is **not** connected here; it is established
     /// on the first RPC and then reused for the lifetime of this core.
-    pub fn new(info: Arc<AccessorInfo>, root: String, config: ClientConfig) -> Self {
+    pub fn new(
+        info: ServiceInfo,
+        capability: Capability,
+        root: String,
+        config: ClientConfig,
+    ) -> Self {
         Self {
             info,
+            capability,
             root,
             config,
             ctx: Arc::new(RwLock::new(None)),
@@ -147,10 +153,10 @@ impl GoosefsCore {
         // Double-check after acquiring write lock: another task may have
         // initialised it while we were waiting.
         let pid_now = self.ctx_pid.load(Ordering::Relaxed);
-        if pid_now == current_pid {
-            if let Some(ref ctx) = *guard {
-                return Ok(Arc::clone(ctx));
-            }
+        if pid_now == current_pid
+            && let Some(ref ctx) = *guard
+        {
+            return Ok(Arc::clone(ctx));
         }
 
         // If we had a stale context from a different process, drop it.
@@ -167,7 +173,7 @@ impl GoosefsCore {
         // `FileSystemContext::connect` already returns `Arc<FileSystemContext>`.
         let ctx = FileSystemContext::connect(self.config.clone())
             .await
-            .map_err(parse_error)?;
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Connect")), err))?;
         *guard = Some(Arc::clone(&ctx));
         self.ctx_pid.store(current_pid, Ordering::Relaxed);
 
@@ -208,24 +214,32 @@ impl GoosefsCore {
         master
             .create_directory(&full, true)
             .await
-            .map_err(parse_error)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateDirectory")), err))
     }
 
     pub async fn get_status(&self, path: &str) -> Result<FileInfo> {
         let full = self.full_path(path);
         let master = self.master().await?;
-        master.get_status(&full).await.map_err(parse_error)
+        master
+            .get_status(&full)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("GetStatus")), err))
     }
 
     pub async fn list_status(&self, path: &str) -> Result<Vec<FileInfo>> {
         let full = self.full_path(path);
         let master = self.master().await?;
-        master.list_status(&full, false).await.map_err(parse_error)
+        master
+            .list_status(&full, false)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("ListStatus")), err))
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
         let full = self.full_path(path);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
+        ctx.invalidate_file_info(&full);
         match master.delete(&full, false).await {
             Ok(()) => Ok(()),
             Err(e) => {
@@ -233,35 +247,51 @@ impl GoosefsCore {
                 if matches!(e, goosefs_sdk::error::Error::NotFound { .. }) {
                     Ok(())
                 } else {
-                    Err(parse_error(e))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Delete")),
+                        e,
+                    ))
                 }
             }
         }
     }
 
-    pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
+    /// Rename `from` → `to`.
+    ///
+    /// When `if_not_exists` is true this is the authoritative publish step for
+    /// `write_with_if_not_exists` (Lance `PutMode::Create`). Conflict detection
+    /// is GooseFS Master no-replace rename
+    /// (`DefaultFileSystemMaster.renameInternal` → `FileAlreadyExistsException`
+    /// → gRPC ALREADY_EXISTS), reached via `MasterClient::rename`. Not a prior
+    /// `get_status`. Destination must never be deleted when `if_not_exists` is
+    /// true.
+    ///
+    /// Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's behavior
+    /// contract for rename:
+    ///
+    /// 1. Destination parent directory is created on demand — but only when
+    ///    Master reports it missing. Under `CACHE_THROUGH`,
+    ///    `create_directory` on an already-persisted parent is a CosN
+    ///    round-trip (tens of milliseconds), not a metadata no-op. The
+    ///    write-via-temp path already created that parent via
+    ///    `CreateFile(recursive)`, so the publish `rename` skips mkdir.
+    /// 2. If the destination exists as a file and `if_not_exists` is false,
+    ///    overwrite by deleting it first. Never delete when `if_not_exists`
+    ///    is true (that would destroy Master no-replace and re-introduce
+    ///    TOCTOU overwrite).
+    /// 3. If the destination exists as a directory, surface `IsADirectory`.
+    ///
+    /// Source NotFound is reported by the underlying `rename` RPC, so we
+    /// don't pre-stat the source.
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
         let src = self.full_path(from);
         let dst = self.full_path(to);
-        let master = self.master().await?;
+        let ctx = self.ctx().await?;
+        let master = ctx.acquire_master();
 
-        // Mirror HDFS / Alluxio semantics so GooseFS passes OpenDAL's
-        // behavior contract for rename (see `rename_test.go::testRenameNested`
-        // and `testRenameOverwrite`):
-        //
-        //   1. Destination parent directory is created on demand
-        //      (`testRenameNested` writes to `<uuid>/<uuid>/<uuid>` without
-        //      mkdir'ing intermediate levels first; S3-style backends treat
-        //      this as implicit, fs-style backends must emulate it).
-        //   2. If the destination exists as a file, overwrite by deleting
-        //      it first (`testRenameOverwrite`). GooseFS `rename` itself
-        //      would otherwise return AlreadyExists.
-        //   3. If the destination exists as a directory, surface
-        //      IsADirectory — matches the error code the behavior tests
-        //      assert in `testRenameTargetDir`.
-        //
-        // Source NotFound is reported by the underlying `rename` RPC
-        // (`testRenameNonExistingSource` expects `NotFound`), so we don't
-        // pre-stat the source.
+        ctx.invalidate_file_info(&src);
+        ctx.invalidate_file_info(&dst);
+
         match master.get_status(&dst).await {
             Ok(info) => {
                 if info.folder.unwrap_or(false) {
@@ -273,27 +303,60 @@ impl GoosefsCore {
                     .with_context("from", from)
                     .with_context("to", to));
                 }
-                // Destination is an existing file — delete it so the
-                // subsequent rename can overwrite atomically at the
-                // master level.
-                master.delete(&dst, false).await.map_err(parse_error)?;
-            }
-            Err(goosefs_sdk::error::Error::NotFound { .. }) => {
-                // Ensure the destination's parent directory exists.
-                // `create_directory` with recursive=true is idempotent,
-                // so calling it for a parent that already exists is a
-                // cheap metadata no-op on the master.
-                if let Some(parent) = parent_of(&dst) {
-                    master
-                        .create_directory(parent, true)
-                        .await
-                        .map_err(parse_error)?;
+                if if_not_exists {
+                    // Fast-path only. Authoritative race check is master.rename
+                    // below (AlreadyExists → ConditionNotMatch).
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "target path already exists while if_not_exists is set",
+                    )
+                    .with_context("service", super::GOOSEFS_SCHEME)
+                    .with_context("from", from)
+                    .with_context("to", to));
                 }
+                // Overwrite path ONLY. Master rename rejects existing dst;
+                // delete first so overwrite can proceed.
+                master.delete(&dst, false).await.map_err(|err| {
+                    parse_error(ErrorContext::new(ServiceOperation("Delete")), err)
+                })?;
             }
-            Err(e) => return Err(parse_error(e)),
+            // Parent may already exist (write-via-temp always does). Create it
+            // only if the subsequent rename reports it missing.
+            Err(goosefs_sdk::error::Error::NotFound { .. }) => {}
+            Err(e) => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetStatus")),
+                    e,
+                ));
+            }
         }
 
-        master.rename(&src, &dst).await.map_err(parse_error)
+        match rename_creating_parent_if_missing(&master, &src, &dst).await {
+            Ok(()) => {
+                // Same inode id moved (Master RenameEntry.setId(srcInode.getId()))
+                // — not a fresh inode. Drop any cached FileInfo so a reader
+                // opening `dst` immediately after sees current metadata.
+                ctx.invalidate_file_info(&src);
+                ctx.invalidate_file_info(&dst);
+                Ok(())
+            }
+            // Authoritative TOCTOU close: concurrent winner published between
+            // get_status and this RPC. Master FileAlreadyExistsException →
+            // gRPC ALREADY_EXISTS → SDK Error::AlreadyExists.
+            Err(goosefs_sdk::error::Error::AlreadyExists { .. }) if if_not_exists => {
+                Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "target path already exists while if_not_exists is set",
+                )
+                .with_context("service", super::GOOSEFS_SCHEME)
+                .with_context("from", from)
+                .with_context("to", to))
+            }
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Rename")),
+                e,
+            )),
+        }
     }
 
     // ── Data I/O Operations ──────────────────────────────────
@@ -321,7 +384,7 @@ impl GoosefsCore {
     /// payload in memory.
     ///
     /// Historically this was the entry point for the reader, but the
-    /// streaming `GoosefsReader` now pulls data block-by-block directly
+    /// streaming `GoosefsReadStream` now pulls data block-by-block directly
     /// from [`Self::open_range_reader`] / [`Self::open_reader`]. We keep
     /// `read_file` around (muted with `#[allow(dead_code)]`) because
     /// (a) it's useful for small reads / internal diagnostics, and
@@ -361,14 +424,25 @@ impl GoosefsCore {
                     (Some(off), Some(len)) => {
                         GoosefsFileReader::read_range_with_context(fresh_ctx, &full, off, len)
                             .await
-                            .map_err(parse_error)
+                            .map_err(|err| {
+                                parse_error(ErrorContext::new(ServiceOperation("ReadRange")), err)
+                            })
                     }
                     _ => GoosefsFileReader::read_file_with_context(fresh_ctx, &full)
                         .await
-                        .map_err(parse_error),
+                        .map_err(|err| {
+                            parse_error(ErrorContext::new(ServiceOperation("ReadFile")), err)
+                        }),
                 }
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(if offset.is_some() && length.is_some() {
+                    ServiceOperation("ReadRange")
+                } else {
+                    ServiceOperation("ReadFile")
+                }),
+                e,
+            )),
         }
     }
 
@@ -379,9 +453,15 @@ impl GoosefsCore {
         let ctx = self.ctx().await?;
         let mut writer = GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
-            .map_err(parse_error)?;
-        writer.write(data).await.map_err(parse_error)?;
-        writer.close().await.map_err(parse_error)?;
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateFile")), err))?;
+        writer
+            .write(data)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Write")), err))?;
+        writer
+            .close()
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Close")), err))?;
         Ok(())
     }
 
@@ -391,7 +471,7 @@ impl GoosefsCore {
         let ctx = self.ctx().await?;
         GoosefsFileWriter::create_with_context(ctx, &full, None)
             .await
-            .map_err(parse_error)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("CreateFile")), err))
     }
 
     /// Create a streaming file reader (full-file) via the shared context.
@@ -416,9 +496,14 @@ impl GoosefsCore {
                 let fresh_ctx = self.ctx().await?;
                 GoosefsFileReader::open_with_context(fresh_ctx, &full)
                     .await
-                    .map_err(parse_error)
+                    .map_err(|err| {
+                        parse_error(ErrorContext::new(ServiceOperation("OpenFile")), err)
+                    })
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("OpenFile")),
+                e,
+            )),
         }
     }
 
@@ -447,31 +532,45 @@ impl GoosefsCore {
                 let fresh_ctx = self.ctx().await?;
                 GoosefsFileReader::open_range_with_context(fresh_ctx, &full, offset, length)
                     .await
-                    .map_err(parse_error)
+                    .map_err(|err| {
+                        parse_error(ErrorContext::new(ServiceOperation("OpenRange")), err)
+                    })
             }
-            Err(e) => Err(parse_error(e)),
+            Err(e) => Err(parse_error(
+                ErrorContext::new(ServiceOperation("OpenRange")),
+                e,
+            )),
         }
     }
 
     // ── Metadata Conversion ──────────────────────────────────
 
     /// Convert goosefs FileInfo to OpenDAL Metadata.
-    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Metadata {
+    pub fn file_info_to_metadata(&self, info: &FileInfo) -> Result<Metadata> {
         let mut metadata = if info.folder.unwrap_or(false) {
-            Metadata::new(EntryMode::DIR)
+            MetadataBuilder::dir()
         } else {
-            Metadata::new(EntryMode::FILE)
+            let length = info.length.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "goosefs response does not contain file length",
+                )
+            })?;
+            MetadataBuilder::file(u64::try_from(length).map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "goosefs file length is negative").set_source(err)
+            })?)
         };
-
-        if let Some(length) = info.length {
-            metadata.set_content_length(length as u64);
+        if let Some(mtime) = info.last_modification_time_ms
+            && let Ok(ts) = Timestamp::from_millisecond(mtime)
+        {
+            metadata.last_modified(ts);
         }
-        if let Some(mtime) = info.last_modification_time_ms {
-            if let Ok(ts) = Timestamp::from_millisecond(mtime) {
-                metadata.set_last_modified(ts);
-            }
+        // GooseFS Master rename preserves the same inode id; use it as etag
+        // for cache keys / checkout short-circuit (not commit conflict detection).
+        if let Some(fid) = info.file_id {
+            metadata.etag(fid.to_string());
         }
-        metadata
+        Ok(metadata.build())
     }
 
     /// Convert goosefs FileInfo to OpenDAL Metadata (for list results),
@@ -484,7 +583,41 @@ impl GoosefsCore {
             path
         };
         let rel = build_rel_path(&self.root, &rel_path);
-        Ok((rel, self.file_info_to_metadata(info)))
+        Ok((rel, self.file_info_to_metadata(info)?))
+    }
+}
+
+/// Run `rename(src, dst)`, creating `dst`'s parent only if Master reports
+/// the destination path as missing.
+///
+/// The write-via-temp publish path never takes the mkdir branch: tmp lives
+/// in the same directory as `dst`, and `CreateFile(recursive)` already
+/// created that parent. Eager `create_directory` on an existing parent is
+/// the 45–55ms `CACHE_THROUGH` no-op this helper exists to skip.
+///
+/// `rename` NotFound is also what Master returns for a missing source, so
+/// we `get_status(src)` before mkdir and only create the parent when the
+/// source still exists.
+async fn rename_creating_parent_if_missing(
+    master: &MasterClient,
+    src: &str,
+    dst: &str,
+) -> goosefs_sdk::error::Result<()> {
+    match master.rename(src, dst).await {
+        Ok(()) => Ok(()),
+        Err(e) if matches!(e, goosefs_sdk::error::Error::NotFound { .. }) => {
+            let Some(parent) = parent_of(dst) else {
+                return Err(e);
+            };
+            match master.get_status(src).await {
+                Ok(_) => {}
+                Err(goosefs_sdk::error::Error::NotFound { .. }) => return Err(e),
+                Err(status_err) => return Err(status_err),
+            }
+            master.create_directory(parent, true).await?;
+            master.rename(src, dst).await
+        }
+        Err(e) => Err(e),
     }
 }
 
@@ -515,7 +648,15 @@ fn parent_of(path: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::parent_of;
+    use goosefs_sdk::error::Error as GfsError;
+
+    use super::*;
+
+    /// Build SDK errors whose variants expose public fields. The remaining variants require
+    /// integration tests against GooseFS because their inner fields are private.
+    fn run(err: GfsError) -> Error {
+        parse_error(ErrorContext::new(ServiceOperation("Test")), err)
+    }
 
     #[test]
     fn parent_of_root_returns_none() {
@@ -535,6 +676,13 @@ mod tests {
         assert_eq!(parent_of("/a/b/c"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/"), Some("/a/b"));
         assert_eq!(parent_of("/a/b/c/d"), Some("/a/b/c"));
+        // Write-via-temp publish: dst is a sibling of `.opendal.tmp.*` under
+        // an already-created parent, so retry-mkdir is gated on this being Some
+        // but is not taken on the happy path.
+        assert_eq!(
+            parent_of("/trace_test/03/data/file.lance"),
+            Some("/trace_test/03/data")
+        );
     }
 
     #[test]
@@ -544,4 +692,175 @@ mod tests {
         assert_eq!(parent_of("foo"), None);
         assert_eq!(parent_of(""), None);
     }
+
+    #[test]
+    fn not_found_maps_to_not_found_and_is_permanent() {
+        let e = run(GfsError::NotFound {
+            path: "/missing".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::NotFound);
+        assert!(
+            !e.is_temporary(),
+            "NotFound must not be flagged temporary (callers rely on fast-fail)"
+        );
+        assert!(
+            e.to_string().contains("/missing"),
+            "error message should include the offending path, got: {e}"
+        );
+    }
+
+    #[test]
+    fn already_exists_maps_to_already_exists() {
+        let e = run(GfsError::AlreadyExists {
+            path: "/dup".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::AlreadyExists);
+        assert!(!e.is_temporary());
+        assert!(e.to_string().contains("/dup"));
+    }
+
+    #[test]
+    fn permission_denied_maps_and_is_permanent() {
+        let e = run(GfsError::PermissionDenied {
+            message: "nope".into(),
+        });
+        assert_eq!(e.kind(), ErrorKind::PermissionDenied);
+        assert!(!e.is_temporary());
+    }
+
+    #[test]
+    fn invalid_argument_and_config_error_both_map_to_config_invalid() {
+        let ia = run(GfsError::InvalidArgument {
+            message: "bad arg".into(),
+        });
+        assert_eq!(ia.kind(), ErrorKind::ConfigInvalid);
+        assert!(!ia.is_temporary());
+
+        let ce = run(GfsError::ConfigError {
+            message: "bad cfg".into(),
+        });
+        assert_eq!(ce.kind(), ErrorKind::ConfigInvalid);
+        assert!(!ce.is_temporary());
+    }
+
+    /// Transient server-side errors must be temporary so `RetryLayer` retries the operation.
+    #[test]
+    fn transient_errors_are_marked_temporary() {
+        for (err, label) in [
+            (
+                GfsError::NoWorkerAvailable {
+                    message: "no worker".into(),
+                },
+                "NoWorkerAvailable",
+            ),
+            (
+                GfsError::MasterUnavailable {
+                    message: "master down".into(),
+                },
+                "MasterUnavailable",
+            ),
+            (
+                GfsError::AuthenticationFailed {
+                    message: "sasl expired".into(),
+                },
+                "AuthenticationFailed",
+            ),
+        ] {
+            let e = run(err);
+            assert_eq!(
+                e.kind(),
+                ErrorKind::Unexpected,
+                "{label} should map to Unexpected (transient), got {:?}",
+                e.kind()
+            );
+            assert!(
+                e.is_temporary(),
+                "{label} must be flagged temporary so RetryLayer retries"
+            );
+        }
+    }
+}
+
+use opendal_core::raw::ServiceOperation;
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Map goosefs-sdk Error to OpenDAL Error.
+///
+/// This is the bridge between Layer 3 (goosefs-sdk) error types
+/// and Layer 2 (OpenDAL) error types.
+pub(crate) fn parse_error(ctx: ErrorContext, err: goosefs_sdk::error::Error) -> Error {
+    use goosefs_sdk::error::Error as GfsError;
+
+    let (kind, message, temporary) = match &err {
+        GfsError::NotFound { path } => (ErrorKind::NotFound, format!("not found: {}", path), false),
+
+        GfsError::AlreadyExists { path } => (
+            ErrorKind::AlreadyExists,
+            format!("already exists: {}", path),
+            false,
+        ),
+
+        GfsError::PermissionDenied { message } => {
+            (ErrorKind::PermissionDenied, message.clone(), false)
+        }
+
+        GfsError::InvalidArgument { message } => (ErrorKind::ConfigInvalid, message.clone(), false),
+
+        GfsError::ConfigError { message } => (ErrorKind::ConfigInvalid, message.clone(), false),
+
+        GfsError::NoWorkerAvailable { message } => {
+            // No worker available is a transient error
+            (
+                ErrorKind::Unexpected,
+                format!("no worker available: {}", message),
+                true,
+            )
+        }
+
+        GfsError::MasterUnavailable { message } => (
+            ErrorKind::Unexpected,
+            format!("master unavailable: {}", message),
+            true,
+        ),
+
+        // Authentication failures are transient — the SASL stream expired
+        // (e.g. after process fork or long idle). The goosefs-sdk layer
+        // should have already attempted reconnection, but if the error
+        // propagates up to OpenDAL, mark it as temporary so upper layers
+        // (e.g. RetryLayer) can retry the entire operation.
+        GfsError::AuthenticationFailed { message } => (
+            ErrorKind::Unexpected,
+            format!("authentication failed (retriable): {}", message),
+            true,
+        ),
+
+        // For GrpcError, the goosefs_sdk::error::Error::From<tonic::Status>
+        // already maps NotFound/AlreadyExists/PermissionDenied/InvalidArgument
+        // to specific error variants above. GrpcError only contains codes that
+        // were NOT mapped (Unavailable, DeadlineExceeded, Internal, etc.)
+        GfsError::GrpcError { message, .. } => (ErrorKind::Unexpected, message.clone(), false),
+
+        GfsError::TransportError { message, .. } => (ErrorKind::Unexpected, message.clone(), true),
+
+        _ => (ErrorKind::Unexpected, format!("{}", err), false),
+    };
+
+    let mut error = Error::new(kind, message)
+        .with_context("service_operation", ctx.service_operation.0)
+        .set_source(err);
+    if temporary {
+        error = error.set_temporary();
+    }
+    error
 }

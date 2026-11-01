@@ -18,10 +18,13 @@
 import tempfile
 import textwrap
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 from publish import local_dev_dependency_names
 from publish import load_manifest
+from publish import publish_package
 from publish import strip_local_dev_dependencies
 
 
@@ -80,6 +83,103 @@ class ReleaseRustPublishTest(unittest.TestCase):
             self.assertNotIn("local-dev =", stripped)
             self.assertNotIn("local-dev-multiline", stripped)
             self.assertNotIn("local-target-dev", stripped)
+
+    def test_live_publish_fetches_a_new_token_for_every_attempt(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            package = root / "crate"
+            write(
+                package / "Cargo.toml",
+                """
+                [package]
+                name = "crate"
+                version = "0.1.0"
+                """,
+            )
+
+            tokens = iter(("first-token", "second-token"))
+            released: list[str] = []
+            cargo_tokens: list[str | None] = []
+
+            @contextmanager
+            def token_provider():
+                token = next(tokens)
+                try:
+                    yield token
+                finally:
+                    released.append(token)
+
+            results = iter(
+                (
+                    subprocess_result(
+                        1, "Too many requests. Please try again after invalid."
+                    ),
+                    subprocess_result(0, "published"),
+                )
+            )
+
+            def run(*args, **kwargs):
+                cargo_tokens.append(kwargs["env"].get("CARGO_REGISTRY_TOKEN"))
+                return next(results)
+
+            with (
+                mock.patch.dict(
+                    "publish.os.environ",
+                    {"CARGO_REGISTRY_TOKEN": "legacy-token"},
+                    clear=True,
+                ),
+                mock.patch(
+                    "publish.temporary_trusted_publishing_token", token_provider
+                ),
+                mock.patch("publish.subprocess.run", run),
+                mock.patch("publish.time.sleep") as sleep,
+            ):
+                publish_package(
+                    root,
+                    "crate",
+                    dry_run=False,
+                )
+
+            self.assertEqual(cargo_tokens, ["first-token", "second-token"])
+            self.assertEqual(released, ["first-token", "second-token"])
+            sleep.assert_called_once_with(610)
+
+    def test_dry_run_does_not_request_a_trusted_publishing_token(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            package = root / "crate"
+            write(
+                package / "Cargo.toml",
+                """
+                [package]
+                name = "crate"
+                version = "0.1.0"
+                """,
+            )
+
+            with (
+                mock.patch.dict(
+                    "publish.os.environ",
+                    {"CARGO_REGISTRY_TOKEN": "legacy-token"},
+                    clear=True,
+                ),
+                mock.patch(
+                    "publish.temporary_trusted_publishing_token"
+                ) as token_provider,
+                mock.patch(
+                    "publish.subprocess.run",
+                    return_value=subprocess_result(0, "checked"),
+                ) as run,
+            ):
+                publish_package(root, "crate", dry_run=True)
+
+            token_provider.assert_not_called()
+            self.assertIn("--dry-run", run.call_args.args[0])
+            self.assertNotIn("CARGO_REGISTRY_TOKEN", run.call_args.kwargs["env"])
+
+
+def subprocess_result(returncode: int, output: str):
+    return mock.Mock(returncode=returncode, stdout=output)
 
 
 if __name__ == "__main__":

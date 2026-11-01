@@ -26,9 +26,9 @@ use futures::Stream;
 use crate::raw::*;
 use crate::*;
 
-/// Copier is designed to drive long-running copy operations.
+/// `Copier` drives a long-running copy operation one step at a time.
 ///
-/// - Copier implements `Stream<Item = Result<usize>>`.
+/// - `Copier` implements `Stream<Item = Result<usize>>`.
 /// - `Some(Ok(n))` means the copy operation made progress by `n` bytes.
 /// - `None` means the copy operation has completed.
 pub struct Copier {
@@ -55,14 +55,14 @@ unsafe impl Sync for Copier {}
 
 impl Copier {
     /// Create a new copier.
-    pub(crate) async fn create(
-        acc: Accessor,
+    pub(crate) fn create(
+        ctx: OperationContext,
+        srv: Servicer,
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self> {
-        let (_, copier) = acc.copy(from, to, args, opts).await?;
+        let copier = srv.copy(&ctx, from, to, args)?;
 
         Ok(Self {
             copier: Some(copier),
@@ -73,7 +73,7 @@ impl Copier {
         })
     }
 
-    /// Drive the copy operation forward.
+    /// Advance the copy operation by one step.
     pub async fn next(&mut self) -> Result<Option<usize>> {
         if self.errored {
             return Ok(None);
@@ -126,7 +126,10 @@ impl Copier {
             }
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        Ok(self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build()))
     }
 }
 

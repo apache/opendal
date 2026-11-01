@@ -136,10 +136,7 @@ fn make_populate_map(field: ViaDeserialize<Config>) -> Result<String, minijinja:
             field.name,
             case_java_field_name(&field.name)
         ),
-        ConfigType::HashMap => format!(
-            "map.putAll({});",
-            case_java_field_name(&field.name)
-        ),
+        ConfigType::HashMap => format!("map.putAll({});", case_java_field_name(&field.name)),
     };
 
     if field.optional {

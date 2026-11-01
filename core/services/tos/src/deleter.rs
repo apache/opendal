@@ -23,16 +23,17 @@ use opendal_core::raw::oio::BatchDeleteResult;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use crate::core::parse_tos_error_code;
 use crate::core::*;
-use crate::error::parse_tos_error_code;
 
 pub struct TosDeleter {
     core: Arc<TosCore>,
+    ctx: OperationContext,
 }
 
 impl TosDeleter {
-    pub fn new(core: Arc<TosCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<TosCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
@@ -42,23 +43,29 @@ impl oio::BatchDelete for TosDeleter {
             return Ok(());
         }
 
-        let resp = self.core.tos_delete_object(&path, &args).await?;
+        let resp = self.core.tos_delete_object(&self.ctx, &path, &args).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(crate::error::parse_error(resp)),
+            _ => Err(crate::core::parse_error(
+                crate::core::ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
-        let resp = self.core.tos_delete_objects(&batch).await?;
+        let resp = self.core.tos_delete_objects(&self.ctx, &batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(crate::error::parse_error(resp));
+            return Err(crate::core::parse_error(
+                crate::core::ErrorContext::new(ServiceOperation("DeleteMultipleObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -89,7 +96,7 @@ impl oio::BatchDelete for TosDeleter {
                 let deleted = deleted.swap_remove(idx);
                 let op = if op.version().is_some() {
                     if let Some(version) = &deleted.version_id {
-                        op.with_version(version)
+                        op.into_version(version)
                     } else {
                         op
                     }

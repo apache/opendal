@@ -21,14 +21,14 @@ use std::sync::Arc;
 use hdfs_native::HdfsError;
 use hdfs_native::WriteOptions;
 
-use super::error::parse_hdfs_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 /// HdfsNativeCore contains code that directly interacts with HDFS Native client.
 #[derive(Clone)]
 pub struct HdfsNativeCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub client: Arc<hdfs_native::Client>,
 }
@@ -68,29 +68,22 @@ impl HdfsNativeCore {
             EntryMode::FILE
         };
 
-        let mut metadata = Metadata::new(mode);
-        metadata
-            .set_last_modified(Timestamp::from_millisecond(
-                status.modification_time as i64,
-            )?)
-            .set_content_length(status.length as u64);
+        let mut metadata = if mode == EntryMode::FILE {
+            MetadataBuilder::file(status.length as u64)
+        } else {
+            MetadataBuilder::dir()
+        };
+        metadata.last_modified(Timestamp::from_millisecond(
+            status.modification_time as i64,
+        )?);
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 
-    pub async fn hdfs_read(
-        &self,
-        path: &str,
-        args: &OpRead,
-    ) -> Result<(hdfs_native::file::FileReader, u64, u64)> {
+    pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {
         let p = build_rooted_abs_path(&self.root, path);
 
-        let f = self.client.read(&p).await.map_err(parse_hdfs_error)?;
-
-        let offset = args.range().offset();
-        let size = args.range().size().unwrap_or(u64::MAX);
-
-        Ok((f, offset, size))
+        self.client.read(&p).await.map_err(parse_hdfs_error)
     }
 
     pub async fn hdfs_write(
@@ -207,4 +200,43 @@ impl HdfsNativeCore {
 
         Ok(())
     }
+}
+
+/// Parse hdfs-native error into opendal::Error.
+pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
+    let (kind, retryable, msg) = match &hdfs_error {
+        HdfsError::IOError(err) => (ErrorKind::Unexpected, false, err.to_string()),
+        HdfsError::DataTransferError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
+        HdfsError::ChecksumError => (
+            ErrorKind::Unexpected,
+            false,
+            "checksums didn't match".to_string(),
+        ),
+        HdfsError::UrlParseError(err) => (ErrorKind::Unexpected, false, err.to_string()),
+        HdfsError::AlreadyExists(msg) => (ErrorKind::AlreadyExists, false, msg.clone()),
+        HdfsError::OperationFailed(msg) => (ErrorKind::Unexpected, false, msg.clone()),
+        HdfsError::RPCError(msg0, msg1) => {
+            if msg0.contains("java.io.FileNotFoundException") {
+                (ErrorKind::NotFound, false, msg1.clone())
+            } else {
+                (ErrorKind::Unexpected, false, msg1.clone())
+            }
+        }
+        HdfsError::FileNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
+        HdfsError::BlocksNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
+        HdfsError::IsADirectoryError(msg) => (ErrorKind::IsADirectory, false, msg.clone()),
+        _ => (
+            ErrorKind::Unexpected,
+            false,
+            "unexpected error from hdfs".to_string(),
+        ),
+    };
+
+    let mut err = Error::new(kind, msg).set_source(hdfs_error);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

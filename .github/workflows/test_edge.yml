@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Create disk image
         run: |
@@ -71,7 +71,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
@@ -96,10 +96,10 @@ jobs:
           curl -fsSL https://wasm-bindgen.github.io/wasm-pack/installer/init.sh | bash
           wasm-pack --version
 
-      - name: Setup MinIO Server
+      - name: Setup Silo Server
         shell: bash
         working-directory: fixtures/s3
-        run: docker compose -f docker-compose-minio.yml up -d --wait
+        run: docker compose -f docker-compose-silo.yml up -d --wait
 
       - name: Setup test bucket
         shell: bash
@@ -124,10 +124,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: actions/github-script@v8
+      - uses: actions/github-script@v9
         id: id-token
         with:
           script: return await core.getIDToken("sts.amazonaws.com")

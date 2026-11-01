@@ -45,7 +45,7 @@ fn main() {
         .secret_access_key(&secret_key)
         .bucket(&bucket)
         .region(&region);
-    let op = Operator::new(cfg).unwrap().finish();
+    let op = Operator::new(cfg).unwrap();
 
     // Init AWS S3 SDK.
     let mut config_loader = aws_config::defaults(BehaviorVersion::latest());

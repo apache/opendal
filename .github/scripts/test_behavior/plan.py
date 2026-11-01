@@ -31,7 +31,7 @@ GITHUB_DIR = SCRIPT_PATH.parent.parent
 # The project dir for opendal.
 PROJECT_DIR = GITHUB_DIR.parent
 
-LANGUAGE_BINDING = ["java", "python", "nodejs", "go", "c", "cpp", "dotnet"]
+LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotnet"]
 
 INTEGRATIONS = ["object_store"]
 
@@ -82,6 +82,8 @@ class Hint:
     binding_java: bool = field(default=False, init=False)
     # Is binding python affected?
     binding_python: bool = field(default=False, init=False)
+    # Is binding ruby affected?
+    binding_ruby: bool = field(default=False, init=False)
     # Is binding nodejs affected?
     binding_nodejs: bool = field(default=False, init=False)
     # Is binding go affected?
@@ -128,7 +130,10 @@ def calculate_hint(changed_files: list[str]) -> Hint:
                 setattr(hint, f"integration_{integration}", True)
             hint.all_service = True
 
-        if p == ".github/workflows/test_behavior_core.yml":
+        if p in [
+            ".github/workflows/test_behavior_core.yml",
+            ".github/actions/test_behavior_core/action.yaml",
+        ]:
             hint.core = True
             hint.all_service = True
 
@@ -234,6 +239,21 @@ def unique_cases(cases):
     return list(ucases.values())
 
 
+def group_cases_by_service(cases: list[dict[str, str]]) -> list[dict[str, Any]]:
+    grouped_cases = {}
+    for case in cases:
+        service = case["service"]
+        if service not in grouped_cases:
+            grouped_cases[service] = {
+                "service": service,
+                "feature": case["feature"],
+                "setups": [],
+            }
+        grouped_cases[service]["setups"].append(case["setup"])
+
+    return list(grouped_cases.values())
+
+
 def generate_core_cases(
     cases: list[dict[str, str]], hint: Hint
 ) -> list[dict[str, str]]:
@@ -291,6 +311,27 @@ def generate_language_binding_cases(
             # opendal-go-services doesn't provide TOS yet.
             "tos",
         ]]
+    
+    # Enable integrated services (cases) for ruby.
+    # Ruby binding only integrates some services. Read more in bindings/ruby/Cargo.toml
+    if language == "ruby":
+        cases = [v for v in cases if v["service"] in [
+            "azblob",
+            "azdls",
+            "cos",
+            "fs",
+            "gcs",
+            "ghac",
+            "http",
+            "ipmfs",
+            "memory",
+            "obs",
+            "oss",
+            "s3",
+            "webdav",
+            "webhdfs",
+            "azfile",
+        ]]
 
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
@@ -335,7 +376,7 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     cases = provided_cases()
     hint = calculate_hint(changed_files)
 
-    core_cases = generate_core_cases(cases, hint)
+    core_cases = group_cases_by_service(generate_core_cases(cases, hint))
 
     jobs = {
         "components": {
@@ -354,7 +395,11 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
                 {
                     "os": "windows-latest",
                     "cases": [
-                        {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                        {
+                            "setups": ["local_fs"],
+                            "service": "fs",
+                            "feature": "services-fs",
+                        }
                     ],
                 }
             )

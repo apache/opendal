@@ -75,6 +75,24 @@ struct CopyInput<C: MultipartCopy> {
     range: BytesRange,
 }
 
+/// Build executor and capability inputs for [`MultipartCopier`].
+pub trait IntoMultipartCopyContext {
+    /// Convert into executor and capability.
+    fn into_multipart_copy_context(self) -> (Executor, Capability);
+}
+
+impl IntoMultipartCopyContext for Executor {
+    fn into_multipart_copy_context(self) -> (Executor, Capability) {
+        (self, Capability::default())
+    }
+}
+
+impl IntoMultipartCopyContext for (Executor, Capability) {
+    fn into_multipart_copy_context(self) -> (Executor, Capability) {
+        self
+    }
+}
+
 impl<C: MultipartCopy> Clone for CopyInput<C> {
     fn clone(&self) -> Self {
         Self {
@@ -95,7 +113,8 @@ struct CopiedPart {
 /// MultipartCopier implements [`oio::Copy`] based on multipart copy.
 pub struct MultipartCopier<C: MultipartCopy> {
     copier: Arc<C>,
-    info: Arc<AccessorInfo>,
+    executor: Executor,
+    capability: Capability,
 
     upload_id: Option<Arc<String>>,
     parts: Vec<MultipartPart>,
@@ -114,20 +133,21 @@ pub struct MultipartCopier<C: MultipartCopy> {
 impl<C: MultipartCopy> MultipartCopier<C> {
     /// Create a new MultipartCopier.
     pub fn new(
-        info: Arc<AccessorInfo>,
+        context: impl IntoMultipartCopyContext,
         inner: C,
         source_content_length_hint: Option<u64>,
         copy_once_threshold: u64,
         part_size: u64,
         concurrent: usize,
     ) -> Self {
+        let (executor, capability) = context.into_multipart_copy_context();
         let copier = Arc::new(inner);
-        let executor = info.executor();
         let concurrent = concurrent.max(1);
 
         Self {
             copier,
-            info,
+            executor: executor.clone(),
+            capability,
             upload_id: None,
             parts: Vec::new(),
             next_part_number: 0,
@@ -139,7 +159,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             completed: false,
             metadata: None,
 
-            tasks: ConcurrentTasks::new(executor, concurrent, 8192, |input| {
+            tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
                     let size = input
                         .range
@@ -189,7 +209,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
     ///
     /// This is called before `initiate_copy` so we fail a copy operation before we make any IO.
     fn validate_part_count(&self, source_size: u64) -> Result<()> {
-        let capability = self.info.full_capability();
+        let capability = self.capability;
         let (Some(max_total_size), Some(max_part_size)) = (
             capability.write_total_max_size,
             capability.write_multi_max_size,
@@ -206,7 +226,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
         if part_count > max_parts {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "multipart copy part count exceeds service limit, please increase `OpCopier::chunk`"
+                "multipart copy part count exceeds service limit, please increase `OpCopy::chunk`",
             )
             .with_context("source_size", source_size)
             .with_context("part_size", self.part_size)
@@ -231,7 +251,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
 
     async fn fill_tasks(&mut self, upload_id: Arc<String>, source_size: u64) -> Result<()> {
         let mut scheduled = 0;
-        let executor = self.info.executor();
+        let executor = self.executor.clone();
 
         while self.next_offset < source_size
             && self.tasks.has_remaining()
@@ -333,7 +353,28 @@ where
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        let metadata = self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let Some(source_size) = self.source_size else {
+            return Ok(metadata);
+        };
+        if metadata.is_file() {
+            if metadata.content_length() != source_size {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart copy result content length does not match source",
+                )
+                .with_context("expected", source_size)
+                .with_context("actual", metadata.content_length()));
+            }
+            return Ok(metadata);
+        }
+
+        let mut builder = metadata.into_builder();
+        builder.set_file(source_size);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -378,12 +419,16 @@ mod tests {
     impl MultipartCopy for Arc<TestCopy> {
         async fn source_metadata(&self) -> Result<Metadata> {
             self.source_metadata_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(Metadata::default().with_content_length(self.source_size))
+            Ok({
+                let mut metadata = MetadataBuilder::unknown();
+                metadata.set_file(self.source_size);
+                metadata.build()
+            })
         }
 
         async fn copy_once(&self) -> Result<Metadata> {
             self.copy_once_calls.fetch_add(1, Ordering::Relaxed);
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn initiate_copy(&self) -> Result<String> {
@@ -406,7 +451,7 @@ mod tests {
         }
 
         async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {
@@ -417,38 +462,41 @@ mod tests {
     #[tokio::test]
     async fn test_content_length_hint_skips_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(Arc::default(), inner.clone(), Some(8), 8, 8, 1);
+        let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), Some(8), 8, 8, 1);
 
-        assert_eq!(copier.next().await?, None);
+        let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_missing_content_length_hint_loads_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(Arc::default(), inner.clone(), None, 8, 8, 1);
+        let mut copier = MultipartCopier::new(Executor::default(), inner.clone(), None, 8, 8, 1);
 
-        assert_eq!(copier.next().await?, None);
+        let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 1);
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
         Ok(())
     }
 
     #[tokio::test]
     async fn test_validate_part_count_rejects_before_initiate() -> Result<()> {
-        let info = Arc::new(AccessorInfo::default());
-        info.update_full_capability(|cap| Capability {
+        let capability = Capability {
             write_total_max_size: Some(2),
             write_multi_max_size: Some(1),
-            ..cap
-        });
+            ..Default::default()
+        };
 
         // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
         let inner = TestCopy::new(10);
         let mut copier = MultipartCopier::new(
-            /*info=*/ info,
+            /*context=*/ (Executor::default(), capability),
             /*inner=*/ inner.clone(),
             /*source_content_length_hint=*/ Some(10),
             /*copy_once_threshold=*/ 0,

@@ -16,8 +16,8 @@
 // under the License.
 
 use std::future::Future;
+use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use compio::buf::{IoBuf, IoVectoredBuf};
 use compio::dispatcher::Dispatcher;
@@ -55,7 +55,8 @@ impl IoVectoredBuf for CompfsBuffer {
 
 #[derive(Debug)]
 pub(super) struct CompfsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub root: PathBuf,
     pub dispatcher: Dispatcher,
@@ -63,8 +64,25 @@ pub(super) struct CompfsCore {
 }
 
 impl CompfsCore {
-    pub fn prepare_path(&self, path: &str) -> PathBuf {
-        self.root.join(path.trim_end_matches('/'))
+    /// Reject `..` traversal and absolute keys so they cannot escape `root`,
+    /// matching the `fs` backend (#7684). Confinement lives here because
+    /// `normalize_path` deliberately leaves `.`/`..` unresolved (RFC 0112) and
+    /// `PathBuf::join` discards the base when the key is absolute.
+    pub fn prepare_path(&self, path: &str) -> Result<PathBuf> {
+        use std::path::Component;
+        let trimmed = path.trim_end_matches('/');
+        if Path::new(trimmed).components().any(|c| {
+            matches!(
+                c,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        }) {
+            return Err(
+                Error::new(ErrorKind::NotFound, "path escapes the configured root")
+                    .with_context("path", path),
+            );
+        }
+        Ok(self.root.join(trimmed))
     }
 
     pub async fn exec<Fn, Fut, R>(&self, f: Fn) -> opendal_core::Result<R>
@@ -135,5 +153,65 @@ mod tests {
 
         assert_eq!(buf.total_len(), len);
         assert_eq!(collected, bytes);
+    }
+
+    fn new_test_core() -> CompfsCore {
+        CompfsCore {
+            info: ServiceInfo::new("compfs", "", ""),
+            capability: Capability::default(),
+            root: PathBuf::from("/data/root"),
+            dispatcher: Dispatcher::new().unwrap(),
+            buf_pool: oio::PooledBuf::new(16),
+        }
+    }
+
+    #[test]
+    fn test_prepare_path_rejects_parent_dir() {
+        let core = new_test_core();
+        for key in ["../etc/passwd", "../../etc/passwd", "a/../../b", "a/.."] {
+            let err = core.prepare_path(key).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "key should be rejected: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_prepare_path_rejects_absolute_path() {
+        let core = new_test_core();
+        // `PathBuf::join` drops the root when the key is absolute.
+        for key in ["/etc/passwd", "//etc/passwd"] {
+            let err = core.prepare_path(key).unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "key should be rejected: {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_prepare_path_allows_normal_keys() {
+        let core = new_test_core();
+        // Normal keys, `.` (CurDir), and trailing slashes resolve unchanged.
+        assert_eq!(
+            core.prepare_path("a/b.txt").unwrap(),
+            PathBuf::from("/data/root/a/b.txt")
+        );
+        assert_eq!(
+            core.prepare_path("a/b/").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        assert_eq!(
+            core.prepare_path("./a/b").unwrap(),
+            PathBuf::from("/data/root/a/b")
+        );
+        // A key containing `..` only as a substring of a name is not a traversal.
+        assert_eq!(
+            core.prepare_path("a..b").unwrap(),
+            PathBuf::from("/data/root/a..b")
+        );
     }
 }

@@ -1,6 +1,32 @@
+# Upgrade to v0.50
+
+## Breaking change
+
+### `OperatorInfo` exposes a single capability
+
+`OperatorInfo.fullCapability` and `OperatorInfo.nativeCapability` have been replaced by `OperatorInfo.capability`.
+
+```diff
+-Capability caps = operator.info().fullCapability;
++Capability caps = operator.info().capability;
+```
+
 # Upgrade to v0.49
 
 ## Breaking changes
+
+### Hugging Face config requires `repoType`
+
+`ServiceConfig.Hf` no longer relies on the backend's implicit `model` default. Set `repoType` explicitly when creating Hugging Face operators:
+
+```diff
+ ServiceConfig.Hf config = ServiceConfig.Hf.builder()
++    .repoType("model")
+     .repoId("username/repo")
+     .build();
+```
+
+Use the appropriate value for the repository: `model`, `dataset`, `space`, or `bucket`.
 
 ### Generated service configs use canonical service names
 

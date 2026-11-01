@@ -60,9 +60,8 @@ mod tests {
     async fn test_create_directory_handle_with_root_and_list() {
         {
             // create files and dirs
-            let op_rooted = Operator::new(Opfs::default().root("/myapp/subdir1/subdir2/"))
-                .expect("config")
-                .finish();
+            let op_rooted =
+                Operator::new(Opfs::default().root("/myapp/subdir1/subdir2/")).expect("config");
             op_rooted
                 .write("subdir3/somefile", "content")
                 .await

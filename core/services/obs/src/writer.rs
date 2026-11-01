@@ -24,40 +24,42 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 
 pub type ObsWriters = TwoWays<oio::MultipartWriter<ObsWriter>, oio::AppendWriter<ObsWriter>>;
 
 pub struct ObsWriter {
     core: Arc<ObsCore>,
+    ctx: OperationContext,
 
     op: OpWrite,
     path: String,
 }
 
 impl ObsWriter {
-    pub fn new(core: Arc<ObsCore>, path: &str, op: OpWrite) -> Self {
+    pub fn new(core: Arc<ObsCore>, ctx: OperationContext, path: &str, op: OpWrite) -> Self {
         ObsWriter {
             core,
+            ctx,
             path: path.to_string(),
             op,
         }
     }
 
     fn parse_metadata(headers: &HeaderMap<HeaderValue>) -> Result<Metadata> {
-        let mut meta = Metadata::default();
+        let mut meta = MetadataBuilder::unknown();
         if let Some(etag) = parse_etag(headers)? {
-            meta.set_etag(etag);
+            meta.etag(etag);
         }
         if let Some(md5) = parse_content_md5(headers)? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
 
-        Ok(meta)
+        Ok(meta.build())
     }
 }
 
@@ -67,9 +69,9 @@ impl oio::MultipartWrite for ObsWriter {
             .core
             .obs_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let meta = Self::parse_metadata(resp.headers())?;
 
@@ -77,14 +79,17 @@ impl oio::MultipartWrite for ObsWriter {
 
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutObject")),
+                resp,
+            )),
         }
     }
 
     async fn initiate_part(&self) -> Result<String> {
         let resp = self
             .core
-            .obs_initiate_multipart_upload(&self.path, self.op.content_type())
+            .obs_initiate_multipart_upload(&self.ctx, &self.path, self.op.content_type())
             .await?;
 
         let status = resp.status();
@@ -99,7 +104,10 @@ impl oio::MultipartWrite for ObsWriter {
 
                 Ok(result.upload_id)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                resp,
+            )),
         }
     }
 
@@ -115,7 +123,14 @@ impl oio::MultipartWrite for ObsWriter {
 
         let resp = self
             .core
-            .obs_upload_part_request(&self.path, upload_id, part_number, Some(size), body)
+            .obs_upload_part_request(
+                &self.ctx,
+                &self.path,
+                upload_id,
+                part_number,
+                Some(size),
+                body,
+            )
             .await?;
 
         let status = resp.status();
@@ -138,7 +153,10 @@ impl oio::MultipartWrite for ObsWriter {
                     size: None,
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadPart")),
+                resp,
+            )),
         }
     }
 
@@ -157,34 +175,40 @@ impl oio::MultipartWrite for ObsWriter {
 
         let mut resp = self
             .core
-            .obs_complete_multipart_upload(&self.path, upload_id, parts)
+            .obs_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
-        let mut meta = Self::parse_metadata(resp.headers())?;
+        let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 
         let result: CompleteMultipartUploadResult =
             quick_xml::de::from_reader(resp.body_mut().reader())
                 .map_err(new_xml_deserialize_error)?;
-        meta.set_etag(&result.etag);
+        meta.etag(&result.etag);
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            StatusCode::OK => Ok(meta.build()),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                resp,
+            )),
         }
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
         let resp = self
             .core
-            .obs_abort_multipart_upload(&self.path, upload_id)
+            .obs_abort_multipart_upload(&self.ctx, &self.path, upload_id)
             .await?;
         match resp.status() {
             // Obs returns code 204 No Content if abort succeeds.
             // Reference: https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0103.html
             StatusCode::NO_CONTENT => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AbortMultipartUpload")),
+                resp,
+            )),
         }
     }
 }
@@ -193,7 +217,7 @@ impl oio::AppendWrite for ObsWriter {
     async fn offset(&self) -> Result<u64> {
         let resp = self
             .core
-            .obs_head_object(&self.path, &OpStat::default())
+            .obs_head_object(&self.ctx, &self.path, &OpStat::default())
             .await?;
 
         let status = resp.status();
@@ -208,7 +232,10 @@ impl oio::AppendWrite for ObsWriter {
                 Ok(content_length)
             }
             StatusCode::NOT_FOUND => Ok(0),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
 
@@ -217,23 +244,26 @@ impl oio::AppendWrite for ObsWriter {
             .core
             .obs_append_object_request(&self.path, offset, size, &self.op, body)?;
 
-        let req = self.core.sign(req).await?;
+        let req = self.core.sign(&self.ctx, req).await?;
 
-        let resp = self.core.send(req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
-        let mut meta = Metadata::default();
+        let mut meta = MetadataBuilder::unknown();
         if let Some(md5) = parse_content_md5(resp.headers())? {
-            meta.set_content_md5(md5);
+            meta.content_md5(md5);
         }
         if let Some(version) = parse_header_to_str(resp.headers(), constants::X_OBS_VERSION_ID)? {
-            meta.set_version(version);
+            meta.version(version);
         }
 
         let status = resp.status();
 
         match status {
-            StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            StatusCode::OK => Ok(meta.build()),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("AppendObject")),
+                resp,
+            )),
         }
     }
 }

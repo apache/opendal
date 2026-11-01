@@ -23,7 +23,7 @@ use serde::Serialize;
 use super::backend::WebdavBuilder;
 
 /// Config for [WebDAV](https://datatracker.ietf.org/doc/html/rfc4918) backend support.
-#[derive(Default, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct WebdavConfig {
@@ -75,6 +75,31 @@ pub struct WebdavConfig {
     ///
     /// Default: `https://opendal.apache.org/ns`
     pub user_metadata_uri: Option<String>,
+    /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+    #[deprecated(
+        since = "0.60.0",
+        note = "WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."
+    )]
+    pub enable_conditional_read: bool,
+}
+
+#[allow(deprecated)]
+impl Default for WebdavConfig {
+    fn default() -> Self {
+        Self {
+            endpoint: None,
+            username: None,
+            password: None,
+            token: None,
+            root: None,
+            disable_copy: false,
+            disable_create_dir: false,
+            enable_user_metadata: false,
+            user_metadata_prefix: None,
+            user_metadata_uri: None,
+            enable_conditional_read: true,
+        }
+    }
 }
 
 impl Debug for WebdavConfig {

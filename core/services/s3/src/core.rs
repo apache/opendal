@@ -18,12 +18,14 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Write;
-use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
+use bytes::Buf;
 use bytes::Bytes;
 use constants::X_AMZ_META_PREFIX;
+use crc_fast::CrcAlgorithm;
+use crc_fast::Digest as CrcDigest;
 use http::HeaderValue;
 use http::Request;
 use http::Response;
@@ -38,8 +40,9 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
+use quick_xml::de;
 use reqsign_aws_v4::Credential;
-use reqsign_core::Signer;
+use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -49,6 +52,10 @@ use opendal_core::*;
 pub mod constants {
     pub const X_AMZ_COPY_SOURCE: &str = "x-amz-copy-source";
     pub const X_AMZ_COPY_SOURCE_RANGE: &str = "x-amz-copy-source-range";
+    pub const X_AMZ_COPY_SOURCE_IF_MATCH: &str = "x-amz-copy-source-if-match";
+    pub const X_AMZ_COPY_SOURCE_IF_NONE_MATCH: &str = "x-amz-copy-source-if-none-match";
+    pub const X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE: &str = "x-amz-copy-source-if-modified-since";
+    pub const X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE: &str = "x-amz-copy-source-if-unmodified-since";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -86,7 +93,8 @@ pub mod constants {
 }
 
 pub struct S3Core {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
 
     pub bucket: String,
     pub endpoint: String,
@@ -102,16 +110,59 @@ pub struct S3Core {
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
 
-    pub signer: Signer<Credential>,
+    pub(crate) signers: S3Signers,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
+}
+
+pub(crate) enum S3Signers {
+    General(Signer<Credential>),
+    Express {
+        iam: Signer<Credential>,
+        session: Signer<Credential>,
+    },
+}
+
+impl S3Signers {
+    pub(crate) fn default(&self) -> &Signer<Credential> {
+        match self {
+            Self::General(signer)
+            | Self::Express {
+                session: signer, ..
+            } => signer,
+        }
+    }
+
+    pub(crate) fn iam(&self) -> &Signer<Credential> {
+        match self {
+            Self::General(signer) | Self::Express { iam: signer, .. } => signer,
+        }
+    }
+
+    fn is_express(&self) -> bool {
+        matches!(self, Self::Express { .. })
+    }
 }
 
 pub(crate) struct S3UploadPartCopyRequest<'a> {
     pub(crate) from: &'a str,
     pub(crate) to: &'a str,
+    pub(crate) source_version: Option<&'a str>,
+    pub(crate) if_match: Option<&'a str>,
+    pub(crate) if_none_match: Option<&'a str>,
+    pub(crate) if_modified_since: Option<Timestamp>,
+    pub(crate) if_unmodified_since: Option<Timestamp>,
     pub(crate) upload_id: &'a str,
     pub(crate) part_number: usize,
     pub(crate) range: BytesRange,
+    pub(crate) operation: Operation,
+}
+
+fn format_crc32c_iter(body: Buffer) -> String {
+    let mut digest = CrcDigest::new(CrcAlgorithm::Crc32Iscsi);
+    body.for_each(|b| digest.update(&b));
+
+    let crc = digest.finalize() as u32;
+    BASE64_STANDARD.encode(crc.to_be_bytes())
 }
 
 impl Debug for S3Core {
@@ -125,7 +176,33 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
-    pub async fn sign_query<T>(&self, req: Request<T>, duration: Duration) -> Result<Request<T>> {
+    fn sign_error(&self, err: reqsign_core::Error) -> Error {
+        if !self.signers.is_express() {
+            return new_request_sign_error(err.into());
+        }
+
+        let kind = match err.kind() {
+            ReqsignErrorKind::CredentialInvalid => ErrorKind::Unexpected,
+            ReqsignErrorKind::ConfigInvalid => ErrorKind::ConfigInvalid,
+            ReqsignErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
+            ReqsignErrorKind::RateLimited => ErrorKind::RateLimited,
+            ReqsignErrorKind::RequestInvalid | ReqsignErrorKind::Unexpected => {
+                ErrorKind::Unexpected
+            }
+        };
+        let retryable = err.is_retryable();
+        Error::new(kind, "failed to sign S3 Express request")
+            .with_operation("S3Core::sign")
+            .set_source(err)
+            .with_temporary(retryable)
+    }
+
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
         }
@@ -133,10 +210,18 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signers
+            .iam()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, Some(duration))
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -149,17 +234,29 @@ impl S3Core {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn send(&self, req: Request<Buffer>) -> Result<Response<Buffer>> {
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+        signer: &Signer<Credential>,
+    ) -> Result<Response<Buffer>> {
         if self.skip_signature {
-            return self.info.http_client().send(req).await;
+            return ctx.http_transport().send(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        signer
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -169,23 +266,34 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        self.info
-            .http_client()
+        ctx.http_transport()
             .send(Request::from_parts(parts, body))
             .await
     }
 
-    pub async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+    pub async fn fetch(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<HttpBody>> {
         if self.skip_signature {
-            return self.info.http_client().fetch(req).await;
+            return ctx.http_transport().fetch(req).await;
         }
 
         let (mut parts, body) = req.into_parts();
 
-        self.signer
+        self.signers
+            .default()
+            .clone()
+            .with_context(
+                Context::new()
+                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
+                    .with_http_send(ctx.http_transport().clone())
+                    .with_env(reqsign_core::OsEnv),
+            )
             .sign(&mut parts, None)
             .await
-            .map_err(|e| new_request_sign_error(e.into()))?;
+            .map_err(|err| self.sign_error(err))?;
 
         // Always remove host header, let users' client to set it based on HTTP
         // version.
@@ -195,8 +303,7 @@ impl S3Core {
         // contains host header.
         parts.headers.remove(HOST);
 
-        self.info
-            .http_client()
+        ctx.http_transport()
             .fetch(Request::from_parts(parts, body))
             .await
     }
@@ -264,12 +371,7 @@ impl S3Core {
     pub fn calculate_checksum(&self, body: &Buffer) -> Option<String> {
         match self.checksum_algorithm {
             None => None,
-            Some(ChecksumAlgorithm::Crc32c) => {
-                let mut crc = 0u32;
-                body.clone()
-                    .for_each(|b| crc = crc32c::crc32c_append(crc, &b));
-                Some(BASE64_STANDARD.encode(crc.to_be_bytes()))
-            }
+            Some(ChecksumAlgorithm::Crc32c) => Some(format_crc32c_iter(body.clone())),
             Some(ChecksumAlgorithm::Md5) => Some(format_content_md5_iter(body.clone())),
         }
     }
@@ -394,7 +496,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -470,7 +572,7 @@ impl S3Core {
             query_args.push(format!(
                 "{}={}",
                 constants::S3_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -518,12 +620,13 @@ impl S3Core {
 
     pub async fn s3_get_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
         let req = self.s3_get_object_request(path, range, args)?;
-        self.fetch(req).await
+        self.fetch(ctx, req).await
     }
 
     pub fn s3_put_object_request(
@@ -609,12 +712,17 @@ impl S3Core {
         Ok(req)
     }
 
-    pub async fn s3_head_object(&self, path: &str, args: OpStat) -> Result<Response<Buffer>> {
+    pub async fn s3_head_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> Result<Response<Buffer>> {
         let req = self.s3_head_object_request(path, args)?;
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
-    pub async fn s3_delete_object(&self, path: &str, args: &OpDelete) -> Result<Response<Buffer>> {
+    pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -635,6 +743,11 @@ impl S3Core {
 
         let mut req = Request::delete(&url);
 
+        // Set conditional delete header.
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
@@ -645,19 +758,42 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        Ok(req)
+    }
+
+    pub async fn s3_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
+        let req = self.s3_delete_object_request(path, args)?;
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_copy_object(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
+        source_version: Option<&str>,
+        source_if_match: Option<&str>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
         let from = build_abs_path(&self.root, from);
         let to = build_abs_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let source = if let Some(version) = source_version {
+            QueryPairsWriter::new(&source)
+                .push(
+                    constants::S3_QUERY_VERSION_ID,
+                    &percent_encode_path(version),
+                )
+                .finish()
+        } else {
+            source
+        };
         let target = format!("{}/{}", self.endpoint, percent_encode_path(&to));
 
         let mut req = Request::put(&target);
@@ -668,6 +804,9 @@ impl S3Core {
         }
         if let Some(if_match) = args.if_match() {
             req = req.header(IF_MATCH, if_match);
+        }
+        if let Some(source_if_match) = source_if_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, source_if_match);
         }
 
         // Set SSE headers.
@@ -717,14 +856,18 @@ impl S3Core {
             .extension(Operation::Copy)
             .extension(ServiceOperation("CopyObject"))
             .header(constants::X_AMZ_COPY_SOURCE, &source)
+            // AWS S3 accepts CopyObject without Content-Length, but some S3-compatible
+            // providers, such as NetApp, require `Content-Length: 0` for its empty body.
+            .header(CONTENT_LENGTH, 0)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.iam()).await
     }
 
     pub async fn s3_list_objects_v1(
         &self,
+        ctx: &OperationContext,
         path: &str,
         marker: &str,
         delimiter: &str,
@@ -759,11 +902,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_objects_v2(
         &self,
+        ctx: &OperationContext,
         path: &str,
         continuation_token: &str,
         delimiter: &str,
@@ -810,11 +954,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_initiate_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
@@ -882,10 +1027,14 @@ impl S3Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
-    pub async fn s3_initiate_multipart_copy(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn s3_initiate_multipart_copy(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
@@ -914,7 +1063,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub(crate) fn s3_upload_part_copy_request(
@@ -925,6 +1074,16 @@ impl S3Core {
         let to = build_abs_path(&self.root, input.to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
+        let source = if let Some(version) = input.source_version {
+            QueryPairsWriter::new(&source)
+                .push(
+                    constants::S3_QUERY_VERSION_ID,
+                    &percent_encode_path(version),
+                )
+                .finish()
+        } else {
+            source
+        };
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -935,6 +1094,25 @@ impl S3Core {
         );
 
         let mut req = Request::put(&url);
+
+        if let Some(v) = input.if_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, v);
+        }
+        if let Some(v) = input.if_none_match {
+            req = req.header(constants::X_AMZ_COPY_SOURCE_IF_NONE_MATCH, v);
+        }
+        if let Some(v) = input.if_modified_since {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
+        if let Some(v) = input.if_unmodified_since {
+            req = req.header(
+                constants::X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE,
+                v.format_http_date(),
+            );
+        }
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
@@ -979,7 +1157,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         let req = req
-            .extension(Operation::Copy)
+            .extension(input.operation)
             .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_AMZ_COPY_SOURCE, source)
             .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())
@@ -1036,6 +1214,7 @@ impl S3Core {
 
     pub async fn s3_complete_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -1082,11 +1261,12 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_complete_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
@@ -1129,12 +1309,13 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart upload.
     pub async fn s3_abort_multipart_upload(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -1159,12 +1340,13 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     /// Abort an on-going multipart copy.
     pub async fn s3_abort_multipart_copy(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
@@ -1188,11 +1370,12 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_delete_objects(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         let url = format!("{}/?delete", self.endpoint);
@@ -1206,6 +1389,7 @@ impl S3Core {
                 .map(|(path, op)| DeleteObjectsRequestObject {
                     key: build_abs_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
+                    etag: op.if_match().map(|v| v.to_owned()),
                 })
                 .collect(),
         })
@@ -1230,11 +1414,12 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 
     pub async fn s3_list_object_versions(
         &self,
+        ctx: &OperationContext,
         prefix: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -1280,7 +1465,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(req).await
+        self.send(ctx, req, self.signers.default()).await
     }
 }
 
@@ -1380,6 +1565,8 @@ pub struct DeleteObjectsRequestObject {
     pub key: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version_id: Option<String>,
+    #[serde(rename = "ETag", skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
 }
 
 /// Result of DeleteObjects.
@@ -1642,10 +1829,17 @@ mod tests {
                 DeleteObjectsRequestObject {
                     key: "sample1.txt".to_string(),
                     version_id: None,
+                    etag: None,
                 },
                 DeleteObjectsRequestObject {
                     key: "sample2.txt".to_string(),
                     version_id: Some("11111".to_owned()),
+                    etag: None,
+                },
+                DeleteObjectsRequestObject {
+                    key: "sample3.txt".to_string(),
+                    version_id: None,
+                    etag: Some("\"d41d8cd98f00b204e9800998ecf8427e\"".to_owned()),
                 },
             ],
         };
@@ -1662,6 +1856,10 @@ mod tests {
              <Object>
                <Key>sample2.txt</Key>
                <VersionId>11111</VersionId>
+             </Object>
+             <Object>
+               <Key>sample3.txt</Key>
+               <ETag>"d41d8cd98f00b204e9800998ecf8427e"</ETag>
              </Object>
              </Delete>"#
                 // Cleanup space and new line
@@ -1936,6 +2134,177 @@ mod tests {
                 is_latest: true,
                 last_modified: "2009-10-15T17:50:30.000Z".to_owned(),
             },]
+        );
+    }
+}
+
+/// S3Error is the error returned by s3 service.
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "PascalCase")]
+pub struct S3Error {
+    pub code: String,
+    pub message: String,
+    pub resource: String,
+    pub request_id: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ErrorContext {
+    service_operation: ServiceOperation,
+    caller_condition: bool,
+    source_if_match: bool,
+}
+
+impl ErrorContext {
+    pub const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            caller_condition: false,
+            source_if_match: false,
+        }
+    }
+
+    pub const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+
+    pub const fn with_source_if_match(mut self, source_if_match: bool) -> Self {
+        self.source_if_match = source_if_match;
+        self
+    }
+}
+
+/// Parse error response into Error.
+pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (mut kind, mut retryable) = match parts.status.as_u16() {
+        403 => (ErrorKind::PermissionDenied, false),
+        404 => (ErrorKind::NotFound, false),
+        304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
+        // Service like R2 could return 499 error with a message like:
+        // Client Disconnect, we should retry it.
+        499 => (ErrorKind::Unexpected, true),
+        500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
+        429 => (ErrorKind::RateLimited, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let body_content = bs.chunk();
+    let (message, s3_err) = de::from_reader::<_, S3Error>(body_content.reader())
+        .map(|s3_err| (format!("{s3_err:?}"), Some(s3_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+
+    if let Some(s3_err) = s3_err
+        && !s3_err.code.is_empty()
+    {
+        if let Some(classification) = parse_s3_error_code(ctx, s3_err.code.as_str()) {
+            (kind, retryable) = classification;
+        } else if matches!(parts.status.as_u16(), 409 | 412) {
+            (kind, retryable) = (ErrorKind::Unexpected, false);
+        }
+    }
+
+    let mut err =
+        Error::new(kind, message).with_context("service_operation", ctx.service_operation.0);
+
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
+
+/// Returns the `Error kind` of this code and whether the error is retryable.
+/// All possible error code: <https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html#ErrorCodeList>
+pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, bool)> {
+    match code {
+        // > The specified bucket does not exist.
+        //
+        // Although the status code is 404, NoSuchBucket is
+        // a config invalid error, and it's not retryable from OpenDAL.
+        "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
+        // S3 Express can return 200 OK with an embedded NoSuchKey error for
+        // CopyObject. Classify the error code explicitly because the HTTP
+        // status alone cannot preserve the NotFound semantics in this case.
+        "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+        // > Your socket connection to the server was not read from
+        // > or written to within the timeout period."
+        //
+        // It's Ok for us to retry it again.
+        "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
+        // > An internal error occurred. Try again.
+        "InternalError" => Some((ErrorKind::Unexpected, true)),
+        // > A conflicting conditional operation is currently in progress
+        // > against this resource. Try again.
+        "OperationAborted" => Some((ErrorKind::Conflict, true)),
+        // > Please reduce your request rate.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "SlowDown" => Some((ErrorKind::RateLimited, true)),
+        // > Service is unable to handle request.
+        //
+        // ServiceUnavailable is considered a retryable error because it typically
+        // indicates a temporary issue with the service or server, such as high load,
+        // maintenance, or an internal problem.
+        "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+        // > Too Many Requests - rate limit exceeded.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+        // > Compatibility with Volcengine TOS
+        //
+        // TOS returns following error codes along with 429 status code, while both
+        // of them indicate rate limit exceeded.
+        // See https://www.volcengine.com/docs/6349/74874 for more details.
+        "ExceedAccountQPSLimit"
+        | "ExceedAccountRateLimit"
+        | "ExceedBucketQPSLimit"
+        | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
+        "InvalidRange" => Some((ErrorKind::RangeNotSatisfied, false)),
+        "PreconditionFailed" | "412 Precondition Failed" if ctx.caller_condition => {
+            Some((ErrorKind::ConditionNotMatch, false))
+        }
+        "PreconditionFailed" | "412 Precondition Failed" if ctx.source_if_match => {
+            Some((ErrorKind::Conflict, false))
+        }
+        "ConditionalRequestConflict" => Some((
+            ErrorKind::Conflict,
+            ctx.service_operation == ServiceOperation("PutObject"),
+        )),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn precondition_failed_uses_operation_context() {
+        let caller_condition = ErrorContext::new(ServiceOperation("CopyObject"))
+            .with_caller_condition(true)
+            .with_source_if_match(true);
+        assert_eq!(
+            parse_s3_error_code(caller_condition, "PreconditionFailed"),
+            Some((ErrorKind::ConditionNotMatch, false))
+        );
+
+        let internal_source_condition =
+            ErrorContext::new(ServiceOperation("CopyObject")).with_source_if_match(true);
+        assert_eq!(
+            parse_s3_error_code(internal_source_condition, "PreconditionFailed"),
+            Some((ErrorKind::Conflict, false))
+        );
+
+        let no_condition = ErrorContext::new(ServiceOperation("CopyObject"));
+        assert_eq!(
+            parse_s3_error_code(no_condition, "PreconditionFailed"),
+            None
         );
     }
 }

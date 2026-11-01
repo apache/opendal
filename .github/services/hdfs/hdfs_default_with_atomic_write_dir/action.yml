@@ -23,8 +23,7 @@ runs:
   steps:
     - name: Setup hadoop
       uses: ./.github/actions/setup-hadoop
-      with:
-        need-hadoop: true
+
     - name: Setup OpenDAL env
       shell: bash
       run: |

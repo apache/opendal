@@ -20,34 +20,40 @@ use std::sync::Arc;
 use http::StatusCode;
 
 use super::core::SloManifestEntry;
-use super::core::SwiftCore;
-use super::error::parse_error;
+use super::core::parse_error;
+use super::core::{ErrorContext, SwiftCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct SwiftWriter {
     core: Arc<SwiftCore>,
+    ctx: OperationContext,
     op: OpWrite,
     path: String,
 }
 
 impl SwiftWriter {
-    pub fn new(core: Arc<SwiftCore>, op: OpWrite, path: String) -> Self {
-        SwiftWriter { core, op, path }
+    pub fn new(core: Arc<SwiftCore>, ctx: OperationContext, op: OpWrite, path: String) -> Self {
+        SwiftWriter {
+            core,
+            ctx,
+            op,
+            path,
+        }
     }
 
     fn parse_metadata(headers: &http::HeaderMap) -> Result<Metadata> {
-        let mut metadata = Metadata::default();
+        let mut metadata = MetadataBuilder::unknown();
 
         if let Some(etag) = parse_etag(headers)? {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
 
         if let Some(last_modified) = parse_last_modified(headers)? {
-            metadata.set_last_modified(last_modified);
+            metadata.last_modified(last_modified);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 }
 
@@ -55,7 +61,7 @@ impl oio::MultipartWrite for SwiftWriter {
     async fn write_once(&self, _size: u64, bs: Buffer) -> Result<Metadata> {
         let resp = self
             .core
-            .swift_create_object(&self.path, bs.len() as u64, &self.op, bs)
+            .swift_create_object(&self.ctx, &self.path, bs.len() as u64, &self.op, bs)
             .await?;
 
         let status = resp.status();
@@ -65,7 +71,10 @@ impl oio::MultipartWrite for SwiftWriter {
                 let metadata = SwiftWriter::parse_metadata(resp.headers())?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateObject")),
+                resp,
+            )),
         }
     }
 
@@ -84,7 +93,7 @@ impl oio::MultipartWrite for SwiftWriter {
     ) -> Result<oio::MultipartPart> {
         let resp = self
             .core
-            .swift_put_segment(&self.path, upload_id, part_number, size, body)
+            .swift_put_segment(&self.ctx, &self.path, upload_id, part_number, size, body)
             .await?;
 
         let status = resp.status();
@@ -107,7 +116,10 @@ impl oio::MultipartWrite for SwiftWriter {
                     size: Some(size),
                 })
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadSegment")),
+                resp,
+            )),
         }
     }
 
@@ -123,7 +135,7 @@ impl oio::MultipartWrite for SwiftWriter {
                     .core
                     .slo_segment_path(&self.path, upload_id, part.part_number);
                 SloManifestEntry {
-                    path: format!("{}/{}", &self.core.container, segment),
+                    path: format!("{}/{}", self.core.container, segment),
                     etag: part.etag.trim_matches('"').to_string(),
                     size_bytes: part.size.unwrap_or(0),
                 }
@@ -132,7 +144,7 @@ impl oio::MultipartWrite for SwiftWriter {
 
         let resp = self
             .core
-            .swift_put_slo_manifest(&self.path, &manifest, &self.op)
+            .swift_put_slo_manifest(&self.ctx, &self.path, &manifest, &self.op)
             .await?;
 
         let status = resp.status();
@@ -142,11 +154,16 @@ impl oio::MultipartWrite for SwiftWriter {
                 let metadata = SwiftWriter::parse_metadata(resp.headers())?;
                 Ok(metadata)
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("UploadManifest")),
+                resp,
+            )),
         }
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
-        self.core.swift_delete_slo(&self.path, upload_id).await
+        self.core
+            .swift_delete_slo(&self.ctx, &self.path, upload_id)
+            .await
     }
 }

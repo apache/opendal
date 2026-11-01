@@ -20,7 +20,7 @@ use anyhow::Result;
 use crate::*;
 
 pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
 
     if cap.read && cap.write && cap.copy {
         tests.extend(async_trials!(
@@ -56,6 +56,44 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_copier_with_if_not_exists_to_existing_file
         ))
     }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_match {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_if_match_match,
+            test_copy_with_if_match_mismatch
+        ))
+    }
+
+    if cap.read && cap.write && cap.copy && cap.copy_with_if_none_match {
+        tests.extend(async_trials!(op, test_copy_with_if_none_match))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.copy
+        && cap.copy_with_if_version_match
+        && cap.copy_with_if_version_not_match
+    {
+        tests.extend(async_trials!(op, test_copy_with_version_conditions))
+    }
+
+    if cap.read
+        && cap.write
+        && cap.stat
+        && cap.copy
+        && (cap.copy_with_if_match || cap.copy_with_if_version_match)
+    {
+        tests.extend(async_trials!(op, test_copy_if_not_changed))
+    }
+
+    if cap.read && cap.write && cap.stat && cap.copy && cap.copy_with_source_version {
+        tests.extend(async_trials!(
+            op,
+            test_copy_with_source_version_to_new_file,
+            test_copy_with_source_version_to_same_file
+        ))
+    }
 }
 
 fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
@@ -85,13 +123,16 @@ fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
 /// Copy a file with ascii name and test contents.
 pub async fn test_copy_file_with_ascii_name(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
 
-    op.copy(&source_path, &target_path).await?;
+    let metadata = op.copy(&source_path, &target_path).await?;
+    if metadata.is_file() {
+        assert_eq!(metadata.content_length(), source_content.len() as u64);
+    }
 
     let target_content = op
         .read(&target_path)
@@ -118,7 +159,7 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
 
     let source_path = "🐂🍺中文.docx";
     let target_path = "😈🐅Français.docx";
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(source_path, source_content.clone()).await?;
     op.copy(source_path, target_path).await?;
@@ -153,7 +194,7 @@ pub async fn test_copy_non_existing_source(op: Operator) -> Result<()> {
 
 /// Copy a dir as source should return an error.
 pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
 
@@ -172,12 +213,12 @@ pub async fn test_copy_source_dir(op: Operator) -> Result<()> {
 
 /// Copy to a dir should return an error.
 pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
-    if !op.info().full_capability().create_dir {
+    if !op.info().capability().create_dir {
         return Ok(());
     }
 
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, content).await?;
 
@@ -199,7 +240,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
 /// Copy a file to self should return an error.
 pub async fn test_copy_self(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (content, _) = gen_bytes(op.info().full_capability());
+    let (content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, content).await?;
 
@@ -216,7 +257,7 @@ pub async fn test_copy_self(op: Operator) -> Result<()> {
 /// Copy to a nested path, parent path should be created successfully.
 pub async fn test_copy_nested(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -247,12 +288,12 @@ pub async fn test_copy_nested(op: Operator) -> Result<()> {
 /// Copy to a exist path should overwrite successfully.
 pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes(op.info().full_capability());
+    let (target_content, _) = gen_bytes(op.info().capability());
     assert_ne!(source_content, target_content);
 
     op.write(&target_path, target_content).await?;
@@ -276,12 +317,12 @@ pub async fn test_copy_overwrite(op: Operator) -> Result<()> {
 
 /// Copy with if_not_exists to a new file should succeed.
 pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()> {
-    if !op.info().full_capability().copy_with_if_not_exists {
+    if !op.info().capability().copy_with_if_not_exists {
         return Ok(());
     }
 
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -309,17 +350,17 @@ pub async fn test_copy_with_if_not_exists_to_new_file(op: Operator) -> Result<()
 
 /// Copy with if_not_exists to an existing file should fail.
 pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Result<()> {
-    if !op.info().full_capability().copy_with_if_not_exists {
+    if !op.info().capability().copy_with_if_not_exists {
         return Ok(());
     }
 
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes(op.info().full_capability());
+    let (target_content, _) = gen_bytes(op.info().capability());
     assert_ne!(source_content, target_content);
 
     // Write to target file first
@@ -349,9 +390,302 @@ pub async fn test_copy_with_if_not_exists_to_existing_file(op: Operator) -> Resu
     Ok(())
 }
 
+/// Copy with if_match matching the destination ETag should overwrite it.
+pub async fn test_copy_with_if_match_match(op: Operator) -> Result<()> {
+    if !op.info().capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, target_content);
+    op.write(&target_path, target_content.clone()).await?;
+
+    let Some(etag) = op.stat(&target_path).await?.etag().map(|s| s.to_string()) else {
+        op.delete(&source_path).await.expect("delete must succeed");
+        op.delete(&target_path).await.expect("delete must succeed");
+        return Ok(());
+    };
+
+    op.copy_with(&source_path, &target_path)
+        .if_match(&etag)
+        .await?;
+
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with if_match not matching the destination ETag should fail.
+pub async fn test_copy_with_if_match_mismatch(op: Operator) -> Result<()> {
+    if !op.info().capability().copy_with_if_match {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    op.write(&source_path, source_content.clone()).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let (target_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, target_content);
+    op.write(&target_path, target_content.clone()).await?;
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_match("\"00000000000000000000000000000000\"")
+        .await
+        .expect_err("copy must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let current_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&target_content),
+    );
+
+    let missing_path = uuid::Uuid::new_v4().to_string();
+    let err = op
+        .copy_with(&source_path, &missing_path)
+        .if_match("\"00000000000000000000000000000000\"")
+        .await
+        .expect_err("missing destination must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with `If-None-Match` should reject equality and accept inequality or absence.
+pub async fn test_copy_with_if_none_match(op: Operator) -> Result<()> {
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let missing_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    let (target_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, target_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    op.write(&target_path, target_content).await?;
+    let etag = op
+        .stat(&target_path)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_none_match(&etag)
+        .await
+        .expect_err("equal ETag non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.copy_with(&source_path, &target_path)
+        .if_none_match("\"different-etag\"")
+        .await?;
+    op.copy_with(&source_path, &missing_path)
+        .if_none_match(&etag)
+        .await?;
+
+    assert_eq!(op.read(&target_path).await?.to_bytes(), source_content);
+    Ok(())
+}
+
+/// Version preconditions should compare against the current destination version.
+pub async fn test_copy_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let missing_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(cap);
+    let (first_target, _) = gen_bytes(cap);
+    let (second_target, _) = gen_bytes(cap);
+    assert_ne!(source_content, first_target);
+    assert_ne!(source_content, second_target);
+    assert_ne!(first_target, second_target);
+
+    op.write(&source_path, source_content).await?;
+    op.write(&target_path, first_target).await?;
+    let stale = op
+        .stat(&target_path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.write(&target_path, second_target).await?;
+    let current = op
+        .stat(&target_path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_version_match(&stale)
+        .await
+        .expect_err("stale destination version must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_version_not_match(&current)
+        .await
+        .expect_err("equal destination version must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.copy_with(&source_path, &target_path)
+        .if_version_match(&current)
+        .await?;
+    op.copy_with(&source_path, &target_path)
+        .if_version_not_match(&current)
+        .await?;
+
+    for result in [
+        op.copy_with(&source_path, &missing_path)
+            .if_version_match(&current)
+            .await,
+        op.copy_with(&source_path, &missing_path)
+            .if_version_not_match(&current)
+            .await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing destination must fail").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+    }
+
+    Ok(())
+}
+
+/// `if_not_changed` should guard the destination against a stale observation.
+pub async fn test_copy_if_not_changed(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let (source_content, _) = gen_bytes(cap);
+    let (target_content, _) = gen_bytes(cap);
+    assert_ne!(source_content, target_content);
+
+    op.write(&source_path, source_content).await?;
+    op.write(&target_path, target_content).await?;
+    let expected = op.stat(&target_path).await?;
+
+    op.copy_with(&source_path, &target_path)
+        .if_not_changed(&expected)
+        .await?;
+    let err = op
+        .copy_with(&source_path, &target_path)
+        .if_not_changed(&expected)
+        .await
+        .expect_err("stale destination metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Copy with source_version should copy a specific source version to a new file.
+pub async fn test_copy_with_source_version_to_new_file(op: Operator) -> Result<()> {
+    if !op.info().capability().copy_with_source_version {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    let (new_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, new_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    let version = op
+        .stat(&source_path)
+        .await?
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    op.write(&source_path, new_content).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    op.copy_with(&source_path, &target_path)
+        .source_version(version)
+        .await?;
+
+    let target_content = op
+        .read(&target_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(target_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Copy with source_version should allow copying a specific source version to itself.
+pub async fn test_copy_with_source_version_to_same_file(op: Operator) -> Result<()> {
+    if !op.info().capability().copy_with_source_version {
+        return Ok(());
+    }
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    let (source_content, _) = gen_bytes(op.info().capability());
+    let (new_content, _) = gen_bytes(op.info().capability());
+    assert_ne!(source_content, new_content);
+
+    op.write(&source_path, source_content.clone()).await?;
+    let version = op
+        .stat(&source_path)
+        .await?
+        .version()
+        .expect("must have version")
+        .to_string();
+
+    op.write(&source_path, new_content).await?;
+
+    op.copy_with(&source_path, &source_path)
+        .source_version(version)
+        .await?;
+
+    let current_content = op
+        .read(&source_path)
+        .await
+        .expect("read must succeed")
+        .to_bytes();
+    assert_eq!(
+        sha256_digest(current_content),
+        sha256_digest(&source_content),
+    );
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    Ok(())
+}
+
 /// Copy with chunk should copy a file successfully.
 pub async fn test_copy_with_chunk(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     let Some((chunk, source_size)) = copy_multi_chunk_size(cap) else {
         return Ok(());
     };
@@ -385,7 +719,7 @@ pub async fn test_copy_with_chunk(op: Operator) -> Result<()> {
 /// Copier should copy a file and commit the target after completion.
 pub async fn test_copier_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -411,7 +745,7 @@ pub async fn test_copier_file(op: Operator) -> Result<()> {
 
 /// Copy with chunk and concurrent should copy a file successfully.
 pub async fn test_copy_with_chunk_and_concurrent(op: Operator) -> Result<()> {
-    let cap = op.info().full_capability();
+    let cap = op.info().capability();
     let Some((chunk, source_size)) = copy_multi_chunk_size(cap) else {
         return Ok(());
     };
@@ -446,7 +780,7 @@ pub async fn test_copy_with_chunk_and_concurrent(op: Operator) -> Result<()> {
 /// Completed copier should keep returning `None`.
 pub async fn test_copier_completion(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content).await?;
 
@@ -464,7 +798,7 @@ pub async fn test_copier_completion(op: Operator) -> Result<()> {
 /// Aborting a copier should be explicit and idempotent for completed one-shot copies.
 pub async fn test_copier_abort(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content).await?;
 
@@ -480,7 +814,7 @@ pub async fn test_copier_abort(op: Operator) -> Result<()> {
 /// Copier with if_not_exists to a new file should succeed.
 pub async fn test_copier_with_if_not_exists_to_new_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content.clone()).await?;
 
@@ -510,12 +844,12 @@ pub async fn test_copier_with_if_not_exists_to_new_file(op: Operator) -> Result<
 /// Copier with if_not_exists to an existing file should fail.
 pub async fn test_copier_with_if_not_exists_to_existing_file(op: Operator) -> Result<()> {
     let source_path = uuid::Uuid::new_v4().to_string();
-    let (source_content, _) = gen_bytes(op.info().full_capability());
+    let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(&source_path, source_content).await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
-    let (target_content, _) = gen_bytes(op.info().full_capability());
+    let (target_content, _) = gen_bytes(op.info().capability());
     op.write(&target_path, target_content.clone()).await?;
 
     let mut copier = op

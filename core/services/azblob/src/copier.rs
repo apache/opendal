@@ -21,10 +21,11 @@ use http::StatusCode;
 use uuid::Uuid;
 
 use super::core::AzblobCore;
+use super::core::ErrorContext;
 use super::core::constants::AZBLOB_COPY_MAX_BLOCK_SIZE;
 use super::core::constants::AZBLOB_COPY_MIN_BLOCK_SIZE;
 use super::core::constants::X_MS_VERSION_ID;
-use super::error::parse_error;
+use super::core::parse_error;
 use super::writer::AzblobWriter;
 use opendal_core::raw::oio::BlockCopy;
 use opendal_core::raw::*;
@@ -34,39 +35,49 @@ pub type AzblobCopiers = TwoWays<oio::OneShotCopier, oio::BlockCopier<AzblobCopi
 
 pub fn new_azblob_copier(
     core: Arc<AzblobCore>,
+    ctx: &OperationContext,
     from: &str,
     to: &str,
     args: OpCopy,
-    opts: OpCopier,
 ) -> Result<AzblobCopiers> {
-    let info = core.info.clone();
+    let chunk = args.chunk();
+    let source_content_length_hint = args.source_content_length_hint();
+    let concurrent = args.concurrent();
     let copier = AzblobCopier {
         core,
+        ctx: ctx.clone(),
         from: from.to_string(),
         to: to.to_string(),
         args,
     };
 
-    let Some(chunk) = opts.chunk() else {
+    let Some(chunk) = chunk else {
         return Ok(TwoWays::One(oio::OneShotCopier::new(async move {
-            copier.copy_once().await
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => copier.source_metadata().await?.content_length(),
+            };
+            let mut metadata = copier.copy_once().await?.into_builder();
+            metadata.set_file(source_size);
+            Ok(metadata.build())
         })));
     };
 
     let block_size = chunk.clamp(AZBLOB_COPY_MIN_BLOCK_SIZE, AZBLOB_COPY_MAX_BLOCK_SIZE) as u64;
 
     Ok(TwoWays::Two(oio::BlockCopier::new(
-        info,
+        ctx.executor().clone(),
         copier,
-        opts.source_content_length_hint(),
+        source_content_length_hint,
         block_size.saturating_sub(1),
         block_size,
-        opts.concurrent(),
+        concurrent,
     )))
 }
 
 pub struct AzblobCopier {
     core: Arc<AzblobCore>,
+    ctx: OperationContext,
     from: String,
     to: String,
     args: OpCopy,
@@ -74,58 +85,87 @@ pub struct AzblobCopier {
 
 impl oio::BlockCopy for AzblobCopier {
     async fn source_metadata(&self) -> Result<Metadata> {
+        let args = options::StatOptions {
+            version: self.args.source_version().map(str::to_owned),
+            ..Default::default()
+        }
+        .into();
+
         let resp = self
             .core
-            .azblob_get_blob_properties(&self.from, &OpStat::default())
+            .azblob_get_blob_properties(&self.ctx, &self.from, &args)
             .await?;
 
         match resp.status() {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = parse_into_metadata(&self.from, headers)?;
+                let mut meta = parse_into_metadata(&self.from, headers)?.into_builder();
                 if let Some(version_id) = parse_header_to_str(headers, X_MS_VERSION_ID)? {
-                    meta.set_version(version_id);
+                    meta.version(version_id);
                 }
-                Ok(meta)
+                Ok(meta.build())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                resp,
+            )),
         }
     }
 
     async fn copy_once(&self) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_copy_blob(&self.from, &self.to, self.args.clone())
+            .azblob_copy_blob(&self.ctx, &self.from, &self.to, self.args.clone())
             .await?;
 
         match resp.status() {
             StatusCode::ACCEPTED => AzblobWriter::parse_metadata(resp.headers()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CopyBlob"))
+                    .with_caller_condition(self.args.is_conditional())
+                    .with_if_not_exists(self.args.if_not_exists()),
+                resp,
+            )),
         }
     }
 
     async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
         let resp = self
             .core
-            .azblob_put_block_from_url(&self.from, &self.to, block_id, range)
+            .azblob_put_block_from_url(
+                &self.ctx,
+                &self.from,
+                &self.to,
+                self.args.source_version(),
+                block_id,
+                range,
+            )
             .await?;
 
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlockFromUrl")),
+                resp,
+            )),
         }
     }
 
     async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
         let resp = self
             .core
-            .azblob_complete_copy_block_list(&self.to, block_ids, &self.args)
+            .azblob_complete_copy_block_list(&self.ctx, &self.to, block_ids, &self.args)
             .await?;
 
         let meta = AzblobWriter::parse_metadata(resp.headers())?;
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("PutBlockList"))
+                    .with_caller_condition(self.args.is_conditional())
+                    .with_if_not_exists(self.args.if_not_exists()),
+                resp,
+            )),
         }
     }
 

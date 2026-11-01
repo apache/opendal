@@ -16,7 +16,6 @@
 // under the License.
 
 use std::fmt::Debug;
-use std::sync::Arc;
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -105,7 +104,8 @@ impl TempUrlHashAlgorithm {
 }
 
 pub struct SwiftCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: String,
     pub endpoint: String,
     pub container: String,
@@ -125,13 +125,17 @@ impl Debug for SwiftCore {
 }
 
 impl SwiftCore {
-    pub async fn swift_delete(&self, path: &str) -> Result<Response<Buffer>> {
+    pub async fn swift_delete(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -143,10 +147,11 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("DeleteObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Bulk delete multiple objects in a single request.
@@ -154,10 +159,11 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/api-ref/object-store/#bulk-delete>
     pub async fn swift_bulk_delete(
         &self,
+        ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
         // The bulk-delete endpoint is on the account URL (the endpoint itself).
-        let url = format!("{}?bulk-delete", &self.endpoint);
+        let url = format!("{}?bulk-delete", self.endpoint);
 
         let mut req = Request::post(&url);
 
@@ -171,7 +177,7 @@ impl SwiftCore {
             .iter()
             .map(|(path, _)| {
                 let abs = build_abs_path(&self.root, path);
-                format!("{}/{}", &self.container, percent_encode_path(&abs))
+                format!("{}/{}", self.container, percent_encode_path(&abs))
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -180,14 +186,16 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Delete)
+            .extension(ServiceOperation("BulkDelete"))
             .body(Buffer::from(bytes::Bytes::from(body_str)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_list(
         &self,
+        ctx: &OperationContext,
         path: &str,
         delimiter: &str,
         limit: Option<usize>,
@@ -197,7 +205,7 @@ impl SwiftCore {
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
-        let mut url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container,))
+        let mut url = QueryPairsWriter::new(&format!("{}/{}/", self.endpoint, self.container,))
             .push("prefix", &percent_encode_path(&p))
             .push("delimiter", delimiter)
             .push("format", "json");
@@ -206,7 +214,7 @@ impl SwiftCore {
             url = url.push("limit", &limit.to_string());
         }
         if !marker.is_empty() {
-            url = url.push("marker", marker);
+            url = url.push("marker", &percent_encode_path(marker));
         }
 
         let mut req = Request::get(url.finish());
@@ -215,14 +223,16 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_create_object(
         &self,
+        ctx: &OperationContext,
         path: &str,
         length: u64,
         args: &OpWrite,
@@ -231,8 +241,8 @@ impl SwiftCore {
         let p = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -263,14 +273,16 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("CreateObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     pub async fn swift_read(
         &self,
+        ctx: &OperationContext,
         path: &str,
         range: BytesRange,
         args: &OpRead,
@@ -281,8 +293,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -309,13 +321,19 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Read)
+            .extension(ServiceOperation("GetObject"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().fetch(req).await
+        ctx.http_transport().fetch(req).await
     }
 
-    pub async fn swift_copy(&self, src_p: &str, dst_p: &str) -> Result<Response<Buffer>> {
+    pub async fn swift_copy(
+        &self,
+        ctx: &OperationContext,
+        src_p: &str,
+        dst_p: &str,
+    ) -> Result<Response<Buffer>> {
         // NOTE: current implementation is limited to same container and root
 
         let src_p = format!(
@@ -330,8 +348,8 @@ impl SwiftCore {
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&dst_p)
         );
 
@@ -349,19 +367,25 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Copy)
+            .extension(ServiceOperation("CopyObject"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
-    pub async fn swift_get_metadata(&self, path: &str, args: &OpStat) -> Result<Response<Buffer>> {
+    pub async fn swift_get_metadata(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpStat,
+    ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&p)
         );
 
@@ -384,10 +408,11 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Stat)
+            .extension(ServiceOperation("ShowObjectMetadata"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Build the segment path for an SLO part.
@@ -408,6 +433,7 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
     pub async fn swift_put_segment(
         &self,
+        ctx: &OperationContext,
         path: &str,
         upload_id: &str,
         part_number: usize,
@@ -417,8 +443,8 @@ impl SwiftCore {
         let segment = self.slo_segment_path(path, upload_id, part_number);
         let url = format!(
             "{}/{}/{}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&segment)
         );
 
@@ -428,10 +454,11 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadSegment"))
             .body(body)
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Finalize an SLO by uploading the manifest.
@@ -442,6 +469,7 @@ impl SwiftCore {
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
     pub async fn swift_put_slo_manifest(
         &self,
+        ctx: &OperationContext,
         path: &str,
         manifest: &[SloManifestEntry],
         args: &OpWrite,
@@ -449,8 +477,8 @@ impl SwiftCore {
         let abs = build_abs_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?multipart-manifest=put",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&abs)
         );
 
@@ -470,10 +498,11 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::Write)
+            .extension(ServiceOperation("UploadManifest"))
             .body(Buffer::from(bytes::Bytes::from(body)))
             .map_err(new_request_build_error)?;
 
-        self.info.http_client().send(req).await
+        ctx.http_transport().send(req).await
     }
 
     /// Delete an SLO manifest and all its segments.
@@ -482,7 +511,12 @@ impl SwiftCore {
     /// and all referenced segments in one call.
     ///
     /// Reference: <https://docs.openstack.org/swift/latest/overview_large_objects.html>
-    pub async fn swift_delete_slo(&self, path: &str, upload_id: &str) -> Result<()> {
+    pub async fn swift_delete_slo(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        upload_id: &str,
+    ) -> Result<()> {
         // List segments under the upload_id prefix and delete them individually.
         // We can't use multipart-manifest=delete because we haven't created
         // the manifest yet (abort happens before complete).
@@ -490,7 +524,7 @@ impl SwiftCore {
         let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
 
         // List all segments with this prefix.
-        let url = QueryPairsWriter::new(&format!("{}/{}/", &self.endpoint, &self.container))
+        let url = QueryPairsWriter::new(&format!("{}/{}/", self.endpoint, self.container))
             .push("prefix", &percent_encode_path(&prefix))
             .push("format", "json")
             .finish();
@@ -500,10 +534,11 @@ impl SwiftCore {
 
         let req = req
             .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        let resp = self.info.http_client().send(req).await?;
+        let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
             return Ok(());
         }
@@ -516,8 +551,8 @@ impl SwiftCore {
             if let ListOpResponse::FileInfo { name, .. } = seg {
                 let seg_url = format!(
                     "{}/{}/{}",
-                    &self.endpoint,
-                    &self.container,
+                    self.endpoint,
+                    self.container,
                     percent_encode_path(&name)
                 );
 
@@ -526,11 +561,12 @@ impl SwiftCore {
 
                 let req = req
                     .extension(Operation::Delete)
+                    .extension(ServiceOperation("DeleteObject"))
                     .body(Buffer::new())
                     .map_err(new_request_build_error)?;
 
                 // Best effort — ignore individual segment delete failures.
-                let _ = self.info.http_client().send(req).await;
+                let _ = ctx.http_transport().send(req).await;
             }
         }
 
@@ -570,7 +606,7 @@ impl SwiftCore {
         let signing_path = format!(
             "{}/{}/{}",
             account_path,
-            &self.container,
+            self.container,
             abs.trim_start_matches('/')
         );
 
@@ -593,10 +629,10 @@ impl SwiftCore {
 
         Ok(format!(
             "{}/{}/{}?temp_url_sig={}&temp_url_expires={}",
-            &self.endpoint,
-            &self.container,
+            self.endpoint,
+            self.container,
             percent_encode_path(&abs),
-            &encoded_sig,
+            encoded_sig,
             expires
         ))
     }
@@ -815,4 +851,82 @@ mod tests {
         );
         assert!(TempUrlHashAlgorithm::from_str_opt("md5").is_err());
     }
+
+    #[test]
+    fn html_body_is_used_as_message() {
+        let resp = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Buffer::from(
+                r#"
+<html>
+<h1>Not Found</h1>
+<p>The resource could not be found.</p>
+
+</html>
+            "#,
+            ))
+            .unwrap();
+
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(err.to_string().contains("The resource could not be found."));
+    }
+}
+
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    h1: String,
+    p: String,
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = de::from_reader::<_, ErrorResponse>(bs.clone().reader())
+        .map(|swift_err| swift_err.p)
+        .unwrap_or_else(|_| String::from_utf8_lossy(&bs).into_owned());
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
 }

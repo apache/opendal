@@ -140,7 +140,7 @@ impl Operator {
     /// Gets capabilities of the current operator
     /// @return [Capability]
     fn capability(&self) -> Result<Capability, Error> {
-        let capability = self.blocking_op.info().full_capability();
+        let capability = self.blocking_op.info().capability();
         Ok(Capability::new(capability))
     }
 

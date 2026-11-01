@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal::{self as ocore, raw::BytesRange};
+use opendal::{self as ocore, BytesRange};
 use pyo3::Borrowed;
 use pyo3::FromPyObject;
 use pyo3::PyAny;
@@ -29,22 +29,37 @@ use pyo3::types::PyDict;
 use pyo3::types::PyDictMethods;
 use std::collections::HashMap;
 
+/// Options for `read` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default)]
 pub struct ReadOptions {
+    /// The version of the file.
     pub version: Option<String>,
+    /// The number of concurrent readers.
     pub concurrent: Option<usize>,
+    /// The size of each chunk.
     pub chunk: Option<usize>,
+    /// The gap between each chunk.
     pub gap: Option<usize>,
+    /// The offset of the file.
     pub offset: Option<usize>,
+    /// The number of bytes to prefetch.
     pub prefetch: Option<usize>,
+    /// The size of the file.
     pub size: Option<usize>,
+    /// The ETag of the file.
     pub if_match: Option<String>,
+    /// The ETag of the file.
     pub if_none_match: Option<String>,
+    /// The last modified time of the file.
     pub if_modified_since: Option<jiff::Timestamp>,
+    /// The last modified time of the file.
     pub if_unmodified_since: Option<jiff::Timestamp>,
+    /// The content type of the file.
     pub content_type: Option<String>,
+    /// The cache control of the file.
     pub cache_control: Option<String>,
+    /// The content disposition of the file.
     pub content_disposition: Option<String>,
 }
 
@@ -106,19 +121,31 @@ impl ReadOptions {
     }
 }
 
+/// Options for `write` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default)]
 pub struct WriteOptions {
+    /// Whether to append to the file instead of overwriting it.
     pub append: Option<bool>,
+    /// The chunk size to use when writing the file.
     pub chunk: Option<usize>,
+    /// The number of concurrent requests to make when writing the file.
     pub concurrent: Option<usize>,
+    /// The cache control header to set on the file.
     pub cache_control: Option<String>,
+    /// The content type header to set on the file.
     pub content_type: Option<String>,
+    /// The content disposition header to set on the file.
     pub content_disposition: Option<String>,
+    /// The content encoding header to set on the file.
     pub content_encoding: Option<String>,
+    /// The ETag to match when writing the file.
     pub if_match: Option<String>,
+    /// The ETag to not match when writing the file.
     pub if_none_match: Option<String>,
+    /// Whether to fail if the file already exists.
     pub if_not_exists: Option<bool>,
+    /// The user metadata to set on the file.
     pub user_metadata: Option<HashMap<String, String>>,
 }
 
@@ -160,6 +187,7 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+            ..Default::default()
         }
     }
 }
@@ -177,6 +205,7 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             chunk: opts.chunk,
             gap: opts.gap,
             prefetch: opts.prefetch.unwrap_or_default(),
+            ..Default::default()
         }
     }
 }
@@ -195,17 +224,24 @@ impl From<WriteOptions> for ocore::options::WriteOptions {
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
             if_not_exists: opts.if_not_exists.unwrap_or(false),
+            ..Default::default()
         }
     }
 }
 
+/// Options for `list` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
 pub struct ListOptions {
+    /// The maximum number of entries to return.
     pub limit: Option<usize>,
+    /// The entry to start after.
     pub start_after: Option<String>,
+    /// Whether to list recursively.
     pub recursive: Option<bool>,
+    /// Whether to list versions.
     pub versions: Option<bool>,
+    /// Whether to list deleted entries.
     pub deleted: Option<bool>,
 }
 
@@ -237,16 +273,25 @@ impl From<ListOptions> for ocore::options::ListOptions {
     }
 }
 
+/// Options for `stat` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
 pub struct StatOptions {
+    /// The version of the file.
     pub version: Option<String>,
+    /// The ETag of the file.
     pub if_match: Option<String>,
+    /// The ETag of the file.
     pub if_none_match: Option<String>,
+    /// The last modified time of the file.
     pub if_modified_since: Option<jiff::Timestamp>,
+    /// The last modified time of the file.
     pub if_unmodified_since: Option<jiff::Timestamp>,
+    /// The content type of the file.
     pub content_type: Option<String>,
+    /// The cache control of the file.
     pub cache_control: Option<String>,
+    /// The content disposition of the file.
     pub content_disposition: Option<String>,
 }
 
@@ -280,15 +325,23 @@ impl From<StatOptions> for ocore::options::StatOptions {
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,
+            ..Default::default()
         }
     }
 }
 
+/// Options for `delete` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]
 pub struct DeleteOptions {
+    /// The version of the file to delete. Only supported on version-aware backends.
     pub version: Option<String>,
+    /// If True, delete the path recursively.
+    ///
+    /// Only supported on backends that support recursive delete.
     pub recursive: Option<bool>,
+    /// The ETag that the object must match before deletion.
+    pub if_match: Option<String>,
 }
 
 impl<'a, 'py> FromPyObject<'a, 'py> for DeleteOptions {
@@ -300,6 +353,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for DeleteOptions {
         Ok(Self {
             version: extract_optional(&dict, "version")?,
             recursive: extract_optional(&dict, "recursive")?,
+            if_match: extract_optional(&dict, "if_match")?,
         })
     }
 }
@@ -309,6 +363,8 @@ impl From<DeleteOptions> for ocore::options::DeleteOptions {
         Self {
             version: opts.version,
             recursive: opts.recursive.unwrap_or(false),
+            if_match: opts.if_match,
+            ..Default::default()
         }
     }
 }

@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::exceptions::PyIOError;
-use pyo3_stub_gen::create_exception;
 
 use crate::*;
 
@@ -84,6 +84,12 @@ create_exception!(
     PyException,
     "Range not satisfied"
 );
+create_exception!(
+    opendal.exceptions,
+    Conflict,
+    PyException,
+    "Operation conflicts with the current resource state"
+);
 
 fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
     let e = format!("{err:?}");
@@ -100,6 +106,7 @@ fn format_pyerr_impl(err: &ocore::Error) -> PyErr {
         ocore::ErrorKind::ConditionNotMatch => ConditionNotMatch::new_err(e),
         ocore::ErrorKind::RateLimited => RateLimited::new_err(e),
         ocore::ErrorKind::RangeNotSatisfied => RangeNotSatisfied::new_err(e),
+        ocore::ErrorKind::Conflict => Conflict::new_err(e),
         _ => Unexpected::new_err(e),
     }
 }

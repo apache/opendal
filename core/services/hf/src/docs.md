@@ -11,7 +11,7 @@ This service supports two storage backends:
 
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -23,16 +23,47 @@ This service can be used to:
 - [ ] rename
 - [ ] presign
 
-## Configurations
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
 
-- `repo_type`: The type of the repository. One of `model`, `dataset`, `space`, or `bucket`.
-- `repo_id`: The id of the repository.
-- `revision`: The revision of the repository. Only applicable for git-based repo types (`model`, `dataset`, `space`).
-- `root`: Set the work directory for backend.
-- `token`: The token for accessing the repository. Required for write operations.
-- `endpoint`: The Hub base URL. Default is `https://huggingface.co`. Can also be set via the `HF_ENDPOINT` environment variable.
+## Configuration
 
-Refer to [`HfBuilder`]'s public API docs for more information.
+Use [`crate::HfConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
+
+### Caching resolve results
+
+By default, each new reader resolves through the Hugging Face Hub. An XET-mode
+reader retains the XET metadata returned by its first read for its lifetime.
+Subsequent ranges, including concurrent reads, use that file version. Create a
+new reader to resolve an updated path. HTTP reads resolve each range.
+
+Enable
+[`enable_resolve_cache`](crate::Hf::enable_resolve_cache) to share resolved HTTP
+download addresses and XET file metadata across readers and batches on the same
+backend:
+
+```rust,no_run
+let builder = opendal_service_hf::Hf::default()
+    .repo_type("dataset")
+    .repo_id("username/my-dataset")
+    .enable_resolve_cache(true);
+```
+
+Enable the cache only when previously written files are not modified. Changed
+files can remain invisible while a resolved address or XET file metadata is
+reused, including changes from other clients or a floating repository revision.
+Issued signed URLs can also remain usable after Hub permissions change.
+
+The shared cache retains bounded in-memory metadata. HTTP addresses refresh
+30 seconds before their signed expiry, on the next read, or once after a cached
+request returns 401 or 403. In HTTP mode, the first resolve returns its body
+directly. Responses without supported redirect metadata or expiry continue to
+resolve normally.
+The reqwest transport supports the optional
+[`HttpRedirect`](opendal_core::HttpRedirect) extension; custom transports may omit it.
+Separate authorization identities require separately constructed backends.
 
 ## Examples
 
@@ -52,7 +83,7 @@ async fn main() -> Result<()> {
         .root("/path/to/dir")
         .token("access_token");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -72,7 +103,7 @@ async fn main() -> Result<()> {
         .repo_id("username/my-bucket")
         .token("access_token");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -81,11 +112,13 @@ async fn main() -> Result<()> {
 ### Via URI
 
 ```rust,no_run
-use opendal_core::Operator;
-use opendal_core::Result;
+use opendal_core::{Operator, OperatorRegistry, Result};
+use opendal_service_hf::register_hf_service;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    register_hf_service(OperatorRegistry::get());
+
     // Git-based dataset
     let op = Operator::from_uri((
         "hf://datasets/username/my-dataset@main",

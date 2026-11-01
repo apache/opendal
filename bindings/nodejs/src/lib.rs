@@ -99,7 +99,7 @@ impl Operator {
     #[napi]
     pub fn capability(&self) -> Result<capability::Capability> {
         Ok(capability::Capability::new(
-            self.async_op.info().full_capability(),
+            self.async_op.info().capability(),
         ))
     }
 
@@ -964,7 +964,12 @@ impl Metadata {
     /// User Metadata of this object.
     #[napi(getter)]
     pub fn user_metadata(&self) -> Option<HashMap<String, String>> {
-        self.0.user_metadata().cloned()
+        self.0.user_metadata().map(|metadata| {
+            metadata
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect()
+        })
     }
 
     /// ETag of this object.

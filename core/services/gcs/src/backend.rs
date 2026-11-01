@@ -18,8 +18,6 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use http::Response;
-use http::StatusCode;
 use log::debug;
 use reqsign_core::Context;
 use reqsign_core::Env as _;
@@ -38,14 +36,17 @@ use reqsign_google::TokenCredentialProvider;
 use reqsign_google::VmMetadataCredentialProvider;
 
 use super::GCS_SCHEME;
+use super::composer::GcsComposer;
 use super::config::GcsConfig;
 use super::copier::GcsCopier;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
 use super::core::constants::GCS_REWRITE_MIN_CHUNK_SIZE;
+use super::core::parse_error;
 use super::core::*;
 use super::deleter::GcsDeleter;
-use super::error::parse_error;
 use super::lister::GcsLister;
+use super::reader::*;
+use super::writer::GcsConditionalWriter;
 use super::writer::GcsWriter;
 use super::writer::GcsWriters;
 use opendal_core::raw::*;
@@ -155,6 +156,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider used by this service.
     ///
     /// This provider will be pushed to the front of credential chain.
+    ///
+    /// Implement the provider against [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider(
         mut self,
         provider: impl ProvideCredential<Credential = Credential> + 'static,
@@ -167,6 +172,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider chain used by this service.
     ///
     /// This chain will be pushed to the front of default chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_provider_chain = Some(chain);
         self
@@ -242,7 +251,7 @@ impl GcsBuilder {
 impl Builder for GcsBuilder {
     type Config = GcsConfig;
 
-    fn build(self) -> Result<impl Access> {
+    fn build(self) -> Result<impl Service> {
         debug!("backend build started: {self:?}");
 
         #[allow(deprecated)]
@@ -280,11 +289,8 @@ impl Builder for GcsBuilder {
         let mut envs = os_env.vars();
         envs.insert("GOOGLE_SCOPE".to_string(), scope.clone());
 
-        let info = Arc::new(AccessorInfo::default());
-
         let ctx = Context::new()
             .with_file_read(TokioFileRead)
-            .with_http_send(AccessorInfoHttpSend::new(info.clone()))
             .with_env(StaticEnv {
                 home_dir: os_env.home_dir(),
                 envs,
@@ -306,14 +312,14 @@ impl Builder for GcsBuilder {
 
         let mut credential_chain = ProvideCredentialChain::new().push(default_credential.build());
 
-        if !self.config.disable_vm_metadata {
-            if let Some(service_account) = self.config.service_account.as_deref() {
-                credential_chain = credential_chain.push(
-                    VmMetadataCredentialProvider::new()
-                        .with_scope(&scope)
-                        .with_service_account(service_account),
-                );
-            }
+        if !self.config.disable_vm_metadata
+            && let Some(service_account) = self.config.service_account.as_deref()
+        {
+            credential_chain = credential_chain.push(
+                VmMetadataCredentialProvider::new()
+                    .with_scope(&scope)
+                    .with_service_account(service_account),
+            );
         }
 
         if let Some(path) = self.config.credential_path.as_deref() {
@@ -321,10 +327,10 @@ impl Builder for GcsBuilder {
                 credential_chain.push_front(FileCredentialProvider::new(path).with_scope(&scope));
         }
 
-        if let Some(content) = self.config.credential.as_deref() {
-            if let Ok(provider) = StaticCredentialProvider::from_base64(content) {
-                credential_chain = credential_chain.push_front(provider.with_scope(&scope));
-            }
+        if let Some(content) = self.config.credential.as_deref()
+            && let Ok(provider) = StaticCredentialProvider::from_base64(content)
+        {
+            credential_chain = credential_chain.push_front(provider.with_scope(&scope));
         }
 
         if let Some(token) = self.config.token.as_deref() {
@@ -335,83 +341,103 @@ impl Builder for GcsBuilder {
             credential_chain = credential_chain.push_front(customized_credential_chain);
         }
 
+        let sign_ctx = ctx;
         let signer = Signer::new(
-            ctx,
+            sign_ctx.clone(),
             credential_chain,
             RequestSigner::new("storage").with_scope(&scope),
         );
 
+        let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
+        let capability = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            stat_with_if_none_match: true,
+            stat_with_if_version_match: true,
+            stat_with_if_version_not_match: true,
+
+            read: true,
+            read_with_suffix: true,
+
+            read_with_if_match: true,
+            read_with_if_none_match: true,
+            read_with_if_version_match: true,
+            read_with_if_version_not_match: true,
+
+            write: true,
+            write_can_empty: true,
+            write_can_multi: true,
+            write_with_cache_control: true,
+            write_with_content_type: true,
+            write_with_content_encoding: true,
+            write_with_user_metadata: true,
+            write_with_if_not_exists: true,
+            write_with_if_version_match: true,
+            write_with_if_version_not_match: true,
+
+            // The min multipart size of Gcs is 5 MiB.
+            //
+            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+            write_multi_min_size: Some(5 * 1024 * 1024),
+            // The max multipart size of Gcs is 5 GiB.
+            //
+            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
+            write_multi_max_size: if cfg!(target_pointer_width = "64") {
+                Some(5 * 1024 * 1024 * 1024)
+            } else {
+                Some(usize::MAX)
+            },
+
+            delete: true,
+            delete_with_if_version_match: true,
+            delete_with_if_version_not_match: true,
+            delete_max_size: Some(100),
+
+            copy: true,
+            copy_with_if_version_match: true,
+            copy_with_if_version_not_match: true,
+            copy_can_multi: true,
+            // GCS rewrite requires maxBytesRewrittenPerCall to be an
+            // integral multiple of 1 MiB if specified.
+            //
+            // ref: <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite>
+            copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
+            copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
+
+            compose: true,
+            compose_with_content_type: true,
+            compose_with_content_disposition: true,
+            compose_with_content_encoding: true,
+            compose_with_cache_control: true,
+            compose_with_user_metadata: true,
+            compose_with_if_not_exists: true,
+            compose_with_if_version_match: true,
+            compose_with_source_version: true,
+
+            list: true,
+            list_with_limit: true,
+            list_with_start_after: true,
+            list_with_recursive: true,
+
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+
+            shared: true,
+
+            ..Default::default()
+        };
+
         let backend = GcsBackend {
             core: Arc::new(GcsCore {
-                info: {
-                    info.set_scheme(GCS_SCHEME)
-                        .set_root(&root)
-                        .set_name(bucket)
-                        .set_native_capability(Capability {
-                            stat: true,
-                            stat_with_if_match: true,
-                            stat_with_if_none_match: true,
-
-                            read: true,
-
-                            read_with_if_match: true,
-                            read_with_if_none_match: true,
-
-                            write: true,
-                            write_can_empty: true,
-                            write_can_multi: true,
-                            write_with_cache_control: true,
-                            write_with_content_type: true,
-                            write_with_content_encoding: true,
-                            write_with_user_metadata: true,
-                            write_with_if_not_exists: true,
-
-                            // The min multipart size of Gcs is 5 MiB.
-                            //
-                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                            write_multi_min_size: Some(5 * 1024 * 1024),
-                            // The max multipart size of Gcs is 5 GiB.
-                            //
-                            // ref: <https://cloud.google.com/storage/docs/xml-api/put-object-multipart>
-                            write_multi_max_size: if cfg!(target_pointer_width = "64") {
-                                Some(5 * 1024 * 1024 * 1024)
-                            } else {
-                                Some(usize::MAX)
-                            },
-
-                            delete: true,
-                            delete_max_size: Some(100),
-
-                            copy: true,
-                            copy_can_multi: true,
-                            // GCS rewrite requires maxBytesRewrittenPerCall to be an
-                            // integral multiple of 1 MiB if specified.
-                            //
-                            // ref: <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite>
-                            copy_multi_min_size: Some(GCS_REWRITE_MIN_CHUNK_SIZE),
-                            copy_multi_max_size: Some(GCS_REWRITE_MAX_CHUNK_SIZE),
-
-                            list: true,
-                            list_with_limit: true,
-                            list_with_start_after: true,
-                            list_with_recursive: true,
-
-                            presign: true,
-                            presign_stat: true,
-                            presign_read: true,
-                            presign_write: true,
-
-                            shared: true,
-
-                            ..Default::default()
-                        });
-
-                    info.clone()
-                },
+                info,
+                capability,
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
                 signer,
+                sign_ctx,
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 skip_signature,
@@ -425,25 +451,44 @@ impl Builder for GcsBuilder {
 /// GCS storage backend
 #[derive(Clone, Debug)]
 pub struct GcsBackend {
-    core: Arc<GcsCore>,
+    pub(crate) core: Arc<GcsCore>,
 }
 
-impl Access for GcsBackend {
-    type Reader = HttpBody;
+impl Service for GcsBackend {
+    type Reader = oio::StreamReader<GcsReader>;
     type Writer = GcsWriters;
     type Lister = oio::PageLister<GcsLister>;
     type Deleter = oio::BatchDeleter<GcsDeleter>;
     type Copier = GcsCopier;
+    type Composer = GcsComposer;
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
-        let resp = self.core.gcs_get_object_metadata(path, &args).await?;
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        let error_ctx = ErrorContext::new(ServiceOperation("GetObject"))
+            .with_caller_condition(args.is_conditional());
+        let resp = self.core.gcs_get_object_metadata(ctx, path, &args).await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(error_ctx, resp));
         }
 
         let slc = resp.into_body();
@@ -451,70 +496,123 @@ impl Access for GcsBackend {
 
         Ok(RpStat::new(m))
     }
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<GcsReader> = {
+            Ok(oio::StreamReader::new(GcsReader::new(
+                self.clone(),
+                ctx.clone(),
+                path,
+                args,
+            )))
+        }?;
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let resp = self.core.gcs_get_object(path, args.range(), &args).await?;
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                Ok((RpRead::default(), resp.into_body()))
-            }
-            _ => {
-                let (part, mut body) = resp.into_parts();
-                let buf = body.to_buffer().await?;
-                Err(parse_error(Response::from_parts(part, buf)))
-            }
-        }
+        Ok(output)
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        let concurrent = args.concurrent();
-        let w = GcsWriter::new(self.core.clone(), path, args);
-        let w = oio::MultipartWriter::new(self.core.info.clone(), w, concurrent);
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let conditional = args.if_not_exists()
+            || args.if_version_match().is_some()
+            || args.if_version_not_match().is_some();
+        let output: GcsWriters = if conditional {
+            TwoWays::Two(GcsConditionalWriter::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args,
+            ))
+        } else {
+            let concurrent = args.concurrent();
+            let w = GcsWriter::new(self.core.clone(), ctx.clone(), path, args);
+            // Multipart uploads schedule work through the operation executor
+            // supplied by the caller.
+            let w = oio::MultipartWriter::new(ctx.executor().clone(), w, concurrent);
+            TwoWays::One(w)
+        };
 
-        Ok((RpWrite::default(), w))
+        Ok(output)
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::BatchDeleter::new(
-                GcsDeleter::new(self.core.clone()),
-                self.core.info.full_capability().delete_max_size,
-            ),
-        ))
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::BatchDeleter<GcsDeleter> = {
+            Ok(oio::BatchDeleter::new(
+                GcsDeleter::new(self.core.clone(), ctx.clone()),
+                self.core.capability.delete_max_size,
+            ))
+        }?;
+
+        Ok(output)
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        let l = GcsLister::new(
-            self.core.clone(),
-            path,
-            args.recursive(),
-            args.limit(),
-            args.start_after(),
-        );
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let output: oio::PageLister<GcsLister> = {
+            let l = GcsLister::new(
+                self.core.clone(),
+                ctx.clone(),
+                path,
+                args.recursive(),
+                args.limit(),
+                args.start_after(),
+            );
 
-        Ok((RpList::default(), oio::PageLister::new(l)))
+            Ok(oio::PageLister::new(l))
+        }?;
+
+        Ok(output)
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
-        let copier = GcsCopier::new(self.core.clone(), from, to, args, opts);
-        Ok((RpCopy::default(), copier))
+    ) -> Result<Self::Copier> {
+        let output: GcsCopier = {
+            let copier = GcsCopier::new(self.core.clone(), ctx.clone(), from, to, args);
+            Ok(copier)
+        }?;
+
+        Ok(output)
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        if args.if_match().is_some()
+            || args.if_none_match().is_some()
+            || args.if_version_not_match().is_some()
+        {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "GCS compose does not support the requested destination option",
+            ));
+        }
+        Ok(GcsComposer::new(self.core.clone(), ctx.clone(), to, args))
+    }
+
+    async fn rename(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpRename,
+    ) -> Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         // We will not send this request out, just for signing.
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.gcs_head_object_xml_request(path, v),
-            PresignOperation::Read(v) => self.core.gcs_get_object_xml_request(path, v),
+            PresignOperation::Read(range, v) => {
+                self.core.gcs_get_object_xml_request(path, *range, v)
+            }
             PresignOperation::Write(v) => {
                 self.core
                     .gcs_insert_object_xml_request(path, v, Buffer::new())
@@ -529,7 +627,7 @@ impl Access for GcsBackend {
             )),
         };
         let req = req?;
-        let req = self.core.sign_query(req, args.expire()).await?;
+        let req = self.core.sign_query(ctx, req, args.expire()).await?;
 
         // We don't need this request anymore, consume it directly.
         let (parts, _) = req.into_parts();

@@ -16,35 +16,44 @@
 // under the License.
 
 use std::sync::Arc;
+use std::time::Duration;
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
-use futures_rustls::TlsConnector;
-use futures_rustls::rustls::ClientConfig;
-use futures_rustls::rustls::RootCertStore;
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
 use suppaftp::FtpError;
 use suppaftp::Status;
-use suppaftp::async_std::AsyncRustlsConnector;
-use suppaftp::async_std::AsyncRustlsFtpStream;
-use suppaftp::async_std::ImplAsyncFtpStream;
+use suppaftp::tokio::AsyncRustlsConnector;
+use suppaftp::tokio::AsyncRustlsFtpStream;
+use suppaftp::tokio::ImplAsyncFtpStream;
+use suppaftp::tokio_rustls::TlsConnector;
+use suppaftp::tokio_rustls::rustls::ClientConfig;
+use suppaftp::tokio_rustls::rustls::RootCertStore;
 use suppaftp::types::FileType;
 
-use super::err::format_ftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct FtpCore {
-    info: Arc<AccessorInfo>,
+    info: ServiceInfo,
+    capability: Capability,
     pool: Arc<bounded::Pool<Manager>>,
 }
 
 impl FtpCore {
-    pub fn new(info: Arc<AccessorInfo>, manager: Manager) -> Self {
+    pub fn new(info: ServiceInfo, capability: Capability, manager: Manager) -> Self {
         let pool = bounded::Pool::new(bounded::PoolConfig::new(64), manager);
-        Self { info, pool }
+        Self {
+            info,
+            capability,
+            pool,
+        }
     }
 
-    pub fn info(&self) -> Arc<AccessorInfo> {
+    pub fn info(&self) -> ServiceInfo {
         self.info.clone()
+    }
+
+    pub fn capability(&self) -> Capability {
+        self.capability
     }
 
     pub async fn ftp_connect(&self, _: Operation) -> Result<bounded::Object<Manager>> {
@@ -65,6 +74,7 @@ impl FtpCore {
 #[derive(Clone)]
 pub struct Manager {
     pub endpoint: String,
+    pub host: String,
     pub root: String,
     pub user: String,
     pub password: String,
@@ -92,7 +102,7 @@ impl ManageObject for Manager {
             stream
                 .into_secure(
                     AsyncRustlsConnector::from(TlsConnector::from(Arc::new(cfg))),
-                    &self.endpoint,
+                    &self.host,
                 )
                 .await?
         } else {
@@ -130,3 +140,38 @@ impl ManageObject for Manager {
         o.noop().await
     }
 }
+
+mod err {
+    use suppaftp::FtpError;
+    use suppaftp::Status;
+
+    use opendal_core::Error;
+    use opendal_core::ErrorKind;
+
+    pub(crate) fn format_ftp_error(err: FtpError) -> Error {
+        let (kind, retryable) = match err {
+            // Allow retry for error
+            //
+            // `{ status: NotAvailable, body: "421 There are too many connections from your internet address." }`
+            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::NotAvailable => {
+                (ErrorKind::Unexpected, true)
+            }
+            FtpError::UnexpectedResponse(ref resp) if resp.status == Status::FileUnavailable => {
+                (ErrorKind::NotFound, false)
+            }
+            // Allow retry bad response.
+            FtpError::BadResponse => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        };
+
+        let mut err = Error::new(kind, "ftp error").set_source(err);
+
+        if retryable {
+            err = err.set_temporary();
+        }
+
+        err
+    }
+}
+
+pub(super) use err::*;

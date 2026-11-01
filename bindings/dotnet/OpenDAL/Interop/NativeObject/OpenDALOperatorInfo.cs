@@ -33,7 +33,5 @@ internal struct OpenDALOperatorInfo
 
     public IntPtr Name;
 
-    public OpenDALCapability FullCapability;
-
-    public OpenDALCapability NativeCapability;
+    public OpenDALCapability Capability;
 }

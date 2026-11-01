@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenDAL Observability
-//!
-//! This library offers essential components to facilitate the implementation of observability in OpenDAL.
-//!
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
+
 //! # OpenDAL Metrics Reference
 //!
 //! This document describes all metrics exposed by OpenDAL.
@@ -71,9 +72,6 @@
 //! * **Histogram**: Distribution of values with configurable buckets, includes count, sum and quantiles
 //! * **Counter**: Cumulative metric that only increases over time (resets on restart)
 //! * **Gauge**: Point-in-time metric that can increase and decrease
-
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(missing_docs)]
 
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -206,6 +204,10 @@ pub static LABEL_STATUS_CODE: &str = "status_code";
 pub static LABEL_SERVICE_OPERATION: &str = "service_operation";
 
 /// MetricLabels are the labels for the metrics.
+///
+/// `scheme`, `namespace`, and `root` always come from the final service stack's
+/// [`ServiceInfo`]. HTTP requests only provide request-level labels such as
+/// [`Operation`] and [`ServiceOperation`] through extensions.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct MetricLabels {
     /// The storage scheme identifier (e.g., "s3", "gcs", "azblob", "fs").
@@ -234,7 +236,7 @@ pub struct MetricLabels {
 
 impl MetricLabels {
     /// Create a new set of MetricLabels.
-    fn new(info: Arc<AccessorInfo>, op: &'static str) -> Self {
+    fn new(info: ServiceInfo, op: &'static str) -> Self {
         MetricLabels {
             scheme: info.scheme(),
             namespace: info.name(),
@@ -437,34 +439,46 @@ pub trait MetricsIntercept: Debug + Clone + Send + Sync + Unpin + 'static {
     }
 }
 
-/// The metrics layer for opendal.
+/// `MetricsLayer` reports operation and HTTP metrics to an interceptor.
+///
+/// The layer wraps both the storage service and the HTTP transport in the
+/// operator's [`OperationContext`]. It reports the metric names and labels
+/// documented in the crate-level metrics reference through
+/// [`MetricsIntercept::observe`].
+///
+/// The interceptor must be cheap to clone because each wrapped operation and
+/// HTTP request can retain a clone.
 #[derive(Clone, Debug)]
 pub struct MetricsLayer<I: MetricsIntercept> {
     interceptor: I,
 }
 
 impl<I: MetricsIntercept> MetricsLayer<I> {
-    /// Create a new metrics layer.
+    /// Create a metrics layer that reports values to `interceptor`.
     pub fn new(interceptor: I) -> Self {
         Self { interceptor }
     }
 }
 
-impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
-    type LayeredAccess = MetricsAccessor<A, I>;
+impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
 
-    fn layer(&self, inner: A) -> Self::LayeredAccess {
-        let info = inner.info();
-
-        // Update http client with metrics http fetcher.
-        info.update_http_client(|client| {
-            HttpClient::with(MetricsHttpFetcher {
-                inner: client.into_inner(),
-                info: info.clone(),
-                interceptor: self.interceptor.clone(),
-            })
+    fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext {
+        // HTTP metrics share the same interceptor and service identity as operation metrics.
+        let transport = HttpTransporter::new(MetricsHttpTransport {
+            inner: inner.http_transport().clone(),
+            info: srv.info(),
+            interceptor: self.interceptor.clone(),
         });
+        inner.with_http_transport(transport)
+    }
+}
 
+impl<I: MetricsIntercept> MetricsLayer<I> {
+    fn layer(&self, inner: Servicer) -> MetricsAccessor<I> {
+        let info = inner.info();
         MetricsAccessor {
             inner,
             info,
@@ -473,9 +487,9 @@ impl<A: Access, I: MetricsIntercept> Layer<A> for MetricsLayer<I> {
     }
 }
 
-struct MetricsHttpFetcher<I: MetricsIntercept> {
-    inner: HttpFetcher,
-    info: Arc<AccessorInfo>,
+struct MetricsHttpTransport<I: MetricsIntercept> {
+    inner: HttpTransporter,
+    info: ServiceInfo,
     interceptor: I,
 }
 
@@ -571,7 +585,7 @@ impl<I: MetricsIntercept> Drop for ExecutingGuard<I> {
     }
 }
 
-impl<I: MetricsIntercept> HttpFetch for MetricsHttpFetcher<I> {
+impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
         let mut labels = MetricLabels::new(
             self.info.clone(),
@@ -700,13 +714,13 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
 }
 
 #[doc(hidden)]
-pub struct MetricsAccessor<A: Access, I: MetricsIntercept> {
-    inner: A,
-    info: Arc<AccessorInfo>,
+pub struct MetricsAccessor<I: MetricsIntercept> {
+    inner: Servicer,
+    info: ServiceInfo,
     interceptor: I,
 }
 
-impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
+impl<I: MetricsIntercept> Debug for MetricsAccessor<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MetricsAccessor")
             .field("inner", &self.inner)
@@ -714,19 +728,32 @@ impl<A: Access, I: MetricsIntercept> Debug for MetricsAccessor<A, I> {
     }
 }
 
-impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
-    type Inner = A;
-    type Reader = MetricsWrapper<A::Reader, I>;
-    type Writer = MetricsWrapper<A::Writer, I>;
-    type Lister = MetricsWrapper<A::Lister, I>;
-    type Deleter = MetricsWrapper<A::Deleter, I>;
-    type Copier = MetricsWrapper<A::Copier, I>;
+impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
+    type Reader = MetricsReader<oio::Reader, I>;
+    type Writer = MetricsWrapper<oio::Writer, I>;
+    type Lister = MetricsWrapper<oio::Lister, I>;
+    type Deleter = MetricsWrapper<oio::Deleter, I>;
+    type Copier = MetricsWrapper<oio::Copier, I>;
+    type Composer = oio::Composer;
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
+    fn info(&self) -> ServiceInfo {
+        self.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, args: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let labels = MetricLabels::new(self.info.clone(), Operation::CreateDir.into_static());
 
         let start = Instant::now();
@@ -737,8 +764,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .create_dir(path, args)
+            .inner
+            .create_dir(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -757,7 +784,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Read.into_static());
 
         let start = Instant::now();
@@ -767,17 +794,10 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.read(path, args).await {
-            Ok((rp, reader)) => {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationTtfbSeconds(start.elapsed()),
-                );
-                guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(reader, self.interceptor.clone(), labels, start),
-                ))
+        match self.inner.read(ctx, path, args) {
+            Ok(reader) => {
+                guard.complete();
+                Ok(MetricsReader::new(reader, self.interceptor.clone(), labels))
             }
             Err(err) => {
                 self.interceptor.observe(
@@ -790,7 +810,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn write(&self, path: &str, args: OpWrite) -> Result<(RpWrite, Self::Writer)> {
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Write.into_static());
 
         let start = Instant::now();
@@ -800,12 +820,14 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.write(path, args).await {
-            Ok((rp, writer)) => {
+        match self.inner.write(ctx, path, args) {
+            Ok(writer) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(writer, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    writer,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -819,13 +841,13 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn copy(
+    fn copy(
         &self,
+        ctx: &OperationContext,
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
-    ) -> Result<(RpCopy, Self::Copier)> {
+    ) -> Result<Self::Copier> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Copy.into_static());
 
         let start = Instant::now();
@@ -835,12 +857,14 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.copy(from, to, args, opts.clone()).await {
-            Ok((rp, copier)) => {
+        match self.inner.copy(ctx, from, to, args) {
+            Ok(copier) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(copier, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    copier,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -854,7 +878,13 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn rename(&self, from: &str, to: &str, args: OpRename) -> Result<RpRename> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Rename.into_static());
 
         let start = Instant::now();
@@ -865,8 +895,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .rename(from, to, args)
+            .inner
+            .rename(ctx, from, to, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -885,7 +915,42 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn stat(&self, path: &str, args: OpStat) -> Result<RpStat> {
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let labels = MetricLabels::new(self.info.clone(), Operation::Restore.into_static());
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        let res = self
+            .inner
+            .restore(ctx, path, args)
+            .await
+            .inspect(|_| {
+                self.interceptor.observe(
+                    labels.clone(),
+                    MetricValue::OperationDurationSeconds(start.elapsed()),
+                );
+            })
+            .inspect_err(|err| {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+            });
+
+        guard.complete();
+        res
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Stat.into_static());
 
         let start = Instant::now();
@@ -896,8 +961,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .stat(path, args)
+            .inner
+            .stat(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -916,7 +981,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         res
     }
 
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Delete.into_static());
 
         let start = Instant::now();
@@ -926,12 +991,14 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.delete().await {
-            Ok((rp, deleter)) => {
+        match self.inner.delete(ctx) {
+            Ok(deleter) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(deleter, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    deleter,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -945,7 +1012,7 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let labels = MetricLabels::new(self.info.clone(), Operation::List.into_static());
 
         let start = Instant::now();
@@ -955,12 +1022,14 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        match self.inner.list(path, args).await {
-            Ok((rp, lister)) => {
+        match self.inner.list(ctx, path, args) {
+            Ok(lister) => {
                 guard.defuse();
-                Ok((
-                    rp,
-                    MetricsWrapper::new(lister, self.interceptor.clone(), labels, start),
+                Ok(MetricsWrapper::new(
+                    lister,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
                 ))
             }
             Err(err) => {
@@ -974,7 +1043,12 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
         }
     }
 
-    async fn presign(&self, path: &str, args: OpPresign) -> Result<RpPresign> {
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
         let labels = MetricLabels::new(self.info.clone(), Operation::Presign.into_static());
 
         let start = Instant::now();
@@ -985,8 +1059,8 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
         let res = self
-            .inner()
-            .presign(path, args)
+            .inner
+            .presign(ctx, path, args)
             .await
             .inspect(|_| {
                 self.interceptor.observe(
@@ -1003,6 +1077,80 @@ impl<A: Access, I: MetricsIntercept> LayeredAccess for MetricsAccessor<A, I> {
 
         guard.complete();
         res
+    }
+}
+
+#[doc(hidden)]
+pub struct MetricsReader<R, I: MetricsIntercept> {
+    inner: R,
+    interceptor: I,
+    labels: MetricLabels,
+}
+
+impl<R, I: MetricsIntercept> MetricsReader<R, I> {
+    fn new(inner: R, interceptor: I, labels: MetricLabels) -> Self {
+        Self {
+            inner,
+            interceptor,
+            labels,
+        }
+    }
+}
+
+impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsReader<R, I> {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        let labels = self.labels.clone();
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        match self.inner.open(range).await {
+            Ok((rp, stream)) => {
+                self.interceptor.observe(
+                    labels.clone(),
+                    MetricValue::OperationTtfbSeconds(start.elapsed()),
+                );
+                guard.defuse();
+                Ok((
+                    rp,
+                    Box::new(MetricsWrapper::new(
+                        stream,
+                        self.interceptor.clone(),
+                        labels,
+                        start,
+                    )) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        let labels = self.labels.clone();
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut metrics = MetricsWrapper::new((), self.interceptor.clone(), labels, start);
+
+        let result = self.inner.read(range).await.inspect_err(|err| {
+            metrics.record_error(err);
+        });
+        if let Ok((_, buffer)) = &result {
+            metrics.size = buffer.len() as u64;
+            metrics.completed = true;
+        }
+        result
     }
 }
 
@@ -1080,7 +1228,7 @@ impl<R, I: MetricsIntercept> MetricsWrapper<R, I> {
     }
 }
 
-impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsWrapper<R, I> {
+impl<R: oio::ReadStream, I: MetricsIntercept> oio::ReadStream for MetricsWrapper<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
         self.inner
             .read()
@@ -1104,6 +1252,20 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
             .await
             .inspect(|_| {
                 self.size += size as u64;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        self.inner
+            .copy_from(path, args, range)
+            .await
+            .inspect(|_| {
+                self.size += size;
             })
             .inspect_err(|err| self.record_error(err))
     }
@@ -1202,6 +1364,7 @@ impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Mutex;
     use std::time::Instant;
 
@@ -1292,8 +1455,8 @@ mod tests {
         }
     }
 
-    fn test_info() -> Arc<AccessorInfo> {
-        Arc::new(AccessorInfo::default())
+    fn test_info() -> ServiceInfo {
+        ServiceInfo::new("test", "", "")
     }
 
     fn test_labels() -> MetricLabels {
@@ -1309,11 +1472,11 @@ mod tests {
         StreamBody(Vec<Result<Buffer>>),
     }
 
-    struct MockHttpFetch {
+    struct MockHttpTransport {
         behavior: Mutex<MockFetchBehavior>,
     }
 
-    impl HttpFetch for MockHttpFetch {
+    impl HttpTransport for MockHttpTransport {
         async fn fetch(&self, _req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
             let behavior = std::mem::replace(
                 &mut *self.behavior.lock().unwrap(),
@@ -1343,12 +1506,12 @@ mod tests {
     fn build_metrics_http_fetcher(
         mock: MockInterceptor,
         behavior: MockFetchBehavior,
-    ) -> MetricsHttpFetcher<MockInterceptor> {
-        let inner_fetch = MockHttpFetch {
+    ) -> MetricsHttpTransport<MockInterceptor> {
+        let inner_fetch = MockHttpTransport {
             behavior: Mutex::new(behavior),
         };
-        MetricsHttpFetcher {
-            inner: Arc::new(inner_fetch) as HttpFetcher,
+        MetricsHttpTransport {
+            inner: HttpTransporter::new(inner_fetch),
             info: test_info(),
             interceptor: mock,
         }
@@ -1361,8 +1524,72 @@ mod tests {
         req
     }
 
+    struct MockRawReader {
+        open_result: Mutex<Option<Result<Vec<Result<Buffer>>>>>,
+        read_result: Mutex<Option<Result<Buffer>>>,
+    }
+
+    impl MockRawReader {
+        fn with_open(chunks: Vec<Result<Buffer>>) -> Self {
+            Self {
+                open_result: Mutex::new(Some(Ok(chunks))),
+                read_result: Mutex::new(None),
+            }
+        }
+
+        fn with_read(buffer: Buffer) -> Self {
+            Self {
+                open_result: Mutex::new(None),
+                read_result: Mutex::new(Some(Ok(buffer))),
+            }
+        }
+    }
+
+    impl oio::Read for MockRawReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            match self
+                .open_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "open not configured")))
+            {
+                Ok(chunks) => Ok((
+                    RpRead::default(),
+                    Box::new(MockReadStream {
+                        chunks: chunks.into_iter().collect(),
+                    }) as Box<dyn oio::ReadStreamDyn>,
+                )),
+                Err(err) => Err(err),
+            }
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            match self
+                .read_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "read not configured")))
+            {
+                Ok(buffer) => Ok((RpRead::default(), buffer)),
+                Err(err) => Err(err),
+            }
+        }
+    }
+
+    struct MockReadStream {
+        chunks: VecDeque<Result<Buffer>>,
+    }
+
+    impl oio::ReadStream for MockReadStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            self.chunks.pop_front().unwrap_or_else(|| Ok(Buffer::new()))
+        }
+    }
+
     #[tokio::test]
-    async fn test_http_client_error_records_status_error() {
+    async fn test_http_transport_error_records_status_error() {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
@@ -1616,6 +1843,72 @@ mod tests {
         drop(guard);
 
         assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[test]
+    fn test_reader_drop_records_no_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+
+        let reader = MetricsReader::new(
+            MockRawReader::with_read(Buffer::new()),
+            mock.clone(),
+            labels,
+        );
+        drop(reader);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), None);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reader_open_stream_records_operation_metrics_on_stream_drop() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        let reader = MetricsReader::new(
+            MockRawReader::with_open(vec![Ok(Buffer::from("hello"))]),
+            mock.clone(),
+            labels,
+        );
+
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::from(0_u64..5))
+            .await
+            .unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        let chunk = oio::ReadStream::read(&mut stream).await.unwrap();
+        assert_eq!(chunk.len(), 5);
+        let chunk = oio::ReadStream::read(&mut stream).await.unwrap();
+        assert!(chunk.is_empty());
+        drop(stream);
+        drop(reader);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert!(mock.has_metric("opendal_operation_ttfb_seconds"));
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(5));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reader_read_records_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+        let reader = MetricsReader::new(
+            MockRawReader::with_read(Buffer::from("hello")),
+            mock.clone(),
+            labels,
+        );
+
+        let (_, buffer) = oio::Read::read(&reader, BytesRange::from(0_u64..5))
+            .await
+            .unwrap();
+        drop(reader);
+
+        assert_eq!(buffer.len(), 5);
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(5));
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
     }
 

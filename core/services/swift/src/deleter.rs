@@ -19,40 +19,47 @@ use std::sync::Arc;
 
 use http::StatusCode;
 
+use super::core::parse_error;
 use super::core::*;
-use super::error::parse_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 pub struct SwiftDeleter {
     core: Arc<SwiftCore>,
+    ctx: OperationContext,
 }
 
 impl SwiftDeleter {
-    pub fn new(core: Arc<SwiftCore>) -> Self {
-        Self { core }
+    pub fn new(core: Arc<SwiftCore>, ctx: OperationContext) -> Self {
+        Self { core, ctx }
     }
 }
 
 impl oio::BatchDelete for SwiftDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.swift_delete(&path).await?;
+        let resp = self.core.swift_delete(&self.ctx, &path).await?;
 
         let status = resp.status();
 
         match status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 
     async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<oio::BatchDeleteResult> {
-        let resp = self.core.swift_bulk_delete(&batch).await?;
+        let resp = self.core.swift_bulk_delete(&self.ctx, &batch).await?;
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BulkDelete")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body().to_bytes();
@@ -60,7 +67,10 @@ impl oio::BatchDelete for SwiftDeleter {
             serde_json::from_slice(&bs).map_err(new_json_deserialize_error)?;
 
         let mut batched_result = oio::BatchDeleteResult {
-            succeeded: Vec::with_capacity(batch.len() - result.errors.len()),
+            // `result.errors.len()` is server-controlled and may exceed `batch.len()`; use
+            // `saturating_sub` (mirroring services/tos) to avoid an unsigned underflow that
+            // wraps to a huge `with_capacity` (release: abort).
+            succeeded: Vec::with_capacity(batch.len().saturating_sub(result.errors.len())),
             failed: Vec::with_capacity(result.errors.len()),
         };
 
@@ -69,7 +79,7 @@ impl oio::BatchDelete for SwiftDeleter {
             // The error paths from Swift include the container prefix, so we need
             // to reconstruct the full path for comparison.
             let abs = build_abs_path(&self.core.root, &path);
-            let full_path = format!("{}/{}", &self.core.container, abs);
+            let full_path = format!("{}/{}", self.core.container, abs);
 
             if let Some(error_entry) = result.errors.iter().find(|e| {
                 e.first()

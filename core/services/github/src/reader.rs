@@ -69,9 +69,10 @@ impl oio::StreamRead for GithubReader {
                     let bs = body.to_buffer().await?;
                     let total_size = bs.len() as u64;
                     let sliced = bs.slice(range.to_content_range(bs.len())?);
-                    let meta = meta.with_content_length(total_size);
+                    let mut metadata = meta.into_builder();
+                    metadata.set_file(total_size);
                     (
-                        RpRead::new(meta),
+                        RpRead::new(metadata.build()),
                         Box::new(sliced) as Box<dyn oio::ReadStreamDyn>,
                     )
                 }
@@ -94,7 +95,7 @@ impl oio::StreamRead for GithubReader {
 mod tests {
     use super::*;
     use http::Request;
-    use opendal_core::raw::oio::{ReadStream, StreamRead};
+    use opendal_core::raw::oio::{Read, ReadStream};
 
     #[derive(Debug)]
     struct FullBodyTransport;
@@ -116,7 +117,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_ignored_range_preserves_metadata() {
-        let backend = GithubBuilder::default()
+        let service = GithubBuilder::default()
             .owner("owner")
             .repo("repo")
             .token("test-token")
@@ -124,7 +125,9 @@ mod tests {
             .expect("github service must build");
         let ctx =
             OperationContext::new().with_http_transport(HttpTransporter::new(FullBodyTransport));
-        let reader = GithubReader::new(backend, ctx, "file.txt", OpRead::default());
+        let reader = service
+            .read(&ctx, "file.txt", OpRead::default())
+            .expect("reader must be created");
 
         for (range, expected) in [
             (BytesRange::new(2, Some(3)), b"234".as_slice()),

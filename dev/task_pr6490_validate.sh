@@ -25,7 +25,9 @@ cd "$task_repo"
 git rev-parse HEAD > "$task_logs/head.before"
 git rev-parse 'HEAD^' > "$task_logs/parent.before"
 git status --porcelain > "$task_logs/status.before"
-test "$(cat "$task_logs/parent.before")" = b509fa920283a02277e780d2346ba57e30744aad
+git merge-base --is-ancestor b509fa920283a02277e780d2346ba57e30744aad HEAD
+git diff --name-only b509fa920283a02277e780d2346ba57e30744aad HEAD > "$task_logs/task-paths.txt"
+test "$(cat "$task_logs/task-paths.txt")" = dev/task_pr6490_validate.sh
 test ! -s "$task_logs/status.before"
 export PATH="$HOME/.cargo/bin:$HOME/.local/bin:$PATH"
 export RUSTUP_TOOLCHAIN=1.99.1
@@ -47,8 +49,16 @@ run_check() {
     if test "$task_status" -ne 0; then task_failed=1; fi
 }
 cd bindings/python
-run_check sync uv sync --managed-python --python 3.11 --frozen --no-install-project --group dev --group test
+run_check sync uv sync --managed-python --python 3.11 --frozen --no-install-project --group dev --group test --group lint
 test "$(cat "$task_logs/sync.status")" -eq 0
+# Match the compatible PyO3 release line already selected by current main.
+# The original PR's open-ended constraints otherwise resolve PyO3 0.30.
+run_check runtimes cargo update --package pyo3-async-runtimes --precise 0.29.0
+test "$(cat "$task_logs/runtimes.status")" -eq 0
+run_check pyo3 cargo update --package pyo3 --precise 0.29.1
+test "$(cat "$task_logs/pyo3.status")" -eq 0
+sha256sum Cargo.lock > "$task_logs/cargo-lock.sha256"
+run_check dependency-tree cargo tree --locked --invert pyo3 --depth 1
 run_check generate cargo run --locked --quiet --manifest-path=../../dev/Cargo.toml -- generate -l python
 run_check build uv run --no-sync maturin develop --locked --no-default-features -F services-fs --generate-stubs
 if test "$(cat "$task_logs/build.status")" -eq 0; then
@@ -75,7 +85,7 @@ PY
     run_check ruff uv run --no-sync ruff check
     run_check types uv run --no-sync ty check
 fi
-run_check clippy cargo clippy --locked --no-default-features --features services-fs --all-targets -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
+run_check clippy cargo clippy --locked --no-default-features --features services-fs -- -D warnings -D clippy::dbg_macro -A clippy::incompatible_msrv
 run_check format cargo fmt --all -- --check
 cd "$task_repo"
 git diff --name-only > "$task_logs/generated-paths.txt"

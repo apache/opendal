@@ -6113,6 +6113,7 @@ version = "0.59.5"
 dependencies = [
  "governor",
  "opendal-core",
+ "tokio",
 ]
 
 [[package]]

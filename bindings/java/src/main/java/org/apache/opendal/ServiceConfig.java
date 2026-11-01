@@ -3259,8 +3259,8 @@ public interface ServiceConfig {
         public final String serverSideEncryptionAwsKmsKeyId;
         /**
          * <p>Control S3 Bucket Keys for SSE-KMS writes and copies.</p>
-         * <p><code>None</code> inherits the bucket setting. <code>Some(false)</code> disables Bucket Keys
-         * for the destination object, and <code>Some(true)</code> enables them.</p>
+         * <p>Omit this option to inherit the bucket setting. <code>false</code> disables Bucket
+         * Keys for destination objects, and <code>true</code> enables them.</p>
          */
         public final Boolean serverSideEncryptionBucketKeyEnabled;
         /**

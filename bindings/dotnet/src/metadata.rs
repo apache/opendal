@@ -71,11 +71,13 @@ impl OpendalMetadata {
         let content_md5 = crate::utils::optional_c_string(metadata.content_md5());
         let content_type = crate::utils::optional_c_string(metadata.content_type());
         let content_encoding = crate::utils::optional_c_string(metadata.content_encoding());
-        let (last_modified_has_value, last_modified_second, last_modified_nanosecond) = crate::utils::optional_timestamp(metadata.last_modified());
+        let (last_modified_has_value, last_modified_second, last_modified_nanosecond) =
+            crate::utils::optional_timestamp(metadata.last_modified());
         let etag = crate::utils::optional_c_string(metadata.etag());
         let content_disposition = crate::utils::optional_c_string(metadata.content_disposition());
         let version = crate::utils::optional_c_string(metadata.version());
-        let (user_metadata_has_value, user_metadata_keys, user_metadata_values, user_metadata_len) = crate::utils::string_pairs(metadata.user_metadata());
+        let (user_metadata_has_value, user_metadata_keys, user_metadata_values, user_metadata_len) =
+            crate::utils::string_pairs(metadata.user_metadata());
 
         Self {
             mode,
@@ -118,6 +120,10 @@ pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
         crate::utils::release_c_string(&mut metadata.etag);
         crate::utils::release_c_string(&mut metadata.content_disposition);
         crate::utils::release_c_string(&mut metadata.version);
-        crate::utils::release_string_pairs(&mut metadata.user_metadata_keys, &mut metadata.user_metadata_values, &mut metadata.user_metadata_len);
+        crate::utils::release_string_pairs(
+            &mut metadata.user_metadata_keys,
+            &mut metadata.user_metadata_values,
+            &mut metadata.user_metadata_len,
+        );
     }
 }

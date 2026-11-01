@@ -801,7 +801,7 @@ class S3Config(TypedDict):
     server_side_encryption_aws_kms_key_id: NotRequired[str]
     """server_side_encryption_aws_kms_key_id for this backend  - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is not set, S3 will use aws managed kms key to encrypt data. - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is a valid kms key id, S3 will use the provided kms key to encrypt data. - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be returned. - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id` is a noop."""
     server_side_encryption_bucket_key_enabled: NotRequired[bool]
-    """Control S3 Bucket Keys for SSE-KMS writes and copies.  `None` inherits the bucket setting. `Some(false)` disables Bucket Keys for the destination object, and `Some(true)` enables them."""
+    """Control S3 Bucket Keys for SSE-KMS writes and copies.  Omit this option to inherit the bucket setting. `false` disables Bucket Keys for destination objects, and `true` enables them."""
     server_side_encryption_customer_algorithm: NotRequired[str]
     """server_side_encryption_customer_algorithm for this backend.  Available values: `AES256`."""
     server_side_encryption_customer_key: NotRequired[str]

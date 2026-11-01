@@ -152,7 +152,7 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? ServerSideEncryptionAwsKmsKeyId { get; init; }
         /// <summary>
-        /// Control S3 Bucket Keys for SSE-KMS writes and copies. `None` inherits the bucket setting. `Some(false)` disables Bucket Keys for the destination object, and `Some(true)` enables them.
+        /// Control S3 Bucket Keys for SSE-KMS writes and copies. Omit this option to inherit the bucket setting. `false` disables Bucket Keys for destination objects, and `true` enables them.
         /// </summary>
         public bool? ServerSideEncryptionBucketKeyEnabled { get; init; }
         /// <summary>

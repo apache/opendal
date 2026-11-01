@@ -181,15 +181,18 @@ impl Operator {
     /// scheme : str | Scheme
     ///     The scheme of the service.
     /// **kwargs : dict
-    ///     The options for the service.
+    ///     The options for the service. Path-like values are converted to strings.
     ///
     /// Returns
     /// -------
     /// Operator
     ///     The new operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str"))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str | PathLike[str]"))]
+    pub fn new(
+        scheme: Bound<PyAny>,
+        kwargs: Option<HashMap<String, Bound<PyAny>>>,
+    ) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -200,7 +203,18 @@ impl Operator {
             ));
         };
         let scheme = normalize_scheme(&scheme);
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, value)| {
+                let value = value.extract::<String>().or_else(|_| {
+                    value
+                        .extract::<PathBuf>()
+                        .map(|path| path.to_string_lossy().into_owned())
+                })?;
+                Ok((key, value))
+            })
+            .collect::<PyResult<HashMap<_, _>>>()?;
 
         Ok(Operator {
             core: build_blocking_operator(&scheme, map.clone())?,
@@ -947,15 +961,18 @@ impl AsyncOperator {
     /// scheme : str | Scheme
     ///     The scheme of the service.
     /// **kwargs : dict
-    ///     The options for the service.
+    ///     The options for the service. Path-like values are converted to strings.
     ///
     /// Returns
     /// -------
     /// AsyncOperator
     ///     The new async operator.
     #[new]
-    #[pyo3(signature = (scheme: "str | Scheme", * ,**kwargs: "str"))]
-    pub fn new(scheme: Bound<PyAny>, kwargs: Option<HashMap<String, String>>) -> PyResult<Self> {
+    #[pyo3(signature = (scheme: "str | Scheme", *, **kwargs: "str | PathLike[str]"))]
+    pub fn new(
+        scheme: Bound<PyAny>,
+        kwargs: Option<HashMap<String, Bound<PyAny>>>,
+    ) -> PyResult<Self> {
         let scheme = if let Ok(scheme_str) = scheme.extract::<&str>() {
             scheme_str.to_string()
         } else if let Ok(py_scheme) = scheme.extract::<Scheme>() {
@@ -967,7 +984,18 @@ impl AsyncOperator {
         };
         let scheme = normalize_scheme(&scheme);
 
-        let map = kwargs.unwrap_or_default();
+        let map = kwargs
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(key, value)| {
+                let value = value.extract::<String>().or_else(|_| {
+                    value
+                        .extract::<PathBuf>()
+                        .map(|path| path.to_string_lossy().into_owned())
+                })?;
+                Ok((key, value))
+            })
+            .collect::<PyResult<HashMap<_, _>>>()?;
 
         Ok(AsyncOperator {
             core: build_operator(&scheme, map.clone())?,

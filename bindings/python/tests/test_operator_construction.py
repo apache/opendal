@@ -15,19 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
-from pathlib import Path
-import opendal
 import pytest
 
+import opendal
 
-def test_operator_new_with_path():
-    op = opendal.Operator("memory", root=Path("/tmp"))
-    assert op is not None
-    assert op.capability().read
+
+@pytest.mark.parametrize("path_like", [False, True])
+def test_operator_new_with_path(tmp_path, path_like):
+    root = tmp_path if path_like else str(tmp_path)
+    op = opendal.Operator("fs", root=root)
+    op.write("constructor.txt", b"sync constructor")
+    assert op.read("constructor.txt") == b"sync constructor"
+    assert (tmp_path / "constructor.txt").read_bytes() == b"sync constructor"
 
 
 @pytest.mark.asyncio
-def test_async_operator_new_with_path():
-    op = opendal.AsyncOperator("memory", root=Path("/tmp"))
-    assert op is not None
-    assert op.capability().read
+@pytest.mark.parametrize("path_like", [False, True])
+async def test_async_operator_new_with_path(tmp_path, path_like):
+    root = tmp_path if path_like else str(tmp_path)
+    op = opendal.AsyncOperator("fs", root=root)
+    await op.write("constructor.txt", b"async constructor")
+    assert await op.read("constructor.txt") == b"async constructor"
+    assert (tmp_path / "constructor.txt").read_bytes() == b"async constructor"
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+def test_constructor_rejects_non_path_root(operator_type):
+    with pytest.raises(TypeError):
+        operator_type("fs", root=True)

@@ -311,16 +311,15 @@ impl S3Core {
             .await
     }
 
-    /// # Note
+    /// Adds SSE-C headers and, for object creation, SSE-S3/SSE-KMS configuration.
     ///
-    /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    /// get or stat.
+    /// Multipart uploads choose SSE-S3/SSE-KMS encryption at initiation.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,
-        is_write: bool,
+        configure_destination_encryption: bool,
     ) -> http::request::Builder {
-        if is_write {
+        if configure_destination_encryption {
             if let Some(v) = &self.server_side_encryption {
                 let mut v = v.clone();
                 v.set_sensitive(true);
@@ -1148,7 +1147,7 @@ impl S3Core {
         }
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
             let mut v = v.clone();
@@ -1227,7 +1226,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(checksum) = checksum {
             // Set Checksum header.
@@ -1265,7 +1264,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
@@ -1317,7 +1316,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;

@@ -188,7 +188,7 @@ impl HdfsNativeCore {
                 .filter(|(parent, _)| !target_exists && !parent.is_empty())
             {
                 self.client
-                    .mkdirs(parent, 0o755, true)
+                    .mkdirs(parent, 0o777, true)
                     .await
                     .map_err(parse_hdfs_error)?;
             }

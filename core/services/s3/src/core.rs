@@ -653,7 +653,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
         if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
-            req = req.header(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED, value);
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
         }
 
         // Calculate Checksum.
@@ -701,7 +704,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
         if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
-            req = req.header(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED, value);
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
         }
 
         // Calculate Checksum.
@@ -821,7 +827,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
         if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
-            req = req.header(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED, value);
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
         }
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
@@ -1020,7 +1029,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
         if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
-            req = req.header(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED, value);
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
         }
 
         // Set checksum type headers.
@@ -1072,7 +1084,10 @@ impl S3Core {
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
         if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
-            req = req.header(constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED, value);
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
         }
 
         let req = req

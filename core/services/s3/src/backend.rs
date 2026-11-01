@@ -1197,7 +1197,9 @@ impl Builder for S3Builder {
                 server_side_encryption_aws_kms_key_id,
                 server_side_encryption_bucket_key_enabled: config
                     .server_side_encryption_bucket_key_enabled
-                    .map(|enabled| HeaderValue::from_static(if enabled { "true" } else { "false" })),
+                    .map(|enabled| {
+                        HeaderValue::from_static(if enabled { "true" } else { "false" })
+                    }),
                 server_side_encryption_customer_algorithm,
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
@@ -1511,7 +1513,10 @@ mod tests {
                 ("bucket".to_string(), "test-bucket".to_string()),
                 ("region".to_string(), "us-east-1".to_string()),
                 ("access_key_id".to_string(), "test-access-key".to_string()),
-                ("secret_access_key".to_string(), "test-secret-key".to_string()),
+                (
+                    "secret_access_key".to_string(),
+                    "test-secret-key".to_string(),
+                ),
                 ("disable_config_load".to_string(), "true".to_string()),
                 ("server_side_encryption".to_string(), "aws:kms".to_string()),
             ];
@@ -1548,7 +1553,10 @@ mod tests {
                 ("bucket".to_string(), "test-bucket".to_string()),
                 ("aws_default_region".to_string(), "us-west-2".to_string()),
                 ("access_key_id".to_string(), "test-access-key".to_string()),
-                ("secret_access_key".to_string(), "test-secret-key".to_string()),
+                (
+                    "secret_access_key".to_string(),
+                    "test-secret-key".to_string(),
+                ),
                 ("disable_config_load".to_string(), "true".to_string()),
             ];
             if let Some(region) = explicit {

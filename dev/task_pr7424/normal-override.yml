@@ -1,0 +1,7 @@
+services:
+  sftp:
+    ports: !override ["127.0.0.1:22222:22"]
+    volumes: !override
+      - ${TASK_PR7424_REPO}/fixtures/sftp/test_ssh_key.pub:/home/foo/.ssh/keys/id_rsa.pub:ro
+      - ${TASK_PR7424_KEY}:/home/foo/.ssh/keys/id_rsa:ro
+      - ${TASK_PR7424_REPO}/fixtures/sftp/health-check.sh:/health-check.sh:ro

@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+printf 'TASK_SSH_EXEC %s\n' "$*" >>"$TASK_PR7424_SSH_LOG"
+exec /usr/bin/ssh -F "$TASK_PR7424_SSH_CONFIG" "$@"

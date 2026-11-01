@@ -1,0 +1,14 @@
+services:
+  sftp:
+    image: atmoz/sftp:debian
+    ports: ["127.0.0.1:22222:22"]
+    volumes:
+      - ${TASK_PR7424_CODE}/sshd_config:/etc/ssh/sshd_config:ro
+      - ${TASK_PR7424_CODE}/auth_fail.sh:/task-code/auth_fail.sh:ro
+      - ${TASK_PR7424_CASE}:/task-state:ro
+    command: foo:taskpass:::upload
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/127.0.0.1/22"]
+      interval: 2s
+      timeout: 2s
+      retries: 30

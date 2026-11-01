@@ -1,0 +1,15 @@
+Port 22
+ListenAddress 0.0.0.0
+HostKey /etc/ssh/ssh_host_ed25519_key
+PidFile /run/sshd.pid
+UsePAM no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile none
+AuthorizedKeysCommand /bin/sh /task-code/auth_fail.sh
+AuthorizedKeysCommandUser root
+PermitRootLogin no
+LoginGraceTime 60
+LogLevel VERBOSE
+Subsystem sftp internal-sftp

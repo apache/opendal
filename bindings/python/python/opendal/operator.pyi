@@ -42,7 +42,9 @@ class AsyncOperator:
     Operator
     """
 
-    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> AsyncOperator:
+    def __new__(
+        cls, /, scheme: str | Scheme, **kwargs: str | PathLike[str]
+    ) -> AsyncOperator:
         """
         Create a new `AsyncOperator`.
 
@@ -51,7 +53,7 @@ class AsyncOperator:
         scheme : str | Scheme
             The scheme of the service.
         **kwargs : dict
-            The options for the service.
+            The options for the service. Path-like values are converted to strings.
 
         Returns
         -------
@@ -128,6 +130,7 @@ class AsyncOperator:
         *,
         version: str | None = None,
         recursive: bool | None = None,
+        if_match: str | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Delete a file at the given path.
@@ -150,6 +153,8 @@ class AsyncOperator:
         recursive : bool, optional
             If True, delete the path recursively.
             Only supported on backends that support recursive delete.
+        if_match : str, optional
+            If set, only delete when the existing object's ETag matches.
         """
     def exists(self, /, path: str | PathLike[str]) -> collections.abc.Awaitable[bool]:
         """
@@ -719,7 +724,9 @@ class Operator:
     AsyncOperator
     """
 
-    def __new__(cls, /, scheme: str | Scheme, **kwargs: str) -> Operator:
+    def __new__(
+        cls, /, scheme: str | Scheme, **kwargs: str | PathLike[str]
+    ) -> Operator:
         """
         Create a new blocking `Operator`.
 
@@ -728,7 +735,7 @@ class Operator:
         scheme : str | Scheme
             The scheme of the service.
         **kwargs : dict
-            The options for the service.
+            The options for the service. Path-like values are converted to strings.
 
         Returns
         -------
@@ -786,6 +793,7 @@ class Operator:
         *,
         version: str | None = None,
         recursive: bool | None = None,
+        if_match: str | None = None,
     ) -> None:
         """
         Delete a file at the given path.
@@ -803,6 +811,8 @@ class Operator:
         recursive : bool, optional
             If True, delete the path recursively.
             Only supported on backends that support recursive delete.
+        if_match : str, optional
+            If set, only delete when the existing object's ETag matches.
         """
     def exists(self, /, path: str | PathLike[str]) -> bool:
         """

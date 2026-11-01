@@ -56,6 +56,10 @@ impl AsyncWrite for FuturesAsyncWriter {
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
 
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
+
         loop {
             let n = this.buf.put(buf);
             if n > 0 {
@@ -113,6 +117,8 @@ impl AsyncWrite for FuturesAsyncWriter {
 mod tests {
     use std::sync::Arc;
 
+    use futures::AsyncWriteExt;
+
     use super::*;
     use crate::raw::MaybeSend;
 
@@ -134,5 +140,26 @@ mod tests {
         let v = FuturesAsyncWriter::new(write_gen);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
+
+    #[tokio::test]
+    async fn test_empty_write() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+
+        let mut w = op
+            .writer("test_empty_write")
+            .await
+            .unwrap()
+            .into_futures_async_write();
+
+        assert_eq!(w.write(b"").await.unwrap(), 0);
+        w.write_all(b"hello").await.unwrap();
+        assert_eq!(w.write(b"").await.unwrap(), 0);
+        w.close().await.unwrap();
+
+        assert_eq!(
+            op.read("test_empty_write").await.unwrap().to_vec(),
+            b"hello"
+        );
     }
 }

@@ -17,16 +17,43 @@
 
 use std::ffi::c_void;
 
-use crate::buffer::{OpendalBuffer, buffer_free};
+use crate::buffer::{OpendalReadBuffer, OpendalWriteBuffer, read_buffer_free};
 use crate::entry::entry_list_free;
 use crate::error::OpenDALError;
-use crate::metadata::metadata_free;
+use crate::metadata::{OpendalMetadata, metadata_release_fields};
 use crate::operator::operator_info_free;
 use crate::presign::presigned_request_free;
+use crate::utils::release_c_string;
+
+/// Free a boxed metadata payload together with its heap-allocated fields.
+///
+/// # Safety
+///
+/// - `metadata` must be null or a pointer produced by `Box::into_raw` for an
+///   `OpendalMetadata` built by `from_metadata`.
+/// - Must be called at most once for the same pointer.
+unsafe fn metadata_free(metadata: *mut OpendalMetadata) {
+    if metadata.is_null() {
+        return;
+    }
+
+    unsafe {
+        let mut metadata = Box::from_raw(metadata);
+        metadata_release_fields(&mut metadata);
+    }
+}
 
 #[repr(C)]
 /// Result for operations that only report success or failure.
 pub struct OpendalResult {
+    pub error: OpenDALError,
+}
+
+#[repr(C)]
+/// Result for operations returning a boolean value.
+pub struct OpendalBoolResult {
+    /// `1` for true, `0` for false.
+    pub value: u8,
     pub error: OpenDALError,
 }
 
@@ -75,7 +102,7 @@ pub struct OpendalEntryListResult {
 #[repr(C)]
 /// Result for operations returning a byte buffer payload.
 pub struct OpendalReadResult {
-    pub buffer: OpendalBuffer,
+    pub buffer: OpendalReadBuffer,
     pub error: OpenDALError,
 }
 
@@ -83,6 +110,17 @@ pub struct OpendalReadResult {
 /// Result for operations returning a presigned request payload pointer.
 pub struct OpendalPresignedRequestResult {
     pub ptr: *mut c_void,
+    pub error: OpenDALError,
+}
+
+#[repr(C)]
+/// Result for operations returning an allocated write buffer.
+///
+/// On success the caller owns the buffer handle; there is no dedicated
+/// release API for this result because the handle's lifecycle is managed by
+/// `write_buffer_free`, and the error message by `opendal_error_release`.
+pub struct OpendalWriteResult {
+    pub buffer: OpendalWriteBuffer,
     pub error: OpenDALError,
 }
 
@@ -127,6 +165,12 @@ macro_rules! define_result {
 define_result!(OpendalResult);
 
 define_result!(
+    OpendalBoolResult,
+    field = value: u8,
+    error_value = 0
+);
+
+define_result!(
     OpendalOperatorResult,
     field = ptr: *mut c_void,
     error_value = std::ptr::null_mut()
@@ -164,8 +208,8 @@ define_result!(
 
 define_result!(
     OpendalReadResult,
-    field = buffer: OpendalBuffer,
-    error_value = OpendalBuffer::empty()
+    field = buffer: OpendalReadBuffer,
+    error_value = OpendalReadBuffer::empty()
 );
 
 define_result!(
@@ -174,15 +218,16 @@ define_result!(
     error_value = std::ptr::null_mut()
 );
 
-fn release_error_message(error: &mut OpenDALError) {
-    if error.message.is_null() {
-        return;
-    }
+define_result!(
+    OpendalWriteResult,
+    field = buffer: OpendalWriteBuffer,
+    error_value = OpendalWriteBuffer::empty()
+);
 
-    unsafe {
-        drop(std::ffi::CString::from_raw(error.message));
-    }
-    error.message = std::ptr::null_mut();
+fn release_error_message(error: &mut OpenDALError) {
+    // SAFETY: `OpenDALError` only carries a null message or one built by
+    // `into_string_ptr`.
+    unsafe { release_c_string(&mut error.message) };
 }
 
 /// Release an error message allocated by this FFI layer.
@@ -255,12 +300,12 @@ pub extern "C" fn opendal_entry_list_result_release(mut result: OpendalEntryList
 /// This function is idempotent for empty/null buffers.
 /// # Safety
 ///
-/// - `result.buffer` must originate from `OpendalBuffer::from_buffer` in this crate.
+/// - `result.buffer` must originate from `OpendalReadBuffer::from_buffer` in this crate.
 /// - The buffer must not be accessed after this call.
 #[unsafe(no_mangle)]
 pub extern "C" fn opendal_read_result_release(mut result: OpendalReadResult) {
     unsafe {
-        buffer_free(result.buffer.handle);
+        read_buffer_free(result.buffer.handle);
     }
 
     release_error_message(&mut result.error);

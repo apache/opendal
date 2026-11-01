@@ -94,6 +94,7 @@ impl From<StatOptions> for opendal::options::StatOptions {
             override_content_type: value.override_content_type,
             override_cache_control: value.override_cache_control,
             override_content_disposition: value.override_content_disposition,
+            ..Default::default()
         }
     }
 }
@@ -235,6 +236,7 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
             override_content_type: value.content_type,
             override_cache_control: value.cache_control,
             override_content_disposition: value.content_disposition,
+            ..Default::default()
         }
     }
 }
@@ -347,6 +349,7 @@ impl From<ReaderOptions> for opendal::options::ReaderOptions {
             if_modified_since,
             if_unmodified_since,
             content_length_hint: None,
+            ..Default::default()
         }
     }
 }
@@ -503,6 +506,7 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
             if_none_match: value.if_none_match,
             if_not_exists: value.if_not_exists.unwrap_or_default(),
             concurrent: value.concurrent.unwrap_or_default() as usize,
+            ..Default::default()
         }
     }
 }
@@ -513,6 +517,12 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete recursively.
     pub recursive: Option<bool>,
+    /**
+     * Sets if-match condition for this operation.
+     * If file exists and its etag does not match, an error of kind
+     * `ConditionNotMatch` will be returned.
+     */
+    pub if_match: Option<String>,
 }
 
 impl From<DeleteOptions> for opendal::options::DeleteOptions {
@@ -520,6 +530,8 @@ impl From<DeleteOptions> for opendal::options::DeleteOptions {
         Self {
             version: value.version,
             recursive: value.recursive.unwrap_or_default(),
+            if_match: value.if_match,
+            ..Default::default()
         }
     }
 }

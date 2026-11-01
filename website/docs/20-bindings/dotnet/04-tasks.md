@@ -29,6 +29,20 @@ byte[] bytes = op.Read("path/to/file");
 string text = Encoding.UTF8.GetString(bytes);
 ```
 
+When you only consume the payload, `Read<T>` skips the array: your callback
+gets a `ReadOnlySequence<byte>` over native memory and parses in place. The
+memory is only valid inside the callback:
+
+```csharp
+using System.Text;
+
+string text = op.Read("notes.txt", sequence => Encoding.UTF8.GetString(sequence));
+```
+
+Pick `byte[]` when you need to keep the bytes, and the callback form when you
+only parse them — it works with `Utf8JsonReader` and any other
+`ReadOnlySequence`-aware parser. `ReadAsync<T>` is the async counterpart.
+
 ## Read part of a file
 
 Pass a `ReadOptions` with an offset and length:
@@ -46,6 +60,27 @@ using System.Text;
 
 op.Write("path/to/file", Encoding.UTF8.GetBytes("Hello, World!"));
 ```
+
+`Write` returns the metadata of the new object, so its size or ETag is
+available without a follow-up `Stat`.
+
+When you are producing the payload rather than holding it, the fill callback
+serializes straight into native memory with no intermediate `byte[]` — the
+callback receives a native-backed `IBufferWriter<byte>`:
+
+```csharp
+using System.Text.Json;
+
+op.Write("data/config.json", writer =>
+{
+    using var json = new Utf8JsonWriter(writer);
+    JsonSerializer.Serialize(json, config);
+});
+```
+
+Pick `byte[]` when you already hold the bytes, and the fill callback when a
+serializer produces them. An optional `sizeHint` pre-sizes the buffer, and
+`WriteAsync` accepts the same callback.
 
 `WriteOptions` carry content headers, conditions, append mode, and concurrency:
 
@@ -74,7 +109,8 @@ reader.CopyTo(ms);
 ## Stream a large upload
 
 `OpenWriteStream` returns an `OperatorOutputStream`. Write incrementally, then
-dispose to flush and close the native resources deterministically:
+call `CompleteAsync` (or `Complete`) to flush, close the native writer, and
+surface any write error — an error raised during plain disposal is lost:
 
 ```csharp
 using System.Text;
@@ -83,7 +119,7 @@ await using (var writer = op.OpenWriteStream("big.bin"))
 {
     var chunk = Encoding.UTF8.GetBytes("stream-data");
     await writer.WriteAsync(chunk, 0, chunk.Length);
-    await writer.FlushAsync();
+    await writer.CompleteAsync();
 }
 ```
 
@@ -92,10 +128,25 @@ buffered before flushing to the backend.
 
 ## Check existence and metadata
 
+`Exists` returns `false` instead of throwing when the path is missing:
+
+```csharp
+if (op.Exists("path/to/file"))
+{
+    Console.WriteLine("found");
+}
+```
+
+`Stat` returns the metadata:
+
 ```csharp
 var meta = op.Stat("path/to/file");
 Console.WriteLine($"{meta.ContentLength} bytes, dir = {meta.IsDir}");
 ```
+
+`UserMetadata` holds the pairs written through `WriteOptions.UserMetadata`
+on services that support it. `IsDeleted` and `IsCurrent` describe entries
+returned by listings that include deleted objects or old versions.
 
 A missing path throws `OpenDALException` with `ErrorCode.NotFound`; see
 [error handling](./05-production.md#error-handling).
@@ -139,6 +190,7 @@ op.Copy("from.txt", "to.txt");
 op.Rename("old.txt", "new.txt");
 ```
 
+`Copy` returns the metadata of the new object.
 Both operate within a single operator and require a service that supports them;
 see [capability checks](./05-production.md#capability-checks).
 

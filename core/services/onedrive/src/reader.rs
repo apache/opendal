@@ -16,7 +16,7 @@
 // under the License.
 
 use super::backend::*;
-use super::core::parse_error;
+use super::core::{ErrorContext, parse_error};
 use http::Response;
 use http::StatusCode;
 use opendal_core::raw::*;
@@ -51,6 +51,17 @@ impl oio::StreamRead for OnedriveReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
+        let range = match range {
+            BytesRange::Suffix { size } => {
+                let content_length = backend
+                    .core
+                    .onedrive_stat(&self.ctx, path, OpStat::default())
+                    .await?
+                    .content_length();
+                BytesRange::new(content_length.saturating_sub(size), None)
+            }
+            range => range,
+        };
         let response = backend
             .core
             .onedrive_get_content(&self.ctx, path, range, &args)
@@ -63,7 +74,11 @@ impl oio::StreamRead for OnedriveReader {
             _ => {
                 let (part, mut body) = response.into_parts();
                 let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("DownloadContent"))
+                        .with_caller_condition(args.is_conditional()),
+                    Response::from_parts(part, buf),
+                ));
             }
         };
 

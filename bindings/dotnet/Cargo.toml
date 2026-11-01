@@ -32,6 +32,9 @@ doc = false
 
 [dependencies]
 # this crate won't be published, we always use the local version
+asyncband = { version = "0.7.1", features = ["mutex"] }
+bytes = "1.12.1"
+futures = "0.3"
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "http-transport-reqwest",
@@ -51,6 +54,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-cos",
   "services-fs",
   "services-gcs",
+  "services-gcs-grpc",
   "services-ghac",
   "services-http",
   "services-ipmfs",
@@ -105,11 +109,6 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-yandex-disk",
 ] }
 tokio = { version = "1.49.0", features = ["full"] }
-
-[dev-dependencies]
-# Only needed to build multi-part buffers in the buffer copy tests. Already an
-# indirect dependency through opendal, so this adds nothing to the shipped library.
-bytes = "1.12.1"
 
 # This is not optimal. See also the Cargo issue:
 # https://github.com/rust-lang/cargo/issues/1197#issuecomment-1641086954

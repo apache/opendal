@@ -197,3 +197,40 @@ async fn concurrent_write_if_not_exists_exactly_one_wins() {
         let _ = op.delete(&p).await;
     }
 }
+
+/// Nested write: CreateFile(recursive) on the temp sibling creates the parent,
+/// so publish rename must succeed without an eager CreateDirectory.
+#[tokio::test]
+async fn write_nested_path_creates_parents() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+
+    let path = format!("{}/nested/file", unique("nested-write"));
+    op.write(&path, "nested-body")
+        .await
+        .expect("write into missing parents");
+    let body = op.read(&path).await.expect("read").to_bytes();
+    assert_eq!(&body[..], b"nested-body");
+    let _ = op.delete(&path).await;
+}
+
+/// Public rename still creates a destination parent that does not exist yet.
+#[tokio::test]
+async fn rename_creates_missing_destination_parent() {
+    let Some(op) = maybe_operator() else {
+        eprintln!("skip: OPENDAL_GOOSEFS_MASTER_ADDR unset");
+        return;
+    };
+
+    let src = unique("mkdir-src");
+    op.write(&src, "payload").await.expect("write src");
+    let dst = format!("{}/nested/file", unique("mkdir-dst"));
+    op.rename(&src, &dst)
+        .await
+        .expect("rename should create missing parent");
+    let body = op.read(&dst).await.expect("read dst").to_bytes();
+    assert_eq!(&body[..], b"payload");
+    let _ = op.delete(&dst).await;
+}

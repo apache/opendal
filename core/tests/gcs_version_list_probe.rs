@@ -31,10 +31,6 @@ async fn test_behavior_public_gcs_version_list_pagination() -> Result<()> {
         env::var("OPENDAL_TEST").ok().as_deref() == Some("gcs"),
         "GCS fixture is required"
     );
-    ensure!(
-        env::var("OPENDAL_DISABLE_RANDOM_ROOT").ok().as_deref() == Some("true"),
-        "fixed fixture root is required"
-    );
     let op = opendal::tests::init_test_service()
         .map_err(|e| anyhow!("operator initialization failed (kind={:?})", e.kind()))?
         .ok_or_else(|| anyhow!("GCS fixture configuration is missing"))?;

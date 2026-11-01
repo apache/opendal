@@ -209,8 +209,11 @@ impl Operator {
             .map(|(key, value)| {
                 let value = value.extract::<String>().or_else(|_| {
                     value
-                        .extract::<PathBuf>()
-                        .map(|path| path.to_string_lossy().into_owned())
+                        .py()
+                        .import("os")?
+                        .getattr("fspath")?
+                        .call1((&value,))?
+                        .extract::<String>()
                 })?;
                 Ok((key, value))
             })
@@ -990,8 +993,11 @@ impl AsyncOperator {
             .map(|(key, value)| {
                 let value = value.extract::<String>().or_else(|_| {
                     value
-                        .extract::<PathBuf>()
-                        .map(|path| path.to_string_lossy().into_owned())
+                        .py()
+                        .import("os")?
+                        .getattr("fspath")?
+                        .call1((&value,))?
+                        .extract::<String>()
                 })?;
                 Ok((key, value))
             })

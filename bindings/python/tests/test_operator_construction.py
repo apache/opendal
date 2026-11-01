@@ -40,6 +40,7 @@ async def test_async_operator_new_with_path(tmp_path, path_like):
 
 
 @pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
-def test_constructor_rejects_non_path_root(operator_type):
+@pytest.mark.parametrize("root", [True, b"bytes-root"])
+def test_constructor_rejects_non_string_root(operator_type, root):
     with pytest.raises(TypeError):
-        operator_type("fs", root=True)
+        operator_type("fs", root=root)

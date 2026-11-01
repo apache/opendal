@@ -46,7 +46,7 @@ rg -q '^(version: |hawkeye )7\.2\.0$' "$task_logs/formatter.version"
 sha256sum "$task_hawkeye" > "$task_logs/formatter.sha256"
 
 cd bindings/python
-"$task_hawkeye" format --config ../../licenserc.toml --fail-if-updated false > "$task_logs/license.log" 2>&1
+"$task_hawkeye" format --config ../../licenserc.toml . > "$task_logs/license.log" 2>&1
 cd "$task_repo"
 git diff --check > "$task_logs/diff-check.log" 2>&1
 git diff --quiet

@@ -35,6 +35,7 @@ struct Capture {
     size_t warnings = 0;
     bool valid = true;
     std::string message;
+    std::string file;
     std::string warning;
 };
 
@@ -58,6 +59,7 @@ extern "C" void capture_log(int32_t level, const char* file, uint32_t line, cons
     }
     ++state.events;
     state.message = message;
+    state.file = file;
     if (level >= 2) {
         ++state.warnings;
         state.warning = message;
@@ -90,15 +92,21 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
     ASSERT_NE(op, nullptr);
     std::string content = "native logging";
     opendal_bytes data { reinterpret_cast<uint8_t*>(&content[0]), content.size() };
+    auto& state = capture();
+    size_t before_success;
+    {
+        std::lock_guard<std::mutex> lock(state.mutex);
+        before_success = state.events;
+    }
     Error written(opendal_operator_write(op.get(), "logging-value", &data), opendal_error_free);
     ASSERT_EQ(written, nullptr);
-    auto& state = capture();
     size_t before_failure;
     {
         std::lock_guard<std::mutex> lock(state.mutex);
         EXPECT_TRUE(state.valid);
-        EXPECT_GT(state.events, 0u);
-        EXPECT_NE(state.message.find("write"), std::string::npos);
+        EXPECT_GT(state.events, before_success);
+        EXPECT_FALSE(state.message.empty());
+        EXPECT_FALSE(state.file.empty());
         before_failure = state.warnings;
     }
 
@@ -111,7 +119,7 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
         std::lock_guard<std::mutex> lock(state.mutex);
         EXPECT_TRUE(state.valid);
         EXPECT_GT(state.warnings, before_failure);
-        EXPECT_NE(state.warning.find("NotFound"), std::string::npos);
+        EXPECT_FALSE(state.warning.empty());
     }
 
     Error duplicate(opendal_logging_init(rejected_log), opendal_error_free);

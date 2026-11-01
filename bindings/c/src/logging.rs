@@ -32,8 +32,9 @@ use crate::opendal_error;
 /// The callback must remain valid for the lifetime of the program, support
 /// concurrent calls, and not unwind through the C ABI. Recursive logging from
 /// the callback is not supported.
-pub type opendal_log_callback =
-    unsafe extern "C" fn(level: i32, file: *const c_char, line: u32, message: *const c_char);
+pub type opendal_log_callback = Option<
+    unsafe extern "C" fn(level: i32, file: *const c_char, line: u32, message: *const c_char),
+>;
 
 /// \brief Installs one process-global native callback for the library's Rust log facade.
 ///
@@ -53,7 +54,7 @@ pub type opendal_log_callback =
 /// documented on `opendal_log_callback`.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn opendal_logging_init(
-    callback: Option<opendal_log_callback>,
+    callback: opendal_log_callback,
 ) -> *mut opendal_error {
     let Some(callback) = callback else {
         return opendal_error::new(core::Error::new(
@@ -75,7 +76,7 @@ pub unsafe extern "C" fn opendal_logging_init(
 }
 
 struct NativeLogger {
-    callback: opendal_log_callback,
+    callback: unsafe extern "C" fn(i32, *const c_char, u32, *const c_char),
 }
 
 impl log::Log for NativeLogger {

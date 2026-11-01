@@ -100,8 +100,9 @@ EOF
     [[ $task_ssh_rc == 255 ]] || task_result=1
     rg -qi 'Permission denied' "$task_case/direct-ssh.stderr" || task_result=1
     docker compose -p "$task_project" -f "$TASK_PR7424_CODE/compose.yml" logs --no-color >"$task_case/container.log" 2>&1
-    rg -q "TASK_AUTH_BEGIN delay=$task_delay" "$task_case/container.log" || task_result=1
-    rg -q "TASK_AUTH_REJECT delay=$task_delay" "$task_case/container.log" || task_result=1
+    docker compose -p "$task_project" -f "$TASK_PR7424_CODE/compose.yml" exec -T sftp cat /tmp/pr7424-auth.events >"$task_case/auth-events.log"
+    rg -q "TASK_AUTH_BEGIN delay=$task_delay" "$task_case/auth-events.log" || task_result=1
+    rg -q "TASK_AUTH_REJECT delay=$task_delay" "$task_case/auth-events.log" || task_result=1
     docker compose -p "$task_project" -f "$TASK_PR7424_CODE/compose.yml" down --volumes --remove-orphans >"$task_case/cleanup.log" 2>&1
     task_active=0
 done

@@ -156,6 +156,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider used by this service.
     ///
     /// This provider will be pushed to the front of credential chain.
+    ///
+    /// Implement the provider against [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider(
         mut self,
         provider: impl ProvideCredential<Credential = Credential> + 'static,
@@ -168,6 +172,10 @@ impl GcsBuilder {
     /// Specify a customized credential provider chain used by this service.
     ///
     /// This chain will be pushed to the front of default chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_provider_chain = Some(chain);
         self

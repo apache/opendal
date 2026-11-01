@@ -1,149 +1,118 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-
 import collections.abc
-from datetime import datetime
-from os import PathLike
-from typing import Any, final
-
-from typing_extensions import Unpack
-
-from .capability import Capability
 from .config import ServiceConfig
-from .file import AsyncFile, File
-from .layers import Layer
+from .file import AsyncFile
 from .options import OpenKwargs
 from .services import Scheme
-from .types import Entry, Metadata, PresignedRequest
+from .types import Entry, PresignedRequest
+from typing_extensions import Unpack
+from .capability import Capability
+from .file import File
+from .layers import Layer
+from .types import Metadata
+from datetime import datetime
+from os import PathLike
+from typing import Any, SupportsIndex, final
 
 @final
 class AsyncOperator:
     """
     The async equivalent of `Operator`.
-
+    
     `AsyncOperator` is the entry point for all async APIs.
-
-    See Also
+    
+    See also
     --------
     Operator
     """
-
-    def __new__(
-        cls, /, scheme: str | Scheme, **kwargs: str | PathLike[str]
-    ) -> AsyncOperator:
+    def __new__(cls, /, scheme: "str | Scheme", **kwargs: "str | PathLike[str]") -> AsyncOperator:
         """
         Create a new `AsyncOperator`.
-
+        
         Parameters
         ----------
         scheme : str | Scheme
             The scheme of the service.
         **kwargs : dict
             The options for the service. Path-like values are converted to strings.
-
+        
         Returns
         -------
         AsyncOperator
             The new async operator.
         """
     def __reduce__(self, /) -> Any: ...
+    def __repr__(self, /) -> str: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
-
+        
         Returns
         -------
         Capability
             The capability of the operator.
         """
-    def check(self, /) -> collections.abc.Awaitable[None]:
+    def check(self, /) -> "collections.abc.Awaitable[None]":
         """
         Check if the operator is able to work correctly.
-
+        
         Returns
         -------
         coroutine
             An awaitable that completes when the check is finished.
-
+        
         Raises
         ------
         Exception
             If the operator is not able to work correctly.
         """
-    def copy(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
-    ) -> collections.abc.Awaitable[None]:
+    def copy(self, /, source: str |PathLike[str], target: str |PathLike[str]) -> "collections.abc.Awaitable[None]":
         """
         Copy a file from one path to another.
-
+        
         Parameters
         ----------
         source : str
             The path to the source file.
         target : str
             The path to the target file.
-
+        
         Returns
         -------
         coroutine
             An awaitable that completes when the copy is finished.
         """
-    def create_dir(
-        self, /, path: str | PathLike[str]
-    ) -> collections.abc.Awaitable[None]:
+    def create_dir(self, /, path: str |PathLike[str]) -> "collections.abc.Awaitable[None]":
         """
         Create a directory at the given path.
-
+        
         Notes
         -----
         To indicate that a path is a directory, it must end with a `/`.
         This operation is always recursive, like `mkdir -p`.
-
+        
         Parameters
         ----------
         path : str
             The path to the directory.
-
+        
         Returns
         -------
         coroutine
             An awaitable that completes when the directory is created.
         """
-    def delete(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        recursive: bool | None = None,
-        if_match: str | None = None,
-    ) -> collections.abc.Awaitable[None]:
+    def delete(self, /, path: str |PathLike[str], *, version: str |None = None, recursive: bool |None = None, if_match: str |None = None) -> "collections.abc.Awaitable[None]":
         """
         Delete a file at the given path.
-
+        
         Notes
         -----
         This operation will not return an error if the path does not exist.
-
+        
         Parameters
         ----------
         path : str
             The path to the file.
-
+        
         Returns
         -------
         coroutine
@@ -156,116 +125,102 @@ class AsyncOperator:
         if_match : str, optional
             If set, only delete when the existing object's ETag matches.
         """
-    def exists(self, /, path: str | PathLike[str]) -> collections.abc.Awaitable[bool]:
+    def exists(self, /, path: str |PathLike[str]) -> "collections.abc.Awaitable[bool]":
         """
         Check if a path exists.
-
+        
         Parameters
         ----------
         path : str
             The path to check.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> AsyncOperator:
+    def from_config(cls, /, config: "ServiceConfig") -> AsyncOperator:
         """
         Create a new `AsyncOperator` from a typed service config.
-
+        
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
         are converted to the string form core consumes.
-
+        
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
-
+        
         Returns
         -------
         AsyncOperator
             The new async operator.
-
+        
         Examples
         --------
         ```python
         import opendal
         from opendal.config import S3Config
-
-        op = opendal.AsyncOperator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
+        
+        op = opendal.AsyncOperator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
         ```
         """
     @classmethod
-    def from_uri(cls, /, uri: str, **kwargs: str) -> AsyncOperator:
+    def from_uri(cls, /, uri: str, **kwargs: "str") -> AsyncOperator:
         """
         Create a new `AsyncOperator` from a URI string.
-
+        
         The URI encodes the scheme and configuration in a single string, e.g.
         ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
         belong to a service enabled in this build. Encode service options as
         query parameters; use ``urllib.parse.urlencode`` when building the URI
         dynamically.
-
+        
         Parameters
         ----------
         uri : str
             The URI of the service, including any options as query parameters.
         **kwargs : dict
             Overrides for URI options. Prefer the URI query string.
-
+        
         Returns
         -------
         AsyncOperator
             The new async operator.
-
+        
         Examples
         --------
         ```python
         from urllib.parse import urlencode
         import opendal
-
+        
         op = opendal.AsyncOperator.from_uri("memory://")
         query = urlencode({"region": "us-east-1"})
-        op = opendal.AsyncOperator.from_uri(
-            f"s3://bucket/path?{query}"
-        )
+        op = opendal.AsyncOperator.from_uri(f"s3://bucket/path?{query}")
         ```
         """
     def layer(self, /, layer: Layer) -> AsyncOperator:
         """
         Add a new layer to the operator.
-
+        
         Parameters
         ----------
         layer : Layer
             The layer to add.
-
+        
         Returns
         -------
         AsyncOperator
             A new operator with the layer added.
         """
-    def list(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        limit: int | None = None,
-        start_after: str | None = None,
-        recursive: bool | None = None,
-        versions: bool | None = None,
-        deleted: bool | None = None,
-    ) -> collections.abc.Awaitable[collections.abc.AsyncIterable[Entry]]:
+    def list(self, /, path: str |PathLike[str], *, limit: SupportsIndex |None = None, start_after: str |None = None, recursive: bool |None = None, versions: bool |None = None, deleted: bool |None = None) -> "collections.abc.Awaitable[collections.abc.AsyncIterable[Entry]]":
         """
         List entries in the given directory.
-
+        
         Parameters
         ----------
         path : str
@@ -280,20 +235,18 @@ class AsyncOperator:
             Whether to list versions.
         deleted : bool, optional
             Whether to list deleted entries.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns an async iterator over the entries.
         """
-    def open(
-        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
-    ) -> collections.abc.Awaitable[AsyncFile]:
+    def open(self, /, path: str |PathLike[str], mode: str, **kwargs: "Unpack[OpenKwargs]") -> "collections.abc.Awaitable[AsyncFile]":
         """
         Open an async file-like object for the given path.
-
+        
         The returning async file-like object is a context manager.
-
+        
         Parameters
         ----------
         path : str
@@ -302,23 +255,16 @@ class AsyncOperator:
             The mode to open the file in. Only "rb" and "wb" are supported.
         **kwargs : dict
             Additional options for the underlying reader or writer.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns a file-like object.
         """
-    def presign_delete(
-        self,
-        /,
-        path: str | PathLike[str],
-        expire_second: int,
-        *,
-        version: str | None = None,
-    ) -> collections.abc.Awaitable[PresignedRequest]:
+    def presign_delete(self, /, path: str |PathLike[str], expire_second: SupportsIndex, *, version: str |None = None) -> "collections.abc.Awaitable[PresignedRequest]":
         """
         Create a presigned request for a delete operation.
-
+        
         Parameters
         ----------
         path : str
@@ -327,30 +273,16 @@ class AsyncOperator:
             The number of seconds until the presigned URL expires.
         version : str, optional
             The version of the file to delete.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns a presigned request object.
         """
-    def presign_read(
-        self,
-        /,
-        path: str | PathLike[str],
-        expire_second: int,
-        *,
-        version: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> collections.abc.Awaitable[PresignedRequest]:
+    def presign_read(self, /, path: str |PathLike[str], expire_second: SupportsIndex, *, version: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> "collections.abc.Awaitable[PresignedRequest]":
         """
         Create a presigned request for a read operation.
-
+        
         Parameters
         ----------
         path : str
@@ -373,30 +305,16 @@ class AsyncOperator:
             Override the cache control in the presigned response.
         content_disposition : str, optional
             Override the content disposition in the presigned response.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns a presigned request object.
         """
-    def presign_stat(
-        self,
-        /,
-        path: str | PathLike[str],
-        expire_second: int,
-        *,
-        version: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> collections.abc.Awaitable[PresignedRequest]:
+    def presign_stat(self, /, path: str |PathLike[str], expire_second: SupportsIndex, *, version: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> "collections.abc.Awaitable[PresignedRequest]":
         """
         Create a presigned request for a stat operation.
-
+        
         Parameters
         ----------
         path : str
@@ -419,30 +337,16 @@ class AsyncOperator:
             Override the cache control in the presigned response.
         content_disposition : str, optional
             Override the content disposition in the presigned response.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns a presigned request object.
         """
-    def presign_write(
-        self,
-        /,
-        path: str | PathLike[str],
-        expire_second: int,
-        *,
-        content_type: str | None = None,
-        content_disposition: str | None = None,
-        content_encoding: str | None = None,
-        cache_control: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_not_exists: bool | None = None,
-        user_metadata: dict[str, str] | None = None,
-    ) -> collections.abc.Awaitable[PresignedRequest]:
+    def presign_write(self, /, path: str |PathLike[str], expire_second: SupportsIndex, *, content_type: str |None = None, content_disposition: str |None = None, content_encoding: str |None = None, cache_control: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_not_exists: bool |None = None, user_metadata: dict[str, str] |None = None) -> "collections.abc.Awaitable[PresignedRequest]":
         """
         Create a presigned request for a write operation.
-
+        
         Parameters
         ----------
         path : str
@@ -465,35 +369,16 @@ class AsyncOperator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns a presigned request object.
         """
-    def read(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        concurrent: int | None = None,
-        chunk: int | None = None,
-        gap: int | None = None,
-        offset: int | None = None,
-        prefetch: int | None = None,
-        size: int | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> collections.abc.Awaitable[bytes]:
+    def read(self, /, path: str |PathLike[str], *, version: str |None = None, concurrent: SupportsIndex |None = None, chunk: SupportsIndex |None = None, gap: SupportsIndex |None = None, offset: SupportsIndex |None = None, prefetch: SupportsIndex |None = None, size: SupportsIndex |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> "collections.abc.Awaitable[bytes]":
         """
         Read the entire contents of a file at the given path.
-
+        
         Parameters
         ----------
         path : str
@@ -526,63 +411,50 @@ class AsyncOperator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns the contents of the file as bytes.
         """
-    def remove_all(
-        self, /, path: str | PathLike[str]
-    ) -> collections.abc.Awaitable[None]:
+    def remove_all(self, /, path: str |PathLike[str]) -> "collections.abc.Awaitable[None]":
         """
         Recursively remove all files and directories at the given path.
-
+        
         Parameters
         ----------
         path : str
             The path to remove.
-
+        
         Returns
         -------
         coroutine
             An awaitable that completes when the removal is finished.
         """
-    def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
-    ) -> collections.abc.Awaitable[None]:
+    def rename(self, /, source: str |PathLike[str], target: str |PathLike[str]) -> "collections.abc.Awaitable[None]":
         """
         Rename (move) a file from one path to another.
-
+        
         Parameters
         ----------
         source : str
             The path to the source file.
         target : str
             The path to the target file.
-
+        
         Returns
         -------
         coroutine
             An awaitable that completes when the rename is finished.
         """
-    def scan(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        limit: int | None = None,
-        start_after: str | None = None,
-        versions: bool | None = None,
-        deleted: bool | None = None,
-    ) -> collections.abc.Awaitable[collections.abc.AsyncIterable[Entry]]:
+    def scan(self, /, path: str |PathLike[str], *, limit: SupportsIndex |None = None, start_after: str |None = None, versions: bool |None = None, deleted: bool |None = None) -> "collections.abc.Awaitable[collections.abc.AsyncIterable[Entry]]":
         """
         Recursively list entries in the given directory.
-
+        
         Deprecated
         ----------
             Use `list()` with `recursive=True` instead.
-
+        
         Parameters
         ----------
         path : str
@@ -595,29 +467,16 @@ class AsyncOperator:
             Whether to list versions.
         deleted : bool, optional
             Whether to list deleted entries.
-
+        
         Returns
         -------
         coroutine
             An awaitable that returns an async iterator over the entries.
         """
-    def stat(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> collections.abc.Awaitable[Metadata]:
+    def stat(self, /, path: str |PathLike[str], *, version: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> "collections.abc.Awaitable[Metadata]":
         """
         Get the metadata of a file at the given path.
-
+        
         Parameters
         ----------
         path : str
@@ -638,7 +497,7 @@ class AsyncOperator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
-
+        
         Returns
         -------
         coroutine
@@ -647,36 +506,19 @@ class AsyncOperator:
     def to_operator(self, /) -> Operator:
         """
         Create a new blocking `Operator` from this async operator.
-
+        
         Returns
         -------
         Operator
             The blocking operator.
         """
-    def write(
-        self,
-        /,
-        path: str | PathLike[str],
-        bs: bytes,
-        *,
-        append: bool | None = None,
-        chunk: int | None = None,
-        concurrent: int | None = None,
-        cache_control: str | None = None,
-        content_type: str | None = None,
-        content_disposition: str | None = None,
-        content_encoding: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_not_exists: bool | None = None,
-        user_metadata: dict[str, str] | None = None,
-    ) -> collections.abc.Awaitable[None]:
+    def write(self, /, path: str |PathLike[str], bs: "bytes", *, append: bool |None = None, chunk: SupportsIndex |None = None, concurrent: SupportsIndex |None = None, cache_control: str |None = None, content_type: str |None = None, content_disposition: str |None = None, content_encoding: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_not_exists: bool |None = None, user_metadata: dict[str, str] |None = None) -> "collections.abc.Awaitable[None]":
         """
         Write bytes to a file at the given path.
-
+        
         This function will create a file if it does not exist, and will
         overwrite its contents if it does.
-
+        
         Parameters
         ----------
         path : str
@@ -705,7 +547,7 @@ class AsyncOperator:
             Whether to fail if the file already exists.
         user_metadata : dict, optional
             The user metadata to set on the file.
-
+        
         Returns
         -------
         coroutine
@@ -716,37 +558,35 @@ class AsyncOperator:
 class Operator:
     """
     The blocking equivalent of `AsyncOperator`.
-
+    
     `Operator` is the entry point for all blocking APIs.
-
-    See Also
+    
+    See also
     --------
     AsyncOperator
     """
-
-    def __new__(
-        cls, /, scheme: str | Scheme, **kwargs: str | PathLike[str]
-    ) -> Operator:
+    def __new__(cls, /, scheme: "str | Scheme", **kwargs: "str | PathLike[str]") -> Operator:
         """
         Create a new blocking `Operator`.
-
+        
         Parameters
         ----------
         scheme : str | Scheme
             The scheme of the service.
         **kwargs : dict
             The options for the service. Path-like values are converted to strings.
-
+        
         Returns
         -------
         Operator
             The new operator.
         """
     def __reduce__(self, /) -> Any: ...
+    def __repr__(self, /) -> str: ...
     def capability(self, /) -> Capability:
         """
         Get all capabilities of this operator.
-
+        
         Returns
         -------
         Capability
@@ -755,16 +595,16 @@ class Operator:
     def check(self, /) -> None:
         """
         Check if the operator is able to work correctly.
-
+        
         Raises
         ------
         Exception
             If the operator is not able to work correctly.
         """
-    def copy(self, /, source: str | PathLike[str], target: str | PathLike[str]) -> None:
+    def copy(self, /, source: str |PathLike[str], target: str |PathLike[str]) -> None:
         """
         Copy a file from one path to another.
-
+        
         Parameters
         ----------
         source : str
@@ -772,36 +612,28 @@ class Operator:
         target : str
             The path to the target file.
         """
-    def create_dir(self, /, path: str | PathLike[str]) -> None:
+    def create_dir(self, /, path: str |PathLike[str]) -> None:
         """
         Create a directory at the given path.
-
+        
         Notes
         -----
         To indicate that a path is a directory, it must end with a `/`.
         This operation is always recursive, like `mkdir -p`.
-
+        
         Parameters
         ----------
         path : str
             The path to the directory.
         """
-    def delete(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        recursive: bool | None = None,
-        if_match: str | None = None,
-    ) -> None:
+    def delete(self, /, path: str |PathLike[str], *, version: str |None = None, recursive: bool |None = None, if_match: str |None = None) -> None:
         """
         Delete a file at the given path.
-
+        
         Notes
         -----
         This operation will not return an error if the path does not exist.
-
+        
         Parameters
         ----------
         path : str
@@ -814,81 +646,79 @@ class Operator:
         if_match : str, optional
             If set, only delete when the existing object's ETag matches.
         """
-    def exists(self, /, path: str | PathLike[str]) -> bool:
+    def exists(self, /, path: str |PathLike[str]) -> bool:
         """
         Check if a path exists.
-
+        
         Parameters
         ----------
         path : str
             The path to check.
-
+        
         Returns
         -------
         bool
             True if the path exists, False otherwise.
         """
     @classmethod
-    def from_config(cls, /, config: ServiceConfig) -> Operator:
+    def from_config(cls, /, config: "ServiceConfig") -> Operator:
         """
         Create a new blocking `Operator` from a typed service config.
-
+        
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
         are converted to the string form core consumes.
-
+        
         Parameters
         ----------
         config : ServiceConfig
             A service configuration such as ``opendal.config.S3Config``.
-
+        
         Returns
         -------
         Operator
             The new operator.
-
+        
         Examples
         --------
         ```python
         import opendal
         from opendal.config import S3Config
-
-        op = opendal.Operator.from_config(
-            S3Config(scheme="s3", bucket="my-bucket")
-        )
+        
+        op = opendal.Operator.from_config(S3Config(scheme="s3", bucket="my-bucket"))
         ```
         """
     @classmethod
-    def from_uri(cls, /, uri: str, **kwargs: str) -> Operator:
+    def from_uri(cls, /, uri: str, **kwargs: "str") -> Operator:
         """
         Create a new blocking `Operator` from a URI string.
-
+        
         The URI encodes the scheme and configuration in a single string, e.g.
         ``memory://`` or ``s3://bucket/path?region=us-east-1``. The scheme must
         belong to a service enabled in this build. Encode service options as
         query parameters; use ``urllib.parse.urlencode`` when building the URI
         dynamically.
-
+        
         Parameters
         ----------
         uri : str
             The URI of the service, including any options as query parameters.
         **kwargs : dict
             Overrides for URI options. Prefer the URI query string.
-
+        
         Returns
         -------
         Operator
             The new operator.
-
+        
         Examples
         --------
         ```python
         from urllib.parse import urlencode
         import opendal
-
+        
         op = opendal.Operator.from_uri("memory://")
         query = urlencode({"region": "us-east-1"})
         op = opendal.Operator.from_uri(f"s3://bucket/path?{query}")
@@ -897,31 +727,21 @@ class Operator:
     def layer(self, /, layer: Layer) -> Operator:
         """
         Add a new layer to this operator.
-
+        
         Parameters
         ----------
         layer : Layer
             The layer to add.
-
+        
         Returns
         -------
         Operator
             A new operator with the layer added.
         """
-    def list(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        limit: int | None = None,
-        start_after: str | None = None,
-        recursive: bool | None = None,
-        versions: bool | None = None,
-        deleted: bool | None = None,
-    ) -> collections.abc.Iterable[Entry]:
+    def list(self, /, path: str |PathLike[str], *, limit: SupportsIndex |None = None, start_after: str |None = None, recursive: bool |None = None, versions: bool |None = None, deleted: bool |None = None) -> "collections.abc.Iterable[Entry]":
         """
         List entries in the given directory.
-
+        
         Parameters
         ----------
         path : str
@@ -936,20 +756,18 @@ class Operator:
             Whether to list versions.
         deleted : bool, optional
             Whether to list deleted entries.
-
+        
         Returns
         -------
         BlockingLister
             An iterator over the entries in the directory.
         """
-    def open(
-        self, /, path: str | PathLike[str], mode: str, **kwargs: Unpack[OpenKwargs]
-    ) -> File:
+    def open(self, /, path: str |PathLike[str], mode: str, **kwargs: "Unpack[OpenKwargs]") -> File:
         """
         Open a file-like object for the given path.
-
+        
         The returning file-like object is a context manager.
-
+        
         Parameters
         ----------
         path : str
@@ -958,35 +776,16 @@ class Operator:
             The mode to open the file in. Only "rb" and "wb" are supported.
         **kwargs
             Additional options for the underlying reader or writer.
-
+        
         Returns
         -------
         File
             A file-like object.
         """
-    def read(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        concurrent: int | None = None,
-        chunk: int | None = None,
-        gap: int | None = None,
-        offset: int | None = None,
-        prefetch: int | None = None,
-        size: int | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> bytes:
+    def read(self, /, path: str |PathLike[str], *, version: str |None = None, concurrent: SupportsIndex |None = None, chunk: SupportsIndex |None = None, gap: SupportsIndex |None = None, offset: SupportsIndex |None = None, prefetch: SupportsIndex |None = None, size: SupportsIndex |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> "bytes":
         """
         Read the entire contents of a file at the given path.
-
+        
         Parameters
         ----------
         path : str
@@ -1019,27 +818,25 @@ class Operator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
-
+        
         Returns
         -------
         bytes
             The contents of the file as bytes.
         """
-    def remove_all(self, /, path: str | PathLike[str]) -> None:
+    def remove_all(self, /, path: str |PathLike[str]) -> None:
         """
         Recursively remove all files and directories at the given path.
-
+        
         Parameters
         ----------
         path : str
             The path to remove.
         """
-    def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
-    ) -> None:
+    def rename(self, /, source: str |PathLike[str], target: str |PathLike[str]) -> None:
         """
         Rename (move) a file from one path to another.
-
+        
         Parameters
         ----------
         source : str
@@ -1047,23 +844,14 @@ class Operator:
         target : str
             The path to the target file.
         """
-    def scan(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        limit: int | None = None,
-        start_after: str | None = None,
-        versions: bool | None = None,
-        deleted: bool | None = None,
-    ) -> collections.abc.Iterable[Entry]:
+    def scan(self, /, path: str |PathLike[str], *, limit: SupportsIndex |None = None, start_after: str |None = None, versions: bool |None = None, deleted: bool |None = None) -> "collections.abc.Iterable[Entry]":
         """
         Recursively list entries in the given directory.
-
+        
         Deprecated
         ----------
             Use `list()` with `recursive=True` instead.
-
+        
         Parameters
         ----------
         path : str
@@ -1076,29 +864,16 @@ class Operator:
             Whether to list versions.
         deleted : bool, optional
             Whether to list deleted entries.
-
+        
         Returns
         -------
         BlockingLister
             An iterator over the entries in the directory.
         """
-    def stat(
-        self,
-        /,
-        path: str | PathLike[str],
-        *,
-        version: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_modified_since: datetime | None = None,
-        if_unmodified_since: datetime | None = None,
-        content_type: str | None = None,
-        cache_control: str | None = None,
-        content_disposition: str | None = None,
-    ) -> Metadata:
+    def stat(self, /, path: str |PathLike[str], *, version: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_modified_since: datetime |None = None, if_unmodified_since: datetime |None = None, content_type: str |None = None, cache_control: str |None = None, content_disposition: str |None = None) -> Metadata:
         """
         Get the metadata of a file at the given path.
-
+        
         Parameters
         ----------
         path : str
@@ -1119,7 +894,7 @@ class Operator:
             The cache control of the file.
         content_disposition : str, optional
             The content disposition of the file.
-
+        
         Returns
         -------
         Metadata
@@ -1128,36 +903,19 @@ class Operator:
     def to_async_operator(self, /) -> AsyncOperator:
         """
         Create a new `AsyncOperator` from this blocking operator.
-
+        
         Returns
         -------
         AsyncOperator
             The async operator.
         """
-    def write(
-        self,
-        /,
-        path: str | PathLike[str],
-        bs: bytes,
-        *,
-        append: bool | None = None,
-        chunk: int | None = None,
-        concurrent: int | None = None,
-        cache_control: str | None = None,
-        content_type: str | None = None,
-        content_disposition: str | None = None,
-        content_encoding: str | None = None,
-        if_match: str | None = None,
-        if_none_match: str | None = None,
-        if_not_exists: bool | None = None,
-        user_metadata: dict[str, str] | None = None,
-    ) -> None:
+    def write(self, /, path: str |PathLike[str], bs: "bytes", *, append: bool |None = None, chunk: SupportsIndex |None = None, concurrent: SupportsIndex |None = None, cache_control: str |None = None, content_type: str |None = None, content_disposition: str |None = None, content_encoding: str |None = None, if_match: str |None = None, if_none_match: str |None = None, if_not_exists: bool |None = None, user_metadata: dict[str, str] |None = None) -> None:
         """
         Write bytes to a file at the given path.
-
+        
         This function will create a file if it does not exist, and will
         overwrite its contents if it does.
-
+        
         Parameters
         ----------
         path : str

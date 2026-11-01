@@ -55,7 +55,7 @@ test "$(cat "$task_logs/sync.status")" -eq 0
 # The original PR's open-ended constraints otherwise resolve PyO3 0.30.
 run_check runtimes cargo update --package pyo3-async-runtimes --precise 0.29.0
 test "$(cat "$task_logs/runtimes.status")" -eq 0
-run_check pyo3 cargo update --package pyo3 --precise 0.29.1
+run_check pyo3 cargo update --package pyo3 --precise 0.29.3
 test "$(cat "$task_logs/pyo3.status")" -eq 0
 sha256sum Cargo.lock > "$task_logs/cargo-lock.sha256"
 run_check dependency-tree cargo tree --locked --invert pyo3 --depth 1

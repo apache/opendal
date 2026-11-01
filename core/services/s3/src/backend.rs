@@ -1464,6 +1464,7 @@ mod tests {
 
     use bytes::Bytes;
     use http::HeaderMap;
+    use http::HeaderValue;
     use http::Method;
     use http::Request;
     use http::Response;

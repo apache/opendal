@@ -57,6 +57,8 @@ requests and `prefetch` counts completed chunks buffered ahead. Setting
 `concurrent` alone keeps unchunked streaming. A reader does not snapshot the
 file, so subsequent reads may observe changes.
 
+`ReaderOptions` omits `gap` because Java does not expose multi-range reads.
+
 `ReaderOptions` also supports `version`, `ifMatch`, `ifNoneMatch`,
 `ifVersionMatch`, `ifVersionNotMatch`, `ifModifiedSince`, and
 `ifUnmodifiedSince`. The time conditions accept `java.time.Instant`.

@@ -1698,7 +1698,7 @@ impl AsyncOperator {
     ///
     /// Returns
     /// -------
-    /// coroutine
+    /// Awaitable[None]
     ///     An awaitable that completes when deletion finishes.
     #[pyo3(signature = (paths: "collections.abc.Iterable[str | PathLike[str]]") -> "collections.abc.Awaitable[None]")]
     pub fn delete_many<'p>(

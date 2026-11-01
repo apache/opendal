@@ -88,6 +88,16 @@ jobs:
 
           # Run the workflow planner script
           PLAN=$(./.github/scripts/test_behavior/plan.py $files_changed)
+          if [ "$event_name" == "workflow_dispatch" ]; then
+            PLAN=$(printf '%s' "$PLAN" | jq -c '
+              .components |= with_entries(.value = false)
+              | .components.binding_go = true
+              | .binding_go = [{
+                  "os": "ubuntu-latest",
+                  "cases": [{"setup": "b2", "service": "b2", "feature": "services-b2"}]
+                }]
+            ')
+          fi
           echo "Plan:"
           echo "$PLAN" | jq .
           echo "plan=$PLAN" >> $GITHUB_OUTPUT

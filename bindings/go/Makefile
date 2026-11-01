@@ -137,7 +137,7 @@ generate-services: $(FINAL_LIB_FILE) setup-workspace-$(SERVICE) generate-scheme-
 # Run tests
 run-tests: generate-services
 	@echo "Running behavior tests..."
-	go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
+	./dev/task_go_b2_signal_trace.sh go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
 
 # Run benchmarks
 run-bench: generate-services

@@ -107,3 +107,12 @@ jobs:
           setup: ${{ matrix.cases.setup }}
           service: ${{ matrix.cases.service }}
           feature: ${{ matrix.cases.feature }}
+
+      - name: Preserve task signal metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: go-b2-signal-metadata
+          path: ${{ runner.temp }}/opendal-go-b2-signal/
+          retention-days: 7
+          if-no-files-found: error

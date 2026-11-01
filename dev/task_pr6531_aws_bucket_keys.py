@@ -58,6 +58,10 @@ def main():
             or uri.hostname.endswith(".amazonaws.com.cn")
         ), "AWS endpoint required"
         assert uri.path in ("", "/") and not uri.query and not uri.fragment
+        # Match S3Builder's existing template for the AWS global endpoint.
+        summary["endpoint_template_applied"] = endpoint.rstrip("/") == "https://s3.amazonaws.com"
+        if summary["endpoint_template_applied"]:
+            endpoint = f"https://s3.{region}.amazonaws.com"
         child_env = os.environ.copy()
         child_env.update(
             AWS_ACCESS_KEY_ID=os.environ["OPENDAL_S3_ACCESS_KEY_ID"],
@@ -103,6 +107,36 @@ def main():
                 raise AssertionError("Deleted task object/version remains readable")
             return json.loads(proc.stdout or "{}")
 
+        def cleanup_item(item, counter):
+            try:
+                if not item["put_confirmed"]:
+                    try:
+                        discovered = request("head-object", item["suffix"])
+                    except AwsFailure as failure:
+                        if failure.code in ("404", "NotFound", "NoSuchKey", "NoSuchVersion"):
+                            summary[counter] = summary.get(counter, 0) + 1
+                            return True
+                        raise
+                    item["version"] = discovered.get("VersionId")
+                selector = ["--version-id", item["version"]] if item["version"] is not None else []
+                request("delete-object", item["suffix"], *selector)
+                request("head-object", item["suffix"], *selector, expected_absent=True)
+                summary[counter] = summary.get(counter, 0) + 1
+                return True
+            except Exception as cleanup_error:
+                pending.append(item)
+                summary.setdefault("cleanup_errors", []).append(
+                    {"type": type(cleanup_error).__name__,
+                     "code": getattr(cleanup_error, "code", "ASSERTION")}
+                )
+                return False
+
+        # This inventory contains only the owned suffix from run41349535139.
+        prior = json.loads(Path(__file__).with_name("task_pr6531_prior_cleanup.json").read_text())
+        summary["prior_cleanup_run"] = 41349535139
+        for item in prior:
+            assert cleanup_item(item, "prior_cleanup_verified"), "Prior cleanup unresolved"
+
         with tempfile.TemporaryDirectory(prefix="opendal-pr6531-") as temp:
             body = Path(temp) / "payload"
             body.write_bytes(payload)
@@ -137,26 +171,7 @@ def main():
                     print("CASE " + json.dumps(case), flush=True)
             finally:
                 for item in reversed(owned):
-                    try:
-                        if not item["put_confirmed"]:
-                            try:
-                                discovered = request("head-object", item["suffix"])
-                            except AwsFailure as failure:
-                                if failure.code in ("404", "NotFound", "NoSuchKey", "NoSuchVersion"):
-                                    summary["cleanup_verified"] += 1
-                                    continue
-                                raise
-                            item["version"] = discovered.get("VersionId")
-                        selector = ["--version-id", item["version"]] if item["version"] is not None else []
-                        request("delete-object", item["suffix"], *selector)
-                        request("head-object", item["suffix"], *selector, expected_absent=True)
-                        summary["cleanup_verified"] += 1
-                    except Exception as cleanup_error:
-                        pending.append(item)
-                        summary.setdefault("cleanup_errors", []).append(
-                            {"type": type(cleanup_error).__name__,
-                             "code": getattr(cleanup_error, "code", "ASSERTION")}
-                        )
+                    cleanup_item(item, "cleanup_verified")
         assert len(summary["cases"]) == 3 and not pending
         summary["passed"] = True
     except Exception as exc:

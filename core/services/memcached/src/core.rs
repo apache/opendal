@@ -28,11 +28,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
+#[cfg(unix)]
+use tokio::net::UnixStream;
 use tokio_rustls::TlsConnector;
 use tokio_rustls::client::TlsStream;
 use tokio_rustls::rustls::{self, ClientConfig, RootCertStore, pki_types::ServerName};
-#[cfg(unix)]
-use tokio::net::UnixStream;
 
 use super::binary;
 
@@ -120,8 +120,8 @@ pub enum Endpoint {
 
 impl Endpoint {
     pub(super) fn tls(address: String, host: &str) -> Result<Self> {
-        let server_name = ServerName::try_from(host.trim_matches(['[', ']']).to_owned())
-            .map_err(|err| {
+        let server_name =
+            ServerName::try_from(host.trim_matches(['[', ']']).to_owned()).map_err(|err| {
                 Error::new(ErrorKind::ConfigInvalid, "invalid TLS server name").set_source(err)
             })?;
         let native = rustls_native_certs::load_native_certs();
@@ -137,15 +137,15 @@ impl Endpoint {
             }
             return Err(err);
         }
-        let config = ClientConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "TLS protocols are unavailable").set_source(err)
-        })?
-        .with_root_certificates(roots)
-        .with_no_client_auth();
+        let config =
+            ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()
+                .map_err(|err| {
+                    Error::new(ErrorKind::ConfigInvalid, "TLS protocols are unavailable")
+                        .set_source(err)
+                })?
+                .with_root_certificates(roots)
+                .with_no_client_auth();
         Ok(Self::Tls {
             address,
             server_name,
@@ -186,7 +186,9 @@ impl ManageObject for MemcacheConnectionManager {
                 server_name,
                 config,
             } => {
-                let stream = TcpStream::connect(address).await.map_err(new_std_io_error)?;
+                let stream = TcpStream::connect(address)
+                    .await
+                    .map_err(new_std_io_error)?;
                 let stream = TlsConnector::from(Arc::clone(config))
                     .connect(server_name.clone(), stream)
                     .await

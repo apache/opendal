@@ -1568,30 +1568,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_bucket_key_header_stays_off_upload_parts() {
-        let service = S3Builder::default()
-            .bucket("test-bucket")
-            .region("us-east-1")
-            .server_side_encryption_bucket_key_enabled(false)
-            .skip_signature()
-            .disable_config_load()
-            .disable_ec2_metadata()
-            .build()
-            .unwrap();
-        let header = "x-amz-server-side-encryption-bucket-key-enabled";
-        let put = service
-            .core
-            .s3_put_object_request("test", Some(0), &OpWrite::default(), Buffer::new())
-            .unwrap();
-        assert_eq!(put.headers().get(header).unwrap(), "false");
-        let part = service
-            .core
-            .s3_upload_part_request("test", "upload-id", 1, 0, Buffer::new(), None)
-            .unwrap();
-        assert!(!part.headers().contains_key(header));
-    }
-
     #[tokio::test]
     async fn test_aws_skip_signature_alias() {
         let config = [

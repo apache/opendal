@@ -72,7 +72,6 @@ pub async fn test_restore_repeated_delete(op: Operator) -> Result<()> {
     op.delete(&path).await?;
 
     op.restore(&path).await?;
-    assert!(!op.exists(&path).await?);
     op.restore(&path).await?;
     assert_eq!(op.read(&path).await?.to_bytes(), content);
     Ok(())

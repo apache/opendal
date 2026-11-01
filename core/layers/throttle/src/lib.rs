@@ -283,3 +283,6 @@ impl<R: oio::Write> oio::Write for ThrottleWrapper<R> {
         self.inner.abort().await
     }
 }
+
+#[cfg(test)]
+mod tests;

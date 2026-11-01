@@ -351,12 +351,14 @@ impl Builder for GcsBuilder {
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
             stat: true,
+            stat_with_version: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
             stat_with_if_version_match: true,
             stat_with_if_version_not_match: true,
 
             read: true,
+            read_with_version: true,
             read_with_suffix: true,
 
             read_with_if_match: true,
@@ -389,11 +391,13 @@ impl Builder for GcsBuilder {
             },
 
             delete: true,
+            delete_with_version: true,
             delete_with_if_version_match: true,
             delete_with_if_version_not_match: true,
             delete_max_size: Some(100),
 
             copy: true,
+            copy_with_source_version: true,
             copy_with_if_version_match: true,
             copy_with_if_version_not_match: true,
             copy_can_multi: true,
@@ -637,5 +641,27 @@ impl Service for GcsBackend {
             parts.uri,
             parts.headers,
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_capability_supports_versioned_operations() {
+        let backend = GcsBuilder::default()
+            .bucket("test-bucket")
+            .token("test-token".to_string())
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build()
+            .expect("GCS backend must build");
+
+        let capability = backend.capability();
+        assert!(capability.stat_with_version);
+        assert!(capability.read_with_version);
+        assert!(capability.copy_with_source_version);
+        assert!(capability.delete_with_version);
     }
 }

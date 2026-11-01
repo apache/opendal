@@ -121,13 +121,15 @@ async fn conditional_rename_does_not_replace_a_completed_competing_write() {
     let observed = result.expect("bounded service probe").expect("HDFS I/O");
     println!("INTERLEAVING {observed:?}");
     if observed.competing_data_observed {
+        // Alpha may have linearized before Beta while its caller was unpolled.
+        // Both valid orders preserve Beta's subsequently completed bytes.
         assert_eq!(
-            observed.rename_error,
-            Some(ErrorKind::ConditionNotMatch),
-            "CONCURRENT_DESTINATION_REPLACED: a completed competing write was visible before rename resumed"
+            observed.destination, SECOND,
+            "CONCURRENT_DESTINATION_REPLACED: completed competing bytes did not survive the conditional rename"
         );
-        assert_eq!(observed.destination, SECOND);
-        assert!(observed.source_exists);
+        if observed.rename_error == Some(ErrorKind::ConditionNotMatch) {
+            assert!(observed.source_exists);
+        }
     } else {
         println!(
             "NO_COMPLETED_COMPETING_WRITE placeholder={} write_error={:?}; this branch does not establish a concurrent-write result",

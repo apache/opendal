@@ -42,7 +42,7 @@ mapfile -t task_binaries < <(rg --files "$task_tool_dir" -g hawkeye)
 test "${#task_binaries[@]}" -eq 1
 task_hawkeye=${task_binaries[0]}
 "$task_hawkeye" --version > "$task_logs/formatter.version"
-rg -q '^hawkeye 6\.5\.1$' "$task_logs/formatter.version"
+rg -q '^version: 6\.5\.1$' "$task_logs/formatter.version"
 sha256sum "$task_hawkeye" > "$task_logs/formatter.sha256"
 
 cd bindings/python

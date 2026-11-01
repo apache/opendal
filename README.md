@@ -142,7 +142,7 @@ Pick the storage services that your application needs. See the full OpenDAL serv
   </tr>
   <tr>
     <td><a href="https://360.yandex.com/disk/"><img src="./website/static/img/services/yandex.png" width="18" height="18" alt="Yandex Disk logo"> yandex-disk</a></td>
-    <td></td>
+    <td><a href="https://www.microsoft.com/en-us/microsoft-365/sharepoint/collaboration"><img src="./website/static/img/services/sharepoint.svg" width="18" height="18" alt="SharePoint logo"> sharepoint</a></td>
     <td></td>
     <td></td>
     <td></td>

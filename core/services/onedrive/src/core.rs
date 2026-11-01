@@ -132,10 +132,20 @@ impl OneDriveCore {
                         serde_json::from_reader(bytes.reader())
                             .map_err(new_json_deserialize_error)?
                     }
-                    _ => return Err(parse_error(response)),
+                    _ => {
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("GetItem")),
+                            response,
+                        ));
+                    }
                 }
             }
-            _ => return Err(parse_error(response)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetItem")),
+                    response,
+                ));
+            }
         };
 
         Ok(item)
@@ -164,24 +174,14 @@ const MONITOR_WAIT_SECOND: u64 = 1;
 // `services-onedrive` uses the file path based API for simplicity.
 // Read more at https://learn.microsoft.com/en-us/graph/onedrive-addressing-driveitems
 impl OneDriveCore {
-    /// Send a stat request about a particular path, including:
-    ///
-    /// - Get stat object only if ETag not matches
-    /// - whether to get the object version
-    ///
-    /// See also [`onedrive_get_stat_plain()`].
+    /// Send a stat request about a particular path.
     pub(crate) async fn onedrive_stat(
         &self,
         ctx: &OperationContext,
         path: &str,
         args: OpStat,
     ) -> Result<Metadata> {
-        let mut url: String = self.onedrive_item_url(path, true);
-        if args.version().is_some() {
-            url += "?$expand=versions(";
-            url += VERSION_SELECT_PARAM;
-            url += ")";
-        }
+        let url: String = self.onedrive_item_url(path, true);
 
         let mut request = Request::get(&url);
         if let Some(etag) = args.if_none_match() {
@@ -198,7 +198,11 @@ impl OneDriveCore {
 
         let response = ctx.http_transport().send(request).await?;
         if !response.status().is_success() {
-            return Err(parse_error(response));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetItem"))
+                    .with_caller_condition(args.is_conditional()),
+                response,
+            ));
         }
 
         let bytes = response.into_body();
@@ -210,31 +214,18 @@ impl OneDriveCore {
             ItemType::File { .. } => EntryMode::FILE,
         };
 
-        let mut meta = Metadata::new(entry_mode)
-            .with_etag(decoded_response.e_tag)
-            .with_content_length(decoded_response.size.max(0) as u64);
-
-        if let Some(version) = args.version() {
-            for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
-                if item_version.id == version {
-                    meta.set_version(version);
-                    break; // early exit
-                }
-            }
-
-            if meta.version().is_none() {
-                return Err(Error::new(
-                    ErrorKind::NotFound,
-                    "cannot find this version of the item",
-                ));
-            }
-        }
+        let mut meta = if entry_mode == EntryMode::FILE {
+            MetadataBuilder::file(decoded_response.size.max(0) as u64)
+        } else {
+            MetadataBuilder::dir()
+        };
+        meta.etag(decoded_response.e_tag);
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
-        meta.set_last_modified(date_utc_last_modified);
+        meta.last_modified(date_utc_last_modified);
 
-        Ok(meta)
+        Ok(meta.build())
     }
 
     /// Return versions of an item
@@ -263,6 +254,12 @@ impl OneDriveCore {
         self.sign(ctx, &mut request).await?;
 
         let response = ctx.http_transport().send(request).await?;
+        if !response.status().is_success() {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListVersions")),
+                response,
+            ));
+        }
         let decoded_response: GraphApiOneDriveVersionsResponse =
             serde_json::from_reader(response.into_body().reader())
                 .map_err(new_json_deserialize_error)?;
@@ -453,11 +450,10 @@ impl OneDriveCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let parent_path = get_parent(path);
         let file_name = get_basename(path);
         let url = format!(
             "{}:/createUploadSession",
-            self.onedrive_item_url(parent_path, true),
+            self.onedrive_item_url(path, true),
         );
         let mut request = Request::post(url).header(header::CONTENT_TYPE, "application/json");
 
@@ -552,7 +548,10 @@ impl OneDriveCore {
         // we must validate if source exist
         let response = self.onedrive_get_stat_plain(ctx, source).await?;
         if !response.status().is_success() {
-            return Err(parse_error(response));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetItem")),
+                response,
+            ));
         }
 
         // We need to stat the destination parent folder to get a parent reference
@@ -580,11 +579,21 @@ impl OneDriveCore {
                 let response = self.onedrive_delete(ctx, destination).await?;
                 match response.status() {
                     StatusCode::NO_CONTENT | StatusCode::NOT_FOUND => {} // expected, intentionally empty
-                    _ => return Err(parse_error(response)),
+                    _ => {
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("DeleteItem")),
+                            response,
+                        ));
+                    }
                 }
             }
             StatusCode::NOT_FOUND => {} // expected, intentionally empty
-            _ => return Err(parse_error(response)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetItem")),
+                    response,
+                ));
+            }
         }
 
         let url: String = format!("{}:/copy", self.onedrive_item_url(source, true));
@@ -610,7 +619,10 @@ impl OneDriveCore {
                     )
                 })
                 .map(String::from),
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CopyItem")),
+                response,
+            )),
         }
     }
 
@@ -692,7 +704,10 @@ impl OneDriveCore {
         match response.status() {
             // can get etag, metadata, etc...
             StatusCode::OK => Ok(()),
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("MoveItem")),
+                response,
+            )),
         }
     }
 }
@@ -753,7 +768,10 @@ impl OneDriveSigner {
                     - Duration::from_secs(120); // assumes 2 mins graceful transmission for implementation simplicity
                 Ok(())
             }
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("RefreshAccessToken")),
+                response,
+            )),
         }
     }
 
@@ -896,13 +914,7 @@ mod tests {
     async fn list_root_returns_entries() {
         let core = test_core("/");
         let ctx = test_ctx();
-        let lister = OneDriveLister::new(
-            "/".to_string(),
-            core,
-            ctx,
-            Capability::default(),
-            &OpList::default(),
-        );
+        let lister = OneDriveLister::new("/".to_string(), core, ctx, &OpList::default());
         let mut lister = oio::PageLister::new(lister);
 
         let mut entries = Vec::new();
@@ -915,53 +927,142 @@ mod tests {
         assert_eq!(entries[1].path(), "test.txt");
         assert_eq!(entries[1].mode(), EntryMode::FILE);
     }
-}
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
+    #[test]
+    fn invalid_request_is_temporary() {
+        let response = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Buffer::from(r#"{"error":{"code":"invalidRequest"}}"#))
+            .unwrap();
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("CreateFolder")),
+            response,
+        );
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(response: Response<Buffer>) -> Error {
-        let (parts, body) = response.into_parts();
-        let bs = body.to_bytes();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+    }
 
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            // The OneDrive service replaces resources.
-            // However, the Onedrive doesn't have Strong Read-After-Write properties,
-            // the concurrent requests to create directories might result in errors.
-            //
-            // Running behavior tests can yield HTTP 409 Conflict because of the consistency guarantee.
-            //
-            // Read more about `REPLACE_EXISTING_ITEM_WHEN_CONFLICT` in `graph_model.rs`.
-            StatusCode::CONFLICT => (ErrorKind::AlreadyExists, true),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            _ => (ErrorKind::Unexpected, false),
+    #[test]
+    fn conflict_classification_uses_native_code() {
+        let parse_conflict = |code: &str, operation| {
+            let body = Buffer::from(format!(r#"{{"error":{{"code":"{code}"}}}}"#));
+            let response = Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(body)
+                .expect("response must build");
+            parse_error(ErrorContext::new(operation), response)
         };
 
-        let message = String::from_utf8_lossy(&bs);
+        let concurrent = parse_conflict(
+            "Directory_ConcurrencyViolation",
+            ServiceOperation("CreateFolder"),
+        );
+        assert_eq!(concurrent.kind(), ErrorKind::Conflict);
+        assert!(concurrent.is_temporary());
 
-        let mut err = Error::new(kind, message);
+        let name_conflict = parse_conflict("nameAlreadyExists", ServiceOperation("UploadFragment"));
+        assert_eq!(name_conflict.kind(), ErrorKind::Conflict);
+        assert!(!name_conflict.is_temporary());
 
-        err = with_error_response_context(err, parts);
+        assert_eq!(
+            parse_conflict("unknownConflict", ServiceOperation("MoveItem")).kind(),
+            ErrorKind::Unexpected
+        );
+    }
 
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+    #[test]
+    fn precondition_failed_requires_caller_condition() {
+        let response = || {
+            Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .body(Buffer::new())
+                .expect("response must build")
+        };
+        let caller =
+            ErrorContext::new(ServiceOperation("UploadContent")).with_caller_condition(true);
+        assert_eq!(
+            parse_error(caller, response()).kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        let no_condition = ErrorContext::new(ServiceOperation("UploadFragment"));
+        assert_eq!(
+            parse_error(no_condition, response()).kind(),
+            ErrorKind::Unexpected
+        );
     }
 }
 
-pub(super) use error::*;
+use crate::graph_model::GraphErrorResponse;
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+    caller_condition: bool,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            caller_condition: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, response: Response<Buffer>) -> Error {
+    let (parts, body) = response.into_parts();
+    let bs = body.to_bytes();
+
+    let graph_error = serde_json::from_slice::<GraphErrorResponse>(&bs).ok();
+    let graph_code = graph_error
+        .as_ref()
+        .map(|response| response.error.code.as_str());
+    let consistency_lag =
+        parts.status == StatusCode::BAD_REQUEST && graph_code == Some("invalidRequest");
+
+    let (kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::CONFLICT if graph_code == Some("Directory_ConcurrencyViolation") => {
+            (ErrorKind::Conflict, true)
+        }
+        StatusCode::CONFLICT if graph_code == Some("nameAlreadyExists") => {
+            (ErrorKind::Conflict, false)
+        }
+        StatusCode::CONFLICT => (ErrorKind::Unexpected, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if consistency_lag {
+        retryable = true;
+    }
+
+    let message = String::from_utf8_lossy(&bs);
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}

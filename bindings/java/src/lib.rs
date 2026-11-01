@@ -94,11 +94,13 @@ fn make_operator_info<'a>(env: &mut Env<'a>, info: OperatorInfo) -> Result<JObje
 fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability = env.new_object(
         jni_str!("org/apache/opendal/Capability"),
-        jni_sig!("(ZZZZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZ)V"),
+        jni_sig!("(ZZZZZZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZ)V"),
         &[
             JValue::Bool(cap.stat),
             JValue::Bool(cap.stat_with_if_match),
             JValue::Bool(cap.stat_with_if_none_match),
+            JValue::Bool(cap.stat_with_if_version_match),
+            JValue::Bool(cap.stat_with_if_version_not_match),
             JValue::Bool(cap.stat_with_if_modified_since),
             JValue::Bool(cap.stat_with_if_unmodified_since),
             JValue::Bool(cap.stat_with_version),
@@ -178,11 +180,14 @@ fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a
 
     let content_length = metadata.content_length() as jlong;
 
+    let user_metadata =
+        convert::hashmap_to_jmap(env, metadata.user_metadata().into_iter().flatten())?;
+
     let result = env
         .new_object(
             jni_str!("org/apache/opendal/Metadata"),
             jni_sig!(
-                "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;)V"
+                "(IJLjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/time/Instant;Ljava/lang/String;Ljava/util/Map;)V"
             ),
             &[
                 JValue::Int(mode as jint),
@@ -194,6 +199,7 @@ fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a
                 JValue::Object(&etag),
                 JValue::Object(&last_modified),
                 JValue::Object(&version),
+                JValue::Object(&user_metadata),
             ],
         )?;
     Ok(result)
@@ -236,6 +242,7 @@ fn make_write_options<'a>(
         user_metadata: convert::read_map_field(env, options, "userMetadata")?,
         concurrent,
         chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
+        ..Default::default()
     })
 }
 
@@ -256,6 +263,8 @@ fn make_stat_options(env: &mut Env, options: &JObject) -> Result<opendal::option
     Ok(opendal::options::StatOptions {
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_version_match: convert::read_string_field(env, options, "ifVersionMatch")?,
+        if_version_not_match: convert::read_string_field(env, options, "ifVersionNotMatch")?,
         if_modified_since: convert::read_instant_field_to_timestamp(
             env,
             options,

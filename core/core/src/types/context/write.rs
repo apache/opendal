@@ -17,6 +17,9 @@
 
 use std::sync::Arc;
 
+use bytes::Buf;
+use futures::TryStreamExt;
+
 use crate::raw::oio::Write;
 use crate::raw::*;
 use crate::*;
@@ -60,6 +63,18 @@ impl WriteContext {
         &self.path
     }
 
+    /// Get the composed operation context.
+    #[inline]
+    pub(crate) fn context(&self) -> &OperationContext {
+        &self.ctx
+    }
+
+    /// Get the composed service.
+    #[inline]
+    pub(crate) fn service(&self) -> &Servicer {
+        &self.srv
+    }
+
     /// Get the arguments.
     #[inline]
     pub fn args(&self) -> &OpWrite {
@@ -101,11 +116,15 @@ impl WriteContext {
 pub struct WriteGenerator<W> {
     w: W,
 
+    ctx: Option<Arc<WriteContext>>,
+
     /// The size for buffer, we will flush the underlying storage at the size of this buffer.
     chunk_size: Option<usize>,
     /// If `exact` is true, the size of the data written to the underlying storage is
     /// exactly `chunk_size` bytes.
     exact: bool,
+    /// Whether the composed writer can copy source ranges directly.
+    can_copy_from: bool,
     buffer: oio::QueueBuf,
 }
 
@@ -113,12 +132,15 @@ impl WriteGenerator<oio::Writer> {
     /// Create a new exact buf writer.
     pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
+        let can_copy_from = ctx.service().capability().write_can_copy_from && !ctx.args().append();
         let w = ctx.srv.write(&ctx.ctx, ctx.path(), ctx.args().clone())?;
 
         Ok(Self {
             w,
+            ctx: Some(ctx),
             chunk_size,
             exact,
+            can_copy_from,
             buffer: oio::QueueBuf::new(),
         })
     }
@@ -128,8 +150,10 @@ impl WriteGenerator<oio::Writer> {
     fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
         Self {
             w,
+            ctx: None,
             chunk_size,
             exact,
+            can_copy_from: false,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -184,6 +208,130 @@ impl WriteGenerator<oio::Writer> {
         let n = bs.len();
         self.buffer.push(bs);
         Ok(n)
+    }
+
+    fn reader(&self, path: &str, args: OpRead, options: OpReader) -> Result<Reader> {
+        let ctx = self
+            .ctx
+            .as_ref()
+            .expect("write context must exist outside tests");
+        let reader = ctx.service().read(ctx.context(), path, args.clone())?;
+        Ok(Reader::new(ReadContext::new(
+            ctx.context().clone(),
+            ctx.service().clone(),
+            path.to_string(),
+            args,
+            options,
+            reader,
+        )))
+    }
+
+    async fn stream_range(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        options: OpReader,
+        range: BytesRange,
+    ) -> Result<()> {
+        let reader = self.reader(path, args, options)?;
+        let mut stream = reader.into_stream(range).await?;
+        while let Some(mut bs) = stream.try_next().await? {
+            while !bs.is_empty() {
+                let n = self.write(bs.clone()).await?;
+                bs.advance(n);
+            }
+        }
+        Ok(())
+    }
+
+    /// Copy a source range into this writer, using native execution when possible.
+    pub async fn copy_from(
+        &mut self,
+        path: &str,
+        args: OpRead,
+        options: OpReader,
+        range: BytesRange,
+    ) -> Result<()> {
+        const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
+
+        if let Some(size) = range.size()
+            && size > MAX_COPY_FROM_SIZE
+        {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "copy_from range exceeds the 5 GiB per-call limit",
+            )
+            .with_context("size", size));
+        }
+
+        let reader = self.reader(path, args.clone(), options.clone())?;
+        let absolute = reader.parse_into_range(range).await?;
+        let size = absolute.end - absolute.start;
+        if size > MAX_COPY_FROM_SIZE {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "copy_from range exceeds the 5 GiB per-call limit",
+            )
+            .with_context("size", size));
+        }
+        if size == 0 {
+            return Ok(());
+        }
+
+        let Some(chunk_size) = self.chunk_size.filter(|_| self.can_copy_from) else {
+            return self
+                .stream_range(
+                    path,
+                    args,
+                    options,
+                    BytesRange::new(absolute.start, Some(size)),
+                )
+                .await;
+        };
+
+        let mut offset = absolute.start;
+        let mut remaining = size;
+
+        if self.buffer.len() >= chunk_size {
+            let buf = self.buffer.take().collect();
+            self.w.write(buf).await?;
+        }
+
+        if !self.buffer.is_empty() {
+            let boundary_size = (chunk_size as u64 - self.buffer.len() as u64).min(remaining);
+            self.stream_range(
+                path,
+                args.clone(),
+                options.clone(),
+                BytesRange::new(offset, Some(boundary_size)),
+            )
+            .await?;
+            offset += boundary_size;
+            remaining -= boundary_size;
+        }
+
+        while remaining >= chunk_size as u64 {
+            let part_size = if self.exact {
+                chunk_size as u64
+            } else {
+                remaining
+            };
+            let part_range = BytesRange::new(offset, Some(part_size));
+            self.w.copy_from(path, args.clone(), part_range).await?;
+            offset += part_size;
+            remaining -= part_size;
+        }
+
+        if remaining > 0 {
+            self.stream_range(
+                path,
+                args,
+                options,
+                BytesRange::new(offset, Some(remaining)),
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     /// Finish the write process.
@@ -255,7 +403,7 @@ mod tests {
         }
 
         async fn close(&mut self) -> Result<Metadata> {
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort(&mut self) -> Result<()> {

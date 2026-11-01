@@ -123,7 +123,10 @@ impl GdriveCore {
                 return Ok(());
             }
             if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("TrashFile")),
+                    resp,
+                ));
             }
 
             self.invalidate_file_id(path).await;
@@ -407,7 +410,9 @@ impl GdriveCore {
             "addParents": [target_parent_id],
         });
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{source_file_id}?fields=id,name,mimeType,size,modifiedTime,parents"
+        );
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
             .extension(ServiceOperation("MoveFile"))
@@ -553,7 +558,9 @@ impl GdriveCore {
 
         self.trash_path_if_exists(ctx, &to_path).await?;
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{from_file_id}/copy?fields=id,name,mimeType,size,modifiedTime,parents"
+        );
 
         let request_body = &json!({
             "name": to_name,
@@ -646,7 +653,7 @@ fn revive_recent_parent_dirs(entries: &mut GdriveRecentState, path: &str, expire
                 &parent,
                 EntryMode::DIR,
                 GdriveRecentEntry {
-                    metadata: Some(Metadata::new(EntryMode::DIR)),
+                    metadata: Some(MetadataBuilder::dir().build()),
                     expires_at,
                 },
             );
@@ -763,7 +770,10 @@ impl GdriveSigner {
                         - Duration::from_secs(120);
                 }
                 _ => {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("RefreshAccessToken")),
+                        resp,
+                    ));
                 }
             }
         }
@@ -843,7 +853,10 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
                     Ok(None)
                 }
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListFiles")),
+                resp,
+            )),
         }
     }
 
@@ -874,7 +887,10 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFolder")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();
@@ -942,14 +958,14 @@ mod tests {
     async fn test_recent_entries_for_direct_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(5),
-        )
+        core.record_recent_upsert("parent/file.txt", {
+            let metadata = MetadataBuilder::file(5);
+            metadata.build()
+        })
         .await;
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
             .await;
         core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
             .await;
@@ -970,13 +986,13 @@ mod tests {
     async fn test_recent_entries_for_recursive_prefix_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/file.txt", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("prefix", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("prefix", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("prefix-child", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("prefix-child", MetadataBuilder::file(0).build())
             .await;
 
         let parent_entries = core.recent_entries_for_list("parent/", true).await;
@@ -1007,7 +1023,7 @@ mod tests {
     async fn test_recent_entry_for_dir_alias() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1020,10 +1036,10 @@ mod tests {
     async fn test_recent_tombstone_hides_descendants_until_recreated() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/dir/stale.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/stale.txt", {
+            let metadata = MetadataBuilder::file(1);
+            metadata.build()
+        })
         .await;
         core.record_recent_delete("parent/dir/", EntryMode::DIR)
             .await;
@@ -1043,10 +1059,10 @@ mod tests {
             other => panic!("unexpected state for stale child: {other:?}"),
         }
 
-        core.record_recent_upsert(
-            "parent/dir/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/file.txt", {
+            let metadata = MetadataBuilder::file(1);
+            metadata.build()
+        })
         .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1077,30 +1093,34 @@ mod tests {
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
-    use serde::Deserialize;
+#[derive(Default, Debug, Deserialize)]
+struct GdriveError {
+    error: GdriveInnerError,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+#[derive(Default, Debug, Deserialize)]
+struct GdriveInnerError {
+    message: String,
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    struct GdriveError {
-        error: GdriveInnerError,
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    struct GdriveInnerError {
-        message: String,
-    }
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (mut kind, mut retryable) = match parts.status {
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -1112,35 +1132,33 @@ mod error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-        let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
-            .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
-            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+    let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
+        .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-        if let Some(gdrive_err) = gdrive_err {
-            (kind, retryable) = parse_gdrive_error_code(gdrive_err.error.message.as_str())
-                .unwrap_or((kind, retryable));
-        }
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+    if let Some(gdrive_err) = gdrive_err {
+        (kind, retryable) =
+            parse_gdrive_error_code(gdrive_err.error.message.as_str()).unwrap_or((kind, retryable));
     }
 
-    pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
-        match message {
-            // > Please reduce your request rate.
-            //
-            // It's Ok to retry since later on the request rate may get reduced.
-            "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
-            _ => None,
-        }
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
     }
+
+    err
 }
 
-pub(super) use error::*;
+pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
+    match message {
+        // > Please reduce your request rate.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
+        _ => None,
+    }
+}

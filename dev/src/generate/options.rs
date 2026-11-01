@@ -160,7 +160,7 @@ fn parse_type(ty: &Type) -> Result<OptionType> {
 }
 
 /// Collect the doc comment of a struct or field as trimmed lines.
-fn doc_lines(attrs: &[syn::Attribute]) -> Vec<String> {
+pub(super) fn doc_lines(attrs: &[syn::Attribute]) -> Vec<String> {
     attrs
         .iter()
         .filter(|attr| attr.path().is_ident("doc"))
@@ -220,10 +220,16 @@ mod tests {
         );
 
         let delete = &options[4];
-        assert_eq!(delete.fields.len(), 2);
+        assert_eq!(delete.fields.len(), 3);
         assert_eq!(
             delete.fields[1].doc,
             "If True, delete the path recursively.\n\nOnly supported on backends that support recursive delete."
+        );
+        assert_eq!(delete.fields[2].name, "if_match");
+        assert_eq!(delete.fields[2].ty, OptionType::Str);
+        assert_eq!(
+            delete.fields[2].doc,
+            "The ETag that the object must match before deletion."
         );
     }
 }

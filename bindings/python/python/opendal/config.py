@@ -96,7 +96,7 @@ class AzblobConfig(TypedDict):
     encryption_algorithm: NotRequired[str]
     """The encryption algorithm of Azblob service backend."""
     encryption_key: NotRequired[str]
-    """The encryption key of Azblob service backend."""
+    """The Base64-encoded AES-256 customer-provided encryption key.  The key must decode to exactly 32 bytes. Building an operator returns `ConfigInvalid` for invalid Base64 or a different decoded length."""
     encryption_key_sha256: NotRequired[str]
     """The encryption key sha256 of Azblob service backend."""
     endpoint: NotRequired[str]
@@ -310,6 +310,35 @@ class GcsConfig(TypedDict):
     """A Google Cloud OAuth2 token.  Takes precedence over `credential` and `credential_path`."""
 
 
+class GcsGrpcConfig(TypedDict):
+    """Configuration for the `gcs-grpc` service."""
+
+    scheme: Required[Literal["gcs-grpc"]]
+    """The service scheme; fixed to `"gcs-grpc"`."""
+    bucket: Required[str]
+    """Bucket name."""
+    credential: NotRequired[str]
+    """Base64-encoded service account credential."""
+    credential_path: NotRequired[str]
+    """Path to a service account credential file."""
+    disable_config_load: NotRequired[bool]
+    """Disable environment and well-known credential loading."""
+    disable_vm_metadata: NotRequired[bool]
+    """Disable the GCE metadata credential provider."""
+    endpoint: NotRequired[str]
+    """gRPC endpoint."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root path for all operations."""
+    scope: NotRequired[str]
+    """OAuth 2.0 scope."""
+    service_account: NotRequired[str]
+    """Service account used by the GCE metadata server."""
+    skip_signature: NotRequired[bool]
+    """Send requests without authentication."""
+    token: NotRequired[str]
+    """OAuth 2.0 access token."""
+
+
 class GdriveConfig(TypedDict):
     """Configuration for the `gdrive` service."""
 
@@ -379,8 +408,12 @@ class HfConfig(TypedDict):
 
     scheme: Required[Literal["hf"]]
     """The service scheme; fixed to `"hf"`."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading config from the environment.  When set, the service ignores `HF_ENDPOINT`, `HF_HUB_DISABLE_XET`, `HF_TOKEN`, `HF_TOKEN_PATH`, and the `token` file under `HF_HOME`, `$XDG_CACHE_HOME/huggingface` or `~/.cache/huggingface`."""
     download_mode: NotRequired[str]
     """Download mode. Either `xet` (default) or `http`.  When unset, the mode is resolved from the `HF_HUB_DISABLE_XET` environment variable: a non-empty value forces `http`, otherwise it defaults to `xet`. An explicit value here takes precedence.  See <https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables#hfhubdisablexet>."""
+    enable_resolve_cache: NotRequired[bool]
+    """Enable caching of resolved HTTP download addresses and XET file metadata.  Defaults to `false`. Set to `true` to share resolve results across readers on the same backend. Changed files may remain invisible while cached results are reused. A reader retains XET metadata from its first read for its lifetime. Create a new reader to resolve the path again when this option is disabled. See [`HfBuilder::enable_resolve_cache`] for freshness semantics."""
     endpoint: NotRequired[str]
     """Endpoint of the Hugging Face Hub.  The default is `https://huggingface.co`."""
     repo_id: NotRequired[str]
@@ -576,7 +609,7 @@ class OnedriveConfig(TypedDict):
     client_secret: NotRequired[str]
     """Microsoft Graph API Application client secret that is in the Azure's app registration portal"""
     enable_versioning: NotRequired[bool]
-    """Deprecated: OneDrive versioning capability is enabled by default. [Deprecated since 0.57.0] OneDrive versioning capability is enabled by default and this option is no longer needed."""
+    """Deprecated: OneDrive supports version listing without this option. [Deprecated since 0.57.0] OneDrive supports version listing without this option."""
     refresh_token: NotRequired[str]
     """Microsoft Graph API (also OneDrive API) refresh token"""
     root: NotRequired[str | os.PathLike[str]]
@@ -936,7 +969,7 @@ class WebdavConfig(TypedDict):
     disable_create_dir: NotRequired[bool]
     """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
     enable_conditional_read: NotRequired[bool]
-    """Enable conditional read support.  When enabled (the default), OpenDAL forwards the RFC 7232 headers `If-Match`, `If-None-Match`, `If-Modified-Since` and `If-Unmodified-Since` to the server when callers provide them.  Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags in PROPFIND or don't honor these headers on GET. Setting this to `false` drops the four `read_with_if_*` capabilities, so calls like `reader_with(path).if_match(...)` return `ErrorKind::Unsupported` locally instead of being silently ignored by the server.  Default: true"""
+    """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
     enable_user_metadata: NotRequired[bool]
     """Deprecated: WebDAV user metadata capability is enabled by default. [Deprecated since 0.57.0] WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."""
     endpoint: NotRequired[str]
@@ -1000,6 +1033,7 @@ ServiceConfig = (
     | FsConfig
     | FtpConfig
     | GcsConfig
+    | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
     | GridfsConfig
@@ -1054,6 +1088,7 @@ __all__ = [
     "FsConfig",
     "FtpConfig",
     "GcsConfig",
+    "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
     "GridfsConfig",

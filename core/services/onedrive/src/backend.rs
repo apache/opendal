@@ -22,8 +22,8 @@ use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use super::core::OneDriveCore;
 use super::core::parse_error;
+use super::core::{ErrorContext, OneDriveCore};
 use super::deleter::OneDriveDeleter;
 use super::lister::OneDriveLister;
 use super::reader::*;
@@ -108,10 +108,10 @@ impl OnedriveBuilder {
         self
     }
 
-    /// Deprecated: OneDrive versioning capability is enabled by default.
+    /// Deprecated: OneDrive supports version listing without this option.
     #[deprecated(
         since = "0.57.0",
-        note = "OneDrive versioning capability is enabled by default and this option is no longer needed."
+        note = "OneDrive supports version listing without this option."
     )]
     pub fn enable_versioning(self, _enabled: bool) -> Self {
         self
@@ -133,23 +133,24 @@ impl Builder for OnedriveBuilder {
 
             write: true,
             write_with_if_match: true,
-            // OneDrive supports the file size up to 250GB
+            // disable because usize is too small on armhf and other arch to represent more than 4GB
+            #[cfg(target_pointer_width = "64")]
             // Read more at https://support.microsoft.com/en-us/office/restrictions-and-limitations-in-onedrive-and-sharepoint-64883a5d-228e-48f5-b3d2-eb39e07630fa#individualfilesize
-            // However, we can't enable this, otherwise OpenDAL behavior tests will try to test creating huge
-            // file up to this size.
-            // write_total_max_size: Some(250 * 1024 * 1024 * 1024),
+            write_total_max_size: Some(250 * 1024 * 1024 * 1024), // 250GB
             copy: true,
             rename: true,
 
             stat: true,
             stat_with_if_none_match: true,
-            stat_with_version: true,
-
+            // Microsoft Graph doesn't preserve complete metadata for previous
+            // file versions, so OneDrive can't implement stat_with_version.
+            // See https://learn.microsoft.com/en-us/graph/api/driveitem-list-versions?view=graph-rest-1.0#remarks
             delete: true,
             create_dir: true,
 
             list: true,
             list_with_limit: true,
+            list_with_start_after: true,
             list_with_versions: true,
 
             shared: true,
@@ -222,6 +223,7 @@ impl Service for OnedriveBackend {
     type Lister = oio::PageLister<OneDriveLister>;
     type Deleter = oio::OneShotDeleter<OneDriveDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -245,7 +247,10 @@ impl Service for OnedriveBackend {
         let response = self.core.onedrive_create_dir(ctx, path).await?;
         match response.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(RpCreateDir::default()),
-            _ => Err(parse_error(response)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFolder")),
+                response,
+            )),
         }
     }
 
@@ -296,18 +301,28 @@ impl Service for OnedriveBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new(async move {
+            let source_size = match source_content_length_hint {
+                Some(size) => size,
+                None => backend
+                    .stat(&ctx, &from, OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .content_length(),
+            };
+
             let monitor_url = core.initialize_copy(&ctx, &from, &to).await?;
             core.wait_until_complete(&ctx, monitor_url).await?;
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::file(source_size).build())
         }))
     }
 
@@ -329,13 +344,7 @@ impl Service for OnedriveBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<OneDriveLister> = {
-            let l = OneDriveLister::new(
-                path.to_string(),
-                self.core.clone(),
-                ctx.clone(),
-                self.core.capability,
-                &args,
-            );
+            let l = OneDriveLister::new(path.to_string(), self.core.clone(), ctx.clone(), &args);
             Ok(oio::PageLister::new(l))
         }?;
 

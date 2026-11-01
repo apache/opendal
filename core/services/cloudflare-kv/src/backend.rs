@@ -25,8 +25,8 @@ use opendal_core::*;
 
 use super::CLOUDFLARE_KV_SCHEME;
 use super::config::CloudflareKvConfig;
-use super::core::CloudflareKvCore;
 use super::core::parse_error;
+use super::core::{CloudflareKvCore, ErrorContext};
 use super::deleter::CloudflareKvDeleter;
 use super::lister::CloudflareKvLister;
 use super::model::*;
@@ -37,6 +37,7 @@ use super::writer::CloudflareWriter;
 #[derive(Default)]
 pub struct CloudflareKvBuilder {
     pub(super) config: CloudflareKvConfig,
+    pub(super) default_ttl: Option<Duration>,
 }
 
 impl Debug for CloudflareKvBuilder {
@@ -76,7 +77,7 @@ impl CloudflareKvBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.config.default_ttl = Some(ttl);
+        self.default_ttl = Some(ttl);
         self
     }
 
@@ -96,6 +97,14 @@ impl Builder for CloudflareKvBuilder {
     type Config = CloudflareKvConfig;
 
     fn build(self) -> Result<impl Service> {
+        let default_ttl = match self.default_ttl {
+            Some(ttl) => Some(ttl),
+            None => self
+                .config
+                .default_ttl
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
         let api_token = match &self.config.api_token {
             Some(api_token) => format_authorization_by_bearer(api_token)?,
             None => {
@@ -121,7 +130,7 @@ impl Builder for CloudflareKvBuilder {
         };
 
         // Validate default TTL is at least 60 seconds if specified
-        if let Some(ttl) = self.config.default_ttl
+        if let Some(ttl) = default_ttl
             && ttl < Duration::from_secs(60)
         {
             return Err(Error::new(
@@ -143,7 +152,7 @@ impl Builder for CloudflareKvBuilder {
                 api_token,
                 account_id,
                 namespace_id,
-                expiration_ttl: self.config.default_ttl,
+                expiration_ttl: default_ttl,
                 info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, &root, ""),
                 capability: Capability {
                     create_dir: true,
@@ -189,6 +198,7 @@ impl Service for CloudflareKvBackend {
     type Lister = oio::PageLister<CloudflareKvLister>;
     type Deleter = oio::BatchDeleter<CloudflareKvDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -266,7 +276,7 @@ impl Service for CloudflareKvBackend {
                     if let Some(entries) = list_result.result
                         && !entries.is_empty()
                     {
-                        return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+                        return Ok(RpStat::new(MetadataBuilder::dir().build()));
                     }
 
                     // Empty or no results means not found
@@ -278,7 +288,10 @@ impl Service for CloudflareKvBackend {
             }
 
             // For all other error cases, parse the error response
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetMetadata")),
+                resp,
+            ));
         }
 
         let resp_body = resp.into_body();
@@ -354,16 +367,15 @@ impl Service for CloudflareKvBackend {
             ));
         }
 
-        let meta = Metadata::new(if metadata.is_dir {
-            EntryMode::DIR
+        let mut meta = if metadata.is_dir {
+            MetadataBuilder::dir()
         } else {
-            EntryMode::FILE
-        })
-        .with_etag(metadata.etag)
-        .with_content_length(metadata.content_length as u64)
-        .with_last_modified(metadata.last_modified.parse::<Timestamp>()?);
+            MetadataBuilder::file(metadata.content_length as u64)
+        };
+        meta.etag(metadata.etag)
+            .last_modified(metadata.last_modified.parse::<Timestamp>()?);
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<CloudflareKvReader> = {
@@ -438,7 +450,6 @@ impl Service for CloudflareKvBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

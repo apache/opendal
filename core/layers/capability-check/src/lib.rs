@@ -100,6 +100,7 @@ impl Service for CapabilityCheckService {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -160,7 +161,6 @@ impl Service for CapabilityCheckService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let capability = self.capability();
         let info = self.info();
@@ -182,7 +182,76 @@ impl Service for CapabilityCheckService {
             ));
         }
 
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        let capability = self.capability();
+        let info = self.info();
+        let checks = [
+            (
+                args.content_type().is_some(),
+                capability.compose_with_content_type,
+                "content_type",
+            ),
+            (
+                args.content_disposition().is_some(),
+                capability.compose_with_content_disposition,
+                "content_disposition",
+            ),
+            (
+                args.content_encoding().is_some(),
+                capability.compose_with_content_encoding,
+                "content_encoding",
+            ),
+            (
+                args.cache_control().is_some(),
+                capability.compose_with_cache_control,
+                "cache_control",
+            ),
+            (
+                args.user_metadata().is_some(),
+                capability.compose_with_user_metadata,
+                "user_metadata",
+            ),
+            (
+                args.if_match().is_some(),
+                capability.compose_with_if_match,
+                "if_match",
+            ),
+            (
+                args.if_none_match().is_some(),
+                capability.compose_with_if_none_match,
+                "if_none_match",
+            ),
+            (
+                args.if_version_match().is_some(),
+                capability.compose_with_if_version_match,
+                "if_version_match",
+            ),
+            (
+                args.if_version_not_match().is_some(),
+                capability.compose_with_if_version_not_match,
+                "if_version_not_match",
+            ),
+            (
+                args.if_not_exists(),
+                capability.compose_with_if_not_exists,
+                "if_not_exists",
+            ),
+        ];
+
+        if !capability.compose {
+            return Err(new_unsupported_error(&info, Operation::Compose, ""));
+        }
+        if let Some((_, _, name)) = checks
+            .iter()
+            .find(|(used, supported, _)| *used && !supported)
+        {
+            return Err(new_unsupported_error(&info, Operation::Compose, name));
+        }
+
+        self.inner.compose(ctx, to, args)
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -207,6 +276,31 @@ impl Service for CapabilityCheckService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let capability = self.capability();
+        let info = self.info();
+        if !capability.restore {
+            return Err(new_unsupported_error(&info, Operation::Restore, ""));
+        }
+        if args.version().is_some() && !capability.restore_with_version {
+            return Err(new_unsupported_error(&info, Operation::Restore, "version"));
+        }
+        if args.if_not_exists() && !capability.restore_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Restore,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn presign(
@@ -234,6 +328,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -284,14 +379,7 @@ mod tests {
             ))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",

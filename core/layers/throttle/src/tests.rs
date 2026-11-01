@@ -73,8 +73,7 @@ async fn bounded_reads_check_quota_before_inner_io() {
     let error = reader
         .read(BytesRange::new(0, Some(5)))
         .await
-        .err()
-        .expect("oversized read must fail");
+        .expect_err("oversized read must fail");
     assert_eq!(error.kind(), ErrorKind::RateLimited);
     let error = reader
         .open(BytesRange::new(0, Some(5)))
@@ -154,8 +153,7 @@ async fn public_memory_rejects_oversized_bounded_reads() {
         .read_with("data")
         .range(0..6)
         .await
-        .err()
-        .expect("oversized range must fail");
+        .expect_err("oversized range must fail");
     assert_eq!(error.kind(), ErrorKind::RateLimited);
 }
 

@@ -86,7 +86,7 @@ run_check behavior cargo test --locked --test behavior --features tests,services
 export OPENDAL_TEST=fs
 export OPENDAL_FS_ROOT="$task_logs/fs"
 mkdir -p "$OPENDAL_FS_ROOT"
-run_check fs-race cargo test --locked --test behavior --features tests,services-hdfs-native,services-fs -- test_rename_with_if_not_exists_race
+run_check fs-rename cargo test --locked --test behavior --features tests,services-hdfs-native,services-fs -- test_rename_
 cd "$task_repo"
 git rev-parse HEAD > "$task_logs/head.after"
 git status --porcelain > "$task_logs/status.after"

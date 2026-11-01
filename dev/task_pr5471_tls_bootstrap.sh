@@ -31,6 +31,7 @@ flock 9
 finish() {
     local result=$?
     trap - EXIT
+    set +e
     git rev-parse HEAD HEAD^{tree} > "$log_dir/final-head.txt"
     git status --porcelain --untracked-files=all > "$log_dir/final-status.txt"
     git diff --stat > "$log_dir/generated-diff-stat.txt"
@@ -38,6 +39,17 @@ finish() {
     exit "$result"
 }
 trap finish EXIT
+
+run_stage() {
+    local stage="$1"
+    shift
+    set +e
+    "$@" > "$log_dir/$stage.log" 2>&1
+    local stage_status=$?
+    set -e
+    printf '%s\n' "$stage_status" > "$log_dir/$stage.status"
+    return "$stage_status"
+}
 
 git status --porcelain --untracked-files=all > "$log_dir/pre-status.txt"
 test ! -s "$log_dir/pre-status.txt"
@@ -47,16 +59,12 @@ git switch --detach "$product_head" > "$log_dir/product-checkout.log" 2>&1
 cargo --version > "$log_dir/toolchain.txt"
 rustc --version >> "$log_dir/toolchain.txt"
 cd core
-cargo fmt --all > "$log_dir/fmt.log" 2>&1
-printf '%s\n' "$?" > "$log_dir/fmt.status"
-cargo check --offline -p opendal-service-memcached > "$log_dir/bootstrap-check.log" 2>&1
-printf '%s\n' "$?" > "$log_dir/bootstrap-check.status"
+run_stage fmt cargo fmt --all
+run_stage bootstrap-check cargo check --offline -p opendal-service-memcached
 cd "$repo_root"
 for language in java python dotnet docs; do
-    cargo run --locked --quiet --manifest-path dev/Cargo.toml -- generate -l "$language" > "$log_dir/generate-$language.log" 2>&1
-    printf '%s\n' "$?" > "$log_dir/generate-$language.status"
+    run_stage "generate-$language" cargo run --quiet --manifest-path dev/Cargo.toml -- generate -l "$language"
 done
-git diff --check > "$log_dir/diff-check.log" 2>&1
-printf '%s\n' "$?" > "$log_dir/diff-check.status"
+run_stage diff-check git diff --check
 # Keep generated source in this worktree for the coordinator's inspection,
 # local commit and Git-over-SSH fetch. This bootstrap runs no product tests.

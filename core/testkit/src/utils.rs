@@ -129,7 +129,7 @@ pub fn init_test_service() -> Result<Option<Operator>> {
     let op = op
         .layer(LoggingLayer::default())
         .layer(timeout)
-        .layer(RetryLayer::new().with_max_times(4));
+        .layer(RetryLayer::new().with_max_times(4).with_jitter());
 
     Ok(Some(op))
 }

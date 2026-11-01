@@ -39,16 +39,22 @@ cleanup() {
     task_exit=$?
     trap - EXIT
     git -C "$task_repo" status --porcelain >"$task_logs/before-restore.status"
-    if [[ ! -s "$task_logs/before-restore.status" ]]; then
-        git -C "$task_repo" checkout --detach "$task_original" >"$task_logs/restore.log" 2>&1 || task_exit=1
+    if [[ ! -s "$task_logs/before-restore.status" ]] &&
+        git -C "$task_repo" checkout --detach "$task_original" >"$task_logs/restore.log" 2>&1; then
+        task_lock_restored=1
         if [[ $task_lock_existed == 1 ]]; then
-            cp -p "$task_state/original-Cargo.lock" "$task_lock_path" || task_exit=1
-            sha256sum -c "$task_logs/original-ignored-lock.sha256" >"$task_logs/ignored-lock-restored.log" 2>&1 || task_exit=1
+            cp -p "$task_state/original-Cargo.lock" "$task_lock_path" || task_lock_restored=0
+            sha256sum -c "$task_logs/original-ignored-lock.sha256" >"$task_logs/ignored-lock-restored.log" 2>&1 || task_lock_restored=0
         else
-            [[ ! -f $task_lock_path ]] || task_exit=1
+            [[ ! -f $task_lock_path ]] || task_lock_restored=0
         fi
-        rm -f "$task_state/original-Cargo.lock"
-        rmdir "$task_state" || task_exit=1
+        if [[ $task_lock_restored == 1 ]]; then
+            rm -f "$task_state/original-Cargo.lock"
+            rmdir "$task_state" || task_exit=1
+        else
+            printf '%s\n' "$task_state" >"$task_logs/preserved-state-path.log"
+            task_exit=1
+        fi
     else
         printf '%s\n' "$task_state" >"$task_logs/preserved-state-path.log"
         task_exit=1

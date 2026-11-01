@@ -911,6 +911,8 @@ impl GcsCore {
 
         let mut url = QueryPairsWriter::new(&url);
         url = url.push("prefix", &gcs_percent_encode_path(&p));
+        // Task-only raw-provider observation; this is not a capability port.
+        url = url.push("versions", "true");
 
         if !delimiter.is_empty() {
             url = url.push("delimiter", delimiter);
@@ -941,7 +943,31 @@ impl GcsCore {
 
         let req = self.sign(ctx, req).await?;
 
-        self.send(ctx, req).await
+        let response = self.send(ctx, req).await?;
+        eprintln!("5548 raw list: status={}", response.status().as_u16());
+        if response.status() == http::StatusCode::OK {
+            let body: serde_json::Value = serde_json::from_slice(&response.body().to_bytes())
+                .map_err(|_| Error::new(ErrorKind::Unexpected, "probe list JSON decode failed"))?;
+            if let Some(items) = body.get("items").and_then(serde_json::Value::as_array) {
+                for item in items {
+                    let generation = item
+                        .get("generation")
+                        .and_then(serde_json::Value::as_str)
+                        .and_then(|v| v.parse::<u64>().ok())
+                        .ok_or_else(|| {
+                            Error::new(ErrorKind::Unexpected, "probe generation invalid")
+                        })?;
+                    eprintln!(
+                        "5548 raw item: generation={generation} name_matches={} time_deleted={} soft_delete_time={} hard_delete_time={}",
+                        item.get("name").and_then(serde_json::Value::as_str) == Some(p.as_str()),
+                        item.get("timeDeleted").is_some(),
+                        item.get("softDeleteTime").is_some(),
+                        item.get("hardDeleteTime").is_some(),
+                    );
+                }
+            }
+        }
+        Ok(response)
     }
 
     pub async fn gcs_initiate_multipart_upload(

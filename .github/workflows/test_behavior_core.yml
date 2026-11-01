@@ -52,13 +52,12 @@ jobs:
           echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
-      - name: Test Core
-        uses: ./.github/actions/test_behavior_core
-        with:
-          setups: ${{ join(matrix.cases.setups, ',') }}
-          service: ${{ matrix.cases.service }}
-          feature: ${{ matrix.cases.feature }}
+      - name: Setup GCS fixture
+        uses: ./.github/services/gcs/gcs
+
+      - name: Observe raw GCS version list
+        working-directory: core
         env:
-          # Forward the workflow token so read-only service tests (e.g. the
-          # github service) can raise their API rate limit.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENDAL_TEST: gcs
+          OPENDAL_DISABLE_RANDOM_ROOT: "true"
+        run: cargo test --locked --features tests,services-gcs --test gcs_version_list_probe -- --nocapture

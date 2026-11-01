@@ -213,8 +213,8 @@ pub struct S3Config {
     pub server_side_encryption_aws_kms_key_id: Option<String>,
     /// Control S3 Bucket Keys for SSE-KMS writes and copies.
     ///
-    /// `None` inherits the bucket setting. `Some(false)` disables Bucket Keys
-    /// for the destination object, and `Some(true)` enables them.
+    /// Omit this option to inherit the bucket setting. `false` disables Bucket
+    /// Keys for destination objects, and `true` enables them.
     ///
     /// <!-- @group Encryption -->
     #[serde(alias = "aws_sse_bucket_key_enabled")]

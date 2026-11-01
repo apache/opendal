@@ -25,7 +25,8 @@ use opendal::{ErrorKind, Operator};
 use uuid::Uuid;
 
 #[tokio::test]
-async fn test_public_gcs_version_list_pagination() -> Result<()> {
+// Keep this probe inside the stock behavior filter, before fixture cleanup.
+async fn test_behavior_public_gcs_version_list_pagination() -> Result<()> {
     ensure!(
         env::var("OPENDAL_TEST").ok().as_deref() == Some("gcs"),
         "GCS fixture is required"

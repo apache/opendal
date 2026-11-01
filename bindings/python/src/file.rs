@@ -474,12 +474,10 @@ impl AsyncFile {
     }
 
     pub fn new_writer(writer: ocore::Writer) -> Self {
-        Self(Arc::new(Mutex::new(AsyncFileState::Writer(
-            FileWriter {
-                sink: writer.into_sink(),
-                position: 0,
-            },
-        ))))
+        Self(Arc::new(Mutex::new(AsyncFileState::Writer(FileWriter {
+            sink: writer.into_sink(),
+            position: 0,
+        }))))
     }
 }
 #[pymethods]

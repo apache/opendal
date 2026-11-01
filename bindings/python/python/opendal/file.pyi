@@ -128,6 +128,9 @@ class AsyncFile:
         """
         Return the current position of this file.
 
+        For writable files, this counts bytes accepted by successful writes,
+        including buffered data. Writable files cannot seek.
+
         Returns
         -------
         coroutine
@@ -311,6 +314,9 @@ class File:
     def tell(self, /) -> int:
         """
         Return the current position of this file.
+
+        For writable files, this counts bytes accepted by successful writes,
+        including buffered data. Writable files cannot seek.
 
         Returns
         -------

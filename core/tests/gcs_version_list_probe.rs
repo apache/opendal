@@ -44,9 +44,7 @@ async fn test_public_gcs_version_list_pagination() -> Result<()> {
     let object_uuid = Uuid::new_v4();
     let path = format!("probe-5548-{object_uuid}/object");
     let mut generations = Vec::with_capacity(2);
-    eprintln!(
-        "5548 candidate: object_uuid={object_uuid} capability=true public_versions=true"
-    );
+    eprintln!("5548 candidate: object_uuid={object_uuid} capability=true public_versions=true");
 
     let probe: Result<()> = async {
         for payload in [

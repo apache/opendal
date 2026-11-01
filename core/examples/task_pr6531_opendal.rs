@@ -66,12 +66,20 @@ async fn execute() -> Result<Option<String>> {
         "oneshot" => op.write(target, PAYLOAD).await?,
         "multipart" => {
             let mut writer = op.writer_with(target).chunk(PART_SIZE).await?;
-            let result = async {
-                writer.write(vec![b'z'; PART_SIZE]).await?;
-                writer.write(PAYLOAD).await?;
-                writer.close().await
-            }
-            .await;
+            let result =
+                async {
+                    writer.write(vec![b'z'; PART_SIZE]).await.map_err(|error| {
+                        error.with_context("task_phase", "multipart_first_write")
+                    })?;
+                    writer.write(PAYLOAD).await.map_err(|error| {
+                        error.with_context("task_phase", "multipart_second_write")
+                    })?;
+                    writer
+                        .close()
+                        .await
+                        .map_err(|error| error.with_context("task_phase", "multipart_close"))
+                }
+                .await;
             if result.is_err() {
                 let _ = writer.abort().await;
             }
@@ -88,7 +96,58 @@ async fn main() {
     match execute().await {
         Ok(version) => println!("VERSION\t{}", version.unwrap_or_default()),
         Err(error) => {
-            eprintln!("OPENDAL_ERROR kind={:?}", error.kind());
+            // Inspect diagnostics in memory; print only fixed allowlisted labels.
+            let description = error.to_string();
+            let message = error.message();
+            let phase = [
+                "multipart_first_write",
+                "multipart_second_write",
+                "multipart_close",
+            ]
+            .into_iter()
+            .find(|value| description.contains(value))
+            .unwrap_or("unknown");
+            let operation = [
+                "UploadPartCopy",
+                "UploadPart",
+                "CompleteMultipartUpload",
+                "CreateMultipartUpload",
+            ]
+            .into_iter()
+            .find(|value| description.contains(&format!("service_operation: {value}")))
+            .unwrap_or("unknown");
+            let status = [
+                "400", "403", "404", "409", "412", "429", "500", "502", "503", "504",
+            ]
+            .into_iter()
+            .find(|value| description.contains(&format!("status: {value}")))
+            .unwrap_or("unknown");
+            let code = [
+                "InvalidArgument",
+                "InvalidRequest",
+                "InvalidPart",
+                "InvalidPartOrder",
+                "SignatureDoesNotMatch",
+                "XAmzContentSHA256Mismatch",
+                "EntityTooSmall",
+                "AccessDenied",
+                "InvalidToken",
+                "ExpiredToken",
+                "NotImplemented",
+                "NoSuchUpload",
+                "MalformedXML",
+                "InternalError",
+                "SlowDown",
+            ]
+            .into_iter()
+            .find(|value| message.contains(&format!("code: \"{value}\"")))
+            .unwrap_or("other");
+            eprintln!(
+                "OPENDAL_ERROR kind={:?} stage={phase} s3_operation={operation} http_status={status} s3_code={code} mentions_sse={} mentions_bucket_key={}",
+                error.kind(),
+                message.contains("x-amz-server-side-encryption"),
+                message.contains("bucket-key-enabled")
+            );
             std::process::exit(1);
         }
     }

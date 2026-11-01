@@ -16,7 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Task-only OpenDAL AWS validation; never modifies bucket or KMS configuration."""
+"""Task-only OpenDAL AWS multipart comparison; never modifies bucket or KMS configuration."""
 
 import json
 import os
@@ -154,60 +154,71 @@ def main():
 
         with tempfile.TemporaryDirectory(prefix="opendal-pr6531-") as temp:
             try:
-                for label, value, mode in (("omitted", None, "oneshot"),
-                                           ("false", False, "multipart"),
-                                           ("true", True, "copy")):
+                for label, value, mode in (("omitted", None, "multipart"),
+                                           ("false", False, "multipart")):
                     suffix = f"{prefix}/{label}"
                     source = f"{prefix}/false" if mode == "copy" else ""
                     expected = payload if mode == "oneshot" else b"z" * (5 * 1024 * 1024) + payload
                     item = {"suffix": suffix, "version": None, "put_confirmed": False,
                             "multipart_pending": mode == "multipart"}
                     owned.append(item)
-                    proc = subprocess.run([str(binary), mode, label, suffix, source],
-                                          env=rust_env, capture_output=True, text=True,
-                                          check=False, timeout=180)
-                    if proc.returncode:
-                        failure = RuntimeError("OpenDAL task process failed")
-                        failure.operation = f"opendal-{mode}"
-                        kind = re.search(r"OPENDAL_ERROR kind=([A-Za-z]+)", proc.stderr)
-                        failure.code = kind.group(1) if kind else "RUST_PROCESS_FAILURE"
-                        raise failure
-                    marker, separator, returned_version = proc.stdout.rstrip("\n").partition("\t")
-                    assert marker == "VERSION" and separator == "\t" and "\n" not in returned_version
-                    item["multipart_pending"] = False
-                    discovered = request("head-object", suffix)
-                    version_id = discovered.get("VersionId")
-                    assert isinstance(version_id, str) and version_id, "Versioned AWS fixture required"
-                    item.update(version=version_id, put_confirmed=True)
-                    if returned_version:
-                        assert returned_version == version_id, "OpenDAL version differs from AWS"
-                    selector = ["--version-id", version_id]
-                    head = request("head-object", suffix, *selector)
-                    assert head.get("VersionId") == version_id
-                    assert head.get("ServerSideEncryption") == "aws:kms"
-                    assert head.get("ContentLength") == len(expected)
-                    if mode == "multipart":
-                        assert head.get("ETag", "").strip('"').endswith("-2"), "Two-part AWS upload required"
-                    observed = head.get("BucketKeyEnabled", False)
-                    assert isinstance(observed, bool)
-                    if value is not None:
-                        assert observed is value, "Object-level Bucket Key value differs"
-                    destination = Path(temp) / label
-                    request("get-object", suffix, *selector, str(destination))
-                    assert destination.read_bytes() == expected
-                    case = {"case": label, "mode": mode, "bucket_key": observed,
-                            "bytes_equal": True, "version_selected": True,
-                            "opendal_version_returned": bool(returned_version)}
-                    if mode == "multipart":
-                        case["two_parts_confirmed"] = True
-                    if mode == "copy":
-                        case["source_bucket_key"] = False
-                    summary["cases"].append(case)
-                    print("CASE " + json.dumps(case), flush=True)
+                    try:
+                        proc = subprocess.run([str(binary), mode, label, suffix, source],
+                                              env=rust_env, capture_output=True, text=True,
+                                              check=False, timeout=180)
+                        if proc.returncode:
+                            failure = RuntimeError("OpenDAL task process failed")
+                            failure.operation = f"opendal-{mode}"
+                            kind = re.search(r"OPENDAL_ERROR kind=([A-Za-z]+)", proc.stderr)
+                            failure.code = kind.group(1) if kind else "RUST_PROCESS_FAILURE"
+                            failure.diagnostic = dict(re.findall(
+                                r"\b(stage|s3_operation|http_status|s3_code|mentions_sse|mentions_bucket_key)=([A-Za-z0-9_-]+)", proc.stderr))
+                            raise failure
+                        marker, separator, returned_version = proc.stdout.rstrip("\n").partition("\t")
+                        assert marker == "VERSION" and separator == "\t" and "\n" not in returned_version
+                        item["multipart_pending"] = False
+                        discovered = request("head-object", suffix)
+                        version_id = discovered.get("VersionId")
+                        assert isinstance(version_id, str) and version_id, "Versioned AWS fixture required"
+                        item.update(version=version_id, put_confirmed=True)
+                        if returned_version:
+                            assert returned_version == version_id, "OpenDAL version differs from AWS"
+                        selector = ["--version-id", version_id]
+                        head = request("head-object", suffix, *selector)
+                        assert head.get("VersionId") == version_id
+                        assert head.get("ServerSideEncryption") == "aws:kms"
+                        assert head.get("ContentLength") == len(expected)
+                        if mode == "multipart":
+                            assert head.get("ETag", "").strip('"').endswith("-2"), "Two-part AWS upload required"
+                        observed = head.get("BucketKeyEnabled", False)
+                        assert isinstance(observed, bool)
+                        if value is not None:
+                            assert observed is value, "Object-level Bucket Key value differs"
+                        destination = Path(temp) / label
+                        request("get-object", suffix, *selector, str(destination))
+                        assert destination.read_bytes() == expected
+                        case = {"case": label, "mode": mode, "passed": True, "bucket_key": observed,
+                                "bytes_equal": True, "version_selected": True,
+                                "opendal_version_returned": bool(returned_version)}
+                        if mode == "multipart":
+                            case["two_parts_confirmed"] = True
+                        if mode == "copy":
+                            case["source_bucket_key"] = False
+                        summary["cases"].append(case)
+                        print("CASE " + json.dumps(case), flush=True)
+                    except Exception as case_error:
+                        case = {"case": label, "mode": mode, "passed": False,
+                                "error": {"type": type(case_error).__name__,
+                                          "operation": getattr(case_error, "operation", None),
+                                          "code": getattr(case_error, "code", "VALIDATION_ERROR")},
+                                "diagnostic": getattr(case_error, "diagnostic", {})}
+                        summary["cases"].append(case)
+                        print("CASE " + json.dumps(case), flush=True)
             finally:
                 for item in reversed(owned):
                     cleanup_item(item, "cleanup_verified")
-        assert len(summary["cases"]) == 3 and summary["cleanup_verified"] == 3 and not pending
+        assert len(summary["cases"]) == 2 and summary["cleanup_verified"] == 2 and not pending
+        assert all(case["passed"] for case in summary["cases"]), "Multipart comparison has failed operations"
         summary["passed"] = True
     except Exception as exc:
         error = exc

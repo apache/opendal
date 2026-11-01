@@ -60,7 +60,8 @@ run_stage() {
     test "$stage_status" -eq 0
 }
 git rev-parse HEAD HEAD^{tree} > "$log_dir/carrier-head.txt"
-test "$(git rev-parse HEAD^)" = "$product_head"
+git merge-base --is-ancestor "$product_head" HEAD
+git diff --quiet "$product_head" -- core/core core/services core/src core/Cargo.toml core/Cargo.lock
 sha256sum dev/task_pr6531_opendal_check.sh > "$log_dir/driver.sha256"
 git status --porcelain --untracked-files=all > "$log_dir/pre-status.txt"
 test ! -s "$log_dir/pre-status.txt"

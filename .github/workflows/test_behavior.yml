@@ -16,7 +16,7 @@
 # under the License.
 
 name: Task PR6531 OpenDAL AWS validation
-run-name: Task PR6531 OpenDAL real AWS request paths
+run-name: Task PR6531 OpenDAL AWS multipart comparison
 
 on:
   workflow_dispatch:

@@ -285,6 +285,9 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
+    # 3FS currently has a Rust-only fixture that requires Ubuntu 22.04's RXE module.
+    cases = [v for v in cases if v["service"] != "hf3fs"]
+
     # Remove invalid cases for java.
     if language == "java":
         cases = [v for v in cases if v["service"] not in [
@@ -387,7 +390,12 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
 
     if len(core_cases) > 0:
         jobs["components"]["core"] = True
-        jobs["core"].append({"os": "ubuntu-latest", "cases": core_cases})
+        linux_cases = [v for v in core_cases if v["service"] != "hf3fs"]
+        hf3fs_cases = [v for v in core_cases if v["service"] == "hf3fs"]
+        if linux_cases:
+            jobs["core"].append({"os": "ubuntu-latest", "cases": linux_cases})
+        if hf3fs_cases:
+            jobs["core"].append({"os": "ubuntu-22.04", "cases": hf3fs_cases})
 
         # fs is the only services need to run upon windows, let's hard code it here.
         if "fs" in [v["service"] for v in core_cases]:

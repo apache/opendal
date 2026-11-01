@@ -1,0 +1,70 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: single_node
+description: Test 3FS with one storage node, one replica, and SoftRoCE
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v5
+      id: cache
+      with:
+        path: ${{ runner.temp }}/3fs
+        key: hf3fs-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
+    - name: Prepare 3FS
+      shell: bash
+      env:
+        CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
+      run: bash .github/services/hf3fs/single_node/setup.sh
+    - uses: actions/cache/save@v5
+      if: steps.cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ runner.temp }}/3fs
+        key: hf3fs-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
+    - name: Start 3FS
+      shell: bash
+      run: |
+        source_dir="$RUNNER_TEMP/3fs"
+        cluster="$RUNNER_TEMP/hf3fs-cluster"
+        sed -i '/\[ib_devices\]/a device_filter = ["opendal_rxe"]' \
+          "$source_dir"/tests/fuse/config/*launcher.toml "$source_dir"/tests/fuse/config/admin_cli.toml
+        sed -i "s/start_level = 'NONE'/start_level = 'WARN'/" "$source_dir"/tests/fuse/config/*.toml
+        sudo systemd-run --unit=opendal-hf3fs --uid="$(id -u)" \
+          --working-directory="$RUNNER_TEMP" \
+          --property=LimitMEMLOCK=infinity --property=TimeoutStopSec=10s \
+          bash "$source_dir/tests/fuse/run.sh" "$source_dir/build/bin" "$cluster"
+        for _ in $(seq 1 120); do
+          if mountpoint -q "$cluster/mnt" && [[ -d "$cluster/mnt/test" ]]; then
+            break
+          fi
+          if ! systemctl is-active --quiet opendal-hf3fs; then
+            sudo journalctl -u opendal-hf3fs --no-pager
+            exit 1
+          fi
+          sleep 1
+        done
+        mountpoint "$cluster/mnt"
+        test -d "$cluster/mnt/test"
+        echo "OPENDAL_HF3FS_ROOT=$cluster/mnt/test" >> "$GITHUB_ENV"
+        echo "OPENDAL_HF3FS_LIBRARY_PATH=$source_dir/build/src/lib/api/libhf3fs_api_shared.so" >> "$GITHUB_ENV"
+        echo "OPENDAL_DISABLE_RANDOM_ROOT=true" >> "$GITHUB_ENV"
+        echo "RUST_TEST_THREADS=2" >> "$GITHUB_ENV"
+    - name: Test USRBIO
+      shell: bash
+      working-directory: core
+      run: cargo test --locked -p opendal-service-hf3fs --test real_service -- --ignored

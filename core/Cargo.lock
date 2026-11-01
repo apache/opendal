@@ -5732,6 +5732,7 @@ dependencies = [
  "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-hf",
+ "opendal-service-hf3fs",
  "opendal-service-http",
  "opendal-service-ipfs",
  "opendal-service-ipmfs",
@@ -6570,6 +6571,21 @@ dependencies = [
  "percent-encoding",
  "serde",
  "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-hf3fs"
+version = "0.59.5"
+dependencies = [
+ "bytes",
+ "futures",
+ "libc",
+ "libloading 0.8.9",
+ "opendal-core",
+ "opendal-service-fs",
+ "serde",
+ "tempfile",
  "tokio",
 ]
 

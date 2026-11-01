@@ -148,21 +148,30 @@ impl SmbCore {
                     let file = RuntimeResource::new(file);
                     let info = file.query_info::<FileAllInformation>().await;
                     let close_result = file.close().await;
-                    let (query_info_ok, directory, readonly, hidden, system, archive, normal) =
-                        match info {
-                            Ok(info) => (
-                                true,
-                                info.basic.file_attributes.directory(),
-                                info.basic.file_attributes.readonly(),
-                                info.basic.file_attributes.hidden(),
-                                info.basic.file_attributes.system(),
-                                info.basic.file_attributes.archive(),
-                                info.basic.file_attributes.normal(),
-                            ),
-                            Err(_) => (false, false, false, false, false, false, false),
-                        };
+                    let (
+                        query_info_ok,
+                        directory,
+                        standard_directory,
+                        readonly,
+                        hidden,
+                        system,
+                        archive,
+                        normal,
+                    ) = match info {
+                        Ok(info) => (
+                            true,
+                            info.basic.file_attributes.directory(),
+                            Some(info.standard.directory),
+                            info.basic.file_attributes.readonly(),
+                            info.basic.file_attributes.hidden(),
+                            info.basic.file_attributes.system(),
+                            info.basic.file_attributes.archive(),
+                            info.basic.file_attributes.normal(),
+                        ),
+                        Err(_) => (false, false, None, false, false, false, false, false),
+                    };
                     eprintln!(
-                        "SMB_CREATE_DIR_DIAG component={current:?} query_info_ok={query_info_ok} directory={directory} readonly={readonly} hidden={hidden} system={system} archive={archive} normal={normal} requested_directory_file=true requested_directory_attribute=true requested_create_disposition=OpenIf close_ok={}",
+                        "SMB_CREATE_DIR_DIAG component={current:?} query_info_ok={query_info_ok} directory={directory} standard_directory={standard_directory:?} readonly={readonly} hidden={hidden} system={system} archive={archive} normal={normal} requested_directory_file=true requested_directory_attribute=true requested_create_disposition=OpenIf close_ok={}",
                         close_result.is_ok()
                     );
                     return Err(Error::new(

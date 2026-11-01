@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from collections.abc import Iterator
 from pathlib import Path
 from uuid import uuid4
 
@@ -25,24 +26,28 @@ from opendal.exceptions import NotFound
 
 
 class StringPath:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
 
-    def __fspath__(self):
+    def __fspath__(self) -> str:
+        """Return the string path."""
         return self.path
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
+        """Make this path-like scalar iterable to test scalar rejection."""
         return iter((self.path,))
 
 
 class BytesPath:
-    def __fspath__(self):
+    def __fspath__(self) -> bytes:
+        """Return bytes to test rejection of PathLike[bytes]."""
         return b"survivor"
 
 
 def raising_paths(path):
     yield path
-    raise RuntimeError("iterator failed")
+    message = "iterator failed"
+    raise RuntimeError(message)
 
 
 BAD_INPUTS = [
@@ -100,7 +105,7 @@ async def test_async_delete_many(async_operator, container):
             await async_operator.read(name)
 
 
-@pytest.mark.parametrize("make_paths, error", BAD_INPUTS)
+@pytest.mark.parametrize(("make_paths", "error"), BAD_INPUTS)
 def test_sync_delete_many_input_error(make_paths, error):
     operator = opendal.Operator("memory")
     operator.write("survivor", b"keep")
@@ -112,7 +117,7 @@ def test_sync_delete_many_input_error(make_paths, error):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("make_paths, error", BAD_INPUTS)
+@pytest.mark.parametrize(("make_paths", "error"), BAD_INPUTS)
 async def test_async_delete_many_input_error(make_paths, error):
     operator = opendal.AsyncOperator("memory")
     await operator.write("survivor", b"keep")

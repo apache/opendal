@@ -19,7 +19,6 @@
 
 import { randomUUID } from 'node:crypto'
 import { test } from 'vitest'
-import { WriteStream, ReadStream } from '../../index.js'
 import { generateFixedBytes } from '../utils.mjs'
 import { Readable } from 'node:stream'
 

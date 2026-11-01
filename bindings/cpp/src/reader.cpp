@@ -22,7 +22,7 @@
 
 namespace opendal {
 
-void Reader::destroy() noexcept {
+void Reader::Destroy() noexcept {
   if (reader_) {
     ffi::delete_reader(reader_);
     reader_ = nullptr;
@@ -35,10 +35,15 @@ Reader::Reader(Reader &&other) noexcept : reader_{other.reader_} {
   other.reader_ = nullptr;
 }
 
-Reader::~Reader() noexcept { destroy(); }
+Reader::~Reader() noexcept { Destroy(); }
 
-std::streamsize Reader::read(void *s, std::streamsize n) {
+std::streamsize Reader::Read(void *s, std::streamsize n) {
   return reader_->read(rust::Slice<uint8_t>(static_cast<uint8_t *>(s), n));
+}
+
+std::streamsize Reader::ReadAt(void *s, std::streamsize n, uint64_t offset) {
+  return reader_->read_at(rust::Slice<uint8_t>(static_cast<uint8_t *>(s), n),
+                          offset);
 }
 
 ffi::SeekDir rust_seek_dir(std::ios_base::seekdir dir) {
@@ -57,7 +62,7 @@ ffi::SeekDir rust_seek_dir(std::ios_base::seekdir dir) {
   }
 }
 
-std::streampos Reader::seek(std::streamoff off, std::ios_base::seekdir dir) {
+std::streampos Reader::Seek(std::streamoff off, std::ios_base::seekdir dir) {
   return reader_->seek(off, rust_seek_dir(dir));
 }
 

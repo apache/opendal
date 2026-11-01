@@ -16,11 +16,12 @@
 // under the License.
 
 use criterion::Criterion;
+use opendal::Operator;
 use opendal::blocking;
 use opendal::options;
 use opendal::services;
-use opendal::Operator;
 use rand::prelude::*;
+use rand::rng;
 
 fn main() {
     let mut c = Criterion::default().configure_from_args();
@@ -31,7 +32,7 @@ fn main() {
 
 fn bench_vs_fs(c: &mut Criterion) {
     let cfg = services::Fs::default().root("/tmp/opendal/");
-    let op = Operator::new(cfg).unwrap().finish();
+    let op = Operator::new(cfg).unwrap();
 
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let _guard = runtime.enter();
@@ -71,12 +72,12 @@ fn bench_vs_fs(c: &mut Criterion) {
 }
 
 fn prepare() -> String {
-    let mut rng = thread_rng();
+    let mut rng = rng();
     let mut content = vec![0; 16 * 1024 * 1024];
     rng.fill_bytes(&mut content);
 
     let name = uuid::Uuid::new_v4();
-    let path = format!("/tmp/opendal/{}", name);
+    let path = format!("/tmp/opendal/{name}");
     let _ = std::fs::write(path, content);
 
     name.to_string()

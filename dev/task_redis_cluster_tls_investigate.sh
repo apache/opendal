@@ -43,7 +43,7 @@ python3 - "$task_log/networks-before.json" <<'PY'
 import ipaddress, json, socket, sys
 target = ipaddress.ip_network('172.30.0.0/16')
 for network in json.load(open(sys.argv[1])):
-    for config in network.get('IPAM', {}).get('Config', []):
+    for config in (network.get('IPAM') or {}).get('Config') or []:
         if config.get('Subnet') and ':' not in config['Subnet']:
             assert not target.overlaps(ipaddress.ip_network(config['Subnet'])), network['Name']
 for port in range(6380, 6386):

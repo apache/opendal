@@ -96,7 +96,7 @@ class AzblobConfig(TypedDict):
     encryption_algorithm: NotRequired[str]
     """The encryption algorithm of Azblob service backend."""
     encryption_key: NotRequired[str]
-    """The encryption key of Azblob service backend."""
+    """The Base64-encoded AES-256 customer-provided encryption key.  The key must decode to exactly 32 bytes. Building an operator returns `ConfigInvalid` for invalid Base64 or a different decoded length."""
     encryption_key_sha256: NotRequired[str]
     """The encryption key sha256 of Azblob service backend."""
     endpoint: NotRequired[str]
@@ -350,6 +350,8 @@ class GdriveConfig(TypedDict):
     """Client id for gdrive."""
     client_secret: NotRequired[str]
     """Client secret for gdrive."""
+    drive_id: NotRequired[str]
+    """Shared drive (formerly Team Drive) id for gdrive.  When set, gdrive resolves `root` inside this shared drive instead of the user's My Drive."""
     refresh_token: NotRequired[str]
     """Refresh token for gdrive."""
     root: NotRequired[str | os.PathLike[str]]

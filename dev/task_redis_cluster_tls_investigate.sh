@@ -3,9 +3,10 @@ set -euo pipefail
 
 # Task-only evidence collection; this driver is not part of a product PR.
 task_base=0dfd56418044e204e5cadcfc1eeceeaec9ae9559
-task_log=/home/xuanwo/Code/logs/opendal-redis-cluster-tls-20261102
+task_log=${1:?Pass a new evidence directory}
 task_project=opendal-redis-investigation-20261102
 task_repo=$(git rev-parse --show-toplevel)
+test ! -e "$task_log"
 mkdir -p "$task_log"
 exec 9>/tmp/opendal-pr-delivery-20261031-build.lock
 flock 9
@@ -28,7 +29,7 @@ import json, sys
 bins = []
 for line in open(sys.argv[1]):
     item = json.loads(line)
-    if item.get('target', {}).get('name') == 'behavior' and item.get('executable'):
+    if (item.get('target') or {}).get('name') == 'behavior' and item.get('executable'):
         bins.append(item['executable'])
 assert len(set(bins)) == 1, bins
 print(bins[-1])

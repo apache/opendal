@@ -90,7 +90,7 @@ for task_round in 1 2 3; do
     docker image inspect docker.io/bitnamilegacy/redis-cluster:7.4.3-debian-12-r0 \
         --format '{{json .RepoDigests}} {{json .Config.Healthcheck}}' >"$task_round_log/image.txt"
     # Observe startup concurrently so topology inspection does not delay the test.
-    snapshot startup "$task_round_log" || true &
+    (trap - EXIT; snapshot startup "$task_round_log" || true) &
     task_snapshot_pid=$!
     date -u +%FT%T.%NZ >"$task_round_log/test-start.txt"
     set +e

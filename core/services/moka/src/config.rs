@@ -98,6 +98,13 @@ mod tests {
 
         assert_eq!(cfg.time_to_live, Some(SignedDuration::from_millis(1500)));
         assert_eq!(cfg.time_to_idle, Some(SignedDuration::from_secs(2)));
+
+        let cfg = MokaConfig::from_iter([
+            ("time_to_live".to_string(), "PT1.500000001S".to_string()),
+            ("time_to_idle".to_string(), "PT2S".to_string()),
+        ])?;
+        assert_eq!(cfg.time_to_live, Some(SignedDuration::new(1, 500_000_001)));
+        assert_eq!(cfg.time_to_idle, Some(SignedDuration::from_secs(2)));
         Ok(())
     }
 }

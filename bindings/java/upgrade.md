@@ -1,5 +1,12 @@
 # Upgrade to v0.50
 
+## Moka and MiniMoka configuration durations
+
+`ServiceConfig.Moka` and `ServiceConfig.MiniMoka` now use `java.time.Duration`
+for `timeToLive` and `timeToIdle`, instead of `String`. Replace values such as
+`"5s"` with `Duration.ofSeconds(5)`. Configuration passed as a string map
+continues to accept duration strings.
+
 ## Breaking change
 
 ### `OperatorInfo` exposes a single capability

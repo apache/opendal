@@ -67,6 +67,8 @@ pub mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED: &str =
+        "x-amz-server-side-encryption-bucket-key-enabled";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
@@ -101,6 +103,7 @@ pub struct S3Core {
     pub root: String,
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_aws_kms_key_id: Option<HeaderValue>,
+    pub server_side_encryption_bucket_key_enabled: Option<HeaderValue>,
     pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
@@ -308,16 +311,15 @@ impl S3Core {
             .await
     }
 
-    /// # Note
+    /// Adds SSE-C headers and, for object creation, SSE-S3/SSE-KMS configuration.
     ///
-    /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    /// get or stat.
+    /// Multipart uploads choose SSE-S3/SSE-KMS encryption at initiation.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,
-        is_write: bool,
+        configure_destination_encryption: bool,
     ) -> http::request::Builder {
-        if is_write {
+        if configure_destination_encryption {
             if let Some(v) = &self.server_side_encryption {
                 let mut v = v.clone();
                 v.set_sensitive(true);
@@ -649,6 +651,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Calculate Checksum.
         if let Some(checksum) = self.calculate_checksum(&body) {
@@ -694,6 +702,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Calculate Checksum.
         if let Some(checksum) = self.calculate_checksum(&body) {
@@ -811,6 +825,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
             let mut v = v.clone();
@@ -1007,6 +1027,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Set checksum type headers.
         // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
@@ -1056,6 +1082,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         let req = req
             .extension(Operation::Copy)
@@ -1115,7 +1147,7 @@ impl S3Core {
         }
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
             let mut v = v.clone();
@@ -1194,7 +1226,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(checksum) = checksum {
             // Set Checksum header.
@@ -1232,7 +1264,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
@@ -1284,7 +1316,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;

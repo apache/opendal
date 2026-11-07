@@ -84,6 +84,13 @@ jobs:
           # params must be in sync with `python-cache` job
           working-directory: bindings/python
 
+      - name: Setup Java for HDFS build
+        if: matrix.cases.feature == 'services-hdfs'
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: 11
+
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"

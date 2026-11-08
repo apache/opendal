@@ -167,14 +167,15 @@ impl Service for MemoryBackend {
         let start_after = args.start_after().map(|v| build_abs_path(&self.root, v));
         let mut keys = self.core.scan(&p, start_after.as_deref())?;
 
-        // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
-        // `d/y` would still yield `d/`, which sorts at or before the marker, so drop all of `d/`.
+        // Non-recursive lists return `d/` in place of `d/x`. Keep a key only if the entry it
+        // becomes still sorts after the marker.
         if !args.recursive()
             && let Some(marker) = start_after.as_deref()
-            && let Some(idx) = marker.strip_prefix(p.as_str()).and_then(|v| v.find('/'))
         {
-            let dir = &marker[..p.len() + idx + 1];
-            keys.retain(|key| !key.starts_with(dir));
+            keys.retain(|key| match key[p.len()..].find('/') {
+                Some(idx) => &key[..p.len() + idx + 1] > marker,
+                None => true,
+            });
         }
 
         let lister = MemoryLister::new(&self.root, keys);

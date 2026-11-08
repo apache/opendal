@@ -172,9 +172,11 @@ impl Service for MemoryBackend {
         if !args.recursive()
             && let Some(marker) = start_after.as_deref()
         {
-            keys.retain(|key| match key[p.len()..].find('/') {
-                Some(idx) => &key[..p.len() + idx + 1] > marker,
-                None => true,
+            keys.retain(|key| {
+                let Some(idx) = key.strip_prefix(p.as_str()).and_then(|v| v.find('/')) else {
+                    return true;
+                };
+                &key[..p.len() + idx + 1] > marker
             });
         }
 

@@ -275,6 +275,7 @@ mod tests {
             ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
             ("prefix without slash", "a/d", false, "a/d/x", &[]),
             ("list root", "/", false, "a/2", &["a0", "b/"]),
+            ("list root recursively", "/", true, "a0", &["b/1"]),
         ];
 
         for root in ["/", "/root/"] {

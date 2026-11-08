@@ -262,30 +262,28 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_with_start_after() {
-        let cases: &[(&str, bool, &str, &[&str])] = &[
-            // (path, recursive, start_after, expected)
-            ("a/sub/", true, "0", &["a/sub/x", "a/sub/y"]),
-            ("a/", true, "a/2", &["a/3", "a/sub/x", "a/sub/y", "a/t"]),
-            ("a/", true, "a/25", &["a/3", "a/sub/x", "a/sub/y", "a/t"]),
-            ("a/", true, "a/sub/x", &["a/sub/y", "a/t"]),
-            ("a/", true, "a0", &[]),
-            ("a/", false, "a/1", &["a/2", "a/3", "a/sub/", "a/t"]),
-            ("a/", false, "a/s", &["a/sub/", "a/t"]),
-            ("a/", false, "a/sub/", &["a/t"]),
-            ("a/", false, "a/sub/x", &["a/t"]),
-            ("a/s", false, "a/sub/x", &[]),
-            ("/", false, "a/2", &["a0", "b/"]),
+        // (name, path, recursive, start_after, expected)
+        let cases: &[(&str, &str, bool, &str, &[&str])] = &[
+            ("before prefix", "a/d/", true, "0", &["a/d/x", "a/d/y"]),
+            ("at key", "a/", true, "a/2", &["a/d/x", "a/d/y", "a/z"]),
+            ("between keys", "a/d/", true, "a/d/w", &["a/d/x", "a/d/y"]),
+            ("key in folder", "a/", true, "a/d/x", &["a/d/y", "a/z"]),
+            ("after prefix", "a/", true, "a0", &[]),
+            ("folds folders", "a/", false, "a/1", &["a/2", "a/d/", "a/z"]),
+            ("before folder", "a/", false, "a/c", &["a/d/", "a/z"]),
+            ("at folder skips it", "a/", false, "a/d/", &["a/z"]),
+            ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
+            ("prefix without slash", "a/d", false, "a/d/x", &[]),
+            ("list root", "/", false, "a/2", &["a0", "b/"]),
         ];
 
         for root in ["/", "/root/"] {
             let op = Operator::new(services::Memory::default().root(root)).unwrap();
-            for path in [
-                "a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t", "a0", "b/1",
-            ] {
+            for path in ["a/1", "a/2", "a/d/x", "a/d/y", "a/z", "a0", "b/1"] {
                 op.write(path, "x").await.unwrap();
             }
 
-            for &(path, recursive, start_after, expected) in cases {
+            for &(name, path, recursive, start_after, expected) in cases {
                 let actual: Vec<String> = op
                     .list_with(path)
                     .recursive(recursive)
@@ -295,10 +293,7 @@ mod tests {
                     .into_iter()
                     .map(|e| e.path().to_string())
                     .collect();
-                assert_eq!(
-                    actual, expected,
-                    "root={root} path={path} recursive={recursive} start_after={start_after}"
-                );
+                assert_eq!(actual, expected, "{name} (root {root})");
             }
         }
     }

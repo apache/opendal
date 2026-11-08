@@ -79,6 +79,7 @@ impl MemoryBackend {
             stat: true,
             list: true,
             list_with_recursive: true,
+            list_with_start_after: true,
             ..Default::default()
         };
 
@@ -163,7 +164,19 @@ impl Service for MemoryBackend {
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let p = build_abs_path(&self.root, path);
-        let keys = self.core.scan(&p)?;
+        let start_after = args.start_after().map(|v| build_abs_path(&self.root, v));
+        let mut keys = self.core.scan(&p, start_after.as_deref())?;
+
+        // A non-recursive list folds the keys under `dir/` into one `dir/` entry, which sorts at
+        // or before any marker inside `dir/`. Drop those keys so that entry is skipped.
+        if !args.recursive()
+            && let Some(marker) = start_after.as_deref()
+            && let Some(idx) = marker.strip_prefix(p.as_str()).and_then(|v| v.find('/'))
+        {
+            let dir = &marker[..p.len() + idx + 1];
+            keys.retain(|key| !key.starts_with(dir));
+        }
+
         let lister = MemoryLister::new(&self.root, keys);
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
@@ -239,5 +252,87 @@ impl oio::StreamRead for MemoryReader {
             RpRead::new(metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    async fn setup(root: &str) -> Operator {
+        let op = Operator::new(services::Memory::default().root(root)).unwrap();
+        for path in [
+            "a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t", "a0", "b/1",
+        ] {
+            op.write(path, "x").await.unwrap();
+        }
+        op
+    }
+
+    async fn list(op: &Operator, path: &str, recursive: bool, start_after: &str) -> Vec<String> {
+        op.list_with(path)
+            .recursive(recursive)
+            .start_after(start_after)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|e| e.path().to_string())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_list_recursive_with_start_after() {
+        let op = setup("/").await;
+
+        assert_eq!(
+            list(&op, "a/", true, "a/2").await,
+            ["a/3", "a/sub/x", "a/sub/y", "a/t"]
+        );
+        assert_eq!(
+            list(&op, "a/", true, "a/25").await,
+            ["a/3", "a/sub/x", "a/sub/y", "a/t"]
+        );
+        assert_eq!(list(&op, "a/", true, "a/sub/x").await, ["a/sub/y", "a/t"]);
+        assert_eq!(list(&op, "a/", true, "a/t").await, Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn test_list_with_start_after_outside_prefix() {
+        let op = setup("/").await;
+
+        assert_eq!(
+            list(&op, "a/", true, "0").await,
+            ["a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t"]
+        );
+        assert_eq!(list(&op, "a/", true, "a0").await, Vec::<String>::new());
+        assert_eq!(list(&op, "a/", false, "b").await, Vec::<String>::new());
+    }
+
+    #[tokio::test]
+    async fn test_list_non_recursive_with_start_after() {
+        let op = setup("/").await;
+
+        assert_eq!(
+            list(&op, "a/", false, "a/1").await,
+            ["a/2", "a/3", "a/sub/", "a/t"]
+        );
+        assert_eq!(list(&op, "a/", false, "a/s").await, ["a/sub/", "a/t"]);
+        // `a/sub/` sorts at or before these markers, so it is skipped.
+        assert_eq!(list(&op, "a/", false, "a/sub/").await, ["a/t"]);
+        assert_eq!(list(&op, "a/", false, "a/sub/x").await, ["a/t"]);
+        assert_eq!(list(&op, "/", false, "a/2").await, ["a0", "b/"]);
+        assert_eq!(list(&op, "a/s", false, "a/r").await, ["a/sub/"]);
+        assert_eq!(
+            list(&op, "a/s", false, "a/sub/x").await,
+            Vec::<String>::new()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_with_start_after_under_root() {
+        let op = setup("/root/").await;
+
+        assert_eq!(list(&op, "a/", true, "a/sub/x").await, ["a/sub/y", "a/t"]);
+        assert_eq!(list(&op, "a/", false, "a/sub/x").await, ["a/t"]);
     }
 }

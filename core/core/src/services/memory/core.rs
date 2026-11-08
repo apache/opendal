@@ -18,6 +18,7 @@
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt::Debug;
+use std::ops::Bound;
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -76,20 +77,20 @@ impl MemoryCore {
         Ok(())
     }
 
-    pub fn scan(&self, prefix: &str) -> Result<Vec<String>> {
+    /// Returns the keys that start with `prefix` and sort strictly after `start_after`.
+    pub fn scan(&self, prefix: &str, start_after: Option<&str>) -> Result<Vec<String>> {
         let data = self.data.lock().unwrap();
 
-        if prefix.is_empty() {
-            return Ok(data.keys().cloned().collect());
-        }
+        let lower = match start_after {
+            Some(start_after) if start_after >= prefix => Bound::Excluded(start_after),
+            _ => Bound::Included(prefix),
+        };
 
-        let mut keys = Vec::new();
-        for (key, _) in data.range(prefix.to_string()..) {
-            if !key.starts_with(prefix) {
-                break;
-            }
-            keys.push(key.clone());
-        }
-        Ok(keys)
+        Ok(data
+            .range::<str, _>((lower, Bound::Unbounded))
+            .map(|(key, _)| key)
+            .take_while(|key| key.starts_with(prefix))
+            .cloned()
+            .collect())
     }
 }

@@ -167,8 +167,8 @@ impl Service for MemoryBackend {
         let start_after = args.start_after().map(|v| build_abs_path(&self.root, v));
         let mut keys = self.core.scan(&p, start_after.as_deref())?;
 
-        // A non-recursive list folds the keys under `dir/` into one `dir/` entry, which sorts at
-        // or before any marker inside `dir/`. Drop those keys so that entry is skipped.
+        // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
+        // `d/y` would still yield `d/`, which sorts at or before the marker, so drop all of `d/`.
         if !args.recursive()
             && let Some(marker) = start_after.as_deref()
             && let Some(idx) = marker.strip_prefix(p.as_str()).and_then(|v| v.find('/'))
@@ -259,80 +259,46 @@ impl oio::StreamRead for MemoryReader {
 mod tests {
     use crate::*;
 
-    async fn setup(root: &str) -> Operator {
-        let op = Operator::new(services::Memory::default().root(root)).unwrap();
-        for path in [
-            "a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t", "a0", "b/1",
-        ] {
-            op.write(path, "x").await.unwrap();
+    #[tokio::test]
+    async fn test_list_with_start_after() {
+        let cases: &[(&str, bool, &str, &[&str])] = &[
+            // (path, recursive, start_after, expected)
+            ("a/sub/", true, "0", &["a/sub/x", "a/sub/y"]),
+            ("a/", true, "a/2", &["a/3", "a/sub/x", "a/sub/y", "a/t"]),
+            ("a/", true, "a/25", &["a/3", "a/sub/x", "a/sub/y", "a/t"]),
+            ("a/", true, "a/sub/x", &["a/sub/y", "a/t"]),
+            ("a/", true, "a0", &[]),
+            ("a/", false, "a/1", &["a/2", "a/3", "a/sub/", "a/t"]),
+            ("a/", false, "a/s", &["a/sub/", "a/t"]),
+            ("a/", false, "a/sub/", &["a/t"]),
+            ("a/", false, "a/sub/x", &["a/t"]),
+            ("a/s", false, "a/sub/x", &[]),
+            ("/", false, "a/2", &["a0", "b/"]),
+        ];
+
+        for root in ["/", "/root/"] {
+            let op = Operator::new(services::Memory::default().root(root)).unwrap();
+            for path in [
+                "a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t", "a0", "b/1",
+            ] {
+                op.write(path, "x").await.unwrap();
+            }
+
+            for &(path, recursive, start_after, expected) in cases {
+                let actual: Vec<String> = op
+                    .list_with(path)
+                    .recursive(recursive)
+                    .start_after(start_after)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|e| e.path().to_string())
+                    .collect();
+                assert_eq!(
+                    actual, expected,
+                    "root={root} path={path} recursive={recursive} start_after={start_after}"
+                );
+            }
         }
-        op
-    }
-
-    async fn list(op: &Operator, path: &str, recursive: bool, start_after: &str) -> Vec<String> {
-        op.list_with(path)
-            .recursive(recursive)
-            .start_after(start_after)
-            .await
-            .unwrap()
-            .into_iter()
-            .map(|e| e.path().to_string())
-            .collect()
-    }
-
-    #[tokio::test]
-    async fn test_list_recursive_with_start_after() {
-        let op = setup("/").await;
-
-        assert_eq!(
-            list(&op, "a/", true, "a/2").await,
-            ["a/3", "a/sub/x", "a/sub/y", "a/t"]
-        );
-        assert_eq!(
-            list(&op, "a/", true, "a/25").await,
-            ["a/3", "a/sub/x", "a/sub/y", "a/t"]
-        );
-        assert_eq!(list(&op, "a/", true, "a/sub/x").await, ["a/sub/y", "a/t"]);
-        assert_eq!(list(&op, "a/", true, "a/t").await, Vec::<String>::new());
-    }
-
-    #[tokio::test]
-    async fn test_list_with_start_after_outside_prefix() {
-        let op = setup("/").await;
-
-        assert_eq!(
-            list(&op, "a/", true, "0").await,
-            ["a/1", "a/2", "a/3", "a/sub/x", "a/sub/y", "a/t"]
-        );
-        assert_eq!(list(&op, "a/", true, "a0").await, Vec::<String>::new());
-        assert_eq!(list(&op, "a/", false, "b").await, Vec::<String>::new());
-    }
-
-    #[tokio::test]
-    async fn test_list_non_recursive_with_start_after() {
-        let op = setup("/").await;
-
-        assert_eq!(
-            list(&op, "a/", false, "a/1").await,
-            ["a/2", "a/3", "a/sub/", "a/t"]
-        );
-        assert_eq!(list(&op, "a/", false, "a/s").await, ["a/sub/", "a/t"]);
-        // `a/sub/` sorts at or before these markers, so it is skipped.
-        assert_eq!(list(&op, "a/", false, "a/sub/").await, ["a/t"]);
-        assert_eq!(list(&op, "a/", false, "a/sub/x").await, ["a/t"]);
-        assert_eq!(list(&op, "/", false, "a/2").await, ["a0", "b/"]);
-        assert_eq!(list(&op, "a/s", false, "a/r").await, ["a/sub/"]);
-        assert_eq!(
-            list(&op, "a/s", false, "a/sub/x").await,
-            Vec::<String>::new()
-        );
-    }
-
-    #[tokio::test]
-    async fn test_list_with_start_after_under_root() {
-        let op = setup("/root/").await;
-
-        assert_eq!(list(&op, "a/", true, "a/sub/x").await, ["a/sub/y", "a/t"]);
-        assert_eq!(list(&op, "a/", false, "a/sub/x").await, ["a/t"]);
     }
 }

@@ -264,8 +264,7 @@ fn is_path_like_field(name: &str) -> bool {
 fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
     Ok(match field.value {
         ConfigType::Bool => "bool".to_string(),
-        // Duration values cross the Python binding as strings, e.g. "5s".
-        ConfigType::Duration => "str".to_string(),
+        ConfigType::Duration => "str | timedelta".to_string(),
         ConfigType::Usize
         | ConfigType::U64
         | ConfigType::I64
@@ -309,7 +308,7 @@ fn make_config_field_doc(field: ViaDeserialize<Config>) -> Result<String, miniji
 
     match field.value {
         ConfigType::Duration => parts.push(
-            "A human readable duration string, e.g. \"5s\" (see \
+            "A datetime.timedelta or human readable duration string, e.g. \"5s\" (see \
              https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."
                 .to_string(),
         ),

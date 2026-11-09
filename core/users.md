@@ -13,6 +13,6 @@
 - [Pants](https://github.com/pantsbuild/pants): A fast, scalable, user-friendly build system for codebases of all sizes.
 - [QuestDB](https://github.com/questdb/questdb): An open-source time-series database for high throughput ingestion and fast SQL queries with operational simplicity.
 - [RisingWave](https://github.com/risingwavelabs/risingwave): A Distributed SQL Database for Stream Processing
-- [ScopeDB](https://www.scopedb.io/): A serverless analytics database for logs, product events, and AI traces.
+- [ScopeDB](https://www.scopedb.io/): A database built on cloud object storage for petabyte-scale event analytics.
 - [Vector](https://github.com/vectordotdev/vector): A high-performance observability data pipeline.
 - [rustic](https://github.com/rustic-rs/rustic): Fast, encrypted, and deduplicated backups powered by Rust

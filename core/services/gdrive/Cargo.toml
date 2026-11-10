@@ -43,4 +43,5 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 asyncband = { workspace = true, features = ["semaphore"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+opendal-layer-retry = { path = "../../layers/retry", version = "0.59.5" }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "rt-multi-thread"] }

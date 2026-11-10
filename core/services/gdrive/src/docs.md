@@ -30,88 +30,29 @@ resumable uploads with 4 MiB chunks, including when overwriting an existing file
 Stream input through a writer to avoid holding the whole file in memory; the
 service buffers a trailing chunk and the current input buffer.
 
-#### Enable automatic retries
-
-Add OpenDAL's
+For automatic retries, add OpenDAL's
 [`RetryLayer`](https://docs.rs/opendal-layer-retry/latest/opendal_layer_retry/struct.RetryLayer.html)
-before creating a writer. `Operator::new` does not install it automatically.
-The examples below use `opendal-core`, `opendal-service-gdrive`, and
-`opendal-layer-retry`, plus Tokio with the `macros`, `rt-multi-thread`, `fs`, and
-`io-util` features. Applications using the `opendal` facade can enable
-`services-gdrive` and `layers-retry`, and import `Operator`, `services::Gdrive`,
-and `layers::RetryLayer` from `opendal` instead.
+to the operator before creating a writer. With the `opendal` facade, enable
+`layers-retry` and attach it to an existing operator:
 
-Configure the retry policy once on the operator. This policy allows up to three
-retries per failed operation or writer call. This small upload uses a single
-request; a temporary failure retries that whole request:
+```rust,ignore
+use opendal::layers::RetryLayer;
 
-```rust,no_run
-use std::time::Duration;
-
-use opendal_core::{Operator, Result};
-use opendal_layer_retry::RetryLayer;
-use opendal_service_gdrive::Gdrive;
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let builder = Gdrive::default()
-        .root("/backups")
-        .access_token("<access_token>");
-    let op = Operator::new(builder)?.layer(
-        RetryLayer::new()
-            .with_min_delay(Duration::from_millis(200))
-            .with_max_delay(Duration::from_secs(5))
-            .with_max_times(3),
-    );
-
-    op.write("hello.txt", "Hello, Google Drive!").await?;
-    Ok(())
-}
+let op = op.layer(RetryLayer::new().with_max_times(3));
+let mut writer = op.writer("video.mp4").await?;
+writer.write(chunk).await?; // Repeat for each input chunk.
+writer.close().await?;
 ```
 
-#### Stream a file through the same operator
-
-Call `upload_file(&op, "video.mp4", "video.mp4").await?` with the configured
-operator above from an async function.
-This example reads the local file in 1 MiB buffers. GDrive groups the input into
-4 MiB upload chunks and starts a resumable session when the upload exceeds 4 MiB:
-
-```rust,no_run
-use opendal_core::Operator;
-use tokio::fs::File;
-use tokio::io::AsyncReadExt;
-
-async fn upload_file(
-    op: &Operator,
-    local_path: &str,
-    remote_path: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let mut file = File::open(local_path).await?;
-    let mut writer = op.writer(remote_path).await?;
-    let mut buffer = vec![0; 1024 * 1024];
-
-    loop {
-        let n = file.read(&mut buffer).await?;
-        if n == 0 {
-            break;
-        }
-        writer.write(buffer[..n].to_vec()).await?;
-    }
-
-    // Send the remaining bytes and finalize the upload.
-    writer.close().await?;
-    Ok(())
-}
-```
+Applications using split crates can import `opendal_layer_retry::RetryLayer`
+instead. `Operator::new` does not install this layer automatically.
 
 `RetryLayer` retries temporary errors from `write` and `close` with backoff,
 keeping the same writer and upload session. On a retry after an uncertain upload
 response, the GDrive writer queries the session's persisted offset and sends the
 remaining bytes, or recognizes that the final upload already completed. Without
 `RetryLayer`, the service returns the error without automatically retrying it.
-Permanent errors and exhausted retries are returned to the caller through `?`;
-the example stops using that writer after an error. Keep one writer for the whole
-upload rather than creating a new writer for each chunk or retry.
+Permanent errors and exhausted retries are returned to the caller.
 
 For single-request uploads, `RetryLayer` retries the whole upload; session-based
 recovery applies only to resumable uploads. Upload sessions belong to the writer

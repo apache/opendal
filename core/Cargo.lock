@@ -7900,7 +7900,6 @@ dependencies = [
  "http 1.4.2",
  "log",
  "opendal-core",
- "opendal-layer-retry",
  "serde",
  "serde_json",
  "tokio",

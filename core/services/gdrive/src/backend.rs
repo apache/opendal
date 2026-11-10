@@ -145,6 +145,7 @@ impl Builder for GdriveBuilder {
             list_with_recursive: true,
 
             write: true,
+            write_can_multi: true,
 
             create_dir: true,
             delete: true,
@@ -228,7 +229,7 @@ pub type GdriveListers = TwoWays<oio::PageLister<GdriveLister>, GdriveFlatLister
 
 impl Service for GdriveBackend {
     type Reader = oio::StreamReader<GdriveReader>;
-    type Writer = oio::OneShotWriter<GdriveWriter>;
+    type Writer = GdriveWriter;
     type Lister = GdriveListers;
     type Deleter = oio::OneShotDeleter<GdriveDeleter>;
     type Copier = oio::OneShotCopier;
@@ -353,18 +354,13 @@ impl Service for GdriveBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        let output: oio::OneShotWriter<GdriveWriter> = {
-            let path = build_abs_path(&self.core.root, path);
-
-            Ok(oio::OneShotWriter::new(GdriveWriter::new(
-                self.core.clone(),
-                ctx.clone(),
-                path,
-                None,
-            )))
-        }?;
-
-        Ok(output)
+        let path = build_abs_path(&self.core.root, path);
+        Ok(GdriveWriter::new(
+            self.core.clone(),
+            ctx.clone(),
+            path,
+            None,
+        ))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {

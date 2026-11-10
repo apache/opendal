@@ -43,4 +43,5 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 asyncband = { workspace = true, features = ["semaphore"] }
+futures = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

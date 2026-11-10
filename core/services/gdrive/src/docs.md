@@ -23,6 +23,16 @@ modified match, falling back to the newer creation time if needed.
 
 Concurrent directory creation through an operator and its clones reuses work for shared ancestors and allows independent paths to progress concurrently.
 
+Writes up to 4 MiB use a single upload request. Larger writes use sequential
+resumable uploads with 4 MiB chunks, including when overwriting an existing file.
+Stream input through a writer to avoid holding the whole file in memory; the
+service buffers a trailing chunk and the current input buffer.
+
+With a retry layer, interrupted resumable uploads query the session's persisted
+offset before continuing. Upload sessions belong to the writer and cannot be
+recovered after the writer is dropped or the process exits. An expired session
+returns an error instead of restarting the upload.
+
 ## Configuration
 
 Use [`crate::GdriveConfig`] for serializable configuration and this builder's

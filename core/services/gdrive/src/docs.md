@@ -23,15 +23,32 @@ modified match, falling back to the newer creation time if needed.
 
 Concurrent directory creation through an operator and its clones reuses work for shared ancestors and allows independent paths to progress concurrently.
 
+### Resumable uploads and retries
+
 Writes up to 4 MiB use a single upload request. Larger writes use sequential
 resumable uploads with 4 MiB chunks, including when overwriting an existing file.
 Stream input through a writer to avoid holding the whole file in memory; the
 service buffers a trailing chunk and the current input buffer.
 
-With a retry layer, interrupted resumable uploads query the session's persisted
-offset before continuing. Upload sessions belong to the writer and cannot be
-recovered after the writer is dropped or the process exits. An expired session
-returns an error instead of restarting the upload.
+For automatic retries, explicitly add OpenDAL's
+[`RetryLayer`](https://docs.rs/opendal-layer-retry/latest/opendal_layer_retry/struct.RetryLayer.html)
+to the operator before creating a writer. With the `opendal` facade and its
+`layers-retry` feature, use
+`let op = op.layer(opendal::layers::RetryLayer::new());`. Applications using split
+crates can add `opendal-layer-retry` and use `opendal_layer_retry::RetryLayer`.
+`Operator::new` does not install this layer automatically.
+
+`RetryLayer` retries temporary errors from `write` and `close` with backoff,
+keeping the same writer and upload session. On a retry after an uncertain upload
+response, the GDrive writer queries the session's persisted offset and sends the
+remaining bytes, or recognizes that the final upload already completed. Without
+`RetryLayer`, the service returns the error without automatically retrying it.
+Permanent errors and exhausted retries are returned to the caller.
+
+For single-request uploads, `RetryLayer` retries the whole upload; session-based
+recovery applies only to resumable uploads. Upload sessions belong to the writer
+and cannot be recovered after the writer is dropped or the process exits. An
+expired session returns an error instead of restarting the upload.
 
 ## Configuration
 

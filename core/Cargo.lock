@@ -7897,7 +7897,6 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "futures",
  "http 1.4.2",
  "log",
  "opendal-core",

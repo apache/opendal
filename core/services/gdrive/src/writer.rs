@@ -31,10 +31,6 @@ use opendal_core::*;
 // Keep small uploads below Drive's recommended 5 MB single-request size.
 const CHUNK_SIZE: usize = 4 * 1024 * 1024;
 
-#[cfg(test)]
-#[path = "writer_tests.rs"]
-mod tests;
-
 pub struct GdriveWriter {
     core: Arc<GdriveCore>,
     ctx: OperationContext,

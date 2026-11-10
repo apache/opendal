@@ -25,39 +25,25 @@ Concurrent directory creation through an operator and its clones reuses work for
 
 ### Resumable uploads and retries
 
-Writes up to 4 MiB use a single upload request. Larger writes use sequential
-resumable uploads with 4 MiB chunks, including when overwriting an existing file.
-Stream input through a writer to avoid holding the whole file in memory; the
-service buffers a trailing chunk and the current input buffer.
+Uploads up to 4 MiB use one request. Larger uploads use sequential resumable
+uploads with 4 MiB chunks.
 
-For automatic retries, add OpenDAL's
+To retry temporary upload errors, enable `layers-retry` and add
 [`RetryLayer`](https://docs.rs/opendal-layer-retry/latest/opendal_layer_retry/struct.RetryLayer.html)
-to the operator before creating a writer. With the `opendal` facade, enable
-`layers-retry` and attach it to an existing operator:
+before creating the writer:
 
 ```rust,ignore
 use opendal::layers::RetryLayer;
 
-let op = op.layer(RetryLayer::new().with_max_times(3));
+let op = op.layer(RetryLayer::new());
 let mut writer = op.writer("video.mp4").await?;
 writer.write(chunk).await?; // Repeat for each input chunk.
 writer.close().await?;
 ```
 
-Applications using split crates can import `opendal_layer_retry::RetryLayer`
-instead. `Operator::new` does not install this layer automatically.
-
-`RetryLayer` retries temporary errors from `write` and `close` with backoff,
-keeping the same writer and upload session. On a retry after an uncertain upload
-response, the GDrive writer queries the session's persisted offset and sends the
-remaining bytes, or recognizes that the final upload already completed. Without
-`RetryLayer`, the service returns the error without automatically retrying it.
-Permanent errors and exhausted retries are returned to the caller.
-
-For single-request uploads, `RetryLayer` retries the whole upload; session-based
-recovery applies only to resumable uploads. Upload sessions belong to the writer
-and cannot be recovered after the writer is dropped or the process exits. An
-expired session returns an error instead of restarting the upload.
+Retries reuse the session for resumable uploads and resend single-request uploads
+in full. Sessions cannot be recovered after the writer is dropped or the process
+exits; expired sessions return an error.
 
 ## Configuration
 

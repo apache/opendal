@@ -5,7 +5,7 @@ tags: [use-case]
 authors: tison
 ---
 
-[ScopeDB](https://www.scopedb.io/) is a columnar database built in Rust on cloud object storage for petabyte-scale event analytics, covering workloads such as operational logs, product events, and AI agent traces. ScopeDB has used [Apache OpenDAL](https://opendal.apache.org/) since our very first version in 2024. Today, we want to share why we chose OpenDAL from day one, how we use its interfaces and layers in practice, and what we have learned running analytical I/O across cloud object stores.
+[ScopeDB](https://www.scopedb.io/) is a columnar database built in Rust on cloud object storage for petabyte-scale event analytics, retaining over 10 PB of data in production across operational logs, product events, and AI agent traces. ScopeDB has used [Apache OpenDAL](https://opendal.apache.org/) since our very first version in 2024. Today, we want to share why we chose OpenDAL from day one, how we use its interfaces and layers in practice, and what we have learned running analytical I/O across cloud object stores.
 
 In an object-storage-first database, query latency is primarily driven by columnar projection, index pruning, and multi-tier local caching, while elastic scaling comes from separating stateless compute nodes from durable data. Even so, the database is constantly reading from and writing to object storage. Queries fall back to primary storage on cache misses, while ingestion, background compaction, distributed stage exchange, and data cleanup hit object storage directly. Rather than wrestling with verbose cloud vendor SDKs in Rust, ScopeDB uses Apache OpenDAL as a clean, reliable layer for primary storage access.
 
@@ -47,7 +47,7 @@ let buffers: Vec<opendal::Buffer> = reader.fetch(ranges).await?;
 
 Interactive queries and background compaction have different latency and throughput targets, so ScopeDB passes workload-specific tuning hints into the same storage wrapper. Foreground queries fetch smaller chunks to keep latency predictable, whereas compaction reads and multipart writes use larger chunks for throughput, falling back to single-part uploads on S3-compatible endpoints without multipart support. Background vacuum and stage cleanup follow the same pattern, pairing recursive prefix listing with batched deletes.
 
-At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB runs a dedicated async runtime for storage I/O and wires it into OpenDAL's [operation context](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.OperationContext.html) alongside a shared [HTTP transport](https://docs.rs/opendal-http-transport-reqwest/0.59.4/opendal_http_transport_reqwest/struct.ReqwestTransport.html), so concurrent chunk tasks run on the isolated I/O pool while reusing a single process-wide HTTP client:
+At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB dispatches top-level storage calls onto a dedicated async runtime for storage I/O, and also wires that runtime into OpenDAL's [operation context](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.OperationContext.html) alongside a shared [HTTP transport](https://docs.rs/opendal-http-transport-reqwest/0.59.4/opendal_http_transport_reqwest/struct.ReqwestTransport.html). Because OpenDAL's custom executor only schedules internal background tasks when chunk concurrency is greater than one, pairing outer task dispatch with context injection keeps both single-request calls and concurrent chunk tasks on the isolated I/O pool while reusing a single process-wide HTTP client:
 
 ```rust
 impl opendal::Execute for &'static IoRuntime {
@@ -97,7 +97,7 @@ Rather than writing custom retry loops, timeout wrappers, and metrics hooks arou
 
 ```rust
 // Latency-sensitive read path: bound stalls aggressively, then fall back to a retrying operator
-let hedged_read_op = base_op.clone().layer(
+let fast_read_op = base_op.clone().layer(
     TimeoutLayer::new()
         .with_timeout(read_timeout)
         .with_io_timeout(read_timeout),
@@ -114,13 +114,13 @@ let write_op = base_op
     );
 ```
 
-On the foreground read path, ScopeDB first tries an operator with a tighter timeout scaled to the fetch size to cut off occasional tail-latency spikes on object storage. If that attempt times out, it falls back to the standard retrying read operator so transient slowness does not fail the query. At the same time, implementing [`RetryInterceptor`](https://docs.rs/opendal-layer-retry/0.59.4/opendal_layer_retry/trait.RetryInterceptor.html) alongside `OtelMetricsLayer` exports HTTP request latencies, retry counts, and backoff durations directly to our OpenTelemetry pipeline.
+On the foreground read path, ScopeDB first tries a fast-fail operator whose timeout bounds each underlying chunk read (scaled from the fetch byte budget) rather than imposing a single end-to-end deadline across the entire fetch. If any chunk read stalls past that bound, ScopeDB falls back sequentially to the standard retrying read operator so transient slowness does not fail the query. At the same time, implementing [`RetryInterceptor`](https://docs.rs/opendal-layer-retry/0.59.4/opendal_layer_retry/trait.RetryInterceptor.html) alongside `OtelMetricsLayer` exports HTTP request latencies, retry counts, and backoff durations directly to our OpenTelemetry pipeline.
 
 ### 4. Taming S3-Compatible Pitfalls Together in Open Source
 
 In production, object storage rarely means only AWS S3 in a single region. Running across different clouds and S3-compatible services exposes many subtle edge cases: non-standard error codes during batch deletes, semantic quirks in recursive directory deletion on parallel file systems backed by object storage, multipart chunking discrepancies, and redundant `HEAD` requests when file sizes are already recorded in table metadata.
 
-A major advantage of Apache OpenDAL is that these provider-specific edge cases are handled and improved once in upstream rather than worked around separately by every user. While running OpenDAL in production, our team also reported issues and contributed features and fixes back to the community:
+A major advantage of Apache OpenDAL is that these provider-specific edge cases are handled and improved once in upstream rather than worked around separately by every user. Along the way, our team has reported production issues and contributed upstream features and fixes back to the community:
 
 - [OpenTelemetry metrics integration](https://github.com/apache/opendal/pull/5524) and [HTTP-level transport metrics](https://github.com/apache/opendal/pull/5800) for observing storage operations and underlying HTTP performance.
 - [Broader S3-compatible error code handling](https://github.com/apache/opendal/pull/6651) so batch deletes retry on provider-specific throttling errors.

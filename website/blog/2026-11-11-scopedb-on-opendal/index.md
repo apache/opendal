@@ -1,11 +1,11 @@
 ---
-title: "How ScopeDB Powers Petabyte-Scale Event Analytics on Object Storage with Apache OpenDAL"
+title: "Apache OpenDAL in Production: Lessons from ScopeDB's Storage Engine"
 date: 2026-11-11
 tags: [use-case]
 authors: tison
 ---
 
-[ScopeDB](https://www.scopedb.io/) is a columnar database built in Rust on cloud object storage for petabyte-scale event analytics, retaining over 10 PB of data in production across operational logs, product events, and AI agent traces. ScopeDB has used [Apache OpenDAL](https://opendal.apache.org/) since our very first version in 2024. Today, we want to share why we chose OpenDAL from day one, how we use its interfaces and layers in practice, and what we have learned running analytical I/O across cloud object stores.
+[ScopeDB](https://www.scopedb.io/) is a columnar database built in Rust on cloud object storage for high-volume event workloads such as operational logs, product events, and AI agent traces. ScopeDB has used [Apache OpenDAL](https://opendal.apache.org/) since our very first version in 2024, and in production we have run single-cluster workloads exceeding 10 PB. Today, we want to share why we chose OpenDAL from day one, how we use its interfaces and layers in practice, and what we have learned running analytical I/O across cloud object stores.
 
 In an object-storage-first database, query latency is primarily driven by columnar projection, index pruning, and multi-tier local caching, while elastic scaling comes from separating stateless compute nodes from durable data. Even so, the database is constantly reading from and writing to object storage. Queries fall back to primary storage on cache misses, while ingestion, background compaction, distributed stage exchange, and data cleanup hit object storage directly. Rather than wrestling with verbose cloud vendor SDKs in Rust, ScopeDB uses Apache OpenDAL as a clean, reliable layer for primary storage access.
 
@@ -13,7 +13,7 @@ In an object-storage-first database, query latency is primarily driven by column
 
 ## Where Object Storage Sits in ScopeDB's Architecture
 
-ScopeDB separates stateless Rust compute nodes from durable table data stored in shared object storage such as Amazon S3 and S3-compatible services. Compute nodes run in isolated resource groups for continuous event ingestion, interactive and analytical queries, and background tasks such as compaction and garbage collection. All of these resource groups operate over the same committed tables without owning local durable shards. Query nodes maintain memory and local disk caches to serve hot reads quickly, while object storage serves as the primary durable store underneath.
+ScopeDB separates stateless Rust compute nodes from durable table data stored in shared object storage such as Amazon S3 and S3-compatible services. Compute nodes run in isolated resource groups for continuous event ingestion, interactive and analytical queries, and background tasks such as compaction and garbage collection. All of these resource groups operate over the same committed tables without owning local durable shards. Query nodes maintain memory and local disk caches to serve hot reads quickly, while object storage serves as the primary durable store underneath. With multi-petabyte retention spread across millions of immutable table files, local caches hold only the active working set while ingestion, compaction, and retention cleanup drive continuous object-store traffic.
 
 ![ScopeDB on Apache OpenDAL](scopedb-opendal-architecture.png)
 

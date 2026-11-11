@@ -45,9 +45,9 @@ let reader = op
 let buffers: Vec<opendal::Buffer> = reader.fetch(ranges).await?;
 ```
 
-Interactive queries and background compaction have different latency and throughput targets, so ScopeDB passes workload-specific hints into the same wrapper. Selective foreground reads use smaller chunks, while background compaction reads and multipart writes via `op.write_with(&path, payload).chunk(...).concurrent(...)` use larger chunks. For S3-compatible endpoints that do not support multipart uploads, a configuration toggle switches the write path to a single-part `op.write(&path, payload)`. Likewise, background vacuum and stage exchange cleanup pair `op.lister_with(&prefix).recursive(true)` with batched `op.delete_iter(paths)` calls.
+Interactive queries and background compaction have different latency and throughput targets, so ScopeDB passes workload-specific tuning hints into the same storage wrapper. Foreground queries fetch smaller chunks to keep latency predictable, whereas compaction reads and multipart writes use larger chunks for throughput, falling back to single-part uploads on S3-compatible endpoints without multipart support. Background vacuum and stage cleanup follow the same pattern, pairing recursive prefix listing with batched deletes.
 
-At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB runs a dedicated async runtime for storage I/O and implements [`opendal::Execute`](https://docs.rs/opendal-core/0.59.4/opendal_core/trait.Execute.html) on that runtime wrapper. Combined with [`OperationContext`](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.OperationContext.html) and [`ReqwestTransport`](https://docs.rs/opendal-http-transport-reqwest/0.59.4/opendal_http_transport_reqwest/struct.ReqwestTransport.html), concurrent chunk tasks spawned inside OpenDAL run on the isolated I/O pool while sharing a single process-wide `reqwest::Client`:
+At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB runs a dedicated async runtime for storage I/O and wires it into OpenDAL's [operation context](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.OperationContext.html) alongside a shared [HTTP transport](https://docs.rs/opendal-http-transport-reqwest/0.59.4/opendal_http_transport_reqwest/struct.ReqwestTransport.html), so concurrent chunk tasks run on the isolated I/O pool while reusing a single process-wide HTTP client:
 
 ```rust
 impl opendal::Execute for &'static IoRuntime {
@@ -120,12 +120,13 @@ On the foreground read path, ScopeDB first tries an operator with a tighter time
 
 In production, object storage rarely means only AWS S3 in a single region. Running across different clouds and S3-compatible services exposes many subtle edge cases: non-standard error codes during batch deletes, semantic quirks in recursive directory deletion on parallel file systems backed by object storage, multipart chunking discrepancies, and redundant `HEAD` requests when file sizes are already recorded in table metadata.
 
-A major advantage of Apache OpenDAL is that these provider-specific edge cases are handled and improved once in upstream rather than worked around separately by every user. While running OpenDAL in production, our team also reported issues and contributed fixes back to the community when we hit corner cases:
+A major advantage of Apache OpenDAL is that these provider-specific edge cases are handled and improved once in upstream rather than worked around separately by every user. While running OpenDAL in production, our team also reported issues and contributed features and fixes back to the community:
 
-- **HTTP-level OpenTelemetry metrics** in `OtelMetricsLayer` ([apache/opendal#5800](https://github.com/apache/opendal/pull/5800)) to observe underlying HTTP transport performance;
-- **Error code handling for S3-compatible services** ([apache/opendal#6645](https://github.com/apache/opendal/issues/6645), [apache/opendal#6651](https://github.com/apache/opendal/pull/6651)) so batch deletes retry properly when compatible providers return provider-specific transient error codes;
-- **Chunk splitting for buffered writes** ([apache/opendal#6520](https://github.com/apache/opendal/issues/6520), [apache/opendal#6521](https://github.com/apache/opendal/issues/6521)) and **content-length hints for reads and copies** ([apache/opendal#7543](https://github.com/apache/opendal/pull/7543));
-- **Preserving retryable request signing errors** ([apache/opendal#8476](https://github.com/apache/opendal/pull/8476)) so transient failures during credential loading or signing can be retried by `RetryLayer`.
+- [OpenTelemetry metrics integration](https://github.com/apache/opendal/pull/5524) and [HTTP-level transport metrics](https://github.com/apache/opendal/pull/5800) for observing storage operations and underlying HTTP performance.
+- [Broader S3-compatible error code handling](https://github.com/apache/opendal/pull/6651) so batch deletes retry on provider-specific throttling errors.
+- [Enforced chunk splitting on writes](https://github.com/apache/opendal/issues/6521) so buffered uploads respect configured multipart chunk sizes.
+- [Content-length hints on reads and copies](https://github.com/apache/opendal/pull/7543) to avoid extra metadata round-trips when object sizes are known.
+- [Retryable request signing errors](https://github.com/apache/opendal/pull/8476) so transient credential or signing failures can recover automatically.
 
 ## Wrapping Up
 

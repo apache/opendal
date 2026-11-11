@@ -1,5 +1,5 @@
 ---
-title: "Apache OpenDAL in Production: Lessons from ScopeDB's Storage Engine"
+title: "Skipping Cloud Vendor SDKs: How ScopeDB Accesses Object Storage with Apache OpenDAL"
 date: 2026-11-11
 tags: [use-case]
 authors: tison

@@ -1,0 +1,141 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Website Preview
+
+on:
+  push:
+    branches:
+      - "preview/*"
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-preview-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Stage preview
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: Validate preview branch name
+        id: target
+        env:
+          SOURCE_BRANCH: ${{ github.ref_name }}
+        run: |
+          name="${SOURCE_BRANCH#preview/}"
+          if [[ ! "$name" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || [[ "$name" =~ ^v[0-9] ]]; then
+            echo "Preview branch must be preview/<name> using lowercase letters, digits, and hyphens, and must not start with v<digit> (reserved for release RC staging)." >&2
+            exit 1
+          fi
+          echo "branch=site/${name}-staging" >> "$GITHUB_OUTPUT"
+          echo "url=https://opendal-${name}.staged.apache.org/" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          # Follow website/package.json packageManager field
+          version: 11.8.0
+          run_install: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: "website/.node-version"
+          cache: pnpm
+          cache-dependency-path: "website/pnpm-lock.yaml"
+
+      - name: Corepack
+        run: npm install -g --force corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test website plugins
+        run: pnpm test
+
+      - name: Cache website build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            website/node_modules/.cache/
+          key: website-build-artifacts-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}-v1
+
+      - name: Build website for staging
+        env:
+          OPENDAL_WEBSITE_STAGING: "true"
+        run: |
+          pnpm build
+          cp "${{ github.workspace }}/.asf.yaml" ./build/.asf.yaml
+
+      - name: Publish to staging branch (${{ steps.target.outputs.branch }})
+        uses: peaceiris/actions-gh-pages@v4.1.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: website/build
+          publish_branch: ${{ steps.target.outputs.branch }}
+          force_orphan: true
+
+      - name: Link to staged preview
+        env:
+          SITE_URL: ${{ steps.target.outputs.url }}
+        run: echo "Website preview submitted to ASF staging — [open site](${SITE_URL}). Publication may take a moment." >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: Delete staging branch
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      startsWith(github.event.pull_request.head.ref, 'preview/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Delete the site/<name>-staging branch if it exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          name="${HEAD_REF#preview/}"
+          [[ "$name" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || exit 0
+          [[ ! "$name" =~ ^v[0-9] ]] || exit 0
+          staging_branch="site/${name}-staging"
+          if gh api "repos/${REPOSITORY}/git/ref/heads/${staging_branch}" --silent; then
+            gh api -X DELETE "repos/${REPOSITORY}/git/refs/heads/${staging_branch}"
+            echo "Deleted ${staging_branch}."
+          else
+            echo "No ${staging_branch} branch; nothing to do."
+          fi

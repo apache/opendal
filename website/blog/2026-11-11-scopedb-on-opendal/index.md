@@ -24,7 +24,7 @@ Across these resource groups, primary storage traffic falls into four distinct p
 - **Distributed stage exchange**: Multi-stage queries spill and shuffle intermediate data across stateless workers through shared storage prefixes and delete those temporary objects asynchronously once execution finishes.
 - **Garbage collection (vacuum)**: Background tasks recursively list storage prefixes and delete obsolete or expired objects in batches.
 
-Building and maintaining all four paths directly on top of official cloud Rust SDKs quickly becomes painful. Heavy dependency trees, deeply nested request builders, intricate credential setup, and subtle behavioral differences across S3-compatible vendors force database engineers to spend too much time on storage plumbing. Wrapping [`opendal::Operator`](https://docs.rs/opendal/latest/opendal/struct.Operator.html) inside a thin storage service allowed us to unify HTTP transport sharing, runtime isolation, authentication, retries, timeouts, and metrics within a few hundred lines of Rust.
+Building and maintaining all four paths directly on top of official cloud Rust SDKs quickly becomes painful. Heavy dependency trees, deeply nested request builders, intricate credential setup, and subtle behavioral differences across S3-compatible vendors force database engineers to spend too much time on storage plumbing. Wrapping [`opendal::Operator`](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.Operator.html) inside a thin storage service allowed us to unify HTTP transport sharing, runtime isolation, authentication, retries, timeouts, and metrics within a few hundred lines of Rust.
 
 ## What Works Well in Practice
 
@@ -32,7 +32,7 @@ Building and maintaining all four paths directly on top of official cloud Rust S
 
 Analytical queries rarely need an entire object when falling back to primary storage. Once ScopeDB narrows a scan down to specific columns and pruned segments, and skips blocks already present in the local cache, it is left with a list of byte ranges (`Vec<Range<u64>>`) within an object. Sending one HTTP `GET` per small range wastes round-trips, while fetching the whole object wastes bandwidth.
 
-OpenDAL's [`Reader::fetch`](https://docs.rs/opendal/latest/opendal/struct.Reader.html#method.fetch) API fits this access pattern directly. By setting `gap`, `chunk`, and `concurrent` on `reader_with`, ScopeDB delegates adjacent-range merging and parallel chunk fetching to OpenDAL instead of maintaining a custom HTTP range state machine:
+OpenDAL's [`Reader::fetch`](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.Reader.html#method.fetch) API fits this access pattern directly. By setting `gap`, `chunk`, and `concurrent` on `reader_with`, ScopeDB delegates adjacent-range merging and parallel chunk fetching to OpenDAL instead of maintaining a custom HTTP range state machine:
 
 ```rust
 let reader = op
@@ -47,7 +47,7 @@ let buffers: Vec<opendal::Buffer> = reader.fetch(ranges).await?;
 
 Interactive queries and background compaction have different latency and throughput targets, so ScopeDB passes workload-specific hints into the same wrapper. Selective foreground reads use smaller chunks, while background compaction reads and multipart writes via `op.write_with(&path, payload).chunk(...).concurrent(...)` use larger chunks. For S3-compatible endpoints that do not support multipart uploads, a configuration toggle switches the write path to a single-part `op.write(&path, payload)`. Likewise, background vacuum and stage exchange cleanup pair `op.lister_with(&prefix).recursive(true)` with batched `op.delete_iter(paths)` calls.
 
-At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB runs a dedicated async runtime for storage I/O and implements [`opendal::Execute`](https://docs.rs/opendal/latest/opendal/trait.Execute.html) on that runtime wrapper. Combined with [`OperationContext`](https://docs.rs/opendal/latest/opendal/struct.OperationContext.html) and [`ReqwestTransport`](https://docs.rs/opendal-http-transport-reqwest/latest/opendal_http_transport_reqwest/struct.ReqwestTransport.html), concurrent chunk tasks spawned inside OpenDAL run on the isolated I/O pool while sharing a single process-wide `reqwest::Client`:
+At the runtime level, CPU-intensive vectorized execution must not starve network I/O polling. ScopeDB runs a dedicated async runtime for storage I/O and implements [`opendal::Execute`](https://docs.rs/opendal-core/0.59.4/opendal_core/trait.Execute.html) on that runtime wrapper. Combined with [`OperationContext`](https://docs.rs/opendal-core/0.59.4/opendal_core/struct.OperationContext.html) and [`ReqwestTransport`](https://docs.rs/opendal-http-transport-reqwest/0.59.4/opendal_http_transport_reqwest/struct.ReqwestTransport.html), concurrent chunk tasks spawned inside OpenDAL run on the isolated I/O pool while sharing a single process-wide `reqwest::Client`:
 
 ```rust
 impl opendal::Execute for &'static IoRuntime {
@@ -93,7 +93,7 @@ One practical detail we ran into involves how temporary credentials interact wit
 
 Different storage operations have different failure and latency budgets. An interactive query fetching a few megabytes on a cache miss should not stall behind a slow connection, whereas a background compaction upload or batch delete can afford longer backoff retries to ensure completion.
 
-Rather than writing custom retry loops, timeout wrappers, and metrics hooks around each storage call, ScopeDB uses OpenDAL's composable [`Layer`](https://docs.rs/opendal/latest/opendal/raw/trait.Layer.html) stack. Cloning a cached base `Operator` (already equipped with [`OtelMetricsLayer`](https://docs.rs/opendal/latest/opendal/layers/struct.OtelMetricsLayer.html)) is cheap, allowing us to assemble operation-specific operators on demand with [`TimeoutLayer`](https://docs.rs/opendal/latest/opendal/layers/struct.TimeoutLayer.html) and [`RetryLayer`](https://docs.rs/opendal/latest/opendal/layers/struct.RetryLayer.html):
+Rather than writing custom retry loops, timeout wrappers, and metrics hooks around each storage call, ScopeDB uses OpenDAL's composable [`Layer`](https://docs.rs/opendal-core/0.59.4/opendal_core/raw/trait.Layer.html) stack. Cloning a cached base `Operator` (already equipped with [`OtelMetricsLayer`](https://docs.rs/opendal-layer-otelmetrics/0.59.4/opendal_layer_otelmetrics/struct.OtelMetricsLayer.html)) is cheap, allowing us to assemble operation-specific operators on demand with [`TimeoutLayer`](https://docs.rs/opendal-layer-timeout/0.59.4/opendal_layer_timeout/struct.TimeoutLayer.html) and [`RetryLayer`](https://docs.rs/opendal-layer-retry/0.59.4/opendal_layer_retry/struct.RetryLayer.html):
 
 ```rust
 // Latency-sensitive read path: bound stalls aggressively, then fall back to a retrying operator
@@ -114,7 +114,7 @@ let write_op = base_op
     );
 ```
 
-On the foreground read path, ScopeDB first tries an operator with a tighter timeout scaled to the fetch size to cut off occasional tail-latency spikes on object storage. If that attempt times out, it falls back to the standard retrying read operator so transient slowness does not fail the query. At the same time, implementing [`RetryInterceptor`](https://docs.rs/opendal/latest/opendal/layers/trait.RetryInterceptor.html) alongside `OtelMetricsLayer` exports HTTP request latencies, retry counts, and backoff durations directly to our OpenTelemetry pipeline.
+On the foreground read path, ScopeDB first tries an operator with a tighter timeout scaled to the fetch size to cut off occasional tail-latency spikes on object storage. If that attempt times out, it falls back to the standard retrying read operator so transient slowness does not fail the query. At the same time, implementing [`RetryInterceptor`](https://docs.rs/opendal-layer-retry/0.59.4/opendal_layer_retry/trait.RetryInterceptor.html) alongside `OtelMetricsLayer` exports HTTP request latencies, retry counts, and backoff durations directly to our OpenTelemetry pipeline.
 
 ### 4. Taming S3-Compatible Pitfalls Together in Open Source
 

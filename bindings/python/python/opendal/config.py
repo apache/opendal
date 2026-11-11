@@ -44,6 +44,7 @@ accepts it, so a single signature type-checks every service.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 if TYPE_CHECKING:
@@ -192,8 +193,8 @@ class CloudflareKvConfig(TypedDict):
     """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
     api_token: NotRequired[str]
     """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str]
-    """The default ttl for write operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for write operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     namespace_id: NotRequired[str]
     """The namespace ID. Used as URI path parameter."""
     root: NotRequired[str | os.PathLike[str]]
@@ -491,8 +492,8 @@ class MemcachedConfig(TypedDict):
     """The service scheme; fixed to `"memcached"`."""
     connection_pool_max_size: NotRequired[int]
     """The maximum number of connections allowed.  default is 10"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     enable_tls: NotRequired[bool]
     """Enable TLS for TCP connections. Defaults to false.  The server certificate must match the endpoint host and a native trust root."""
     endpoint: NotRequired[str]
@@ -523,10 +524,10 @@ class MiniMokaConfig(TypedDict):
     """Sets the max capacity of the cache.  Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)"""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MokaConfig(TypedDict):
@@ -540,10 +541,10 @@ class MokaConfig(TypedDict):
     """Name for this cache instance."""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MongodbConfig(TypedDict):
@@ -725,8 +726,8 @@ class RedisConfig(TypedDict):
     """The maximum number of connections allowed.  default is 10"""
     db: Required[int]
     """the number of DBs redis can take is unlimited  default is db 0"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     endpoint: NotRequired[str]
     """network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.  default is "tcp://127.0.0.1:6379\""""
     password: NotRequired[str]
@@ -768,6 +769,8 @@ class S3Config(TypedDict):
     """Base URI used to resolve a relative AWS container credential URI.  This override affects relative URIs only. It does not alter a configured or ambient full URI. The override alone does not select an endpoint."""
     default_acl: NotRequired[str]
     """Default ACL for new objects. Note that some s3 services like minio do not support this option."""
+    default_region: NotRequired[str]
+    """Fallback signing region when neither `region`, `AWS_REGION`, nor `AWS_DEFAULT_REGION` supplies one."""
     default_storage_class: NotRequired[str]
     """default storage_class for this backend.  Available values: - `DEEP_ARCHIVE` - `GLACIER` - `GLACIER_IR` - `INTELLIGENT_TIERING` - `ONEZONE_IA` - `EXPRESS_ONEZONE` - `OUTPOSTS` - `REDUCED_REDUNDANCY` - `STANDARD` - `STANDARD_IA`  S3 compatible services don't support all of them"""
     delete_max_size: NotRequired[int]
@@ -810,6 +813,8 @@ class S3Config(TypedDict):
     """server_side_encryption for this backend.  Available values: `AES256`, `aws:kms`."""
     server_side_encryption_aws_kms_key_id: NotRequired[str]
     """server_side_encryption_aws_kms_key_id for this backend  - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is not set, S3 will use aws managed kms key to encrypt data. - If `server_side_encryption` set to `aws:kms`, and `server_side_encryption_aws_kms_key_id` is a valid kms key id, S3 will use the provided kms key to encrypt data. - If the `server_side_encryption_aws_kms_key_id` is invalid or not found, an error will be returned. - If `server_side_encryption` is not `aws:kms`, setting `server_side_encryption_aws_kms_key_id` is a noop."""
+    server_side_encryption_bucket_key_enabled: NotRequired[bool]
+    """Control S3 Bucket Keys for SSE-KMS writes and copies.  Omit this option to inherit the bucket setting. `false` disables Bucket Keys for destination objects, and `true` enables them."""
     server_side_encryption_customer_algorithm: NotRequired[str]
     """server_side_encryption_customer_algorithm for this backend.  Available values: `AES256`."""
     server_side_encryption_customer_key: NotRequired[str]

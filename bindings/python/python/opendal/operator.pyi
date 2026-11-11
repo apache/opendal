@@ -203,8 +203,8 @@ class AsyncOperator:
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-        are converted to the string form core consumes.
+        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+        ``os.PathLike``, ``list``) are converted to the string form core consumes.
 
         Parameters
         ----------
@@ -881,8 +881,8 @@ class Operator:
         The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
-        type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-        are converted to the string form core consumes.
+        type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+        ``os.PathLike``, ``list``) are converted to the string form core consumes.
 
         Parameters
         ----------

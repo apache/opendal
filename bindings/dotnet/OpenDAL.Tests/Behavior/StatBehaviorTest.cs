@@ -92,6 +92,40 @@ public sealed class StatBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public void StatBehavior_Exists_ReportsPresence()
+    {
+        if (!Supports(c => c.Stat && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("exists");
+
+        Assert.False(Op.Exists(path));
+
+        Op.Write(path, RandomBytes(16));
+
+        Assert.True(Op.Exists(path));
+    }
+
+    [Fact]
+    public async Task StatBehavior_Exists_ReportsPresenceAsync()
+    {
+        if (!Supports(c => c.Stat && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("exists-async");
+
+        Assert.False(await Op.ExistsAsync(path, CT));
+
+        await Op.WriteAsync(path, RandomBytes(16), cancellationToken: CT);
+
+        Assert.True(await Op.ExistsAsync(path, CT));
+    }
+
+    [Fact]
     public void StatBehavior_WithIfModifiedSince_AppliesCondition()
     {
         if (!Supports(c => c.Stat && c.Write && c.StatWithIfModifiedSince))

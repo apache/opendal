@@ -1,5 +1,13 @@
 # Unreleased
 
+## Moka and MiniMoka configuration durations
+
+`MokaConfig` and `MiniMokaConfig` now use `Option<jiff::SignedDuration>` for
+`time_to_live` and `time_to_idle`, instead of `Option<String>`. Set these fields
+with `SignedDuration::from_secs(5)` or parse a duration string. The builder
+setters still accept `std::time::Duration`, and string/map configuration still
+accepts duration strings such as `"5s"`.
+
 ## Raw API
 
 ### Submit tasks through `ConcurrentTasks::execute`

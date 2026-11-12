@@ -52,3 +52,7 @@ Generate dependencies by `npx license-checker --production --excludePrivatePacka
 ## For content search
 
 Since search plugin can not work with `pnpm start`, for testing please run `pnpm build && pnpm serve`.
+
+## Staging previews
+
+Committers can publish a live staging preview by pushing a branch named `preview/<name>` (where `<name>` uses lowercase letters, digits, and hyphens, and does not start with `v<digit>`) directly to `apache/opendal` and opening a pull request against `main`. The `Website Preview` workflow builds the website and publishes the static output to `site/<name>-staging`, which ASF infrastructure serves at `https://opendal-<name>.staged.apache.org/`. When the pull request is closed, the workflow deletes the corresponding `site/<name>-staging` branch automatically.

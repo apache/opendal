@@ -28,7 +28,6 @@ using OpenDAL.Layer.Abstractions;
 using OpenDAL.Options;
 using OpenDAL.Options.Abstractions;
 using OpenDAL.ServiceConfig.Abstractions;
-using System.Diagnostics.CodeAnalysis;
 
 namespace OpenDAL;
 
@@ -657,6 +656,94 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
+    /// Checks whether the specified path exists.
+    /// </summary>
+    /// <remarks>
+    /// A <c>NotFound</c> error from the backend yields <see langword="false"/>;
+    /// any other error is thrown.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <returns><see langword="true"/> when the path exists.</returns>
+    public bool Exists(string path)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var result = NativeMethods.operator_exists(this, path);
+        return ToValueOrThrowAndRelease<bool, OpenDALBoolResult>(result);
+    }
+
+    /// <summary>
+    /// Checks whether the specified path exists asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// A <c>NotFound</c> error from the backend yields <see langword="false"/>;
+    /// any other error is thrown.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that resolves with <see langword="true"/> when the path exists.</returns>
+    public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation<bool>(SubmitExistsAsync, cancellationToken);
+
+        OpenDALResult SubmitExistsAsync(long context)
+        {
+            unsafe
+            {
+                return NativeMethods.operator_exists_async(
+                    this,
+                    path,
+                    &OnExistsCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Checks whether the operator can reach its service.
+    /// </summary>
+    /// <remarks>
+    /// Lists the root with a limit of one entry. A <c>NotFound</c> error is
+    /// treated as success; any other error is thrown.
+    /// </remarks>
+    public void Check()
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        var result = NativeMethods.operator_check(this);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    /// <summary>
+    /// Checks whether the operator can reach its service asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// Lists the root with a limit of one entry. A <c>NotFound</c> error is
+    /// treated as success; any other error is thrown.
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    public Task CheckAsync(CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation(SubmitCheckAsync, cancellationToken);
+
+        OpenDALResult SubmitCheckAsync(long context)
+        {
+            unsafe
+            {
+                return NativeMethods.operator_check_async(
+                    this,
+                    &OnCheckCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
     /// Lists entries under the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -1250,21 +1337,7 @@ public partial class Operator : SafeHandle
         CancellationToken cancellationToken)
         where TOptions : class, IOptions
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var context = AsyncStateRegistry.Register<bool>(out var asyncState);
-        try
-        {
-            using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-            var submitResult = submit(context, GetOptionsHandle(nativeOptionsHandle));
-            ThrowIfErrorAndRelease(submitResult);
-            asyncState.BindCancellation(cancellationToken);
-            return asyncState.Completion.Task;
-        }
-        catch
-        {
-            AsyncStateRegistry.Unregister(context);
-            throw;
-        }
+        return SubmitAsyncOperation<bool, TOptions>(options, submit, cancellationToken);
     }
 
     /// <summary>
@@ -1306,39 +1379,7 @@ public partial class Operator : SafeHandle
         Func<long, OpenDALResult> submit,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var context = AsyncStateRegistry.Register<bool>(out var asyncState);
-        try
-        {
-            var submitResult = submit(context);
-            ThrowIfErrorAndRelease(submitResult);
-            asyncState.BindCancellation(cancellationToken);
-            return asyncState.Completion.Task;
-        }
-        catch
-        {
-            AsyncStateRegistry.Unregister(context);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Attempts to retrieve and remove async state for a callback context.
-    /// </summary>
-    /// <typeparam name="T">Async state result type.</typeparam>
-    /// <param name="context">Native callback context id.</param>
-    /// <param name="state">Resolved async state when found.</param>
-    /// <returns><see langword="true"/> if an async state is found; otherwise <see langword="false"/>.</returns>
-    private static bool TryTakeAsyncState<T>(long context, [NotNullWhen(true)] out AsyncState<T>? state)
-    {
-        if (AsyncStateRegistry.TryTake<AsyncState<T>>(context, out var current))
-        {
-            state = current;
-            return true;
-        }
-
-        state = null;
-        return false;
+        return SubmitAsyncOperation<bool>(submit, cancellationToken);
     }
 
     /// <summary>
@@ -1351,7 +1392,7 @@ public partial class Operator : SafeHandle
     private static void CompleteAsyncState<TOutput, TResult>(long context, TResult result)
         where TResult : struct, INativeValueResult<TOutput>
     {
-        if (!TryTakeAsyncState(context, out AsyncState<TOutput>? state))
+        if (!AsyncStateRegistry.TryTake<AsyncState<TOutput>>(context, out var state))
         {
             return;
         }
@@ -1383,7 +1424,7 @@ public partial class Operator : SafeHandle
     private static void CompleteAsyncState<TResult>(long context, TResult result)
         where TResult : struct, INativeResult
     {
-        if (!TryTakeAsyncState(context, out AsyncState<bool>? state))
+        if (!AsyncStateRegistry.TryTake<AsyncState<bool>>(context, out var state))
         {
             return;
         }
@@ -1468,6 +1509,28 @@ public partial class Operator : SafeHandle
     private static void OnStatCompleted(long context, OpenDALMetadataResult result)
     {
         CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous exists operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Exists completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnExistsCompleted(long context, OpenDALBoolResult result)
+    {
+        CompleteAsyncCallback<bool, OpenDALBoolResult>(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous check operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Check completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnCheckCompleted(long context, OpenDALResult result)
+    {
+        CompleteAsyncCallback(context, result);
     }
 
     /// <summary>

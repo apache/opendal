@@ -32,6 +32,28 @@ public sealed class ListBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
+    public void ListBehavior_Check_Succeeds()
+    {
+        if (!Supports(c => c.Read && c.Write && c.List))
+        {
+            return;
+        }
+
+        Op.Check();
+    }
+
+    [Fact]
+    public async Task ListBehavior_Check_SucceedsAsync()
+    {
+        if (!Supports(c => c.Read && c.Write && c.List))
+        {
+            return;
+        }
+
+        await Op.CheckAsync(CT);
+    }
+
+    [Fact]
     public void ListBehavior_ListsEntriesUnderPrefix()
     {
         if (!Supports(c => c.List && c.Write && c.CreateDir))
@@ -124,7 +146,7 @@ public sealed class ListBehaviorTest : BehaviorTestBase
     }
 
     [Fact]
-    public void ListBehavior_WithVersions_ReportsCurrentVersion()
+    public void ListBehavior_WithVersions_ReportsVersionMetadata()
     {
         if (!Supports(c => c.List && c.ListWithVersions && c.Write))
         {
@@ -142,7 +164,14 @@ public sealed class ListBehaviorTest : BehaviorTestBase
             .ToList();
 
         Assert.True(versions.Count >= 2, $"expected at least two versions, got {versions.Count}");
-        Assert.Single(versions, e => e.Metadata.IsCurrent == true);
+        Assert.All(versions, e => Assert.False(string.IsNullOrEmpty(e.Metadata.Version)));
+
+        var currentCount = versions.Count(e => e.Metadata.IsCurrent == true);
+        Assert.InRange(currentCount, 0, 1);
+        if (versions.All(e => e.Metadata.IsCurrent.HasValue))
+        {
+            Assert.Equal(1, currentCount);
+        }
     }
 
     [Fact]

@@ -80,8 +80,13 @@ impl oio::List for FsLister<tokio::fs::ReadDir> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         // since list should return path itself, we return it first
         if let Some(path) = self.current_path.take() {
-            let e = oio::Entry::new(path.as_str(), MetadataBuilder::dir().build());
-            return Ok(Some(e));
+            // The listed dir itself is also subject to start_after: it is
+            // dropped when it is at or before the marker, just like any
+            // other entry.
+            if self.keep(&path, EntryMode::DIR) {
+                let e = oio::Entry::new(path.as_str(), MetadataBuilder::dir().build());
+                return Ok(Some(e));
+            }
         }
 
         // start_after needs entries in sorted order, so read the whole
@@ -221,13 +226,14 @@ mod tests {
         std::fs::write(root.join("d/y"), b"data").unwrap();
 
         // Entries at or before the marker are dropped, the rest come back sorted.
+        // The listed dir itself is dropped too: it sorts before the marker.
         let rd = tokio::fs::read_dir(&root).await.unwrap();
         let mut lister = FsLister::new(&root, "/", rd, Some("a.txt".to_string()), false);
         let mut paths = vec![];
         while let Some(e) = lister.next().await.unwrap() {
             paths.push(e.path().to_string());
         }
-        assert_eq!(paths, vec!["/", "b.txt", "c.txt", "d/"]);
+        assert_eq!(paths, vec!["b.txt", "c.txt", "d/"]);
 
         // A marker inside a directory drops that directory for a flat list.
         let rd = tokio::fs::read_dir(&root).await.unwrap();
@@ -236,7 +242,7 @@ mod tests {
         while let Some(e) = lister.next().await.unwrap() {
             paths.push(e.path().to_string());
         }
-        assert_eq!(paths, vec!["/"]);
+        assert!(paths.is_empty());
 
         // The same marker keeps the directory for a recursive list, so the
         // walker can still descend into it.
@@ -246,7 +252,7 @@ mod tests {
         while let Some(e) = lister.next().await.unwrap() {
             paths.push(e.path().to_string());
         }
-        assert_eq!(paths, vec!["/", "d/"]);
+        assert_eq!(paths, vec!["d/"]);
 
         std::fs::remove_dir_all(&root).unwrap();
     }

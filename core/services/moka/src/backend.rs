@@ -41,6 +41,8 @@ pub type MokaCacheBuilder<K, V> = moka::future::CacheBuilder<K, V, MokaCache<K, 
 pub struct MokaBuilder {
     pub(super) config: MokaConfig,
     pub(super) builder: MokaCacheBuilder<String, MokaValue>,
+    pub(super) time_to_live: Option<Duration>,
+    pub(super) time_to_idle: Option<Duration>,
 }
 
 impl Debug for MokaBuilder {
@@ -113,7 +115,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)
     pub fn time_to_live(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_live = Some(format!("{}s", v.as_secs()));
+            self.time_to_live = Some(v);
         }
         self
     }
@@ -123,7 +125,7 @@ impl MokaBuilder {
     /// Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/sync/struct.CacheBuilder.html#method.time_to_idle)
     pub fn time_to_idle(mut self, v: Duration) -> Self {
         if !v.is_zero() {
-            self.config.time_to_idle = Some(format!("{}s", v.as_secs()));
+            self.time_to_idle = Some(v);
         }
         self
     }
@@ -161,12 +163,26 @@ impl Builder for MokaBuilder {
         if let Some(v) = self.config.max_capacity {
             builder = builder.max_capacity(v);
         }
-        if let Some(value) = self.config.time_to_live.as_deref() {
-            let duration = signed_to_duration(value)?;
+        let time_to_live = match self.time_to_live {
+            Some(value) => Some(value),
+            None => self
+                .config
+                .time_to_live
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
+        if let Some(duration) = time_to_live {
             builder = builder.time_to_live(duration);
         }
-        if let Some(value) = self.config.time_to_idle.as_deref() {
-            let duration = signed_to_duration(value)?;
+        let time_to_idle = match self.time_to_idle {
+            Some(value) => Some(value),
+            None => self
+                .config
+                .time_to_idle
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
+        if let Some(duration) = time_to_idle {
             builder = builder.time_to_idle(duration);
         }
 
@@ -226,6 +242,7 @@ impl Service for MokaBackend {
     type Lister = oio::HierarchyLister<MokaLister>;
     type Deleter = oio::OneShotDeleter<MokaDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -251,19 +268,19 @@ impl Service for MokaBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             // Check the exact path first
             match self.core.get(&p).await? {
                 Some(value) => {
                     // Use the stored metadata but override mode if necessary
-                    let mut metadata = value.metadata.clone();
+                    let mut metadata = value.metadata.clone().into_builder();
                     // If path ends with '/' but we found a file, return DIR
                     // This is because CompleteLayer's create_dir creates empty files with '/' suffix
-                    if p.ends_with('/') && metadata.mode() != EntryMode::DIR {
-                        metadata.set_mode(EntryMode::DIR);
+                    if p.ends_with('/') && value.metadata.mode() != EntryMode::DIR {
+                        metadata.set_dir();
                     }
-                    Ok(RpStat::new(metadata))
+                    Ok(RpStat::new(metadata.build()))
                 }
                 None => {
                     // If path ends with '/', check if there are any children
@@ -275,7 +292,7 @@ impl Service for MokaBackend {
                             .any(|kv| kv.0.starts_with(&p) && kv.0.len() > p.len());
 
                         if has_children {
-                            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+                            Ok(RpStat::new(MetadataBuilder::dir().build()))
                         } else {
                             Err(Error::new(ErrorKind::NotFound, "key not found in moka"))
                         }
@@ -336,7 +353,6 @@ impl Service for MokaBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
@@ -367,5 +383,22 @@ impl Service for MokaBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_preserves_subsecond_durations() {
+        let time_to_live = Duration::new(1, 500_000_001);
+        let time_to_idle = Duration::from_millis(750);
+        let builder = MokaBuilder::default()
+            .time_to_live(time_to_live)
+            .time_to_idle(time_to_idle);
+
+        assert_eq!(builder.time_to_live, Some(time_to_live));
+        assert_eq!(builder.time_to_idle, Some(time_to_idle));
     }
 }

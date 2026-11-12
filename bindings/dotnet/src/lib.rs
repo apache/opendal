@@ -22,6 +22,7 @@
 
 mod buffer;
 mod capability;
+mod chunk;
 mod entry;
 mod error;
 mod executor;

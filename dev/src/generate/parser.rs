@@ -94,7 +94,7 @@ pub enum ConfigType {
     Bool,
     /// Mapping to rust's `String`
     String,
-    /// Mapping to rust's `Duration`
+    /// Mapping to rust's `Duration` and `SignedDuration`
     Duration,
 
     /// Mapping to rust's `usize`
@@ -124,7 +124,7 @@ impl FromStr for ConfigType {
         Ok(match s {
             "bool" => ConfigType::Bool,
             "String" => ConfigType::String,
-            "Duration" => ConfigType::Duration,
+            "Duration" | "SignedDuration" => ConfigType::Duration,
 
             "usize" => ConfigType::Usize,
             "u64" => ConfigType::U64,
@@ -571,6 +571,19 @@ mod tests {
                     default_value: None,
                     example: None,
                     minimal: false,
+                },
+            ),
+            (
+                "default_ttl: Option<SignedDuration>",
+                Config {
+                    name: "default_ttl".to_string(),
+                    value: ConfigType::Duration,
+                    optional: true,
+                    deprecated: None,
+                    comments: "".to_string(),
+                    group: None,
+                    default_value: None,
+                    example: None,
                 },
             ),
         ];

@@ -319,16 +319,15 @@ std::string Operator::Read(std::string_view path, const ReadOptions &options) {
 }
 
 void Operator::Write(std::string_view path, std::string_view data) {
-  rust::Vec<uint8_t> vec;
-  std::copy(data.begin(), data.end(), std::back_inserter(vec));
-  operator_->write(utils::rust_str(path), vec);
+  operator_->write(utils::rust_str(path),
+                   utils::rust_slice<const uint8_t>(data));
 }
 
 void Operator::Write(std::string_view path, std::string_view data,
                      const WriteOptions &options) {
-  rust::Vec<uint8_t> vec;
-  std::copy(data.begin(), data.end(), std::back_inserter(vec));
-  operator_->write_options(utils::rust_str(path), vec, ToFfiOptions(options));
+  operator_->write_options(utils::rust_str(path),
+                           utils::rust_slice<const uint8_t>(data),
+                           ToFfiOptions(options));
 }
 
 bool Operator::Exists(std::string_view path) {
@@ -367,6 +366,15 @@ void Operator::Remove(std::string_view path) {
 
 void Operator::Remove(std::string_view path, const DeleteOptions &options) {
   operator_->remove_options(utils::rust_str(path), ToFfiOptions(options));
+}
+
+void Operator::RemoveAll(const std::vector<std::string> &paths) {
+  rust::Vec<rust::String> rust_paths;
+  rust_paths.reserve(paths.size());
+  for (const auto &path : paths) {
+    rust_paths.push_back(utils::rust_string(path));
+  }
+  operator_->remove_all(std::move(rust_paths));
 }
 
 Metadata Operator::Stat(std::string_view path) {

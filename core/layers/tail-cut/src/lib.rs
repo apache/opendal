@@ -371,6 +371,7 @@ impl Service for TailCutService {
     type Lister = TailCutWrapper<oio::Lister>;
     type Deleter = TailCutWrapper<oio::Deleter>;
     type Copier = TailCutWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -378,6 +379,10 @@ impl Service for TailCutService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -412,10 +417,9 @@ impl Service for TailCutService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
     }
 
@@ -432,6 +436,15 @@ impl Service for TailCutService {
             self.inner.rename(ctx, from, to, args),
         )
         .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -611,6 +624,19 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
             self.size,
             Operation::Write,
             self.inner.write(bs),
+        )
+        .await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Write);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Write,
+            self.inner.copy_from(path, args, range),
         )
         .await
     }

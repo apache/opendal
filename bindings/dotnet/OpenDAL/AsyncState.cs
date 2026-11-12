@@ -65,7 +65,7 @@ internal static class AsyncStateRegistry
     }
 }
 
-public sealed class AsyncState<T>
+internal sealed class AsyncState<T>
 {
     internal long Context { get; set; }
 

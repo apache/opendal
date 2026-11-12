@@ -601,6 +601,7 @@ impl From<&opendal_write_options> for options::WriteOptions {
             if_not_exists: value.if_not_exists,
             concurrent: value.concurrent,
             chunk: value.has_chunk.then_some(value.chunk),
+            ..Default::default()
         }
     }
 }
@@ -777,6 +778,7 @@ impl From<&opendal_stat_options> for options::StatOptions {
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
+            ..Default::default()
         }
     }
 }
@@ -1078,6 +1080,7 @@ impl From<&opendal_read_options> for options::ReadOptions {
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
+            ..Default::default()
         }
     }
 }
@@ -1299,6 +1302,7 @@ impl From<&opendal_reader_options> for options::ReaderOptions {
             chunk: value.has_chunk.then_some(value.chunk),
             gap: value.has_gap.then_some(value.gap),
             prefetch: value.prefetch,
+            ..Default::default()
         }
     }
 }
@@ -1437,6 +1441,7 @@ impl From<&opendal_copy_options> for options::CopyOptions {
                 .then_some(value.source_content_length_hint),
             concurrent: value.concurrent,
             chunk: value.has_chunk.then_some(value.chunk),
+            ..Default::default()
         }
     }
 }

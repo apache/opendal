@@ -44,6 +44,7 @@ const DEFAULT_REDIS_PORT: u16 = 6379;
 #[derive(Debug, Default)]
 pub struct RedisBuilder {
     pub(super) config: RedisConfig,
+    pub(super) default_ttl: Option<Duration>,
 }
 
 impl RedisBuilder {
@@ -108,7 +109,7 @@ impl RedisBuilder {
     ///
     /// If set, we will specify `EX` for write operations.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
-        self.config.default_ttl = Some(ttl);
+        self.default_ttl = Some(ttl);
         self
     }
 
@@ -144,6 +145,14 @@ impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Service> {
+        let default_ttl = match self.default_ttl {
+            Some(ttl) => Some(ttl),
+            None => self
+                .config
+                .default_ttl
+                .map(signed_duration_to_duration)
+                .transpose()?,
+        };
         let root = normalize_root(
             self.config
                 .root
@@ -170,7 +179,7 @@ impl Builder for RedisBuilder {
                 endpoints,
                 None,
                 Some(client),
-                self.config.default_ttl,
+                default_ttl,
                 self.config.connection_pool_max_size,
             ))
             .with_normalized_root(root))
@@ -194,7 +203,7 @@ impl Builder for RedisBuilder {
                 endpoint,
                 Some(client),
                 None,
-                self.config.default_ttl,
+                default_ttl,
                 self.config.connection_pool_max_size,
             ))
             .with_normalized_root(root))
@@ -313,6 +322,7 @@ impl Service for RedisBackend {
     type Lister = ();
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -338,12 +348,13 @@ impl Service for RedisBackend {
         let p = build_abs_path(&self.root, path);
 
         if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.len(&p).await? {
-                Some(len) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(len as u64),
-                )),
+                Some(len) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(len as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "key not found in redis")),
             }
         }
@@ -394,7 +405,6 @@ impl Service for RedisBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

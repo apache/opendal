@@ -9,17 +9,107 @@ Depending on its configuration and the backing system, this service can expose:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Object restoration
+
+S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]
+removes the current delete marker. Calling it on an already-live object succeeds.
+It does not scan or remove older marker versions. If no live object or current
+delete marker exists, it returns [`opendal_core::ErrorKind::NotFound`].
+
+Use [`opendal_core::Operator::restore_with`] to promote a specific version:
+
+```rust,no_run
+# use opendal_core::Operator;
+# use opendal_core::Result;
+# async fn restore(op: Operator, version: &str) -> Result<()> {
+op.restore_with("path/to/file")
+    .version(version)
+    .await?;
+# Ok(())
+# }
+```
+
+Add `.if_not_exists(true)` when a selected version must not overwrite an
+object recreated by another writer. This condition requires an explicit
+version.
+
 ## Configuration
 
 Use [`crate::S3Config`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
+
+## AWS container credentials
+
+The default AWS credential chain already reads ambient container credential
+settings. The container credential options expose the same provider settings
+through typed builder methods, serialized configuration, and URI options. Setting
+any of these options replaces the ECS slot in the default chain without changing
+that slot's position.
+
+Endpoint selection follows this order:
+
+1. `container_credentials_endpoint`
+2. `container_credentials_relative_uri`
+3. `AWS_CONTAINER_CREDENTIALS_FULL_URI`
+4. `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI`
+
+`container_metadata_uri_override` changes the base URI for relative endpoints
+only and does not select an endpoint by itself. Authorization token selection
+follows this order:
+
+1. `container_authorization_token`
+2. `container_authorization_token_file`
+3. `AWS_CONTAINER_AUTHORIZATION_TOKEN`
+4. `AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE`
+
+These options configure the existing ECS slot; they do not force it ahead of
+environment, profile, SSO, web identity, or external process providers.
+Configured static credentials retain their higher priority. [`crate::S3::role_arn`]
+continues to use the assembled provider as the source for role assumption, and
+[`crate::S3::credential_provider_chain`] continues to replace the assembled
+chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading
+and the environment/profile credential slots. Region environment lookup and
+other credential providers, including container credentials, remain enabled.
+
+## S3 Express One Zone
+
+OpenDAL recognizes valid AWS directory bucket names on AWS endpoints and uses
+the bucket's zonal endpoint automatically. It creates and refreshes `ReadWrite`
+S3 Express sessions through the configured AWS credential provider. No extra
+configuration is required:
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
+
+fn build_operator() -> Result<Operator> {
+    Operator::new(
+        S3::default()
+            .bucket("example--usw2-az1--x-s3")
+            .region("us-west-2"),
+    )
+}
+```
+
+This automatic behavior applies only to AWS endpoints. S3-compatible services
+retain the existing IAM authentication behavior.
+
+An explicit AWS endpoint must match the bucket's derived Zone, Region, and
+partition. OpenDAL rejects unsupported endpoint variants, including dual-stack
+endpoints, with `ConfigInvalid` instead of falling back to general S3 behavior.
+
+OpenDAL uses the source IAM credentials for `CopyObject`, `UploadPartCopy`, and
+presigned requests because these operations do not accept S3 Express session
+credentials.
 
 ## Temporary security credentials
 

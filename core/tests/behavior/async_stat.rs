@@ -39,6 +39,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_stat_not_exist,
             test_stat_with_if_match,
             test_stat_with_if_none_match,
+            test_stat_with_version_conditions,
             test_stat_with_if_modified_since,
             test_stat_with_if_unmodified_since,
             test_stat_with_override_cache_control,
@@ -200,6 +201,14 @@ pub async fn test_stat_with_if_match(op: Operator) -> Result<()> {
         .await;
     assert!(result.is_ok());
 
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .stat_with(&missing)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -233,6 +242,71 @@ pub async fn test_stat_with_if_none_match(op: Operator) -> Result<()> {
     assert_eq!(res.mode(), meta.mode());
     assert_eq!(res.content_length(), meta.content_length());
 
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .stat_with(&missing)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+/// Version preconditions should compare against the current live object version.
+pub async fn test_stat_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.stat_with_if_version_match || !cap.stat_with_if_version_not_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (first, _) = gen_bytes(cap);
+    let (second, _) = gen_bytes(cap);
+    assert_ne!(first, second);
+
+    op.write(&path, first).await?;
+    let stale = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.write(&path, second).await?;
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    op.stat_with(&path).if_version_match(&current).await?;
+    let err = op
+        .stat_with(&path)
+        .if_version_match(&stale)
+        .await
+        .expect_err("stale version match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.stat_with(&path).if_version_not_match(&stale).await?;
+    let err = op
+        .stat_with(&path)
+        .if_version_not_match(&current)
+        .await
+        .expect_err("equal version non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let missing = TEST_FIXTURE.new_file_path();
+    for result in [
+        op.stat_with(&missing).if_version_match(&current).await,
+        op.stat_with(&missing).if_version_not_match(&current).await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing target must fail").kind(),
+            ErrorKind::NotFound
+        );
+    }
+
     Ok(())
 }
 
@@ -263,6 +337,14 @@ pub async fn test_stat_with_if_modified_since(op: Operator) -> Result<()> {
     assert!(res.is_err());
     assert_eq!(res.err().unwrap().kind(), ErrorKind::ConditionNotMatch);
 
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .stat_with(&missing)
+        .if_modified_since(since)
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -292,6 +374,14 @@ pub async fn test_stat_with_if_unmodified_since(op: Operator) -> Result<()> {
     let since = meta.last_modified().unwrap() + Duration::from_secs(1);
     let res = op.stat_with(&path).if_unmodified_since(since).await?;
     assert_eq!(res.last_modified(), meta.last_modified());
+
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .stat_with(&missing)
+        .if_unmodified_since(since)
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     Ok(())
 }

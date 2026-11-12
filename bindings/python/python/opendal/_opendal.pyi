@@ -24,19 +24,24 @@ from .operator import AsyncOperator, Operator
 __version__: Final[str]
 
 @final
-class DeleteOptions: ...
+class DeleteOptions:
+    """Options for `delete` operations."""
 
 @final
-class ListOptions: ...
+class ListOptions:
+    """Options for `list` operations."""
 
 @final
-class ReadOptions: ...
+class ReadOptions:
+    """Options for `read` operations."""
 
 @final
-class StatOptions: ...
+class StatOptions:
+    """Options for `stat` operations."""
 
 @final
-class WriteOptions: ...
+class WriteOptions:
+    """Options for `write` operations."""
 
 def _reconstruct_async_operator(scheme: str, map: dict[str, str]) -> AsyncOperator:
     """

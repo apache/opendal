@@ -60,25 +60,27 @@ Console.WriteLine(Encoding.UTF8.GetString(bytes));
 
 ## Executors {#executors}
 
-Async operations run on a native Tokio runtime. By default OpenDAL uses a shared
-executor, so you can call the `…Async` methods without configuring anything. To
-control the worker-thread count, create an [`Executor`] and pass it to each call:
+Every operation runs on a native Tokio runtime. By default OpenDAL uses a shared
+executor, so you can call any method without configuring anything. To control
+the worker-thread count, create an [`Executor`] and bind it when you construct
+the operator:
 
 ```csharp
 using OpenDAL;
 using System.Text;
 
 using var executor = new Executor(2); // two Tokio worker threads
-using var op = new Operator("memory");
+using var op = new Operator("memory", executor: executor);
 
-await op.WriteAsync("hello.txt", Encoding.UTF8.GetBytes("Hello, World!"), executor);
-var bytes = await op.ReadAsync("hello.txt", executor);
+await op.WriteAsync("hello.txt", Encoding.UTF8.GetBytes("Hello, World!"));
+var bytes = await op.ReadAsync("hello.txt");
 ```
 
-Keep an `Executor` alive for the full lifetime of the operations using it.
-Disposing an `Executor` (or `Operator`) while awaited work is still running
-throws `ObjectDisposedException`, so dispose them only after the awaited
-operations complete. See [Going to production](./05-production.md#executor-and-lifetime)
+The operator keeps its runtime alive on the native side, so disposing the
+`Executor` handle never affects operators already bound to it — it only makes
+constructing new operators with it throw `ObjectDisposedException`. One
+operator binds one executor; to spread work across two runtimes, construct two
+operators. See [Going to production](./05-production.md#executor-and-lifetime)
 for the lifetime rules.
 
 [`Executor`]: https://github.com/apache/opendal/blob/main/bindings/dotnet/OpenDAL/Executor.cs

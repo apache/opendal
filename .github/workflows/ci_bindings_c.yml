@@ -23,13 +23,15 @@ on:
       - main
     tags:
       - '*'
+    paths: &paths
+      - "bindings/c/**"
+      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_c.yml"
   pull_request:
     branches:
       - main
-    paths:
-      - "bindings/c/**"
-      - "core/**"
-      - ".github/workflows/ci_bindings_c.yml"
+    paths: *paths
   workflow_dispatch:
 
 concurrency:

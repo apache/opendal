@@ -16,10 +16,11 @@
 // under the License.
 
 use std::sync::Arc;
+use std::time::Duration;
 
-use fastpool::ManageObject;
-use fastpool::ObjectStatus;
-use fastpool::bounded;
+use asyncband::pool::ManageObject;
+use asyncband::pool::ObjectStatus;
+use asyncband::pool::bounded;
 use opendal_core::raw::*;
 use opendal_core::*;
 use std::io;
@@ -29,12 +30,16 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
+use tokio_rustls::TlsConnector;
+use tokio_rustls::client::TlsStream;
+use tokio_rustls::rustls::{self, ClientConfig, RootCertStore, pki_types::ServerName};
 
 use super::binary;
 
 #[derive(Debug)]
 pub enum SocketStream {
     Tcp(TcpStream),
+    Tls(Box<TlsStream<TcpStream>>),
     #[cfg(unix)]
     Unix(UnixStream),
 }
@@ -60,6 +65,7 @@ impl AsyncRead for SocketStream {
     ) -> Poll<io::Result<()>> {
         match self.get_mut() {
             SocketStream::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+            SocketStream::Tls(s) => Pin::new(s).poll_read(cx, buf),
             #[cfg(unix)]
             SocketStream::Unix(s) => Pin::new(s).poll_read(cx, buf),
         }
@@ -74,6 +80,7 @@ impl AsyncWrite for SocketStream {
     ) -> Poll<io::Result<usize>> {
         match self.get_mut() {
             SocketStream::Tcp(s) => Pin::new(s).poll_write(cx, buf),
+            SocketStream::Tls(s) => Pin::new(s).poll_write(cx, buf),
             #[cfg(unix)]
             SocketStream::Unix(s) => Pin::new(s).poll_write(cx, buf),
         }
@@ -82,6 +89,7 @@ impl AsyncWrite for SocketStream {
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             SocketStream::Tcp(s) => Pin::new(s).poll_flush(cx),
+            SocketStream::Tls(s) => Pin::new(s).poll_flush(cx),
             #[cfg(unix)]
             SocketStream::Unix(s) => Pin::new(s).poll_flush(cx),
         }
@@ -90,6 +98,7 @@ impl AsyncWrite for SocketStream {
     fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match self.get_mut() {
             SocketStream::Tcp(s) => Pin::new(s).poll_shutdown(cx),
+            SocketStream::Tls(s) => Pin::new(s).poll_shutdown(cx),
             #[cfg(unix)]
             SocketStream::Unix(s) => Pin::new(s).poll_shutdown(cx),
         }
@@ -100,8 +109,49 @@ impl AsyncWrite for SocketStream {
 #[derive(Clone, Debug)]
 pub enum Endpoint {
     Tcp(String), // host:port
+    Tls {
+        address: String,
+        server_name: ServerName<'static>,
+        config: Arc<ClientConfig>,
+    },
     #[cfg(unix)]
     Unix(String), // socket path
+}
+
+impl Endpoint {
+    pub(super) fn tls(address: String, host: &str) -> Result<Self> {
+        let server_name =
+            ServerName::try_from(host.trim_matches(['[', ']']).to_owned()).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "invalid TLS server name").set_source(err)
+            })?;
+        let native = rustls_native_certs::load_native_certs();
+        let mut roots = RootCertStore::empty();
+        roots.add_parsable_certificates(native.certs);
+        if roots.is_empty() {
+            let mut err = Error::new(
+                ErrorKind::ConfigInvalid,
+                "no usable native root certificates were loaded",
+            );
+            if let Some(source) = native.errors.into_iter().next() {
+                err = err.set_source(source);
+            }
+            return Err(err);
+        }
+        let config =
+            ClientConfig::builder_with_provider(Arc::new(rustls::crypto::ring::default_provider()))
+                .with_safe_default_protocol_versions()
+                .map_err(|err| {
+                    Error::new(ErrorKind::ConfigInvalid, "TLS protocols are unavailable")
+                        .set_source(err)
+                })?
+                .with_root_certificates(roots)
+                .with_no_client_auth();
+        Ok(Self::Tls {
+            address,
+            server_name,
+            config: Arc::new(config),
+        })
+    }
 }
 
 /// A connection manager for `memcache_async::ascii::Protocol`.
@@ -131,6 +181,20 @@ impl ManageObject for MemcacheConnectionManager {
             Endpoint::Tcp(addr) => SocketStream::connect_tcp(addr)
                 .await
                 .map_err(new_std_io_error)?,
+            Endpoint::Tls {
+                address,
+                server_name,
+                config,
+            } => {
+                let stream = TcpStream::connect(address)
+                    .await
+                    .map_err(new_std_io_error)?;
+                let stream = TlsConnector::from(Arc::clone(config))
+                    .connect(server_name.clone(), stream)
+                    .await
+                    .map_err(new_std_io_error)?;
+                SocketStream::Tls(Box::new(stream))
+            }
             #[cfg(unix)]
             Endpoint::Unix(path) => SocketStream::connect_unix(path)
                 .await
@@ -162,6 +226,14 @@ pub struct MemcachedCore {
     default_ttl: Option<Duration>,
     conn: Arc<bounded::Pool<MemcacheConnectionManager>>,
 }
+
+/// memcached reads an expiration larger than 30 days as an absolute Unix
+/// timestamp rather than as an offset from now, so a longer TTL sent verbatim
+/// lands in 1970 and the server stores the item as already expired.
+///
+/// See the `Expiration times` section of memcached's protocol.txt. The builder
+/// rejects a `default_ttl` above this, so `set` can pass the value through.
+pub(super) const MAX_RELATIVE_EXPIRATION_SECS: u64 = 60 * 60 * 24 * 30;
 
 impl MemcachedCore {
     pub fn new(
@@ -205,7 +277,8 @@ impl MemcachedCore {
         conn.set(
             &percent_encode_path(key),
             &value.to_vec(),
-            // Set expiration to 0 if ttl not set.
+            // The builder rejects anything above MAX_RELATIVE_EXPIRATION_SECS, so
+            // this stays an offset and never lands in memcached's absolute range.
             self.default_ttl
                 .map(|v| v.as_secs() as u32)
                 .unwrap_or_default(),

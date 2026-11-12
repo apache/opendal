@@ -84,7 +84,7 @@ public class ConstructorTest
 
         using var op = new Operator("memory", options);
 
-        Assert.NotEqual(IntPtr.Zero, op.Op);
+        Assert.NotEqual(IntPtr.Zero, op.DangerousGetHandle());
     }
 
     [Fact]
@@ -97,6 +97,6 @@ public class ConstructorTest
 
         using var op = new Operator(config);
 
-        Assert.NotEqual(IntPtr.Zero, op.Op);
+        Assert.NotEqual(IntPtr.Zero, op.DangerousGetHandle());
     }
 }

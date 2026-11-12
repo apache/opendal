@@ -50,6 +50,70 @@ builder.bucket("<bucket_name>");
 builder.enable_virtual_host_style();
 ```
 
+### Neon Object Storage
+
+[Neon Object Storage](https://neon.com/docs/storage/overview) is a S3-compatible service built into [Neon](https://neon.com/) projects. Buckets belong to a Neon branch, and each branch has its own S3 endpoint.
+
+To connect to Neon Object Storage, we need to set:
+
+- `endpoint`: The S3 endpoint of the branch, for example: `https://<branch_id>.storage.<cell>.<region>.aws.neon.tech`. The Neon Console and `neon env pull` (as `AWS_ENDPOINT_URL_S3`) show it.
+- `region`: The region of the Neon project, for example: `us-east-2`. Neon accepts any signing region, but OpenDAL requires one. `S3::detect_region()` derives it from the endpoint.
+- `bucket`: The bucket name.
+- `access_key_id` and `secret_access_key`: The token ID (`nak_live_...`) and S3 secret access key of a Neon credential with the `storage:read` and `storage:write` scopes.
+
+```rust,ignore
+builder.endpoint("https://<branch_id>.storage.<cell>.<region>.aws.neon.tech");
+builder.region("<region>");
+builder.bucket("<bucket_name>");
+builder.access_key_id("<token_id>");
+builder.secret_access_key("<s3_secret_access_key>");
+```
+
+> Neon supports path-style requests only. Don't call `enable_virtual_host_style()`.
+
+A new branch inherits the buckets and objects of its parent, and a credential issued on a branch also works on its descendants. To work against a copy of the data, point `endpoint` at the child branch. Writes there don't reach the parent.
+
+Neon Object Storage has the following capability differences from S3:
+
+- `write_can_append`: Neon ignores the append offset and replaces the object. Please override it to `false`.
+- `stat_with_version`, `read_with_version`, `delete_with_version`, `list_with_versions`, `list_with_deleted`, `copy_with_source_version`, `restore`, `restore_with_version`, `restore_with_if_not_exists`: Neon doesn't enforce versioning and always returns the `null` version ID. Please override them to `false`.
+- `copy_with_if_not_exists`, `copy_with_if_match`, `delete_with_if_match`: Neon ignores conditional headers on `CopyObject` and `DeleteObject`. Please override them to `false`.
+- `write_with_if_not_exists`, `write_with_if_match`: Neon checks these conditions for a single `PutObject`, but ignores them on `CompleteMultipartUpload` and doesn't check them atomically across concurrent writers. Please override them to `false` when you rely on them for locking or compare-and-swap.
+
+### Oracle Cloud Infrastructure Object Storage
+
+[Oracle Cloud Infrastructure (OCI) Object Storage](https://www.oracle.com/cloud/storage/object-storage/) provides an Amazon S3 Compatibility API.
+
+To connect with path-style requests, set:
+
+- `endpoint`: The endpoint containing the Object Storage namespace and OCI region, for example: `https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com`.
+- `region`: The OCI region identifier, for example: `us-ashburn-1`.
+- `bucket`: The bucket name.
+- `access_key_id` and `secret_access_key`: The access key and secret key from an OCI Customer Secret Key.
+
+```rust,ignore
+// Accepted endpoint includes "oci.customer-oci.com" and "oraclecloud.com", while "oci.customer-oci.com" is preferred.
+builder.endpoint(
+    "https://<namespace>.compat.objectstorage.<region>.oci.customer-oci.com",
+);
+builder.region("<region>");
+builder.bucket("<bucket_name>");
+builder.access_key_id("<access_key>");
+builder.secret_access_key("<secret_key>");
+```
+
+OCI also supports virtual-hosted-style requests. Use the endpoint
+`https://vhcompat.objectstorage.<region>.oci.customer-oci.com` and call
+`enable_virtual_host_style()` when selecting that form.
+
+OCI Object Storage differs from Amazon S3 in the following ways:
+
+- OCI uses an Object Storage namespace instead of Amazon S3's global bucket namespace. Bucket names must be unique within the namespace according to the configured bucket scope.
+- OCI organizes resources in compartments. Buckets created through the S3 Compatibility API use the tenancy's designated compartment, which defaults to the root compartment.
+- OCI encrypts every object at rest and does not allow clients to enable or disable encryption through the API.
+- OCI does not support object-level ACLs. OCI IAM policies control access instead, so S3 object ACL settings such as `default_acl` do not apply.
+- OCI requires AWS Signature Version 4; Signature Version 2 is not supported.
+
 ### QingStor Object Storage
 
 [QingStor Object Storage](https://www.qingcloud.com/products/qingstor) is a S3-compatible service provided by [QingCloud](https://www.qingcloud.com/).

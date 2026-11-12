@@ -113,20 +113,16 @@ impl ReadContext {
         }
     }
 
-    async fn content_length(&self) -> Result<u64> {
-        if let Some(v) = self.args().content_length_hint() {
+    pub(crate) async fn content_length(&self) -> Result<u64> {
+        if let Some(v) = self
+            .args()
+            .content_length_hint()
+            .or_else(|| self.metadata().map(|v| v.content_length()))
+        {
             return Ok(v);
         }
 
-        if let Some(v) = self.metadata().map(|v| v.content_length()) {
-            return Ok(v);
-        }
-
-        let mut op_stat = OpStat::new();
-
-        if let Some(v) = self.args().version() {
-            op_stat = op_stat.with_version(v);
-        }
+        let op_stat = OpStat::from_read(self.args());
 
         Ok(self
             .srv
@@ -160,6 +156,15 @@ impl ReadContext {
                 (content_length.saturating_sub(size), content_length)
             }
         };
+
+        if start > end {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range starts after the end of the object",
+            )
+            .with_context("offset", start)
+            .with_context("content_length", end));
+        }
 
         Ok(start..end)
     }

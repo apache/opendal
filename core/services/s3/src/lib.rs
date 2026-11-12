@@ -41,6 +41,15 @@ pub use minio_config::MinioConfig;
 pub use r2::R2Builder as R2;
 pub use r2_config::R2Config;
 
+/// Re-export of the [`reqsign_aws_v4`] crate that this service signs requests
+/// with.
+///
+/// [`S3::credential_provider_chain`] takes a chain of providers for
+/// [`reqsign_aws_v4::Credential`]. Implement providers against this re-export and
+/// [`opendal_core::reqsign_core`] rather than depending on the `reqsign` crates
+/// directly, so that the types always match the ones this service is built with.
+pub use reqsign_aws_v4;
+
 /// URI scheme used for service registration and scheme-driven construction.
 pub const S3_SCHEME: &str = "s3";
 /// URI scheme for the Cloudflare R2 preset.

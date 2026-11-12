@@ -49,7 +49,7 @@ public class OpenDALException : Exception
 
     private static bool TryParse(int value, out ErrorCode result)
     {
-        if ((uint)value <= (uint)ErrorCode.RangeNotSatisfied)
+        if ((uint)value <= (uint)ErrorCode.Conflict)
         {
             result = (ErrorCode)value;
             return true;

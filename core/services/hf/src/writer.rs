@@ -89,7 +89,7 @@ impl HfWriter {
     /// subsequent [`write`](oio::Write::write) calls can stream data
     /// directly into the XET CAS.
     pub async fn try_new(core: Arc<HfCore>, ctx: OperationContext, path: String) -> Result<Self> {
-        let commit = core.xet_upload_commit().await?;
+        let commit = core.xet_upload_commit(&ctx).await?;
         let stream = commit
             .upload_stream(None, Sha256Policy::Compute)
             .await
@@ -128,7 +128,11 @@ impl HfWriter {
         let content_length = file_info
             .file_size()
             .expect("file_size must be set after finish()");
-        let meta = Metadata::default().with_content_length(content_length);
+        let meta = {
+            let mut metadata = MetadataBuilder::unknown();
+            metadata.set_file(content_length);
+            metadata.build()
+        };
 
         let repo_path = self.core.repo_path(&self.path);
         if self.core.repo.is_bucket() {

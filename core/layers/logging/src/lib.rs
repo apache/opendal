@@ -267,6 +267,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     type Lister = LoggingLister<oio::Lister, I>;
     type Deleter = LoggingDeleter<oio::Deleter, I>;
     type Copier = LoggingCopier<oio::Copier, I>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -274,6 +275,10 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -370,11 +375,10 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.log_start(Operation::Copy, &[("from", from), ("to", to)]);
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| {
                 self.logger.log(
                     &self.info,
@@ -410,6 +414,18 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
             &[("from", from), ("to", to)],
             result.as_ref().err(),
         );
+        result
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.log_start(Operation::Restore, &[("path", path)]);
+        let result = self.inner.restore(ctx, path, args).await;
+        self.log_finish(Operation::Restore, &[("path", path)], result.as_ref().err());
         result
     }
 
@@ -628,6 +644,34 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
                     Operation::Write,
                     &[
                         ("path", &self.path),
+                        ("written", &self.written.to_string()),
+                        ("size", &size.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let size = range
+            .size()
+            .expect("writer copy range must be absolute and bounded");
+
+        match self.inner.copy_from(path, args, range).await {
+            Ok(()) => {
+                self.written += size;
+                Ok(())
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Write,
+                    &[
+                        ("path", &self.path),
+                        ("source", path),
                         ("written", &self.written.to_string()),
                         ("size", &size.to_string()),
                     ],

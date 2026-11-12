@@ -21,6 +21,7 @@ use std::os::raw::c_char;
 use crate::utils::into_string_ptr;
 
 #[repr(C)]
+#[derive(Debug)]
 /// Error payload returned by exported FFI functions.
 pub struct OpenDALError {
     /// `1` when an error is present, otherwise `0`.
@@ -73,6 +74,7 @@ pub enum ErrorCode {
     IsSameFile = 9,
     ConditionNotMatch = 10,
     RangeNotSatisfied = 11,
+    Conflict = 12,
 }
 
 impl ErrorCode {
@@ -91,6 +93,7 @@ impl ErrorCode {
             ErrorKind::IsSameFile => ErrorCode::IsSameFile,
             ErrorKind::ConditionNotMatch => ErrorCode::ConditionNotMatch,
             ErrorKind::RangeNotSatisfied => ErrorCode::RangeNotSatisfied,
+            ErrorKind::Conflict => ErrorCode::Conflict,
             _ => ErrorCode::Unexpected,
         }
     }

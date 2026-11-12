@@ -81,6 +81,7 @@ impl Service for AsyncBacktraceAccessor {
     type Lister = AsyncBacktraceWrapper<oio::Lister>;
     type Deleter = AsyncBacktraceWrapper<oio::Deleter>;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -88,6 +89,10 @@ impl Service for AsyncBacktraceAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     #[async_backtrace::framed]
@@ -118,9 +123,8 @@ impl Service for AsyncBacktraceAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     #[async_backtrace::framed]
@@ -132,6 +136,16 @@ impl Service for AsyncBacktraceAccessor {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    #[async_backtrace::framed]
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     #[async_backtrace::framed]
@@ -198,6 +212,11 @@ impl<R: oio::Write> oio::Write for AsyncBacktraceWrapper<R> {
     #[async_backtrace::framed]
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).await
+    }
+
+    #[async_backtrace::framed]
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner.copy_from(path, args, range).await
     }
 
     #[async_backtrace::framed]

@@ -818,7 +818,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Extra Options
@@ -860,7 +860,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -916,7 +916,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -983,10 +983,7 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-
-        let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let mut w = Writer::new(write_context).await?;
+        let mut w = Self::writer_inner(ctx, srv, path, opts).await?;
         w.write(bs).await?;
         w.close().await
     }
@@ -1047,7 +1044,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1102,7 +1099,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1137,6 +1134,8 @@ impl Operator {
         Self::writer_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn writer_inner(
         ctx: OperationContext,
@@ -1153,10 +1152,163 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
+        let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let w = Writer::new(write_context).await?;
+        let w = Writer::new(write_context)?;
         Ok(w)
+    }
+
+    /// Compose complete source objects into `to` in iteration order.
+    ///
+    /// The input must be non-empty, and `to` must not be one of the inputs.
+    /// Composition preserves every source object. It does not read source bytes
+    /// through the client when the service supports native composition.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _metadata = op
+    ///     .compose(["parts/0", "parts/1", "parts/2"], "result")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn compose<I, D>(&self, inputs: I, to: &str) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        self.compose_with(inputs, to).await
+    }
+
+    /// Compose complete source objects into `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn compose_with<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+    ) -> FutureCompose<impl Future<Output = Result<Metadata>>>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (options::ComposeOptions::default(), inputs),
+            Self::compose_inner,
+        )
+    }
+
+    /// Compose complete source objects into `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn compose_options<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+        Self::compose_inner(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (opts, inputs),
+        )
+        .await
+    }
+
+    async fn compose_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        (opts, inputs): (
+            options::ComposeOptions,
+            Vec<(String, options::ComposeSourceOptions)>,
+        ),
+    ) -> Result<Metadata> {
+        let mut composer = Self::composer_inner(ctx, srv, to, opts).await?;
+        for (path, options) in inputs {
+            composer.compose_options(&path, options).await?;
+        }
+        composer.close().await
+    }
+
+    /// Create a [`Composer`] that accepts ordered source objects for `to`.
+    pub async fn composer(&self, to: &str) -> Result<Composer> {
+        self.composer_with(to).await
+    }
+
+    /// Create a [`Composer`] for `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn composer_with(
+        &self,
+        to: &str,
+    ) -> FutureComposer<impl Future<Output = Result<Composer>>> {
+        let to = normalize_path(to);
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            options::ComposeOptions::default(),
+            Self::composer_inner,
+        )
+    }
+
+    /// Create a [`Composer`] for `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn composer_options(
+        &self,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        let to = normalize_path(to);
+        Self::composer_inner(self.context().clone(), self.service().clone(), to, opts).await
+    }
+
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
+    async fn composer_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "destination path is a directory")
+                    .with_operation(Operation::Compose.into_static())
+                    .with_context("service", srv.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        let args = OpCompose::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Composer::create(ctx, srv, to, args)
     }
 
     /// Copy a file from `from` to `to`.
@@ -1365,6 +1517,8 @@ impl Operator {
         }
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     async fn copier_inner(
         ctx: OperationContext,
         srv: Servicer,
@@ -1399,8 +1553,9 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-        std::future::ready(Copier::create(ctx, srv, &from, &to, args, opts)).await
+        let args = OpCopy::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Copier::create(ctx, srv, &from, &to, args)
     }
 
     /// Rename a file from `from` to `to`.
@@ -1547,11 +1702,99 @@ impl Operator {
         Ok(())
     }
 
+    /// Restore the given path from its latest deleted state.
+    ///
+    /// Calling `restore` on an already-live path succeeds. Calling it when no
+    /// live object or recoverable deletion state exists returns
+    /// [`ErrorKind::NotFound`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.restore("path/to/file").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn restore(&self, path: &str) -> Result<()> {
+        self.restore_with(path).await
+    }
+
+    /// Restore the given path with additional options.
+    ///
+    /// # Examples
+    ///
+    /// Restore a specific version only if the path has not been recreated:
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// op.restore_with("path/to/file")
+    ///     .version(version)
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn restore_with(&self, path: &str) -> FutureRestore<impl Future<Output = Result<()>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            options::RestoreOptions::default(),
+            Self::restore_inner,
+        )
+    }
+
+    /// Restore the given path with additional options.
+    pub async fn restore_options(
+        &self,
+        path: &str,
+        opts: impl Into<options::RestoreOptions>,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+        let opts = opts.into();
+
+        Self::restore_inner(self.context().clone(), self.service().clone(), path, opts).await
+    }
+
+    async fn restore_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        opts: options::RestoreOptions,
+    ) -> Result<()> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(Error::new(ErrorKind::IsADirectory, "path is a directory")
+                .with_operation(Operation::Restore)
+                .with_context("service", srv.info().scheme())
+                .with_context("path", path));
+        }
+
+        if opts.if_not_exists && opts.version.is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            )
+            .with_operation(Operation::Restore)
+            .with_context("service", srv.info().scheme())
+            .with_context("path", path));
+        }
+
+        srv.restore(&ctx, &path, opts.into()).await?;
+        Ok(())
+    }
+
     /// Delete the given path.
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op.
     ///
     /// # Examples
     ///
@@ -1572,11 +1815,13 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
     ///
     /// # Options
     ///
-    /// Visit [`options::DeleteOptions`] for all available options.
+    /// Visit [`options::DeleteOptions`] for all available options and the
+    /// conditional delete contract.
     ///
     /// # Examples
     ///
@@ -1607,7 +1852,9 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first. Visit
+    ///   [`options::DeleteOptions`] for the conditional delete contract.
     ///
     /// # Examples
     ///
@@ -1638,10 +1885,9 @@ impl Operator {
         path: String,
         opts: options::DeleteOptions,
     ) -> Result<()> {
-        let mut deleter = srv.delete(&ctx)?;
-        let args = opts.into();
-        deleter.delete_dyn(&path, args).await?;
-        deleter.close_dyn().await?;
+        let mut deleter = Deleter::create(ctx, srv)?;
+        deleter.delete((path, opts)).await?;
+        deleter.close().await?;
         Ok(())
     }
 
@@ -1722,12 +1968,10 @@ impl Operator {
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
+    // Keep this async to preserve the public API.
+    #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        std::future::ready(Deleter::create(
-            self.context().clone(),
-            self.service().clone(),
-        ))
-        .await
+        Deleter::create(self.context().clone(), self.service().clone())
     }
 
     /// Remove the path and all nested dirs and files recursively.
@@ -2057,6 +2301,8 @@ impl Operator {
         Self::lister_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn lister_inner(
         ctx: OperationContext,
@@ -2065,7 +2311,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        std::future::ready(Lister::create(ctx, srv, &path, args)).await
+        Lister::create(ctx, srv, &path, args)
     }
 }
 
@@ -2459,7 +2705,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_write, _) = opts.into();
+        let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2572,7 +2819,9 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpDelete::from(opts), expire);
+        let op_delete = OpDelete::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }

@@ -128,4 +128,9 @@ public enum ErrorCode
     /// OpenDAL returns this error to indicate that the range of the read request is not satisfied.
     /// </summary>
     RangeNotSatisfied = 11,
+
+    /// <summary>
+    /// The operation conflicts with the current or transitional state of the resource.
+    /// </summary>
+    Conflict = 12,
 }

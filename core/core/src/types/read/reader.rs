@@ -120,6 +120,10 @@ impl Reader {
         Reader { ctx: Arc::new(ctx) }
     }
 
+    pub(crate) async fn parse_into_range(&self, range: BytesRange) -> Result<Range<u64>> {
+        self.ctx.parse_into_range(range).await
+    }
+
     /// Get complete object metadata observed by this reader.
     ///
     /// This method doesn't perform I/O. It returns `None` if no read has
@@ -165,6 +169,8 @@ impl Reader {
     /// non-overlapping ranges. Users may also specify a `gap` to merge
     /// close ranges. Merged ranges will be split by `chunk`, then executed
     /// with `concurrent` and `prefetch`.
+    /// Set `gap` to `0` to avoid merging ranges separated by any bytes.
+    /// Overlapping or adjacent ranges are still merged.
     ///
     /// The returning `Buffer` may share the same underlying memory without
     /// any extra copy.
@@ -407,6 +413,11 @@ impl Reader {
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
     /// [`futures::AsyncSeek`] and [`futures::AsyncBufRead`].
     ///
+    /// Unbounded ranges resolve the object length only for operations that require it, such as
+    /// seeking relative to the end. Seeking from the start or current position can move beyond
+    /// the end without resolving the length, and subsequent reads return EOF. Explicit bounded
+    /// ranges continue to reject seeks beyond their logical end.
+    ///
     /// # Notes
     ///
     /// FuturesAsyncReader is not a zero-cost abstraction. The underlying reader
@@ -470,8 +481,7 @@ impl Reader {
         self,
         range: impl Into<BytesRange>,
     ) -> Result<FuturesAsyncReader> {
-        let range = self.ctx.parse_into_range(range).await?;
-        Ok(FuturesAsyncReader::new(self.ctx, range))
+        FuturesAsyncReader::new(self.ctx, range).await
     }
 
     /// Convert reader into [`FuturesBytesStream`] which implements [`futures::Stream`].
@@ -613,9 +623,10 @@ mod tests {
             }
 
             Ok((
-                RpRead::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
-                ),
+                RpRead::new({
+                    let metadata = MetadataBuilder::file(self.content.len() as u64);
+                    metadata.build()
+                }),
                 Buffer::from(self.content.slice(start..end)),
             ))
         }
@@ -909,6 +920,13 @@ mod tests {
         let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
         let merged = reader.merge_ranges(ranges);
         assert_eq!(merged, vec![0..30, 40..60]);
+
+        let reader = op.reader_with(path).gap(0).await.unwrap();
+        let ranges = vec![0..10, 10..20, 21..30, 40..50, 40..60, 45..59];
+        let merged = reader.merge_ranges(ranges);
+        assert_eq!(merged, vec![0..20, 21..30, 40..60]);
+
+        assert_eq!(OpReader::new().with_gap(0).gap(), Some(0));
         Ok(())
     }
 

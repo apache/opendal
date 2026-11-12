@@ -1,5 +1,13 @@
 # Upgrade to v0.47
 
+## Moka and MiniMoka configuration durations
+
+`MokaConfig` and `MiniMokaConfig` accept `datetime.timedelta` or a duration
+string such as `"5s"` for `time_to_live` and `time_to_idle`. Pass these typed
+configs to `Operator.from_config` or `AsyncOperator.from_config`. Existing
+string configuration remains supported; `timedelta` values retain microsecond
+precision when converted to the core configuration map.
+
 ## Breaking change: Hugging Face config requires `repo_type`
 
 The `hf` service no longer relies on the backend's implicit `model` default. Set `repo_type` explicitly when creating Hugging Face operators:

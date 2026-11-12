@@ -15,12 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::ffi::c_void;
 use std::future::Future;
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, LazyLock, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 use std::thread::available_parallelism;
 
 use crate::error::OpenDALError;
@@ -28,10 +26,6 @@ use crate::result::OpendalExecutorResult;
 use crate::utils::config_invalid_error;
 
 static DEFAULT_EXECUTOR: OnceLock<Arc<Executor>> = OnceLock::new();
-
-static EXECUTOR_REGISTRY: LazyLock<Mutex<HashMap<usize, Arc<Executor>>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-static NEXT_EXECUTOR_ID: AtomicUsize = AtomicUsize::new(1);
 
 pub struct Executor {
     runtime: tokio::runtime::Runtime,
@@ -73,10 +67,6 @@ impl Executor {
     {
         self.runtime.spawn(future)
     }
-
-    pub fn enter(&self) -> tokio::runtime::EnterGuard<'_> {
-        self.runtime.enter()
-    }
 }
 
 fn default_executor() -> Result<Arc<Executor>, OpenDALError> {
@@ -98,57 +88,52 @@ fn default_executor() -> Result<Arc<Executor>, OpenDALError> {
     Ok(executor)
 }
 
+/// Resolve the executor an operator binds at construction.
+///
 /// # Safety
 ///
-/// `executor` must be either null or a valid handle previously returned by
-/// `executor_create`.
-pub fn executor_or_default(executor: *const c_void) -> Result<Arc<Executor>, OpenDALError> {
+/// `executor` must be either null or a pointer previously returned by
+/// `executor_create` that stays alive for the duration of this call. The
+/// returned clone keeps the runtime alive on its own afterwards.
+pub(crate) unsafe fn executor_or_default(
+    executor: *const c_void,
+) -> Result<Arc<Executor>, OpenDALError> {
     if executor.is_null() {
         return default_executor();
     }
 
-    let id = executor as usize;
-    let registry = EXECUTOR_REGISTRY
-        .lock()
-        .map_err(|_| config_invalid_error("executor registry is poisoned"))?;
-
-    registry
-        .get(&id)
-        .cloned()
-        .ok_or_else(|| config_invalid_error("executor handle is invalid or disposed"))
+    // SAFETY: per the contract above the pointer came from `executor_create`'s
+    // `Arc::into_raw` and is still alive, so bumping the strong count and
+    // rebuilding an owned clone is sound.
+    unsafe {
+        let executor = executor as *const Executor;
+        Arc::increment_strong_count(executor);
+        Ok(Arc::from_raw(executor))
+    }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn executor_create(threads: usize) -> OpendalExecutorResult {
     match Executor::new(threads) {
-        Ok(executor) => {
-            let id = NEXT_EXECUTOR_ID.fetch_add(1, Ordering::Relaxed);
-            match EXECUTOR_REGISTRY.lock() {
-                Ok(mut registry) => {
-                    registry.insert(id, Arc::new(executor));
-                    OpendalExecutorResult::ok(id as *mut c_void)
-                }
-                Err(_) => OpendalExecutorResult::from_error(config_invalid_error(
-                    "executor registry is poisoned",
-                )),
-            }
-        }
+        Ok(executor) => OpendalExecutorResult::ok(Arc::into_raw(Arc::new(executor)) as *mut c_void),
         Err(error) => OpendalExecutorResult::from_error(error),
     }
 }
 
 /// # Safety
 ///
-/// `executor` must be either null or a pointer-like handle returned by
-/// `executor_create`.
-/// This function is idempotent for unknown handles and null pointers.
+/// - `executor` must be either null or a pointer returned by `executor_create`.
+/// - The pointer must not be used after this call.
+/// - This function must be called at most once for the same pointer.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn executor_free(executor: *mut c_void) {
     if executor.is_null() {
         return;
     }
 
-    if let Ok(mut registry) = EXECUTOR_REGISTRY.lock() {
-        registry.remove(&(executor as usize));
+    // SAFETY: reclaims the reference handed out by `executor_create`.
+    // Operators hold their own clones, so in-flight work keeps its runtime.
+    unsafe {
+        drop(Arc::from_raw(executor as *const Executor));
     }
 }

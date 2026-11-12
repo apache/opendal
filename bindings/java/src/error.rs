@@ -61,6 +61,7 @@ impl Error {
             ErrorKind::IsSameFile => "IsSameFile",
             ErrorKind::ConditionNotMatch => "ConditionNotMatch",
             ErrorKind::RangeNotSatisfied => "RangeNotSatisfied",
+            ErrorKind::Conflict => "Conflict",
             _ => "Unexpected",
         })?;
         let message = env.new_string(format!("{:?}", self.inner))?;

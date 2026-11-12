@@ -240,13 +240,13 @@ impl OssCore {
     ///
     /// before return the user defined metadata, we'll strip the user_metadata_prefix from the key
     pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
-        let mut m = parse_into_metadata(path, headers)?;
+        let mut m = parse_into_metadata(path, headers)?.into_builder();
         let user_meta = parse_prefixed_headers(headers, X_OSS_META_PREFIX);
         if !user_meta.is_empty() {
-            m = m.with_user_metadata(user_meta);
+            m.user_metadata(user_meta);
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 }
 
@@ -657,32 +657,35 @@ impl OssCore {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub async fn oss_initiate_upload(
         &self,
         ctx: &OperationContext,
         path: &str,
-        content_type: Option<&str>,
-        content_disposition: Option<&str>,
-        cache_control: Option<&str>,
-        content_encoding: Option<&str>,
+        args: &OpWrite,
         is_presign: bool,
     ) -> Result<Response<Buffer>> {
         let path = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
         let url = format!("{}/{}?uploads", endpoint, percent_encode_path(&path));
         let mut req = Request::post(&url);
-        if let Some(mime) = content_type {
+        if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
         }
-        if let Some(disposition) = content_disposition {
+        if let Some(disposition) = args.content_disposition() {
             req = req.header(CONTENT_DISPOSITION, disposition);
         }
-        if let Some(cache_control) = cache_control {
+        if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control);
         }
-        if let Some(encoding) = content_encoding {
+        if let Some(encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, encoding);
+        }
+        // OSS evaluates x-oss-forbid-overwrite on both InitiateMultipartUpload and
+        // CompleteMultipartUpload. Setting it only on one of them is not enough.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/initiatemultipartupload
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
         }
         req = self.insert_sse_headers(req);
 
@@ -737,6 +740,7 @@ impl OssCore {
         upload_id: &str,
         is_presign: bool,
         parts: Vec<MultipartUploadPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
         let p = build_abs_path(&self.root, path);
         let endpoint = self.get_endpoint(is_presign);
@@ -747,16 +751,23 @@ impl OssCore {
             percent_encode_path(upload_id)
         );
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest {
             part: parts.to_vec(),
         })
         .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
+        // CompleteMultipartUpload is the request that commits the object, so
+        // if_not_exists must also be enforced here.
+        //
+        // ref: https://www.alibabacloud.com/help/en/oss/developer-reference/completemultipartupload
+        if args.if_not_exists() {
+            req = req.header(X_OSS_FORBID_OVERWRITE, "true");
+        }
 
         let req = req
             .extension(Operation::Write)
@@ -1133,71 +1144,12 @@ mod tests {
             ]
         )
     }
-}
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use http::StatusCode;
-    use quick_xml::de;
-    use serde::Deserialize;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    /// OssError is the error returned by oss service.
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "PascalCase")]
-    struct OssError {
-        code: String,
-        message: String,
-        request_id: String,
-        host_id: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match de::from_reader::<_, OssError>(bs.clone().reader()) {
-            Ok(oss_err) => format!("{oss_err:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        /// Error response example is from https://www.alibabacloud.com/help/en/object-storage-service/latest/error-responses
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
+    /// Error response example is from https://www.alibabacloud.com/help/en/object-storage-service/latest/error-responses
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
 <?xml version="1.0" ?>
 <Error xmlns="http://doc.oss-cn-hangzhou.aliyuncs.com">
     <Code>
@@ -1214,20 +1166,168 @@ mod error {
     </HostId>
 </Error>
 "#,
-            );
+        );
 
-            let out: OssError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
+        let out: OssError = de::from_reader(bs.reader()).expect("must success");
+        println!("{out:?}");
 
-            assert_eq!(out.code.trim(), "AccessDenied");
-            assert_eq!(
-                out.message.trim(),
-                "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters"
-            );
-            assert_eq!(out.request_id.trim(), "1D842BC54255****");
-            assert_eq!(out.host_id.trim(), "oss-cn-hangzhou.aliyuncs.com");
-        }
+        assert_eq!(out.code.trim(), "AccessDenied");
+        assert_eq!(
+            out.message.trim(),
+            "Query-string authentication requires the Signature, Expires and OSSAccessKeyId parameters"
+        );
+        assert_eq!(out.request_id.trim(), "1D842BC54255****");
+        assert_eq!(out.host_id.trim(), "oss-cn-hangzhou.aliyuncs.com");
     }
 }
 
-pub(super) use error::*;
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
+
+/// OssError is the error returned by oss service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct OssError {
+    code: String,
+    message: String,
+    request_id: String,
+    host_id: String,
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+    caller_condition: bool,
+    if_not_exists: bool,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            caller_condition: false,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let oss_error = de::from_reader::<_, OssError>(bs.clone().reader()).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(oss_error) = &oss_error {
+        match oss_error.code.as_str() {
+            "PreconditionFailed" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" | "FileImmutable" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
+    }
+
+    let message = match oss_error {
+        Some(oss_err) => format!("{oss_err:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    fn parse_oss_error(ctx: ErrorContext, status: StatusCode, code: &str) -> Error {
+        let body = Buffer::from(format!(
+            "<Error><Code>{code}</Code><Message>test</Message></Error>"
+        ));
+        let resp = Response::builder()
+            .status(status)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn conflict_classification_uses_native_code_and_condition() {
+        let conditional = ErrorContext::new(ServiceOperation("PutObject")).with_if_not_exists(true);
+        assert_eq!(
+            parse_oss_error(conditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        assert_eq!(
+            parse_oss_error(
+                conditional,
+                StatusCode::PRECONDITION_FAILED,
+                "PreconditionFailed"
+            )
+            .kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("PutObject"));
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::Conflict
+        );
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "FileImmutable").kind(),
+            ErrorKind::Conflict
+        );
+        assert_eq!(
+            parse_oss_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
+    }
+}

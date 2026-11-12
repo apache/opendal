@@ -90,7 +90,9 @@ fn build_operator(
 ) -> core::Result<core::blocking::Operator> {
     core::init_default_registry();
 
-    let op = core::Operator::via_iter(schema, map)?.layer(core::layers::RetryLayer::new());
+    let op = core::Operator::via_iter(schema, map)?
+        .layer(core::layers::RetryLayer::new())
+        .layer(core::layers::LoggingLayer::default());
 
     build_blocking_operator(op)
 }
@@ -819,6 +821,8 @@ pub unsafe extern "C" fn opendal_operator_delete_with(
         core::options::DeleteOptions {
             version,
             recursive: o.recursive,
+            if_match: None,
+            ..Default::default()
         }
     };
     match op.deref().delete_options(path, delete_opts) {

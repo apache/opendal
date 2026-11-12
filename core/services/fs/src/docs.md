@@ -15,6 +15,10 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+Listing with `start_after` is supported, but entries are filtered client-side
+after a full directory read, so it can be slower than services with native
+support on large directories.
+
 ## Configuration
 
 Use [`crate::FsConfig`] for serializable configuration and this builder's

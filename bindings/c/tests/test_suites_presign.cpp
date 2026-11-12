@@ -394,14 +394,15 @@ void test_presign_read(opendal_test_context* ctx)
     opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_read(ctx->config->operator_instance, path, 3600);
-    OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign read should succeed");
-    OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
+    opendal_presigned_request* req = NULL;
+    error = opendal_operator_presign_read(ctx->config->operator_instance, path, 3600, &req);
+    OPENDAL_ASSERT_NO_ERROR(error, "Presign read should succeed");
+    OPENDAL_ASSERT_NOT_NULL(req, "Presigned request should not be null");
 
-    const char* method = opendal_presigned_request_method(presign_result.req);
-    const char* url = opendal_presigned_request_uri(presign_result.req);
-    const opendal_http_header_pair* headers = opendal_presigned_request_headers(presign_result.req);
-    uintptr_t headers_len = opendal_presigned_request_headers_len(presign_result.req);
+    const char* method = opendal_presigned_request_method(req);
+    const char* url = opendal_presigned_request_uri(req);
+    const opendal_http_header_pair* headers = opendal_presigned_request_headers(req);
+    uintptr_t headers_len = opendal_presigned_request_headers_len(req);
     OPENDAL_ASSERT_NOT_NULL(method, "Presigned method should not be null");
     OPENDAL_ASSERT_STR_EQ("GET", method, "Presigned method should be GET");
     OPENDAL_ASSERT_NOT_NULL(url, "Presigned URL should not be null");
@@ -462,7 +463,7 @@ void test_presign_read(opendal_test_context* ctx)
     size_t received_len = body_ctx.offset;
     int mismatch = body_ctx.mismatch;
 
-    opendal_presigned_request_free(presign_result.req);
+    opendal_presigned_request_free(req);
 
     opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
@@ -496,15 +497,16 @@ void test_presign_read_with_range(opendal_test_context* ctx)
     OPENDAL_ASSERT_NOT_NULL(opts, "Read options should not be null");
     opendal_read_options_set_range(opts, 2, expected_len);
 
-    opendal_result_presign presign_result = opendal_operator_presign_read_with(ctx->config->operator_instance, path, 3600, opts);
+    opendal_presigned_request* req = NULL;
+    error = opendal_operator_presign_read_with(ctx->config->operator_instance, path, 3600, opts, &req);
     opendal_read_options_free(opts);
-    OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign read with range should succeed");
-    OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
+    OPENDAL_ASSERT_NO_ERROR(error, "Presign read with range should succeed");
+    OPENDAL_ASSERT_NOT_NULL(req, "Presigned request should not be null");
 
-    const char* method = opendal_presigned_request_method(presign_result.req);
-    const char* url = opendal_presigned_request_uri(presign_result.req);
-    const opendal_http_header_pair* headers = opendal_presigned_request_headers(presign_result.req);
-    uintptr_t headers_len = opendal_presigned_request_headers_len(presign_result.req);
+    const char* method = opendal_presigned_request_method(req);
+    const char* url = opendal_presigned_request_uri(req);
+    const opendal_http_header_pair* headers = opendal_presigned_request_headers(req);
+    uintptr_t headers_len = opendal_presigned_request_headers_len(req);
     OPENDAL_ASSERT_NOT_NULL(method, "Presigned method should not be null");
     OPENDAL_ASSERT_STR_EQ("GET", method, "Presigned method should be GET");
     OPENDAL_ASSERT_NOT_NULL(url, "Presigned URL should not be null");
@@ -547,7 +549,7 @@ void test_presign_read_with_range(opendal_test_context* ctx)
     size_t received_len = body_ctx.offset;
     int mismatch = body_ctx.mismatch;
 
-    opendal_presigned_request_free(presign_result.req);
+    opendal_presigned_request_free(req);
 
     opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
@@ -564,14 +566,15 @@ void test_presign_write(opendal_test_context* ctx)
     const char* content = "Presign write content";
     size_t content_len = strlen(content);
 
-    opendal_result_presign presign_result = opendal_operator_presign_write(ctx->config->operator_instance, path, 3600);
-    OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign write should succeed");
-    OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
+    opendal_presigned_request* req = NULL;
+    opendal_error* error = opendal_operator_presign_write(ctx->config->operator_instance, path, 3600, &req);
+    OPENDAL_ASSERT_NO_ERROR(error, "Presign write should succeed");
+    OPENDAL_ASSERT_NOT_NULL(req, "Presigned request should not be null");
 
-    const char* method = opendal_presigned_request_method(presign_result.req);
-    const char* url = opendal_presigned_request_uri(presign_result.req);
-    const opendal_http_header_pair* headers = opendal_presigned_request_headers(presign_result.req);
-    uintptr_t headers_len = opendal_presigned_request_headers_len(presign_result.req);
+    const char* method = opendal_presigned_request_method(req);
+    const char* url = opendal_presigned_request_uri(req);
+    const opendal_http_header_pair* headers = opendal_presigned_request_headers(req);
+    uintptr_t headers_len = opendal_presigned_request_headers_len(req);
     OPENDAL_ASSERT_NOT_NULL(method, "Presigned method should not be null");
     OPENDAL_ASSERT_NOT_NULL(url, "Presigned URL should not be null");
     OPENDAL_ASSERT(headers_len == 0 || headers != NULL, "Headers pointer must be valid when headers exist");
@@ -636,22 +639,24 @@ void test_presign_write(opendal_test_context* ctx)
     }
 
     presign_cleanup_curl(curl, chunk);
-    opendal_presigned_request_free(presign_result.req);
+    opendal_presigned_request_free(req);
 
-    opendal_result_stat stat_res = opendal_operator_stat(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(stat_res.error, "Stat after presign write should succeed");
-    OPENDAL_ASSERT_NOT_NULL(stat_res.meta, "Stat metadata should not be null");
-    OPENDAL_ASSERT_EQ(content_len, (size_t)opendal_metadata_content_length(stat_res.meta),
+    opendal_metadata* meta = NULL;
+    error = opendal_operator_stat(ctx->config->operator_instance, path, &meta);
+    OPENDAL_ASSERT_NO_ERROR(error, "Stat after presign write should succeed");
+    OPENDAL_ASSERT_NOT_NULL(meta, "Stat metadata should not be null");
+    OPENDAL_ASSERT_EQ(content_len, (size_t)opendal_metadata_content_length(meta),
         "Stat size should match uploaded content length");
 
-    opendal_metadata_free(stat_res.meta);
+    opendal_metadata_free(meta);
 
-    opendal_result_read read_res = opendal_operator_read(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(read_res.error, "Read after presign write should succeed");
-    OPENDAL_ASSERT_EQ(content_len, read_res.data.len, "Read length should match uploaded content length");
-    OPENDAL_ASSERT(memcmp(content, read_res.data.data, read_res.data.len) == 0,
+    opendal_bytes read_data;
+    error = opendal_operator_read(ctx->config->operator_instance, path, &read_data);
+    OPENDAL_ASSERT_NO_ERROR(error, "Read after presign write should succeed");
+    OPENDAL_ASSERT_EQ(content_len, read_data.len, "Read length should match uploaded content length");
+    OPENDAL_ASSERT(memcmp(content, read_data.data, read_data.len) == 0,
         "Read content should match uploaded content");
-    opendal_bytes_free(&read_res.data);
+    opendal_bytes_free(&read_data);
 
     opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);
     OPENDAL_ASSERT_NO_ERROR(delete_error, "Cleanup delete should succeed");
@@ -671,14 +676,15 @@ void test_presign_stat(opendal_test_context* ctx)
     opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_stat(ctx->config->operator_instance, path, 3600);
-    OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign stat should succeed");
-    OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
+    opendal_presigned_request* req = NULL;
+    error = opendal_operator_presign_stat(ctx->config->operator_instance, path, 3600, &req);
+    OPENDAL_ASSERT_NO_ERROR(error, "Presign stat should succeed");
+    OPENDAL_ASSERT_NOT_NULL(req, "Presigned request should not be null");
 
-    const char* method = opendal_presigned_request_method(presign_result.req);
-    const char* url = opendal_presigned_request_uri(presign_result.req);
-    const opendal_http_header_pair* headers = opendal_presigned_request_headers(presign_result.req);
-    uintptr_t headers_len = opendal_presigned_request_headers_len(presign_result.req);
+    const char* method = opendal_presigned_request_method(req);
+    const char* url = opendal_presigned_request_uri(req);
+    const opendal_http_header_pair* headers = opendal_presigned_request_headers(req);
+    uintptr_t headers_len = opendal_presigned_request_headers_len(req);
     OPENDAL_ASSERT_NOT_NULL(method, "Presigned method should not be null");
     OPENDAL_ASSERT_NOT_NULL(url, "Presigned URL should not be null");
 
@@ -727,7 +733,7 @@ void test_presign_stat(opendal_test_context* ctx)
     }
 
     presign_cleanup_curl(curl, chunk);
-    opendal_presigned_request_free(presign_result.req);
+    opendal_presigned_request_free(req);
 
     OPENDAL_ASSERT_EQ(200, response_code, "Presign stat should return 200 status");
     OPENDAL_ASSERT(header_ctx.content_length_found, "Stat response should include Content-Length");
@@ -743,7 +749,8 @@ void test_presign_delete(opendal_test_context* ctx)
 {
     opendal_operator_info* info = opendal_operator_info_new(ctx->config->operator_instance);
     OPENDAL_ASSERT_NOT_NULL(info, "Operator info should not be null");
-    opendal_capability cap = opendal_operator_info_get_capability(info);
+    opendal_capability cap;
+    opendal_operator_info_get_capability(info, &cap);
     opendal_operator_info_free(info);
     if (!cap.presign_delete) {
         return;
@@ -759,14 +766,15 @@ void test_presign_delete(opendal_test_context* ctx)
     opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
-    opendal_result_presign presign_result = opendal_operator_presign_delete(ctx->config->operator_instance, path, 3600);
-    OPENDAL_ASSERT_NO_ERROR(presign_result.error, "Presign delete should succeed");
-    OPENDAL_ASSERT_NOT_NULL(presign_result.req, "Presigned request should not be null");
+    opendal_presigned_request* req = NULL;
+    error = opendal_operator_presign_delete(ctx->config->operator_instance, path, 3600, &req);
+    OPENDAL_ASSERT_NO_ERROR(error, "Presign delete should succeed");
+    OPENDAL_ASSERT_NOT_NULL(req, "Presigned request should not be null");
 
-    const char* method = opendal_presigned_request_method(presign_result.req);
-    const char* url = opendal_presigned_request_uri(presign_result.req);
-    const opendal_http_header_pair* headers = opendal_presigned_request_headers(presign_result.req);
-    uintptr_t headers_len = opendal_presigned_request_headers_len(presign_result.req);
+    const char* method = opendal_presigned_request_method(req);
+    const char* url = opendal_presigned_request_uri(req);
+    const opendal_http_header_pair* headers = opendal_presigned_request_headers(req);
+    uintptr_t headers_len = opendal_presigned_request_headers_len(req);
     OPENDAL_ASSERT_NOT_NULL(method, "Presigned method should not be null");
     OPENDAL_ASSERT_NOT_NULL(url, "Presigned URL should not be null");
 
@@ -792,11 +800,12 @@ void test_presign_delete(opendal_test_context* ctx)
     }
 
     presign_cleanup_curl(curl, chunk);
-    opendal_presigned_request_free(presign_result.req);
+    opendal_presigned_request_free(req);
 
-    opendal_result_exists exists_res = opendal_operator_exists(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(exists_res.error, "Exists after presign delete should succeed");
-    OPENDAL_ASSERT(!exists_res.exists, "Object should not exist after presign delete");
+    bool exists = true;
+    error = opendal_operator_exists(ctx->config->operator_instance, path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error, "Exists after presign delete should succeed");
+    OPENDAL_ASSERT(!exists, "Object should not exist after presign delete");
 
     // Ensure cleanup is idempotent
     opendal_error* delete_error = opendal_operator_delete(ctx->config->operator_instance, path);

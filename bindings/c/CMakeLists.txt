@@ -25,7 +25,7 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 option(TEST_ENABLE_ASAN "Enable AddressSanitizer for tests" OFF)
-set(FEATURES "" CACHE STRING "opendal features")
+set(FEATURES "opendal/services-fs" CACHE STRING "opendal features")
 
 set(CARGO_FEATURES_FLAG "--features=${FEATURES}")
 

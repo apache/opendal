@@ -21,8 +21,6 @@ import (
 	"context"
 	"time"
 	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // EntryMode indicates whether an entry is a file, directory, or unknown.
@@ -199,39 +197,16 @@ func (m *Metadata) UserMetadata() map[string]string {
 	return metadata
 }
 
-var ffiMetaMode = newFFI(ffiOpts{
-	sym:    "opendal_metadata_mode",
-	rType:  &ffi.TypeUint8,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) EntryMode {
-	return func(m *opendalMetadata) EntryMode {
-		// libffi may write integer return values using a full register-sized slot
-		// even when the declared C return type is u8/bool. Use word-sized
-		// storage here, then narrow after the call, to avoid overwriting nearby
-		// Go stack memory.
-		var mode uint64
-		ffiCall(
-			unsafe.Pointer(&mode),
-			unsafe.Pointer(&m),
-		)
-		return EntryMode(uint8(mode))
-	}
-})
+var ffiMetaMode = newFFI(
+	"opendal_metadata_mode",
+	func(_ context.Context, cFunc func(m *opendalMetadata) uint8) func(m *opendalMetadata) EntryMode {
+		return func(m *opendalMetadata) EntryMode {
+			return EntryMode(cFunc(m))
+		}
+	},
+)
 
-var ffiMetaContentLength = newFFI(ffiOpts{
-	sym:    "opendal_metadata_content_length",
-	rType:  &ffi.TypeUint64,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) uint64 {
-	return func(m *opendalMetadata) uint64 {
-		var length uint64
-		ffiCall(
-			unsafe.Pointer(&length),
-			unsafe.Pointer(&m),
-		)
-		return length
-	}
-})
+var ffiMetaContentLength = newDirectFFI[func(m *opendalMetadata) uint64]("opendal_metadata_content_length")
 
 var ffiMetaCacheControl = newFFIMetadataString("opendal_metadata_cache_control")
 
@@ -247,196 +222,69 @@ var ffiMetaEtag = newFFIMetadataString("opendal_metadata_etag")
 
 var ffiMetaVersion = newFFIMetadataString("opendal_metadata_version")
 
-var ffiMetaIsFile = newFFI(ffiOpts{
-	sym:    "opendal_metadata_is_file",
-	rType:  &ffi.TypeUint8,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
-	return func(m *opendalMetadata) bool {
-		// See ffiMetaMode for why this uses word-sized return storage.
-		var result uint64
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return uint8(result) == 1
-	}
-})
+var ffiMetaIsFile = newDirectFFI[func(m *opendalMetadata) bool]("opendal_metadata_is_file")
 
-var ffiMetaIsDir = newFFI(ffiOpts{
-	sym:    "opendal_metadata_is_dir",
-	rType:  &ffi.TypeUint8,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
-	return func(m *opendalMetadata) bool {
-		// See ffiMetaMode for why this uses word-sized return storage.
-		var result uint64
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return uint8(result) == 1
-	}
-})
+var ffiMetaIsDir = newDirectFFI[func(m *opendalMetadata) bool]("opendal_metadata_is_dir")
 
-var ffiMetaIsCurrent = newFFI(ffiOpts{
-	sym:    "opendal_metadata_is_current",
-	rType:  &ffi.TypeUint8,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) uint8 {
-	return func(m *opendalMetadata) uint8 {
-		// See ffiMetaMode for why this uses word-sized return storage.
-		var result uint64
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return uint8(result)
-	}
-})
+var ffiMetaIsCurrent = newDirectFFI[func(m *opendalMetadata) uint8]("opendal_metadata_is_current")
 
-var ffiMetaIsDeleted = newFFI(ffiOpts{
-	sym:    "opendal_metadata_is_deleted",
-	rType:  &ffi.TypeUint8,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) bool {
-	return func(m *opendalMetadata) bool {
-		// See ffiMetaMode for why this uses word-sized return storage.
-		var result uint64
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return uint8(result) == 1
-	}
-})
+var ffiMetaIsDeleted = newDirectFFI[func(m *opendalMetadata) bool]("opendal_metadata_is_deleted")
 
-var ffiMetaLastModified = newFFI(ffiOpts{
-	sym:    "opendal_metadata_last_modified_ms",
-	rType:  &ffi.TypeSint64,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) int64 {
-	return func(m *opendalMetadata) int64 {
-		var result int64
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return result
-	}
-})
+var ffiMetaLastModified = newDirectFFI[func(m *opendalMetadata) int64]("opendal_metadata_last_modified_ms")
 
-var ffiMetaUserMetadata = newFFI(ffiOpts{
-	sym:    "opendal_metadata_get_user_metadata",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) map[string]string {
-	return func(m *opendalMetadata) map[string]string {
-		var metadata *opendalMetadataUserMetadata
-		ffiCall(
-			unsafe.Pointer(&metadata),
-			unsafe.Pointer(&m),
-		)
-		if metadata == nil {
-			return nil
-		}
-		defer ffiMetaUserMetadataFree.symbol(ctx)(metadata)
-
-		length := ffiMetaUserMetadataLen.symbol(ctx)(metadata)
-		if length == 0 {
-			return map[string]string{}
-		}
-
-		pairsPtr := ffiMetaUserMetadataPairs.symbol(ctx)(metadata)
-		if pairsPtr == nil {
-			return map[string]string{}
-		}
-
-		pairs := unsafe.Slice(pairsPtr, int(length))
-		result := make(map[string]string, len(pairs))
-		for _, pair := range pairs {
-			key := BytePtrToString(pair.key)
-			value := BytePtrToString(pair.value)
-			result[key] = value
-		}
-		return result
-	}
-})
-
-var ffiMetaUserMetadataPairs = newFFI(ffiOpts{
-	sym:    "opendal_metadata_user_metadata_pairs",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadataUserMetadata) *opendalMetadataUserMetadataPair {
-	return func(m *opendalMetadataUserMetadata) *opendalMetadataUserMetadataPair {
-		var result *opendalMetadataUserMetadataPair
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&m),
-		)
-		return result
-	}
-})
-
-var ffiMetaUserMetadataLen = newFFI(ffiOpts{
-	sym:    "opendal_metadata_user_metadata_len",
-	rType:  &ffi.TypeUint64,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadataUserMetadata) uintptr {
-	return func(m *opendalMetadataUserMetadata) uintptr {
-		var length uint64
-		ffiCall(
-			unsafe.Pointer(&length),
-			unsafe.Pointer(&m),
-		)
-		return uintptr(length)
-	}
-})
-
-var ffiMetaUserMetadataFree = newFFI(ffiOpts{
-	sym:    "opendal_metadata_user_metadata_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadataUserMetadata) {
-	return func(m *opendalMetadataUserMetadata) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&m),
-		)
-	}
-})
-
-func newFFIMetadataString(sym string) *FFI[func(m *opendalMetadata) *string] {
-	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    contextKey(sym),
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) *string {
-		return func(m *opendalMetadata) *string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&m),
-			)
-			if bytePtr == nil {
+var ffiMetaUserMetadata = newFFI(
+	"opendal_metadata_get_user_metadata",
+	func(ctx context.Context, cFunc func(m *opendalMetadata) *opendalMetadataUserMetadata) func(m *opendalMetadata) map[string]string {
+		return func(m *opendalMetadata) map[string]string {
+			metadata := cFunc(m)
+			if metadata == nil {
 				return nil
 			}
-			value := copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-			return &value
+			defer ffiMetaUserMetadataFree.symbol(ctx)(metadata)
+
+			length := ffiMetaUserMetadataLen.symbol(ctx)(metadata)
+			if length == 0 {
+				return map[string]string{}
+			}
+
+			pairsPtr := ffiMetaUserMetadataPairs.symbol(ctx)(metadata)
+			if pairsPtr == nil {
+				return map[string]string{}
+			}
+
+			pairs := unsafe.Slice(pairsPtr, int(length))
+			result := make(map[string]string, len(pairs))
+			for _, pair := range pairs {
+				key := BytePtrToString(pair.key)
+				value := BytePtrToString(pair.value)
+				result[key] = value
+			}
+			return result
 		}
-	})
+	},
+)
+
+var ffiMetaUserMetadataPairs = newDirectFFI[func(m *opendalMetadataUserMetadata) *opendalMetadataUserMetadataPair]("opendal_metadata_user_metadata_pairs")
+
+var ffiMetaUserMetadataLen = newDirectFFI[func(m *opendalMetadataUserMetadata) uintptr]("opendal_metadata_user_metadata_len")
+
+var ffiMetaUserMetadataFree = newDirectFFI[func(m *opendalMetadataUserMetadata)]("opendal_metadata_user_metadata_free")
+
+func newFFIMetadataString(sym string) *FFI[func(m *opendalMetadata) *string, func(m *opendalMetadata) *byte] {
+	_ = ffiStringFree
+	return newFFI(
+		contextKey(sym),
+		func(ctx context.Context, cFunc func(m *opendalMetadata) *byte) func(m *opendalMetadata) *string {
+			return func(m *opendalMetadata) *string {
+				bytePtr := cFunc(m)
+				if bytePtr == nil {
+					return nil
+				}
+				value := copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+				return &value
+			}
+		},
+	)
 }
 
-var ffiMetadataFree = newFFI(ffiOpts{
-	sym:    "opendal_metadata_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(m *opendalMetadata) {
-	return func(m *opendalMetadata) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&m),
-		)
-	}
-})
+var ffiMetadataFree = newDirectFFI[func(m *opendalMetadata)]("opendal_metadata_free")

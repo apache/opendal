@@ -40,8 +40,8 @@ public class Operator {
             opendal_operator_options_set(nativeOptions, option.key, option.value)
         }
 
-        let ret = opendal_operator_new(scheme, nativeOptions)
-        if let err = ret.error {
+        var op: UnsafeMutablePointer<opendal_operator>? = nil
+        if let err = opendal_operator_new(scheme, nativeOptions, &op) {
             defer {
                 opendal_error_free(err)
             }
@@ -54,7 +54,7 @@ public class Operator {
             )
         }
 
-        self.nativeOp = UnsafePointer(ret.op)!
+        self.nativeOp = UnsafePointer(op!)
     }
 
     public func blockingWrite(_ data: inout Data, to path: String) throws {
@@ -81,8 +81,8 @@ public class Operator {
     }
 
     public func blockingRead(_ path: String) throws -> Data {
-        var ret = opendal_operator_read(nativeOp, path)
-        if let err = ret.error {
+        var data = opendal_bytes()
+        if let err = opendal_operator_read(nativeOp, path, &data) {
             defer {
                 opendal_error_free(err)
             }
@@ -95,6 +95,6 @@ public class Operator {
             )
         }
 
-        return withUnsafeMutablePointer(to: &ret.data) { Data(openDALBytes: $0) }
+        return withUnsafeMutablePointer(to: &data) { Data(openDALBytes: $0) }
     }
 }

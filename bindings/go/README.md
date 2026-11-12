@@ -3,7 +3,7 @@
 [![](https://img.shields.io/badge/status-released-blue)](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 [![Go Reference](https://pkg.go.dev/badge/github.com/apache/opendal/bindings/go.svg)](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 
-opendal-go is a **Native** Go binding for Apache OpenDAL. It is built on top of `opendal-c` without CGO enabled, using [purego](https://github.com/ebitengine/purego) and libffi.
+opendal-go is a **Native** Go binding for Apache OpenDAL. It is built on top of `opendal-c` without CGO enabled, using [purego](https://github.com/ebitengine/purego) directly (no `libffi` required).
 
 We release the OpenDAL Go binding independently of the
 [`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
@@ -18,13 +18,11 @@ version.
 
 ## Installation
 
-opendal-go requires **libffi** to be installed.
-
 ```bash
 go get github.com/apache/opendal/bindings/go@latest
 ```
 
-Each service is a separate companion module. Add the schemes you use, for example the in-memory service:
+Each service is a separate companion module that embeds a prebuilt `opendal-c` shared library. The companion module must match the `opendal-c` ABI expected by your `bindings/go` version (when using unreleased `main` with the pointer/output-parameter C ABI, build the companion service library from source as shown in [CONTRIBUTING.md](CONTRIBUTING.md) until a matching `opendal-go-services` release is published):
 
 ```bash
 go get github.com/apache/opendal-go-services/memory

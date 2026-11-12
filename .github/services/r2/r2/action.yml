@@ -34,6 +34,7 @@ runs:
     - name: Add test overrides
       shell: bash
       run: |
+        # R2 does not enforce destination copy conditions or delete If-Match.
         cat << EOF >> $GITHUB_ENV
-        OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,restore=false,restore_with_version=false,restore_with_if_not_exists=false,write_can_append=false,delete_max_size=700,stat_with_override_cache_control=false,stat_with_override_content_disposition=false,stat_with_override_content_type=false
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=stat_with_version=false,read_with_version=false,delete_with_version=false,list_with_versions=false,list_with_deleted=false,copy_with_source_version=false,copy_with_if_not_exists=false,copy_with_if_match=false,delete_with_if_match=false,restore=false,restore_with_version=false,restore_with_if_not_exists=false,write_can_append=false,delete_max_size=700,stat_with_override_cache_control=false,stat_with_override_content_disposition=false,stat_with_override_content_type=false
         EOF

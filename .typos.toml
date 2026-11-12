@@ -28,6 +28,7 @@
 # GnuPG machine-readable fingerprint record.
 "fpr" = "fpr"
 # Tech words
+"aimd" = "aimd"
 "WRONLY" = "WRONLY"
 "typ" = "typ"
 

@@ -67,6 +67,20 @@ See `examples/` for more, including error handling patterns.
 
 Full documentation is at https://opendal.apache.org/docs/bindings/c.
 
+## Output parameters
+
+Fallible operations return `opendal_error *`: `NULL` means success. Result values
+are written through output parameters; free a returned error with
+`opendal_error_free()`.
+
+Each output pointer must be non-NULL, correctly aligned, and point to writable
+storage for its declared type. The storage may be uninitialized. Calls initialize
+outputs on success and ordinary failure and do not retain their addresses.
+Failure outputs are NULL pointers, zero scalars, or empty `opendal_bytes`.
+Release any previously owned output before reusing its storage: the call
+replaces the value without freeing it. Free returned handles and byte buffers
+with their corresponding OpenDAL release routines.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) at the repository root. To run

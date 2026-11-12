@@ -2204,6 +2204,11 @@ void opendal_operator_info_get_capability(const struct opendal_operator_info *se
 
 /**
  * \brief Presign a read operation.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_read(const struct opendal_operator *op,
                                                     const char *path,
@@ -2212,6 +2217,11 @@ struct opendal_error *opendal_operator_presign_read(const struct opendal_operato
 
 /**
  * \brief Presign a read operation with options.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_read_with(const struct opendal_operator *op,
                                                          const char *path,
@@ -2221,6 +2231,11 @@ struct opendal_error *opendal_operator_presign_read_with(const struct opendal_op
 
 /**
  * \brief Presign a write operation.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_write(const struct opendal_operator *op,
                                                      const char *path,
@@ -2229,6 +2244,11 @@ struct opendal_error *opendal_operator_presign_write(const struct opendal_operat
 
 /**
  * \brief Presign a write operation with options.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_write_with(const struct opendal_operator *op,
                                                           const char *path,
@@ -2238,6 +2258,11 @@ struct opendal_error *opendal_operator_presign_write_with(const struct opendal_o
 
 /**
  * \brief Presign a delete operation.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_delete(const struct opendal_operator *op,
                                                       const char *path,
@@ -2246,6 +2271,11 @@ struct opendal_error *opendal_operator_presign_delete(const struct opendal_opera
 
 /**
  * \brief Presign a delete operation with options.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_delete_with(const struct opendal_operator *op,
                                                            const char *path,
@@ -2255,6 +2285,11 @@ struct opendal_error *opendal_operator_presign_delete_with(const struct opendal_
 
 /**
  * \brief Presign a stat operation.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_stat(const struct opendal_operator *op,
                                                     const char *path,
@@ -2263,6 +2298,11 @@ struct opendal_error *opendal_operator_presign_stat(const struct opendal_operato
 
 /**
  * \brief Presign a stat operation with options.
+ *
+ * `req` must point to writable storage for a request pointer. On success,
+ * writes the request to `*req` and returns NULL; free the request with
+ * `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+ * returns an error that must be freed with `opendal_error_free()`.
  */
 struct opendal_error *opendal_operator_presign_stat_with(const struct opendal_operator *op,
                                                          const char *path,

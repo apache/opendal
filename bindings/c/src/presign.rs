@@ -114,6 +114,11 @@ pub struct opendal_presigned_request {
 }
 
 /// \brief Presign a read operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_read(
     op: &opendal_operator,
@@ -132,6 +137,11 @@ pub unsafe extern "C" fn opendal_operator_presign_read(
 }
 
 /// \brief Presign a read operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_read_with(
     op: &opendal_operator,
@@ -156,6 +166,11 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with(
 }
 
 /// \brief Presign a write operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_write(
     op: &opendal_operator,
@@ -174,6 +189,11 @@ pub unsafe extern "C" fn opendal_operator_presign_write(
 }
 
 /// \brief Presign a write operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_write_with(
     op: &opendal_operator,
@@ -198,6 +218,11 @@ pub unsafe extern "C" fn opendal_operator_presign_write_with(
 }
 
 /// \brief Presign a delete operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_delete(
     op: &opendal_operator,
@@ -215,6 +240,11 @@ pub unsafe extern "C" fn opendal_operator_presign_delete(
 }
 
 /// \brief Presign a delete operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_delete_with(
     op: &opendal_operator,
@@ -255,6 +285,11 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with(
 }
 
 /// \brief Presign a stat operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_stat(
     op: &opendal_operator,
@@ -273,6 +308,11 @@ pub unsafe extern "C" fn opendal_operator_presign_stat(
 }
 
 /// \brief Presign a stat operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_stat_with(
     op: &opendal_operator,

@@ -40,7 +40,7 @@ public class Operator {
             opendal_operator_options_set(nativeOptions, option.key, option.value)
         }
 
-        var op: UnsafePointer<opendal_operator>? = nil
+        var op: UnsafeMutablePointer<opendal_operator>? = nil
         if let err = opendal_operator_new(scheme, nativeOptions, &op) {
             defer {
                 opendal_error_free(err)
@@ -54,7 +54,7 @@ public class Operator {
             )
         }
 
-        self.nativeOp = op!
+        self.nativeOp = UnsafePointer(op!)
     }
 
     public func blockingWrite(_ data: inout Data, to path: String) throws {

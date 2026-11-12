@@ -24,7 +24,7 @@ cmake ..
 make
 
 # Enable additional services
-cmake .. -DFEATURES="opendal/services-s3,opendal/services-gcs"
+cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gcs"
 make
 ```
 
@@ -84,7 +84,9 @@ with their corresponding OpenDAL release routines.
 ## Contributing
 
 See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) at the repository root. To run
-tests you need Valgrind and GTest:
+tests you need Valgrind and GTest. The C test suite requires the `fs` service,
+which the default CMake configuration enables alongside the built-in memory
+service:
 
 ```shell
 cd build && make tests && ./tests

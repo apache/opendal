@@ -41,21 +41,22 @@ The header is at `include/opendal.h`. The shared library is written to
 int main(void)
 {
     /* Build an operator for the "memory" service. */
-    opendal_result_operator_new result = opendal_operator_new("memory", NULL);
-    assert(result.op != NULL && result.error == NULL);
-    opendal_operator *op = result.op;
+    opendal_operator *op = NULL;
+    opendal_error *err = opendal_operator_new("memory", NULL, &op);
+    assert(err == NULL && op != NULL);
 
     /* Write bytes. */
     const char *msg = "Hello, OpenDAL!";
-    opendal_bytes data = { .data = (uint8_t *)msg, .len = 15 };
-    opendal_error *err = opendal_operator_write(op, "/hello.txt", &data);
+    opendal_bytes data = { .data = (uint8_t *)msg, .len = 15, .capacity = 15 };
+    err = opendal_operator_write(op, "/hello.txt", &data);
     assert(err == NULL);
 
     /* Read them back. */
-    opendal_result_read r = opendal_operator_read(op, "/hello.txt");
-    assert(r.error == NULL);
-    printf("%.*s\n", (int)r.data.len, r.data.data);
-    opendal_bytes_free(&r.data);
+    opendal_bytes read_bytes;
+    err = opendal_operator_read(op, "/hello.txt", &read_bytes);
+    assert(err == NULL);
+    printf("%.*s\n", (int)read_bytes.len, read_bytes.data);
+    opendal_bytes_free(&read_bytes);
 
     opendal_operator_free(op);
     return 0;

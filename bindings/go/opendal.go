@@ -23,7 +23,7 @@
 //
 // Key features:
 //   - Unified interface for multiple storage backends (e.g., S3, Azure Blob, local filesystem)
-//   - Native Go implementation using purego and libffi
+//   - Native Go implementation using purego (no CGO or libffi required)
 //   - No CGO dependency, ensuring better portability and easier cross-compilation
 //   - Supports common operations like read, write, delete, list, and metadata retrieval
 //

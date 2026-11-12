@@ -21,15 +21,16 @@ pub const Operator = struct {
     inner: *c.opendal_operator,
 
     pub fn init(scheme: []const u8, options: ?*c.opendal_operator_options) !Operator {
-        const result = c.opendal_operator_new(scheme.ptr, options);
-        if (result.op == null) {
-            if (result.@"error") |err| {
-                c.opendal_error_free(err);
-            }
+        var op: ?*c.opendal_operator = null;
+        if (c.opendal_operator_new(scheme.ptr, options, @ptrCast(&op))) |err| {
+            c.opendal_error_free(err);
+            return error.OperatorInitFailed;
+        }
+        if (op == null) {
             return error.OperatorInitFailed;
         }
         return .{
-            .inner = result.op.?,
+            .inner = op.?,
         };
     }
 
@@ -50,12 +51,12 @@ pub const Operator = struct {
     }
 
     pub fn read(self: *const Operator, path: []const u8) ![]const u8 {
-        const result = c.opendal_operator_read(self.inner, path.ptr);
-        if (result.@"error") |err| {
+        var data: c.opendal_bytes = undefined;
+        if (c.opendal_operator_read(self.inner, path.ptr, &data)) |err| {
             errdefer c.opendal_error_free(err);
             try codeToError(err.*.code);
         }
-        return result.data.data[0..result.data.len];
+        return data.data[0..data.len];
     }
 
     pub fn delete(self: *const Operator, path: []const u8) !void {
@@ -66,30 +67,30 @@ pub const Operator = struct {
     }
 
     pub fn stat(self: *const Operator, path: []const u8) !Metadata {
-        const result = c.opendal_operator_stat(self.inner, path.ptr);
-        if (result.@"error") |err| {
+        var meta: ?*c.opendal_metadata = null;
+        if (c.opendal_operator_stat(self.inner, path.ptr, @ptrCast(&meta))) |err| {
             errdefer c.opendal_error_free(err);
             try codeToError(err.*.code);
         }
-        return .{ .inner = result.meta.? };
+        return .{ .inner = meta.? };
     }
 
     pub fn exists(self: *const Operator, path: []const u8) !bool {
-        const result = c.opendal_operator_exists(self.inner, path.ptr);
-        if (result.@"error") |err| {
+        var is_exist: bool = false;
+        if (c.opendal_operator_is_exist(self.inner, path.ptr, &is_exist)) |err| {
             errdefer c.opendal_error_free(err);
             try codeToError(err.*.code);
         }
-        return result.exists;
+        return is_exist;
     }
 
     pub fn list(self: *const Operator, path: []const u8) !Lister {
-        const result = c.opendal_operator_list(self.inner, path.ptr);
-        if (result.@"error") |err| {
+        var lister: ?*c.opendal_lister = null;
+        if (c.opendal_operator_list(self.inner, path.ptr, @ptrCast(&lister))) |err| {
             errdefer c.opendal_error_free(err);
             try codeToError(err.*.code);
         }
-        return .{ .inner = result.lister.? };
+        return .{ .inner = lister.? };
     }
 
     pub fn createDir(self: *const Operator, path: []const u8) !void {
@@ -146,7 +147,9 @@ pub const OperatorInfo = struct {
     }
 
     pub fn capability(self: *const OperatorInfo) c.opendal_capability {
-        return c.opendal_operator_info_get_capability(self.inner);
+        var cap: c.opendal_capability = undefined;
+        c.opendal_operator_info_get_capability(self.inner, &cap);
+        return cap;
     }
 };
 
@@ -158,13 +161,13 @@ pub const Lister = struct {
     }
 
     pub fn next(self: *const Lister) !?Entry {
-        const result = c.opendal_lister_next(self.inner);
-        if (result.@"error") |err| {
+        var entry: ?*c.opendal_entry = null;
+        if (c.opendal_lister_next(self.inner, @ptrCast(&entry))) |err| {
             errdefer c.opendal_error_free(err);
             try codeToError(err.*.code);
         }
-        if (result.entry) |entry| {
-            return Entry{ .inner = entry };
+        if (entry) |e| {
+            return Entry{ .inner = e };
         }
         return null;
     }

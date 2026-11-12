@@ -97,9 +97,11 @@ typedef struct opendal_presigned_request_inner opendal_presigned_request_inner;
  *
  * The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
  * For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
- * the heap memory and avoid memory leaks. For caller-owned input buffers
- * passed to OpenDAL C APIs, the caller keeps ownership and must not call
- * opendal_bytes_free() on them.
+ * the heap memory and avoid memory leaks. If you reuse an `opendal_bytes`
+ * output variable across multiple read calls, call `opendal_bytes_free()`
+ * on the previous result before passing it again as an output parameter.
+ * For caller-owned input buffers passed to OpenDAL C APIs, the caller keeps
+ * ownership and must not call opendal_bytes_free() on them.
  *
  * @see opendal_bytes_free
  */
@@ -143,40 +145,6 @@ typedef struct opendal_error {
 } opendal_error;
 
 /**
- * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
- *
- * For examples, please see the comment section of opendal_operator_list()
- * @see opendal_operator_list()
- * @see opendal_list_entry_path()
- * @see opendal_list_entry_name()
- */
-typedef struct opendal_entry {
-  /**
-   * The pointer to the opendal::Entry in the Rust code.
-   * Only touch this on judging whether it is NULL.
-   */
-  void *inner;
-} opendal_entry;
-
-/**
- * \brief The result type returned by opendal_lister_next().
- * The list entry is the list result of the list operation, the error field is the error code and error message.
- * If the operation succeeds, the error should be NULL.
- *
- * \note Please notice if the lister reaches the end, both the list_entry and error will be NULL.
- */
-typedef struct opendal_result_lister_next {
-  /**
-   * The next object name
-   */
-  struct opendal_entry *entry;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_lister_next;
-
-/**
  * \brief BlockingLister is designed to list entries at given path in a blocking
  * manner.
  *
@@ -192,6 +160,22 @@ typedef struct opendal_lister {
    */
   void *inner;
 } opendal_lister;
+
+/**
+ * \brief opendal_list_entry is the entry under a path, which is listed from the opendal_lister
+ *
+ * For examples, please see the comment section of opendal_operator_list()
+ * @see opendal_operator_list()
+ * @see opendal_list_entry_path()
+ * @see opendal_list_entry_name()
+ */
+typedef struct opendal_entry {
+  /**
+   * The pointer to the opendal::Entry in the Rust code.
+   * Only touch this on judging whether it is NULL.
+   */
+  void *inner;
+} opendal_entry;
 
 /**
  * A native logging callback. Levels are DEBUG=0 (including TRACE), INFO=1,
@@ -290,29 +274,6 @@ typedef struct opendal_operator {
 } opendal_operator;
 
 /**
- * \brief The result type returned by opendal_operator_new() operation.
- *
- * If the init logic is successful, the `op` field will be set to a valid
- * pointer, and the `error` field will be set to null. If the init logic fails, the
- * `op` field will be set to null, and the `error` field will be set to a
- * valid pointer with error code and error message.
- *
- * @see opendal_operator_new()
- * @see opendal_operator
- * @see opendal_error
- */
-typedef struct opendal_result_operator_new {
-  /**
-   * The pointer for operator.
-   */
-  struct opendal_operator *op;
-  /**
-   * The error pointer for error.
-   */
-  struct opendal_error *error;
-} opendal_result_operator_new;
-
-/**
  * \brief The configuration for the initialization of opendal_operator.
  *
  * \note This is also a heap-allocated struct, please free it after you use it
@@ -404,44 +365,6 @@ typedef struct opendal_write_options {
    */
   uintptr_t user_metadata_len;
 } opendal_write_options;
-
-/**
- * \brief The result type returned by the metadata-returning write operations.
- *
- * Returned by opendal_operator_write_with_metadata() and
- * opendal_writer_close_with_metadata(). On success the `meta` field holds the
- * metadata of the just-written object (e.g. etag, version, last modified) and
- * `error` is null; on failure `meta` is null and `error` is set.
- */
-typedef struct opendal_result_write {
-  /**
-   * The metadata of the written object, or null on error.
-   */
-  struct opendal_metadata *meta;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_write;
-
-/**
- * \brief The result type returned by opendal's read operation.
- *
- * The result type of read operation in opendal C binding, it contains
- * the data that the read operation returns and an NULL error.
- * If the read operation failed, the `data` fields should be a nullptr
- * and the error is not NULL.
- */
-typedef struct opendal_result_read {
-  /**
-   * The byte array with length returned by read operations
-   */
-  struct opendal_bytes data;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_read;
 
 /**
  * \brief The options for read operations.
@@ -548,23 +471,6 @@ typedef struct opendal_reader {
 } opendal_reader;
 
 /**
- * \brief The result type returned by opendal_operator_reader().
- * The result type for opendal_operator_reader(), the field `reader` contains the reader
- * of the path, which is an iterator of the objects under the path. the field `code` represents
- * whether the stat operation is successful.
- */
-typedef struct opendal_result_operator_reader {
-  /**
-   * The pointer for opendal_reader
-   */
-  struct opendal_reader *reader;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_operator_reader;
-
-/**
  * \brief The options for creating a reader via `opendal_operator_reader_with`.
  *
  * Use `opendal_reader_options_new()` to construct and
@@ -648,22 +554,6 @@ typedef struct opendal_writer {
 } opendal_writer;
 
 /**
- * \brief The result type returned by opendal_operator_writer().
- * The result type for opendal_operator_writer(), the field `writer` contains the writer
- * of the path, which is an iterator of the objects under the path. the field `code` represents
- */
-typedef struct opendal_result_operator_writer {
-  /**
-   * The pointer for opendal_writer
-   */
-  struct opendal_writer *writer;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_operator_writer;
-
-/**
  * \brief The options for the delete operation.
  *
  * This struct carries the options for the delete operation, including an optional
@@ -686,66 +576,6 @@ typedef struct opendal_delete_options {
    */
   bool recursive;
 } opendal_delete_options;
-
-/**
- * \brief The result type returned by opendal_operator_is_exist().
- *
- * The result type for opendal_operator_is_exist(), the field `is_exist`
- * contains whether the path exists, and the field `error` contains the
- * corresponding error. If successful, the `error` field is null.
- *
- * \note If the opendal_operator_is_exist() fails, the `is_exist` field
- * will be set to false.
- */
-typedef struct opendal_result_is_exist {
-  /**
-   * Whether the path exists
-   */
-  bool is_exist;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_is_exist;
-
-/**
- * \brief The result type returned by opendal_operator_exists().
- *
- * The result type for opendal_operator_exists(), the field `exists`
- * contains whether the path exists, and the field `error` contains the
- * corresponding error. If successful, the `error` field is null.
- *
- * \note If the opendal_operator_exists() fails, the `exists` field
- * will be set to false.
- */
-typedef struct opendal_result_exists {
-  /**
-   * Whether the path exists
-   */
-  bool exists;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_exists;
-
-/**
- * \brief The result type returned by opendal_operator_stat().
- *
- * The result type for opendal_operator_stat(), the field `meta` contains the metadata
- * of the path, the field `error` represents whether the stat operation is successful.
- * If successful, the `error` field is null.
- */
-typedef struct opendal_result_stat {
-  /**
-   * The metadata output of the stat
-   */
-  struct opendal_metadata *meta;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_stat;
 
 /**
  * \brief The options for stat operations.
@@ -797,24 +627,6 @@ typedef struct opendal_stat_options {
    */
   const char *override_content_disposition;
 } opendal_stat_options;
-
-/**
- * \brief The result type returned by opendal_operator_list().
- *
- * The result type for opendal_operator_list(), the field `lister` contains the lister
- * of the path, which is an iterator of the objects under the path. the field `error` represents
- * whether the stat operation is successful. If successful, the `error` field is null.
- */
-typedef struct opendal_result_list {
-  /**
-   * The lister, used for further listing operations
-   */
-  struct opendal_lister *lister;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_list;
 
 /**
  * \brief The options for the list operation.
@@ -923,25 +735,6 @@ typedef struct opendal_copier {
    */
   void *inner;
 } opendal_copier;
-
-/**
- * \brief The result type returned by opendal_operator_copier().
- *
- * Fields:
- * * `copier`: the copier used to drive a long-running copy operation by calling
- *   opendal_copier_next() repeatedly; only valid when `error` is null.
- * * `error`: the error of the operation; null when the operation succeeds.
- */
-typedef struct opendal_result_operator_copier {
-  /**
-   * The pointer for opendal_copier
-   */
-  struct opendal_copier *copier;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_operator_copier;
 
 /**
  * \brief Metadata for **operator**, users can use this metadata to get information
@@ -1215,20 +1008,6 @@ typedef struct opendal_presigned_request {
 } opendal_presigned_request;
 
 /**
- * @brief The result of a presign operation.
- */
-typedef struct opendal_result_presign {
-  /**
-   * The presigned request.
-   */
-  struct opendal_presigned_request *req;
-  /**
-   * The error.
-   */
-  struct opendal_error *error;
-} opendal_result_presign;
-
-/**
  * \brief The key-value pair for the headers of the presigned request.
  */
 typedef struct opendal_http_header_pair {
@@ -1242,82 +1021,6 @@ typedef struct opendal_http_header_pair {
   const char *value;
 } opendal_http_header_pair;
 
-/**
- * \brief The is the result type returned by opendal_reader_read().
- * The result type contains a size field, which is the size of the data read,
- * which is zero on error. The error field is the error code and error message.
- */
-typedef struct opendal_result_reader_read {
-  /**
-   * The read size if succeed.
-   */
-  uintptr_t size;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_reader_read;
-
-/**
- * \brief The result type returned by opendal_reader_seek().
- * The result type contains a pos field, which is the new position after seek,
- * which is zero on error. The error field is the error code and error message.
- */
-typedef struct opendal_result_reader_seek {
-  /**
-   * New position after seek
-   */
-  uint64_t pos;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_reader_seek;
-
-/**
- * \brief The result type returned by opendal_writer_write().
- * The result type contains a size field, which is the size of the data written,
- * which is zero on error. The error field is the error code and error message.
- */
-typedef struct opendal_result_writer_write {
-  /**
-   * The write size if succeed.
-   */
-  uintptr_t size;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_writer_write;
-
-/**
- * \brief The result type returned by opendal_copier_next().
- *
- * A copy is driven by calling opendal_copier_next() repeatedly: each call
- * performs one step of the copy until the copy reports completion.
- *
- * Fields:
- * * `size`: the number of bytes copied in this step; zero on error or completion.
- * * `has_next`: true when the copy made progress and should be driven again by
- *   another opendal_copier_next() call; when false and `error` is null, the copy
- *   has completed.
- * * `error`: the error code and message; null when the step succeeds.
- */
-typedef struct opendal_result_copier_next {
-  /**
-   * The number of bytes copied in this step.
-   */
-  uintptr_t size;
-  /**
-   * Whether the copy operation made progress and should be driven again.
-   */
-  bool has_next;
-  /**
-   * The error, if ok, it is null
-   */
-  struct opendal_error *error;
-} opendal_result_copier_next;
-
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -1328,15 +1031,20 @@ extern "C" {
 void opendal_error_free(struct opendal_error *ptr);
 
 /**
- * \brief Return the next object to be listed
+ * \brief Return the next object to be listed.
  *
  * Lister is an iterator of the objects under its path, this method is the same as
- * calling next() on the iterator
+ * calling next() on the iterator.
+ *
+ * On success, writes the next entry pointer (or NULL when listing is exhausted)
+ * to `*entry` and returns NULL. On failure, writes NULL to `*entry` and returns
+ * a newly allocated error that must be freed with `opendal_error_free()`.
  *
  * For examples, please see the comment section of opendal_operator_list()
  * @see opendal_operator_list()
  */
-struct opendal_result_lister_next opendal_lister_next(struct opendal_lister *self);
+struct opendal_error *opendal_lister_next(struct opendal_lister *self,
+                                          struct opendal_entry **entry);
 
 /**
  * \brief Free the heap-allocated metadata used by opendal_lister
@@ -1489,10 +1197,10 @@ struct opendal_metadata_user_metadata *opendal_metadata_get_user_metadata(const 
  * # Example
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
+ * opendal_metadata *meta = NULL;
+ * opendal_error *err = opendal_operator_stat(op, "/testpath", &meta);
+ * assert(err == NULL);
  *
- * opendal_metadata *meta = s.meta;
  * assert(opendal_metadata_last_modified_ms(meta) != -1);
  * ```
  */
@@ -1523,7 +1231,8 @@ void opendal_metadata_user_metadata_free(struct opendal_metadata_user_metadata *
  * # Example
  *
  * ```C
- * opendal_operator *op = opendal_operator_new("fs", NULL);
+ * opendal_operator *op = NULL;
+ * opendal_error *err = opendal_operator_new("fs", NULL, &op);
  * // ... use this op, maybe some reads and writes
  *
  * // free this operator
@@ -1543,10 +1252,9 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  * @param scheme the service scheme you want to specify, e.g. "fs", "s3"
  * @param options the pointer to the options for this operator, it could be NULL, which means no
  * option is set
+ * @param op output pointer receiving the newly allocated `opendal_operator *` on success, or NULL on failure
  * @see opendal_operator_options
- * @return A valid opendal_result_operator_new setup with the `scheme` and `options` is the construction
- * succeeds. On success the operator field is a valid pointer to a newly allocated opendal_operator,
- * and the error field is NULL. Otherwise, the operator field is a NULL pointer and the error field.
+ * @return NULL if construction succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
@@ -1558,8 +1266,8 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  * opendal_operator_options_set(options, "root", "/myroot");
  *
  * // Construct the operator based on the options and scheme
- * opendal_result_operator_new result = opendal_operator_new("memory", options);
- * opendal_operator* op = result.op;
+ * opendal_operator *op = NULL;
+ * opendal_error *err = opendal_operator_new("memory", options, &op);
  *
  * // you could free the options right away since the options is not used afterwards
  * opendal_operator_options_free(options);
@@ -1569,10 +1277,12 @@ void opendal_operator_free(const struct opendal_operator *ptr);
  *
  * # Safety
  *
- * The only unsafe case is passing an invalid c string pointer to the `scheme` argument.
+ * `scheme` must be a valid nul-terminated C string and `op` must be a valid, aligned,
+ * writable pointer.
  */
-struct opendal_result_operator_new opendal_operator_new(const char *scheme,
-                                                        const struct opendal_operator_options *options);
+struct opendal_error *opendal_operator_new(const char *scheme,
+                                           const struct opendal_operator_options *options,
+                                           struct opendal_operator **op);
 
 /**
  * \brief Construct an operator based on scheme, options, and explicit layers.
@@ -1582,11 +1292,13 @@ struct opendal_result_operator_new opendal_operator_new(const char *scheme,
  *
  * # Safety
  *
- * The only unsafe case is passing an invalid c string pointer to the scheme argument.
+ * `scheme` must be a valid nul-terminated C string and `op` must be a valid, aligned,
+ * writable pointer.
  */
-struct opendal_result_operator_new opendal_operator_new_with_layers(const char *scheme,
-                                                                    const struct opendal_operator_options *options,
-                                                                    const struct opendal_operator_layers *layers);
+struct opendal_error *opendal_operator_new_with_layers(const char *scheme,
+                                                       const struct opendal_operator_options *options,
+                                                       const struct opendal_operator_layers *layers,
+                                                       struct opendal_operator **op);
 
 /**
  * \brief Blocking write raw bytes to `path`.
@@ -1649,20 +1361,18 @@ struct opendal_error *opendal_operator_write_with(const struct opendal_operator 
 /**
  * \brief Blocking write raw bytes to `path`, returning the written object's metadata.
  *
- * Like `opendal_operator_write_with`, but on success returns the metadata of the
- * just-written object (e.g. etag, version, last modified) instead of discarding it.
+ * Like `opendal_operator_write_with`, but on success writes the metadata of the
+ * just-written object (e.g. etag, version, last modified) to `*meta` instead of discarding it.
  * A NULL `opts` is treated as the default options, behaving like a plain write.
  *
  * @param op The opendal_operator created previously
  * @param path The designated path where the data will be written
  * @param bytes The data to write
  * @param opts The write options, or NULL to use the defaults
+ * @param meta Output pointer receiving the allocated `opendal_metadata *` on success, or NULL on failure
  * @see opendal_operator
  * @see opendal_write_options
- * @see opendal_result_write
- * @return Returns opendal_result_write, containing the metadata and an opendal_error.
- * If the operation succeeds, the `meta` field holds the metadata and the `error` field
- * is null. Otherwise, the `meta` will be null and the `error` will be set correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * \note The returned metadata must be freed with opendal_metadata_free().
  *
@@ -1673,15 +1383,17 @@ struct opendal_error *opendal_operator_write_with(const struct opendal_operator 
  *   the string.
  * * The `bytes` provided has valid byte in the `data` field and the `len` field is set
  *   correctly.
+ * * `meta` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `meta` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_write opendal_operator_write_with_metadata(const struct opendal_operator *op,
-                                                                 const char *path,
-                                                                 const struct opendal_bytes *bytes,
-                                                                 const struct opendal_write_options *opts);
+struct opendal_error *opendal_operator_write_with_metadata(const struct opendal_operator *op,
+                                                           const char *path,
+                                                           const struct opendal_bytes *bytes,
+                                                           const struct opendal_write_options *opts,
+                                                           struct opendal_metadata **meta);
 
 /**
  * \brief Blocking read the data from `path`.
@@ -1690,15 +1402,15 @@ struct opendal_result_write opendal_operator_write_with_metadata(const struct op
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to read the data out
+ * @param bytes Output pointer receiving the newly allocated `opendal_bytes` on success, or an empty `opendal_bytes` on failure
  * @see opendal_operator
- * @see opendal_result_read
+ * @see opendal_bytes
  * @see opendal_error
- * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
- * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
- * the operation failed and the `data` field is a nullptr.
+ * @return NULL if the read succeeds, or an `opendal_error *` on failure.
  *
- * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
- * After your usage of that, please call opendal_bytes_free() to free the space.
+ * \note If the read operation succeeds, the buffer inside `*bytes` is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space. If you reuse
+ * the same `opendal_bytes` variable for another read call, free any previously owned buffer first.
  *
  * # Example
  *
@@ -1706,10 +1418,10 @@ struct opendal_result_write opendal_operator_write_with_metadata(const struct op
  * ```C
  * // ... you have write "Hello, World!" to path "/testpath"
  *
- * opendal_result_read r = opendal_operator_read(op, "testpath");
- * assert(r.error == NULL);
+ * opendal_bytes bytes;
+ * opendal_error *err = opendal_operator_read(op, "testpath", &bytes);
+ * assert(err == NULL);
  *
- * opendal_bytes bytes = r.data;
  * assert(bytes.len == 13);
  * opendal_bytes_free(&bytes);
  * ```
@@ -1719,13 +1431,15 @@ struct opendal_result_write opendal_operator_write_with_metadata(const struct op
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `bytes` must point to valid, aligned, writable storage.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `bytes` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_read(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_error *opendal_operator_read(const struct opendal_operator *op,
+                                            const char *path,
+                                            struct opendal_bytes *bytes);
 
 /**
  * \brief Blocking read the data from `path` with options.
@@ -1737,46 +1451,42 @@ struct opendal_result_read opendal_operator_read(const struct opendal_operator *
  * @param op The opendal_operator created previously
  * @param path The path you want to read the data out
  * @param opts The options for the read operation; pass NULL to use defaults
+ * @param bytes Output pointer receiving the newly allocated `opendal_bytes` on success, or an empty `opendal_bytes` on failure
  * @see opendal_operator
- * @see opendal_result_read
  * @see opendal_read_options
  * @see opendal_error
- * @return Returns opendal_result_read, the `data` field is a pointer to a newly allocated
- * opendal_bytes, the `error` field contains the error. If the `error` is not NULL, then
- * the operation failed and the `data` field is a nullptr.
+ * @return NULL if the read succeeds, or an `opendal_error *` on failure.
  *
- * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
- * After your usage of that, please call opendal_bytes_free() to free the space.
+ * \note If the read operation succeeds, the buffer inside `*bytes` is newly allocated on heap.
+ * After your usage of that, please call opendal_bytes_free() to free the space. If you reuse
+ * the same `opendal_bytes` variable for another read call, free any previously owned buffer first.
  *
  * # Safety
  *
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `bytes` must point to valid, aligned, writable storage.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `bytes` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_read opendal_operator_read_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_read_options *opts);
+struct opendal_error *opendal_operator_read_with(const struct opendal_operator *op,
+                                                 const char *path,
+                                                 const struct opendal_read_options *opts,
+                                                 struct opendal_bytes *bytes);
 
 /**
- * \brief Blocking read the data from `path`.
- *
- * Read the data out from `path` blocking by operator, returns
- * an opendal_result_read with error code.
+ * \brief Blocking create a reader for the specified path.
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to read the data out
+ * @param reader Output pointer receiving the allocated `opendal_reader *` on success, or NULL on failure
  * @see opendal_operator
- * @see opendal_result_read
- * @see opendal_code
- * @return Returns opendal_code
- *
- * \note If the read operation succeeds, the returned opendal_bytes is newly allocated on heap.
- * After your usage of that, please call opendal_bytes_free() to free the space.
+ * @see opendal_reader
+ * @see opendal_error
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
@@ -1784,10 +1494,9 @@ struct opendal_result_read opendal_operator_read_with(const struct opendal_opera
  * ```C
  * // ... you have created an operator named op
  *
- * opendal_result_operator_reader result = opendal_operator_reader(op, "/testpath");
- * assert(result.error == NULL);
- * // The reader is in result.reader
- * opendal_reader *reader = result.reader;
+ * opendal_reader *reader = NULL;
+ * opendal_error *err = opendal_operator_reader(op, "/testpath", &reader);
+ * assert(err == NULL);
  * ```
  *
  * # Safety
@@ -1795,13 +1504,15 @@ struct opendal_result_read opendal_operator_read_with(const struct opendal_opera
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `reader` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `reader` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_operator_reader opendal_operator_reader(const struct opendal_operator *op,
-                                                              const char *path);
+struct opendal_error *opendal_operator_reader(const struct opendal_operator *op,
+                                              const char *path,
+                                              struct opendal_reader **reader);
 
 /**
  * \brief Blocking create a reader for the specified path with options.
@@ -1813,42 +1524,40 @@ struct opendal_result_operator_reader opendal_operator_reader(const struct opend
  * @param op The opendal_operator created previously
  * @param path The designated path where the reader will be used
  * @param opts The reader options, or NULL to use the defaults
+ * @param reader Output pointer receiving the allocated `opendal_reader *` on success, or NULL on failure
  * @see opendal_operator
  * @see opendal_reader_options
- * @see opendal_result_operator_reader
- * @return Returns opendal_result_operator_reader, containing a reader and an opendal_error.
- * If the operation succeeds, the `reader` field holds a valid reader and the `error` field
- * is null. Otherwise, the `reader` will be null and the `error` will be set correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Safety
  *
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `reader` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `reader` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_operator_reader opendal_operator_reader_with(const struct opendal_operator *op,
-                                                                   const char *path,
-                                                                   const struct opendal_reader_options *opts);
+struct opendal_error *opendal_operator_reader_with(const struct opendal_operator *op,
+                                                   const char *path,
+                                                   const struct opendal_reader_options *opts,
+                                                   struct opendal_reader **reader);
 
 /**
  * \brief Blocking create a writer for the specified path.
  *
  * This function prepares a writer that can be used to write data to the specified path
- * using the provided operator. If successful, it returns a valid writer; otherwise, it
- * returns an error.
+ * using the provided operator.
  *
  * @param op The opendal_operator created previously
  * @param path The designated path where the writer will be used
+ * @param writer Output pointer receiving the allocated `opendal_writer *` on success, or NULL on failure
  * @see opendal_operator
- * @see opendal_result_operator_writer
+ * @see opendal_writer
  * @see opendal_error
- * @return Returns opendal_result_operator_writer, containing a writer and an opendal_error.
- * If the operation succeeds, the `writer` field holds a valid writer and the `error` field
- * is null. Otherwise, the `writer` will be null and the `error` will be set correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
@@ -1856,9 +1565,9 @@ struct opendal_result_operator_reader opendal_operator_reader_with(const struct 
  * ```C
  * //...prepare your opendal_operator, named op for example
  *
- * opendal_result_operator_writer result = opendal_operator_writer(op, "/testpath");
- * assert(result.error == NULL);
- * opendal_writer *writer = result.writer;
+ * opendal_writer *writer = NULL;
+ * opendal_error *err = opendal_operator_writer(op, "/testpath", &writer);
+ * assert(err == NULL);
  * // Use the writer to write data...
  * ```
  *
@@ -1867,20 +1576,23 @@ struct opendal_result_operator_reader opendal_operator_reader_with(const struct 
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `writer` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `writer` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_operator_writer opendal_operator_writer(const struct opendal_operator *op,
-                                                              const char *path);
+struct opendal_error *opendal_operator_writer(const struct opendal_operator *op,
+                                              const char *path,
+                                              struct opendal_writer **writer);
 
 /**
  * \brief Blocking create a writer for the specified path with options.
  */
-struct opendal_result_operator_writer opendal_operator_writer_with(const struct opendal_operator *op,
-                                                                   const char *path,
-                                                                   const struct opendal_write_options *opts);
+struct opendal_error *opendal_operator_writer_with(const struct opendal_operator *op,
+                                                   const char *path,
+                                                   const struct opendal_write_options *opts,
+                                                   struct opendal_writer **writer);
 
 /**
  * \brief Blocking delete the object in `path`.
@@ -1961,24 +1673,24 @@ struct opendal_error *opendal_operator_delete_with(const struct opendal_operator
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to check existence
+ * @param is_exist Output pointer receiving whether the path exists, or false on failure
  * @see opendal_operator
- * @see opendal_result_is_exist
  * @see opendal_error
- * @return Returns opendal_result_is_exist, the `is_exist` field contains whether the path exists.
- * However, it the operation fails, the `is_exist` will contain false and the error will be set.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
  * ```C
  * // .. you previously wrote some data to path "/mytest/obj"
- * opendal_result_is_exist e = opendal_operator_is_exist(op, "/mytest/obj");
- * assert(e.error == NULL);
- * assert(e.is_exist);
+ * bool is_exist = false;
+ * opendal_error *err = opendal_operator_is_exist(op, "/mytest/obj", &is_exist);
+ * assert(err == NULL);
+ * assert(is_exist);
  *
  * // but you previously did **not** write any data to path "/yourtest/obj"
- * opendal_result_is_exist e = opendal_operator_is_exist(op, "/yourtest/obj");
- * assert(e.error == NULL);
- * assert(!e.is_exist);
+ * err = opendal_operator_is_exist(op, "/yourtest/obj", &is_exist);
+ * assert(err == NULL);
+ * assert(!is_exist);
  * ```
  *
  * # Safety
@@ -1986,13 +1698,15 @@ struct opendal_error *opendal_operator_delete_with(const struct opendal_operator
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `is_exist` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `is_exist` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_operator *op,
-                                                         const char *path);
+struct opendal_error *opendal_operator_is_exist(const struct opendal_operator *op,
+                                                const char *path,
+                                                bool *is_exist);
 
 /**
  * \brief Check whether the path exists.
@@ -2003,24 +1717,24 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to check existence
+ * @param exists Output pointer receiving whether the path exists, or false on failure
  * @see opendal_operator
- * @see opendal_result_exists
  * @see opendal_error
- * @return Returns opendal_result_exists, the `exists` field contains whether the path exists.
- * However, it the operation fails, the `exists` will contain false and the error will be set.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
  * ```C
  * // .. you previously wrote some data to path "/mytest/obj"
- * opendal_result_exists e = opendal_operator_exists(op, "/mytest/obj");
- * assert(e.error == NULL);
- * assert(e.exists);
+ * bool exists = false;
+ * opendal_error *err = opendal_operator_exists(op, "/mytest/obj", &exists);
+ * assert(err == NULL);
+ * assert(exists);
  *
  * // but you previously did **not** write any data to path "/yourtest/obj"
- * opendal_result_exists e = opendal_operator_exists(op, "/yourtest/obj");
- * assert(e.error == NULL);
- * assert(!e.exists);
+ * err = opendal_operator_exists(op, "/yourtest/obj", &exists);
+ * assert(err == NULL);
+ * assert(!exists);
  * ```
  *
  * # Safety
@@ -2028,13 +1742,15 @@ struct opendal_result_is_exist opendal_operator_is_exist(const struct opendal_op
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `exists` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `exists` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_exists opendal_operator_exists(const struct opendal_operator *op,
-                                                     const char *path);
+struct opendal_error *opendal_operator_exists(const struct opendal_operator *op,
+                                              const char *path,
+                                              bool *exists);
 
 /**
  * \brief Stat the path, return its metadata.
@@ -2043,22 +1759,18 @@ struct opendal_result_exists opendal_operator_exists(const struct opendal_operat
  *
  * @param op The opendal_operator created previously
  * @param path The path you want to stat
+ * @param meta Output pointer receiving the allocated `opendal_metadata *` on success, or NULL on failure
  * @see opendal_operator
- * @see opendal_result_stat
  * @see opendal_metadata
- * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
- * If the operation succeeds, the `meta` field would hold a valid metadata and
- * the `error` field should hold nullptr. Otherwise, the metadata will contain a
- * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
  * ```C
  * // ... previously you wrote "Hello, World!" to path "/testpath"
- * opendal_result_stat s = opendal_operator_stat(op, "/testpath");
- * assert(s.error == NULL);
- *
- * const opendal_metadata *meta = s.meta;
+ * opendal_metadata *meta = NULL;
+ * opendal_error *err = opendal_operator_stat(op, "/testpath", &meta);
+ * assert(err == NULL);
  *
  * // ... you could now use your metadata, notice that please only access metadata
  * // using the APIs provided by OpenDAL
@@ -2069,13 +1781,15 @@ struct opendal_result_exists opendal_operator_exists(const struct opendal_operat
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `meta` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `meta` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_error *opendal_operator_stat(const struct opendal_operator *op,
+                                            const char *path,
+                                            struct opendal_metadata **meta);
 
 /**
  * \brief Blocking stat the object in `path` with options.
@@ -2087,38 +1801,38 @@ struct opendal_result_stat opendal_operator_stat(const struct opendal_operator *
  * @param op The opendal_operator created previously
  * @param path The path you want to stat
  * @param opts The options for the stat operation; pass NULL to use defaults
+ * @param meta Output pointer receiving the allocated `opendal_metadata *` on success, or NULL on failure
  * @see opendal_operator
- * @see opendal_result_stat
  * @see opendal_stat_options
- * @return Returns opendal_result_stat, containing a metadata and an opendal_error.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Safety
  *
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `meta` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `meta` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_stat opendal_operator_stat_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_stat_options *opts);
+struct opendal_error *opendal_operator_stat_with(const struct opendal_operator *op,
+                                                 const char *path,
+                                                 const struct opendal_stat_options *opts,
+                                                 struct opendal_metadata **meta);
 
 /**
  * \brief Blocking list the objects in `path`.
  *
- * List the object in `path` blocking by `op_ptr`, return a result with an
- * opendal_lister. Users should call opendal_lister_next() on the
+ * List the object in `path` blocking by `op_ptr`, writing the constructed
+ * `opendal_lister *` to `*lister`. Users should call opendal_lister_next() on the
  * lister.
  *
  * @param op The opendal_operator created previously
  * @param path The designated path you want to list
+ * @param lister Output pointer receiving the allocated `opendal_lister *` on success, or NULL on failure
  * @see opendal_lister
- * @return Returns opendal_result_list, containing a lister and an opendal_error.
- * If the operation succeeds, the `lister` field would hold a valid lister and
- * the `error` field should hold nullptr. Otherwise, the `lister`` will contain a
- * NULL pointer, i.e. invalid, and the `error` will be set correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Example
  *
@@ -2126,20 +1840,22 @@ struct opendal_result_stat opendal_operator_stat_with(const struct opendal_opera
  * ```C
  * // You have written some data into some files path "root/dir1"
  * // Your opendal_operator was called op
- * opendal_result_list l = opendal_operator_list(op, "root/dir1");
- * assert(l.error == ERROR);
+ * opendal_lister *lister = NULL;
+ * opendal_error *err = opendal_operator_list(op, "root/dir1", &lister);
+ * assert(err == NULL);
  *
- * opendal_lister *lister = l.lister;
- * opendal_list_entry *entry;
- *
- * while ((entry = opendal_lister_next(lister)) != NULL) {
- *     const char* de_path = opendal_list_entry_path(entry);
- *     const char* de_name = opendal_list_entry_name(entry);
+ * opendal_entry *entry = NULL;
+ * while ((err = opendal_lister_next(lister, &entry)) == NULL && entry != NULL) {
+ *     char* de_path = opendal_entry_path(entry);
+ *     char* de_name = opendal_entry_name(entry);
  *     // ...... your operations
+ *     opendal_string_free(de_path);
+ *     opendal_string_free(de_name);
  *
  *     // remember to free the entry after you are done using it
- *     opendal_list_entry_free(entry);
+ *     opendal_entry_free(entry);
  * }
+ * assert(err == NULL);
  *
  * // and remember to free the lister
  * opendal_lister_free(lister);
@@ -2150,13 +1866,15 @@ struct opendal_result_stat opendal_operator_stat_with(const struct opendal_opera
  * It is **safe** under the cases below
  * * The memory pointed to by `path` must contain a valid nul terminator at the end of
  *   the string.
+ * * `lister` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `lister` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_list opendal_operator_list(const struct opendal_operator *op,
-                                                 const char *path);
+struct opendal_error *opendal_operator_list(const struct opendal_operator *op,
+                                            const char *path,
+                                            struct opendal_lister **lister);
 
 /**
  * \brief Blocking list the objects in `path` with options.
@@ -2168,22 +1886,25 @@ struct opendal_result_list opendal_operator_list(const struct opendal_operator *
  * @param op The opendal_operator created previously
  * @param path The designated path you want to list
  * @param opts The options for the list operation; pass NULL to use defaults
+ * @param lister Output pointer receiving the allocated `opendal_lister *` on success, or NULL on failure
  * @see opendal_lister
  * @see opendal_list_options
- * @return Returns opendal_result_list, containing a lister and an opendal_error.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Safety
  *
  * * The memory pointed to by `path` must contain a valid null terminator at the end of
  *   the string.
+ * * `lister` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `path` points to NULL, this function panics, i.e. exits with information
+ * * If `path` or `lister` points to NULL, this function panics, i.e. exits with information
  */
-struct opendal_result_list opendal_operator_list_with(const struct opendal_operator *op,
-                                                      const char *path,
-                                                      const struct opendal_list_options *opts);
+struct opendal_error *opendal_operator_list_with(const struct opendal_operator *op,
+                                                 const char *path,
+                                                 const struct opendal_list_options *opts,
+                                                 struct opendal_lister **lister);
 
 /**
  * \brief Blocking create the directory in `path`.
@@ -2387,26 +2108,25 @@ struct opendal_error *opendal_operator_check(const struct opendal_operator *op);
  * @param op The opendal_operator created previously
  * @param src The designated source path you want to copy
  * @param dest The designated destination path you want to copy
+ * @param copier Output pointer receiving the allocated `opendal_copier *` on success, or NULL on failure
  * @see opendal_operator
  * @see opendal_copier
- * @see opendal_result_operator_copier
- * @return opendal_result_operator_copier, containing a copier and an opendal_error.
- * If the operation succeeds, the `copier` field holds a valid copier and the `error`
- * field is null. Otherwise, the `copier` will be null and the `error` will be set
- * correspondingly.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  *
  * # Safety
  *
  * * The memory pointed to by `src` and `dest` must contain a valid nul terminator at the
  *   end of the string.
+ * * `copier` must be a valid, aligned, writable pointer.
  *
  * # Panic
  *
- * * If the `src` or `dest` points to NULL, this function panics
+ * * If `src`, `dest`, or `copier` points to NULL, this function panics
  */
-struct opendal_result_operator_copier opendal_operator_copier(const struct opendal_operator *op,
-                                                              const char *src,
-                                                              const char *dest);
+struct opendal_error *opendal_operator_copier(const struct opendal_operator *op,
+                                              const char *src,
+                                              const char *dest,
+                                              struct opendal_copier **copier);
 
 /**
  * \brief Blocking create a copier to copy a file from `src` to `dest` with options.
@@ -2418,14 +2138,16 @@ struct opendal_result_operator_copier opendal_operator_copier(const struct opend
  * @param src The designated source path you want to copy
  * @param dest The designated destination path you want to copy
  * @param opts The options for the copy operation; pass NULL to use defaults
+ * @param copier Output pointer receiving the allocated `opendal_copier *` on success, or NULL on failure
  * @see opendal_operator_copier
  * @see opendal_copy_options
- * @return opendal_result_operator_copier, containing a copier and an opendal_error.
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
  */
-struct opendal_result_operator_copier opendal_operator_copier_with(const struct opendal_operator *op,
-                                                                   const char *src,
-                                                                   const char *dest,
-                                                                   const struct opendal_copy_options *opts);
+struct opendal_error *opendal_operator_copier_with(const struct opendal_operator *op,
+                                                   const char *src,
+                                                   const char *dest,
+                                                   const struct opendal_copy_options *opts,
+                                                   struct opendal_copier **copier);
 
 /**
  * \brief Get information of underlying accessor.
@@ -2475,69 +2197,78 @@ char *opendal_operator_info_get_root(const struct opendal_operator_info *self);
 char *opendal_operator_info_get_name(const struct opendal_operator_info *self);
 
 /**
- * \brief Return the operator's capability
+ * \brief Write the operator's capability into `cap`.
  */
-struct opendal_capability opendal_operator_info_get_capability(const struct opendal_operator_info *self);
+void opendal_operator_info_get_capability(const struct opendal_operator_info *self,
+                                          struct opendal_capability *cap);
 
 /**
  * \brief Presign a read operation.
  */
-struct opendal_result_presign opendal_operator_presign_read(const struct opendal_operator *op,
-                                                            const char *path,
-                                                            uint64_t expire_secs);
+struct opendal_error *opendal_operator_presign_read(const struct opendal_operator *op,
+                                                    const char *path,
+                                                    uint64_t expire_secs,
+                                                    struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a read operation with options.
  */
-struct opendal_result_presign opendal_operator_presign_read_with(const struct opendal_operator *op,
-                                                                 const char *path,
-                                                                 uint64_t expire_secs,
-                                                                 const struct opendal_read_options *opts);
+struct opendal_error *opendal_operator_presign_read_with(const struct opendal_operator *op,
+                                                         const char *path,
+                                                         uint64_t expire_secs,
+                                                         const struct opendal_read_options *opts,
+                                                         struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a write operation.
  */
-struct opendal_result_presign opendal_operator_presign_write(const struct opendal_operator *op,
-                                                             const char *path,
-                                                             uint64_t expire_secs);
+struct opendal_error *opendal_operator_presign_write(const struct opendal_operator *op,
+                                                     const char *path,
+                                                     uint64_t expire_secs,
+                                                     struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a write operation with options.
  */
-struct opendal_result_presign opendal_operator_presign_write_with(const struct opendal_operator *op,
-                                                                  const char *path,
-                                                                  uint64_t expire_secs,
-                                                                  const struct opendal_write_options *opts);
+struct opendal_error *opendal_operator_presign_write_with(const struct opendal_operator *op,
+                                                          const char *path,
+                                                          uint64_t expire_secs,
+                                                          const struct opendal_write_options *opts,
+                                                          struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a delete operation.
  */
-struct opendal_result_presign opendal_operator_presign_delete(const struct opendal_operator *op,
-                                                              const char *path,
-                                                              uint64_t expire_secs);
+struct opendal_error *opendal_operator_presign_delete(const struct opendal_operator *op,
+                                                      const char *path,
+                                                      uint64_t expire_secs,
+                                                      struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a delete operation with options.
  */
-struct opendal_result_presign opendal_operator_presign_delete_with(const struct opendal_operator *op,
-                                                                   const char *path,
-                                                                   uint64_t expire_secs,
-                                                                   const struct opendal_delete_options *opts);
+struct opendal_error *opendal_operator_presign_delete_with(const struct opendal_operator *op,
+                                                           const char *path,
+                                                           uint64_t expire_secs,
+                                                           const struct opendal_delete_options *opts,
+                                                           struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a stat operation.
  */
-struct opendal_result_presign opendal_operator_presign_stat(const struct opendal_operator *op,
-                                                            const char *path,
-                                                            uint64_t expire_secs);
+struct opendal_error *opendal_operator_presign_stat(const struct opendal_operator *op,
+                                                    const char *path,
+                                                    uint64_t expire_secs,
+                                                    struct opendal_presigned_request **req);
 
 /**
  * \brief Presign a stat operation with options.
  */
-struct opendal_result_presign opendal_operator_presign_stat_with(const struct opendal_operator *op,
-                                                                 const char *path,
-                                                                 uint64_t expire_secs,
-                                                                 const struct opendal_stat_options *opts);
+struct opendal_error *opendal_operator_presign_stat_with(const struct opendal_operator *op,
+                                                         const char *path,
+                                                         uint64_t expire_secs,
+                                                         const struct opendal_stat_options *opts,
+                                                         struct opendal_presigned_request **req);
 
 /**
  * Get the method of the presigned request.
@@ -3072,18 +2803,25 @@ struct opendal_metadata *opendal_entry_metadata(const struct opendal_entry *self
 void opendal_entry_free(struct opendal_entry *ptr);
 
 /**
- * \brief Read data from the reader.
+ * \brief Read data from the reader into `buf` and write the number of bytes read to `*size`.
+ *
+ * At EOF, writes `0` to `*size` and returns NULL. On failure, writes `0` to `*size`
+ * and returns an `opendal_error *`.
  */
-struct opendal_result_reader_read opendal_reader_read(struct opendal_reader *self,
-                                                      uint8_t *buf,
-                                                      uintptr_t len);
+struct opendal_error *opendal_reader_read(struct opendal_reader *self,
+                                          uint8_t *buf,
+                                          uintptr_t len,
+                                          uintptr_t *size);
 
 /**
- * \brief Seek to an offset, in bytes, in a stream.
+ * \brief Seek to an offset, in bytes, in a stream, and write the new position to `*pos`.
+ *
+ * On failure, writes `0` to `*pos` and returns an `opendal_error *`.
  */
-struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *self,
-                                                      int64_t offset,
-                                                      int32_t whence);
+struct opendal_error *opendal_reader_seek(struct opendal_reader *self,
+                                          int64_t offset,
+                                          int32_t whence,
+                                          uint64_t *pos);
 
 /**
  * \brief Frees the heap memory used by the opendal_reader.
@@ -3091,10 +2829,13 @@ struct opendal_result_reader_seek opendal_reader_seek(struct opendal_reader *sel
 void opendal_reader_free(struct opendal_reader *ptr);
 
 /**
- * \brief Write data to the writer.
+ * \brief Write data to the writer and write the number of bytes written to `*size`.
+ *
+ * On failure, writes `0` to `*size` and returns an `opendal_error *`.
  */
-struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *self,
-                                                        const struct opendal_bytes *bytes);
+struct opendal_error *opendal_writer_write(struct opendal_writer *self,
+                                           const struct opendal_bytes *bytes,
+                                           uintptr_t *size);
 
 /**
  * \brief Close the writer and make sure all data have been stored.
@@ -3102,19 +2843,19 @@ struct opendal_result_writer_write opendal_writer_write(struct opendal_writer *s
 struct opendal_error *opendal_writer_close(struct opendal_writer *ptr);
 
 /**
- * \brief Close the writer and return the written object's metadata.
+ * \brief Close the writer and write the written object's metadata to `*meta`.
  *
- * Like `opendal_writer_close`, but on success returns the metadata of the
- * written object (e.g. etag, version, last modified) instead of discarding it.
+ * Like `opendal_writer_close`, but on success writes the metadata of the
+ * written object (e.g. etag, version, last modified) to `*meta` instead of discarding it.
  *
  * @param ptr The opendal_writer to close
- * @see opendal_result_write
- * @return Returns opendal_result_write. On success the `meta` field holds the
- * metadata and `error` is null; on failure `meta` is null and `error` is set.
+ * @param meta Output pointer receiving the allocated `opendal_metadata *` on success, or NULL on failure
+ * @return NULL on success, or an `opendal_error *` on failure.
  *
  * \note The returned metadata must be freed with opendal_metadata_free().
  */
-struct opendal_result_write opendal_writer_close_with_metadata(struct opendal_writer *ptr);
+struct opendal_error *opendal_writer_close_with_metadata(struct opendal_writer *ptr,
+                                                         struct opendal_metadata **meta);
 
 /**
  * \brief Frees the heap memory used by the opendal_writer.
@@ -3128,14 +2869,18 @@ void opendal_writer_free(struct opendal_writer *ptr);
  * backends that copy in multiple requests, or the entire copy for backends that
  * only support single-request copy.
  *
- * Returns the number of bytes copied in this step (best-effort; may be 0 when
- * the backend advances without a reliable byte delta). When `has_next` is true
- * the caller should call this function again to continue the copy. When
- * `has_next` is false and `error` is null the copy has completed.
+ * Writes the number of bytes copied in this step to `*size` (best-effort; may be 0
+ * when the backend advances without a reliable byte delta) and whether more steps
+ * remain to `*has_next`. When `*has_next` is true the caller should call this
+ * function again to continue the copy. When `*has_next` is false and the returned
+ * error is NULL the copy has completed. On failure, writes `0` to `*size` and
+ * `false` to `*has_next`, and returns an `opendal_error *`.
  *
  * @see opendal_operator_copier()
  */
-struct opendal_result_copier_next opendal_copier_next(struct opendal_copier *self);
+struct opendal_error *opendal_copier_next(struct opendal_copier *self,
+                                          uintptr_t *size,
+                                          bool *has_next);
 
 /**
  * \brief Abort the pending copy operation.

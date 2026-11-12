@@ -38,9 +38,11 @@ pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
 ///
 /// The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
 /// For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
-/// the heap memory and avoid memory leaks. For caller-owned input buffers
-/// passed to OpenDAL C APIs, the caller keeps ownership and must not call
-/// opendal_bytes_free() on them.
+/// the heap memory and avoid memory leaks. If you reuse an `opendal_bytes`
+/// output variable across multiple read calls, call `opendal_bytes_free()`
+/// on the previous result before passing it again as an output parameter.
+/// For caller-owned input buffers passed to OpenDAL C APIs, the caller keeps
+/// ownership and must not call opendal_bytes_free() on them.
 ///
 /// @see opendal_bytes_free
 #[repr(C)]

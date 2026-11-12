@@ -17,7 +17,7 @@
 
 module opendal_test
 
-go 1.22.5
+go 1.26.0
 
 require (
 	github.com/apache/opendal-go-services/fs v0.1.16
@@ -29,11 +29,12 @@ require (
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/ebitengine/purego v0.8.4 // indirect
+	github.com/ebitengine/purego v0.10.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
-	github.com/jupiterrider/ffi v0.5.0 // indirect
 	github.com/klauspost/compress v1.17.10 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	golang.org/x/sys v0.24.0 // indirect
+	golang.org/x/sys v0.48.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/apache/opendal/bindings/go => ../..

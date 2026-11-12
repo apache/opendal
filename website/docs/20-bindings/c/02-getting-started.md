@@ -28,8 +28,8 @@ credentials and no filesystem access.
 ```c file=bindings/c/examples/getting-started.c region=quickstart
 ```
 
-Every operation returns either an `opendal_error *` (NULL on success) or a
-result struct whose `.error` field is NULL on success. See
+Every fallible operation returns an `opendal_error *` (`NULL` on success) and
+writes any output value through a caller-provided output pointer. See
 [Error handling](#error-handling) below.
 
 ## Point it at a real backend
@@ -42,11 +42,11 @@ Operations stay identical across all services.
 opendal_operator_options *opts = opendal_operator_options_new();
 opendal_operator_options_set(opts, "root", "/tmp/mydata");
 
-opendal_result_operator_new result = opendal_operator_new("fs", opts);
+opendal_operator *op = NULL;
+opendal_error *err = opendal_operator_new("fs", opts, &op);
 opendal_operator_options_free(opts);   /* options are copied; free immediately */
 
-assert(result.op != NULL);
-opendal_operator *op = result.op;
+assert(err == NULL && op != NULL);
 /* ... same write/read/stat/delete calls ... */
 opendal_operator_free(op);
 ```
@@ -56,8 +56,8 @@ For S3 or any other service, set the configuration keys documented on
 
 ## Error handling
 
-C has no exceptions. Every function that can fail returns either a bare
-`opendal_error *` or a result struct with an `.error` field:
+C has no exceptions. Every function that can fail returns an `opendal_error *`
+and initializes any output parameter on both success and failure:
 
 - `NULL` → success.
 - non-NULL → failure; inspect `.code` (an `opendal_code` enum) and `.message`
@@ -65,15 +65,16 @@ C has no exceptions. Every function that can fail returns either a bare
   Call `opendal_error_free` when done.
 
 ```c
-opendal_result_read r = opendal_operator_read(op, "/no-such-file");
-if (r.error != NULL) {
+opendal_bytes data;
+opendal_error *err = opendal_operator_read(op, "/no-such-file", &data);
+if (err != NULL) {
     /* .message is NOT NUL-terminated; use the length. */
     fprintf(stderr, "error %d: %.*s\n",
-            r.error->code,
-            (int)r.error->message.len,
-            r.error->message.data);
-    opendal_error_free(r.error);
-    /* r.data is invalid when error != NULL */
+            err->code,
+            (int)err->message.len,
+            err->message.data);
+    opendal_error_free(err);
+    /* data is zero-initialized on failure */
 }
 ```
 

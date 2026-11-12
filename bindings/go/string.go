@@ -17,13 +17,6 @@
 
 package opendal
 
-import (
-	"context"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
-)
-
 func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	if ptr == nil {
 		return ""
@@ -33,15 +26,4 @@ func copyCStringAndFree(ptr *byte, free func(*byte)) string {
 	return BytePtrToString(ptr)
 }
 
-var ffiStringFree = newFFI(ffiOpts{
-	sym:    "opendal_string_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(ptr *byte) {
-	return func(ptr *byte) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&ptr),
-		)
-	}
-})
+var ffiStringFree = newDirectFFI[func(ptr *byte)]("opendal_string_free")

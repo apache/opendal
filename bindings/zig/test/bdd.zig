@@ -40,9 +40,9 @@ test "Opendal BDD test" {
             opendal.c.opendal_operator_options_set(options, "root", "/myroot");
 
             // Given A new OpenDAL Blocking Operator
-            const result = opendal.c.opendal_operator_new(self.scheme, options);
-            testing.expectEqual(result.@"error", null) catch unreachable;
-            self.p = result.op;
+            self.p = null;
+            const err = opendal.c.opendal_operator_new(self.scheme, options, &self.p);
+            testing.expectEqual(err, null) catch unreachable;
 
             return self;
         }
@@ -69,14 +69,15 @@ test "Opendal BDD test" {
     try testing.expectEqual(result, null);
 
     // The blocking file "test" should exist
-    const e: opendal.c.opendal_result_is_exist = opendal.c.opendal_operator_is_exist(testkit.p, testkit.path);
-    try testing.expectEqual(e.@"error", null);
-    try testing.expect(e.is_exist);
+    var is_exist: bool = false;
+    const e = opendal.c.opendal_operator_is_exist(testkit.p, testkit.path, &is_exist);
+    try testing.expectEqual(e, null);
+    try testing.expect(is_exist);
 
     // The blocking file "test" entry mode must be file
-    const s: opendal.c.opendal_result_stat = opendal.c.opendal_operator_stat(testkit.p, testkit.path);
-    try testing.expectEqual(s.@"error", null);
-    const meta: [*c]opendal.c.opendal_metadata = s.meta;
+    var meta: [*c]opendal.c.opendal_metadata = null;
+    const s = opendal.c.opendal_operator_stat(testkit.p, testkit.path, &meta);
+    try testing.expectEqual(s, null);
     try testing.expect(opendal.c.opendal_metadata_is_file(meta));
 
     // The blocking file "test" content length must be 13
@@ -84,14 +85,15 @@ test "Opendal BDD test" {
     defer opendal.c.opendal_metadata_free(meta);
 
     // The blocking file "test" must have content "Hello, World!"
-    var r: opendal.c.opendal_result_read = opendal.c.opendal_operator_read(testkit.p, testkit.path);
-    defer opendal.c.opendal_bytes_free(&r.data);
-    try testing.expect(r.@"error" == null);
-    try testing.expectEqual(std.mem.len(testkit.content), r.data.len);
+    var read_data: opendal.c.opendal_bytes = undefined;
+    const r = opendal.c.opendal_operator_read(testkit.p, testkit.path, &read_data);
+    defer opendal.c.opendal_bytes_free(&read_data);
+    try testing.expect(r == null);
+    try testing.expectEqual(std.mem.len(testkit.content), read_data.len);
 
     var count: usize = 0;
-    while (count < r.data.len) : (count += 1) {
-        try testing.expectEqual(testkit.content[count], r.data.data[count]);
+    while (count < read_data.len) : (count += 1) {
+        try testing.expectEqual(testkit.content[count], read_data.data[count]);
     }
 }
 

@@ -584,6 +584,7 @@ mod tests {
                     group: None,
                     default_value: None,
                     example: None,
+                    minimal: false,
                 },
             ),
         ];

@@ -122,12 +122,13 @@ op.Write("hello.txt", []byte("Hello, World!"))
 data, _ := op.Read("hello.txt")`,
   },
   {
-    "id": "c",
-    "label": "C",
-    "language": "c",
-    "install": "[opendal-c](/docs/bindings/c)",
-    "code": `#include <opendal.h>
+    id: "c",
+    label: "C",
+    language: "c",
+    install: "[opendal-c](/docs/bindings/c)",
+    code: `#include <opendal.h>
 
+// Configure a backend once, then use one operator.
 opendal_operator_options *opts = opendal_operator_options_new();
 opendal_operator_options_set(opts, "bucket", "data");
 opendal_operator *op = NULL;
@@ -138,22 +139,23 @@ opendal_bytes data = { .data = (uint8_t *)"Hello, World!", .len = 13 };
 err = opendal_operator_write(op, "hello.txt", &data);
 
 opendal_bytes read = { 0 };
-err = opendal_operator_read(op, "hello.txt", &read);`
+err = opendal_operator_read(op, "hello.txt", &read);`,
   },
   {
-    "id": "cpp",
-    "label": "C++",
-    "language": "cpp",
-    "install": "[opendal-cpp](/docs/bindings/cpp)",
-    "code": `#include <opendal.hpp>
+    id: "cpp",
+    label: "C++",
+    language: "cpp",
+    install: "[opendal-cpp](/docs/bindings/cpp)",
+    code: `#include <opendal.hpp>
 
+// Configure a backend once, then use one operator.
 opendal::Operator op("s3", {{"bucket", "data"}});
 
 std::string content = "Hello, World!";
 op.Write("hello.txt", content);
 
-std::string data = op.Read("hello.txt");`
-  }
+std::string data = op.Read("hello.txt");`,
+  },
 ];
 
 export const valueProps = [
@@ -218,7 +220,7 @@ writer.close().await?;`,
   {
     title: "Work with files",
     blurb: "Inspect, list, copy, delete, and share files.",
-    doc: opDoc("list_with"),
+    doc: opDoc("lister_with"),
     code: `// Inspect a file without downloading it.
 let meta = op.stat("report.csv").await?;
 // List a prefix, recursing lazily through the tree.
@@ -230,9 +232,9 @@ while let Some(entry) = entries.try_next().await? {
 op.copy("draft.md", "final.md").await?;
 // Recursively delete a subtree.
 op.delete_with("tmp/").recursive(true).await?;
-// Presign a temporary URL, where supported.
+// Presign a temporary read request, where supported.
 let ttl = Duration::from_secs(3600);
-let url = op.presign_read("report.csv", ttl).await?;`,
+let req = op.presign_read("report.csv", ttl).await?;`,
   },
   {
     title: "Add production policies",
@@ -247,9 +249,9 @@ let op = op
     .layer(RetryLayer::new().with_max_times(5).with_jitter())
     .layer(ConcurrentLimitLayer::new(64));
 
-// Create only if absent.
+// Create only if absent, where supported.
 op.write_with("once.json", data).if_not_exists(true).await?;
-// Read only if unchanged.
+// Read only if unchanged, where supported.
 let doc = op.read_with("doc.json").if_match(&etag).await?;`,
   },
 ];

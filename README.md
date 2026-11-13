@@ -81,7 +81,7 @@ async fn main() -> Result<()> {
     let meta = op.stat("hello.txt").await?;
     op.delete("hello.txt").await?;
 
-    println!("read {} bytes", meta.content_length());
+    println!("read {} bytes, stat reports {} bytes", bytes.len(), meta.content_length());
     Ok(())
 }
 ```

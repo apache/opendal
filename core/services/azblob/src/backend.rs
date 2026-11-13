@@ -608,6 +608,14 @@ impl Service for AzblobBackend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        if args.start_after().is_some() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "azblob does not support list with start_after",
+            )
+            .with_operation(Operation::List));
+        }
+
         let output: oio::PageLister<AzblobLister> = {
             let l = AzblobLister::new(
                 self.core.clone(),
@@ -715,6 +723,18 @@ mod tests {
                 assert!(!message.contains(&key));
             }
         }
+    }
+
+    #[tokio::test]
+    async fn list_with_start_after_is_unsupported() {
+        let builder = AzblobBuilder::default()
+            .container("test")
+            .endpoint("https://test.blob.core.windows.net");
+        let op = Operator::new(builder).unwrap();
+
+        let err = op.lister_with("").start_after("a").await.err().unwrap();
+
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     #[test]

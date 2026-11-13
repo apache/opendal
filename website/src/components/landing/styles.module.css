@@ -250,10 +250,55 @@
   text-decoration: none;
 }
 
+.caseStudy {
+  display: flex;
+  align-items: center;
+  gap: var(--odl-space-5);
+  margin-bottom: var(--odl-space-6);
+  padding: var(--odl-space-5);
+  background: var(--odl-surface);
+  border: 1px solid var(--odl-border);
+  border-radius: var(--odl-radius-lg);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color var(--odl-dur) var(--odl-ease),
+    background-color var(--odl-dur) var(--odl-ease);
+}
+.caseStudy:hover {
+  background: var(--odl-surface-2);
+  border-color: var(--odl-accent);
+  text-decoration: none;
+}
+.caseStudyLabel {
+  flex: none;
+  font-family: var(--odl-font-mono);
+  font-size: var(--odl-text-xs);
+  font-weight: 500;
+  letter-spacing: var(--odl-tracking-label);
+  text-transform: uppercase;
+  color: var(--odl-accent);
+}
+.caseStudyText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--odl-space-1);
+}
+.caseStudyTitle {
+  font-size: var(--odl-text-md);
+  font-weight: 650;
+  color: var(--odl-fg-strong);
+}
+.caseStudyBody {
+  font-size: var(--odl-text-sm);
+  line-height: var(--odl-leading-normal);
+  color: var(--odl-fg-muted);
+}
+
 /* ===== Value props ====================================================== */
 .valueGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1px;
   background: var(--odl-border);
   border: 1px solid var(--odl-border);
@@ -470,6 +515,9 @@
   .heroInner {
     grid-template-columns: 1fr;
   }
+  .valueGrid {
+    grid-template-columns: 1fr;
+  }
   .serviceGroups {
     grid-template-columns: repeat(2, 1fr);
   }
@@ -494,9 +542,13 @@
       transparent 100%
     );
   }
-  .valueGrid,
   .serviceGroups {
     grid-template-columns: 1fr;
+  }
+  .caseStudy {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--odl-space-3);
   }
   .section {
     padding-block: 3.25rem;

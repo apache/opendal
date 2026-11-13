@@ -15,7 +15,7 @@ credentials, so you can paste it into a fresh project and run it as-is.
 ```toml
 # Cargo.toml
 [dependencies]
-opendal = "0.57"
+opendal = "0.59"
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -28,7 +28,7 @@ Only the service changes; the operations stay identical. To use S3, enable its
 feature and configure the builder:
 
 ```toml
-opendal = { version = "0.57", features = ["services-s3"] }
+opendal = { version = "0.59", features = ["services-s3"] }
 ```
 
 ```rust
@@ -59,7 +59,7 @@ For synchronous code, enable the `blocking` feature and use
 without `.await`:
 
 ```toml
-opendal = { version = "0.57", features = ["services-memory", "blocking"] }
+opendal = { version = "0.59", features = ["blocking"] }
 ```
 
 ```rust
@@ -67,7 +67,10 @@ use opendal::blocking;
 use opendal::services;
 use opendal::Operator;
 
-// Build the async operator first, outside any async runtime.
+// Enter a Tokio runtime; the blocking operator runs every call on it.
+let runtime = tokio::runtime::Runtime::new()?;
+let _guard = runtime.enter();
+
 let op = Operator::new(services::Memory::default())?;
 let bop = blocking::Operator::new(op)?;
 
@@ -75,8 +78,9 @@ bop.write("hello.txt", "Hello, World!")?;
 let bytes = bop.read("hello.txt")?;
 ```
 
-The blocking operator drives the async one on a managed runtime, so construct it
-outside of an existing async context.
+`blocking::Operator::new` captures the Tokio runtime that is current when it is
+called and returns an error if there is none. Call the blocking operator from
+synchronous code, not from inside an async task.
 
 [`Operator`]: https://docs.rs/opendal/latest/opendal/struct.Operator.html
 [`blocking::Operator`]: https://docs.rs/opendal/latest/opendal/blocking/struct.Operator.html

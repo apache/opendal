@@ -22,9 +22,6 @@ import (
 	"io"
 	"runtime"
 	"time"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // Read reads the entire contents of the file at the specified path into a byte slice.
@@ -65,7 +62,7 @@ func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
 	}
 
 	data := parseBytes(bytes)
-	if len(data) > 0 {
+	if bytes.data != nil || len(data) > 0 {
 		ffiBytesFree.symbol(op.ctx)(&bytes)
 	}
 	return data, nil
@@ -646,104 +643,61 @@ func (r *Reader) Close() error {
 	return nil
 }
 
-var ffiOperatorRead = newFFI(ffiOpts{
-	sym:    "opendal_operator_read",
-	rType:  &typeResultRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (opendalBytes, error) {
-	return func(op *opendalOperator, path string) (opendalBytes, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return opendalBytes{}, err
-		}
-		var result resultRead
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		return result.data, parseError(ctx, result.error)
-	}
-})
-
-var ffiOperatorReadWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_read_with",
-	rType:  &typeResultRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
-	return func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return opendalBytes{}, err
-		}
-		var result resultRead
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		return result.data, parseError(ctx, result.error)
-	}
-})
-
-var ffiReadOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_read_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalReadOptions {
-	return func() *opendalReadOptions {
-		var opts *opendalReadOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
-
-var ffiReadOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_read_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions) {
-	return func(opts *opendalReadOptions) {
-		ffiCall(nil, unsafe.Pointer(&opts))
-	}
-})
-
-var ffiReadOptionsSetRange = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_range",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, offset, length uint64) {
-	return func(opts *opendalReadOptions, offset, length uint64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&offset), unsafe.Pointer(&length))
-	}
-})
-
-var ffiReadOptionsSetRangeFrom = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_range_from",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, offset uint64) {
-	return func(opts *opendalReadOptions, offset uint64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&offset))
-	}
-})
-
-func newReadOptionsSetStringFFI(sym string) *FFI[func(*opendalReadOptions, string) ([]byte, error)] {
-	return newFFI(ffiOpts{
-		sym:    contextKey(sym),
-		rType:  &ffi.TypeVoid,
-		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-	}, func(_ context.Context, ffiCall ffiCall) func(*opendalReadOptions, string) ([]byte, error) {
-		return func(opts *opendalReadOptions, value string) ([]byte, error) {
-			data, err := byteSliceFromString(value)
+var ffiOperatorRead = newFFI(
+	"opendal_operator_read",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, data *opendalBytes) *opendalError) func(op *opendalOperator, path string) (opendalBytes, error) {
+		return func(op *opendalOperator, path string) (opendalBytes, error) {
+			bytePath, err := BytePtrFromString(path)
 			if err != nil {
-				return nil, err
+				return opendalBytes{}, err
 			}
-			byteValue := &data[0]
-			ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-			return data, nil
+			var data opendalBytes
+			e := cFunc(op, bytePath, &data)
+			runtime.KeepAlive(bytePath)
+			return data, parseError(ctx, e)
 		}
-	})
+	},
+)
+
+var ffiOperatorReadWith = newFFI(
+	"opendal_operator_read_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalReadOptions, data *opendalBytes) *opendalError) func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
+		return func(op *opendalOperator, path string, opts *opendalReadOptions) (opendalBytes, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return opendalBytes{}, err
+			}
+			var data opendalBytes
+			e := cFunc(op, bytePath, opts, &data)
+			runtime.KeepAlive(bytePath)
+			return data, parseError(ctx, e)
+		}
+	},
+)
+
+var ffiReadOptionsNew = newDirectFFI[func() *opendalReadOptions]("opendal_read_options_new")
+
+var ffiReadOptionsFree = newDirectFFI[func(opts *opendalReadOptions)]("opendal_read_options_free")
+
+var ffiReadOptionsSetRange = newDirectFFI[func(opts *opendalReadOptions, offset, length uint64)]("opendal_read_options_set_range")
+
+var ffiReadOptionsSetRangeFrom = newDirectFFI[func(opts *opendalReadOptions, offset uint64)]("opendal_read_options_set_range_from")
+
+func newReadOptionsSetStringFFI(sym string) *FFI[func(*opendalReadOptions, string) ([]byte, error), func(*opendalReadOptions, *byte)] {
+	return newFFI(
+		contextKey(sym),
+		func(_ context.Context, cFunc func(opts *opendalReadOptions, value *byte)) func(*opendalReadOptions, string) ([]byte, error) {
+			return func(opts *opendalReadOptions, value string) ([]byte, error) {
+				data, err := byteSliceFromString(value)
+				if err != nil {
+					return nil, err
+				}
+				cFunc(opts, &data[0])
+				runtime.KeepAlive(data)
+				return data, nil
+			}
+		},
+	)
 }
 
 var ffiReadOptionsSetVersion = newReadOptionsSetStringFFI("opendal_read_options_set_version")
@@ -753,280 +707,126 @@ var ffiReadOptionsSetOverrideContentType = newReadOptionsSetStringFFI("opendal_r
 var ffiReadOptionsSetOverrideCacheControl = newReadOptionsSetStringFFI("opendal_read_options_set_override_cache_control")
 var ffiReadOptionsSetOverrideContentDisposition = newReadOptionsSetStringFFI("opendal_read_options_set_override_content_disposition")
 
-var ffiReadOptionsSetIfModifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_if_modified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, millis int64) {
-	return func(opts *opendalReadOptions, millis int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&millis))
-	}
-})
+var ffiReadOptionsSetIfModifiedSince = newDirectFFI[func(opts *opendalReadOptions, millis int64)]("opendal_read_options_set_if_modified_since")
 
-var ffiReadOptionsSetIfUnmodifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_if_unmodified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, millis int64) {
-	return func(opts *opendalReadOptions, millis int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&millis))
-	}
-})
+var ffiReadOptionsSetIfUnmodifiedSince = newDirectFFI[func(opts *opendalReadOptions, millis int64)]("opendal_read_options_set_if_unmodified_since")
 
-var ffiReadOptionsSetConcurrent = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_concurrent",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, concurrent uint) {
-	return func(opts *opendalReadOptions, concurrent uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&concurrent))
-	}
-})
+var ffiReadOptionsSetConcurrent = newDirectFFI[func(opts *opendalReadOptions, concurrent uint)]("opendal_read_options_set_concurrent")
 
-var ffiReadOptionsSetChunk = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_chunk",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, chunk uint) {
-	return func(opts *opendalReadOptions, chunk uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&chunk))
-	}
-})
+var ffiReadOptionsSetChunk = newDirectFFI[func(opts *opendalReadOptions, chunk uint)]("opendal_read_options_set_chunk")
 
-var ffiReadOptionsSetGap = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_gap",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, gap uint) {
-	return func(opts *opendalReadOptions, gap uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&gap))
-	}
-})
+var ffiReadOptionsSetGap = newDirectFFI[func(opts *opendalReadOptions, gap uint)]("opendal_read_options_set_gap")
 
-var ffiReadOptionsSetContentLengthHint = newFFI(ffiOpts{
-	sym:    "opendal_read_options_set_content_length_hint",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReadOptions, length uint64) {
-	return func(opts *opendalReadOptions, length uint64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&length))
-	}
-})
+var ffiReadOptionsSetContentLengthHint = newDirectFFI[func(opts *opendalReadOptions, length uint64)]("opendal_read_options_set_content_length_hint")
 
-var ffiOperatorReader = newFFI(ffiOpts{
-	sym:    "opendal_operator_reader",
-	rType:  &typeResultOperatorReader,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalReader, error) {
-	return func(op *opendalOperator, path string) (*opendalReader, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultOperatorReader
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.reader, nil
-	}
-})
-
-var ffiOperatorReaderWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_reader_with",
-	rType:  &typeResultOperatorReader,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalReaderOptions) (*opendalReader, error) {
-	return func(op *opendalOperator, path string, opts *opendalReaderOptions) (*opendalReader, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultOperatorReader
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.reader, nil
-	}
-})
-
-var ffiReaderOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_reader_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalReaderOptions {
-	return func() *opendalReaderOptions {
-		var opts *opendalReaderOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
-
-var ffiReaderOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions) {
-	return func(opts *opendalReaderOptions) {
-		ffiCall(nil, unsafe.Pointer(&opts))
-	}
-})
-
-func newReaderOptionsSetStringFFI(sym string) *FFI[func(*opendalReaderOptions, string) ([]byte, error)] {
-	return newFFI(ffiOpts{
-		sym:    contextKey(sym),
-		rType:  &ffi.TypeVoid,
-		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-	}, func(_ context.Context, ffiCall ffiCall) func(*opendalReaderOptions, string) ([]byte, error) {
-		return func(opts *opendalReaderOptions, value string) ([]byte, error) {
-			data, err := byteSliceFromString(value)
+var ffiOperatorReader = newFFI(
+	"opendal_operator_reader",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, reader **opendalReader) *opendalError) func(op *opendalOperator, path string) (*opendalReader, error) {
+		return func(op *opendalOperator, path string) (*opendalReader, error) {
+			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
-			byteValue := &data[0]
-			ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-			return data, nil
+			var reader *opendalReader
+			e := cFunc(op, bytePath, &reader)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return reader, nil
 		}
-	})
+	},
+)
+
+var ffiOperatorReaderWith = newFFI(
+	"opendal_operator_reader_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalReaderOptions, reader **opendalReader) *opendalError) func(op *opendalOperator, path string, opts *opendalReaderOptions) (*opendalReader, error) {
+		return func(op *opendalOperator, path string, opts *opendalReaderOptions) (*opendalReader, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var reader *opendalReader
+			e := cFunc(op, bytePath, opts, &reader)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return reader, nil
+		}
+	},
+)
+
+var ffiReaderOptionsNew = newDirectFFI[func() *opendalReaderOptions]("opendal_reader_options_new")
+
+var ffiReaderOptionsFree = newDirectFFI[func(opts *opendalReaderOptions)]("opendal_reader_options_free")
+
+func newReaderOptionsSetStringFFI(sym string) *FFI[func(*opendalReaderOptions, string) ([]byte, error), func(*opendalReaderOptions, *byte)] {
+	return newFFI(
+		contextKey(sym),
+		func(_ context.Context, cFunc func(opts *opendalReaderOptions, value *byte)) func(*opendalReaderOptions, string) ([]byte, error) {
+			return func(opts *opendalReaderOptions, value string) ([]byte, error) {
+				data, err := byteSliceFromString(value)
+				if err != nil {
+					return nil, err
+				}
+				cFunc(opts, &data[0])
+				runtime.KeepAlive(data)
+				return data, nil
+			}
+		},
+	)
 }
 
 var ffiReaderOptionsSetVersion = newReaderOptionsSetStringFFI("opendal_reader_options_set_version")
 var ffiReaderOptionsSetIfMatch = newReaderOptionsSetStringFFI("opendal_reader_options_set_if_match")
 var ffiReaderOptionsSetIfNoneMatch = newReaderOptionsSetStringFFI("opendal_reader_options_set_if_none_match")
 
-var ffiReaderOptionsSetIfModifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_if_modified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, millis int64) {
-	return func(opts *opendalReaderOptions, millis int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&millis))
-	}
-})
+var ffiReaderOptionsSetIfModifiedSince = newDirectFFI[func(opts *opendalReaderOptions, millis int64)]("opendal_reader_options_set_if_modified_since")
 
-var ffiReaderOptionsSetIfUnmodifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_if_unmodified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, millis int64) {
-	return func(opts *opendalReaderOptions, millis int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&millis))
-	}
-})
+var ffiReaderOptionsSetIfUnmodifiedSince = newDirectFFI[func(opts *opendalReaderOptions, millis int64)]("opendal_reader_options_set_if_unmodified_since")
 
-var ffiReaderOptionsSetContentLengthHint = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_content_length_hint",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, length uint64) {
-	return func(opts *opendalReaderOptions, length uint64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&length))
-	}
-})
+var ffiReaderOptionsSetContentLengthHint = newDirectFFI[func(opts *opendalReaderOptions, length uint64)]("opendal_reader_options_set_content_length_hint")
 
-var ffiReaderOptionsSetConcurrent = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_concurrent",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, concurrent uint) {
-	return func(opts *opendalReaderOptions, concurrent uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&concurrent))
-	}
-})
+var ffiReaderOptionsSetConcurrent = newDirectFFI[func(opts *opendalReaderOptions, concurrent uint)]("opendal_reader_options_set_concurrent")
 
-var ffiReaderOptionsSetChunk = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_chunk",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, chunk uint) {
-	return func(opts *opendalReaderOptions, chunk uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&chunk))
-	}
-})
+var ffiReaderOptionsSetChunk = newDirectFFI[func(opts *opendalReaderOptions, chunk uint)]("opendal_reader_options_set_chunk")
 
-var ffiReaderOptionsSetGap = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_gap",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, gap uint) {
-	return func(opts *opendalReaderOptions, gap uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&gap))
-	}
-})
+var ffiReaderOptionsSetGap = newDirectFFI[func(opts *opendalReaderOptions, gap uint)]("opendal_reader_options_set_gap")
 
-var ffiReaderOptionsSetPrefetch = newFFI(ffiOpts{
-	sym:    "opendal_reader_options_set_prefetch",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalReaderOptions, prefetch uint) {
-	return func(opts *opendalReaderOptions, prefetch uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&prefetch))
-	}
-})
+var ffiReaderOptionsSetPrefetch = newDirectFFI[func(opts *opendalReaderOptions, prefetch uint)]("opendal_reader_options_set_prefetch")
 
-var ffiReaderFree = newFFI(ffiOpts{
-	sym:    "opendal_reader_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader) {
-	return func(r *opendalReader) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&r),
-		)
-	}
-})
+var ffiReaderFree = newDirectFFI[func(r *opendalReader)]("opendal_reader_free")
 
-var ffiReaderRead = newFFI(ffiOpts{
-	sym:    "opendal_reader_read",
-	rType:  &typeResultReaderRead,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, buf []byte) (size uint, err error) {
-	return func(r *opendalReader, buf []byte) (size uint, err error) {
-		var length = len(buf)
-		if length == 0 {
-			return 0, nil
+var ffiReaderRead = newFFI(
+	"opendal_reader_read",
+	func(ctx context.Context, cFunc func(r *opendalReader, buf *byte, length uint, size *uint) *opendalError) func(r *opendalReader, buf []byte) (size uint, err error) {
+		return func(r *opendalReader, buf []byte) (size uint, err error) {
+			length := uint(len(buf))
+			if length == 0 {
+				return 0, nil
+			}
+			var outSize uint
+			e := cFunc(r, &buf[0], length, &outSize)
+			runtime.KeepAlive(buf)
+			if e != nil {
+				return 0, parseError(ctx, e)
+			}
+			return outSize, nil
 		}
-		bytePtr := &buf[0]
-		var result resultReaderRead
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&r),
-			unsafe.Pointer(&bytePtr),
-			unsafe.Pointer(&length),
-		)
-		if result.error != nil {
-			return 0, parseError(ctx, result.error)
-		}
-		return result.size, nil
-	}
-})
+	},
+)
 
-var ffiReaderSeek = newFFI(ffiOpts{
-	sym:    "opendal_reader_seek",
-	rType:  &typeResultReaderSeek,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalReader, offset int64, whence int) (int64, error) {
-	return func(r *opendalReader, offset int64, whence int) (int64, error) {
-		var result resultReaderSeek
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&r),
-			unsafe.Pointer(&offset),
-			unsafe.Pointer(&whence),
-		)
-		if result.error != nil {
-			return 0, parseError(ctx, result.error)
+var ffiReaderSeek = newFFI(
+	"opendal_reader_seek",
+	func(ctx context.Context, cFunc func(r *opendalReader, offset int64, whence int, pos *uint64) *opendalError) func(r *opendalReader, offset int64, whence int) (int64, error) {
+		return func(r *opendalReader, offset int64, whence int) (int64, error) {
+			var pos uint64
+			e := cFunc(r, offset, whence, &pos)
+			if e != nil {
+				return 0, parseError(ctx, e)
+			}
+			return int64(pos), nil
 		}
-		return int64(result.pos), nil
-	}
-})
+	},
+)

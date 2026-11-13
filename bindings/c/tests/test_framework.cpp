@@ -121,19 +121,20 @@ opendal_test_config* opendal_test_config_new()
     }
 
     // Create operator
-    opendal_result_operator_new result = opendal_operator_new(config->scheme, config->options);
-    if (result.error) {
-        printf("Failed to create operator: error code %d\n", result.error->code);
-        if (result.error->message.data) {
-            printf("Error message: %.*s\n", (int)result.error->message.len,
-                (char*)result.error->message.data);
+    opendal_operator* op = NULL;
+    opendal_error* error = opendal_operator_new(config->scheme, config->options, &op);
+    if (error) {
+        printf("Failed to create operator: error code %d\n", error->code);
+        if (error->message.data) {
+            printf("Error message: %.*s\n", (int)error->message.len,
+                (char*)error->message.data);
         }
-        opendal_error_free(result.error);
+        opendal_error_free(error);
         opendal_test_config_free(config);
         return NULL;
     }
 
-    config->operator_instance = result.op;
+    config->operator_instance = op;
     return config;
 }
 
@@ -164,7 +165,8 @@ bool opendal_check_capability(const opendal_operator* op,
     if (!info)
         return false;
 
-    opendal_capability cap = opendal_operator_info_get_capability(info);
+    opendal_capability cap;
+    opendal_operator_info_get_capability(info, &cap);
 
     bool result = true;
     if (required.stat && !cap.stat)

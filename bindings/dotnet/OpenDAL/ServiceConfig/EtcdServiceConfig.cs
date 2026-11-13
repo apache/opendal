@@ -29,19 +29,19 @@ namespace OpenDAL.ServiceConfig
     public sealed class EtcdServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// certificate authority file path default is None
+        /// PEM certificate authority file used to verify the server. Enables TLS independently of `cert_path` and `key_path`. default is None
         /// </summary>
         public string? CaPath { get; init; }
         /// <summary>
-        /// cert path default is None
+        /// PEM client certificate file used for mutual TLS. Must be configured together with `key_path`. default is None
         /// </summary>
         public string? CertPath { get; init; }
         /// <summary>
-        /// network address of the Etcd services. If use https, must set TLS options: `ca_path`, `cert_path`, `key_path`. e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792" default is "http://127.0.0.1:2379"
+        /// network address of the Etcd services. Use HTTPS endpoints for TLS. Set `ca_path` to trust a custom certificate authority. Client authentication additionally requires both `cert_path` and `key_path`. e.g. "127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792" or "http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792" or "https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792" default is "http://127.0.0.1:2379"
         /// </summary>
         public string? Endpoints { get; init; }
         /// <summary>
-        /// key path default is None
+        /// PEM client private key file used for mutual TLS. Must be configured together with `cert_path`. default is None
         /// </summary>
         public string? KeyPath { get; init; }
         /// <summary>

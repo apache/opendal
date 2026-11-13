@@ -45,34 +45,36 @@ impl opendal_writer {
         }
     }
 
-    /// \brief Write data to the writer.
+    /// \brief Write data to the writer and write the number of bytes written to `*size`.
+    ///
+    /// On failure, writes `0` to `*size` and returns an `opendal_error *`.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write(
         &mut self,
         bytes: &opendal_bytes,
-    ) -> opendal_result_writer_write {
-        let size = bytes.len;
+        size: *mut usize,
+    ) -> *mut opendal_error {
+        assert!(!size.is_null());
+        let len = bytes.len;
         let bytes = match bytes.to_buffer() {
             Ok(bytes) => bytes,
             Err(e) => {
-                return opendal_result_writer_write {
-                    size: 0,
-                    error: opendal_error::new(e),
-                };
+                std::ptr::write(size, 0);
+                return opendal_error::new(e);
             }
         };
         match self.deref_mut().write(bytes) {
-            Ok(()) => opendal_result_writer_write {
-                size,
-                error: std::ptr::null_mut(),
-            },
-            Err(e) => opendal_result_writer_write {
-                size: 0,
-                error: opendal_error::new(
+            Ok(()) => {
+                std::ptr::write(size, len);
+                std::ptr::null_mut()
+            }
+            Err(e) => {
+                std::ptr::write(size, 0);
+                opendal_error::new(
                     core::Error::new(core::ErrorKind::Unexpected, "write failed from writer")
                         .set_source(e),
-                ),
-            },
+                )
+            }
         }
     }
 
@@ -92,40 +94,39 @@ impl opendal_writer {
         }
     }
 
-    /// \brief Close the writer and return the written object's metadata.
+    /// \brief Close the writer and write the written object's metadata to `*meta`.
     ///
-    /// Like `opendal_writer_close`, but on success returns the metadata of the
-    /// written object (e.g. etag, version, last modified) instead of discarding it.
+    /// Like `opendal_writer_close`, but on success writes the metadata of the
+    /// written object (e.g. etag, version, last modified) to `*meta` instead of discarding it.
     ///
     /// @param ptr The opendal_writer to close
-    /// @see opendal_result_write
-    /// @return Returns opendal_result_write. On success the `meta` field holds the
-    /// metadata and `error` is null; on failure `meta` is null and `error` is set.
+    /// @param meta Output pointer receiving the allocated `opendal_metadata *` on success, or NULL on failure
+    /// @return NULL on success, or an `opendal_error *` on failure.
     ///
     /// \note The returned metadata must be freed with opendal_metadata_free().
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_close_with_metadata(
         ptr: *mut opendal_writer,
-    ) -> opendal_result_write {
+        meta: *mut *mut opendal_metadata,
+    ) -> *mut opendal_error {
         unsafe {
+            assert!(!meta.is_null());
             if ptr.is_null() {
-                return opendal_result_write {
-                    meta: std::ptr::null_mut(),
-                    error: std::ptr::null_mut(),
-                };
+                std::ptr::write(meta, std::ptr::null_mut());
+                return std::ptr::null_mut();
             }
             match (*ptr).deref_mut().close() {
-                Ok(m) => opendal_result_write {
-                    meta: Box::into_raw(Box::new(opendal_metadata::new(m))),
-                    error: std::ptr::null_mut(),
-                },
-                Err(e) => opendal_result_write {
-                    meta: std::ptr::null_mut(),
-                    error: opendal_error::new(
+                Ok(m) => {
+                    std::ptr::write(meta, Box::into_raw(Box::new(opendal_metadata::new(m))));
+                    std::ptr::null_mut()
+                }
+                Err(e) => {
+                    std::ptr::write(meta, std::ptr::null_mut());
+                    opendal_error::new(
                         core::Error::new(core::ErrorKind::Unexpected, "close writer failed")
                             .set_source(e),
-                    ),
-                },
+                    )
+                }
             }
         }
     }

@@ -19,20 +19,10 @@ package opendal
 
 import (
 	"context"
-	"errors"
 	"sync"
-	"unsafe"
 
-	"github.com/jupiterrider/ffi"
+	"github.com/ebitengine/purego"
 )
-
-type ffiOpts struct {
-	sym    contextKey
-	rType  *ffi.Type
-	aTypes []*ffi.Type
-}
-
-type ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)
 
 type contextKey string
 
@@ -42,43 +32,42 @@ func (c contextKey) String() string {
 
 type contextWithFFI func(ctx context.Context, lib uintptr) (context.Context, error)
 
-type FFI[T any] struct {
-	opts     ffiOpts
-	withFunc func(ctx context.Context, ffiCall ffiCall) T
+type FFI[T any, CFunc any] struct {
+	sym      contextKey
+	withFunc func(ctx context.Context, cFunc CFunc) T
 }
 
-func newFFI[T any](opts ffiOpts, withFunc func(ctx context.Context, ffiCall ffiCall) T) *FFI[T] {
-	ffi := &FFI[T]{
-		opts:     opts,
+func newFFI[T any, CFunc any](
+	sym contextKey,
+	withFunc func(ctx context.Context, cFunc CFunc) T,
+) *FFI[T, CFunc] {
+	ffi := &FFI[T, CFunc]{
+		sym:      sym,
 		withFunc: withFunc,
 	}
 	withFFIs = append(withFFIs, ffi.withFFI)
 	return ffi
 }
 
-func (f *FFI[T]) symbol(ctx context.Context) T {
-	return ctx.Value(f.opts.sym).(T)
+func newDirectFFI[CFunc any](sym contextKey) *FFI[CFunc, CFunc] {
+	return newFFI(sym, func(_ context.Context, cFunc CFunc) CFunc {
+		return cFunc
+	})
 }
 
-func (f *FFI[T]) withFFI(ctx context.Context, lib uintptr) (context.Context, error) {
-	var cif ffi.Cif
-	if status := ffi.PrepCif(
-		&cif,
-		ffi.DefaultAbi,
-		uint32(len(f.opts.aTypes)),
-		f.opts.rType,
-		f.opts.aTypes...,
-	); status != ffi.OK {
-		return nil, errors.New(status.String())
-	}
-	fn, err := GetProcAddress(lib, f.opts.sym.String())
+func (f *FFI[T, CFunc]) symbol(ctx context.Context) T {
+	return ctx.Value(f.sym).(T)
+}
+
+func (f *FFI[T, CFunc]) withFFI(ctx context.Context, lib uintptr) (context.Context, error) {
+	fn, err := GetProcAddress(lib, f.sym.String())
 	if err != nil {
 		return nil, err
 	}
-	val := f.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		ffi.Call(&cif, fn, rValue, aValues...)
-	})
-	return context.WithValue(ctx, f.opts.sym, val), nil
+	var cFunc CFunc
+	purego.RegisterFunc(&cFunc, fn)
+	val := f.withFunc(ctx, cFunc)
+	return context.WithValue(ctx, f.sym, val), nil
 }
 
 var withFFIs []contextWithFFI
@@ -116,7 +105,7 @@ func newContext(path string) (ctx context.Context, cancel context.CancelFunc, er
 			return
 		}
 	}
-	// Keep the library loaded for the process lifetime. The context stores libffi
+	// Keep the library loaded for the process lifetime. The context stores purego
 	// call targets into this library, so unloading it during operator cleanup can
 	// leave Go frames returning into unmapped code.
 	cancel = func() {}

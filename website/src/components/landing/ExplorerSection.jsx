@@ -32,7 +32,6 @@ function ChoiceItem({
   item,
   selected,
   previewId,
-  variant,
   onSelect,
   getTitle,
   getDescription,
@@ -41,37 +40,24 @@ function ChoiceItem({
   const title = getTitle(item);
   const description = getDescription(item);
   const doc = getDoc(item);
-  const isTile = variant === "tiles";
 
   return (
     <li className={styles.choiceShell}>
       <button
         type="button"
-        className={[
-          isTile ? styles.tileButton : styles.choiceButton,
+        className={
           selected
-            ? isTile
-              ? styles.tileButtonActive
-              : styles.choiceButtonActive
-            : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+            ? `${styles.choiceButton} ${styles.choiceButtonActive}`
+            : styles.choiceButton
+        }
         aria-pressed={selected}
         aria-controls={previewId}
         onClick={() => onSelect(item)}
       >
-        {isTile ? (
-          <>
-            <span className={styles.tileName}>{title}</span>
-            <span className={styles.tileDesc}>{description}</span>
-          </>
-        ) : (
-          <span className={styles.choiceText}>
-            <span className={styles.choiceTitle}>{title}</span>
-            <span className={styles.choiceBlurb}>{description}</span>
-          </span>
-        )}
+        <span className={styles.choiceText}>
+          <span className={styles.choiceTitle}>{title}</span>
+          <span className={styles.choiceBlurb}>{description}</span>
+        </span>
       </button>
       <IconAction
         as={Link}
@@ -98,22 +84,13 @@ export default function ExplorerSection({
   getDescription,
   getDoc,
   getCode,
-  variant = "list",
 }) {
   const title = getTitle(activeItem);
   const doc = getDoc(activeItem);
-  const isTiles = variant === "tiles";
 
   return (
-    <div
-      className={[
-        styles.explorer,
-        isTiles ? styles.explorerEven : styles.explorerWidePreview,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-    >
-      <ul className={isTiles ? styles.tileGrid : styles.choiceNav}>
+    <div className={styles.explorer}>
+      <ul className={styles.choiceNav}>
         {items.map((item) => {
           const key = getKey(item);
           return (
@@ -122,7 +99,6 @@ export default function ExplorerSection({
               item={item}
               selected={key === getKey(activeItem)}
               previewId={id}
-              variant={variant}
               onSelect={onSelect}
               getTitle={getTitle}
               getDescription={getDescription}
@@ -144,14 +120,7 @@ export default function ExplorerSection({
             </CodeWindowTitleLink>
           }
         >
-          <CodeWindowBody
-            className={[
-              styles.previewCodeBody,
-              isTiles ? styles.tilePreviewCodeBody : styles.listPreviewCodeBody,
-            ]
-              .filter(Boolean)
-              .join(" ")}
-          >
+          <CodeWindowBody className={styles.previewCodeBody}>
             <div className={styles.previewCodeFade} key={getKey(activeItem)}>
               <CodeBlock language="rust">{getCode(activeItem)}</CodeBlock>
             </div>

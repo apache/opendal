@@ -443,6 +443,33 @@ mod tests {
         assert_eq!(std::fs::read(&outside).unwrap(), b"content");
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_includes_dangling_symlink() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        std::fs::write(root.join("real"), b"data").unwrap();
+        std::os::unix::fs::symlink("/nonexistent-target", root.join("linky")).unwrap();
+        std::os::unix::fs::symlink(root.join("real"), root.join("valid-link")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let entries = op.list("/").await.unwrap();
+        let modes: std::collections::HashMap<String, EntryMode> = entries
+            .iter()
+            .map(|e| (e.path().to_string(), e.metadata().mode()))
+            .collect();
+
+        assert_eq!(
+            modes.get("linky"),
+            Some(&EntryMode::Unknown),
+            "dangling symlink must be listed as Unknown: {modes:?}"
+        );
+        assert_eq!(modes.get("real"), Some(&EntryMode::FILE));
+    }
+
     #[tokio::test]
     async fn test_delete_iter_rejects_parent_path_outside_root() {
         use opendal_core::Operator;

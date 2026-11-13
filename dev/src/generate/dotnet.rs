@@ -875,7 +875,7 @@ fn capability_refs(lines: &[String]) -> Vec<String> {
 fn enabled_service(srv: &str) -> bool {
     match srv {
         // not enabled in bindings/dotnet/Cargo.toml
-        "foundationdb" | "foyer" | "ftp" | "hdfs" | "rocksdb" => false,
+        "foundationdb" | "foyer" | "ftp" | "git" | "hdfs" | "rocksdb" | "smb" => false,
         _ => true,
     }
 }

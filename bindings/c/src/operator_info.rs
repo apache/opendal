@@ -254,11 +254,15 @@ impl opendal_operator_info {
             .into_raw()
     }
 
-    /// \brief Return the operator's capability
+    /// \brief Write the operator's capability into `cap`.
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_operator_info_get_capability(&self) -> opendal_capability {
-        let cap = self.deref().capability();
-        cap.into()
+    pub unsafe extern "C" fn opendal_operator_info_get_capability(
+        &self,
+        cap: *mut opendal_capability,
+    ) {
+        assert!(!cap.is_null());
+        let capability = self.deref().capability();
+        std::ptr::write(cap, capability.into());
     }
 }
 

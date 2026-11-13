@@ -24,8 +24,6 @@ import (
 	"runtime"
 	"time"
 	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 type presignFunc func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error)
@@ -148,271 +146,164 @@ func buildHTTPPresignedRequest(ctx context.Context, ptr *opendalPresignedRequest
 	return
 }
 
-var ffiOperatorPresignRead = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_read",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignRead = newFFI(
+	"opendal_operator_presign_read",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignReadWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_read_with",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignReadWith = newFFI(
+	"opendal_operator_presign_read_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, opts, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignWrite = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_write",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignWrite = newFFI(
+	"opendal_operator_presign_write",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignWriteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_write_with",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignWriteWith = newFFI(
+	"opendal_operator_presign_write_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, opts, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignDelete = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_delete",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignDelete = newFFI(
+	"opendal_operator_presign_delete",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
+	},
+)
+
+var ffiOperatorPresignDeleteWith = newFFI(
+	"opendal_operator_presign_delete_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, opts, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignDeleteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_delete_with",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorPresignStat = newFFI(
+	"opendal_operator_presign_stat",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
+	},
+)
+
+var ffiOperatorPresignStatWith = newFFI(
+	"opendal_operator_presign_stat_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var req *opendalPresignedRequest
+			e := cFunc(op, bytePath, expire, opts, &req)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return req, nil
 		}
-		return result.req, nil
-	}
-})
+	},
+)
 
-var ffiOperatorPresignStat = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_stat",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+var ffiPresignedRequestMethod = newDirectFFI[func(req *opendalPresignedRequest) *byte]("opendal_presigned_request_method")
 
-var ffiOperatorPresignStatWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_presign_stat_with",
-	rType:  &typeResultPresign,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypeUint64, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
-	return func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultPresign
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&expire),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.req, nil
-	}
-})
+var ffiPresignedRequestUri = newDirectFFI[func(req *opendalPresignedRequest) *byte]("opendal_presigned_request_uri")
 
-var ffiPresignedRequestMethod = newFFI(ffiOpts{
-	sym:    "opendal_presigned_request_method",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(req *opendalPresignedRequest) *byte {
-	return func(req *opendalPresignedRequest) *byte {
-		var result *byte
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&req),
-		)
-		return result
-	}
-})
+var ffiPresignedRequestHeaders = newDirectFFI[func(req *opendalPresignedRequest) *opendalHttpHeaderPair]("opendal_presigned_request_headers")
 
-var ffiPresignedRequestUri = newFFI(ffiOpts{
-	sym:    "opendal_presigned_request_uri",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(req *opendalPresignedRequest) *byte {
-	return func(req *opendalPresignedRequest) *byte {
-		var result *byte
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&req),
-		)
-		return result
-	}
-})
+var ffiPresignedRequestHeadersLen = newDirectFFI[func(req *opendalPresignedRequest) uintptr]("opendal_presigned_request_headers_len")
 
-var ffiPresignedRequestHeaders = newFFI(ffiOpts{
-	sym:    "opendal_presigned_request_headers",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(req *opendalPresignedRequest) *opendalHttpHeaderPair {
-	return func(req *opendalPresignedRequest) *opendalHttpHeaderPair {
-		var result *opendalHttpHeaderPair
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&req),
-		)
-		return result
-	}
-})
-
-var ffiPresignedRequestHeadersLen = newFFI(ffiOpts{
-	sym:    "opendal_presigned_request_headers_len",
-	rType:  &ffi.TypeUint64,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(req *opendalPresignedRequest) uintptr {
-	return func(req *opendalPresignedRequest) uintptr {
-		var length uint64
-		ffiCall(
-			unsafe.Pointer(&length),
-			unsafe.Pointer(&req),
-		)
-		return uintptr(length)
-	}
-})
-
-var ffiPresignedRequestFree = newFFI(ffiOpts{
-	sym:    "opendal_presigned_request_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(req *opendalPresignedRequest) {
-	return func(req *opendalPresignedRequest) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&req),
-		)
-	}
-})
+var ffiPresignedRequestFree = newDirectFFI[func(req *opendalPresignedRequest)]("opendal_presigned_request_free")

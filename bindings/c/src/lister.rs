@@ -49,35 +49,37 @@ impl opendal_lister {
         }
     }
 
-    /// \brief Return the next object to be listed
+    /// \brief Return the next object to be listed.
     ///
     /// Lister is an iterator of the objects under its path, this method is the same as
-    /// calling next() on the iterator
+    /// calling next() on the iterator.
+    ///
+    /// On success, writes the next entry pointer (or NULL when listing is exhausted)
+    /// to `*entry` and returns NULL. On failure, writes NULL to `*entry` and returns
+    /// a newly allocated error that must be freed with `opendal_error_free()`.
     ///
     /// For examples, please see the comment section of opendal_operator_list()
     /// @see opendal_operator_list()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_lister_next(&mut self) -> opendal_result_lister_next {
-        let e = self.deref_mut().next();
-        if e.is_none() {
-            return opendal_result_lister_next {
-                entry: std::ptr::null_mut(),
-                error: std::ptr::null_mut(),
-            };
-        }
-
-        match e.unwrap() {
-            Ok(e) => {
-                let ent = Box::into_raw(Box::new(opendal_entry::new(e)));
-                opendal_result_lister_next {
-                    entry: ent,
-                    error: std::ptr::null_mut(),
-                }
+    pub unsafe extern "C" fn opendal_lister_next(
+        &mut self,
+        entry: *mut *mut opendal_entry,
+    ) -> *mut opendal_error {
+        assert!(!entry.is_null());
+        match self.deref_mut().next() {
+            None => {
+                std::ptr::write(entry, std::ptr::null_mut());
+                std::ptr::null_mut()
             }
-            Err(e) => opendal_result_lister_next {
-                entry: std::ptr::null_mut(),
-                error: opendal_error::new(e),
-            },
+            Some(Ok(e)) => {
+                let ent = Box::into_raw(Box::new(opendal_entry::new(e)));
+                std::ptr::write(entry, ent);
+                std::ptr::null_mut()
+            }
+            Some(Err(e)) => {
+                std::ptr::write(entry, std::ptr::null_mut());
+                opendal_error::new(e)
+            }
         }
     }
 

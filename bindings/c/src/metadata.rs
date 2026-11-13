@@ -245,10 +245,10 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
-    /// assert(s.error == NULL);
+    /// opendal_metadata *meta = NULL;
+    /// opendal_error *err = opendal_operator_stat(op, "/testpath", &meta);
+    /// assert(err == NULL);
     ///
-    /// opendal_metadata *meta = s.meta;
     /// assert(opendal_metadata_last_modified_ms(meta) != -1);
     /// ```
     #[no_mangle]

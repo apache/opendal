@@ -15,7 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::core::BaiduNetdiskCore;
+use crate::core::{BaiduNetdiskCore, FILE_API, FileList};
+use http::Request;
 use opendal_core::{raw::*, *};
 use std::sync::Arc;
 
@@ -24,7 +25,40 @@ pub struct BaiduNetdiskDeleter {
     pub ctx: OperationContext,
 }
 impl oio::OneShotDelete for BaiduNetdiskDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        if !args.recursive() {
+            let file = match self.core.stat(&self.ctx, &path).await {
+                Ok(file) => file,
+                Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+                Err(e) => return Err(e),
+            };
+            if file.isdir == 1 {
+                // Baidu always deletes directories recursively. Check for children
+                // before issuing a non-recursive delete, including paths without '/'.
+                let query = form_urlencoded::Serializer::new(String::new())
+                    .append_pair("method", "list")
+                    .append_pair("dir", &self.core.absolute_path(&path))
+                    .append_pair("start", "0")
+                    .append_pair("limit", "1")
+                    .finish();
+                let req = Request::get(format!("{FILE_API}?{query}"))
+                    .body(Buffer::new())
+                    .map_err(new_request_build_error)?;
+                let value = match self.core.send(&self.ctx, req).await {
+                    Ok(value) => value,
+                    Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+                    Err(e) => return Err(e),
+                };
+                let children: FileList =
+                    serde_json::from_value(value).map_err(new_json_deserialize_error)?;
+                if !children.list.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "cannot delete a non-empty directory without recursive=true",
+                    ));
+                }
+            }
+        }
         match self
             .core
             .manage(

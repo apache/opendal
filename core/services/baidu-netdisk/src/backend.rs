@@ -132,6 +132,7 @@ impl Service for BaiduNetdiskBackend {
             list: true,
             list_with_limit: true,
             delete: true,
+            delete_with_recursive: true,
             copy: true,
             rename: true,
             shared: true,
@@ -203,6 +204,12 @@ impl Service for BaiduNetdiskBackend {
             let to = to.clone();
             async move {
                 let metadata = core.stat(&ctx, &from).await?.metadata()?;
+                if metadata.is_dir() {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "copy source is a directory",
+                    ));
+                }
                 if from != to {
                     core.transfer(&ctx, "copy", &from, &to).await?;
                 }
@@ -217,6 +224,12 @@ impl Service for BaiduNetdiskBackend {
         to: &str,
         _: OpRename,
     ) -> Result<RpRename> {
+        if self.core.stat(ctx, from).await?.isdir == 1 {
+            return Err(Error::new(
+                ErrorKind::IsADirectory,
+                "rename source is a directory",
+            ));
+        }
         if from != to {
             // The move API rejects existing destinations even with ondup=overwrite.
             // Use copy then delete consistently to provide overwrite semantics.

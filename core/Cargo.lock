@@ -7140,6 +7140,7 @@ dependencies = [
  "opendal-service-azdls",
  "opendal-service-azfile",
  "opendal-service-b2",
+ "opendal-service-baidu-netdisk",
  "opendal-service-cacache",
  "opendal-service-cloudflare-kv",
  "opendal-service-compfs",
@@ -7679,6 +7680,23 @@ dependencies = [
  "bytes",
  "http 1.4.2",
  "log",
+ "opendal-core",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-baidu-netdisk"
+version = "0.59.5"
+dependencies = [
+ "asyncband",
+ "bytes",
+ "form_urlencoded",
+ "futures",
+ "hex",
+ "http 1.4.2",
+ "md-5 0.11.0",
  "opendal-core",
  "serde",
  "serde_json",

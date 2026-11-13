@@ -157,6 +157,13 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
         return Ok(());
     }
 
+    // Baidu rejects these emoji at file creation with errno -7 and illegal_chars.
+    #[cfg(feature = "services-baidu-netdisk")]
+    if op.info().scheme() == services::BAIDU_NETDISK_SCHEME {
+        log::warn!("skip non-ASCII copy test: Baidu Netdisk rejects emoji filenames");
+        return Ok(());
+    }
+
     let source_path = "🐂🍺中文.docx";
     let target_path = "😈🐅Français.docx";
     let (source_content, _) = gen_bytes(op.info().capability());

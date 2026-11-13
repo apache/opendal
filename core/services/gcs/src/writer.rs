@@ -539,11 +539,11 @@ mod tests {
     }
 
     #[derive(Clone, Default)]
-    struct MockGcsTransport {
+    struct MockResumableTransport {
         state: Arc<Mutex<MockState>>,
     }
 
-    impl MockGcsTransport {
+    impl MockResumableTransport {
         fn fail_chunk_response(&self) {
             self.state.lock().unwrap().fail_chunk_response = true;
         }
@@ -620,7 +620,7 @@ mod tests {
         }
     }
 
-    impl HttpTransport for MockGcsTransport {
+    impl HttpTransport for MockResumableTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
             let query = req.uri().query().unwrap_or_default().to_string();
             let kind = match *req.method() {
@@ -742,7 +742,7 @@ mod tests {
         }
     }
 
-    fn test_writer(transport: MockGcsTransport) -> GcsConditionalWriter {
+    fn test_writer(transport: MockResumableTransport) -> GcsConditionalWriter {
         test_writer_with(
             transport,
             options::WriteOptions {
@@ -753,7 +753,7 @@ mod tests {
     }
 
     fn test_writer_with(
-        transport: MockGcsTransport,
+        transport: MockResumableTransport,
         options: options::WriteOptions,
     ) -> GcsConditionalWriter {
         let sign_ctx = Context::new();
@@ -781,7 +781,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_write_resends_interrupted_chunk_before_accepting_input() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.fail_chunk_response();
         let mut writer = test_writer(transport.clone());
         let mut expected = vec![7; RESUMABLE_CHUNK_SIZE + 3];
@@ -823,7 +823,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_close_reconciles_lost_final_response() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.fail_final_response();
         let mut writer = test_writer(transport.clone());
         let expected = multi_chunk_body();
@@ -851,7 +851,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_close_resends_after_incomplete_status() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.fail_final_response_partially();
         let mut writer = test_writer(transport.clone());
         let expected = multi_chunk_body();
@@ -880,7 +880,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_small_object_sends_one_conditional_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         let mut writer = test_writer(transport.clone());
         writer
             .write(Buffer::from(Bytes::from_static(b"hello")))
@@ -899,7 +899,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_full_chunk_sends_one_conditional_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         let mut writer = test_writer(transport.clone());
         let expected = vec![7; RESUMABLE_CHUNK_SIZE];
         writer
@@ -918,7 +918,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_multi_chunk_object_uses_resumable_upload() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         let mut writer = test_writer(transport.clone());
         let expected = multi_chunk_body();
         writer
@@ -934,7 +934,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_empty_object_sends_one_conditional_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         let mut writer = test_writer(transport.clone());
 
         let metadata = writer.close().await.unwrap();
@@ -949,7 +949,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_if_version_match_sends_one_conditional_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.existing_object(123);
         let mut writer = test_writer_with(
             transport.clone(),
@@ -975,7 +975,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_stale_if_version_match_reports_condition_not_match() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.existing_object(5);
         let mut writer = test_writer_with(
             transport.clone(),
@@ -1002,7 +1002,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_if_version_not_match_sends_one_conditional_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.existing_object(5);
         let mut writer = test_writer_with(
             transport.clone(),
@@ -1028,7 +1028,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_with_metadata_sends_one_conditional_multipart_insert() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         let mut writer = test_writer_with(
             transport.clone(),
             options::WriteOptions {
@@ -1057,7 +1057,7 @@ mod tests {
 
     #[tokio::test]
     async fn retry_close_reports_precondition_failure_after_lost_insert_response() {
-        let transport = MockGcsTransport::default();
+        let transport = MockResumableTransport::default();
         transport.fail_insert_response();
         let mut writer = test_writer(transport.clone());
         writer

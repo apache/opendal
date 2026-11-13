@@ -7109,6 +7109,7 @@ dependencies = [
  "logforth",
  "opendal-core",
  "opendal-http-transport-reqwest",
+ "opendal-layer-aimd",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-capability-check",
@@ -7318,6 +7319,17 @@ dependencies = [
  "http-body 1.1.0",
  "opendal-core",
  "reqwest 0.13.4",
+]
+
+[[package]]
+name = "opendal-layer-aimd"
+version = "0.59.5"
+dependencies = [
+ "asyncband",
+ "futures",
+ "http 1.4.2",
+ "opendal-core",
+ "tokio",
 ]
 
 [[package]]

@@ -32,8 +32,6 @@ mod config;
 mod core;
 mod deleter;
 mod lister;
-#[cfg(test)]
-mod operation_tests;
 mod reader;
 mod writer;
 

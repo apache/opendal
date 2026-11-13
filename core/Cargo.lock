@@ -7693,14 +7693,12 @@ dependencies = [
  "asyncband",
  "bytes",
  "form_urlencoded",
- "futures",
  "hex",
  "http 1.4.2",
  "md-5 0.11.0",
  "opendal-core",
  "serde",
  "serde_json",
- "tokio",
 ]
 
 [[package]]

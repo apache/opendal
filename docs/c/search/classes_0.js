@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['opendal_5fbytes_0',['opendal_bytes',['../structopendal__bytes.html',1,'']]],
+  ['opendal_5fcapability_1',['opendal_capability',['../structopendal__capability.html',1,'']]],
+  ['opendal_5fcopier_2',['opendal_copier',['../structopendal__copier.html',1,'']]],
+  ['opendal_5fcopy_5foptions_3',['opendal_copy_options',['../structopendal__copy__options.html',1,'']]],
+  ['opendal_5fdelete_5foptions_4',['opendal_delete_options',['../structopendal__delete__options.html',1,'']]],
+  ['opendal_5fentry_5',['opendal_entry',['../structopendal__entry.html',1,'']]],
+  ['opendal_5ferror_6',['opendal_error',['../structopendal__error.html',1,'']]],
+  ['opendal_5fhttp_5fheader_5fpair_7',['opendal_http_header_pair',['../structopendal__http__header__pair.html',1,'']]],
+  ['opendal_5flist_5foptions_8',['opendal_list_options',['../structopendal__list__options.html',1,'']]],
+  ['opendal_5flister_9',['opendal_lister',['../structopendal__lister.html',1,'']]],
+  ['opendal_5fmetadata_10',['opendal_metadata',['../structopendal__metadata.html',1,'']]],
+  ['opendal_5fmetadata_5fuser_5fmetadata_11',['opendal_metadata_user_metadata',['../structopendal__metadata__user__metadata.html',1,'']]],
+  ['opendal_5fmetadata_5fuser_5fmetadata_5fpair_12',['opendal_metadata_user_metadata_pair',['../structopendal__metadata__user__metadata__pair.html',1,'']]],
+  ['opendal_5foperator_13',['opendal_operator',['../structopendal__operator.html',1,'']]],
+  ['opendal_5foperator_5finfo_14',['opendal_operator_info',['../structopendal__operator__info.html',1,'']]],
+  ['opendal_5foperator_5flayers_15',['opendal_operator_layers',['../structopendal__operator__layers.html',1,'']]],
+  ['opendal_5foperator_5foptions_16',['opendal_operator_options',['../structopendal__operator__options.html',1,'']]],
+  ['opendal_5fpresigned_5frequest_17',['opendal_presigned_request',['../structopendal__presigned__request.html',1,'']]],
+  ['opendal_5fread_5foptions_18',['opendal_read_options',['../structopendal__read__options.html',1,'']]],
+  ['opendal_5freader_19',['opendal_reader',['../structopendal__reader.html',1,'']]],
+  ['opendal_5freader_5foptions_20',['opendal_reader_options',['../structopendal__reader__options.html',1,'']]],
+  ['opendal_5fstat_5foptions_21',['opendal_stat_options',['../structopendal__stat__options.html',1,'']]],
+  ['opendal_5fwrite_5foptions_22',['opendal_write_options',['../structopendal__write__options.html',1,'']]],
+  ['opendal_5fwrite_5fuser_5fmetadata_5fpair_23',['opendal_write_user_metadata_pair',['../structopendal__write__user__metadata__pair.html',1,'']]],
+  ['opendal_5fwriter_24',['opendal_writer',['../structopendal__writer.html',1,'']]]
+];

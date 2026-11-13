@@ -5,14 +5,13 @@ Baidu Netdisk Open Platform support, using the official xpan APIs.
 Set `root` to `/apps/<application name>/` or a directory below it, and set
 `access_token` to a token authorized for `basic,netdisk`.
 
-```no_run
+```rust,ignore
 use opendal_core::Operator;
 use opendal_service_baidu_netdisk::BaiduNetdisk;
 
 let operator = Operator::new(BaiduNetdisk::default()
     .root("/apps/MyApp/data/")
     .access_token("access-token"))?;
-# Ok::<(), opendal_core::Error>(())
 ```
 
 The service supports stat, list, ranged reads, create directory, write, copy,

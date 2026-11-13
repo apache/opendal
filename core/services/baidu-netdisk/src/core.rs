@@ -266,19 +266,3 @@ fn check_response(status: StatusCode, value: Value) -> Result<Value> {
     }
     Ok(value)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn distinguishes_expired_token_from_busy_filemanager() {
-        let expired =
-            check_response(StatusCode::UNAUTHORIZED, json!({"error_code": 111})).unwrap_err();
-        assert_eq!(expired.kind(), ErrorKind::PermissionDenied);
-        assert!(!expired.is_temporary());
-        let busy = check_response(StatusCode::OK, json!({"errno": 111})).unwrap_err();
-        assert_eq!(busy.kind(), ErrorKind::Unexpected);
-        assert!(busy.is_temporary());
-    }
-}

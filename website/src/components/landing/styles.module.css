@@ -188,9 +188,11 @@
 }
 .logoWallItem {
   display: flex;
+  min-width: 0;
 }
 .logoItem {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--odl-space-3);
@@ -407,17 +409,20 @@
 }
 
 /* ===== Bindings ========================================================= */
+/* Each card draws its own grid lines, so an incomplete last row leaves
+   empty space in the surface color instead of a block of border color. */
 .bindingGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
   gap: 1px;
-  background: var(--odl-border);
+  background: var(--odl-surface);
   border: 1px solid var(--odl-border);
   border-radius: var(--odl-radius-lg);
   overflow: hidden;
 }
 .bindingCard {
   background: var(--odl-surface);
+  box-shadow: 0 0 0 1px var(--odl-border);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -544,6 +549,14 @@
   }
   .serviceGroups {
     grid-template-columns: 1fr;
+  }
+  .logoWall {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--odl-space-2);
+  }
+  .logoItem {
+    gap: var(--odl-space-2);
+    padding: var(--odl-space-3);
   }
   .caseStudy {
     flex-direction: column;

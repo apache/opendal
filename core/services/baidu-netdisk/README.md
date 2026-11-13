@@ -31,10 +31,16 @@ existing destinations even when overwrite is requested. It is not atomic; if
 deleting the source fails, the operation returns an error and both files remain.
 
 Copy and rename accept files only, including when a directory path omits the
-trailing slash. Non-recursive delete rejects non-empty directories; use
-`delete_with(path).recursive(true)` to delete a directory and its contents.
+trailing slash. Copy, rename and write reject existing directory destinations.
+Non-recursive delete rejects non-empty directories. Use
+`delete_with("dir/").recursive(true)` to delete a directory and its contents.
+Without the trailing slash, recursive deletion removes all matching paths in
+the parent directory, including matching directories and their contents.
+Recursive deletion checks that paths ending in `/` refer to directories.
 The emptiness check and deletion are separate requests. Files added between
 the check and deletion can also be removed by Baidu's recursive delete API.
+Path-type checks and mutations are also separate requests; concurrent
+changes to checked paths are not protected by an atomic type check.
 
 For automatic renewal, configure `client_id` (AppKey), `client_secret` (SecretKey),
 and `refresh_token` together. An initial `access_token` is used until the API

@@ -55,6 +55,16 @@ impl oio::OneShotWrite for BaiduNetdiskWriter {
                 "Baidu Netdisk writes are limited to 4 GiB",
             ));
         }
+        match self.core.stat(&self.ctx, &self.path).await {
+            Ok(file) if file.isdir == 1 => {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "write destination is a directory",
+                ));
+            }
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+            _ => {}
+        }
         self.core
             .create_dir(&self.ctx, get_parent(&self.path))
             .await?;

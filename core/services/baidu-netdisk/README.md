@@ -30,6 +30,12 @@ Rename uses server-side copy followed by delete because Baidu's move API rejects
 existing destinations even when overwrite is requested. It is not atomic; if
 deleting the source fails, the operation returns an error and both files remain.
 
+Copy and rename accept files only, including when a directory path omits the
+trailing slash. Non-recursive delete rejects non-empty directories; use
+`delete_with(path).recursive(true)` to delete a directory and its contents.
+The emptiness check and deletion are separate requests. Files added between
+the check and deletion can also be removed by Baidu's recursive delete API.
+
 For automatic renewal, configure `client_id` (AppKey), `client_secret` (SecretKey),
 and `refresh_token` together. An initial `access_token` is used until the API
 reports it expired; subsequent tokens refresh before expiration. Refresh tokens

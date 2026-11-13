@@ -16,6 +16,7 @@
 // under the License.
 
 use crate::core::{BaiduNetdiskCore, FILE_API, FileList};
+use crate::lister::BaiduNetdiskLister;
 use http::Request;
 use opendal_core::{raw::*, *};
 use std::sync::Arc;
@@ -26,13 +27,30 @@ pub struct BaiduNetdiskDeleter {
 }
 impl oio::OneShotDelete for BaiduNetdiskDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        if !args.recursive() {
+        let paths = if args.recursive() && !path.ends_with('/') {
+            let mut lister = oio::PageLister::new(BaiduNetdiskLister {
+                core: self.core.clone(),
+                ctx: self.ctx.clone(),
+                path: get_parent(&path).into(),
+                limit: 1000,
+            });
+            let mut paths = Vec::new();
+            // Collect every matching sibling before deleting: deleting while
+            // paginating would shift Baidu's offsets and skip later matches.
+            // Directory matches are removed with their contents by filemanager.
+            while let Some(entry) = oio::List::next(&mut lister).await? {
+                if entry.path().starts_with(&path) {
+                    paths.push(self.core.absolute_path(entry.path()));
+                }
+            }
+            paths
+        } else {
             let file = match self.core.stat(&self.ctx, &path).await {
                 Ok(file) => file,
                 Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
                 Err(e) => return Err(e),
             };
-            if file.isdir == 1 {
+            if !args.recursive() && file.isdir == 1 {
                 // Baidu always deletes directories recursively. Check for children
                 // before issuing a non-recursive delete, including paths without '/'.
                 let query = form_urlencoded::Serializer::new(String::new())
@@ -58,18 +76,18 @@ impl oio::OneShotDelete for BaiduNetdiskDeleter {
                     ));
                 }
             }
+            vec![self.core.absolute_path(&path)]
+        };
+        for path in paths {
+            match self
+                .core
+                .manage(&self.ctx, "delete", serde_json::json!([path]))
+                .await
+            {
+                Err(e) if e.kind() == ErrorKind::NotFound => {}
+                result => result?,
+            }
         }
-        match self
-            .core
-            .manage(
-                &self.ctx,
-                "delete",
-                serde_json::json!([self.core.absolute_path(&path)]),
-            )
-            .await
-        {
-            Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            result => result,
-        }
+        Ok(())
     }
 }

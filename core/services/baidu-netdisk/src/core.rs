@@ -137,6 +137,16 @@ impl BaiduNetdiskCore {
         from: &str,
         to: &str,
     ) -> Result<()> {
+        match self.stat(ctx, to).await {
+            Ok(file) if file.isdir == 1 => {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "transfer destination is a directory",
+                ));
+            }
+            Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
+            _ => {}
+        }
         self.create_dir(ctx, get_parent(to)).await?;
         self.manage(ctx, operation, json!([{"path":self.absolute_path(from),
             "dest":self.absolute_path(get_parent(to)), "newname":get_basename(to), "ondup":"overwrite"}])).await

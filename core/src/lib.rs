@@ -92,6 +92,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-b2")]
     opendal_service_b2::register_b2_service(registry);
 
+    #[cfg(feature = "services-baidu-netdisk")]
+    opendal_service_baidu_netdisk::register_baidu_netdisk_service(registry);
+
     #[cfg(feature = "services-cacache")]
     opendal_service_cacache::register_cacache_service(registry);
 
@@ -305,6 +308,8 @@ pub mod services {
     pub use opendal_service_azfile::*;
     #[cfg(feature = "services-b2")]
     pub use opendal_service_b2::*;
+    #[cfg(feature = "services-baidu-netdisk")]
+    pub use opendal_service_baidu_netdisk::*;
     #[cfg(feature = "services-cacache")]
     pub use opendal_service_cacache::*;
     #[cfg(feature = "services-cloudflare-kv")]

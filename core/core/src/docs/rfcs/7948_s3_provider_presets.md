@@ -1,13 +1,17 @@
 - Proposal Name: `s3_provider_presets`
 - Start Date: 2026-07-24
 - RFC PR: [apache/opendal#7948](https://github.com/apache/opendal/pull/7948)
-- Tracking Issue: [apache/opendal#0000](https://github.com/apache/opendal/issues/0000)
+- Tracking Issue: [apache/opendal#8003](https://github.com/apache/opendal/issues/8003)
 
 # Summary
 
 Add first-class `r2` and `minio` services to `opendal-service-s3`. Each service
 has its own URI scheme, config type, and builder. Its config exposes only the
 connection, location, and authentication fields supported by that provider.
+
+The `opendal` facade exposes `services-r2` and `services-minio` features while
+all providers continue to share the `opendal-service-s3` implementation crate.
+The existing `services-s3` feature continues to enable only generic S3.
 
 The provider builder validates those fields, converts them into an internal
 `S3Config`, and delegates requests to the existing S3 implementation. Existing
@@ -87,17 +91,32 @@ the complete S3 configuration surface continue to use `s3`.
 
 The `opendal-service-s3` crate exports `R2`, `R2Config`, `R2_SCHEME`, `Minio`,
 `MinioConfig`, and `MINIO_SCHEME` alongside `S3`, `S3Config`, and `S3_SCHEME`.
-Enabling `services-s3` registers all three schemes:
+The facade features select the public builders and URI registrations:
 
-```rust,ignore
-registry.register::<S3>(S3_SCHEME);
-registry.register::<R2>(R2_SCHEME);
-registry.register::<Minio>(MINIO_SCHEME);
-```
+- `services-r2` exports `R2` and `R2Config` and registers `r2`.
+- `services-minio` exports `Minio` and `MinioConfig` and registers `minio`.
+- `services-s3` exports `S3` and `S3Config` and registers only `s3`.
+
+All three facade features activate the same optional `opendal-service-s3`
+dependency. Provider presets do not create additional crates. A compatible
+provider receives a facade feature only when OpenDAL gives it a dedicated
+config type, builder, and URI scheme.
 
 Each provider implements the existing `Configurator` and `Builder` contracts.
 `Operator::from_uri`, `Operator::via_iter`, and `Operator::from_config`
 therefore work without changes to `OperatorRegistry`.
+
+## Documentation ownership
+
+The provider config types and builder documentation are the source of truth for
+R2 and MinIO setup. Generated service and binding references read those config
+types, so their field lists stay aligned with the deserialization contract.
+
+`compatible_services.md` remains the long-tail guide for using the generic
+`S3` service with providers that do not have a built-in preset, and for users
+who intentionally need the S3 escape hatch. When OpenDAL adds a preset, that
+guide replaces the provider's manual configuration recipe with a link to the
+preset instead of maintaining both narratives.
 
 ## Provider configuration
 
@@ -204,8 +223,10 @@ Provider validation includes:
 
 # Compatibility and migration
 
-This proposal adds schemes and types without changing `s3`. OpenDAL never
-reinterprets an existing S3 endpoint as a provider preset.
+This proposal adds schemes, types, and provider features without changing
+`s3`. Existing `services-s3` users retain generic S3 without implicitly
+enabling provider presets. OpenDAL never reinterprets an existing S3 endpoint
+as a provider preset.
 
 An application can migrate by changing `s3` to `r2` or `minio`, removing
 AWS-only options, and supplying the provider's required fields. Applications

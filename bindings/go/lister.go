@@ -19,9 +19,7 @@ package opendal
 
 import (
 	"context"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
+	"runtime"
 )
 
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
@@ -323,232 +321,91 @@ func (e *Entry) Metadata() *Metadata {
 	return e.meta
 }
 
-var ffiListOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_list_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalListOptions {
-	return func() *opendalListOptions {
-		var opts *opendalListOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
+var ffiListOptionsNew = newDirectFFI[func() *opendalListOptions]("opendal_list_options_new")
 
-var ffiListOptionsSetRecursive = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_recursive",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, recursive bool) {
-	return func(opts *opendalListOptions, recursive bool) {
-		var r uint8
-		if recursive {
-			r = 1
+var ffiListOptionsSetRecursive = newDirectFFI[func(opts *opendalListOptions, recursive bool)]("opendal_list_options_set_recursive")
+
+var ffiListOptionsSetLimit = newDirectFFI[func(opts *opendalListOptions, limit uint)]("opendal_list_options_set_limit")
+
+var ffiListOptionsSetStartAfter = newFFI(
+	"opendal_list_options_set_start_after",
+	func(_ context.Context, cFunc func(opts *opendalListOptions, startAfter *byte)) func(opts *opendalListOptions, startAfter string) {
+		return func(opts *opendalListOptions, startAfter string) {
+			bytePtr, err := BytePtrFromString(startAfter)
+			if err != nil {
+				return
+			}
+			cFunc(opts, bytePtr)
+			runtime.KeepAlive(bytePtr)
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&r),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetLimit = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_limit",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, limit uint) {
-	return func(opts *opendalListOptions, limit uint) {
-		l := uintptr(limit)
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&l),
-		)
-	}
-})
+var ffiListOptionsSetVersions = newDirectFFI[func(opts *opendalListOptions, versions bool)]("opendal_list_options_set_versions")
 
-var ffiListOptionsSetStartAfter = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_start_after",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, startAfter string) {
-	return func(opts *opendalListOptions, startAfter string) {
-		bytePtr, err := BytePtrFromString(startAfter)
-		if err != nil {
-			return
+var ffiListOptionsSetDeleted = newDirectFFI[func(opts *opendalListOptions, deleted bool)]("opendal_list_options_set_deleted")
+
+var ffiListOptionsFree = newDirectFFI[func(opts *opendalListOptions)]("opendal_list_options_free")
+
+var ffiOperatorListWith = newFFI(
+	"opendal_operator_list_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalListOptions, lister **opendalLister) *opendalError) func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
+		return func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var lister *opendalLister
+			e := cFunc(op, bytePath, opts, &lister)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return lister, nil
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&bytePtr),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetVersions = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_versions",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, versions bool) {
-	return func(opts *opendalListOptions, versions bool) {
-		var v uint8
-		if versions {
-			v = 1
+var ffiListerFree = newDirectFFI[func(l *opendalLister)]("opendal_lister_free")
+
+var ffiListerNext = newFFI(
+	"opendal_lister_next",
+	func(ctx context.Context, cFunc func(l *opendalLister, entry **opendalEntry) *opendalError) func(l *opendalLister) (*opendalEntry, error) {
+		return func(l *opendalLister) (*opendalEntry, error) {
+			var entry *opendalEntry
+			e := cFunc(l, &entry)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return entry, nil
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&v),
-		)
-	}
-})
+	},
+)
 
-var ffiListOptionsSetDeleted = newFFI(ffiOpts{
-	sym:    "opendal_list_options_set_deleted",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions, deleted bool) {
-	return func(opts *opendalListOptions, deleted bool) {
-		var d uint8
-		if deleted {
-			d = 1
-		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&d),
-		)
-	}
-})
+var ffiEntryFree = newDirectFFI[func(e *opendalEntry)]("opendal_entry_free")
 
-var ffiListOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_list_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalListOptions) {
-	return func(opts *opendalListOptions) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-		)
-	}
-})
-
-var ffiOperatorListWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_list_with",
-	rType:  &typeResultList,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
-	return func(op *opendalOperator, path string, opts *opendalListOptions) (*opendalLister, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result opendalResultList
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		if result.err != nil {
-			return nil, parseError(ctx, result.err)
-		}
-		return result.lister, nil
-	}
-})
-
-var ffiListerFree = newFFI(ffiOpts{
-	sym:    "opendal_lister_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) {
-	return func(l *opendalLister) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&l),
-		)
-	}
-})
-
-var ffiListerNext = newFFI(ffiOpts{
-	sym:    "opendal_lister_next",
-	rType:  &typeResultListerNext,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(l *opendalLister) (*opendalEntry, error) {
-	return func(l *opendalLister) (*opendalEntry, error) {
-		var result opendalResultListerNext
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&l),
-		)
-		if result.err != nil {
-			return nil, parseError(ctx, result.err)
-		}
-		return result.entry, nil
-	}
-})
-
-var ffiEntryFree = newFFI(ffiOpts{
-	sym:    "opendal_entry_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) {
-	return func(e *opendalEntry) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&e),
-		)
-	}
-})
-
-var ffiEntryName = func() *FFI[func(e *opendalEntry) string] {
+var ffiEntryName = func() *FFI[func(e *opendalEntry) string, func(e *opendalEntry) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_entry_name",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-		return func(e *opendalEntry) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&e),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_entry_name",
+		func(ctx context.Context, cFunc func(e *opendalEntry) *byte) func(e *opendalEntry) string {
+			return func(e *opendalEntry) string {
+				return copyCStringAndFree(cFunc(e), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiEntryPath = func() *FFI[func(e *opendalEntry) string] {
+var ffiEntryPath = func() *FFI[func(e *opendalEntry) string, func(e *opendalEntry) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_entry_path",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) string {
-		return func(e *opendalEntry) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&e),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_entry_path",
+		func(ctx context.Context, cFunc func(e *opendalEntry) *byte) func(e *opendalEntry) string {
+			return func(e *opendalEntry) string {
+				return copyCStringAndFree(cFunc(e), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiEntryMetadata = newFFI(ffiOpts{
-	sym:    "opendal_entry_metadata",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(e *opendalEntry) *opendalMetadata {
-	return func(e *opendalEntry) *opendalMetadata {
-		var meta *opendalMetadata
-		ffiCall(
-			unsafe.Pointer(&meta),
-			unsafe.Pointer(&e),
-		)
-		return meta
-	}
-})
+var ffiEntryMetadata = newDirectFFI[func(e *opendalEntry) *opendalMetadata]("opendal_entry_metadata")

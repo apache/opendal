@@ -17,12 +17,7 @@
 
 package opendal
 
-import (
-	"context"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
-)
+import "context"
 
 // Info returns metadata about the Operator.
 //
@@ -323,99 +318,53 @@ func (c *Capability) Blocking() bool {
 	return true
 }
 
-var ffiOperatorInfoNew = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_new",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator) *opendalOperatorInfo {
-	return func(op *opendalOperator) *opendalOperatorInfo {
-		var result *opendalOperatorInfo
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-		)
-		return result
-	}
-})
+var ffiOperatorInfoNew = newDirectFFI[func(op *opendalOperator) *opendalOperatorInfo]("opendal_operator_info_new")
 
-var ffiOperatorInfoFree = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) {
-	return func(info *opendalOperatorInfo) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&info),
-		)
-	}
-})
+var ffiOperatorInfoFree = newDirectFFI[func(info *opendalOperatorInfo)]("opendal_operator_info_free")
 
-var ffiOperatorInfoGetCapability = newFFI(ffiOpts{
-	sym:    "opendal_operator_info_get_capability",
-	rType:  &typeCapability,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) *opendalCapability {
-	return func(info *opendalOperatorInfo) *opendalCapability {
-		var cap opendalCapability
-		ffiCall(
-			unsafe.Pointer(&cap),
-			unsafe.Pointer(&info),
-		)
-		return &cap
-	}
-})
-
-var ffiOperatorInfoGetScheme = func() *FFI[func(info *opendalOperatorInfo) string] {
-	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_operator_info_get_scheme",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-		return func(info *opendalOperatorInfo) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&info),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
+var ffiOperatorInfoGetCapability = newFFI(
+	"opendal_operator_info_get_capability",
+	func(_ context.Context, cFunc func(info *opendalOperatorInfo, cap *opendalCapability)) func(info *opendalOperatorInfo) *opendalCapability {
+		return func(info *opendalOperatorInfo) *opendalCapability {
+			var cap opendalCapability
+			cFunc(info, &cap)
+			return &cap
 		}
-	})
+	},
+)
+
+var ffiOperatorInfoGetScheme = func() *FFI[func(info *opendalOperatorInfo) string, func(info *opendalOperatorInfo) *byte] {
+	_ = ffiStringFree
+	return newFFI(
+		"opendal_operator_info_get_scheme",
+		func(ctx context.Context, cFunc func(info *opendalOperatorInfo) *byte) func(info *opendalOperatorInfo) string {
+			return func(info *opendalOperatorInfo) string {
+				return copyCStringAndFree(cFunc(info), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiOperatorInfoGetRoot = func() *FFI[func(info *opendalOperatorInfo) string] {
+var ffiOperatorInfoGetRoot = func() *FFI[func(info *opendalOperatorInfo) string, func(info *opendalOperatorInfo) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_operator_info_get_root",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-		return func(info *opendalOperatorInfo) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&info),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_operator_info_get_root",
+		func(ctx context.Context, cFunc func(info *opendalOperatorInfo) *byte) func(info *opendalOperatorInfo) string {
+			return func(info *opendalOperatorInfo) string {
+				return copyCStringAndFree(cFunc(info), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()
 
-var ffiOperatorInfoGetName = func() *FFI[func(info *opendalOperatorInfo) string] {
+var ffiOperatorInfoGetName = func() *FFI[func(info *opendalOperatorInfo) string, func(info *opendalOperatorInfo) *byte] {
 	_ = ffiStringFree
-	return newFFI(ffiOpts{
-		sym:    "opendal_operator_info_get_name",
-		rType:  &ffi.TypePointer,
-		aTypes: []*ffi.Type{&ffi.TypePointer},
-	}, func(ctx context.Context, ffiCall ffiCall) func(info *opendalOperatorInfo) string {
-		return func(info *opendalOperatorInfo) string {
-			var bytePtr *byte
-			ffiCall(
-				unsafe.Pointer(&bytePtr),
-				unsafe.Pointer(&info),
-			)
-			return copyCStringAndFree(bytePtr, ffiStringFree.symbol(ctx))
-		}
-	})
+	return newFFI(
+		"opendal_operator_info_get_name",
+		func(ctx context.Context, cFunc func(info *opendalOperatorInfo) *byte) func(info *opendalOperatorInfo) string {
+			return func(info *opendalOperatorInfo) string {
+				return copyCStringAndFree(cFunc(info), ffiStringFree.symbol(ctx))
+			}
+		},
+	)
 }()

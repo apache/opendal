@@ -21,9 +21,6 @@ import (
 	"context"
 	"runtime"
 	"time"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // Stat retrieves metadata for the specified path.
@@ -246,113 +243,81 @@ func (op *Operator) IsExist(path string) (bool, error) {
 	return ffiOperatorIsExist.symbol(op.ctx)(op.inner, path)
 }
 
-var ffiOperatorStat = newFFI(ffiOpts{
-	sym:    "opendal_operator_stat",
-	rType:  &typeResultStat,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalMetadata, error) {
-	return func(op *opendalOperator, path string) (*opendalMetadata, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultStat
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.meta, nil
-	}
-})
-
-var ffiOperatorStatWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_stat_with",
-	rType:  &typeResultStat,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
-	return func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
-		}
-		var result resultStat
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.meta, nil
-	}
-})
-
-var ffiOperatorIsExist = newFFI(ffiOpts{
-	sym:    "opendal_operator_is_exist",
-	rType:  &typeResultIsExist,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (bool, error) {
-	return func(op *opendalOperator, path string) (bool, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return false, err
-		}
-		var result resultIsExist
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		if result.error != nil {
-			return false, parseError(ctx, result.error)
-		}
-		return result.is_exist == 1, nil
-	}
-})
-
-var ffiStatOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_stat_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalStatOptions {
-	return func() *opendalStatOptions {
-		var opts *opendalStatOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
-
-var ffiStatOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_stat_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalStatOptions) {
-	return func(opts *opendalStatOptions) {
-		ffiCall(nil, unsafe.Pointer(&opts))
-	}
-})
-
-func newStatOptionsSetStringFFI(sym string) *FFI[func(*opendalStatOptions, string) ([]byte, error)] {
-	return newFFI(ffiOpts{
-		sym:    contextKey(sym),
-		rType:  &ffi.TypeVoid,
-		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-	}, func(_ context.Context, ffiCall ffiCall) func(*opendalStatOptions, string) ([]byte, error) {
-		return func(opts *opendalStatOptions, value string) ([]byte, error) {
-			data, err := byteSliceFromString(value)
+var ffiOperatorStat = newFFI(
+	"opendal_operator_stat",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string) (*opendalMetadata, error) {
+		return func(op *opendalOperator, path string) (*opendalMetadata, error) {
+			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
-			byteValue := &data[0]
-			ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-			return data, nil
+			var meta *opendalMetadata
+			e := cFunc(op, bytePath, &meta)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return meta, nil
 		}
-	})
+	},
+)
+
+var ffiOperatorStatWith = newFFI(
+	"opendal_operator_stat_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalStatOptions, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
+		return func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var meta *opendalMetadata
+			e := cFunc(op, bytePath, opts, &meta)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return meta, nil
+		}
+	},
+)
+
+var ffiOperatorIsExist = newFFI(
+	"opendal_operator_is_exist",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, isExist *bool) *opendalError) func(op *opendalOperator, path string) (bool, error) {
+		return func(op *opendalOperator, path string) (bool, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return false, err
+			}
+			var isExist bool
+			e := cFunc(op, bytePath, &isExist)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return false, parseError(ctx, e)
+			}
+			return isExist, nil
+		}
+	},
+)
+
+var ffiStatOptionsNew = newDirectFFI[func() *opendalStatOptions]("opendal_stat_options_new")
+
+var ffiStatOptionsFree = newDirectFFI[func(opts *opendalStatOptions)]("opendal_stat_options_free")
+
+func newStatOptionsSetStringFFI(sym string) *FFI[func(*opendalStatOptions, string) ([]byte, error), func(*opendalStatOptions, *byte)] {
+	return newFFI(
+		contextKey(sym),
+		func(_ context.Context, cFunc func(opts *opendalStatOptions, value *byte)) func(*opendalStatOptions, string) ([]byte, error) {
+			return func(opts *opendalStatOptions, value string) ([]byte, error) {
+				data, err := byteSliceFromString(value)
+				if err != nil {
+					return nil, err
+				}
+				cFunc(opts, &data[0])
+				return data, nil
+			}
+		},
+	)
 }
 
 var ffiStatOptionsSetVersion = newStatOptionsSetStringFFI("opendal_stat_options_set_version")
@@ -362,22 +327,6 @@ var ffiStatOptionsSetOverrideContentType = newStatOptionsSetStringFFI("opendal_s
 var ffiStatOptionsSetOverrideCacheControl = newStatOptionsSetStringFFI("opendal_stat_options_set_override_cache_control")
 var ffiStatOptionsSetOverrideContentDisposition = newStatOptionsSetStringFFI("opendal_stat_options_set_override_content_disposition")
 
-var ffiStatOptionsSetIfModifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_stat_options_set_if_modified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalStatOptions, ms int64) {
-	return func(opts *opendalStatOptions, ms int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&ms))
-	}
-})
+var ffiStatOptionsSetIfModifiedSince = newDirectFFI[func(opts *opendalStatOptions, ms int64)]("opendal_stat_options_set_if_modified_since")
 
-var ffiStatOptionsSetIfUnmodifiedSince = newFFI(ffiOpts{
-	sym:    "opendal_stat_options_set_if_unmodified_since",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalStatOptions, ms int64) {
-	return func(opts *opendalStatOptions, ms int64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&ms))
-	}
-})
+var ffiStatOptionsSetIfUnmodifiedSince = newDirectFFI[func(opts *opendalStatOptions, ms int64)]("opendal_stat_options_set_if_unmodified_since")

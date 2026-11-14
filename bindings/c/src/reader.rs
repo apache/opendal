@@ -20,8 +20,6 @@ use std::io::{Read, Seek, SeekFrom};
 
 use ::opendal as core;
 
-use crate::result::opendal_result_reader_seek;
-
 use super::*;
 
 pub const OPENDAL_SEEK_SET: i32 = 0;
@@ -54,64 +52,71 @@ impl opendal_reader {
         }
     }
 
-    /// \brief Read data from the reader.
+    /// \brief Read data from the reader into `buf` and write the number of bytes read to `*size`.
+    ///
+    /// At EOF, writes `0` to `*size` and returns NULL. On failure, writes `0` to `*size`
+    /// and returns an `opendal_error *`.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_read(
         &mut self,
         buf: *mut u8,
         len: usize,
-    ) -> opendal_result_reader_read {
+        size: *mut usize,
+    ) -> *mut opendal_error {
         assert!(!buf.is_null());
+        assert!(!size.is_null());
         let buf = std::slice::from_raw_parts_mut(buf, len);
         match self.deref_mut().read(buf) {
-            Ok(n) => opendal_result_reader_read {
-                size: n,
-                error: std::ptr::null_mut(),
-            },
-            Err(e) => opendal_result_reader_read {
-                size: 0,
-                error: opendal_error::new(
+            Ok(n) => {
+                std::ptr::write(size, n);
+                std::ptr::null_mut()
+            }
+            Err(e) => {
+                std::ptr::write(size, 0);
+                opendal_error::new(
                     core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
                         .set_source(e),
-                ),
-            },
+                )
+            }
         }
     }
 
-    /// \brief Seek to an offset, in bytes, in a stream.
+    /// \brief Seek to an offset, in bytes, in a stream, and write the new position to `*pos`.
+    ///
+    /// On failure, writes `0` to `*pos` and returns an `opendal_error *`.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_reader_seek(
         &mut self,
         offset: i64,
         whence: i32,
-    ) -> opendal_result_reader_seek {
-        let pos = match whence {
-            _x @ OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
-            _x @ OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
-            _x @ OPENDAL_SEEK_END => SeekFrom::End(offset),
+        pos: *mut u64,
+    ) -> *mut opendal_error {
+        assert!(!pos.is_null());
+        let seek_from = match whence {
+            OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
+            OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
+            OPENDAL_SEEK_END => SeekFrom::End(offset),
             _ => {
-                return opendal_result_reader_seek {
-                    pos: 0,
-                    error: opendal_error::new(core::Error::new(
-                        core::ErrorKind::Unexpected,
-                        "undefined whence",
-                    )),
-                };
+                std::ptr::write(pos, 0);
+                return opendal_error::new(core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    "undefined whence",
+                ));
             }
         };
 
-        match self.deref_mut().seek(pos) {
-            Ok(pos) => opendal_result_reader_seek {
-                pos,
-                error: std::ptr::null_mut(),
-            },
-            Err(e) => opendal_result_reader_seek {
-                pos: 0,
-                error: opendal_error::new(
+        match self.deref_mut().seek(seek_from) {
+            Ok(p) => {
+                std::ptr::write(pos, p);
+                std::ptr::null_mut()
+            }
+            Err(e) => {
+                std::ptr::write(pos, 0);
+                opendal_error::new(
                     core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
                         .set_source(e),
-                ),
-            },
+                )
+            }
         }
     }
 

@@ -24,11 +24,10 @@
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    opendal_result_operator_new result = opendal_operator_new("memory", 0);
-    assert(result.op != NULL);
-    assert(result.error == NULL);
-
-    opendal_operator* op = result.op;
+    opendal_operator* op = NULL;
+    opendal_error* error = opendal_operator_new("memory", 0, &op);
+    assert(op != NULL);
+    assert(error == NULL);
 
     /* Prepare some data to be written */
     opendal_bytes data = {
@@ -37,13 +36,13 @@ int main()
     };
 
     /* Write this into path "/testpath" */
-    opendal_error* error = opendal_operator_write(op, "/testpath", &data);
+    error = opendal_operator_write(op, "/testpath", &data);
     assert(error == NULL);
 
     /* We can read it out, make sure the data is the same */
-    opendal_result_read r = opendal_operator_read(op, "/testpath");
-    opendal_bytes read_bytes = r.data;
-    assert(r.error == NULL);
+    opendal_bytes read_bytes = { 0 };
+    error = opendal_operator_read(op, "/testpath", &read_bytes);
+    assert(error == NULL);
     assert(read_bytes.len == 24);
 
     /* Lets print it out */

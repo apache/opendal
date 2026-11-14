@@ -32,10 +32,11 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", "/myroot");
 
-        opendal_result_operator_new result = opendal_operator_new("memory", options);
-        EXPECT_TRUE(result.error == nullptr);
+        opendal_operator* op = nullptr;
+        opendal_error* error = opendal_operator_new("memory", options, &op);
+        EXPECT_EQ(error, nullptr);
 
-        this->p = result.op;
+        this->p = op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
@@ -49,18 +50,19 @@ TEST_F(OpendalErrorTest, ErrorReadTest)
 {
     // Initialize a operator for "memory" backend, with no options
     // The read is supposed to fail
-    opendal_result_read r = opendal_operator_read(this->p, "/testpath");
-    ASSERT_NE(r.error, nullptr);
-    ASSERT_EQ(r.error->code, OPENDAL_NOT_FOUND);
+    opendal_bytes data = { nullptr, 0, 0 };
+    opendal_error* error = opendal_operator_read(this->p, "/testpath", &data);
+    ASSERT_NE(error, nullptr);
+    ASSERT_EQ(error->code, OPENDAL_NOT_FOUND);
 
     // Lets check the error message out
-    struct opendal_bytes* error_msg = &r.error->message;
+    struct opendal_bytes* error_msg = &error->message;
     ASSERT_NE(error_msg->data, nullptr);
     ASSERT_GT(error_msg->len, 0);
 
     // the opendal_bytes read is heap allocated, please free it
-    opendal_bytes_free(&r.data);
+    opendal_bytes_free(&data);
 
     // free the error
-    opendal_error_free(r.error);
+    opendal_error_free(error);
 }

@@ -30,10 +30,10 @@
 int main(void)
 {
     /* Build an operator for the "memory" service with no options. */
-    opendal_result_operator_new result = opendal_operator_new("memory", NULL);
-    assert(result.op != NULL);
-    assert(result.error == NULL);
-    opendal_operator *op = result.op;
+    opendal_operator *op = NULL;
+    opendal_error *err = opendal_operator_new("memory", NULL, &op);
+    assert(err == NULL);
+    assert(op != NULL);
 
     /* Write bytes to a path. */
     const char *msg = "Hello, OpenDAL!";
@@ -41,21 +41,23 @@ int main(void)
         .data = (uint8_t *)msg,
         .len  = 15,
     };
-    opendal_error *err = opendal_operator_write(op, "/hello.txt", &data);
+    err = opendal_operator_write(op, "/hello.txt", &data);
     assert(err == NULL);
 
     /* Read the bytes back. */
-    opendal_result_read r = opendal_operator_read(op, "/hello.txt");
-    assert(r.error == NULL);
-    assert(r.data.len == 15);
-    printf("%.*s\n", (int)r.data.len, r.data.data); /* Hello, OpenDAL! */
-    opendal_bytes_free(&r.data);
+    opendal_bytes read_bytes = { 0 };
+    err = opendal_operator_read(op, "/hello.txt", &read_bytes);
+    assert(err == NULL);
+    assert(read_bytes.len == 15);
+    printf("%.*s\n", (int)read_bytes.len, read_bytes.data); /* Hello, OpenDAL! */
+    opendal_bytes_free(&read_bytes);
 
     /* Stat the path to get metadata. */
-    opendal_result_stat s = opendal_operator_stat(op, "/hello.txt");
-    assert(s.error == NULL);
-    printf("size = %llu\n", (unsigned long long)opendal_metadata_content_length(s.meta));
-    opendal_metadata_free(s.meta);
+    opendal_metadata *meta = NULL;
+    err = opendal_operator_stat(op, "/hello.txt", &meta);
+    assert(err == NULL);
+    printf("size = %llu\n", (unsigned long long)opendal_metadata_content_length(meta));
+    opendal_metadata_free(meta);
 
     /* Delete the file. */
     opendal_error *del_err = opendal_operator_delete(op, "/hello.txt");

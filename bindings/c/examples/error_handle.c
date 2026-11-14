@@ -25,25 +25,25 @@
 int main()
 {
     /* Initialize a operator for "memory" backend, with no options */
-    opendal_result_operator_new result = opendal_operator_new("memory", 0);
-    assert(result.op != NULL);
-    assert(result.error == NULL);
-
-    opendal_operator* op = result.op;
+    opendal_operator* op = NULL;
+    opendal_error* error = opendal_operator_new("memory", 0, &op);
+    assert(op != NULL);
+    assert(error == NULL);
 
     /* The read is supposed to fail */
-    opendal_result_read r = opendal_operator_read(op, "/testpath");
-    assert(r.error != NULL);
-    assert(r.error->code == OPENDAL_NOT_FOUND);
+    opendal_bytes data = { 0 };
+    error = opendal_operator_read(op, "/testpath", &data);
+    assert(error != NULL);
+    assert(error->code == OPENDAL_NOT_FOUND);
 
     /* Lets print the error message out */
-    struct opendal_bytes* error_msg = &r.error->message;
+    struct opendal_bytes* error_msg = &error->message;
     for (int i = 0; i < error_msg->len; ++i) {
         printf("%c", error_msg->data[i]);
     }
 
     /* free the error since the error is not NULL */
-    opendal_error_free(r.error);
+    opendal_error_free(error);
 
     /* the operator_ptr is also heap allocated */
     opendal_operator_free(op);

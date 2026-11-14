@@ -22,16 +22,7 @@ import (
 	"net/http"
 	"testing"
 	"time"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
-
-func TestEntryFreeUsesVoidReturnType(t *testing.T) {
-	if ffiEntryFree.opts.rType != &ffi.TypeVoid {
-		t.Fatalf("ffiEntryFree return type = %v, want void", ffiEntryFree.opts.rType)
-	}
-}
 
 func TestCopyCStringAndFreeNil(t *testing.T) {
 	var freed int
@@ -58,41 +49,42 @@ func TestOperatorInfoCopiesAndFreesOwnedStrings(t *testing.T) {
 	rootPtr := mustBytePtrFromString(t, "/tmp/")
 	namePtr := mustBytePtrFromString(t, "namespace")
 	infoInner := &opendalOperatorInfo{}
-	capability := &opendalCapability{stat: 1}
+	capability := opendalCapability{stat: 1}
 	infoFreed := 0
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiStringFree.opts.sym, freeCString)
-	ctx = context.WithValue(ctx, ffiOperatorInfoNew.opts.sym, func(op *opendalOperator) *opendalOperatorInfo {
+	ctx = context.WithValue(ctx, ffiStringFree.sym, freeCString)
+	ctx = context.WithValue(ctx, ffiOperatorInfoNew.sym, func(op *opendalOperator) *opendalOperatorInfo {
 		if op == nil {
 			t.Fatal("Info() passed nil operator")
 		}
 		return infoInner
 	})
-	ctx = context.WithValue(ctx, ffiOperatorInfoFree.opts.sym, func(info *opendalOperatorInfo) {
+	ctx = context.WithValue(ctx, ffiOperatorInfoFree.sym, func(info *opendalOperatorInfo) {
 		if info != infoInner {
 			t.Fatalf("Info() freed unexpected operator info: %p", info)
 		}
 		infoFreed++
 	})
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetScheme.opts.sym, ffiOperatorInfoGetScheme.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertOperatorInfoPointer(t, infoInner, aValues...)
-		*(**byte)(rValue) = schemePtr
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetScheme.sym, ffiOperatorInfoGetScheme.withFunc(ctx, func(info *opendalOperatorInfo) *byte {
+		assertOperatorInfoPointer(t, infoInner, info)
+		return schemePtr
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetRoot.opts.sym, ffiOperatorInfoGetRoot.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertOperatorInfoPointer(t, infoInner, aValues...)
-		*(**byte)(rValue) = rootPtr
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetRoot.sym, ffiOperatorInfoGetRoot.withFunc(ctx, func(info *opendalOperatorInfo) *byte {
+		assertOperatorInfoPointer(t, infoInner, info)
+		return rootPtr
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetName.opts.sym, ffiOperatorInfoGetName.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertOperatorInfoPointer(t, infoInner, aValues...)
-		*(**byte)(rValue) = namePtr
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetName.sym, ffiOperatorInfoGetName.withFunc(ctx, func(info *opendalOperatorInfo) *byte {
+		assertOperatorInfoPointer(t, infoInner, info)
+		return namePtr
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorInfoGetCapability.opts.sym, func(info *opendalOperatorInfo) *opendalCapability {
-		if info != infoInner {
-			t.Fatalf("Info() requested full capability for unexpected operator info: %p", info)
+	ctx = context.WithValue(ctx, ffiOperatorInfoGetCapability.sym, ffiOperatorInfoGetCapability.withFunc(ctx, func(info *opendalOperatorInfo, cap *opendalCapability) {
+		assertOperatorInfoPointer(t, infoInner, info)
+		if cap == nil {
+			t.Fatal("Info() passed nil capability output pointer")
 		}
-		return capability
-	})
+		*cap = capability
+	}))
 
 	op := &Operator{
 		ctx:   ctx,
@@ -130,95 +122,95 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 	entryFreed := 0
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiStringFree.opts.sym, freeCString)
-	ctx = context.WithValue(ctx, ffiEntryFree.opts.sym, func(entry *opendalEntry) {
+	ctx = context.WithValue(ctx, ffiStringFree.sym, freeCString)
+	ctx = context.WithValue(ctx, ffiEntryFree.sym, func(entry *opendalEntry) {
 		if entry != entryInner {
 			t.Fatalf("newEntry() freed unexpected entry: %p", entry)
 		}
 		entryFreed++
 	})
-	ctx = context.WithValue(ctx, ffiEntryName.opts.sym, ffiEntryName.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertEntryPointer(t, entryInner, aValues...)
-		*(**byte)(rValue) = namePtr
+	ctx = context.WithValue(ctx, ffiEntryName.sym, ffiEntryName.withFunc(ctx, func(entry *opendalEntry) *byte {
+		assertEntryPointer(t, entryInner, entry)
+		return namePtr
 	}))
-	ctx = context.WithValue(ctx, ffiEntryPath.opts.sym, ffiEntryPath.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertEntryPointer(t, entryInner, aValues...)
-		*(**byte)(rValue) = pathPtr
+	ctx = context.WithValue(ctx, ffiEntryPath.sym, ffiEntryPath.withFunc(ctx, func(entry *opendalEntry) *byte {
+		assertEntryPointer(t, entryInner, entry)
+		return pathPtr
 	}))
 
-	// Mock the new metadata path exercised by newEntry()
+	// Mock the metadata path exercised by newEntry()
 	metaInner := &opendalMetadata{}
 	metaFreed := 0
-	ctx = context.WithValue(ctx, ffiEntryMetadata.opts.sym, func(e *opendalEntry) *opendalMetadata {
+	ctx = context.WithValue(ctx, ffiEntryMetadata.sym, func(e *opendalEntry) *opendalMetadata {
 		if e != entryInner {
 			t.Fatalf("ffiEntryMetadata called with unexpected entry")
 		}
 		return metaInner
 	})
-	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+	ctx = context.WithValue(ctx, ffiMetadataFree.sym, func(m *opendalMetadata) {
 		if m != metaInner {
 			t.Fatalf("metadata freed unexpected pointer: %p", m)
 		}
 		metaFreed++
 	})
-	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metaInner, m)
 		return 4096
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
 	contentType := "text/plain"
-	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentType.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return &contentType
 	})
-	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaEtag.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.sym, func(m *opendalMetadata) uint8 {
 		assertMetadataPointer(t, metaInner, m)
 		return 2
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metaInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsFile.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metaInner, m)
 		return true
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDir.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metaInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+	ctx = context.WithValue(ctx, ffiMetaLastModified.sym, func(m *opendalMetadata) int64 {
 		assertMetadataPointer(t, metaInner, m)
 		return 1700000000000
 	})
-	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+	ctx = context.WithValue(ctx, ffiMetaMode.sym, func(m *opendalMetadata) EntryMode {
 		assertMetadataPointer(t, metaInner, m)
 		return EntryModeFile
 	})
-	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaVersion.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, func(m *opendalMetadata) map[string]string {
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.sym, func(m *opendalMetadata) map[string]string {
 		assertMetadataPointer(t, metaInner, m)
 		return nil
 	})
@@ -235,7 +227,7 @@ func TestNewEntryCopiesAndFreesOwnedStrings(t *testing.T) {
 	}
 	assertFreedPointers(t, freed, namePtr, pathPtr)
 
-	// Verify new Metadata() support
+	// Verify Metadata() support
 	meta := entry.Metadata()
 	if meta == nil {
 		t.Fatal("newEntry().Metadata() returned nil, expected non-nil")
@@ -290,63 +282,61 @@ func TestNewMetadataCopiesAllFieldsAndFreesOwnedValues(t *testing.T) {
 	userMetadataFreed := 0
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiStringFree.opts.sym, freeCString)
-	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+	ctx = context.WithValue(ctx, ffiStringFree.sym, freeCString)
+	ctx = context.WithValue(ctx, ffiMetadataFree.sym, func(m *opendalMetadata) {
 		assertMetadataPointer(t, metadataInner, m)
 		metadataFreed++
 	})
-	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, ffiMetaCacheControl.withFunc(ctx, metadataStringFunc(t, metadataInner, cacheControlPtr)))
-	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, ffiMetaContentDisposition.withFunc(ctx, metadataStringFunc(t, metadataInner, contentDispositionPtr)))
-	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, ffiMetaContentEncoding.withFunc(ctx, metadataStringFunc(t, metadataInner, contentEncodingPtr)))
-	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.sym, ffiMetaCacheControl.withFunc(ctx, metadataStringFunc(t, metadataInner, cacheControlPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.sym, ffiMetaContentDisposition.withFunc(ctx, metadataStringFunc(t, metadataInner, contentDispositionPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.sym, ffiMetaContentEncoding.withFunc(ctx, metadataStringFunc(t, metadataInner, contentEncodingPtr)))
+	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 4096
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, ffiMetaContentMD5.withFunc(ctx, metadataStringFunc(t, metadataInner, contentMD5Ptr)))
-	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, ffiMetaContentType.withFunc(ctx, metadataStringFunc(t, metadataInner, contentTypePtr)))
-	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, ffiMetaEtag.withFunc(ctx, metadataStringFunc(t, metadataInner, etagPtr)))
-	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.sym, ffiMetaContentMD5.withFunc(ctx, metadataStringFunc(t, metadataInner, contentMD5Ptr)))
+	ctx = context.WithValue(ctx, ffiMetaContentType.sym, ffiMetaContentType.withFunc(ctx, metadataStringFunc(t, metadataInner, contentTypePtr)))
+	ctx = context.WithValue(ctx, ffiMetaEtag.sym, ffiMetaEtag.withFunc(ctx, metadataStringFunc(t, metadataInner, etagPtr)))
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.sym, func(m *opendalMetadata) uint8 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 1
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return true
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsFile.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDir.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return true
 	})
-	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+	ctx = context.WithValue(ctx, ffiMetaLastModified.sym, func(m *opendalMetadata) int64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 1700000000000
 	})
-	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+	ctx = context.WithValue(ctx, ffiMetaMode.sym, func(m *opendalMetadata) EntryMode {
 		assertMetadataPointer(t, metadataInner, m)
 		return EntryModeDir
 	})
-	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, ffiMetaVersion.withFunc(ctx, metadataStringFunc(t, metadataInner, versionPtr)))
-	ctx = context.WithValue(ctx, ffiMetaUserMetadataPairs.opts.sym, ffiMetaUserMetadataPairs.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertUserMetadataPointerFromArgs(t, userMetadataInner, aValues...)
-		*(**opendalMetadataUserMetadataPair)(rValue) = &pairs[0]
-	}))
-	ctx = context.WithValue(ctx, ffiMetaUserMetadataLen.opts.sym, ffiMetaUserMetadataLen.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertUserMetadataPointerFromArgs(t, userMetadataInner, aValues...)
-		*(*uint64)(rValue) = uint64(len(pairs))
-	}))
-	ctx = context.WithValue(ctx, ffiMetaUserMetadataFree.opts.sym, func(m *opendalMetadataUserMetadata) {
-		if m != userMetadataInner {
-			t.Fatalf("user metadata freed unexpected pointer: %p", m)
-		}
+	ctx = context.WithValue(ctx, ffiMetaVersion.sym, ffiMetaVersion.withFunc(ctx, metadataStringFunc(t, metadataInner, versionPtr)))
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataPairs.sym, func(m *opendalMetadataUserMetadata) *opendalMetadataUserMetadataPair {
+		assertUserMetadataPointer(t, userMetadataInner, m)
+		return &pairs[0]
+	})
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataLen.sym, func(m *opendalMetadataUserMetadata) uintptr {
+		assertUserMetadataPointer(t, userMetadataInner, m)
+		return uintptr(len(pairs))
+	})
+	ctx = context.WithValue(ctx, ffiMetaUserMetadataFree.sym, func(m *opendalMetadataUserMetadata) {
+		assertUserMetadataPointer(t, userMetadataInner, m)
 		userMetadataFreed++
 	})
-	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, ffiMetaUserMetadata.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertMetadataPointerFromArgs(t, metadataInner, aValues...)
-		*(**opendalMetadataUserMetadata)(rValue) = userMetadataInner
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.sym, ffiMetaUserMetadata.withFunc(ctx, func(m *opendalMetadata) *opendalMetadataUserMetadata {
+		assertMetadataPointer(t, metadataInner, m)
+		return userMetadataInner
 	}))
 
 	meta := newMetadata(ctx, metadataInner)
@@ -399,67 +389,67 @@ func TestNewMetadataOptionalValuesCanBeAbsent(t *testing.T) {
 	metadataFreed := 0
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiMetadataFree.opts.sym, func(m *opendalMetadata) {
+	ctx = context.WithValue(ctx, ffiMetadataFree.sym, func(m *opendalMetadata) {
 		assertMetadataPointer(t, metadataInner, m)
 		metadataFreed++
 	})
-	ctx = context.WithValue(ctx, ffiMetaCacheControl.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaCacheControl.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentDisposition.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentDisposition.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentEncoding.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentEncoding.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentLength.opts.sym, func(m *opendalMetadata) uint64 {
+	ctx = context.WithValue(ctx, ffiMetaContentLength.sym, func(m *opendalMetadata) uint64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 0
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentMD5.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentMD5.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaContentType.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaContentType.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaEtag.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaEtag.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsCurrent.opts.sym, func(m *opendalMetadata) uint8 {
+	ctx = context.WithValue(ctx, ffiMetaIsCurrent.sym, func(m *opendalMetadata) uint8 {
 		assertMetadataPointer(t, metadataInner, m)
 		return 2
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDeleted.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDeleted.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsFile.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsFile.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaIsDir.opts.sym, func(m *opendalMetadata) bool {
+	ctx = context.WithValue(ctx, ffiMetaIsDir.sym, func(m *opendalMetadata) bool {
 		assertMetadataPointer(t, metadataInner, m)
 		return false
 	})
-	ctx = context.WithValue(ctx, ffiMetaLastModified.opts.sym, func(m *opendalMetadata) int64 {
+	ctx = context.WithValue(ctx, ffiMetaLastModified.sym, func(m *opendalMetadata) int64 {
 		assertMetadataPointer(t, metadataInner, m)
 		return -1
 	})
-	ctx = context.WithValue(ctx, ffiMetaMode.opts.sym, func(m *opendalMetadata) EntryMode {
+	ctx = context.WithValue(ctx, ffiMetaMode.sym, func(m *opendalMetadata) EntryMode {
 		assertMetadataPointer(t, metadataInner, m)
 		return EntryModeUnknown
 	})
-	ctx = context.WithValue(ctx, ffiMetaVersion.opts.sym, func(m *opendalMetadata) *string {
+	ctx = context.WithValue(ctx, ffiMetaVersion.sym, func(m *opendalMetadata) *string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiMetaUserMetadata.opts.sym, func(m *opendalMetadata) map[string]string {
+	ctx = context.WithValue(ctx, ffiMetaUserMetadata.sym, func(m *opendalMetadata) map[string]string {
 		assertMetadataPointer(t, metadataInner, m)
 		return nil
 	})
@@ -528,11 +518,11 @@ func mustBytePtrFromString(t *testing.T, value string) *byte {
 	return ptr
 }
 
-func metadataStringFunc(t *testing.T, want *opendalMetadata, ptr *byte) func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
+func metadataStringFunc(t *testing.T, want *opendalMetadata, ptr *byte) func(m *opendalMetadata) *byte {
 	t.Helper()
-	return func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertMetadataPointerFromArgs(t, want, aValues...)
-		*(**byte)(rValue) = ptr
+	return func(m *opendalMetadata) *byte {
+		assertMetadataPointer(t, want, m)
+		return ptr
 	}
 }
 
@@ -558,25 +548,17 @@ func assertStringMap(t *testing.T, got, want map[string]string) {
 	}
 }
 
-func assertOperatorInfoPointer(t *testing.T, want *opendalOperatorInfo, aValues ...unsafe.Pointer) {
+func assertOperatorInfoPointer(t *testing.T, want *opendalOperatorInfo, got *opendalOperatorInfo) {
 	t.Helper()
 
-	if len(aValues) != 1 {
-		t.Fatalf("operator info getter received %d arguments, want 1", len(aValues))
-	}
-	got := *(**opendalOperatorInfo)(aValues[0])
 	if got != want {
 		t.Fatalf("operator info getter received %p, want %p", got, want)
 	}
 }
 
-func assertEntryPointer(t *testing.T, want *opendalEntry, aValues ...unsafe.Pointer) {
+func assertEntryPointer(t *testing.T, want *opendalEntry, got *opendalEntry) {
 	t.Helper()
 
-	if len(aValues) != 1 {
-		t.Fatalf("entry getter received %d arguments, want 1", len(aValues))
-	}
-	got := *(**opendalEntry)(aValues[0])
 	if got != want {
 		t.Fatalf("entry getter received %p, want %p", got, want)
 	}
@@ -590,23 +572,9 @@ func assertMetadataPointer(t *testing.T, want *opendalMetadata, got *opendalMeta
 	}
 }
 
-func assertMetadataPointerFromArgs(t *testing.T, want *opendalMetadata, aValues ...unsafe.Pointer) {
+func assertUserMetadataPointer(t *testing.T, want *opendalMetadataUserMetadata, got *opendalMetadataUserMetadata) {
 	t.Helper()
 
-	if len(aValues) != 1 {
-		t.Fatalf("metadata getter received %d arguments, want 1", len(aValues))
-	}
-	got := *(**opendalMetadata)(aValues[0])
-	assertMetadataPointer(t, want, got)
-}
-
-func assertUserMetadataPointerFromArgs(t *testing.T, want *opendalMetadataUserMetadata, aValues ...unsafe.Pointer) {
-	t.Helper()
-
-	if len(aValues) != 1 {
-		t.Fatalf("user metadata getter received %d arguments, want 1", len(aValues))
-	}
-	got := *(**opendalMetadataUserMetadata)(aValues[0])
 	if got != want {
 		t.Fatalf("user metadata getter received %p, want %p", got, want)
 	}
@@ -669,110 +637,6 @@ func TestWriteWithOptions(t *testing.T) {
 	}
 	if o.chunk != 1024 {
 		t.Fatalf("chunk = %d, want 1024", o.chunk)
-	}
-}
-
-func TestFfiOperatorWriterWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorWriterWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorWriterWith aTypes len = %d, want 3", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorWriterWith aTypes[%d] = %v, want TypePointer", i, at)
-		}
-	}
-}
-
-func TestFfiOperatorWriteWithMetadataSignature(t *testing.T) {
-	if ffiOperatorWriteWithMetadata.opts.rType != &typeResultWrite {
-		t.Fatalf("ffiOperatorWriteWithMetadata rType = %v, want typeResultWrite", ffiOperatorWriteWithMetadata.opts.rType)
-	}
-	aTypes := ffiOperatorWriteWithMetadata.opts.aTypes
-	if len(aTypes) != 4 {
-		t.Fatalf("ffiOperatorWriteWithMetadata aTypes len = %d, want 4", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorWriteWithMetadata aTypes[%d] = %v, want TypePointer", i, at)
-		}
-	}
-}
-
-func TestFfiWriterCloseWithMetadataSignature(t *testing.T) {
-	if ffiWriterCloseWithMetadata.opts.rType != &typeResultWrite {
-		t.Fatalf("ffiWriterCloseWithMetadata rType = %v, want typeResultWrite", ffiWriterCloseWithMetadata.opts.rType)
-	}
-	aTypes := ffiWriterCloseWithMetadata.opts.aTypes
-	if len(aTypes) != 1 {
-		t.Fatalf("ffiWriterCloseWithMetadata aTypes len = %d, want 1", len(aTypes))
-	}
-	if aTypes[0] != &ffi.TypePointer {
-		t.Fatalf("ffiWriterCloseWithMetadata aTypes[0] = %v, want TypePointer", aTypes[0])
-	}
-}
-
-func TestWriteOptionsSetterArgTypes(t *testing.T) {
-	stringSetters := []*FFI[func(*opendalWriteOptions, string) ([]byte, error)]{
-		ffiWriteOptionsSetCacheControl,
-		ffiWriteOptionsSetContentType,
-		ffiWriteOptionsSetContentDisposition,
-		ffiWriteOptionsSetContentEncoding,
-		ffiWriteOptionsSetIfMatch,
-		ffiWriteOptionsSetIfNoneMatch,
-	}
-	for _, setter := range stringSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-
-	boolSetters := []*FFI[func(*opendalWriteOptions, bool)]{
-		ffiWriteOptionsSetAppend,
-		ffiWriteOptionsSetIfNotExists,
-	}
-	for _, setter := range boolSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeUint8 {
-			t.Fatalf("%s aTypes = %v, want TypePointer, TypeUint8", setter.opts.sym, aTypes)
-		}
-	}
-
-	uintSetters := []*FFI[func(*opendalWriteOptions, uint)]{
-		ffiWriteOptionsSetConcurrent,
-		ffiWriteOptionsSetChunk,
-	}
-	for _, setter := range uintSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-}
-
-func TestWriteOptionsSetUserMetadataArgTypes(t *testing.T) {
-	aTypes := ffiWriteOptionsSetUserMetadata.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiWriteOptionsSetUserMetadata aTypes len = %d, want 3", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiWriteOptionsSetUserMetadata aTypes[%d] = %v, want TypePointer", i, at)
-		}
 	}
 }
 
@@ -870,24 +734,6 @@ func TestListWithDeletedFalse(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorListWithReturnType(t *testing.T) {
-	if ffiOperatorListWith.opts.rType != &typeResultList {
-		t.Fatalf("ffiOperatorListWith rType = %v, want typeResultList", ffiOperatorListWith.opts.rType)
-	}
-}
-
-func TestFfiOperatorListWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorListWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorListWith aTypes len = %d, want 3", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorListWith aTypes[%d] = %v, want TypePointer", i, at)
-		}
-	}
-}
-
 func TestReadWithOptions(t *testing.T) {
 	modified := time.Unix(1700000000, 0)
 	unmodified := time.Unix(1700000123, 0)
@@ -981,101 +827,6 @@ func TestReadWithRangeFrom(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorReadWithReturnType(t *testing.T) {
-	if ffiOperatorReadWith.opts.rType != &typeResultRead {
-		t.Fatalf("ffiOperatorReadWith rType = %v, want typeResultRead", ffiOperatorReadWith.opts.rType)
-	}
-}
-
-func TestFfiOperatorReadWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorReadWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorReadWith aTypes len = %d, want 3", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorReadWith aTypes[%d] = %v, want TypePointer", i, at)
-		}
-	}
-}
-
-func TestReadOptionsSetterArgTypes(t *testing.T) {
-	stringSetters := []*FFI[func(*opendalReadOptions, string) ([]byte, error)]{
-		ffiReadOptionsSetVersion,
-		ffiReadOptionsSetIfMatch,
-		ffiReadOptionsSetIfNoneMatch,
-		ffiReadOptionsSetOverrideContentType,
-		ffiReadOptionsSetOverrideCacheControl,
-		ffiReadOptionsSetOverrideContentDisposition,
-	}
-	for _, setter := range stringSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-
-	int64Setters := []*FFI[func(*opendalReadOptions, int64)]{
-		ffiReadOptionsSetIfModifiedSince,
-		ffiReadOptionsSetIfUnmodifiedSince,
-	}
-	for _, setter := range int64Setters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeSint64 {
-			t.Fatalf("%s aTypes = %v, want TypePointer, TypeSint64", setter.opts.sym, aTypes)
-		}
-	}
-
-	uintSetters := []*FFI[func(*opendalReadOptions, uint)]{
-		ffiReadOptionsSetConcurrent,
-		ffiReadOptionsSetChunk,
-		ffiReadOptionsSetGap,
-	}
-	for _, setter := range uintSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-
-	hintATypes := ffiReadOptionsSetContentLengthHint.opts.aTypes
-	if len(hintATypes) != 2 {
-		t.Fatalf("ffiReadOptionsSetContentLengthHint aTypes len = %d, want 2", len(hintATypes))
-	}
-	if hintATypes[0] != &ffi.TypePointer || hintATypes[1] != &ffi.TypeUint64 {
-		t.Fatalf("ffiReadOptionsSetContentLengthHint aTypes = %v, want TypePointer, TypeUint64", hintATypes)
-	}
-
-	rangeATypes := ffiReadOptionsSetRange.opts.aTypes
-	if len(rangeATypes) != 3 {
-		t.Fatalf("ffiReadOptionsSetRange aTypes len = %d, want 3", len(rangeATypes))
-	}
-	if rangeATypes[0] != &ffi.TypePointer || rangeATypes[1] != &ffi.TypeUint64 || rangeATypes[2] != &ffi.TypeUint64 {
-		t.Fatalf("ffiReadOptionsSetRange aTypes = %v, want TypePointer, TypeUint64, TypeUint64", rangeATypes)
-	}
-
-	rangeFromATypes := ffiReadOptionsSetRangeFrom.opts.aTypes
-	if len(rangeFromATypes) != 2 {
-		t.Fatalf("ffiReadOptionsSetRangeFrom aTypes len = %d, want 2", len(rangeFromATypes))
-	}
-	if rangeFromATypes[0] != &ffi.TypePointer || rangeFromATypes[1] != &ffi.TypeUint64 {
-		t.Fatalf("ffiReadOptionsSetRangeFrom aTypes = %v, want TypePointer, TypeUint64", rangeFromATypes)
-	}
-}
-
 func TestReaderWithOptions(t *testing.T) {
 	modified := time.Unix(1700000000, 0)
 	unmodified := time.Unix(1700000123, 0)
@@ -1124,138 +875,24 @@ func TestReaderWithOptions(t *testing.T) {
 	}
 }
 
-func TestFfiOperatorReaderWithReturnType(t *testing.T) {
-	if ffiOperatorReaderWith.opts.rType != &typeResultOperatorReader {
-		t.Fatalf("ffiOperatorReaderWith rType = %v, want typeResultOperatorReader", ffiOperatorReaderWith.opts.rType)
-	}
-}
-
-func TestFfiOperatorReaderWithArgTypes(t *testing.T) {
-	aTypes := ffiOperatorReaderWith.opts.aTypes
-	if len(aTypes) != 3 {
-		t.Fatalf("ffiOperatorReaderWith aTypes len = %d, want 3", len(aTypes))
-	}
-	for i, at := range aTypes {
-		if at != &ffi.TypePointer {
-			t.Fatalf("ffiOperatorReaderWith aTypes[%d] = %v, want TypePointer", i, at)
-		}
-	}
-}
-
-func TestReaderOptionsSetterArgTypes(t *testing.T) {
-	stringSetters := []*FFI[func(*opendalReaderOptions, string) ([]byte, error)]{
-		ffiReaderOptionsSetVersion,
-		ffiReaderOptionsSetIfMatch,
-		ffiReaderOptionsSetIfNoneMatch,
-	}
-	for _, setter := range stringSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-
-	int64Setters := []*FFI[func(*opendalReaderOptions, int64)]{
-		ffiReaderOptionsSetIfModifiedSince,
-		ffiReaderOptionsSetIfUnmodifiedSince,
-	}
-	for _, setter := range int64Setters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		if aTypes[0] != &ffi.TypePointer || aTypes[1] != &ffi.TypeSint64 {
-			t.Fatalf("%s aTypes = %v, want TypePointer, TypeSint64", setter.opts.sym, aTypes)
-		}
-	}
-
-	uintSetters := []*FFI[func(*opendalReaderOptions, uint)]{
-		ffiReaderOptionsSetConcurrent,
-		ffiReaderOptionsSetChunk,
-		ffiReaderOptionsSetGap,
-		ffiReaderOptionsSetPrefetch,
-	}
-	for _, setter := range uintSetters {
-		aTypes := setter.opts.aTypes
-		if len(aTypes) != 2 {
-			t.Fatalf("%s aTypes len = %d, want 2", setter.opts.sym, len(aTypes))
-		}
-		for i, at := range aTypes {
-			if at != &ffi.TypePointer {
-				t.Fatalf("%s aTypes[%d] = %v, want TypePointer", setter.opts.sym, i, at)
-			}
-		}
-	}
-
-	hintATypes := ffiReaderOptionsSetContentLengthHint.opts.aTypes
-	if len(hintATypes) != 2 {
-		t.Fatalf("ffiReaderOptionsSetContentLengthHint aTypes len = %d, want 2", len(hintATypes))
-	}
-	if hintATypes[0] != &ffi.TypePointer || hintATypes[1] != &ffi.TypeUint64 {
-		t.Fatalf("ffiReaderOptionsSetContentLengthHint aTypes = %v, want TypePointer, TypeUint64", hintATypes)
-	}
-}
-
-func TestFfiOperatorPresignWithSignatures(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		opts ffiOpts
-	}{
-		{
-			name: "ffiOperatorPresignReadWith",
-			opts: ffiOperatorPresignReadWith.opts,
-		},
-		{
-			name: "ffiOperatorPresignWriteWith",
-			opts: ffiOperatorPresignWriteWith.opts,
-		},
-		{
-			name: "ffiOperatorPresignDeleteWith",
-			opts: ffiOperatorPresignDeleteWith.opts,
-		},
-		{
-			name: "ffiOperatorPresignStatWith",
-			opts: ffiOperatorPresignStatWith.opts,
-		},
-	} {
-		if tc.opts.rType != &typeResultPresign {
-			t.Fatalf("%s rType = %v, want typeResultPresign", tc.name, tc.opts.rType)
-		}
-		if len(tc.opts.aTypes) != 4 {
-			t.Fatalf("%s aTypes len = %d, want 4", tc.name, len(tc.opts.aTypes))
-		}
-		if tc.opts.aTypes[0] != &ffi.TypePointer ||
-			tc.opts.aTypes[1] != &ffi.TypePointer ||
-			tc.opts.aTypes[2] != &ffi.TypeUint64 ||
-			tc.opts.aTypes[3] != &ffi.TypePointer {
-			t.Fatalf("%s aTypes = %v, want pointer, pointer, uint64, pointer", tc.name, tc.opts.aTypes)
-		}
-	}
-}
-
 func TestPresignWithoutOptionsUsesSimpleSymbols(t *testing.T) {
 	ctx, reqInner, freeCount := presignTestContext(t, "GET", "https://example.com/simple")
 	opInner := &opendalOperator{}
 	op := &Operator{ctx: ctx, inner: opInner}
 
-	ctx = context.WithValue(ctx, ffiOperatorPresignRead.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignRead.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignStat.opts.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignStat.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
 		return reqInner, nil
 	})
@@ -1288,29 +925,29 @@ func TestPresignReadWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	var overrideContentTypePtr *byte
 	var rangeOffset, rangeLength uint64
 
-	ctx = context.WithValue(ctx, ffiReadOptionsNew.opts.sym, func() *opendalReadOptions { return cOpts })
-	ctx = context.WithValue(ctx, ffiReadOptionsFree.opts.sym, func(opts *opendalReadOptions) {
+	ctx = context.WithValue(ctx, ffiReadOptionsNew.sym, func() *opendalReadOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiReadOptionsFree.sym, func(opts *opendalReadOptions) {
 		assertReadOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiReadOptionsSetRange.opts.sym, func(opts *opendalReadOptions, offset, length uint64) {
+	ctx = context.WithValue(ctx, ffiReadOptionsSetRange.sym, func(opts *opendalReadOptions, offset, length uint64) {
 		assertReadOptionsPointer(t, cOpts, opts)
 		rangeOffset = offset
 		rangeLength = length
 	})
-	ctx = context.WithValue(ctx, ffiReadOptionsSetVersion.opts.sym, ffiReadOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertReadOptionsPointerFromArgs(t, cOpts, aValues...)
-		versionPtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiReadOptionsSetVersion.sym, ffiReadOptionsSetVersion.withFunc(ctx, func(opts *opendalReadOptions, value *byte) {
+		assertReadOptionsPointer(t, cOpts, opts)
+		versionPtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiReadOptionsSetIfMatch.opts.sym, noopReadOptionsSetString)
-	ctx = context.WithValue(ctx, ffiReadOptionsSetIfNoneMatch.opts.sym, noopReadOptionsSetString)
-	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentType.opts.sym, ffiReadOptionsSetOverrideContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertReadOptionsPointerFromArgs(t, cOpts, aValues...)
-		overrideContentTypePtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiReadOptionsSetIfMatch.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetIfNoneMatch.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentType.sym, ffiReadOptionsSetOverrideContentType.withFunc(ctx, func(opts *opendalReadOptions, value *byte) {
+		assertReadOptionsPointer(t, cOpts, opts)
+		overrideContentTypePtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideCacheControl.opts.sym, noopReadOptionsSetString)
-	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentDisposition.opts.sym, noopReadOptionsSetString)
-	ctx = context.WithValue(ctx, ffiOperatorPresignReadWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
-		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideCacheControl.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentDisposition.sym, noopReadOptionsSetString)
+	ctx = context.WithValue(ctx, ffiOperatorPresignReadWith.sym, ffiOperatorPresignReadWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, req **opendalPresignedRequest) *opendalError {
+		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertReadOptionsPointer(t, cOpts, opts)
 		if rangeOffset != 1 || rangeLength != 2 {
 			t.Fatalf("read range = %d, %d, want 1, 2", rangeOffset, rangeLength)
@@ -1321,8 +958,9 @@ func TestPresignReadWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		if got := BytePtrToString(overrideContentTypePtr); got != "text/plain" {
 			t.Fatalf("read override content type pointer = %q, want text/plain", got)
 		}
-		return reqInner, nil
-	})
+		*req = reqInner
+		return nil
+	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
 	_, err := op.PresignRead("file.txt", time.Minute,
@@ -1342,31 +980,31 @@ func TestPresignWriteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	var contentTypePtr *byte
 	var userMetadata []opendalWriteUserMetadataPair
 
-	ctx = context.WithValue(ctx, ffiWriteOptionsNew.opts.sym, func() *opendalWriteOptions { return cOpts })
-	ctx = context.WithValue(ctx, ffiWriteOptionsFree.opts.sym, func(opts *opendalWriteOptions) {
+	ctx = context.WithValue(ctx, ffiWriteOptionsNew.sym, func() *opendalWriteOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiWriteOptionsFree.sym, func(opts *opendalWriteOptions) {
 		assertWriteOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetAppend.opts.sym, func(opts *opendalWriteOptions, append bool) {
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetAppend.sym, func(opts *opendalWriteOptions, append bool) {
 		assertWriteOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNotExists.opts.sym, func(opts *opendalWriteOptions, ifNotExists bool) {
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNotExists.sym, func(opts *opendalWriteOptions, ifNotExists bool) {
 		assertWriteOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentType.opts.sym, ffiWriteOptionsSetContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertWriteOptionsPointerFromArgs(t, cOpts, aValues...)
-		contentTypePtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentType.sym, ffiWriteOptionsSetContentType.withFunc(ctx, func(opts *opendalWriteOptions, value *byte) {
+		assertWriteOptionsPointer(t, cOpts, opts)
+		contentTypePtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetCacheControl.opts.sym, noopWriteOptionsSetString)
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentDisposition.opts.sym, noopWriteOptionsSetString)
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentEncoding.opts.sym, noopWriteOptionsSetString)
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfMatch.opts.sym, noopWriteOptionsSetString)
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNoneMatch.opts.sym, noopWriteOptionsSetString)
-	ctx = context.WithValue(ctx, ffiWriteOptionsSetUserMetadata.opts.sym, func(opts *opendalWriteOptions, pairs []opendalWriteUserMetadataPair) {
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetCacheControl.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentDisposition.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetContentEncoding.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfMatch.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetIfNoneMatch.sym, noopWriteOptionsSetString)
+	ctx = context.WithValue(ctx, ffiWriteOptionsSetUserMetadata.sym, func(opts *opendalWriteOptions, pairs []opendalWriteUserMetadataPair) {
 		assertWriteOptionsPointer(t, cOpts, opts)
 		userMetadata = pairs
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignWriteWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
-		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+	ctx = context.WithValue(ctx, ffiOperatorPresignWriteWith.sym, ffiOperatorPresignWriteWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, req **opendalPresignedRequest) *opendalError {
+		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertWriteOptionsPointer(t, cOpts, opts)
 		if got := BytePtrToString(contentTypePtr); got != "text/plain" {
 			t.Fatalf("write content type pointer = %q, want text/plain", got)
@@ -1380,8 +1018,9 @@ func TestPresignWriteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		if got := BytePtrToString(userMetadata[0].value); got != "bar" {
 			t.Fatalf("write user metadata value = %q, want bar", got)
 		}
-		return reqInner, nil
-	})
+		*req = reqInner
+		return nil
+	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
 	_, err := op.PresignWrite("file.txt", time.Minute,
@@ -1400,24 +1039,24 @@ func TestPresignStatWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	var versionPtr *byte
 	var overrideContentTypePtr *byte
 
-	ctx = context.WithValue(ctx, ffiStatOptionsNew.opts.sym, func() *opendalStatOptions { return cOpts })
-	ctx = context.WithValue(ctx, ffiStatOptionsFree.opts.sym, func(opts *opendalStatOptions) {
+	ctx = context.WithValue(ctx, ffiStatOptionsNew.sym, func() *opendalStatOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiStatOptionsFree.sym, func(opts *opendalStatOptions) {
 		assertStatOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiStatOptionsSetVersion.opts.sym, ffiStatOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertStatOptionsPointerFromArgs(t, cOpts, aValues...)
-		versionPtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiStatOptionsSetVersion.sym, ffiStatOptionsSetVersion.withFunc(ctx, func(opts *opendalStatOptions, value *byte) {
+		assertStatOptionsPointer(t, cOpts, opts)
+		versionPtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiStatOptionsSetIfMatch.opts.sym, noopStatOptionsSetString)
-	ctx = context.WithValue(ctx, ffiStatOptionsSetIfNoneMatch.opts.sym, noopStatOptionsSetString)
-	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentType.opts.sym, ffiStatOptionsSetOverrideContentType.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertStatOptionsPointerFromArgs(t, cOpts, aValues...)
-		overrideContentTypePtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiStatOptionsSetIfMatch.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetIfNoneMatch.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentType.sym, ffiStatOptionsSetOverrideContentType.withFunc(ctx, func(opts *opendalStatOptions, value *byte) {
+		assertStatOptionsPointer(t, cOpts, opts)
+		overrideContentTypePtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideCacheControl.opts.sym, noopStatOptionsSetString)
-	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentDisposition.opts.sym, noopStatOptionsSetString)
-	ctx = context.WithValue(ctx, ffiOperatorPresignStatWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
-		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideCacheControl.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentDisposition.sym, noopStatOptionsSetString)
+	ctx = context.WithValue(ctx, ffiOperatorPresignStatWith.sym, ffiOperatorPresignStatWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, req **opendalPresignedRequest) *opendalError {
+		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertStatOptionsPointer(t, cOpts, opts)
 		if got := BytePtrToString(versionPtr); got != "v1" {
 			t.Fatalf("stat version pointer = %q, want v1", got)
@@ -1425,8 +1064,9 @@ func TestPresignStatWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		if got := BytePtrToString(overrideContentTypePtr); got != "text/plain" {
 			t.Fatalf("stat override content type pointer = %q, want text/plain", got)
 		}
-		return reqInner, nil
-	})
+		*req = reqInner
+		return nil
+	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
 	_, err := op.PresignStat("file.txt", time.Minute,
@@ -1445,20 +1085,20 @@ func TestPresignDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	var versionPtr *byte
 	var recursive bool
 
-	ctx = context.WithValue(ctx, ffiDeleteOptionsNew.opts.sym, func() *opendalDeleteOptions { return cOpts })
-	ctx = context.WithValue(ctx, ffiDeleteOptionsFree.opts.sym, func(opts *opendalDeleteOptions) {
+	ctx = context.WithValue(ctx, ffiDeleteOptionsNew.sym, func() *opendalDeleteOptions { return cOpts })
+	ctx = context.WithValue(ctx, ffiDeleteOptionsFree.sym, func(opts *opendalDeleteOptions) {
 		assertDeleteOptionsPointer(t, cOpts, opts)
 	})
-	ctx = context.WithValue(ctx, ffiDeleteOptionsSetRecursive.opts.sym, func(opts *opendalDeleteOptions, value bool) {
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetRecursive.sym, func(opts *opendalDeleteOptions, value bool) {
 		assertDeleteOptionsPointer(t, cOpts, opts)
 		recursive = value
 	})
-	ctx = context.WithValue(ctx, ffiDeleteOptionsSetVersion.opts.sym, ffiDeleteOptionsSetVersion.withFunc(ctx, func(_ unsafe.Pointer, aValues ...unsafe.Pointer) {
-		assertDeleteOptionsPointerFromArgs(t, cOpts, aValues...)
-		versionPtr = *(**byte)(aValues[1])
+	ctx = context.WithValue(ctx, ffiDeleteOptionsSetVersion.sym, ffiDeleteOptionsSetVersion.withFunc(ctx, func(opts *opendalDeleteOptions, value *byte) {
+		assertDeleteOptionsPointer(t, cOpts, opts)
+		versionPtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorPresignDeleteWith.opts.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
-		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+	ctx = context.WithValue(ctx, ffiOperatorPresignDeleteWith.sym, ffiOperatorPresignDeleteWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, req **opendalPresignedRequest) *opendalError {
+		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertDeleteOptionsPointer(t, cOpts, opts)
 		if !recursive {
 			t.Fatal("delete recursive = false, want true")
@@ -1466,8 +1106,9 @@ func TestPresignDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		if got := BytePtrToString(versionPtr); got != "v1" {
 			t.Fatalf("delete version pointer = %q, want v1", got)
 		}
-		return reqInner, nil
-	})
+		*req = reqInner
+		return nil
+	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
 	_, err := op.PresignDelete("file.txt", time.Minute,
@@ -1494,23 +1135,23 @@ func presignTestContext(t *testing.T, method, uri string) (context.Context, *ope
 	freeCount := 0
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiPresignedRequestMethod.opts.sym, func(req *opendalPresignedRequest) *byte {
+	ctx = context.WithValue(ctx, ffiPresignedRequestMethod.sym, func(req *opendalPresignedRequest) *byte {
 		assertPresignedRequestPointer(t, reqInner, req)
 		return &methodData[0]
 	})
-	ctx = context.WithValue(ctx, ffiPresignedRequestUri.opts.sym, func(req *opendalPresignedRequest) *byte {
+	ctx = context.WithValue(ctx, ffiPresignedRequestUri.sym, func(req *opendalPresignedRequest) *byte {
 		assertPresignedRequestPointer(t, reqInner, req)
 		return &uriData[0]
 	})
-	ctx = context.WithValue(ctx, ffiPresignedRequestHeaders.opts.sym, func(req *opendalPresignedRequest) *opendalHttpHeaderPair {
+	ctx = context.WithValue(ctx, ffiPresignedRequestHeaders.sym, func(req *opendalPresignedRequest) *opendalHttpHeaderPair {
 		assertPresignedRequestPointer(t, reqInner, req)
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiPresignedRequestHeadersLen.opts.sym, func(req *opendalPresignedRequest) uintptr {
+	ctx = context.WithValue(ctx, ffiPresignedRequestHeadersLen.sym, func(req *opendalPresignedRequest) uintptr {
 		assertPresignedRequestPointer(t, reqInner, req)
 		return 0
 	})
-	ctx = context.WithValue(ctx, ffiPresignedRequestFree.opts.sym, func(req *opendalPresignedRequest) {
+	ctx = context.WithValue(ctx, ffiPresignedRequestFree.sym, func(req *opendalPresignedRequest) {
 		assertPresignedRequestPointer(t, reqInner, req)
 		freeCount++
 	})
@@ -1544,14 +1185,6 @@ func assertReadOptionsPointer(t *testing.T, want *opendalReadOptions, got *opend
 	}
 }
 
-func assertReadOptionsPointerFromArgs(t *testing.T, want *opendalReadOptions, aValues ...unsafe.Pointer) {
-	t.Helper()
-	if len(aValues) != 2 {
-		t.Fatalf("read option setter received %d arguments, want 2", len(aValues))
-	}
-	assertReadOptionsPointer(t, want, *(**opendalReadOptions)(aValues[0]))
-}
-
 func noopReadOptionsSetString(*opendalReadOptions, string) ([]byte, error) {
 	return nil, nil
 }
@@ -1561,14 +1194,6 @@ func assertWriteOptionsPointer(t *testing.T, want *opendalWriteOptions, got *ope
 	if got != want {
 		t.Fatalf("write options = %p, want %p", got, want)
 	}
-}
-
-func assertWriteOptionsPointerFromArgs(t *testing.T, want *opendalWriteOptions, aValues ...unsafe.Pointer) {
-	t.Helper()
-	if len(aValues) != 2 {
-		t.Fatalf("write option setter received %d arguments, want 2", len(aValues))
-	}
-	assertWriteOptionsPointer(t, want, *(**opendalWriteOptions)(aValues[0]))
 }
 
 func noopWriteOptionsSetString(*opendalWriteOptions, string) ([]byte, error) {
@@ -1582,14 +1207,6 @@ func assertStatOptionsPointer(t *testing.T, want *opendalStatOptions, got *opend
 	}
 }
 
-func assertStatOptionsPointerFromArgs(t *testing.T, want *opendalStatOptions, aValues ...unsafe.Pointer) {
-	t.Helper()
-	if len(aValues) != 2 {
-		t.Fatalf("stat option setter received %d arguments, want 2", len(aValues))
-	}
-	assertStatOptionsPointer(t, want, *(**opendalStatOptions)(aValues[0]))
-}
-
 func noopStatOptionsSetString(*opendalStatOptions, string) ([]byte, error) {
 	return nil, nil
 }
@@ -1599,12 +1216,4 @@ func assertDeleteOptionsPointer(t *testing.T, want *opendalDeleteOptions, got *o
 	if got != want {
 		t.Fatalf("delete options = %p, want %p", got, want)
 	}
-}
-
-func assertDeleteOptionsPointerFromArgs(t *testing.T, want *opendalDeleteOptions, aValues ...unsafe.Pointer) {
-	t.Helper()
-	if len(aValues) != 2 {
-		t.Fatalf("delete option setter received %d arguments, want 2", len(aValues))
-	}
-	assertDeleteOptionsPointer(t, want, *(**opendalDeleteOptions)(aValues[0]))
 }

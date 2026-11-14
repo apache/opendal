@@ -444,7 +444,9 @@ public sealed class WriteBehaviorTest : BehaviorTestBase
     [Fact]
     public async Task WriteBehavior_OptionsLargerThanStackBuffer_RoundTripAsync()
     {
-        if (!Supports(c => c.Write && c.Stat && c.WriteWithContentType))
+        // This exercises the binding, not the service, and real services cap
+        // the content type length (B2 answers 415), so only memory runs it.
+        if (!IsService("memory") || !Supports(c => c.Write && c.Stat && c.WriteWithContentType))
         {
             return;
         }

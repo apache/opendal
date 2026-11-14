@@ -184,6 +184,23 @@ op.Delete("path/to/file");   // single path
 op.RemoveAll("dir/");        // a path and everything under it
 ```
 
+`DeleteMany` deletes several paths and batches the requests on services that
+support batch deletion. It consumes the sequence lazily and deletes it chunk
+by chunk, so a large sequence is never held in memory at once:
+
+```csharp
+op.DeleteMany(["a.txt", "b.txt"]);
+```
+
+A `DeleteInput` can carry `DeleteOptions`, for example to delete one version.
+A listed `Entry` converts to a `DeleteInput` that keeps the entry's version:
+
+```csharp
+op.DeleteMany(op.List("logs/")
+    .Where(e => e.Metadata.IsFile)
+    .Select(e => (DeleteInput)e));
+```
+
 ## Create a directory
 
 ```csharp

@@ -387,6 +387,54 @@ internal partial class NativeMethods
 
     #endregion
 
+    #region Restore
+
+    [LibraryImport(__DllName, EntryPoint = "operator_restore_with_options", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_restore_with_options(
+        Operator op,
+        string path,
+        OpenDALRestoreOptions* options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_restore_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_restore_with_options_async(
+        Operator op,
+        string path,
+        OpenDALRestoreOptions* options,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
+    #endregion
+
+    #region Compose
+
+    [LibraryImport(__DllName, EntryPoint = "operator_compose_with_options", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALMetadataResult operator_compose_with_options(
+        Operator op,
+        OpenDALPathOptions* sources,
+        nuint sourcesLen,
+        string targetPath,
+        OpenDALComposeOptions* options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_compose_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_compose_with_options_async(
+        Operator op,
+        OpenDALPathOptions* sources,
+        nuint sourcesLen,
+        string targetPath,
+        OpenDALComposeOptions* options,
+        delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
+        long context
+    );
+
+    #endregion
+
     #region Presign
 
     [LibraryImport(__DllName, EntryPoint = "operator_presign_read_async", StringMarshalling = StringMarshalling.Utf8)]

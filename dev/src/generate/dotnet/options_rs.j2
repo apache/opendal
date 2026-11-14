@@ -27,7 +27,7 @@ use opendal::BytesRange;
 use crate::error::OpenDALError;
 use crate::metadata::{OpendalMetadata, borrowed_metadata};
 use crate::utils::{
-    borrowed_string, borrowed_string_pairs, borrowed_timestamp, config_invalid_error,
+    borrowed_string, borrowed_string_pairs, borrowed_timestamp, config_invalid_error, require_cstr,
 };
 use crate::validators::prelude::validate_read_range_end;
 use crate::validators::validate_positive_integer;
@@ -55,6 +55,41 @@ pub(crate) fn read_options<T: NativeOptions>(options: *const T) -> Result<T::Opt
         Some(options) => options.to_options(),
         None => Ok(T::Options::default()),
     }
+}
+
+/// One path with its own options, an element of an array that native code
+/// borrows for the duration of a call. A null `options` selects the defaults.
+#[repr(C)]
+pub struct OpendalPathOptions<T> {
+    pub path: *const c_char,
+    pub options: *const T,
+}
+
+/// Convert an array of paths with options into ordered pairs.
+///
+/// When `len > 0`, `items` must point to `len` valid items whose pointers
+/// stay valid for the duration of the call.
+pub(crate) fn read_path_options<T: NativeOptions>(
+    items: *const OpendalPathOptions<T>,
+    len: usize,
+    field: &str,
+) -> Result<Vec<(String, T::Options)>, OpenDALError> {
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    if items.is_null() {
+        return Err(config_invalid_error(format!(
+            "{field} is null while len > 0"
+        )));
+    }
+
+    unsafe { std::slice::from_raw_parts(items, len) }
+        .iter()
+        .map(|item| {
+            let path = require_cstr(item.path, &format!("{field} path"))?;
+            Ok((path.to_owned(), read_options(item.options)?))
+        })
+        .collect()
 }
 
 /// Build a byte range from `offset` and `length`, or from `suffix_length`
@@ -238,6 +273,44 @@ mod tests {
         assert!(rebuilt.is_file());
         assert_eq!(rebuilt.content_length(), 5);
         assert_eq!(rebuilt.etag(), Some("e"));
+    }
+
+    #[test]
+    fn read_path_options_keeps_order_and_defaults() {
+        let first = CString::new("a").unwrap();
+        let second = CString::new("b").unwrap();
+        let version = CString::new("1").unwrap();
+        let options = OpendalDeleteOptions {
+            version: version.as_ptr(),
+            ..Default::default()
+        };
+        let items = [
+            OpendalPathOptions {
+                path: first.as_ptr(),
+                options: &options,
+            },
+            OpendalPathOptions {
+                path: second.as_ptr(),
+                options: ptr::null(),
+            },
+        ];
+
+        let pairs = read_path_options(items.as_ptr(), items.len(), "targets").unwrap();
+        assert_eq!(pairs[0].0, "a");
+        assert_eq!(pairs[0].1.version.as_deref(), Some("1"));
+        assert_eq!(pairs[1].0, "b");
+        assert_eq!(pairs[1].1, opendal::options::DeleteOptions::default());
+    }
+
+    #[test]
+    fn read_path_options_names_null_path() {
+        let items = [OpendalPathOptions::<OpendalDeleteOptions> {
+            path: ptr::null(),
+            options: ptr::null(),
+        }];
+        let err = read_path_options(items.as_ptr(), items.len(), "targets")
+            .expect_err("a null path must fail");
+        assert!(message(&err).contains("targets path"));
     }
 
     #[test]

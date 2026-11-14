@@ -224,6 +224,27 @@ op.Write("config.json", content, new WriteOptions { IfNotChanged = meta });
 The condition compares the version or the ETag, whichever the service
 supports.
 
+## Restore a deleted file
+
+On services with object versioning, `Restore` brings back the latest deleted
+state of a path, or a chosen version through `RestoreOptions`:
+
+```csharp
+op.Restore("path/to/file");
+```
+
+## Compose files
+
+On services that report `Capability.Compose`, `Compose` concatenates complete
+source files into a target in order without reading them through the client:
+
+```csharp
+var meta = op.Compose(["parts/0", "parts/1", "parts/2"], "result");
+```
+
+Each `ComposeInput` can carry `ComposeSourceOptions` to pin a version or guard
+a source.
+
 ## Generate a presigned URL
 
 Hand a time-limited URL to a third party so they can access an object without

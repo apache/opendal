@@ -36,8 +36,8 @@ use super::utils::convert_error;
 ///
 /// ```
 /// use anyhow::Result;
-/// use dav_server::davpath::DavPath;
-/// use dav_server::fs::DavFileSystem;
+/// use dav_server_opendalfs::dav_server::davpath::DavPath;
+/// use dav_server_opendalfs::dav_server::fs::DavFileSystem;
 /// use dav_server_opendalfs::OpendalFs;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;

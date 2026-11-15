@@ -174,7 +174,7 @@ async fn test_file_etag() -> Result<()> {
             .try_concat()
             .await?;
         let xml = String::from_utf8(body)?;
-        match expected_tag {
+        match expected_header {
             Some(value) => assert!(
                 xml.contains(&format!("<D:getetag>{value}</D:getetag>")),
                 "{xml}"

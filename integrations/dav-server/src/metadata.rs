@@ -71,6 +71,10 @@ impl DavMetaData for OpendalMetaData {
         self.metadata.is_file()
     }
 
+    fn is_symlink(&self) -> bool {
+        false
+    }
+
     fn status_changed(&self) -> FsResult<SystemTime> {
         match self.metadata.last_modified() {
             Some(t) => Ok(t.into()),

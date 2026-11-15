@@ -147,6 +147,10 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
+    fn symlink_metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, Box<dyn DavMetaData>> {
+        self.metadata(path)
+    }
+
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
             let path = self.fs_dir_path(path)?;

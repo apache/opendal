@@ -23,6 +23,7 @@ use http::Uri;
 use log::debug;
 use reqsign_aliyun_oss::AssumeRoleCredentialProvider;
 use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
+use reqsign_aliyun_oss::Credential;
 use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
 use reqsign_aliyun_oss::EnvCredentialProvider;
 use reqsign_aliyun_oss::RequestSigner;
@@ -56,6 +57,7 @@ const DEFAULT_BATCH_MAX_OPERATIONS: usize = 1000;
 #[derive(Default)]
 pub struct OssBuilder {
     pub(super) config: OssConfig,
+    pub(super) credential_providers: Option<ProvideCredentialChain<Credential>>,
 }
 
 impl Debug for OssBuilder {
@@ -380,6 +382,25 @@ impl OssBuilder {
 
         self
     }
+
+    /// Replace the credential providers with a custom chain.
+    ///
+    /// The custom chain replaces all default providers, including explicit and
+    /// environment credentials, OIDC, ECS RAM Role, and AssumeRole providers.
+    /// Other credential-related configuration remains available but does not
+    /// override this chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_aliyun_oss`] so that its types match the ones this service is
+    /// built with.
+    ///
+    /// Set [`Credential::expires_in`] for temporary credentials. The reqsign
+    /// signer caches credentials and calls this chain again when they approach
+    /// expiration.
+    pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
+        self.credential_providers = Some(chain);
+        self
+    }
 }
 
 enum AddressingStyle {
@@ -544,6 +565,12 @@ impl Builder for OssBuilder {
 
             provider = ProvideCredentialChain::new().push(assume_role_with_ak);
         }
+
+        let provider = if let Some(credential_providers) = self.credential_providers {
+            credential_providers
+        } else {
+            provider
+        };
 
         let sign_ctx = ctx;
         let request_signer = RequestSigner::new(bucket);
@@ -862,11 +889,13 @@ impl Service for OssBackend {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, VecDeque};
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use bytes::Bytes;
-    use reqsign_core::{FileRead, HttpSend};
+    use reqsign_core::time::Timestamp;
+    use reqsign_core::{FileRead, HttpSend, ProvideCredential};
 
     use super::*;
 
@@ -878,6 +907,50 @@ mod tests {
             assert_eq!(path, "/test/oidc-token");
             Ok(b"test-oidc-token".to_vec())
         }
+    }
+
+    #[derive(Debug)]
+    struct TestCredentialProvider {
+        calls: Arc<AtomicUsize>,
+        credentials: Mutex<VecDeque<Credential>>,
+    }
+
+    impl TestCredentialProvider {
+        fn new(calls: Arc<AtomicUsize>, credentials: Vec<Credential>) -> Self {
+            Self {
+                calls,
+                credentials: Mutex::new(credentials.into_iter().collect()),
+            }
+        }
+    }
+
+    impl ProvideCredential for TestCredentialProvider {
+        type Credential = Credential;
+
+        async fn provide_credential(
+            &self,
+            _ctx: &Context,
+        ) -> reqsign_core::Result<Option<Credential>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Some(
+                self.credentials
+                    .lock()
+                    .unwrap()
+                    .pop_front()
+                    .expect("test provider credential"),
+            ))
+        }
+    }
+
+    async fn sign_test_request(signer: &Signer<Credential>) -> http::request::Parts {
+        let (mut parts, _) = http::Request::builder()
+            .method(http::Method::PUT)
+            .uri("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/manifest.json")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+        parts
     }
 
     #[derive(Clone, Debug, Default)]
@@ -998,5 +1071,151 @@ mod tests {
             };
             assert_eq!(*http.requests.lock().unwrap(), expected_requests);
         }
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_provider_replaces_default_chain() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = TestCredentialProvider::new(
+            calls.clone(),
+            vec![Credential {
+                access_key_id: "custom-ak".to_string(),
+                access_key_secret: "custom-secret".to_string(),
+                security_token: Some("custom-token".to_string()),
+                expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(3600)),
+            }],
+        );
+        let builder = OssBuilder::default()
+            .bucket("test-bucket")
+            .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+            .access_key_id("static-ak")
+            .access_key_secret("static-secret")
+            .security_token("static-token")
+            .role_arn("acs:ram::123456789012:role/test-role")
+            .oidc_provider_arn("acs:ram::123456789012:oidc-provider/test")
+            .oidc_token_file("/test/oidc-token")
+            .credential_provider_chain(ProvideCredentialChain::new().push(provider));
+
+        let debug = format!("{builder:?}");
+        for value in [
+            "static-ak",
+            "static-secret",
+            "static-token",
+            "custom-ak",
+            "custom-secret",
+            "custom-token",
+        ] {
+            assert!(!debug.contains(value));
+        }
+
+        let backend = builder.build().unwrap();
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<OssBackend>()
+            .unwrap();
+        let envs = HashMap::from([
+            ("ALIBABA_CLOUD_ACCESS_KEY_ID".into(), "env-ak".into()),
+            (
+                "ALIBABA_CLOUD_ACCESS_KEY_SECRET".into(),
+                "env-secret".into(),
+            ),
+            ("ALIBABA_CLOUD_SECURITY_TOKEN".into(), "env-token".into()),
+            (
+                "ALIBABA_CLOUD_ROLE_ARN".into(),
+                "acs:ram::123456789012:role/env-role".into(),
+            ),
+            (
+                "ALIBABA_CLOUD_OIDC_PROVIDER_ARN".into(),
+                "acs:ram::123456789012:oidc-provider/env".into(),
+            ),
+            (
+                "ALIBABA_CLOUD_OIDC_TOKEN_FILE".into(),
+                "/test/oidc-token".into(),
+            ),
+        ]);
+        let http = CredentialHttpSend::default();
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs,
+            })
+            .with_file_read(OidcTokenFile)
+            .with_http_send(http.clone());
+        let signer = backend.core.signer.clone().with_context(ctx);
+
+        let parts = sign_test_request(&signer).await;
+
+        assert!(
+            parts.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS custom-ak:")
+        );
+        assert_eq!(parts.headers["x-oss-security-token"], "custom-token");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_provider_refreshes_expiring_credentials() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = TestCredentialProvider::new(
+            calls.clone(),
+            vec![
+                Credential {
+                    access_key_id: "custom-ak-1".to_string(),
+                    access_key_secret: "custom-secret-1".to_string(),
+                    security_token: Some("custom-token-1".to_string()),
+                    expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(60)),
+                },
+                Credential {
+                    access_key_id: "custom-ak-2".to_string(),
+                    access_key_secret: "custom-secret-2".to_string(),
+                    security_token: Some("custom-token-2".to_string()),
+                    expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(3600)),
+                },
+            ],
+        );
+        let backend = OssBuilder::default()
+            .bucket("test-bucket")
+            .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+            .credential_provider_chain(ProvideCredentialChain::new().push(provider))
+            .build()
+            .unwrap();
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<OssBackend>()
+            .unwrap();
+        let http = CredentialHttpSend::default();
+        let ctx = Context::new().with_http_send(http.clone());
+
+        let first = sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        assert!(
+            first.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS custom-ak-1:")
+        );
+        assert_eq!(first.headers["x-oss-security-token"], "custom-token-1");
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let second =
+            sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        assert!(
+            second.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS custom-ak-2:")
+        );
+        assert_eq!(second.headers["x-oss-security-token"], "custom-token-2");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+        let third = sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        assert!(
+            third.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS custom-ak-2:")
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(http.requests.lock().unwrap().is_empty());
     }
 }

@@ -31,7 +31,7 @@ crate-type = ["staticlib"]
 
 [dependencies]
 anyhow = { version = "1.0.100" }
-asyncband = { version = "0.7.1", features = ["mutex"] }
+asyncband = { version = "0.8.0", features = ["mutex"] }
 bytes = { version = "1.11.0", optional = true }
 cxx = { version = "1.0.186" }
 cxx-async = { version = "0.1.4", optional = true }

@@ -26,7 +26,8 @@ void test_check(opendal_test_context* ctx)
     opendal_operator_info* info = opendal_operator_info_new(ctx->config->operator_instance);
     OPENDAL_ASSERT_NOT_NULL(info, "Should be able to get operator info");
 
-    opendal_capability cap = opendal_operator_info_get_capability(info);
+    opendal_capability cap;
+    opendal_operator_info_get_capability(info, &cap);
 
     if (cap.list) {
         // Only perform the standard check if list operations are supported
@@ -57,17 +58,18 @@ void test_write_read(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Read data back
-    opendal_result_read result = opendal_operator_read(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(result.error, "Read operation should succeed");
-    OPENDAL_ASSERT_EQ(strlen(content), result.data.len,
+    opendal_bytes read_data;
+    error = opendal_operator_read(ctx->config->operator_instance, path, &read_data);
+    OPENDAL_ASSERT_NO_ERROR(error, "Read operation should succeed");
+    OPENDAL_ASSERT_EQ(strlen(content), read_data.len,
         "Read data length should match written data");
 
     // Verify content
-    OPENDAL_ASSERT(memcmp(content, result.data.data, result.data.len) == 0,
+    OPENDAL_ASSERT(memcmp(content, read_data.data, read_data.len) == 0,
         "Read content should match written content");
 
     // Cleanup
-    opendal_bytes_free(&result.data);
+    opendal_bytes_free(&read_data);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -78,9 +80,10 @@ void test_exists(opendal_test_context* ctx)
     const char* content = "test";
 
     // File should not exist initially
-    opendal_result_exists result = opendal_operator_exists(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(result.error, "Exists operation should succeed");
-    OPENDAL_ASSERT(!result.exists, "File should not exist initially");
+    bool exists = false;
+    opendal_error* error = opendal_operator_exists(ctx->config->operator_instance, path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error, "Exists operation should succeed");
+    OPENDAL_ASSERT(!exists, "File should not exist initially");
 
     // Write file
     opendal_bytes data;
@@ -88,13 +91,13 @@ void test_exists(opendal_test_context* ctx)
     data.len = strlen(content);
     data.capacity = strlen(content);
 
-    opendal_error* error = opendal_operator_write(ctx->config->operator_instance, path, &data);
+    error = opendal_operator_write(ctx->config->operator_instance, path, &data);
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // File should exist now
-    result = opendal_operator_exists(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(result.error, "Exists operation should succeed");
-    OPENDAL_ASSERT(result.exists, "File should exist after write");
+    error = opendal_operator_exists(ctx->config->operator_instance, path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error, "Exists operation should succeed");
+    OPENDAL_ASSERT(exists, "File should exist after write");
 
     // Cleanup
     opendal_operator_delete(ctx->config->operator_instance, path);
@@ -116,21 +119,22 @@ void test_stat(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Stat file
-    opendal_result_stat result = opendal_operator_stat(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(result.error, "Stat operation should succeed");
-    OPENDAL_ASSERT_NOT_NULL(result.meta, "Metadata should not be null");
+    opendal_metadata* meta = NULL;
+    error = opendal_operator_stat(ctx->config->operator_instance, path, &meta);
+    OPENDAL_ASSERT_NO_ERROR(error, "Stat operation should succeed");
+    OPENDAL_ASSERT_NOT_NULL(meta, "Metadata should not be null");
 
     // Check file properties
-    OPENDAL_ASSERT(opendal_metadata_is_file(result.meta),
+    OPENDAL_ASSERT(opendal_metadata_is_file(meta),
         "Should be identified as file");
-    OPENDAL_ASSERT(!opendal_metadata_is_dir(result.meta),
+    OPENDAL_ASSERT(!opendal_metadata_is_dir(meta),
         "Should not be identified as directory");
     OPENDAL_ASSERT_EQ(strlen(content),
-        opendal_metadata_content_length(result.meta),
+        opendal_metadata_content_length(meta),
         "Content length should match");
 
     // Cleanup
-    opendal_metadata_free(result.meta);
+    opendal_metadata_free(meta);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -150,20 +154,21 @@ void test_delete(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Verify file exists
-    opendal_result_exists exists_result = opendal_operator_exists(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(exists_result.error,
+    bool exists = false;
+    error = opendal_operator_exists(ctx->config->operator_instance, path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Exists operation should succeed");
-    OPENDAL_ASSERT(exists_result.exists, "File should exist before deletion");
+    OPENDAL_ASSERT(exists, "File should exist before deletion");
 
     // Delete file
     error = opendal_operator_delete(ctx->config->operator_instance, path);
     OPENDAL_ASSERT_NO_ERROR(error, "Delete operation should succeed");
 
     // Verify file no longer exists
-    exists_result = opendal_operator_exists(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(exists_result.error,
+    error = opendal_operator_exists(ctx->config->operator_instance, path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Exists operation should succeed");
-    OPENDAL_ASSERT(!exists_result.exists, "File should not exist after deletion");
+    OPENDAL_ASSERT(!exists, "File should not exist after deletion");
 
     // Delete should be idempotent
     error = opendal_operator_delete(ctx->config->operator_instance, path);
@@ -180,20 +185,22 @@ void test_create_dir(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Create dir operation should succeed");
 
     // Verify directory exists
-    opendal_result_exists result = opendal_operator_exists(ctx->config->operator_instance, dir_path);
-    OPENDAL_ASSERT_NO_ERROR(result.error, "Exists operation should succeed");
-    OPENDAL_ASSERT(result.exists, "Directory should exist after creation");
+    bool exists = false;
+    error = opendal_operator_exists(ctx->config->operator_instance, dir_path, &exists);
+    OPENDAL_ASSERT_NO_ERROR(error, "Exists operation should succeed");
+    OPENDAL_ASSERT(exists, "Directory should exist after creation");
 
     // Stat directory
-    opendal_result_stat stat_result = opendal_operator_stat(ctx->config->operator_instance, dir_path);
-    OPENDAL_ASSERT_NO_ERROR(stat_result.error, "Stat operation should succeed");
-    OPENDAL_ASSERT(opendal_metadata_is_dir(stat_result.meta),
+    opendal_metadata* meta = NULL;
+    error = opendal_operator_stat(ctx->config->operator_instance, dir_path, &meta);
+    OPENDAL_ASSERT_NO_ERROR(error, "Stat operation should succeed");
+    OPENDAL_ASSERT(opendal_metadata_is_dir(meta),
         "Should be identified as directory");
-    OPENDAL_ASSERT(!opendal_metadata_is_file(stat_result.meta),
+    OPENDAL_ASSERT(!opendal_metadata_is_file(meta),
         "Should not be identified as file");
 
     // Cleanup
-    opendal_metadata_free(stat_result.meta);
+    opendal_metadata_free(meta);
     opendal_operator_delete(ctx->config->operator_instance, dir_path);
 }
 

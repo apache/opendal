@@ -252,6 +252,7 @@ jobs:
             # services-sftp
             services-sharepoint
             services-sled
+            services-smb
             services-swift
             services-tikv
             services-vercel-artifacts

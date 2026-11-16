@@ -188,4 +188,26 @@ try (AsyncOperator op = AsyncOperator.of("s3", conf)) {
 
 `presignWrite` and `presignStat` produce presigned requests for the matching
 operations.
+
+Pass `ReadOptions` to set response headers, for example to give a download a
+filename:
+
+```java
+import org.apache.opendal.ReadOptions;
+
+try (AsyncOperator op = AsyncOperator.of("s3", conf)) {
+    ReadOptions options = ReadOptions.builder()
+        .overrideContentDisposition("attachment; filename=\"report.csv\"")
+        .overrideContentType("text/csv")
+        .overrideCacheControl("private, max-age=60")
+        .build();
+    PresignedRequest req =
+        op.presignRead("reports/latest.csv", Duration.ofHours(1), options).join();
+}
+```
+
+`presignStat` accepts `StatOptions`, and `presignWrite` accepts `WriteOptions`.
+The overloads without options retain their existing behavior. Support for each
+option depends on the storage service. Send the returned method and headers
+along with the URI when using the presigned request.
 </content>

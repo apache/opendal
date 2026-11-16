@@ -20,7 +20,12 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
+use pyo3::exceptions::PyTypeError;
+use pyo3::types::PyBytes;
+use pyo3::types::PyDelta;
+use pyo3::types::PyDeltaAccess;
 use pyo3::types::PyDict;
+use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
 use pyo3_async_runtimes::tokio::future_into_py;
@@ -65,12 +70,32 @@ fn normalize_scheme(raw: &str) -> String {
     raw.trim().to_ascii_lowercase().replace('_', "-")
 }
 
+fn extract_delete_paths(paths: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
+    // A scalar path must not become an iterable of characters or components.
+    if paths.is_instance_of::<PyString>()
+        || paths.is_instance_of::<PyBytes>()
+        || paths.hasattr("__fspath__")?
+    {
+        return Err(PyTypeError::new_err(
+            "delete_many requires an iterable of paths, not a single path",
+        ));
+    }
+
+    paths
+        .try_iter()?
+        .map(|entry| {
+            let path = entry?.extract::<PathBuf>()?;
+            Ok(path.to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
 /// Convert a config value into the string form core's config deserializer
 /// consumes.
 ///
 /// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
-/// `bool`, `int`, `os.PathLike`, and `list`/`tuple` of those (`,`-joined, as
-/// core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
+/// `bool`, `int`, `datetime.timedelta`, `os.PathLike`, and `list`/`tuple` of those
+/// (`,`-joined, as core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
 fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     // `str` before the list branch (a `str` is also a sequence); `bool` before
     // `int` (a Python `bool` also extracts as `int`); `dict` before the list
@@ -81,6 +106,11 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(if b { "true" } else { "false" }.to_string())
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
+    } else if let Ok(delta) = value.cast::<PyDelta>() {
+        let micros = i128::from(delta.get_days()) * 86_400_000_000
+            + i128::from(delta.get_seconds()) * 1_000_000
+            + i128::from(delta.get_microseconds());
+        Ok(format!("{micros}us"))
     } else if value.cast::<PyDict>().is_ok() {
         Err(Unsupported::new_err(
             "a map-valued config field cannot be built via from_config; leave it unset",
@@ -95,7 +125,7 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(path.to_string_lossy().into_owned())
     } else {
         Err(Unsupported::new_err(
-            "unsupported config value type; pass a str, bool, int, os.PathLike, or list of those",
+            "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
         ))
     }
 }
@@ -277,8 +307,8 @@ impl Operator {
     /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-    /// are converted to the string form core consumes.
+    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
     ///
     /// Parameters
     /// ----------
@@ -773,6 +803,32 @@ impl Operator {
         }
     }
 
+    /// Delete an explicit collection of paths with default delete options.
+    ///
+    /// Notes
+    /// -----
+    /// This method collects the iterable and converts its Python path objects
+    /// before deletion starts, using memory proportional to the number of paths.
+    /// Empty collections do nothing. Paths that do not exist are ignored.
+    /// Storage or path-validation errors can leave some paths deleted; this
+    /// operation is not atomic and does not guarantee a single remote request.
+    /// Use `remove_all` to recursively delete a path prefix.
+    ///
+    /// Parameters
+    /// ----------
+    /// paths : Iterable[str | PathLike[str]]
+    ///     The paths to delete. A single path is not accepted.
+    #[pyo3(signature = (paths: "collections.abc.Iterable[str | PathLike[str]]"))]
+    pub fn delete_many(&self, py: Python<'_>, paths: &Bound<'_, PyAny>) -> PyResult<()> {
+        let paths = extract_delete_paths(paths)?;
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let this = self.core.clone();
+        py.detach(move || this.delete_iter(paths))
+            .map_err(format_pyerr)
+    }
+
     /// Check if a path exists.
     ///
     /// Parameters
@@ -1061,8 +1117,8 @@ impl AsyncOperator {
     /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-    /// are converted to the string form core consumes.
+    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
     ///
     /// Parameters
     /// ----------
@@ -1628,6 +1684,42 @@ impl AsyncOperator {
             } else {
                 this.delete(&path).await.map_err(format_pyerr)
             }
+        })
+    }
+
+    /// Delete an explicit collection of paths with default delete options.
+    ///
+    /// Notes
+    /// -----
+    /// This method collects the iterable and converts its Python path objects
+    /// before deletion starts, using memory proportional to the number of paths.
+    /// Empty collections do nothing. Paths that do not exist are ignored.
+    /// Storage or path-validation errors can leave some paths deleted; this
+    /// operation is not atomic and does not guarantee a single remote request.
+    /// Use `remove_all` to recursively delete a path prefix.
+    ///
+    /// Parameters
+    /// ----------
+    /// paths : Iterable[str | PathLike[str]]
+    ///     The paths to delete. A single path is not accepted.
+    ///
+    /// Returns
+    /// -------
+    /// Awaitable[None]
+    ///     An awaitable that completes when deletion finishes.
+    #[pyo3(signature = (paths: "collections.abc.Iterable[str | PathLike[str]]") -> "collections.abc.Awaitable[None]")]
+    pub fn delete_many<'p>(
+        &'p self,
+        py: Python<'p>,
+        paths: &Bound<'_, PyAny>,
+    ) -> PyResult<Bound<'p, PyAny>> {
+        let paths = extract_delete_paths(paths)?;
+        let this = self.core.clone();
+        future_into_py(py, async move {
+            if paths.is_empty() {
+                return Ok(());
+            }
+            this.delete_iter(paths).await.map_err(format_pyerr)
         })
     }
 

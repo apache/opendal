@@ -390,9 +390,8 @@ impl OssBuilder {
     /// Other credential-related configuration remains available but does not
     /// override this chain.
     ///
-    /// Build the chain from [`opendal_core::reqsign_core`] and
-    /// [`crate::reqsign_aliyun_oss`] so that its types match the ones this service is
-    /// built with.
+    /// Build the chain with [`opendal_core::reqsign_core::ProvideCredentialChain`]
+    /// and [`reqsign_aliyun_oss::Credential`].
     ///
     /// Set [`Credential::expires_in`] for temporary credentials. The reqsign
     /// signer caches credentials and calls this chain again when they approach

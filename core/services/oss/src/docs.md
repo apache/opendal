@@ -87,8 +87,8 @@ use std::time::Duration;
 use opendal_core::reqsign_core;
 use opendal_core::reqsign_core::time::Timestamp;
 use opendal_core::reqsign_core::{Context, ProvideCredential, ProvideCredentialChain};
-use opendal_service_oss::reqsign_aliyun_oss::Credential;
 use opendal_service_oss::Oss;
+use reqsign_aliyun_oss::Credential;
 
 #[derive(Debug)]
 struct CustomStsProvider;

@@ -31,9 +31,9 @@ use super::writer::SharePointWriter;
 
 use std::fmt::Debug;
 
+use asyncband::mutex::Mutex;
+use asyncband::once::OnceCell;
 use log::debug;
-use mea::mutex::Mutex;
-use mea::once::OnceCell;
 
 use super::SHAREPOINT_SCHEME;
 use super::config::SharepointConfig;
@@ -268,6 +268,7 @@ impl Service for SharepointBackend {
     type Lister = oio::PageLister<SharePointLister>;
     type Deleter = oio::OneShotDeleter<SharePointDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -332,7 +333,6 @@ impl Service for SharepointBackend {
         from: &str,
         to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let ctx = ctx.clone();
@@ -342,7 +342,7 @@ impl Service for SharepointBackend {
         Ok(oio::OneShotCopier::new(async move {
             let monitor_url = core.initialize_copy(&ctx, &from, &to).await?;
             core.wait_until_complete(&ctx, monitor_url).await?;
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::unknown().build())
         }))
     }
 

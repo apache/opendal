@@ -8346,15 +8346,15 @@ dependencies = [
 
 [[package]]
 name = "opendal-service-sharepoint"
-version = "0.58.1"
+version = "0.59.5"
 dependencies = [
+ "asyncband",
  "base64 0.23.0",
  "bytes",
  "dotenvy",
  "futures",
  "http 1.4.2",
  "log",
- "mea",
  "opendal-core",
  "opendal-http-transport-reqwest",
  "serde",

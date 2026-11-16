@@ -138,12 +138,15 @@ impl oio::PageList for SharePointLister {
                 ItemType::File { .. } => EntryMode::FILE,
             };
 
-            let mut meta = Metadata::new(entry_mode).with_content_length(drive_item.size.max(0) as u64);
+            let mut meta = match entry_mode {
+                EntryMode::DIR => MetadataBuilder::dir(),
+                _ => MetadataBuilder::file(drive_item.size.max(0) as u64),
+            };
             if let Some(etag) = drive_item.e_tag {
-                meta = meta.with_etag(etag);
+                meta.etag(etag);
             }
             let last_modified = drive_item.last_modified_date_time.parse::<Timestamp>()?;
-            meta.set_last_modified(last_modified);
+            meta.last_modified(last_modified);
 
             // When listing a directory with `$expand=versions`, Graph returns 400 "Operation not supported".
             // Thus, `list_with_versions` induces N+1 requests. This N+1 is intentional.
@@ -158,7 +161,7 @@ impl oio::PageList for SharePointLister {
                     .sharepoint_list_versions(&self.ctx, &item_path)
                     .await?;
                 if let Some(version) = versions.first() {
-                    meta.set_version(&version.id);
+                    meta.version(version.id.clone());
                 }
             }
 
@@ -169,7 +172,7 @@ impl oio::PageList for SharePointLister {
                 item_path
             };
 
-            let entry = oio::Entry::new(&entry_path, meta);
+            let entry = oio::Entry::new(&entry_path, meta.build());
             ctx.entries.push_back(entry)
         }
 

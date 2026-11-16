@@ -375,7 +375,10 @@ mod tests {
         assert!(item.e_tag.is_none());
         assert!(item.parent_reference.path.is_none());
         assert!(item.parent_reference.id.is_none());
-        assert_eq!(item.parent_reference.drive_id, "b!xYzLongOpaqueDriveIdentifierValue0123456789");
+        assert_eq!(
+            item.parent_reference.drive_id,
+            "b!xYzLongOpaqueDriveIdentifierValue0123456789"
+        );
     }
 
     #[test]

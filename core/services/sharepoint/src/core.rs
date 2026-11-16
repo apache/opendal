@@ -19,6 +19,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
+use asyncband::mutex::Mutex;
+use asyncband::once::OnceCell;
 use base64::Engine;
 use base64::prelude::BASE64_URL_SAFE_NO_PAD;
 use bytes::Buf;
@@ -27,8 +29,6 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use mea::mutex::Mutex;
-use mea::once::OnceCell;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -298,20 +298,25 @@ impl SharePointCore {
             ItemType::File { .. } => EntryMode::FILE,
         };
 
-        let mut meta = Metadata::new(entry_mode).with_content_length(decoded_response.size.max(0) as u64);
+        let mut meta = match entry_mode {
+            EntryMode::DIR => MetadataBuilder::dir(),
+            _ => MetadataBuilder::file(decoded_response.size.max(0) as u64),
+        };
         if let Some(etag) = decoded_response.e_tag {
-            meta = meta.with_etag(etag);
+            meta.etag(etag);
         }
 
         if let Some(version) = args.version() {
+            let mut found = false;
             for item_version in decoded_response.versions.as_deref().unwrap_or_default() {
                 if item_version.id == version {
-                    meta.set_version(version);
+                    meta.version(version);
+                    found = true;
                     break; // early exit
                 }
             }
 
-            if meta.version().is_none() {
+            if !found {
                 return Err(Error::new(
                     ErrorKind::NotFound,
                     "cannot find this version of the item",
@@ -321,9 +326,9 @@ impl SharePointCore {
 
         let last_modified = decoded_response.last_modified_date_time;
         let date_utc_last_modified = last_modified.parse::<Timestamp>()?;
-        meta.set_last_modified(date_utc_last_modified);
+        meta.last_modified(date_utc_last_modified);
 
-        Ok(meta)
+        Ok(meta.build())
     }
 
     /// Return versions of an item

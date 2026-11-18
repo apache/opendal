@@ -32,10 +32,11 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", "/myroot");
 
-        opendal_result_operator_new result = opendal_operator_new("memory", options);
-        EXPECT_TRUE(result.error == nullptr);
+        opendal_operator* op = nullptr;
+        opendal_error* error = opendal_operator_new("memory", options, &op);
+        EXPECT_EQ(error, nullptr);
 
-        this->p = result.op;
+        this->p = op;
         EXPECT_TRUE(this->p);
 
         opendal_operator_options_free(options);
@@ -57,41 +58,52 @@ TEST_F(OpendalReaderTest, SeekTest)
     opendal_error* err = opendal_operator_write(this->p, "/testseek", &data);
     EXPECT_EQ(err, nullptr);
 
-    opendal_result_operator_reader r = opendal_operator_reader(this->p, "/testseek");
-    EXPECT_EQ(r.error, nullptr);
+    opendal_reader* reader = nullptr;
+    err = opendal_operator_reader(this->p, "/testseek", &reader);
+    EXPECT_EQ(err, nullptr);
+    ASSERT_NE(reader, nullptr);
 
     //  Test seek set
-    opendal_result_reader_seek seek_result = opendal_reader_seek(r.reader, 6, OPENDAL_SEEK_SET);
-    EXPECT_EQ(seek_result.pos, 6);
-    EXPECT_EQ(seek_result.error, nullptr);
+    uint64_t pos = 0;
+    err = opendal_reader_seek(reader, 6, OPENDAL_SEEK_SET, &pos);
+    EXPECT_EQ(pos, 6);
+    EXPECT_EQ(err, nullptr);
 
     char buf1[64] = { 0 };
-    opendal_result_reader_read read_result = opendal_reader_read(r.reader, (uint8_t*)buf1, 7);
-    EXPECT_EQ(read_result.error, nullptr);
-    EXPECT_EQ(read_result.size, 7);
+    uintptr_t read_size = 0;
+    err = opendal_reader_read(reader, (uint8_t*)buf1, 7, &read_size);
+    EXPECT_EQ(err, nullptr);
+    EXPECT_EQ(read_size, 7);
     EXPECT_EQ(std::string(buf1), "Gabcdef");
 
     // Test seek cur, now we step on '3'
-    seek_result = opendal_reader_seek(r.reader, 3, OPENDAL_SEEK_CUR);
-    EXPECT_EQ(seek_result.pos, 16);
-    EXPECT_EQ(seek_result.error, nullptr);
+    err = opendal_reader_seek(reader, 3, OPENDAL_SEEK_CUR, &pos);
+    EXPECT_EQ(pos, 16);
+    EXPECT_EQ(err, nullptr);
 
     char buf2[64] = { 0 };
-    read_result = opendal_reader_read(r.reader, (uint8_t*)buf2, 32 /* no more 32 bytes*/);
-    EXPECT_EQ(read_result.error, nullptr);
-    EXPECT_EQ(read_result.size, 5);
+    err = opendal_reader_read(reader, (uint8_t*)buf2, 32 /* no more 32 bytes*/, &read_size);
+    EXPECT_EQ(err, nullptr);
+    EXPECT_EQ(read_size, 5);
     EXPECT_EQ(std::string(buf2), "34567");
 
     // Test seek end, now we step on 'g'
-    seek_result = opendal_reader_seek(r.reader, -8, OPENDAL_SEEK_END);
-    EXPECT_EQ(seek_result.pos, 13);
-    EXPECT_EQ(seek_result.error, nullptr);
+    err = opendal_reader_seek(reader, -8, OPENDAL_SEEK_END, &pos);
+    EXPECT_EQ(pos, 13);
+    EXPECT_EQ(err, nullptr);
 
     char buf3[64] = { 0 };
-    read_result = opendal_reader_read(r.reader, (uint8_t*)buf3, 32 /* no more 32 bytes*/);
-    EXPECT_EQ(read_result.error, nullptr);
-    EXPECT_EQ(read_result.size, 8);
+    err = opendal_reader_read(reader, (uint8_t*)buf3, 32 /* no more 32 bytes*/, &read_size);
+    EXPECT_EQ(err, nullptr);
+    EXPECT_EQ(read_size, 8);
     EXPECT_EQ(std::string(buf3), "g1234567");
 
-    opendal_reader_free(r.reader);
+    // Test invalid whence initializes pos to 0 and returns error
+    pos = 999;
+    err = opendal_reader_seek(reader, 0, 99, &pos);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(pos, 0);
+    opendal_error_free(err);
+
+    opendal_reader_free(reader);
 }

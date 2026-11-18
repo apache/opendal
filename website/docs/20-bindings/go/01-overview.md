@@ -10,7 +10,7 @@ description: The OpenDAL Go binding — install it, see what it supports, and wh
 A native Go binding for OpenDAL: access S3, GCS, Azure Blob, the local
 filesystem, and [many more services](/services) through one API, with the
 performance of the Rust core underneath. It is built on `opendal-c` via
-[purego](https://github.com/ebitengine/purego) and libffi, so **no CGO** is
+[purego](https://github.com/ebitengine/purego), so **no CGO** or `libffi` is
 required.
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
@@ -19,7 +19,8 @@ expresses through its own native API.
 
 :::note
 This binding has its own version number, independent of the Rust core. Check
-compatibility against the binding's version, not the core's.
+compatibility against the binding's version, not the core's, and pair it with
+`opendal-go-services` packages built for the same `opendal-c` ABI.
 :::
 
 ## Status
@@ -39,8 +40,6 @@ Released and usable, published to
   `*net/http.Request`.
 
 ## Installation
-
-The binding requires **libffi** to be installed on your system.
 
 ```shell
 go get github.com/apache/opendal/bindings/go@latest

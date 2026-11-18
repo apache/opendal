@@ -38,7 +38,8 @@ registry distribution; you must compile the shared library yourself.
 - **C11 compatible** — the header `opendal.h` requires C11 or later (and a C++14
   compiler for the Rust-generated glue).
 - **Explicit memory ownership** — every heap-allocated value has a matching
-  `*_free` function; results carry an `opendal_error *` that is `NULL` on success.
+  `*_free` function; fallible operations return an `opendal_error *` that is
+  `NULL` on success and write output values through caller-provided pointers.
 
 ## Building
 

@@ -285,8 +285,8 @@ def generate_language_binding_cases(
     # Bindings may be treated as parallel requests, so we need to disable it for all languages.
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
-    # 3FS currently has a Rust-only fixture that requires Ubuntu 22.04's RXE module.
-    cases = [v for v in cases if v["service"] != "hf3fs"]
+    # These fixtures target core services without enabling bindings.
+    cases = [v for v in cases if v["service"] not in ["github", "hf3fs", "smb"]]
 
     # Remove invalid cases for java.
     if language == "java":

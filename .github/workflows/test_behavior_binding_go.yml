@@ -90,7 +90,7 @@ jobs:
         run: sudo apt install zstd
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install zstd libffi
+        run: brew install zstd
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1

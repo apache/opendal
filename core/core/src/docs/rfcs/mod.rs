@@ -22,8 +22,8 @@
 pub mod rfc_0000_example {}
 
 /// HTTP Config
-#[doc = include_str!("0000_http_config.md")]
-pub mod rfc_0000_http_config {}
+#[doc = include_str!("8526_http_config.md")]
+pub mod rfc_8526_http_config {}
 
 /// Compact metadata and operation arguments
 #[doc = include_str!("8194_compact_metadata_and_operation_args.md")]

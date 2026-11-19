@@ -101,9 +101,7 @@ Gem::Specification.new do |spec|
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life
-  #
-  # keep in sync with `Rakefile`.
-  spec.required_ruby_version = ">= 3.2"
+  spec.required_ruby_version = ">= 3.3"
 
   # intentionally skipping rb_sys gem because newer Rubygems will be present
 end

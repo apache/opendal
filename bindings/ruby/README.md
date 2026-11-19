@@ -21,6 +21,8 @@ version.
 
 ## Installation
 
+The Ruby binding requires Ruby 3.3 or later.
+
 ```shell
 gem install opendal
 ```

@@ -5,9 +5,11 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
 - [Contributing](#contributing)
   - [Your First Contribution](#your-first-contribution)
   - [AI-Assisted Contributions](#ai-assisted-contributions)
-    - [Human Involvement](#human-involvement)
+    - [Accountability and Agent Participation](#accountability-and-agent-participation)
+    - [AI Usage Statement](#ai-usage-statement)
     - [Bug Reports](#bug-reports)
     - [Code Changes](#code-changes)
+    - [AI-Assisted Maintenance](#ai-assisted-maintenance)
   - [Workflow](#workflow)
     - [Git Branches](#git-branches)
     - [GitHub Pull Requests](#github-pull-requests)
@@ -32,31 +34,39 @@ First, thank you for contributing to OpenDAL! The goal of this document is to pr
 
 Attention is the scarcest resource in an open source community. We appreciate
 everyone who gives their attention to OpenDAL, and we ask contributors to
-protect the attention of others. These standards apply to every contribution;
-AI assistance does not lower them.
+protect the attention of others. These standards apply to every contribution,
+whether authored by a human or an AI agent; AI assistance does not lower them.
 
-### Human Involvement
+### Accountability and Agent Participation
 
-OpenDAL welcomes and encourages AI-assisted contributions when a human actively
-guides the work and remains accountable for it.
+OpenDAL welcomes AI-assisted contributions and authorized AI agents
+participating in Issues, Pull Requests, Discussions, and code reviews, as long
+as every submission has clear human accountability and meets our evidence and
+quality standards.
 
-- Every Issue, Pull Request, Discussion, and review conversation must involve
-  meaningful human participation. Do not delegate project communication entirely
-  to an AI agent.
-- Do not copy and paste LLM output into project conversations. Review, edit, and
-  verify AI-assisted analysis before sharing it with the community.
-- Understand every submitted claim and change well enough to explain and defend
-  it during review.
-- Disclose material AI involvement and any assumptions or unknowns that affect
-  review.
+- **Accountable human owner:** Every AI-assisted submission or agent
+  interaction must have an identifiable human contributor or maintainer who
+  owns its accuracy, licensing compliance, and follow-through. When an agent
+  gets stuck, makes unsupported claims, or reaches a design disagreement, the
+  accountable human must step in.
+- **Transparent AI attribution:** Clearly identify AI-authored comments,
+  triage notes, and reviews as AI-generated, including when posted under a
+  contributor's or committer's personal GitHub account. Pull requests must
+  disclose material AI involvement in the AI Usage Statement below.
+- **Verified, high-signal communication:** Do not paste unverified LLM output,
+  filler, or repetitive summaries into project conversations. Verify claims
+  against the codebase and tests before posting, add concrete technical
+  evidence when replying, and stop rather than looping on unresolved
+  disagreements.
 
-The contributor, not the AI tool, is responsible for the accuracy, relevance,
-and quality of every submission.
+The accountable human contributor or maintainer, not the AI tool, remains
+responsible for the accuracy, relevance, license compliance, and quality of
+every submission.
 
 ### AI Usage Statement
 
-If AI materially assisted a Pull Request, include the following in its AI Usage
-Statement:
+If AI materially assisted or authored a Pull Request, include the following in
+its AI Usage Statement:
 
 - **Harness:** The application or agent framework used to run the model.
 - **Model:** The model name or identifier shown by the harness, including its
@@ -97,11 +107,38 @@ demonstrated problem or meet a concrete use case.
 - Verify a bug before fixing it, and add tests that demonstrate the failure and
   protect the intended behavior when practical.
 - Explain the user-facing, correctness, or maintenance value of the change.
+- Keep changes focused on the stated goal; avoid unrelated refactors,
+  formatting churn, or speculative abstractions.
+- Report only checks and tests that actually ran, and do not weaken or delete
+  existing tests or assertions to make CI pass.
+- Avoid opening multiple concurrent speculative or low-effort pull requests;
+  address review feedback on existing submissions first.
 
 OpenDAL does not accept speculative fixes for unverified bugs or mechanical
 refactors without an agreed technical goal. Maintainers may close submissions
-that lack meaningful human participation or are unverified, speculative, or
-otherwise incomplete without performing a detailed technical review.
+without a detailed technical review when they lack real reproduction or
+evidence, misrepresent validation, duplicate existing work, expand scope
+without consensus, fail to converge after feedback, or lack an accountable
+human owner when human follow-up is required.
+
+### AI-Assisted Maintenance
+
+OpenDAL maintainers also use AI agents to help maintain the project, including
+issue triage, initial pull request screening, code review, reproduction
+assistance, release checks, and routine maintenance changes.
+
+- **Attribution:** Maintenance agents may post through a dedicated bot account
+  or under a committer's personal GitHub account with a clear AI label so
+  contributors can distinguish automated analysis from a maintainer's human
+  judgment or a formal PMC decision.
+- **Committer and PMC authority:** Every pull request requires at least one
+  human OpenDAL committer to review, approve, and merge it. Public API changes,
+  specifications, architectural decisions, security vulnerability
+  classifications, and Apache release votes remain under human committer and
+  PMC accountability.
+- **Human escalation:** Automated triage and review can be wrong. If an AI
+  maintenance agent misclassifies or closes an Issue or Pull Request, reply
+  with concrete technical evidence and request review from a human maintainer.
 
 ## Workflow
 
@@ -129,7 +166,9 @@ refactor: Polish the implementation of webhdfs
 
 #### Reviews & Approvals
 
-All pull requests should be reviewed by at least one OpenDAL committer.
+All pull requests must be reviewed, approved, and merged by at least one human
+OpenDAL committer. AI agents may assist with initial screening and technical
+review, but they do not replace committer approval or merge accountability.
 
 #### Merge Style
 

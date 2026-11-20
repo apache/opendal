@@ -50,6 +50,8 @@ pub enum OptionKind {
     OptionString,
     /// `Option<Timestamp>`
     OptionTimestamp,
+    /// `Option<Duration>`
+    OptionDuration,
     /// `Option<HashMap<String, String>>`
     OptionStringMap,
     /// `Option<Metadata>`
@@ -149,6 +151,7 @@ fn classify(ty: &Type) -> Option<OptionKind> {
                 "u64" => Some(OptionKind::OptionU64),
                 "String" => Some(OptionKind::OptionString),
                 "Timestamp" => Some(OptionKind::OptionTimestamp),
+                "Duration" => Some(OptionKind::OptionDuration),
                 "HashMap" => Some(OptionKind::OptionStringMap),
                 "Metadata" => Some(OptionKind::OptionMetadata),
                 _ => None,
@@ -199,6 +202,7 @@ mod tests {
         let write = structs.iter().find(|s| s.name == "WriteOptions").unwrap();
         let kind = |name: &str| write.fields.iter().find(|f| f.name == name).unwrap().kind;
         assert_eq!(kind("append"), OptionKind::Bool);
+        assert_eq!(kind("expires"), OptionKind::OptionDuration);
         assert_eq!(kind("user_metadata"), OptionKind::OptionStringMap);
         assert_eq!(kind("if_not_changed"), OptionKind::OptionMetadata);
         assert!(!write.fields[0].doc.is_empty());

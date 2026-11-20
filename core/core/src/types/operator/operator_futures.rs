@@ -976,6 +976,17 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self.args.0.user_metadata = Some(HashMap::from_iter(data));
         self
     }
+
+    /// Sets how long the new file lives after the write commits.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. The write returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability or
+    /// [`crate::ErrorKind::ConfigInvalid`] for a zero or unrepresentable duration.
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.0.expires = Some(expires);
+        self
+    }
 }
 
 /// [`Operator::writer_with`] returns this future.
@@ -1327,6 +1338,17 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ```
     pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.args.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Sets how long the new file lives after the writer commits it on close.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. Opening the writer returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability. A zero or
+    /// unrepresentable duration fails the write with [`crate::ErrorKind::ConfigInvalid`].
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.expires = Some(expires);
         self
     }
 }

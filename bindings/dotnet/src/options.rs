@@ -21,6 +21,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use std::os::raw::c_char;
+use std::time::Duration;
 
 use opendal::BytesRange;
 
@@ -210,6 +211,8 @@ pub struct OpendalWriteOptions {
     pub user_metadata_keys: *const *const c_char,
     pub user_metadata_values: *const *const c_char,
     pub user_metadata_len: usize,
+    pub expires_has_value: u8,
+    pub expires_ticks: i64,
     pub if_match: *const c_char,
     pub if_none_match: *const c_char,
     pub if_version_match: *const c_char,
@@ -239,6 +242,16 @@ impl NativeOptions for OpendalWriteOptions {
             self.user_metadata_len,
             "user_metadata",
         )?;
+        if self.expires_has_value != 0 {
+            let ticks = u64::try_from(self.expires_ticks)
+                .ok()
+                .filter(|ticks| *ticks > 0)
+                .ok_or_else(|| config_invalid_error("expires must be positive"))?;
+            options.expires = Some(Duration::new(
+                ticks / 10_000_000,
+                (ticks % 10_000_000) as u32 * 100,
+            ));
+        }
         options.if_match = borrowed_string(self.if_match, "if_match")?;
         options.if_none_match = borrowed_string(self.if_none_match, "if_none_match")?;
         options.if_version_match = borrowed_string(self.if_version_match, "if_version_match")?;
@@ -271,6 +284,8 @@ impl Default for OpendalWriteOptions {
             user_metadata_keys: std::ptr::null(),
             user_metadata_values: std::ptr::null(),
             user_metadata_len: 0,
+            expires_has_value: 0,
+            expires_ticks: 0,
             if_match: std::ptr::null(),
             if_none_match: std::ptr::null(),
             if_version_match: std::ptr::null(),
@@ -664,6 +679,34 @@ mod tests {
         assert!(rebuilt.is_file());
         assert_eq!(rebuilt.content_length(), 5);
         assert_eq!(rebuilt.etag(), Some("e"));
+    }
+
+    #[test]
+    fn write_options_convert_expiration_ticks() {
+        let native = OpendalWriteOptions {
+            expires_has_value: 1,
+            expires_ticks: 10_000_001,
+            ..Default::default()
+        };
+        assert_eq!(
+            read_options(&native).unwrap().expires,
+            Some(Duration::new(1, 100))
+        );
+        assert_eq!(
+            read_options(&OpendalWriteOptions::default())
+                .unwrap()
+                .expires,
+            None
+        );
+
+        for ticks in [0, -1] {
+            let native = OpendalWriteOptions {
+                expires_ticks: ticks,
+                ..native
+            };
+            let err = read_options(&native).expect_err("nonpositive duration must fail");
+            assert!(message(&err).contains("expires"));
+        }
     }
 
     #[test]

@@ -21,6 +21,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use std::os::raw::c_char;
+use std::time::Duration;
 
 use opendal::BytesRange;
 
@@ -238,6 +239,26 @@ mod tests {
         assert!(rebuilt.is_file());
         assert_eq!(rebuilt.content_length(), 5);
         assert_eq!(rebuilt.etag(), Some("e"));
+    }
+
+    #[test]
+    fn write_options_convert_expiration_ticks() {
+        let native = OpendalWriteOptions {
+            expires_has_value: 1,
+            expires_ticks: 10_000_001,
+            ..Default::default()
+        };
+        assert_eq!(read_options(&native).unwrap().expires, Some(Duration::new(1, 100)));
+        assert_eq!(read_options(&OpendalWriteOptions::default()).unwrap().expires, None);
+
+        for ticks in [0, -1] {
+            let native = OpendalWriteOptions {
+                expires_ticks: ticks,
+                ..native
+            };
+            let err = read_options(&native).expect_err("nonpositive duration must fail");
+            assert!(message(&err).contains("expires"));
+        }
     }
 
     #[test]

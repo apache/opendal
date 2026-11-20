@@ -27,6 +27,14 @@ roots loaded when the service is built. Build a new operator to reload changes
 to those trust roots. TLS is disabled by default and is not supported for Unix
 socket endpoints.
 
+## Per-write expiration
+
+A write with `expires` overrides `default_ttl` for that key. Memcached uses
+whole seconds, so OpenDAL rounds positive durations up to that precision.
+If the rounded lifetime exceeds 30 days, OpenDAL uses its local clock to
+compute an absolute Unix time. The deadline must fit in a 32-bit unsigned
+Unix timestamp.
+
 ## Example
 
 ### Via Builder

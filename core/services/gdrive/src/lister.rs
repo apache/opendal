@@ -26,6 +26,7 @@ use http::StatusCode;
 use super::core::GdriveFile;
 use super::core::GdriveFileList;
 use super::core::GdriveRecentPathState;
+use super::core::metadata_from_gdrive_file;
 use super::core::parse_error;
 use super::core::{ErrorContext, GdriveCore};
 use opendal_core::raw::*;
@@ -96,27 +97,6 @@ impl GdriveLister {
 
         Ok(())
     }
-}
-
-fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
-    let mut metadata =
-        if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
-            MetadataBuilder::dir()
-        } else if let Some(size) = &file.size {
-            MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
-            })?)
-        } else {
-            MetadataBuilder::unknown()
-        };
-    metadata.content_type(file.mime_type.clone());
-    if let Some(modified_time) = &file.modified_time {
-        metadata.last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
-        })?);
-    }
-
-    Ok(metadata.build())
 }
 
 impl oio::PageList for GdriveLister {

@@ -964,6 +964,27 @@ pub(crate) struct GdriveFileList {
     pub(crate) next_page_token: Option<String>,
 }
 
+pub(crate) fn metadata_from_gdrive_file(file: &GdriveFile) -> Result<Metadata> {
+    let mut metadata =
+        if file.mime_type.as_str() == "application/vnd.google-apps.folder" {
+            MetadataBuilder::dir()
+        } else if let Some(size) = &file.size {
+            MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+            })?)
+        } else {
+            MetadataBuilder::unknown()
+        };
+    metadata.content_type(file.mime_type.clone());
+    if let Some(modified_time) = &file.modified_time {
+        metadata.last_modified(modified_time.parse::<Timestamp>().map_err(|e| {
+            Error::new(ErrorKind::Unexpected, "parse last modified time").set_source(e)
+        })?);
+    }
+
+    Ok(metadata.build())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1119,6 +1140,47 @@ mod tests {
             paths,
             vec!["parent/dir/".to_string(), "parent/dir/file.txt".to_string()]
         );
+    }
+    fn gdrive_file(mime_type: &str, size: Option<&str>) -> GdriveFile {
+        GdriveFile {
+            mime_type: mime_type.to_string(),
+            id: "file-id".to_string(),
+            name: "name".to_string(),
+            size: size.map(str::to_string),
+            modified_time: Some("2024-01-02T03:04:05.000Z".to_string()),
+            parents: vec![],
+        }
+    }
+
+    #[test]
+    fn test_metadata_from_gdrive_file_without_size() {
+        let file = gdrive_file("application/vnd.google-apps.document", None);
+        let metadata = metadata_from_gdrive_file(&file).unwrap();
+
+        assert_eq!(metadata.mode(), EntryMode::Unknown);
+        assert_eq!(
+            metadata.content_type(),
+            Some("application/vnd.google-apps.document")
+        );
+        assert!(metadata.last_modified().is_some());
+    }
+
+    #[test]
+    fn test_metadata_from_gdrive_file_with_size() {
+        let file = gdrive_file("text/plain", Some("42"));
+        let metadata = metadata_from_gdrive_file(&file).unwrap();
+
+        assert_eq!(metadata.mode(), EntryMode::FILE);
+        assert_eq!(metadata.content_length(), 42);
+        assert_eq!(metadata.content_type(), Some("text/plain"));
+    }
+
+    #[test]
+    fn test_metadata_from_gdrive_file_folder() {
+        let file = gdrive_file("application/vnd.google-apps.folder", None);
+        let metadata = metadata_from_gdrive_file(&file).unwrap();
+
+        assert_eq!(metadata.mode(), EntryMode::DIR);
     }
 }
 

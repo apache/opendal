@@ -12,14 +12,24 @@ The C++ binding is available as source. Its [Cargo.toml](https://github.com/apac
 enables the OpenDAL blocking API, and the default build includes the memory
 service.
 
-Prerequisites: CMake ≥ 3.22, Clang or AppleClang, Rust toolchain (the binding
-compiles the Rust core as part of the build).
+Install CMake 3.22 or later and Rust. The binding builds the Rust core as part
+of the build. The examples below use Clang. On Windows, the sync binding also
+builds with MSVC.
 
 ```shell
 cd bindings/cpp
 mkdir build && cd build
 cmake -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ ..
 make
+```
+
+To build and run a sync example with MSVC, install Ninja and run these commands
+from the repository root in an x64 Visual Studio Developer Command Prompt.
+
+```bat
+cmake -S examples/cpp -B build/cpp -G Ninja -DCMAKE_CXX_COMPILER=cl
+cmake --build build/cpp
+build\cpp\getting-started.exe
 ```
 
 For development (enables tests and docs):

@@ -23,8 +23,8 @@ notice between releases. It is not yet recommended for production use.
 
 ## Status
 
-Unreleased. Built from source only. Only **Clang** and **AppleClang** are
-currently supported as compilers; MSVC and GCC are not yet tested.
+Unreleased. Build from source with Clang, AppleClang, or MSVC for the sync API.
+The async API requires Clang or AppleClang.
 
 ## Capabilities
 
@@ -74,7 +74,8 @@ target_link_libraries(your_target opendal_cpp)
 ### Prerequisites
 
 - CMake ≥ 3.22
-- Clang or AppleClang with C++17 support (C++20 required for async)
+- Clang, AppleClang, or MSVC with C++17 support for the sync API
+- Clang or AppleClang with C++20 support for the async API
 
 ## Useful Links
 

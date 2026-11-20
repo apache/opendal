@@ -53,6 +53,11 @@ else()
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+if(MSVC)
+    # Cargo and the cxx runtime use /MD in both Debug and Release.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
+
 if (OPENDAL_DEV)
     set(OPENDAL_ENABLE_ADDRESS_SANITIZER ON)
     set(OPENDAL_ENABLE_DOCUMENTATION ON)
@@ -87,12 +92,16 @@ if (OPENDAL_ENABLE_DOCUMENTATION OR OPENDAL_DOCS_ONLY)
     endif()
 endif()
 
-# get cargo target dir using cargo locate-project
-# we should this because the target dir is different for development and release
+# Locate the Cargo workspace before resolving its default target directory.
 execute_process(COMMAND cargo locate-project --workspace --message-format plain
-    OUTPUT_VARIABLE CARGO_TARGET_DIR
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
-string(REGEX REPLACE "/Cargo.toml\n$" "/target" CARGO_TARGET_DIR "${CARGO_TARGET_DIR}")
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+    OUTPUT_VARIABLE CARGO_WORKSPACE_MANIFEST
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY)
+file(TO_CMAKE_PATH "${CARGO_WORKSPACE_MANIFEST}" CARGO_WORKSPACE_MANIFEST)
+cmake_path(SET CARGO_WORKSPACE_MANIFEST NORMALIZE "${CARGO_WORKSPACE_MANIFEST}")
+cmake_path(GET CARGO_WORKSPACE_MANIFEST PARENT_PATH CARGO_TARGET_DIR)
+cmake_path(APPEND CARGO_TARGET_DIR "target")
 set(CARGO_MANIFEST ${PROJECT_SOURCE_DIR}/Cargo.toml)
 set(RUST_SOURCE_FILE ${PROJECT_SOURCE_DIR}/src/lib.rs)
 list(APPEND RUST_BRIDGE_CPP ${CARGO_TARGET_DIR}/cxxbridge/opendal-cpp/src/lib.rs.cc)
@@ -149,6 +158,7 @@ add_custom_target(cargo_build
         BYPRODUCTS ${RUST_BRIDGE_CPP} ${RUST_LIB} ${RUST_HEADER_FILE}
         DEPENDS ${RUST_SOURCE_FILE}
         USES_TERMINAL
+        VERBATIM
         COMMENT "Running cargo..."
 )
 
@@ -173,15 +183,10 @@ if (OPENDAL_ENABLE_ADDRESS_SANITIZER)
     target_link_options(opendal_cpp PRIVATE -fsanitize=leak,address,undefined)
 endif()
 
-# Platform-specific test configuration
 if(WIN32)
-    target_link_libraries(opendal_cpp userenv ws2_32 bcrypt)
-    set_target_properties(
-            opendal_cpp
-            PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-            RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}
-            RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}
+    target_link_libraries(opendal_cpp
+        PUBLIC userenv ws2_32 bcrypt
+        PRIVATE ntdll dbghelp
     )
 endif()
 
@@ -245,10 +250,6 @@ if (OPENDAL_ENABLE_TESTING)
         target_link_options(opendal_cpp_test PRIVATE -fsanitize=leak,address,undefined)
     endif()
 
-    # Platform-specific test configuration
-    if(WIN32)
-        target_link_libraries(opendal_cpp_test userenv ws2_32 bcrypt)
-    endif()
     if(APPLE)
         target_link_libraries(opendal_cpp_test "-framework CoreFoundation -framework Security")
     endif()

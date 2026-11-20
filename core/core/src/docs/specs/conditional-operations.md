@@ -34,6 +34,9 @@ OpenDAL validates conditional options before dispatching an operation. If the
 service does not advertise the required capability, the operation returns
 `Unsupported`. OpenDAL never silently ignores a condition.
 
+A read with a limit of zero returns an empty buffer without checking the file
+or evaluating read conditions.
+
 A service that advertises a conditional capability must implement the exact
 contract for that condition. Separate capability fields do not imply support
 for combinations of those conditions. If an implementation accepts a
@@ -60,7 +63,7 @@ defines one.
 
 ## Behavior when the file does not exist
 
-`stat` and `read` return `NotFound` regardless of the condition.
+`stat` and reads that check the file return `NotFound` regardless of the condition.
 
 For mutations:
 
@@ -102,7 +105,7 @@ raw operation arguments contain only the selected primitive equality condition.
 ## Error contract
 
 - A false explicit condition returns `ConditionNotMatch`.
-- `stat` and `read` return `NotFound` when the file does not exist.
+- `stat` and reads that check the file return `NotFound` when the file does not exist.
 - A conflict reported by the service that is unrelated to an explicit OpenDAL
   condition returns `Conflict`.
 - An unavailable condition or condition combination returns `Unsupported`.

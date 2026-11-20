@@ -426,10 +426,10 @@ impl Operator {
         self.read_options(path, options::ReadOptions::default())
     }
 
-    /// Read the whole path into a bytes with extra options.
+    /// Read the selected bytes from a file with extra options.
     ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`blocking::Operator::reader`]
+    /// See [`options::ReadOptions::limit`] to cap the returned bytes and accept EOF
+    /// after a valid starting byte. Use [`blocking::Operator::reader`] to read lazily.
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         let op = self.op.clone();
         let path = path.to_string();

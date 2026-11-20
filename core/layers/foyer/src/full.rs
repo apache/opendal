@@ -20,6 +20,7 @@ use std::sync::Arc;
 use opendal_core::Buffer;
 use opendal_core::BytesRange;
 use opendal_core::Error;
+use opendal_core::ErrorKind;
 use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::options;
@@ -70,10 +71,6 @@ impl FullReader {
             let metadata = MetadataBuilder::file(buffer.len() as _);
             metadata.build()
         })
-    }
-
-    fn slice_full_object(buffer: &Buffer, range: BytesRange) -> Buffer {
-        buffer.slice(range.to_range_as_usize())
     }
 
     fn is_deleted(&self, key: &FoyerKey) -> bool {
@@ -192,7 +189,18 @@ impl FullReader {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = buffer.slice(range.to_content_range(buffer.len())?);
+                if !range.is_suffix()
+                    && let Some(size) = range.size()
+                    && buffer.len() as u64 != size
+                {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "cached object is shorter than the requested range",
+                    )
+                    .with_context("expected", size)
+                    .with_context("actual", buffer.len()));
+                }
                 Ok((rp, buffer))
             }
             None => self.fallback_read(range).await,
@@ -205,7 +213,7 @@ impl oio::Read for FullReader {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = buffer.slice(range.to_content_range(buffer.len())?);
                 Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
             }
             None => self.fallback_open(range).await,

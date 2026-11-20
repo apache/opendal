@@ -614,13 +614,10 @@ impl Operator {
             .await
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// Use [`FutureRead::limit`] to cap the result and accept EOF after a valid
+    /// starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Options
     ///
@@ -650,13 +647,10 @@ impl Operator {
         )
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// See [`options::ReadOptions::limit`] to cap the result and accept EOF after
+    /// a valid starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Examples
     ///
@@ -686,7 +680,7 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         path: String,
-        opts: options::ReadOptions,
+        mut opts: options::ReadOptions,
     ) -> Result<Buffer> {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
@@ -697,12 +691,38 @@ impl Operator {
             );
         }
 
+        let limit = opts.limit;
+        if let Some(limit) = limit {
+            if opts.chunk.is_some() || opts.concurrent > 1 {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "read limit cannot be combined with chunk or concurrent reads",
+                ));
+            }
+            if limit == 0 || opts.range.size() == Some(0) {
+                return Ok(Buffer::new());
+            }
+            if let BytesRange::Range { offset, size } = opts.range {
+                // A length represented by u64 can never contain a byte at u64::MAX.
+                let available = u64::MAX - offset;
+                if available == 0 {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range starts at or beyond the end of the object",
+                    )
+                    .with_context("offset", offset));
+                }
+                let size = size.unwrap_or(limit).min(limit).min(available);
+                opts.range = BytesRange::new(offset, Some(size));
+            }
+        }
+
         let (range, args, opts) = opts.into();
         let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
-        let r = Reader::new(read_context);
-        let buf = r.read(range).await?;
-        Ok(buf)
+        Reader::new(read_context)
+            .read_with_limit(range, limit)
+            .await
     }
 
     /// Create a new reader of given path.
@@ -2580,6 +2600,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
+        if opts.limit.is_some() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be used with presigned reads",
+            ));
+        }
+
         let (range, op_read, _) = opts.into();
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2843,5 +2870,80 @@ impl Operator {
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_limit_rejects_chunk_and_concurrency() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let err = op.read_with("missing").limit(0).chunk(2).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        let err = op
+            .read_with("missing")
+            .concurrent(2)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        op.write("file", "data").await?;
+        let buf = op.read_with("file").limit(2).concurrent(1).await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_rejects_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        for limit in [0, 2] {
+            let result = op
+                .presign_read_options(
+                    "file",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        limit: Some(limit),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bounded_read_requires_full_length() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let err = op.read_with("file").range(2..6).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "reader got too little data");
+        Ok(())
+    }
+
+    #[cfg(feature = "blocking")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blocking_read_options_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let op = blocking::Operator::new(op)?;
+        let buf = tokio::task::spawn_blocking(move || {
+            op.read_options(
+                "file",
+                options::ReadOptions {
+                    range: BytesRange::from(2..),
+                    limit: Some(u64::MAX),
+                    ..Default::default()
+                },
+            )
+        })
+        .await
+        .expect("blocking read task must complete")?;
+        assert_eq!(buf.to_bytes(), "ta");
+        Ok(())
     }
 }

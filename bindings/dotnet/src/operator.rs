@@ -18,7 +18,7 @@
 use crate::{
     buffer::{OpendalReadBuffer, WriteBufferSlot, take_payload},
     entry::into_entry_list_ptr,
-    error::OpenDALError,
+    error::{ErrorCode, OpenDALError},
     executor::executor_or_default,
     metadata::OpendalMetadata,
     operator_info::{OpendalOperatorInfo, into_operator_info},
@@ -1127,6 +1127,12 @@ fn operator_input_stream_create_inner(
     let path = require_cstr(path, "path")?.to_string();
     let options = read_options(options)?;
 
+    if options.limit.is_some() {
+        return Err(OpenDALError::from_error(
+            ErrorCode::ConfigInvalid,
+            "read limit is only supported by Read and ReadAsync",
+        ));
+    }
     let range = options.range;
     let reader_options = opendal::options::ReaderOptions {
         version: options.version,

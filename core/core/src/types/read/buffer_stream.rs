@@ -23,6 +23,7 @@ use std::task::Poll;
 use futures::Stream;
 use futures::ready;
 
+use crate::layers::check_complete;
 use crate::raw::oio::Read as _;
 use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
@@ -135,6 +136,10 @@ impl ChunkedReader {
                             Err(err) => Err(err),
                         }
                     };
+                    let result = result.and_then(|buffer| {
+                        check_complete(input.range.size(), buffer.len() as u64)?;
+                        Ok(buffer)
+                    });
                     (input, result)
                 })
             },
@@ -251,6 +256,9 @@ pub struct BufferStream {
     ///   data in streaming way.
     /// - Otherwise, BufferStream will use ChunkedReader to read data in chunks.
     state: State,
+    size: Option<u64>,
+    exact: bool,
+    read: u64,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -267,44 +275,38 @@ impl BufferStream {
             "size must be known if chunk is set"
         );
 
+        Self::from_range(ctx, BytesRange::new(offset, size), None)
+    }
+
+    /// Create a stream, resolving the range first if chunk planning needs its size.
+    pub(crate) async fn create(
+        ctx: Arc<ReadContext>,
+        range: impl Into<BytesRange>,
+        limit: Option<u64>,
+    ) -> Result<Self> {
+        let mut range = range.into();
+        if ctx.options().chunk().is_some() {
+            range = ctx.parse_into_range(range).await?.into();
+        }
+        Ok(Self::from_range(ctx, range, limit))
+    }
+
+    fn from_range(ctx: Arc<ReadContext>, range: BytesRange, limit: Option<u64>) -> Self {
+        let exact = limit.is_none() && !range.is_suffix() && range.size().is_some();
+        let size = if exact { range.size() } else { limit };
         let reader = if ctx.options().chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(
-                ctx.clone(),
-                BytesRange::new(offset, size),
-            ))
+            TwoWays::Two(ChunkedReader::new(ctx.clone(), range))
         } else {
-            TwoWays::One(StreamingReader::new(
-                ctx.clone(),
-                BytesRange::new(offset, size),
-            ))
+            TwoWays::One(StreamingReader::new(ctx.clone(), range))
         };
 
         Self {
             ctx,
             state: State::Idle(Some(reader)),
+            size,
+            exact,
+            read: 0,
         }
-    }
-
-    /// Create a new buffer stream with given range bound.
-    ///
-    /// If users is going to perform chunked read but the read size is unknown, we will parse into
-    /// range first.
-    pub(crate) async fn create(
-        ctx: Arc<ReadContext>,
-        range: impl Into<BytesRange>,
-    ) -> Result<Self> {
-        let range = range.into();
-        let reader = if ctx.options().chunk().is_some() {
-            let range = ctx.parse_into_range(range).await?;
-            TwoWays::Two(ChunkedReader::new(ctx.clone(), range.into()))
-        } else {
-            TwoWays::One(StreamingReader::new(ctx.clone(), range))
-        };
-
-        Ok(Self {
-            ctx,
-            state: State::Idle(Some(reader)),
-        })
     }
 
     /// Get metadata for this stream.
@@ -342,6 +344,15 @@ impl Stream for BufferStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
+        let remaining = if this.exact {
+            None
+        } else {
+            this.size.map(|size| size - this.read)
+        };
+        if remaining == Some(0) {
+            return Poll::Ready(None);
+        }
+
         loop {
             match &mut this.state {
                 State::Idle(reader) => {
@@ -357,8 +368,21 @@ impl Stream for BufferStream {
                     let (reader, buf) = ready!(fut.poll(cx));
                     this.state = State::Idle(Some(reader));
                     return match buf {
-                        Ok(buf) if buf.is_empty() => Poll::Ready(None),
-                        Ok(buf) => Poll::Ready(Some(Ok(buf))),
+                        Ok(buf) if buf.is_empty() => {
+                            let error = if this.exact {
+                                check_complete(this.size, this.read).err()
+                            } else {
+                                None
+                            };
+                            Poll::Ready(error.map(Err))
+                        }
+                        Ok(mut buf) => {
+                            if let Some(remaining) = remaining {
+                                buf.truncate((buf.len() as u64).min(remaining) as usize);
+                            }
+                            this.read += buf.len() as u64;
+                            Poll::Ready(Some(Ok(buf)))
+                        }
                         Err(err) => Poll::Ready(Some(Err(err))),
                     };
                 }
@@ -402,7 +426,7 @@ mod tests {
         let ctx = op.context().clone();
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
-        let v = BufferStream::create(ctx, 4..8).await?;
+        let v = BufferStream::create(ctx, 4..8, None).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
 
@@ -422,7 +446,7 @@ mod tests {
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(ctx, srv, "test", OpReader::new())?);
 
-        let s = BufferStream::create(ctx, 4..8).await?;
+        let s = BufferStream::create(ctx, 4..8, None).await?;
         let bufs: Vec<_> = s.try_collect().await.unwrap();
         assert_eq!(bufs.len(), 1);
         assert_eq!(bufs[0].chunk(), "o".as_bytes());

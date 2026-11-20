@@ -34,6 +34,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_read_full,
             test_read_range,
+            test_read_limit,
             test_reader,
             test_buffer_stream_metadata,
             test_buffer_stream_metadata_with_concurrent,
@@ -64,6 +65,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_read_suffix,
             test_read_suffix_larger_than_file,
+            test_read_suffix_with_limit,
             test_read_suffix_zero,
             test_reader_suffix_with_chunk
         ))
@@ -125,6 +127,71 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
         "read content"
     );
 
+    Ok(())
+}
+
+/// A limited read returns the prefix of the requested range, including short reads.
+pub async fn test_read_limit(op: Operator) -> anyhow::Result<()> {
+    let (path, missing) = (TEST_FIXTURE.new_file_path(), TEST_FIXTURE.new_file_path());
+    op.write(&path, "abcdef").await?;
+
+    for (range, limit, expected) in [
+        (BytesRange::default(), 8, "abcdef"),
+        (BytesRange::default(), 6, "abcdef"),
+        (BytesRange::default(), 2, "ab"),
+        ((4..).into(), 8, "ef"),
+        ((1..8).into(), 8, "bcdef"),
+        ((1..5).into(), 2, "bc"),
+        ((1..3).into(), 8, "bc"),
+        ((1..1).into(), 8, ""),
+    ] {
+        let value = op.read_with(&path).range(range).limit(limit).await?;
+        assert_eq!(value.to_bytes(), expected, "range={range}, limit={limit}");
+    }
+
+    for offset in [6, 7] {
+        let err = op
+            .read_with(&path)
+            .range(offset..)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "offset={offset}");
+    }
+
+    assert!(op.read_with(&missing).limit(0).await?.is_empty());
+    let err = op.read_with(&missing).limit(1).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let err = op.read_with(&path).range(4..8).await.unwrap_err();
+    assert!(matches!(
+        err.kind(),
+        ErrorKind::Unexpected | ErrorKind::RangeNotSatisfied
+    ));
+
+    if op.info().capability().write_can_empty {
+        let empty = TEST_FIXTURE.new_file_path();
+        op.write(&empty, Buffer::new()).await?;
+        let err = op.read_with(&empty).limit(1).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(op.read_with(&empty).limit(0).await?.is_empty());
+    }
+    Ok(())
+}
+
+/// A limited suffix read starts at the beginning of the suffix selection.
+pub async fn test_read_suffix_with_limit(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    op.write(&path, "abcdef").await?;
+
+    for (suffix, limit, expected) in [(4, 2, "cd"), (4, 8, "cdef"), (8, 2, "ab"), (0, 2, "")] {
+        let value = op
+            .read_with(&path)
+            .limit(limit)
+            .range(BytesRange::suffix(suffix))
+            .await?;
+        assert_eq!(value.to_bytes(), expected, "suffix={suffix}, limit={limit}");
+    }
     Ok(())
 }
 

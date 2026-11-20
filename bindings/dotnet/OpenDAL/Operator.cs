@@ -1154,7 +1154,7 @@ public partial class Operator : SafeHandle
     /// Opens a read stream for the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="options">Optional read options.</param>
+    /// <param name="options">Optional read options. <see cref="ReadOptions.Limit"/> applies only to reads that return a buffer.</param>
     /// <returns>A readable stream over the given path.</returns>
     public unsafe OperatorInputStream OpenReadStream(
         string path,

@@ -56,7 +56,8 @@ credentials. [Services](/services) lists the backends and their configuration ke
 
 PyPI wheels enable the `services-all` group in the binding's
 [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
-D1 and Foyer are separate opt-in features.
+Other services listed in `Cargo.toml`, such as D1 and Foyer, are separate
+opt-in features.
 
 To add D1 to the wheel's service set, run this from `bindings/python` in
 an active virtual environment with Maturin installed:

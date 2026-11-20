@@ -48,8 +48,10 @@ keys.
 
 The native JARs on Maven Central use the `opendal` dependency features in the
 binding's [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/java/Cargo.toml),
-with SFTP enabled on Unix targets. The Java `RetryLayer` is built in. Exposing
-a new Rust layer requires Java and JNI binding code.
+with SFTP enabled on Unix targets.
+
+The [Java layers](./05-production.md#layers) are built in. Exposing a new Rust
+layer requires Java and JNI binding code.
 
 To add a service, add its feature name, such as `"services-d1"`, to the
 `opendal` feature list and run this from `bindings/java`:

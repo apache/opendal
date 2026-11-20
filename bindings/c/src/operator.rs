@@ -792,23 +792,7 @@ pub unsafe extern "C" fn opendal_operator_delete_with(
     let delete_opts = if opts.is_null() {
         core::options::DeleteOptions::default()
     } else {
-        let o = &*opts;
-        let version = if o.version.is_null() {
-            None
-        } else {
-            Some(
-                std::ffi::CStr::from_ptr(o.version)
-                    .to_str()
-                    .expect("malformed version")
-                    .to_owned(),
-            )
-        };
-        core::options::DeleteOptions {
-            version,
-            recursive: o.recursive,
-            if_match: None,
-            ..Default::default()
-        }
+        (&*opts).into()
     };
     match op.deref().delete_options(path, delete_opts) {
         Ok(_) => std::ptr::null_mut(),
@@ -1542,6 +1526,40 @@ pub unsafe extern "C" fn opendal_operator_copier_with(
         }
         Err(err) => {
             std::ptr::write(copier, std::ptr::null_mut());
+            opendal_error::new(err)
+        }
+    }
+}
+
+/// \brief Create a blocking deleter to remove multiple paths.
+///
+/// Submit paths with `opendal_deleter_delete` or `opendal_deleter_delete_many`.
+/// Call `opendal_deleter_flush` to complete pending deletions and
+/// `opendal_deleter_free` to release the handle.
+///
+/// @param op The opendal_operator created previously
+/// @param deleter_out Output pointer receiving the allocated deleter on success, or NULL on failure
+/// @return NULL if the operation succeeds, or an `opendal_error *` on failure.
+///
+/// # Safety
+///
+/// * `deleter_out` must point to writable storage for an `opendal_deleter *`.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_deleter(
+    op: &opendal_operator,
+    deleter_out: *mut *mut opendal_deleter,
+) -> *mut opendal_error {
+    assert!(!deleter_out.is_null());
+    match op.deref().deleter() {
+        Ok(deleter) => {
+            std::ptr::write(
+                deleter_out,
+                Box::into_raw(Box::new(opendal_deleter::new(deleter))),
+            );
+            std::ptr::null_mut()
+        }
+        Err(err) => {
+            std::ptr::write(deleter_out, std::ptr::null_mut());
             opendal_error::new(err)
         }
     }

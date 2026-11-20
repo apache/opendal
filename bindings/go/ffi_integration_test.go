@@ -200,9 +200,9 @@ func TestLiveCLibraryEndToEndAndNoLibffi(t *testing.T) {
 		t.Fatalf("Reader(dir/stream.txt) failed: %v", err)
 	}
 	smallBuf := make([]byte, 5)
-	n, err = r.Read(smallBuf)
+	n, err = io.ReadFull(r, smallBuf)
 	if err != nil || n != 5 || string(smallBuf) != "01234" {
-		t.Fatalf("r.Read(5) = %d (%q), %v, want 5 (01234), nil", n, smallBuf[:n], err)
+		t.Fatalf("io.ReadFull(5) = %d (%q), %v, want 5 (01234), nil", n, smallBuf[:n], err)
 	}
 	pos, err := r.Seek(10, io.SeekStart)
 	if err != nil || pos != 10 {

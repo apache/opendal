@@ -83,59 +83,42 @@ pub fn build_rel_path(root: &str, path: &str) -> String {
     }
 }
 
-/// Make sure all operation are constructed by normalized path:
+/// Normalize an operation path relative to the operator's root.
 ///
-/// - Path endswith `/` means it's a dir path.
-/// - Otherwise, it's a file path.
-///
-/// # Normalize Rules
-///
-/// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
-/// - All leading / will be trimmed: `///abc` => `abc`
-/// - Internal // will be replaced by /: `abc///def` => `abc/def`
-/// - Empty path will be `/`: `` => `/`
+/// Strip leading `/`, collapse repeated `/`, and remove `.` components.
+/// Preserve all other components verbatim, including whitespace and `..`.
+/// A trailing `/` marks a directory and is preserved. A path with no remaining
+/// components becomes `/`.
 pub fn normalize_path(path: &str) -> String {
-    // - all whitespace has been trimmed.
-    // - all leading `/` has been trimmed.
-    let path = path.trim().trim_start_matches('/');
-
-    // Fast line for empty path.
+    let path = path.trim_start_matches('/');
     if path.is_empty() {
         return "/".to_string();
     }
 
-    let has_trailing = path.ends_with('/');
-
     let mut p = path
         .split('/')
-        .filter(|v| !v.is_empty())
+        .filter(|v| !v.is_empty() && *v != ".")
         .collect::<Vec<&str>>()
         .join("/");
 
-    // Append trailing back if input path is endswith `/`.
-    if has_trailing {
+    if p.is_empty() {
+        return "/".to_string();
+    }
+    if path.ends_with('/') {
         p.push('/');
     }
 
     p
 }
 
-/// Make sure root is normalized to style like `/abc/def/`.
+/// Normalize a service root to `/` or a path with one leading and trailing `/`.
 ///
-/// # Normalize Rules
-///
-/// - All whitespace will be trimmed: ` abc/def ` => `abc/def`
-/// - All leading / will be trimmed: `///abc` => `abc`
-/// - Internal // will be replaced by /: `abc///def` => `abc/def`
-/// - Empty path will be `/`: `` => `/`
-/// - Add leading `/` if not starts with: `abc/` => `/abc/`
-/// - Add trailing `/` if not ends with: `/abc` => `/abc/`
-///
-/// Finally, we will get path like `/path/to/root/`.
+/// Collapse repeated `/` and remove `.` components. Preserve all other
+/// components verbatim, including whitespace and `..`.
 pub fn normalize_root(v: &str) -> String {
     let mut v = v
         .split('/')
-        .filter(|v| !v.is_empty())
+        .filter(|v| !v.is_empty() && *v != ".")
         .collect::<Vec<&str>>()
         .join("/");
     if !v.starts_with('/') {
@@ -284,7 +267,25 @@ mod tests {
             ("abs dir path with extra /", "///abc/def/", "abc/def/"),
             ("file path contains ///", "abc///def", "abc/def"),
             ("dir path contains ///", "abc///def///", "abc/def/"),
-            ("file with whitespace", "abc/def   ", "abc/def"),
+            ("file with trailing whitespace", "abc/def   ", "abc/def   "),
+            ("file with leading whitespace", "  abc/def", "  abc/def"),
+            (
+                "Unicode whitespace",
+                "\u{2003}abc/def\t\n",
+                "\u{2003}abc/def\t\n",
+            ),
+            ("whitespace-only file name", "   ", "   "),
+            ("dot path", ".", "/"),
+            ("dot directory path", "./", "/"),
+            ("dot-only segments", "///././/.", "/"),
+            ("leading and internal dots", "./abc/./def", "abc/def"),
+            ("trailing dot without slash", "abc/.", "abc"),
+            ("trailing dot with slash", "abc/.//", "abc/"),
+            (
+                "components containing dots",
+                "a/../.hidden/ . /b.",
+                "a/../.hidden/ . /b.",
+            ),
         ];
 
         for (name, input, expect) in cases {
@@ -303,6 +304,9 @@ mod tests {
             ("abs file path with extra /", "///abc/def", "/abc/def/"),
             ("abs dir path with extra /", "///abc/def/", "/abc/def/"),
             ("dir path contains ///", "abc///def///", "/abc/def/"),
+            ("dot-only root", "././", "/"),
+            ("root with dot segments", "./data/./root/", "/data/root/"),
+            ("root with whitespace", " data/root /", "/ data/root /"),
         ];
 
         for (name, input, expect) in cases {

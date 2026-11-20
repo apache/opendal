@@ -1,5 +1,15 @@
 # Unreleased
 
+## Path normalization
+
+Operation paths preserve leading and trailing whitespace, including paths made
+entirely of whitespace. If your application previously relied on OpenDAL to
+trim user input, call `trim()` before passing the input to OpenDAL.
+
+Operation paths and service roots remove components equal to `.`. For example,
+`./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
+to mark directories.
+
 ## Shared semaphores for `ConcurrentLimitLayer`
 
 `ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.

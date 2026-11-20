@@ -33,44 +33,14 @@ pub struct FsCore {
 }
 
 impl FsCore {
-    /// Join a caller-supplied key onto a base directory while keeping the result
-    /// confined to that base.
-    ///
-    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
-    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
-    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
-    /// configured `root` at syscall time. The fs backend documents that "all
-    /// operations will happen under this root", so we reject any key whose
-    /// components include a `..` (parent-dir) traversal, a root directory, or a
-    /// path prefix: `PathBuf::join` discards the base when the key is absolute,
-    /// which covers `/etc/passwd` plus the Windows `C:\`, `\\?\` and UNC forms
-    /// that `normalize_path` leaves untouched.
-    pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
-        use std::path::Component;
-        let trimmed = path.trim_end_matches('/');
-        if Path::new(trimmed).components().any(|c| {
-            matches!(
-                c,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        }) {
-            return Err(
-                Error::new(ErrorKind::NotFound, "path escapes the configured root")
-                    .with_context("path", path),
-            );
-        }
-        Ok(base.join(trimmed))
-    }
-
-    /// Join a caller-supplied key onto `self.root`, keeping the result confined.
     #[inline]
     pub fn root_join(&self, path: &str) -> Result<PathBuf> {
-        Self::confined_join(&self.root, path)
+        confined_join(&self.root, path)
     }
 
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = Self::confined_join(parent, path)?;
+        let p = confined_join(parent, path)?;
 
         // Create dir before write path.
         //
@@ -385,37 +355,6 @@ mod tests {
 
         let got = FsCore::get_user_metadata(&dst_path).unwrap();
         assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
-    }
-
-    #[test]
-    fn test_confined_join_rejects_escaping_keys() {
-        let base = Path::new("/data/root");
-        for key in ["../etc/passwd", "a/../../b", "/etc/passwd", "//etc/passwd"] {
-            let err = FsCore::confined_join(base, key).unwrap_err();
-            assert_eq!(
-                err.kind(),
-                ErrorKind::NotFound,
-                "key should be rejected: {key}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_confined_join_allows_normal_keys() {
-        let base = Path::new("/data/root");
-        assert_eq!(
-            FsCore::confined_join(base, "a/b.txt").unwrap(),
-            PathBuf::from("/data/root/a/b.txt")
-        );
-        assert_eq!(
-            FsCore::confined_join(base, "a/b/").unwrap(),
-            PathBuf::from("/data/root/a/b")
-        );
-        // The root path `/` trims to empty and resolves to the base itself.
-        assert_eq!(
-            FsCore::confined_join(base, "/").unwrap(),
-            PathBuf::from("/data/root")
-        );
     }
 
     #[cfg(unix)]

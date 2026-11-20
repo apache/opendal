@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: ["3.2", "3.3", "3.4", "4.0"]
+        ruby-version: ["3.3", "3.4", "4.0"]
 
     env: # $BUNDLE_GEMFILE must be set at the job level, so it is set for all steps
       BUNDLE_GEMFILE: ${{ github.workspace }}/bindings/ruby/Gemfile
@@ -61,6 +61,7 @@ jobs:
       - name: Setup Ruby and install dependencies
         uses: ruby/setup-ruby@v1
         with:
+          ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
           working-directory: bindings/ruby # must repeat because GitHub Actions will not use defaults.run
 

@@ -51,6 +51,7 @@ public class ReaderOptionsTest {
     private final List<URI> urls = new CopyOnWriteArrayList<>();
     private HttpServer server;
     private String endpoint;
+    private volatile String rejectedRange;
 
     @BeforeEach
     void startServer() throws Exception {
@@ -59,13 +60,14 @@ public class ReaderOptionsTest {
             try {
                 requests.add(exchange.getRequestHeaders());
                 urls.add(exchange.getRequestURI());
-                if ("changed".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+                final String range = exchange.getRequestHeaders().getFirst("Range");
+                if ("changed".equals(exchange.getRequestHeaders().getFirst("If-Match"))
+                        || (range != null && range.equals(rejectedRange))) {
                     // Finish the request before the bodyless response completes the exchange.
                     exchange.getRequestBody().close();
                     exchange.sendResponseHeaders(412, -1);
                     return;
                 }
-                final String range = exchange.getRequestHeaders().getFirst("Range");
                 final byte[] body;
                 if (range != null) {
                     String[] bounds = range.substring("bytes=".length()).split("-", -1);
@@ -119,6 +121,44 @@ public class ReaderOptionsTest {
             assertThat(headers.getFirst("If-None-Match")).isEqualTo("\"other\"");
             assertThat(headers.getFirst("If-Modified-Since")).isEqualTo("Mon, 01 Jan 2024 00:00:00 GMT");
             assertThat(headers.getFirst("If-Unmodified-Since")).isEqualTo("Tue, 02 Jan 2024 00:00:00 GMT");
+        }
+    }
+
+    @Test
+    void testStreamFetchesNextChunkOnlyWhenNeeded() {
+        rejectedRange = "bytes=2-3";
+        try (Operator op = Operator.of(
+                        ServiceConfig.Http.builder().endpoint(endpoint).build());
+                OperatorReader reader =
+                        op.createReader("file", ReaderOptions.builder().chunk(2).build());
+                OperatorInputStream in = reader.createInputStream(0, 4)) {
+            byte[] buffer = new byte[3];
+            assertThat(in.read(buffer, 1, 2)).isEqualTo(2);
+            assertThat(buffer).containsExactly(0, '0', '1');
+            assertThat(in.read(buffer, 0, 0)).isZero();
+            assertThat(requests).hasSize(1);
+
+            rejectedRange = null;
+            assertThat(in.read(buffer, 0, buffer.length)).isEqualTo(2);
+            assertThat(buffer).containsExactly('2', '3', '1');
+            assertThat(requests).hasSize(2);
+            assertThat(in.read(buffer, 0, buffer.length)).isEqualTo(-1);
+            assertThat(in.read(buffer, 0, 0)).isZero();
+            assertThat(in.read()).isEqualTo(-1);
+        }
+    }
+
+    @Test
+    void testStreamReportsNextChunkErrorWhenNeeded() {
+        rejectedRange = "bytes=2-3";
+        try (Operator op = Operator.of(
+                        ServiceConfig.Http.builder().endpoint(endpoint).build());
+                OperatorReader reader =
+                        op.createReader("file", ReaderOptions.builder().chunk(2).build());
+                OperatorInputStream in = reader.createInputStream(0, 4)) {
+            byte[] buffer = new byte[2];
+            assertThat(in.read(buffer, 0, buffer.length)).isEqualTo(2);
+            assertThatThrownBy(in::read).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConditionNotMatch));
         }
     }
 

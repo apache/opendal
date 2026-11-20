@@ -477,6 +477,8 @@ pub mod layers {
     pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-route")]
     pub use opendal_layer_route::*;
+    #[cfg(feature = "layers-sanity-check")]
+    pub use opendal_layer_sanity_check::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

@@ -184,7 +184,13 @@ pub async fn test_read_suffix_with_limit(op: Operator) -> anyhow::Result<()> {
     let path = TEST_FIXTURE.new_file_path();
     op.write(&path, "abcdef").await?;
 
-    for (suffix, limit, expected) in [(4, 2, "cd"), (4, 8, "cdef"), (8, 2, "ab"), (0, 2, "")] {
+    for (suffix, limit, expected) in [
+        (4, 2, "cd"),
+        (4, 8, "cdef"),
+        (8, 2, "ab"),
+        (4, 0, ""),
+        (0, 2, ""),
+    ] {
         let value = op
             .read_with(&path)
             .limit(limit)

@@ -680,7 +680,7 @@ impl Operator {
         ctx: OperationContext,
         srv: Servicer,
         path: String,
-        mut opts: options::ReadOptions,
+        opts: options::ReadOptions,
     ) -> Result<Buffer> {
         if !validate_path(&path, EntryMode::FILE) {
             return Err(
@@ -692,33 +692,33 @@ impl Operator {
         }
 
         let limit = opts.limit;
-        if let Some(limit) = limit {
-            if opts.chunk.is_some() || opts.concurrent > 1 {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "read limit cannot be combined with chunk or concurrent reads",
-                ));
-            }
-            if limit == 0 || opts.range.size() == Some(0) {
-                return Ok(Buffer::new());
-            }
-            if let BytesRange::Range { offset, size } = opts.range {
-                // A length represented by u64 can never contain a byte at u64::MAX.
-                let available = u64::MAX - offset;
-                if available == 0 {
-                    return Err(Error::new(
-                        ErrorKind::RangeNotSatisfied,
-                        "range starts at or beyond the end of the object",
-                    )
-                    .with_context("offset", offset));
-                }
-                let size = size.unwrap_or(limit).min(limit).min(available);
-                opts.range = BytesRange::new(offset, Some(size));
-            }
+        if limit.is_some() && (opts.chunk.is_some() || opts.concurrent > 1) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be combined with chunk or concurrent reads",
+            ));
         }
 
-        let (range, args, opts) = opts.into();
+        let (mut range, args, opts) = opts.into();
+        // Creating a reader validates capabilities without opening the object.
         let reader = srv.read(&ctx, &path, args.clone())?;
+        if limit == Some(0) || range.size() == Some(0) {
+            return Ok(Buffer::new());
+        }
+
+        if let (Some(limit), BytesRange::Range { offset, size }) = (limit, range) {
+            // A length represented by u64 can never contain a byte at u64::MAX.
+            let available = u64::MAX - offset;
+            if available == 0 {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                )
+                .with_context("offset", offset));
+            }
+            let size = size.unwrap_or(limit).min(limit).min(available);
+            range = BytesRange::new(offset, Some(size));
+        }
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         Reader::new(read_context)
             .read_with_limit(range, limit)
@@ -2893,6 +2893,67 @@ mod tests {
         op.write("file", "data").await?;
         let buf = op.read_with("file").limit(2).concurrent(1).await?;
         assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_limited_read_validates_conditions() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        assert!(!op.info().capability().read_with_if_match);
+
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .limit(0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .range(1..1)
+            .limit(5)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        assert!(op.read_with("missing").limit(0).await?.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_read_at_max_offset() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let err = op
+            .read_with("file")
+            .range(u64::MAX..)
+            .limit(1)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(
+            op.read_with("file")
+                .range(u64::MAX..)
+                .limit(0)
+                .await?
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_suffix_of_empty_file() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("empty", Buffer::new()).await?;
+
+        let buf = op
+            .read_with("empty")
+            .range(BytesRange::suffix(4))
+            .limit(2)
+            .await?;
+        assert!(buf.is_empty());
         Ok(())
     }
 

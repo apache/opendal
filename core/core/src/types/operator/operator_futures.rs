@@ -298,8 +298,9 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     /// Return at most `limit` bytes from the start of the selected range.
     ///
     /// A short read succeeds after a valid starting byte. A zero limit returns
-    /// an empty buffer without accessing storage. See [`options::ReadOptions::limit`]
-    /// for EOF and option compatibility rules.
+    /// an empty buffer after option and capability validation, without
+    /// accessing storage. See [`options::ReadOptions::limit`] for EOF and
+    /// option compatibility rules.
     pub fn limit(mut self, limit: u64) -> Self {
         self.args.limit = Some(limit);
         self

@@ -34,8 +34,9 @@ OpenDAL validates conditional options before dispatching an operation. If the
 service does not advertise the required capability, the operation returns
 `Unsupported`. OpenDAL never silently ignores a condition.
 
-A read with a limit of zero returns an empty buffer without checking the file
-or evaluating read conditions.
+A read with a limit of zero or an empty range still validates options and
+capabilities. It returns an empty buffer without accessing storage or evaluating
+conditions against the file.
 
 A service that advertises a conditional capability must implement the exact
 contract for that condition. Separate capability fields do not imply support

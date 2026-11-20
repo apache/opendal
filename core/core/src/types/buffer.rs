@@ -890,10 +890,9 @@ impl BufRead for BufferCursor {
     }
 
     fn consume(&mut self, amount: usize) {
-        self.pos = self
-            .pos
-            .saturating_add(amount as u64)
-            .min(self.data.len() as u64);
+        let amount = amount.min(self.view.remaining());
+        self.view.advance(amount);
+        self.pos += amount as u64;
     }
 }
 
@@ -1527,6 +1526,29 @@ mod tests {
 
             assert_eq!(&out[..], &total_content[pos as usize..]);
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_buffer_cursor_bufread_consume() -> io::Result<()> {
+        let data = || Buffer::from(vec![Bytes::from("line one\nline "), Bytes::from("two\n")]);
+
+        let mut cur = BufferCursor::new(data());
+        assert_eq!(cur.fill_buf()?, b"line one\nline ");
+        cur.consume(5);
+        assert_eq!(cur.fill_buf()?, b"one\nline ");
+
+        let mut out = [0; 3];
+        assert_eq!(cur.read(&mut out)?, 3);
+        assert_eq!(&out, b"one");
+        assert_eq!(cur.stream_position()?, 8);
+
+        let lines = BufferCursor::new(data())
+            .lines()
+            .take(3)
+            .collect::<io::Result<Vec<_>>>()?;
+        assert_eq!(lines, vec!["line one", "line two"]);
 
         Ok(())
     }

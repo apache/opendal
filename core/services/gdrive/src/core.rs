@@ -545,6 +545,102 @@ impl GdriveCore {
         ctx.http_transport().send(req).await
     }
 
+    pub async fn gdrive_initiate_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        file_id: Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let (builder, metadata) = if let Some(file_id) = file_id {
+            (
+                Request::patch(format!(
+                    "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=resumable&supportsAllDrives=true"
+                )),
+                json!({}),
+            )
+        } else {
+            let parent = self.ensure_dir(ctx, get_parent(path)).await?;
+            (
+                Request::post(
+                    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true",
+                ),
+                json!({"name": get_basename(path), "parents": [parent]}),
+            )
+        };
+        let body = serde_json::to_vec(&metadata).map_err(new_json_serialize_error)?;
+        let mut req = builder
+            .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header("X-Upload-Content-Type", "application/octet-stream")
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateResumableUpload"))
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_upload_resumable_chunk(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        offset: u64,
+        body: Buffer,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let mut range =
+            BytesContentRange::default().with_range(offset, offset + body.len() as u64 - 1);
+        if let Some(total) = total {
+            range = range.with_size(total);
+        }
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header(header::CONTENT_RANGE, range.to_header())
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadResumableChunk"))
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_query_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let range = match total {
+            Some(total) => format!("bytes */{total}"),
+            None => "bytes */*".to_string(),
+        };
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .header(header::CONTENT_RANGE, range)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("QueryResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_cancel_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+    ) -> Result<Response<Buffer>> {
+        let mut req = Request::delete(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
     pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
         signer.sign(ctx, req).await

@@ -7204,6 +7204,7 @@ dependencies = [
  "opendal-service-s3",
  "opendal-service-seafile",
  "opendal-service-sftp",
+ "opendal-service-sharepoint",
  "opendal-service-sled",
  "opendal-service-smb",
  "opendal-service-sqlite",
@@ -8356,6 +8357,24 @@ dependencies = [
  "openssh",
  "openssh-sftp-client",
  "serde",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-service-sharepoint"
+version = "0.59.5"
+dependencies = [
+ "asyncband",
+ "base64 0.23.0",
+ "bytes",
+ "dotenvy",
+ "futures",
+ "http 1.4.2",
+ "log",
+ "opendal-core",
+ "opendal-http-transport-reqwest",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

@@ -23,35 +23,50 @@ use opendal_core::raw::oio;
 
 use crate::Inner;
 
-/// A copier that drops the destination's cached entry once the copy lands.
-///
-/// The cached content of `to` is stale after a copy on top of it; without this
-/// a read of `to` kept serving the old object (#8489).
-#[doc(hidden)]
-pub struct Copier<C> {
-    pub(crate) copier: C,
-    pub(crate) to: String,
-    pub(crate) inner: Arc<Inner>,
+/// A copier that invalidates the destination's cached data once the copy completes.
+pub(crate) struct FoyerCopier<C> {
+    copier: C,
+    destination: Option<String>,
+    inner: Arc<Inner>,
 }
 
-impl<C> Copier<C> {
-    pub(crate) fn new(copier: C, to: String, inner: Arc<Inner>) -> Self {
-        Self { copier, to, inner }
+impl<C> FoyerCopier<C> {
+    pub(crate) fn new(copier: C, destination: String, inner: Arc<Inner>) -> Self {
+        Self {
+            copier,
+            destination: Some(destination),
+            inner,
+        }
+    }
+
+    fn invalidate_destination(&mut self) {
+        // The caller may close after observing completion or poll again.
+        // Invalidate only once so a later write can repopulate the cache.
+        if let Some(destination) = self.destination.take() {
+            self.inner.invalidate_unversioned(destination);
+        }
     }
 }
 
-impl<C: oio::Copy> oio::Copy for Copier<C> {
+impl<C: oio::Copy> oio::Copy for FoyerCopier<C> {
     async fn next(&mut self) -> Result<Option<usize>> {
-        self.copier.next().await
+        let progress = self.copier.next().await?;
+        // A Copier consumed as a Stream may never call close.
+        if progress.is_none() {
+            self.invalidate_destination();
+        }
+        Ok(progress)
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let metadata = self.copier.close().await?;
-        self.inner.invalidate(&self.to);
+        self.invalidate_destination();
         Ok(metadata)
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.copier.abort().await
+        self.copier.abort().await?;
+        self.destination = None;
+        Ok(())
     }
 }

@@ -36,8 +36,8 @@ use foyer::{Code, HybridCache, Result as FoyerResult};
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub use copier::Copier;
-use deleter::Deleter;
+use copier::FoyerCopier;
+pub use deleter::Deleter;
 pub use writer::Writer;
 
 /// [`FoyerKey`] is a key for the foyer cache. It implements foyer's [`Code`] trait
@@ -159,8 +159,13 @@ impl Code for FoyerValue {
 /// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
 ///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
 ///   deleter is closed, so the data remains invalidated if closing the deleter fails.
-/// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
-///   and `rename` to the service without caching their results.
+/// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
+///   cache entry for the destination.
+/// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
+///   cache entries for both the source and the destination.
+///
+/// Reads of paths invalidated by copy or rename bypass the cache until a
+/// write through the layer repopulates the corresponding entry.
 ///
 /// # Range Reads
 ///
@@ -265,20 +270,17 @@ pub(crate) struct Inner {
 }
 
 impl Inner {
-    /// Drop the cached entry for `path` and keep reads away from the cache until
-    /// the next write through this layer, the same way a delete does. Used after
-    /// a rename (source and destination) and a copy (destination), whose results
-    /// are not cached but whose old entries would otherwise be served (#8489).
-    pub(crate) fn invalidate(&self, path: &str) {
+    fn invalidate_unversioned(&self, path: String) {
         let key = FoyerKey {
-            path: path.to_string(),
+            path,
             version: None,
         };
-        self.cache.remove(&key);
-        self.deleted_keys
+        let mut deleted_keys = self
+            .deleted_keys
             .lock()
-            .expect("deleted keys lock poisoned")
-            .insert(key);
+            .expect("deleted keys lock poisoned");
+        self.cache.remove(&key);
+        deleted_keys.insert(key);
     }
 }
 
@@ -307,7 +309,7 @@ impl Service for FoyerService {
     type Writer = Writer<oio::Writer>;
     type Lister = oio::Lister;
     type Deleter = Deleter<oio::Deleter>;
-    type Copier = Copier<oio::Copier>;
+    type Copier = oio::Copier;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -366,8 +368,12 @@ impl Service for FoyerService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let c = self.inner.copy(ctx, from, to, args)?;
-        Ok(Copier::new(c, to.to_string(), self.operation_inner(ctx)))
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(Box::new(FoyerCopier::new(
+            copier,
+            to.to_string(),
+            self.operation_inner(ctx),
+        )))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -396,8 +402,8 @@ impl Service for FoyerService {
     ) -> Result<RpRename> {
         let rp = self.inner.rename(ctx, from, to, args).await?;
         let inner = self.operation_inner(ctx);
-        inner.invalidate(from);
-        inner.invalidate(to);
+        inner.invalidate_unversioned(from.to_string());
+        inner.invalidate_unversioned(to.to_string());
         Ok(rp)
     }
 
@@ -429,6 +435,7 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
+    use opendal_core::raw::oio::Copy as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};
@@ -640,51 +647,57 @@ mod tests {
         OperationContext::new()
     }
 
-    // https://github.com/apache/opendal/issues/8489
-    #[tokio::test]
-    async fn test_rename_invalidates_source_and_destination() {
-        let dir = tempfile::tempdir().unwrap();
-        let cache = memory_cache().await;
-        let op =
-            Operator::new(opendal_service_fs::Fs::default().root(dir.path().to_str().unwrap()))
-                .unwrap()
-                .layer(FoyerLayer::new(cache));
+    struct ChunkedCopier {
+        chunks: std::array::IntoIter<usize, 2>,
+    }
 
-        op.write("a", vec![b'a'; 10]).await.unwrap();
-        op.write("b", vec![b'b'; 10]).await.unwrap();
-        assert_eq!(op.read("a").await.unwrap().to_vec(), vec![b'a'; 10]);
-        assert_eq!(op.read("b").await.unwrap().to_vec(), vec![b'b'; 10]);
+    impl oio::Copy for ChunkedCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.chunks.next())
+        }
 
-        op.rename("a", "b").await.unwrap();
+        async fn close(&mut self) -> Result<Metadata> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(MetadataBuilder::file(8).build())
+        }
 
-        assert!(
-            op.read("a").await.is_err(),
-            "the source is gone after rename"
-        );
-        assert_eq!(op.read("b").await.unwrap().to_vec(), vec![b'a'; 10]);
-
-        // A later write through the layer caches the destination again.
-        op.write("b", vec![b'c'; 10]).await.unwrap();
-        assert_eq!(op.read("b").await.unwrap().to_vec(), vec![b'c'; 10]);
+        async fn abort(&mut self) -> Result<()> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(())
+        }
     }
 
     #[tokio::test]
-    async fn test_copy_invalidates_destination() {
-        let dir = tempfile::tempdir().unwrap();
+    async fn test_chunked_copy_invalidation_waits_for_completion() {
         let cache = memory_cache().await;
-        let op =
-            Operator::new(opendal_service_fs::Fs::default().root(dir.path().to_str().unwrap()))
-                .unwrap()
-                .layer(FoyerLayer::new(cache));
+        let layer = FoyerLayer::new(cache.clone());
+        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let ctx = OperationContext::new();
+        let current = FoyerKey {
+            path: "destination".to_string(),
+            version: None,
+        };
+        let versioned = FoyerKey {
+            path: current.path.clone(),
+            version: Some("previous".to_string()),
+        };
+        cache.insert(current.clone(), FoyerValue("current".into()));
+        cache.insert(versioned.clone(), FoyerValue("previous".into()));
+        let mut copier = FoyerCopier::new(
+            ChunkedCopier {
+                chunks: [3, 5].into_iter(),
+            },
+            current.path.clone(),
+            service.operation_inner(&ctx),
+        );
 
-        op.write("b", vec![b'1'; 10]).await.unwrap();
-        assert_eq!(op.read("b").await.unwrap().to_vec(), vec![b'1'; 10]);
-        op.write("a", vec![b'2'; 10]).await.unwrap();
-
-        op.copy("a", "b").await.unwrap();
-
-        assert_eq!(op.read("b").await.unwrap().to_vec(), vec![b'2'; 10]);
-        assert_eq!(op.read("a").await.unwrap().to_vec(), vec![b'2'; 10]);
+        assert_eq!(copier.next().await.unwrap(), Some(3));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), Some(5));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert!(!cache.contains(&current));
+        assert!(cache.contains(&versioned));
     }
 
     #[tokio::test]

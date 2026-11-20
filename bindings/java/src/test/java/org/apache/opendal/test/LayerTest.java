@@ -20,13 +20,28 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Layer;
+import org.apache.opendal.OpenDALException;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.ThrottleLayer;
+import org.apache.opendal.layer.TimeoutLayer;
+import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class LayerTest {
     @Test
@@ -47,5 +62,87 @@ public class LayerTest {
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
         assertThat(layeredOp.info).isNotNull();
+    }
+
+    @ParameterizedTest
+    @CsvSource({"txt, text/plain", "json, application/json"})
+    void testMimeGuessLayer(String extension, String contentType) {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new MimeGuessLayer());
+
+        final String path = "file." + extension;
+        op.write(path, "hello").join();
+        assertThat(op.stat(path).join().contentType).isNull();
+        assertThat(layeredOp.stat(path).join().contentType).isEqualTo(contentType);
+
+        final String layeredPath = "layered." + extension;
+        layeredOp.write(layeredPath, "hello").join();
+        assertThat(op.stat(layeredPath).join().contentType).isEqualTo(contentType);
+    }
+
+    @Test
+    void testTimeoutLayer() throws Exception {
+        final CountDownLatch releaseResponse = new CountDownLatch(1);
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/file", exchange -> {
+            try {
+                releaseResponse.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        try {
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(new TimeoutLayer().withTimeout(Duration.ofMillis(100)));
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("operation timeout reached");
+        } finally {
+            releaseResponse.countDown();
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void testTimeoutLayerRejectsInvalidDurations() {
+        for (Duration invalid : Arrays.asList(
+                Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> new TimeoutLayer().withTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("timeout ");
+            assertThatThrownBy(() -> new TimeoutLayer().withIoTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("ioTimeout ");
+        }
+    }
+
+    @Test
+    void testThrottleLayerEnforcesBurst() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new ThrottleLayer(0xFFFFFFFFL, 2));
+
+        assertThatThrownBy(() -> layeredOp.write("too-large.txt", "abc").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.RateLimited));
+        layeredOp.write("within-burst.txt", "ab").join();
+        assertThat(op.stat("within-burst.txt").join().contentLength).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 0x100000000L})
+    void testThrottleLayerRejectsOutOfRangeArguments(long invalid) {
+        assertThatThrownBy(() -> new ThrottleLayer(invalid, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("bandwidth ");
+        assertThatThrownBy(() -> new ThrottleLayer(1, invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("burst ");
     }
 }

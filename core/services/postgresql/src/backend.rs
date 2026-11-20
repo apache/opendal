@@ -17,7 +17,6 @@
 
 use std::sync::Arc;
 
-use asyncband::once::OnceCell;
 use sqlx::postgres::PgConnectOptions;
 
 use super::POSTGRESQL_SCHEME;
@@ -133,14 +132,8 @@ impl Builder for PostgresqlBuilder {
 
         let root = normalize_root(self.config.root.unwrap_or_else(|| "/".to_string()).as_str());
 
-        Ok(PostgresqlBackend::new(PostgresqlCore {
-            pool: OnceCell::new(),
-            config,
-            table,
-            key_field,
-            value_field,
-        })
-        .with_normalized_root(root))
+        let core = PostgresqlCore::new(config, &table, &key_field, &value_field);
+        Ok(PostgresqlBackend::new(core, &table).with_normalized_root(root))
     }
 }
 
@@ -154,14 +147,16 @@ pub struct PostgresqlBackend {
 }
 
 impl PostgresqlBackend {
-    pub fn new(core: PostgresqlCore) -> Self {
-        let info = ServiceInfo::new(POSTGRESQL_SCHEME, "/", &core.table);
+    pub fn new(core: PostgresqlCore, table: &str) -> Self {
+        let info = ServiceInfo::new(POSTGRESQL_SCHEME, "/", table);
         let capability = Capability {
             read: true,
             stat: true,
             write: true,
             write_can_empty: true,
             delete: true,
+            copy: true,
+            rename: true,
             shared: true,
             ..Default::default()
         };
@@ -186,7 +181,7 @@ impl Service for PostgresqlBackend {
     type Writer = PostgresqlWriter;
     type Lister = ();
     type Deleter = oio::OneShotDeleter<PostgresqlDeleter>;
-    type Copier = ();
+    type Copier = oio::OneShotCopier;
     type Composer = ();
 
     fn info(&self) -> ServiceInfo {
@@ -269,27 +264,32 @@ impl Service for PostgresqlBackend {
     fn copy(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
+        from: &str,
+        to: &str,
         _args: OpCopy,
     ) -> Result<Self::Copier> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let core = self.core.clone();
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let from = from.clone();
+            let to = to.clone();
+            async move { core.copy(&from, &to).await }
+        }))
     }
 
     async fn rename(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
+        from: &str,
+        to: &str,
         _args: OpRename,
     ) -> Result<RpRename> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let from = build_abs_path(&self.root, from);
+        let to = build_abs_path(&self.root, to);
+        self.core.rename(&from, &to).await?;
+        Ok(RpRename::new())
     }
 
     async fn presign(

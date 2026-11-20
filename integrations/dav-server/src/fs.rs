@@ -37,6 +37,10 @@ use super::utils::convert_error;
 /// `OpendalFs` omits weak ETags because dav-server emits only strong ETag headers
 /// from filesystem metadata.
 ///
+/// OpenDAL metadata has no symbolic-link flag, so
+/// [`hide_symlinks(true)`](dav_server::DavConfig::hide_symlinks) cannot filter
+/// symbolic links through this adapter.
+///
 /// ```
 /// use anyhow::Result;
 /// use dav_server_opendalfs::dav_server::davpath::DavPath;

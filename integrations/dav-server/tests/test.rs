@@ -76,6 +76,29 @@ async fn test_create_dir_nested() {
 }
 
 #[tokio::test]
+async fn test_symlink_metadata() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.create_dir("dir/").await?;
+    op.write("file", "test").await?;
+    let webdavfs = OpendalFs::new(op);
+
+    for (path, is_dir, len) in [("/", true, 0), ("/dir/", true, 0), ("/file", false, 4)] {
+        let path = DavPath::new(path)?;
+        let metadata = webdavfs.symlink_metadata(&path).await?;
+        assert_eq!(metadata.is_dir(), is_dir);
+        assert_eq!(metadata.is_file(), !is_dir);
+        assert_eq!(metadata.len(), len);
+        assert!(!metadata.is_symlink());
+    }
+
+    assert!(matches!(
+        webdavfs.symlink_metadata(&DavPath::new("/missing")?).await,
+        Err(FsError::NotFound)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_file_etag() -> Result<()> {
     const CONTENT: &[u8] = b"hello";
     struct EtagTransport(&'static str);

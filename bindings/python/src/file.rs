@@ -697,7 +697,7 @@ impl AsyncFile {
     #[pyo3(signature = (
         exc_type: "type[BaseException] | None",
         exc_value: "BaseException | None",
-        traceback: "types.TracebackType | None") -> "None")]
+        traceback: "types.TracebackType | None") -> "collections.abc.Awaitable[None]")]
     fn __aexit__<'a>(
         &'a mut self,
         py: Python<'a>,

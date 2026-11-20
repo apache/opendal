@@ -36,7 +36,7 @@ class AsyncFile:
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
-    ) -> None: ...
+    ) -> collections.abc.Awaitable[None]: ...
     def close(self, /) -> collections.abc.Awaitable[None]:
         """
         Close this file.

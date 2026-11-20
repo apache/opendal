@@ -53,9 +53,10 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete the target recursively.
     ///
-    /// - If `false`, behaves like the traditional single-object delete.
-    /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
-    ///   will be removed.
+    /// The default, `false`, deletes a single object. With `true`, pass a path
+    /// with a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services such as `memory`, `"a"` also matches entries
+    /// under `"ab/"`.
     pub recursive: bool,
     /// Delete only when the file at the delete path has this exact ETag.
     ///

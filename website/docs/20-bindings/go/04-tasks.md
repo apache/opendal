@@ -152,11 +152,14 @@ The iteration is identical; only the option changes.
 ## Delete a file or a whole tree
 
 ```go
-err := op.Delete("path/to/file")                              // single path
-err = op.Delete("dir/", opendal.DeleteWithRecursive(true))    // path and everything under it
+err := op.Delete("path/to/file")
+err = op.Delete("a/", opendal.DeleteWithRecursive(true))
 ```
 
 `Delete` succeeds even if the path does not exist.
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
 
 ## Create a directory
 

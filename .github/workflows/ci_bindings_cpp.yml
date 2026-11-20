@@ -121,7 +121,8 @@ jobs:
         build-type: [Debug, Release]
     defaults:
       run:
-        shell: bash
+        # Git Bash puts its own link.exe ahead of the MSVC linker.
+        shell: pwsh
 
     steps:
       - uses: actions/checkout@v7
@@ -131,14 +132,16 @@ jobs:
       - name: Build Cpp binding and run tests
         working-directory: "bindings/cpp"
         run: |
-          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=${{ matrix.build-type }} -DOPENDAL_ENABLE_TESTING=ON
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=${{ matrix.build-type }}" -DOPENDAL_ENABLE_TESTING=ON
           cmake --build build
-          ./build/opendal_cpp_test.exe
+          .\build\opendal_cpp_test.exe
 
       - name: Build and run Cpp examples
         working-directory: "examples/cpp"
         run: |
-          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl -DCMAKE_BUILD_TYPE=${{ matrix.build-type }}
+          $PSNativeCommandUseErrorActionPreference = $true
+          cmake -S . -B build -GNinja -DCMAKE_CXX_COMPILER=cl "-DCMAKE_BUILD_TYPE=${{ matrix.build-type }}"
           cmake --build build
-          ./build/basic-example.exe
-          ./build/getting-started.exe
+          .\build\basic-example.exe
+          .\build\getting-started.exe

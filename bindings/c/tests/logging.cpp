@@ -85,10 +85,10 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
 
     Error initialized(opendal_logging_init(capture_log), opendal_error_free);
     ASSERT_EQ(initialized, nullptr);
-    auto result = opendal_operator_new("memory", nullptr);
-    Error construction_error(result.error, opendal_error_free);
+    opendal_operator* raw_op = nullptr;
+    Error construction_error(opendal_operator_new("memory", nullptr, &raw_op), opendal_error_free);
     ASSERT_EQ(construction_error, nullptr);
-    std::unique_ptr<const opendal_operator, decltype(&opendal_operator_free)> op(result.op, opendal_operator_free);
+    std::unique_ptr<const opendal_operator, decltype(&opendal_operator_free)> op(raw_op, opendal_operator_free);
     ASSERT_NE(op, nullptr);
     std::string content = "native logging";
     opendal_bytes data { reinterpret_cast<uint8_t*>(&content[0]), content.size() };
@@ -110,9 +110,9 @@ TEST(OpendalLogging, NativeEventsAndRegistrationFailure)
         before_failure = state.warnings;
     }
 
-    auto read = opendal_operator_read(op.get(), "missing-logging-value");
-    Error read_error(read.error, opendal_error_free);
-    opendal_bytes_free(&read.data);
+    opendal_bytes read_data { nullptr, 0, 0 };
+    Error read_error(opendal_operator_read(op.get(), "missing-logging-value", &read_data), opendal_error_free);
+    opendal_bytes_free(&read_data);
     ASSERT_NE(read_error, nullptr);
     EXPECT_EQ(read_error->code, OPENDAL_NOT_FOUND);
     {

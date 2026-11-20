@@ -1,5 +1,9 @@
 # Unreleased
 
+## Shared semaphores for `ConcurrentLimitLayer`
+
+`ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.
+
 ## Moka and MiniMoka configuration durations
 
 `MokaConfig` and `MiniMokaConfig` now use `Option<jiff::SignedDuration>` for

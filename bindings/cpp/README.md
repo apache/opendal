@@ -8,10 +8,9 @@ local filesystem, and 50+ more services through one API.
 > **Note**: This binding is experimental/WIP. Only Clang and AppleClang are
 > currently supported. The API may change without notice.
 
-We release the OpenDAL C++ binding independently of the
-[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
-and compatibility, use the C++ binding version instead of the `opendal` crate
-version.
+The C++ binding is available as source. Its [Cargo.toml](./Cargo.toml)
+enables the OpenDAL blocking API, and the default build includes the memory
+service.
 
 ## Useful Links
 
@@ -66,14 +65,25 @@ make
 
 ### CMake options
 
-| Option | Default | Description |
-|---|---|---|
-| `OPENDAL_DEV` | `OFF` | Enable all development options at once |
-| `OPENDAL_FEATURES` | `""` | Comma-separated list of services, e.g. `"opendal/services-s3"` |
-| `OPENDAL_ENABLE_ASYNC` | `OFF` | Enable async API (requires C++20) |
-| `OPENDAL_ENABLE_TESTING` | `OFF` | Build and enable tests |
-| `OPENDAL_ENABLE_DOCUMENTATION` | `OFF` | Build Doxygen docs |
-| `OPENDAL_ENABLE_ADDRESS_SANITIZER` | `OFF` | Enable address sanitizer |
+`OPENDAL_FEATURES` takes a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+To add S3, rerun CMake from `bindings/cpp/build`:
+
+```shell
+cmake -DCMAKE_CXX_COMPILER=clang++ -DOPENDAL_FEATURES="opendal/services-s3" ..
+cmake --build .
+```
+
+Exposing additional Rust layers requires C++ binding code.
+
+| Option                             | Default | Description                            |
+| ---------------------------------- | ------- | -------------------------------------- |
+| `OPENDAL_DEV`                      | `OFF`   | Enable all development options at once |
+| `OPENDAL_FEATURES`                 | `""`    | Additional Cargo features              |
+| `OPENDAL_ENABLE_ASYNC`             | `OFF`   | Enable async API (requires C++20)      |
+| `OPENDAL_ENABLE_TESTING`           | `OFF`   | Build and enable tests                 |
+| `OPENDAL_ENABLE_DOCUMENTATION`     | `OFF`   | Build Doxygen docs                     |
+| `OPENDAL_ENABLE_ADDRESS_SANITIZER` | `OFF`   | Enable address sanitizer               |
 
 ## Example
 

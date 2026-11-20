@@ -9,8 +9,8 @@ description: Build an OpenDAL operator in Node.js for any backend — schemes, c
 Switching backends is a configuration change, not a code change. For the
 configuration keys of a specific service, see [Services](/services).
 
-Unlike the Rust core, the Node.js package includes every service — there are no
-build flags. Once `opendal` is installed, every backend is available.
+See [Build with additional services](./02-getting-started.md#build-with-additional-services)
+for the services included in the release and how to enable others.
 
 ## Build an operator
 

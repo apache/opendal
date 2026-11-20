@@ -8,16 +8,34 @@ description: Build an OpenDAL operator in C, write and read data, check errors, 
 
 ## Build the library
 
+The C binding is available as source. Its [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/c/Cargo.toml)
+enables the OpenDAL blocking API, and CMake builds the memory and `fs` services
+by default.
+
 From `bindings/c/`:
 
 ```shell
 mkdir -p build && cd build
 cmake ..
-make
+cmake --build .
 ```
 
-This produces `libopendal_c` under `../../target/debug/`. Link against it and
-include `bindings/c/include/opendal.h`.
+This produces `libopendal_c` under `bindings/c/target/debug/`. Link against it
+and include `bindings/c/include/opendal.h`.
+
+`FEATURES` is a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+Setting `FEATURES` replaces the default list, so include `opendal/services-fs`
+to retain the `fs` service.
+
+To add S3 and GCS, reconfigure and rebuild from the same build directory:
+
+```shell
+cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gcs"
+cmake --build .
+```
+
+Exposing additional Rust layers requires C binding code.
 
 ## Your first program
 

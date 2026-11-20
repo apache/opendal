@@ -4,7 +4,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/org.apache.opendal/opendal.svg?logo=Apache+Maven&logoColor=blue)](https://central.sonatype.com/search?q=opendal&smo=true)
 [![Website](https://img.shields.io/badge/opendal-OpenDAL_Website-red?logo=Apache&logoColor=red)](https://opendal.apache.org/docs/java/)
 
-A native Java binding for Apache OpenDAL™: access S3, GCS, Azure Blob, HDFS, the
+A native Java binding for Apache OpenDAL™: access S3, GCS, Azure Blob, the
 local filesystem, and many more services through one API.
 
 We release the OpenDAL Java binding independently of the
@@ -68,6 +68,23 @@ dependencies {
 
 On musl-based Linux distributions such as Alpine, use the `linux-x86_64-musl` or
 `linux-aarch_64-musl` classifier instead of the detected one.
+
+## Build with additional services
+
+The native JARs on Maven Central use the `opendal` dependency features in the
+binding's [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/java/Cargo.toml),
+with SFTP enabled on Unix targets. The Java `RetryLayer` is built in. Exposing
+a new Rust layer requires Java and JNI binding code.
+
+To add a service, add its feature name, such as `"services-d1"`, to the
+`opendal` feature list and run this from `bindings/java`:
+
+```shell
+./mvnw clean package -DskipTests=true
+```
+
+Use the resulting JARs in `target/`, including the JAR with your platform's
+classifier.
 
 ## Quickstart
 

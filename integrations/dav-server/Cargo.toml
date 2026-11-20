@@ -35,7 +35,9 @@ futures = "0.3"
 opendal-core = { version = "0.59.5", path = "../../core/core", default-features = false }
 
 [dev-dependencies]
+http = "1.4"
 opendal = { version = "0.59.5", path = "../../core", features = [
   "services-fs",
+  "services-http",
 ] }
 tokio = { version = "1.27", features = ["macros", "rt-multi-thread", "io-std"] }

@@ -154,6 +154,7 @@ services-azblob = ["dep:opendal-service-azblob"]
 services-azdls = ["dep:opendal-service-azdls"]
 services-azfile = ["dep:opendal-service-azfile"]
 services-b2 = ["dep:opendal-service-b2"]
+services-baidu-netdisk = ["dep:opendal-service-baidu-netdisk"]
 services-cacache = ["dep:opendal-service-cacache"]
 services-cloudflare-kv = ["dep:opendal-service-cloudflare-kv"]
 services-compfs = ["dep:opendal-service-compfs"]
@@ -280,6 +281,7 @@ opendal-service-azblob = { path = "services/azblob", version = "0.59.5", optiona
 opendal-service-azdls = { path = "services/azdls", version = "0.59.5", optional = true, default-features = false }
 opendal-service-azfile = { path = "services/azfile", version = "0.59.5", optional = true, default-features = false }
 opendal-service-b2 = { path = "services/b2", version = "0.59.5", optional = true, default-features = false }
+opendal-service-baidu-netdisk = { path = "services/baidu-netdisk", version = "0.59.5", optional = true, default-features = false }
 opendal-service-cacache = { path = "services/cacache", version = "0.59.5", optional = true, default-features = false }
 opendal-service-cloudflare-kv = { path = "services/cloudflare-kv", version = "0.59.5", optional = true, default-features = false }
 opendal-service-compfs = { path = "services/compfs", version = "0.59.5", optional = true, default-features = false }

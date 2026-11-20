@@ -112,7 +112,7 @@ jobs:
 
       - name: Check
         working-directory: core
-        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy --locked --features services-fs -- -D warnings
 
   build_default_features:
     runs-on: ${{ matrix.os }}

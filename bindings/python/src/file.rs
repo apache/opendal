@@ -316,22 +316,24 @@ impl File {
 
     /// Return the current position of this file.
     ///
+    /// In write mode, the position is the number of bytes accepted by the
+    /// writer, including buffered bytes.
+    ///
     /// Returns
     /// -------
     /// int
     ///     The current absolute position.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the file is closed.
     pub fn tell(&mut self, py: Python<'_>) -> PyResult<u64> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
-            FileState::Writer(_) => {
-                return Err(PyIOError::new_err(
-                    "I/O operation failed for reading on write only file.",
-                ));
-            }
+            FileState::Writer(w) => return Ok(w.position()),
             FileState::Closed => {
-                return Err(PyIOError::new_err(
-                    "I/O operation failed for reading on closed file.",
-                ));
+                return Err(PyValueError::new_err("I/O operation on closed file."));
             }
         };
 
@@ -633,10 +635,18 @@ impl AsyncFile {
 
     /// Return the current position of this file.
     ///
+    /// In write mode, the position is the number of bytes accepted by the
+    /// writer, including buffered bytes.
+    ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns the current absolute position.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the file is closed.
     #[pyo3(signature = () -> "collections.abc.Awaitable[int]")]
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
@@ -645,15 +655,9 @@ impl AsyncFile {
             let mut guard = state.lock().await;
             let reader = match guard.deref_mut() {
                 AsyncFileState::Reader(r) => r,
-                AsyncFileState::Writer(_) => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on write only file.",
-                    ));
-                }
-                _ => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on closed file.",
-                    ));
+                AsyncFileState::Writer(w) => return Ok(w.position()),
+                AsyncFileState::Closed => {
+                    return Err(PyValueError::new_err("I/O operation on closed file."));
                 }
             };
 

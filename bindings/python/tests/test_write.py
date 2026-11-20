@@ -154,6 +154,29 @@ async def test_async_writer(service_name, operator, async_operator):
 
 
 @pytest.mark.asyncio
+@pytest.mark.need_capability("write", "write_can_multi", "delete")
+async def test_async_writer_tell(async_operator):
+    filename = f"test_file_{uuid4()}"
+    try:
+        async with await async_operator.open(filename, "wb") as file:
+            assert await file.tell() == 0
+            assert await file.write(b"hello") == 5
+            assert await file.tell() == 5
+            assert await file.write(b"") == 0
+            assert await file.tell() == 5
+            assert await file.write(b" world") == 6
+            assert await file.tell() == 11
+            assert not await file.seekable()
+            with pytest.raises(OSError, match="write only file"):
+                await file.seek(0)
+            assert await file.tell() == 11
+        with pytest.raises(ValueError, match="closed file"):
+            await file.tell()
+    finally:
+        await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
 @pytest.mark.need_capability("write", "read", "delete")
 async def test_async_writer_keeps_bytes_alive(service_name, operator, async_operator):
     filename = f"test_file_{str(uuid4())}.txt"
@@ -242,6 +265,55 @@ def test_sync_writer(service_name, operator, async_operator):
     operator.delete(filename)
     with pytest.raises(NotFound):
         operator.stat(filename)
+
+
+@pytest.mark.need_capability("write", "write_can_multi", "delete")
+def test_sync_writer_tell(operator):
+    filename = f"test_file_{uuid4()}"
+    try:
+        with operator.open(filename, "wb") as file:
+            assert file.tell() == 0
+            assert file.write(b"hello") == 5
+            assert file.tell() == 5
+            assert file.write(b"") == 0
+            assert file.tell() == 5
+            assert file.write(b" world") == 6
+            assert file.tell() == 11
+            assert not file.seekable()
+            with pytest.raises(OSError, match="not supported"):
+                file.seek(0)
+            assert file.tell() == 11
+        with pytest.raises(ValueError, match="closed file"):
+            file.tell()
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.asyncio
+async def test_async_writer_tell_after_partial_write(service_name, tmp_path):
+    if service_name != "fs":
+        pytest.skip("requires the fs service")
+    (tmp_path / "directory").mkdir()
+    operator = opendal.AsyncOperator("fs", root=str(tmp_path))
+    file = await operator.open("directory", "wb", chunk=4)
+
+    # The writer buffers the first chunk, then fails to open the directory as a file.
+    with pytest.raises(OSError, match="OpenForWrite"):
+        await file.write(b"abcdefgh")
+    assert await file.tell() == 4
+
+
+def test_sync_writer_tell_after_partial_write(service_name, tmp_path):
+    if service_name != "fs":
+        pytest.skip("requires the fs service")
+    (tmp_path / "directory").mkdir()
+    operator = opendal.Operator("fs", root=str(tmp_path))
+    file = operator.open("directory", "wb", chunk=4)
+
+    # The writer buffers the first chunk, then fails to open the directory as a file.
+    with pytest.raises(OSError, match="OpenForWrite"):
+        file.write(b"abcdefgh")
+    assert file.tell() == 4
 
 
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")

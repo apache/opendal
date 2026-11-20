@@ -129,10 +129,13 @@ const entries = await op.list("dir/", { recursive: true });
 ```javascript
 await op.delete("path/to/file");      // single path; succeeds even if missing
 await op.remove(["a.txt", "b.txt"]);  // a batch of paths
-await op.removeAll("dir/");           // a path and everything under it
+await op.removeAll("a/");
 ```
 
-`delete` is idempotent — deleting a missing path succeeds rather than failing.
+`delete` succeeds even if the path does not exist.
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
 
 ## Create a directory
 

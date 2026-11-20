@@ -166,11 +166,13 @@ let entries = op.list_with("dir/").recursive(true).await?;
 ## Delete a file or a whole tree
 
 ```rust
-op.delete("path/to/file").await?;   // single path; idempotent
-op.remove_all("dir/").await?;       // a path and everything under it
+op.delete("path/to/file").await?;
+op.delete_with("a/").recursive(true).await?;
 ```
 
-`delete` succeeds even if the path does not exist.
+`delete` succeeds even if the path does not exist. For recursive deletion,
+pass a trailing slash to limit deletion to the directory. On prefix-based
+services, `"a"` can also match entries under `"ab/"`.
 
 ## Delete a specific version
 

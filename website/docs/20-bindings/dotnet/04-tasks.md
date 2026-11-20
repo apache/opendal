@@ -181,8 +181,11 @@ var entries = op.List("dir/", new ListOptions { Recursive = true });
 
 ```csharp
 op.Delete("path/to/file");   // single path
-op.RemoveAll("dir/");        // a path and everything under it
+op.RemoveAll("a/");
 ```
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
 
 ## Create a directory
 

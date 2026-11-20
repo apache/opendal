@@ -58,7 +58,7 @@ impl HttpCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -107,7 +107,7 @@ impl HttpCore {
     }
 
     pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 

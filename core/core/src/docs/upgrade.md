@@ -24,6 +24,12 @@ accepts duration strings such as `"5s"`.
 
 ## Raw API
 
+### Path helper names
+
+Use `build_absolute_path`, `build_rooted_absolute_path`, and
+`build_relative_path` in place of `build_abs_path`, `build_rooted_abs_path`,
+and `build_rel_path`, respectively. The old names are deprecated aliases.
+
 ### Submit tasks through `ConcurrentTasks::execute`
 
 `raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.

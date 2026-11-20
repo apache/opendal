@@ -62,7 +62,7 @@ impl GcsGrpcCore {
     }
 
     pub fn object_name(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
     }
 
     pub fn client(&self) -> StorageClient<Channel> {

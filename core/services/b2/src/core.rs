@@ -142,7 +142,7 @@ impl B2Core {
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -215,7 +215,7 @@ impl B2Core {
         path: &str,
         expire: Duration,
     ) -> Result<GetDownloadAuthorizationResponse> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -267,7 +267,7 @@ impl B2Core {
     ) -> Result<Response<Buffer>> {
         let resp = self.get_upload_url(ctx).await?;
 
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut req = Request::post(resp.upload_url);
 
@@ -318,7 +318,7 @@ impl B2Core {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -556,7 +556,7 @@ impl B2Core {
         url = url.push("bucketId", &self.bucket_id);
 
         if let Some(prefix) = prefix {
-            let prefix = build_abs_path(&self.root, prefix);
+            let prefix = build_absolute_path(&self.root, prefix);
             if !prefix.is_empty() {
                 url = url.push("prefix", &percent_encode_path(&prefix));
             }
@@ -594,7 +594,7 @@ impl B2Core {
         source_file_id: String,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let to = build_abs_path(&self.root, to);
+        let to = build_absolute_path(&self.root, to);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -625,7 +625,7 @@ impl B2Core {
     }
 
     pub async fn hide_file(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 

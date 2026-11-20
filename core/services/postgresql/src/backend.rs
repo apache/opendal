@@ -210,9 +210,9 @@ impl Service for PostgresqlBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get_length(&p).await? {
@@ -241,7 +241,7 @@ impl Service for PostgresqlBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: PostgresqlWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(PostgresqlWriter::new(self.core.clone(), p))
         }?;
 

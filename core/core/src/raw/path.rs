@@ -18,13 +18,11 @@
 use crate::*;
 use std::hash::{BuildHasher, Hasher};
 
-/// build_abs_path will build an absolute path with root.
+/// Join a normalized root and operation path, omitting the leading `/`.
 ///
-/// # Rules
-///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Output will be the format like `path/to/root/path`.
-pub fn build_abs_path(root: &str, path: &str) -> String {
+/// Pass a root such as `/` or `/abc/def/`. An operation path of `/` addresses
+/// the root itself.
+pub fn build_absolute_path(root: &str, path: &str) -> String {
     debug_assert!(root.starts_with('/'), "root must start with /");
     debug_assert!(root.ends_with('/'), "root must end with /");
 
@@ -38,13 +36,11 @@ pub fn build_abs_path(root: &str, path: &str) -> String {
     }
 }
 
-/// build_rooted_abs_path will build an absolute path with root.
+/// Join a normalized root and operation path, keeping the leading `/`.
 ///
-/// # Rules
-///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Output will be the format like `/path/to/root/path`.
-pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
+/// Pass a root such as `/` or `/abc/def/`. An operation path of `/` addresses
+/// the root itself.
+pub fn build_rooted_absolute_path(root: &str, path: &str) -> String {
     debug_assert!(root.starts_with('/'), "root must start with /");
     debug_assert!(root.ends_with('/'), "root must end with /");
 
@@ -58,14 +54,11 @@ pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
     }
 }
 
-/// build_rel_path will build a relative path towards root.
+/// Strip a normalized root prefix from a path.
 ///
-/// # Rules
-///
-/// - Input root MUST be the format like `/abc/def/`
-/// - Input path MUST start with root like `/abc/def/path/to/file`
-/// - Output will be the format like `path/to/file`.
-pub fn build_rel_path(root: &str, path: &str) -> String {
+/// Pass a root such as `/` or `/abc/def/`. The path must start with that
+/// prefix and may omit its leading `/`. The returned path is relative to root.
+pub fn build_relative_path(root: &str, path: &str) -> String {
     debug_assert!(root != path, "get rel path with root is invalid");
 
     if path.starts_with('/') {
@@ -81,6 +74,27 @@ pub fn build_rel_path(root: &str, path: &str) -> String {
         );
         path[root.len() - 1..].to_string()
     }
+}
+
+/// Deprecated alias for [`build_absolute_path`].
+#[deprecated(note = "use build_absolute_path instead")]
+#[inline]
+pub fn build_abs_path(root: &str, path: &str) -> String {
+    build_absolute_path(root, path)
+}
+
+/// Deprecated alias for [`build_rooted_absolute_path`].
+#[deprecated(note = "use build_rooted_absolute_path instead")]
+#[inline]
+pub fn build_rooted_abs_path(root: &str, path: &str) -> String {
+    build_rooted_absolute_path(root, path)
+}
+
+/// Deprecated alias for [`build_relative_path`].
+#[deprecated(note = "use build_relative_path instead")]
+#[inline]
+pub fn build_rel_path(root: &str, path: &str) -> String {
+    build_relative_path(root, path)
 }
 
 /// Normalize an operation path relative to the operator's root.
@@ -362,7 +376,7 @@ mod tests {
         ];
 
         for (name, root, input, expect) in cases {
-            let actual = build_abs_path(root, input);
+            let actual = build_absolute_path(root, input);
             assert_eq!(actual, expect, "{name}")
         }
     }
@@ -379,7 +393,7 @@ mod tests {
         ];
 
         for (name, root, input, expect) in cases {
-            let actual = build_rooted_abs_path(root, input);
+            let actual = build_rooted_absolute_path(root, input);
             assert_eq!(actual, expect, "{name}")
         }
     }
@@ -395,7 +409,7 @@ mod tests {
         ];
 
         for (name, root, input, expect) in cases {
-            let actual = build_rel_path(root, input);
+            let actual = build_relative_path(root, input);
             assert_eq!(actual, expect, "{name}")
         }
     }

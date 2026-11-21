@@ -7146,6 +7146,7 @@ dependencies = [
  "opendal-layer-prometheus-client",
  "opendal-layer-retry",
  "opendal-layer-route",
+ "opendal-layer-sanity-check",
  "opendal-layer-tail-cut",
  "opendal-layer-throttle",
  "opendal-layer-timeout",
@@ -7545,6 +7546,14 @@ dependencies = [
  "globset",
  "opendal-core",
  "opendal-service-fs",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-sanity-check"
+version = "0.59.5"
+dependencies = [
+ "opendal-core",
  "tokio",
 ]
 

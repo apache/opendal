@@ -137,6 +137,7 @@ layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
 layers-route = ["dep:opendal-layer-route"]
+layers-sanity-check = ["dep:opendal-layer-sanity-check"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
@@ -270,6 +271,7 @@ opendal-layer-prometheus = { path = "layers/prometheus", version = "0.59.5", opt
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-route = { path = "layers/route", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-sanity-check = { path = "layers/sanity-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.59.5", optional = true, default-features = false }

@@ -269,8 +269,8 @@ impl Service for PostgresqlBackend {
         _args: OpCopy,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
         Ok(oio::OneShotCopier::new_with(move || {
             let core = core.clone();
             let from = from.clone();
@@ -286,8 +286,8 @@ impl Service for PostgresqlBackend {
         to: &str,
         _args: OpRename,
     ) -> Result<RpRename> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
         self.core.rename(&from, &to).await?;
         Ok(RpRename::new())
     }

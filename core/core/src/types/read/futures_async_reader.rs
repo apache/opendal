@@ -202,12 +202,12 @@ impl FuturesAsyncReader {
             };
         }
 
-        let size = self.buf.len().min(size);
-        let buffer = self.buf.split_to(size);
-        if self.buf.is_empty() {
-            self.buf = Buffer::new();
-        }
-        self.pos += size as u64;
+        let buffer = if size >= self.buf.len() {
+            std::mem::take(&mut self.buf)
+        } else {
+            self.buf.split_to(size)
+        };
+        self.pos += buffer.len() as u64;
         Ok(buffer)
     }
 

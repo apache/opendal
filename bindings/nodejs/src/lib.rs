@@ -29,6 +29,7 @@ use napi::bindgen_prelude::*;
 use opendal::options::{
     DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
 };
+use tokio::sync::Mutex;
 
 use crate::layer::Layer;
 
@@ -270,11 +271,12 @@ impl Operator {
             .reader_options(&path, options)
             .await
             .map_err(format_napi_error)?;
+        let inner = r
+            .into_futures_async_read(std::ops::RangeFull)
+            .await
+            .map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r
-                .into_futures_async_read(std::ops::RangeFull)
-                .await
-                .map_err(format_napi_error)?,
+            inner: Mutex::new(inner),
         })
     }
 
@@ -1020,21 +1022,93 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: opendal::FuturesAsyncReader,
+    inner: Mutex<opendal::FuturesAsyncReader>,
 }
 
 #[napi]
 impl Reader {
-    /// # Safety
+    /// Read bytes from this reader into the given buffer.
     ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
-    /// Read bytes from this reader into given buffer.
+    /// Wait for the promise to settle before accessing the buffer again.
     #[napi]
-    pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let n = self.inner.read(buf).await.map_err(format_napi_error)?;
-        Ok(n)
+    pub async fn read(&self, mut buf: Buffer) -> Result<usize> {
+        let mut inner = self.inner.lock().await;
+        inner.read(buf.as_mut()).await.map_err(format_napi_error)
+    }
+
+    /// Read up to `maxBytes` bytes from the same cursor as `read`.
+    ///
+    /// `maxBytes` must be an integer between 1 and 4294967295. The promise
+    /// resolves to a writable Buffer, or `null` at the end of the input.
+    #[napi(ts_return_type = "Promise<Buffer | null>")]
+    pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<ReadChunk>> {
+        // N-API's uint32 conversion truncates and wraps JavaScript numbers.
+        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "maxBytes must be an integer between 1 and 4294967295",
+            ));
+        }
+
+        let chunk = self
+            .inner
+            .lock()
+            .await
+            .read_buffer(max_bytes as usize)
+            .await
+            .map_err(format_napi_error)?;
+        Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))
+    }
+}
+
+// Choose the buffer's backing allocation on the JS thread at Promise resolution.
+pub struct ReadChunk(opendal::Buffer);
+
+impl ToNapiValue for ReadChunk {
+    unsafe fn to_napi_value(env: napi::sys::napi_env, val: Self) -> Result<napi::sys::napi_value> {
+        let mut chunk = val.0;
+        let len = chunk.len();
+        let first = chunk.next().expect("read chunk is nonempty");
+
+        if first.len() == len {
+            drop(chunk);
+            // Shared and static bytes must be copied before JS can mutate them.
+            // A unique slice can still have spare capacity or an offset into
+            // a larger allocation. Only transfer a right-sized Vec to Node.
+            let js_env = napi::Env::from_raw(env);
+            let output = match first.try_into_mut() {
+                Ok(owned) if owned.capacity() == len => {
+                    let data = Vec::from(owned);
+                    if data.capacity() == len {
+                        return unsafe { Buffer::to_napi_value(env, Buffer::from(data)) };
+                    }
+                    BufferSlice::copy_from(&js_env, data)?
+                }
+                Ok(owned) => BufferSlice::copy_from(&js_env, owned)?,
+                Err(shared) => BufferSlice::copy_from(&js_env, shared)?,
+            };
+            return unsafe { <&BufferSlice>::to_napi_value(env, &output) };
+        }
+
+        let mut data = std::ptr::null_mut();
+        let mut result = std::ptr::null_mut();
+        napi::check_status!(unsafe {
+            napi::sys::napi_create_buffer(env, len, &mut data, &mut result)
+        })?;
+        let mut offset = 0;
+        for part in std::iter::once(first).chain(chunk) {
+            // The parts cover exactly `len` bytes. Node owns the destination,
+            // and the new buffer cannot be reached from JS until it is returned.
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    part.as_ptr(),
+                    data.cast::<u8>().add(offset),
+                    part.len(),
+                );
+            }
+            offset += part.len();
+        }
+        Ok(result)
     }
 }
 

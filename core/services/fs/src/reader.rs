@@ -145,14 +145,23 @@ impl oio::Write for FsLazyWriter {
 pub struct FsLazyLister {
     core: Arc<FsCore>,
     path: String,
+    start_after: Option<String>,
+    recursive: bool,
     inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
 }
 
 impl FsLazyLister {
-    pub(super) fn new(core: Arc<FsCore>, path: &str) -> Self {
+    pub(super) fn new(
+        core: Arc<FsCore>,
+        path: &str,
+        start_after: Option<String>,
+        recursive: bool,
+    ) -> Self {
         Self {
             core,
             path: path.to_string(),
+            start_after,
+            recursive,
             inner: None,
         }
     }
@@ -162,7 +171,13 @@ impl oio::List for FsLazyLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         if self.inner.is_none() {
             self.inner = Some(match self.core.fs_list(&self.path).await? {
-                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
+                Some(rd) => Some(FsLister::new(
+                    &self.core.root,
+                    &self.path,
+                    rd,
+                    self.start_after.clone(),
+                    self.recursive,
+                )),
                 None => None,
             });
         }

@@ -152,6 +152,7 @@ impl Builder for FsBuilder {
                     delete_with_recursive: true,
 
                     list: true,
+                    list_with_start_after: true,
 
                     copy: true,
                     rename: true,
@@ -225,8 +226,13 @@ impl Service for FsBackend {
         Ok(oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())))
     }
 
-    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
-        Ok(FsLazyLister::new(self.core.clone(), path))
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        Ok(FsLazyLister::new(
+            self.core.clone(),
+            path,
+            args.start_after().map(str::to_string),
+            args.recursive(),
+        ))
     }
 
     fn copy(

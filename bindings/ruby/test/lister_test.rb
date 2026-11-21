@@ -68,10 +68,10 @@ class ListerTest < ActiveSupport::TestCase
   end
 
   test "lists the directory with start_after" do
-    lister = @op.list("", start_after: "sub/")
+    lister = @op.list("", start_after: "sample")
 
     lists = lister.map(&:to_h).map { |e| e[:path] }.sort
 
-    assert_equal ["/", "sample", "sub/"], lists # fs backend doesn't support start_after
+    assert_equal ["sub/"], lists
   end
 end

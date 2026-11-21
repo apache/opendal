@@ -30,6 +30,7 @@ class Scheme:
     Cos: Final[Scheme]
     Dashmap: Final[Scheme]
     Dropbox: Final[Scheme]
+    Foyer: Final[Scheme]
     Fs: Final[Scheme]
     Ftp: Final[Scheme]
     Gcs: Final[Scheme]

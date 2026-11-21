@@ -47,9 +47,8 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: this is the feature we used to build pypi wheels.
-# When enable or disable some features,
-# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
+# Common service set for all PyPI wheels. The release matrix adds platform-specific features.
+# Keep the generated service list in dev/src/generate/python.rs in sync.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -188,10 +187,6 @@ services-yandex-disk = ["opendal/services-yandex-disk"]
 
 # Enable the stable ABI for standard CPython wheels. Build free-threaded wheels without it.
 abi3 = ["pyo3/abi3-py311"]
-
-# Conditionally include sftp only on non-windows targets
-[target.'cfg(not(windows))'.features]
-services-all = ["services-sftp"]
 
 [lib]
 crate-type = ["cdylib"]

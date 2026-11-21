@@ -250,6 +250,29 @@ class DropboxConfig(TypedDict):
     """root path for dropbox."""
 
 
+class FoyerConfig(TypedDict):
+    """Configuration for the `foyer` service."""
+
+    scheme: Required[Literal["foyer"]]
+    """The service scheme; fixed to `"foyer"`."""
+    disk_capacity: NotRequired[int]
+    """Disk cache total capacity in bytes. Only used when `disk_path` is set."""
+    disk_file_size: NotRequired[int]
+    """Individual cache file size in bytes.  Default is 1 MiB. Only used when `disk_path` is set."""
+    disk_path: NotRequired[str]
+    """Disk cache directory path.  If set, enables hybrid cache with disk storage. Data will be persisted to this directory when memory cache is full."""
+    memory: NotRequired[int]
+    """Memory capacity in bytes for the cache."""
+    name: NotRequired[str]
+    """Name for this cache instance."""
+    recover_mode: NotRequired[str]
+    """Recovery mode when starting the cache.  Valid values: "none" (default), "quiet", "strict". - "none": Don't recover from disk - "quiet": Recover and skip errors - "strict": Recover and panic on errors"""
+    root: NotRequired[str | os.PathLike[str]]
+    """Root path of this backend."""
+    shards: NotRequired[int]
+    """Number of shards for concurrent access.  Default is 1. Higher values improve concurrency but increase overhead."""
+
+
 class FsConfig(TypedDict):
     """Configuration for the `fs` service."""
 
@@ -1064,6 +1087,7 @@ ServiceConfig = (
     | CosConfig
     | DashmapConfig
     | DropboxConfig
+    | FoyerConfig
     | FsConfig
     | FtpConfig
     | GcsConfig
@@ -1120,6 +1144,7 @@ __all__ = [
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
+    "FoyerConfig",
     "FsConfig",
     "FtpConfig",
     "GcsConfig",

@@ -42,5 +42,6 @@ PACKAGES = list_packages()
 
 PACKAGE_FEATURES: dict[Path, list[str]] = {
     Path("bindings/nodejs"): ["services-all"],
-    Path("bindings/python"): ["services-all"],
+    # Include the union of services selected by the Python wheel matrix.
+    Path("bindings/python"): ["services-all", "services-foyer", "services-sftp"],
 }

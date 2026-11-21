@@ -40,10 +40,28 @@ try (Operator op = Operator.of("s3", conf)) {
 }
 ```
 
-The native library bundles every service, so there is nothing extra to install.
-The next page, [Connecting to your storage](./03-connecting.md), covers typed
-config builders and credentials in depth; [Services](/services) lists every
-backend and its keys.
+[Connecting to your storage](./03-connecting.md) covers typed config builders
+and credentials. [Services](/services) lists the backends and their configuration
+keys.
+
+## Build with additional services
+
+The native JARs on Maven Central use the `opendal` dependency features in the
+binding's [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/java/Cargo.toml),
+with SFTP enabled on Unix targets.
+
+The [Java layers](./05-production.md#layers) are built in. Exposing a new Rust
+layer requires Java and JNI binding code.
+
+To add a service, add its feature name, such as `"services-d1"`, to the
+`opendal` feature list and run this from `bindings/java`:
+
+```shell
+./mvnw clean package -DskipTests=true
+```
+
+Use the resulting JARs in `target/`, including the JAR with your platform's
+classifier.
 
 ## Sync vs async {#sync-vs-async}
 

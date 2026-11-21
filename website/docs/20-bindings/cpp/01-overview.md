@@ -37,8 +37,8 @@ currently supported as compilers; MSVC and GCC are not yet tested.
   intermediate copy; `Lister` / `Lister::Iterator` for directory traversal.
 - **Capability introspection** — `Operator::Info()` returns a `Capability`
   struct so you can check at runtime which features a backend supports.
-- **Services** controlled at build time via the `OPENDAL_FEATURES` CMake
-  variable (e.g. `"opendal/services-s3,opendal/services-memory"`).
+- **Services** — the default build includes memory. Enable additional services
+  with [`OPENDAL_FEATURES`](./02-getting-started.md#point-it-at-a-real-backend).
 
 ## Integration via CMake
 

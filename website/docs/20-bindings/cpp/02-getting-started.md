@@ -8,6 +8,10 @@ description: Build and run your first OpenDAL C++ program, then connect it to a 
 
 ## Build the binding
 
+The C++ binding is available as source. Its [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/cpp/Cargo.toml)
+enables the OpenDAL blocking API, and the default build includes the memory
+service.
+
 Prerequisites: CMake ≥ 3.22, Clang or AppleClang, Rust toolchain (the binding
 compiles the Rust core as part of the build).
 
@@ -64,12 +68,17 @@ int main() {
 }
 ```
 
-The configuration keys match the per-service docs at [/services](/services).
-You must enable the service at CMake configure time via `OPENDAL_FEATURES`:
+The configuration keys match the per-service docs at [Services](/services).
+`OPENDAL_FEATURES` takes a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+To add S3, rerun CMake from `bindings/cpp/build`:
 
-```cmake
-cmake -DOPENDAL_FEATURES="opendal/services-s3" ...
+```shell
+cmake -DCMAKE_CXX_COMPILER=clang++ -DOPENDAL_FEATURES="opendal/services-s3" ..
+cmake --build .
 ```
+
+Exposing additional Rust layers requires C++ binding code.
 
 ## Streaming reads
 

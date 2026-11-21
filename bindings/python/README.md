@@ -42,6 +42,23 @@ Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
 conda install conda-forge::opendal
 ```
 
+## Build with additional services
+
+PyPI wheels enable the `services-all` group in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
+Other services listed in `Cargo.toml`, such as D1 and Foyer, are separate
+opt-in features.
+
+To add D1 to the wheel's service set, run this from `bindings/python` in
+an active virtual environment with Maturin installed:
+
+```shell
+maturin develop --release --features services-all,services-d1
+```
+
+Python layers such as `RetryLayer` and `MimeGuessLayer` are built in.
+Exposing a new Rust layer requires Python binding code.
+
 ## Quickstart
 
 ```python

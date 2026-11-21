@@ -1449,6 +1449,9 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
 
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1474,6 +1477,9 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
     /// If `false`, version information will be omitted from the `list` results.
     ///
     /// Default to `false`
+    ///
+    /// Requires [`Capability::list_with_versions`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
@@ -1487,6 +1493,9 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
     ///
     /// If `true`, subsequent `list` operations will include deleted files or versions.
     /// If `false`, deleted files or versions will be excluded from the `list` results.
+    ///
+    /// Requires [`Capability::list_with_deleted`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self
@@ -1510,6 +1519,9 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
 
     /// The start_after passes to underlying service to specify the specified key
     /// to start listing from.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1535,6 +1547,9 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     /// If `false`, version information will be omitted from the `list` results.
     ///
     /// Default to `false`
+    ///
+    /// Requires [`Capability::list_with_versions`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
@@ -1548,6 +1563,9 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     ///
     /// If `true`, subsequent `list` operations will include deleted files or versions.
     /// If `false`, deleted files or versions will be excluded from the `list` results.
+    ///
+    /// Requires [`Capability::list_with_deleted`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self

@@ -1048,13 +1048,15 @@ pub struct CopyOptions {
 
     /// Replaces the destination's user metadata with exactly these entries.
     ///
-    /// When this option or [`Self::content_type`] is set, the destination does
-    /// not inherit metadata from the source. User metadata and Content-Type
-    /// take the values given here; anything left unset, including other system
-    /// metadata such as Cache-Control, takes the service default. Setting
-    /// either option also allows `from` and `to` to be the same path, which
-    /// updates metadata without rewriting the content. On S3 this is
-    /// `CopyObject` with `x-amz-metadata-directive: REPLACE`.
+    /// Setting this option or [`Self::content_type`] replaces the destination's
+    /// whole metadata set. The destination gets exactly the values given here
+    /// and inherits nothing from the source: every field left unset, including
+    /// user metadata, Content-Type and other system metadata such as
+    /// Cache-Control, takes the service default. To change one field and keep
+    /// the others, pass the complete target set. Setting either option also
+    /// allows `from` and `to` to be the same path, which updates metadata
+    /// without rewriting the content. On S3 this is `CopyObject` with
+    /// `x-amz-metadata-directive: REPLACE`.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
     /// service does not advertise

@@ -8525,13 +8525,13 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
- "futures",
  "http 1.4.2",
  "log",
  "opendal-core",
  "quick-xml",
  "serde",
  "tokio",
+ "uuid",
 ]
 
 [[package]]

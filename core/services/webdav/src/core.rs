@@ -224,7 +224,7 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
+        content_range: Option<BytesContentRange>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
@@ -237,8 +237,9 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, v)
         }
 
-        if let Some(v) = size {
-            req = req.header(header::CONTENT_LENGTH, v)
+        req = req.header(header::CONTENT_LENGTH, body.len());
+        if let Some(range) = content_range {
+            req = req.header(header::CONTENT_RANGE, range.to_header());
         }
 
         if let Some(v) = args.content_type() {
@@ -247,50 +248,6 @@ impl WebdavCore {
 
         if let Some(v) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, v)
-        }
-
-        let req = req
-            .extension(Operation::Write)
-            .extension(ServiceOperation("Put"))
-            .body(body)
-            .map_err(new_request_build_error)?;
-
-        ctx.http_transport().send(req).await
-    }
-
-    /// Send a partial PUT request carrying `Content-Range`.
-    ///
-    /// The chunk is written at `offset` inside an existing file. The complete
-    /// length is unknown while streaming, so the header uses `*`.
-    ///
-    /// # Reference
-    /// - [Apache-style PUT with Content-Range](https://github.com/messense/dav-server-rs/tree/main/doc/Apache-PUT-with-Content-Range.md)
-    pub async fn webdav_put_range(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        offset: u64,
-        args: &OpWrite,
-        body: Buffer,
-    ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
-
-        let mut req = Request::put(&url);
-
-        if let Some(v) = &self.authorization {
-            req = req.header(header::AUTHORIZATION, v)
-        }
-
-        let size = body.len() as u64;
-        req = req.header(header::CONTENT_LENGTH, size);
-        req = req.header(
-            header::CONTENT_RANGE,
-            format!("bytes {}-{}/*", offset, offset + size - 1),
-        );
-
-        if let Some(v) = args.content_type() {
-            req = req.header(header::CONTENT_TYPE, v)
         }
 
         let req = req
@@ -409,12 +366,8 @@ impl WebdavCore {
         from: &str,
         to: &str,
         if_not_exists: bool,
+        operation: Operation,
     ) -> Result<Response<Buffer>> {
-        // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
-        // Make sure target's dir is exist.
-        self.webdav_mkcol(ctx, get_parent(to)).await?;
-
         let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
@@ -431,7 +384,7 @@ impl WebdavCore {
         req = req.header(HEADER_OVERWRITE, if if_not_exists { "F" } else { "T" });
 
         let req = req
-            .extension(Operation::Rename)
+            .extension(operation)
             .extension(ServiceOperation("Move"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

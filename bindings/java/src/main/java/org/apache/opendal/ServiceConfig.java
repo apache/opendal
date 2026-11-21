@@ -4132,6 +4132,11 @@ public interface ServiceConfig {
          */
         public final Boolean enableConditionalRead;
         /**
+         * <p>Enable streaming writes using partial PUT. Disabled by default.</p>
+         * <p>The endpoint must support <code>Content-Range</code> on PUT and WebDAV MOVE.</p>
+         */
+        public final Boolean enablePartialPut;
+        /**
          * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
          *
          * @deprecated WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.
@@ -4189,6 +4194,9 @@ public interface ServiceConfig {
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));
+            }
+            if (enablePartialPut != null) {
+                map.put("enable_partial_put", String.valueOf(enablePartialPut));
             }
             if (enableUserMetadata != null) {
                 map.put("enable_user_metadata", String.valueOf(enableUserMetadata));

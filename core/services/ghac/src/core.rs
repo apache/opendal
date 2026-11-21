@@ -533,6 +533,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let response = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Download")), response);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_build_cache_url_handles_leading_slash() {
         assert_eq!(
             build_cache_url(
@@ -564,6 +575,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
         StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

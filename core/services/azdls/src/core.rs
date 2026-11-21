@@ -645,6 +645,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("ReadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn encode_then_decode_roundtrips() {
         let mut input = HashMap::new();
         input.insert("location".to_string(), "everywhere".to_string());
@@ -846,6 +858,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

@@ -1119,6 +1119,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         code if code.is_server_error() => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
@@ -1173,6 +1174,17 @@ pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(r#"{"Code":"Requested Range Not Satisfiable","Message":"The requested range is not satisfiable"}"#))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn test_parse_error() {

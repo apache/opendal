@@ -152,7 +152,9 @@ pub struct ListOptions {
 /// [`crate::ErrorKind::ConditionNotMatch`], and a condition the service does
 /// not advertise through its capability returns
 /// [`crate::ErrorKind::Unsupported`]; OpenDAL never silently drops a
-/// condition.
+/// condition. A read with a zero limit or an empty range validates the read
+/// options and capabilities, then returns an empty buffer without accessing
+/// storage or evaluating conditions against the file.
 ///
 /// See the [conditional operation specification][crate::docs::specs::conditional_operations]
 /// for the complete cross-operation contract.
@@ -169,6 +171,18 @@ pub struct ReadOptions {
     ///
     /// The type implements `From<RangeBounds<u64>>`, so users can use `(1024..).into()` instead.
     pub range: BytesRange,
+    /// Return at most this many bytes from the start of the selected range,
+    /// accepting EOF after a valid starting byte.
+    ///
+    /// A non-zero limit on a forward selection starting at or beyond EOF
+    /// returns [`crate::ErrorKind::RangeNotSatisfied`]. A zero limit returns
+    /// an empty buffer after option and capability validation, without
+    /// accessing storage. Without a limit, bounded forward ranges require the
+    /// full requested length.
+    ///
+    /// Setting a limit with an explicit `chunk`, with `concurrent` greater
+    /// than one, or when presigning a read returns [`crate::ErrorKind::ConfigInvalid`].
+    pub limit: Option<u64>,
     /// Read the given version of the file instead of the current one.
     ///
     /// This selects which stored version the read returns; it is not a

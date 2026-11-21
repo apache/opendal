@@ -1632,6 +1632,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_maps_missing_if_match_to_not_found() {
         let resp = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1706,6 +1717,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

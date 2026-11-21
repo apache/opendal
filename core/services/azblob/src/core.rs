@@ -1337,6 +1337,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1470,6 +1471,18 @@ fn parse_azblob_error_code(
 #[cfg(test)]
 mod error_tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetBlob")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn append_blob_initialization_preserves_condition_and_retryability() {

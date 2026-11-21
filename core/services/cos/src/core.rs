@@ -927,6 +927,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
@@ -998,6 +999,17 @@ mod error_tests {
             .body(body)
             .expect("response must build");
         parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let err = parse_cos_error(
+            ErrorContext::new(ServiceOperation("GetObject")),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            "InvalidRange",
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
     }
 
     #[test]

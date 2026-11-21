@@ -90,6 +90,8 @@ pub struct OpendalReadOptions {
     pub length: u64,
     pub suffix_length_has_value: u8,
     pub suffix_length: u64,
+    pub limit_has_value: u8,
+    pub limit: u64,
     pub version: *const c_char,
     pub if_match: *const c_char,
     pub if_none_match: *const c_char,
@@ -123,6 +125,7 @@ impl NativeOptions for OpendalReadOptions {
             (self.length_has_value != 0).then_some(self.length),
             (self.suffix_length_has_value != 0).then_some(self.suffix_length),
         )?;
+        options.limit = (self.limit_has_value != 0).then_some(self.limit);
         options.version = borrowed_string(self.version, "version")?;
         options.if_match = borrowed_string(self.if_match, "if_match")?;
         options.if_none_match = borrowed_string(self.if_none_match, "if_none_match")?;
@@ -174,6 +177,8 @@ impl Default for OpendalReadOptions {
             length: 0,
             suffix_length_has_value: 0,
             suffix_length: 0,
+            limit_has_value: 0,
+            limit: 0,
             version: std::ptr::null(),
             if_match: std::ptr::null(),
             if_none_match: std::ptr::null(),
@@ -587,6 +592,16 @@ mod tests {
                 ..Default::default()
             }
         );
+    }
+
+    #[test]
+    fn read_options_keeps_explicit_zero_limit() {
+        let native = OpendalReadOptions {
+            limit_has_value: 1,
+            limit: 0,
+            ..Default::default()
+        };
+        assert_eq!(read_options(&native).unwrap().limit, Some(0));
     }
 
     #[test]

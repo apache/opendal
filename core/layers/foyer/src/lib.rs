@@ -676,10 +676,15 @@ mod tests {
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
 
         let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
-        let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
+        let range = BytesRange::from(4_u64..12);
+        let (_, mut stream) = reader.open(range).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
-        assert_eq!(buffer.to_vec(), b"456");
+        assert_eq!(buffer.to_vec(), b"456789");
+        assert_eq!(
+            reader.read(range).await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
         assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);

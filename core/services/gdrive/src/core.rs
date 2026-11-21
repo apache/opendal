@@ -1064,6 +1064,19 @@ pub(crate) struct GdriveFileList {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(
+                r#"{"error":{"message":"Request range not satisfiable"}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DownloadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
     fn mock_gdrive_core() -> GdriveCore {
         let info = ServiceInfo::new("gdrive", "", "");
         let signer = Arc::new(Mutex::new(GdriveSigner::new()));
@@ -1248,6 +1261,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

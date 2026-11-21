@@ -212,9 +212,10 @@ impl FsWriter {
         if core.direct_io {
             let open_path = open_path.clone();
             let temporary = temp_path.is_some();
+            let cleanup_on_error = temporary || op.if_not_exists();
             let (f, alignment) = tokio::task::spawn_blocking(move || {
                 let (file, alignment) =
-                    DirectIoAlignment::open(&open_path, options, operation, temporary)?;
+                    DirectIoAlignment::open(&open_path, options, operation, cleanup_on_error)?;
                 // Validate O_DIRECT on the opened fd before truncating an overwrite.
                 if !temporary {
                     file.set_len(0).map_err(new_std_io_error)?;

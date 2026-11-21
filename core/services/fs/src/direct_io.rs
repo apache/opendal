@@ -43,7 +43,7 @@ impl DirectIoAlignment {
         path: &Path,
         mut options: OpenOptions,
         operation: ServiceOperation,
-        temporary: bool,
+        cleanup_on_error: bool,
     ) -> Result<(File, Self)> {
         let file = options
             .custom_flags(OFlags::DIRECT.bits() as i32)
@@ -63,10 +63,10 @@ impl DirectIoAlignment {
         match Self::discover(&file) {
             Ok(alignment) => Ok((file, alignment)),
             Err(err) => {
-                if temporary {
+                if cleanup_on_error {
                     drop(file);
                     if let Err(cleanup) = std::fs::remove_file(path) {
-                        return Err(err.with_context("tempfile_cleanup", cleanup.to_string()));
+                        return Err(err.with_context("file_cleanup", cleanup.to_string()));
                     }
                 }
                 Err(err.with_context("service_operation", operation.0))

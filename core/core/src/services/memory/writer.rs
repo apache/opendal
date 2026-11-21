@@ -66,6 +66,9 @@ impl oio::Write for MemoryWriter {
         if let Some(v) = self.op.content_encoding() {
             metadata.content_encoding(v);
         }
+        if let Some(v) = self.op.content_language() {
+            metadata.content_language(v);
+        }
 
         let metadata = metadata.build();
 

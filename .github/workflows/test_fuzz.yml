@@ -18,36 +18,43 @@
 name: Fuzz Test
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
-      - "core/Cargo.toml"
-      - "core/Cargo.lock"
-      - "core/core/Cargo.toml"
-      - "core/core/src/**"
       - "core/fuzz/**"
-      - "core/layers/**"
-      - "core/services/**"
-      - "core/testkit/**"
-      - "!core/core/src/docs/**"
+      - ".github/actions/fuzz_test/**"
       - ".github/workflows/test_fuzz.yml"
+  schedule:
+    # Daily 02:30 Asia/Shanghai (18:30 UTC).
+    - cron: '30 18 * * *'
+  workflow_dispatch:
+    inputs:
+      max_total_time:
+        description: "Maximum fuzz duration per target in seconds"
+        required: false
+        default: "600"
+        type: string
+
+permissions:
+  contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: test-fuzz-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   RUST_TOOLCHAIN: nightly-2025-10-10
 
 jobs:
   fuzz:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
     name: ${{ matrix.cases.service }} / ${{ matrix.cases.setup }} / ${{ matrix.target }}
-    runs-on: ubuntu-latest
+    # Fuzz targets link against libFuzzer from LLVM 14, which is not
+    # packaged on the default ubuntu-26.04 runner image.
+    runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         target: ["fuzz_reader", "fuzz_writer"]
         cases:
@@ -75,3 +82,11 @@ jobs:
           service: ${{ matrix.cases.service }}
           target: ${{ matrix.target }}
           toolchain: ${{ env.RUST_TOOLCHAIN }}
+          max-total-time: ${{ github.event.inputs.max_total_time || (github.event_name == 'schedule' && '600' || '120') }}
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-artifacts-${{ matrix.cases.service }}-${{ matrix.cases.setup }}-${{ matrix.target }}
+          path: core/fuzz/artifacts/
+          if-no-files-found: ignore

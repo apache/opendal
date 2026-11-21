@@ -27,6 +27,7 @@ pub(crate) use error_context::ErrorContextLayer;
 
 mod complete;
 pub(crate) use complete::CompleteLayer;
+pub(crate) use complete::check_complete;
 
 mod simulate;
 pub use simulate::SimulateLayer;

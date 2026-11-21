@@ -15,46 +15,73 @@
 // specific language governing permissions and limitations
 // under the License.
 
-#[cfg(feature = "async")]
-mod build_async {
-    use std::{
-        env::var,
-        io,
-        path::{Path, PathBuf},
-    };
+use std::{
+    env, fs, io,
+    path::{Path, PathBuf},
+};
 
-    fn copy_force<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> io::Result<()> {
-        if dst.as_ref().exists() {
-            std::fs::remove_file(&dst)?;
-        }
-
-        std::fs::copy(src, dst)?;
-        Ok(())
+fn copy_if_changed(source: &Path, destination: &Path) -> io::Result<()> {
+    let contents = fs::read(source)?;
+    if fs::read(destination).is_ok_and(|existing| existing == contents) {
+        return Ok(());
     }
 
-    pub fn symlink_async_includes() {
-        let async_inc = var("DEP_CXX_ASYNC_INCLUDE").unwrap();
-        let src_dir = PathBuf::from(async_inc).join("rust");
-
-        let prj_dir = var("CARGO_MANIFEST_DIR").unwrap();
-        let dst_dir = PathBuf::from(prj_dir)
-            .join("target")
-            .join("cxxbridge")
-            .join("rust");
-
-        copy_force(src_dir.join("cxx_async.h"), dst_dir.join("cxx_async.h")).unwrap();
+    fs::create_dir_all(destination.parent().unwrap())?;
+    // cxx-build may have left a symlink to another Cargo build here.
+    match fs::remove_file(destination) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
     }
+    fs::write(destination, contents)
 }
 
-fn main() {
-    let _ = cxx_build::bridge("src/lib.rs");
-    #[cfg(feature = "async")]
-    {
-        let _ = cxx_build::bridge("src/async.rs");
-        build_async::symlink_async_includes();
+fn export_bridge(out_dir: &Path, bridge_dir: &Path) -> io::Result<()> {
+    let generated = out_dir.join("cxxbridge");
+    let mut files = vec![
+        ("include", "rust/cxx.h"),
+        ("include", "opendal-cpp/src/lib.rs.h"),
+        ("sources", "opendal-cpp/src/lib.rs.cc"),
+    ];
+    if cfg!(feature = "async") {
+        files.extend([
+            ("include", "opendal-cpp/src/async.rs.h"),
+            ("sources", "opendal-cpp/src/async.rs.cc"),
+        ]);
+        let async_include = PathBuf::from(env::var_os("DEP_CXX_ASYNC_INCLUDE").unwrap());
+        let header = "rust/cxx_async.h";
+        copy_if_changed(&async_include.join(header), &bridge_dir.join(header))?;
     }
 
-    println!("cargo:rerun-if-changed=src/lib.rs");
-    #[cfg(feature = "async")]
-    println!("cargo:rerun-if-changed=src/async.rs");
+    for (kind, file) in files {
+        copy_if_changed(&generated.join(kind).join(file), &bridge_dir.join(file))?;
+    }
+    Ok(())
+}
+
+fn main() -> io::Result<()> {
+    let sources = if cfg!(feature = "async") {
+        &["src/lib.rs", "src/async.rs"][..]
+    } else {
+        &["src/lib.rs"][..]
+    };
+    let _ = cxx_build::bridges(sources);
+
+    println!("cargo:rerun-if-env-changed=OPENDAL_CPP_BRIDGE_DIR");
+    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let bridge_dir = if let Some(directory) = env::var_os("OPENDAL_CPP_BRIDGE_DIR") {
+        let directory = PathBuf::from(directory);
+        // CMake can clean its generated files independently of Cargo.
+        println!("cargo:rerun-if-changed={}", directory.display());
+        directory
+    } else {
+        println!("cargo:rerun-if-env-changed=CARGO_TARGET_DIR");
+        env::var_os("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+            // OUT_DIR is <target>/<profile>/build/<package>/out.
+            .unwrap_or_else(|| out_dir.ancestors().nth(4).unwrap().to_owned())
+            .join("cxxbridge")
+    };
+    export_bridge(&out_dir, &bridge_dir)
 }

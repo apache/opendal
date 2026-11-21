@@ -20,9 +20,6 @@ package opendal
 import (
 	"context"
 	"runtime"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // WithCopyFn is a functional option for copy operations.
@@ -195,130 +192,62 @@ func newOpendalCopyOptions(ctx context.Context, o *copyOptions) (*opendalCopyOpt
 	return cOpts, keepAlive, nil
 }
 
-var ffiCopyOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_copy_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalCopyOptions {
-	return func() *opendalCopyOptions {
-		var opts *opendalCopyOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
+var ffiCopyOptionsNew = newDirectFFI[func() *opendalCopyOptions]("opendal_copy_options_new")
 
-var ffiCopyOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions) {
-	return func(opts *opendalCopyOptions) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-		)
-	}
-})
+var ffiCopyOptionsFree = newDirectFFI[func(opts *opendalCopyOptions)]("opendal_copy_options_free")
 
-var ffiCopyOptionsSetIfNotExists = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_if_not_exists",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, ifNotExists bool) {
-	return func(opts *opendalCopyOptions, ifNotExists bool) {
-		var v uint8
-		if ifNotExists {
-			v = 1
+var ffiCopyOptionsSetIfNotExists = newDirectFFI[func(opts *opendalCopyOptions, ifNotExists bool)]("opendal_copy_options_set_if_not_exists")
+
+var ffiCopyOptionsSetIfMatch = newFFI(
+	"opendal_copy_options_set_if_match",
+	func(_ context.Context, cFunc func(opts *opendalCopyOptions, ifMatch *byte)) func(opts *opendalCopyOptions, ifMatch string) ([]byte, error) {
+		return func(opts *opendalCopyOptions, ifMatch string) ([]byte, error) {
+			data, err := byteSliceFromString(ifMatch)
+			if err != nil {
+				return nil, err
+			}
+			cFunc(opts, &data[0])
+			return data, nil
 		}
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&v))
-	}
-})
+	},
+)
 
-var ffiCopyOptionsSetIfMatch = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_if_match",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, ifMatch string) ([]byte, error) {
-	return func(opts *opendalCopyOptions, ifMatch string) ([]byte, error) {
-		data, err := byteSliceFromString(ifMatch)
-		if err != nil {
-			return nil, err
+var ffiCopyOptionsSetSourceVersion = newFFI(
+	"opendal_copy_options_set_source_version",
+	func(_ context.Context, cFunc func(opts *opendalCopyOptions, sourceVersion *byte)) func(opts *opendalCopyOptions, sourceVersion string) ([]byte, error) {
+		return func(opts *opendalCopyOptions, sourceVersion string) ([]byte, error) {
+			data, err := byteSliceFromString(sourceVersion)
+			if err != nil {
+				return nil, err
+			}
+			cFunc(opts, &data[0])
+			return data, nil
 		}
-		byteValue := &data[0]
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-		return data, nil
-	}
-})
+	},
+)
 
-var ffiCopyOptionsSetSourceVersion = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_source_version",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, sourceVersion string) ([]byte, error) {
-	return func(opts *opendalCopyOptions, sourceVersion string) ([]byte, error) {
-		data, err := byteSliceFromString(sourceVersion)
-		if err != nil {
-			return nil, err
+var ffiCopyOptionsSetSourceContentLengthHint = newDirectFFI[func(opts *opendalCopyOptions, sourceContentLengthHint uint64)]("opendal_copy_options_set_source_content_length_hint")
+
+var ffiCopyOptionsSetConcurrent = newDirectFFI[func(opts *opendalCopyOptions, concurrent uint)]("opendal_copy_options_set_concurrent")
+
+var ffiCopyOptionsSetChunk = newDirectFFI[func(opts *opendalCopyOptions, chunk uint)]("opendal_copy_options_set_chunk")
+
+var ffiOperatorCopyWith = newFFI(
+	"opendal_operator_copy_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, opts *opendalCopyOptions) *opendalError) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
+		return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
+			byteSrc, err := BytePtrFromString(src)
+			if err != nil {
+				return err
+			}
+			byteDest, err := BytePtrFromString(dest)
+			if err != nil {
+				return err
+			}
+			e := cFunc(op, byteSrc, byteDest, opts)
+			runtime.KeepAlive(byteSrc)
+			runtime.KeepAlive(byteDest)
+			return parseError(ctx, e)
 		}
-		byteValue := &data[0]
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-		return data, nil
-	}
-})
-
-var ffiCopyOptionsSetSourceContentLengthHint = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_source_content_length_hint",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, sourceContentLengthHint uint64) {
-	return func(opts *opendalCopyOptions, sourceContentLengthHint uint64) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&sourceContentLengthHint))
-	}
-})
-
-var ffiCopyOptionsSetConcurrent = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_concurrent",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, concurrent uint) {
-	return func(opts *opendalCopyOptions, concurrent uint) {
-		c := uintptr(concurrent)
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&c))
-	}
-})
-
-var ffiCopyOptionsSetChunk = newFFI(ffiOpts{
-	sym:    "opendal_copy_options_set_chunk",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalCopyOptions, chunk uint) {
-	return func(opts *opendalCopyOptions, chunk uint) {
-		c := uintptr(chunk)
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&c))
-	}
-})
-
-var ffiOperatorCopyWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_copy_with",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
-	return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) error {
-		byteSrc, err := BytePtrFromString(src)
-		if err != nil {
-			return err
-		}
-		byteDest, err := BytePtrFromString(dest)
-		if err != nil {
-			return err
-		}
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&byteSrc),
-			unsafe.Pointer(&byteDest),
-			unsafe.Pointer(&opts),
-		)
-		return parseError(ctx, e)
-	}
-})
+	},
+)

@@ -93,8 +93,11 @@ for entry in op.list("dir/", recursive=True):
 
 ```python
 op.delete("path/to/file")    # single path; succeeds even if missing
-op.remove_all("dir/")        # a path and everything under it
+op.remove_all("a/")
 ```
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
 
 ## Create a directory
 

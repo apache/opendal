@@ -26,6 +26,10 @@ inputs:
     description: "The fuzz target to test"
   toolchain:
     description: "The rust toolchain to use"
+  max-total-time:
+    description: "Maximum fuzz time in seconds"
+    required: false
+    default: "120"
 
 runs:
   using: "composite"
@@ -43,7 +47,7 @@ runs:
           - name: Run Fuzz Test
             shell: bash
             working-directory: core/fuzz
-            run: cargo +${{ inputs.toolchain }} fuzz run ${{ inputs.target }} --features services-${{ inputs.service }} -- -max_total_time=120
+            run: cargo +${{ inputs.toolchain }} fuzz run ${{ inputs.target }} --features services-${{ inputs.service }} -- -max_total_time=${{ inputs.max-total-time }}
             env:
               OPENDAL_TEST: ${{ inputs.service }}
         EOF

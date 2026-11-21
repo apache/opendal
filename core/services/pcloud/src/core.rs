@@ -64,7 +64,7 @@ impl PcloudCore {
 
 impl PcloudCore {
     pub async fn get_file_link(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/getfilelink?path=/{}&username={}&password={}",
@@ -134,7 +134,7 @@ impl PcloudCore {
     }
 
     pub async fn ensure_dir_exists(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let paths = path.split('/').collect::<Vec<&str>>();
 
@@ -203,8 +203,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/renamefile?path=/{}&topath=/{}&username={}&password={}",
@@ -233,8 +233,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
         let url = format!(
             "{}/renamefolder?path=/{}&topath=/{}&username={}&password={}",
             self.endpoint,
@@ -261,7 +261,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/deletefolder?path=/{}&username={}&password={}",
@@ -288,7 +288,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/deletefile?path=/{}&username={}&password={}",
@@ -316,8 +316,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/copyfile?path=/{}&topath=/{}&username={}&password={}",
@@ -346,8 +346,8 @@ impl PcloudCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/copyfolder?path=/{}&topath=/{}&username={}&password={}",
@@ -371,7 +371,7 @@ impl PcloudCore {
     }
 
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let path = path.trim_end_matches('/');
 
@@ -401,7 +401,7 @@ impl PcloudCore {
         path: &str,
         bs: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let (name, path) = (get_basename(&path), get_parent(&path).trim_end_matches('/'));
 
@@ -431,7 +431,7 @@ impl PcloudCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let path = normalize_root(&path);
 
@@ -563,10 +563,18 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
     let message = String::from_utf8_lossy(&bs).into_owned();
 
+    // pCloud returns a 5xx for a transient backend failure; retrying is the documented
+    // recovery, so mark it temporary rather than surfacing it as permanent.
+    let retryable = matches!(parts.status.as_u16(), 500 | 502 | 503 | 504);
+
     let mut err = Error::new(ErrorKind::Unexpected, message);
 
     err = err.with_context("service_operation", ctx.service_operation.0);
     err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
 
     err
 }

@@ -20,9 +20,6 @@ package opendal
 import (
 	"context"
 	"runtime"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // WithDeleteFn is a functional option for the Delete operation.
@@ -132,105 +129,52 @@ func newOpendalDeleteOptions(ctx context.Context, o *deleteOptions) (*opendalDel
 	return cOpts, keepAlive, nil
 }
 
-var ffiOperatorDelete = newFFI(ffiOpts{
-	sym:    "opendal_operator_delete",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) error {
-	return func(op *opendalOperator, path string) error {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return err
+var ffiOperatorDelete = newFFI(
+	"opendal_operator_delete",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte) *opendalError) func(op *opendalOperator, path string) error {
+		return func(op *opendalOperator, path string) error {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return err
+			}
+			e := cFunc(op, bytePath)
+			runtime.KeepAlive(bytePath)
+			return parseError(ctx, e)
 		}
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		return parseError(ctx, e)
-	}
-})
+	},
+)
 
-var ffiDeleteOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_delete_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalDeleteOptions {
-	return func() *opendalDeleteOptions {
-		var opts *opendalDeleteOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
+var ffiDeleteOptionsNew = newDirectFFI[func() *opendalDeleteOptions]("opendal_delete_options_new")
 
-var ffiDeleteOptionsSetVersion = newFFI(ffiOpts{
-	sym:    "opendal_delete_options_set_version",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalDeleteOptions, version string) ([]byte, error) {
-	return func(opts *opendalDeleteOptions, version string) ([]byte, error) {
-		data, err := byteSliceFromString(version)
-		if err != nil {
-			return nil, err
+var ffiDeleteOptionsSetVersion = newFFI(
+	"opendal_delete_options_set_version",
+	func(_ context.Context, cFunc func(opts *opendalDeleteOptions, version *byte)) func(opts *opendalDeleteOptions, version string) ([]byte, error) {
+		return func(opts *opendalDeleteOptions, version string) ([]byte, error) {
+			data, err := byteSliceFromString(version)
+			if err != nil {
+				return nil, err
+			}
+			cFunc(opts, &data[0])
+			return data, nil
 		}
-		bytePtr := &data[0]
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&bytePtr),
-		)
-		return data, nil
-	}
-})
+	},
+)
 
-var ffiDeleteOptionsSetRecursive = newFFI(ffiOpts{
-	sym:    "opendal_delete_options_set_recursive",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalDeleteOptions, recursive bool) {
-	return func(opts *opendalDeleteOptions, recursive bool) {
-		var r uint8
-		if recursive {
-			r = 1
+var ffiDeleteOptionsSetRecursive = newDirectFFI[func(opts *opendalDeleteOptions, recursive bool)]("opendal_delete_options_set_recursive")
+
+var ffiDeleteOptionsFree = newDirectFFI[func(opts *opendalDeleteOptions)]("opendal_delete_options_free")
+
+var ffiOperatorDeleteWith = newFFI(
+	"opendal_operator_delete_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalDeleteOptions) *opendalError) func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
+		return func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return err
+			}
+			e := cFunc(op, bytePath, opts)
+			runtime.KeepAlive(bytePath)
+			return parseError(ctx, e)
 		}
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-			unsafe.Pointer(&r),
-		)
-	}
-})
-
-var ffiDeleteOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_delete_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalDeleteOptions) {
-	return func(opts *opendalDeleteOptions) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-		)
-	}
-})
-
-var ffiOperatorDeleteWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_delete_with",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
-	return func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return err
-		}
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		return parseError(ctx, e)
-	}
-})
+	},
+)

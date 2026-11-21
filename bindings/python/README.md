@@ -49,18 +49,19 @@ conda install conda-forge::opendal
 ## Services in PyPI wheels
 
 Official PyPI wheels ship the largest verified service set for each target.
-Every wheel enables the common `services-all` group in the binding's
+Every wheel enables the common `services-all` group plus one of the
+`services-platform-*` sets in the binding's
 [Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
 The [release workflow](https://github.com/apache/opendal/blob/main/.github/workflows/release_python.yml)
-builds the following additional services for both standard and free-threaded CPython.
+selects the set for each target and builds both standard and free-threaded CPython.
 
-| Wheel platform | Architecture | Additional services |
-| --- | --- | --- |
-| Linux (manylinux) | x86_64, aarch64 | Foyer, SFTP |
-| Linux (musllinux) | x86_64, aarch64 | Foyer, SFTP |
-| Linux (manylinux and musllinux) | ARMv7 (32-bit) | None |
-| macOS | x86_64, arm64 | Foyer, SFTP |
-| Windows | x86_64 | Foyer |
+| Wheel platform | Architecture | Feature set | Additional services |
+| --- | --- | --- | --- |
+| Linux (manylinux) | x86_64, aarch64 | `services-platform-linux` | Foyer, SFTP |
+| Linux (musllinux) | x86_64, aarch64 | `services-platform-linux` | Foyer, SFTP |
+| Linux (manylinux and musllinux) | ARMv7 (32-bit) | `services-platform-linux-armv7` | None |
+| macOS | x86_64, arm64 | `services-platform-macos` | Foyer, SFTP |
+| Windows | x86_64 | `services-platform-windows` | Foyer |
 
 Foyer's Linux dependency `io-uring` lacks prebuilt ARMv7 bindings. SFTP
 requires the OpenSSH `ssh` executable at runtime. Its Rust dependency chain

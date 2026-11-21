@@ -47,7 +47,7 @@ impl IpfsCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -67,7 +67,7 @@ impl IpfsCore {
     }
 
     pub async fn ipfs_head(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -81,7 +81,7 @@ impl IpfsCore {
     }
 
     pub async fn ipfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 

@@ -120,7 +120,7 @@ impl AzdlsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -168,7 +168,7 @@ impl AzdlsCore {
         resource: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -237,8 +237,8 @@ impl AzdlsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/{}/{}",
@@ -273,7 +273,7 @@ impl AzdlsCore {
         close: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=append&position={}",
@@ -314,7 +314,7 @@ impl AzdlsCore {
         position: u64,
         close: bool,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=flush&position={}",
@@ -345,7 +345,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -458,7 +458,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -491,7 +491,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -564,7 +564,7 @@ impl AzdlsCore {
         continuation: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 

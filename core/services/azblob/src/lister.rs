@@ -93,7 +93,7 @@ impl oio::PageList for AzblobLister {
 
         for prefix in prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix.name),
+                &build_relative_path(&self.core.root, &prefix.name),
                 MetadataBuilder::dir().build(),
             );
 
@@ -101,7 +101,7 @@ impl oio::PageList for AzblobLister {
         }
 
         for object in output.blobs.blob {
-            let mut path = build_rel_path(&self.core.root, &object.name);
+            let mut path = build_relative_path(&self.core.root, &object.name);
             if path.is_empty() {
                 path = "/".to_string();
             }

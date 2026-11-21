@@ -262,7 +262,7 @@ impl GitCore {
         let commit_oid = self.resolve_reference(&repo)?;
         let (tree, commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
-        let rooted_path = build_rooted_abs_path(&self.root, path);
+        let rooted_path = build_rooted_absolute_path(&self.root, path);
         let path = rooted_path.trim_matches('/');
         if path.is_empty() {
             return Ok((0, true, commit_time));
@@ -303,7 +303,7 @@ impl GitCore {
         let commit_oid = self.resolve_reference(&repo)?;
         let (mut tree, commit_time) = self.get_commit_tree(&repo, commit_oid)?;
 
-        let rooted_path = build_rooted_abs_path(&self.root, path);
+        let rooted_path = build_rooted_absolute_path(&self.root, path);
         let path = rooted_path.trim_matches('/');
         if !path.is_empty() {
             let Some(entry) = tree
@@ -365,7 +365,7 @@ impl GitCore {
         let commit_oid = self.resolve_reference(&repo)?;
         let (tree, _) = self.get_commit_tree(&repo, commit_oid)?;
 
-        let rooted_path = build_rooted_abs_path(&self.root, path);
+        let rooted_path = build_rooted_absolute_path(&self.root, path);
         let path = rooted_path.trim_matches('/');
         let entry = tree
             .lookup_entry_by_path(path)

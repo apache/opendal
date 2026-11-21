@@ -127,9 +127,9 @@ impl Service for MemoryBackend {
     }
 
     async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p)? {
@@ -151,7 +151,7 @@ impl Service for MemoryBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
@@ -163,8 +163,10 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let p = build_abs_path(&self.root, path);
-        let start_after = args.start_after().map(|v| build_abs_path(&self.root, v));
+        let p = build_absolute_path(&self.root, path);
+        let start_after = args
+            .start_after()
+            .map(|v| build_absolute_path(&self.root, v));
         let mut keys = self.core.scan(&p, start_after.as_deref())?;
 
         // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
@@ -231,7 +233,7 @@ impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let value = match backend.core.get(&p)? {
             Some(value) => value,

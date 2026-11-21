@@ -40,7 +40,7 @@ pub struct CloudflareKvLister {
 /// removed. `str::replace` removes *every* occurrence anywhere in the key, which silently mangles
 /// any key that repeats the root as an inner path segment.
 ///
-/// The sibling object-store listers reach for `build_rel_path` here, but that helper
+/// The sibling object-store listers reach for `build_relative_path` here, but that helper
 /// `debug_assert!`s that the path really does start with the root -- a guarantee this service does
 /// not enforce on the values the API hands back -- so this stays total and leaves a
 /// non-root-prefixed key untouched.

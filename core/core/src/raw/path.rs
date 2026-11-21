@@ -17,6 +17,7 @@
 
 use crate::*;
 use std::hash::{BuildHasher, Hasher};
+use std::path::{Component, Path, PathBuf};
 
 /// build_abs_path will build an absolute path with root.
 ///
@@ -145,6 +146,29 @@ pub fn normalize_root(v: &str) -> String {
         v.push('/')
     }
     v
+}
+
+/// Join an OpenDAL path to a local filesystem root.
+///
+/// This function strips trailing `/` characters, so the OpenDAL root path `/`
+/// resolves to `root`. It returns [`ErrorKind::NotFound`] for parent-directory
+/// components, root-directory components, or Windows path prefixes.
+///
+/// The check is lexical. The filesystem resolves symlinks.
+pub fn confined_join(root: &Path, path: &str) -> Result<PathBuf> {
+    let trimmed = path.trim_end_matches('/');
+    if Path::new(trimmed).components().any(|component| {
+        matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        )
+    }) {
+        return Err(
+            Error::new(ErrorKind::NotFound, "path escapes the configured root")
+                .with_context("path", path),
+        );
+    }
+    Ok(root.join(trimmed))
 }
 
 /// Get basename from path.
@@ -308,6 +332,57 @@ mod tests {
         for (name, input, expect) in cases {
             assert_eq!(normalize_root(input), expect, "{name}")
         }
+    }
+
+    #[test]
+    fn test_confined_join_allows_relative_paths() {
+        let root = Path::new("/data/root");
+        for (path, expected) in [
+            ("", "/data/root"),
+            ("/", "/data/root"),
+            (".", "/data/root"),
+            ("a/b.txt", "/data/root/a/b.txt"),
+            ("./a/b", "/data/root/a/b"),
+            ("a/./b", "/data/root/a/b"),
+            ("a..b", "/data/root/a..b"),
+        ] {
+            assert_eq!(
+                confined_join(root, path).unwrap(),
+                Path::new(expected),
+                "{path:?}"
+            );
+        }
+
+        assert_eq!(
+            confined_join(root, "a/b/").unwrap().as_os_str(),
+            root.join("a/b").as_os_str()
+        );
+    }
+
+    #[test]
+    fn test_confined_join_rejects_parent_and_root_components() {
+        let root = Path::new("/data/root");
+        for path in [
+            "..",
+            "../file",
+            "../../file",
+            "a/../../b",
+            "a/..",
+            "a/../",
+            "/file",
+            "//dir/file",
+        ] {
+            let error = confined_join(root, path).unwrap_err();
+            assert_eq!(error.kind(), ErrorKind::NotFound, "{path:?}");
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn test_confined_join_rejects_windows_prefix() {
+        let root = Path::new(r"C:\data\root");
+        let error = confined_join(root, "D:file").unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::NotFound);
     }
 
     #[test]

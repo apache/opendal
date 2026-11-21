@@ -89,11 +89,15 @@ metadata previously returned by OpenDAL. OpenDAL lowers it as follows:
 
 1. Use a version match when the operation advertises version matching and the
    metadata contains a version.
-2. Otherwise, use an ETag match when the metadata contains an ETag.
+2. Otherwise, use an ETag match when the metadata contains a non-weak ETag.
 3. Otherwise, use a version match when the metadata contains a version.
-4. Return `ConfigInvalid` when the metadata contains neither identity token.
+4. Return `ConfigInvalid` when the metadata contains neither a version nor a
+   non-weak ETag.
 5. Validate the derived primitive condition normally and return `Unsupported`
    when the operation does not support it.
+
+An HTTP weak ETag such as `W/"abc"` cannot satisfy the strong comparison
+required by [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1).
 
 An identical explicit equality condition is redundant. A conflicting equality
 condition returns `ConditionNotMatch`. Other accepted conditions combine with

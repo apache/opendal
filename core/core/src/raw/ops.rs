@@ -115,14 +115,14 @@ impl OpDelete {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Delete));
             };
@@ -437,14 +437,14 @@ impl OpRead {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.version, version, "source version")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "source if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.version, version, "source version")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -863,14 +863,14 @@ impl OpWrite {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Write));
             };
@@ -1129,14 +1129,14 @@ impl OpCompose {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -1315,14 +1315,14 @@ impl OpCopy {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Copy));
             };
@@ -1739,6 +1739,127 @@ mod tests {
         .unwrap();
         assert_eq!(compose_source.if_match(), None);
         assert_eq!(compose_source.version(), Some("version"));
+    }
+
+    #[test]
+    fn if_not_changed_rejects_a_weak_etag_without_a_version() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#);
+        let condition = Some(metadata.build());
+
+        let err = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn if_not_changed_falls_back_to_version_for_a_weak_etag() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#).version("v1");
+        let condition = Some(metadata.build());
+
+        let (write, _) = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(write.if_match(), None);
+        assert_eq!(write.if_version_match(), Some("v1"));
+
+        let delete = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(delete.if_match(), None);
+        assert_eq!(delete.if_version_match(), Some("v1"));
+
+        let copy = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(copy.if_match(), None);
+        assert_eq!(copy.if_version_match(), Some("v1"));
+
+        let compose = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose.if_match(), None);
+        assert_eq!(compose.if_version_match(), Some("v1"));
+
+        let source = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(source.if_match(), None);
+        assert_eq!(source.version(), Some("v1"));
     }
 
     #[test]

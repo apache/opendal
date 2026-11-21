@@ -35,10 +35,9 @@ struct Operator
 
     this(string scheme, OperatorOptions options, bool useParallel = false) @trusted
     {
-        auto result = opendal_operator_new(scheme.toStringz, options.options);
-        enforce(result.op !is null, "Failed to create Operator");
-        enforce(result.error is null, "Error in Operator");
-        op = result.op;
+        auto error = opendal_operator_new(scheme.toStringz, options.options, &op);
+        enforce(error is null, "Error in Operator");
+        enforce(op !is null, "Failed to create Operator");
         enabledParallelism = useParallel;
 
         if (enabledParallelism)
@@ -75,11 +74,12 @@ struct Operator
 
     ubyte[] read(string path) @trusted
     {
-        auto result = opendal_operator_read(op, path.toStringz);
-        enforce(result.error is null, "Error reading data");
+        opendal_bytes data;
+        auto error = opendal_operator_read(op, path.toStringz, &data);
+        enforce(error is null, "Error reading data");
         scope (exit)
-            opendal_bytes_free(&result.data);
-        return result.data.data[0 .. result.data.len].dup;
+            opendal_bytes_free(&data);
+        return data.data[0 .. data.len].dup;
     }
 
     void remove(string path) @trusted
@@ -90,30 +90,37 @@ struct Operator
 
     bool exists(string path) @trusted
     {
-        auto result = opendal_operator_exists(op, path.toStringz);
-        enforce(result.error is null, "Error checking existence");
-        return result.exists;
+        bool is_exist = false;
+        auto error = opendal_operator_is_exist(op, path.toStringz, &is_exist);
+        enforce(error is null, "Error checking existence");
+        return is_exist;
     }
 
     Metadata stat(string path) @trusted
     {
-        auto result = opendal_operator_stat(op, path.toStringz);
-        enforce(result.error is null, "Error getting metadata");
-        return Metadata(result.meta);
+        opendal_metadata* meta = null;
+        auto error = opendal_operator_stat(op, path.toStringz, &meta);
+        enforce(error is null, "Error getting metadata");
+        return Metadata(meta);
     }
 
     Entry[] list(string path) @trusted
     {
-        auto result = opendal_operator_list(op, path.toStringz);
-        enforce(result.error is null, "Error listing objects");
+        opendal_lister* lister = null;
+        auto error = opendal_operator_list(op, path.toStringz, &lister);
+        enforce(error is null, "Error listing objects");
+        scope (exit)
+            opendal_lister_free(lister);
 
         Entry[] entries;
         while (true)
         {
-            auto next = opendal_lister_next(result.lister);
-            if (next.entry is null)
+            opendal_entry* entry = null;
+            auto next_error = opendal_lister_next(lister, &entry);
+            enforce(next_error is null, "Error getting next entry");
+            if (entry is null)
                 break;
-            entries ~= Entry(next.entry);
+            entries ~= Entry(entry);
         }
         return entries;
     }

@@ -19,24 +19,21 @@ name: Bindings Lua CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/lua/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_lua.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/lua/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_lua.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-lua-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

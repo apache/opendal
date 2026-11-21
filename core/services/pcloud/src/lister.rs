@@ -75,7 +75,7 @@ impl oio::PageList for PcloudLister {
                             };
 
                             let md = parse_list_metadata(content)?;
-                            let path = build_rel_path(&self.core.root, &path);
+                            let path = build_relative_path(&self.core.root, &path);
 
                             ctx.entries.push_back(oio::Entry::new(&path, md))
                         }

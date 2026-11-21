@@ -38,6 +38,7 @@ public sealed class Metadata
         string? contentMd5,
         string? contentType,
         string? contentEncoding,
+        string? contentLanguage,
         DateTimeOffset? lastModified,
         string? etag,
         string? contentDisposition,
@@ -52,6 +53,7 @@ public sealed class Metadata
         ContentMd5 = contentMd5;
         ContentType = contentType;
         ContentEncoding = contentEncoding;
+        ContentLanguage = contentLanguage;
         LastModified = lastModified;
         ETag = etag;
         ContentDisposition = contentDisposition;
@@ -108,6 +110,11 @@ public sealed class Metadata
     /// Return this entry's Content-Encoding value.
     /// </summary>
     public string? ContentEncoding { get; }
+
+    /// <summary>
+    /// Return this entry's Content-Language value, if available.
+    /// </summary>
+    public string? ContentLanguage { get; }
 
     /// <summary>
     /// Return this entry's Last-Modified timestamp.

@@ -59,7 +59,7 @@ impl oio::PageList for DbfsLister {
         ctx.done = true;
 
         for status in decoded_response.files {
-            let path = build_rel_path(&self.core.root, &status.path);
+            let path = build_relative_path(&self.core.root, &status.path);
             let entry: oio::Entry = match status.is_dir {
                 true => {
                     let normalized_path = format!("{path}/");

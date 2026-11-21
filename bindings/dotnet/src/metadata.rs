@@ -19,6 +19,11 @@
 
 use std::ffi::c_char;
 
+use opendal::{EntryMode, MetadataBuilder};
+
+use crate::error::OpenDALError;
+use crate::utils::entry_mode_code;
+
 /// FFI representation of `opendal::Metadata`.
 ///
 /// Fields follow the accessor order of `opendal::Metadata`. Optional values
@@ -44,6 +49,8 @@ pub struct OpendalMetadata {
     pub content_type: *mut c_char,
     /// Return this entry's Content-Encoding value.
     pub content_encoding: *mut c_char,
+    /// Return this entry's Content-Language value, if available.
+    pub content_language: *mut c_char,
     /// Return this entry's Last-Modified timestamp.
     pub last_modified_has_value: u8,
     pub last_modified_second: i64,
@@ -71,6 +78,7 @@ impl OpendalMetadata {
         let content_md5 = crate::utils::optional_c_string(metadata.content_md5());
         let content_type = crate::utils::optional_c_string(metadata.content_type());
         let content_encoding = crate::utils::optional_c_string(metadata.content_encoding());
+        let content_language = crate::utils::optional_c_string(metadata.content_language());
         let (last_modified_has_value, last_modified_second, last_modified_nanosecond) =
             crate::utils::optional_timestamp(metadata.last_modified());
         let etag = crate::utils::optional_c_string(metadata.etag());
@@ -89,6 +97,7 @@ impl OpendalMetadata {
             content_md5,
             content_type,
             content_encoding,
+            content_language,
             last_modified_has_value,
             last_modified_second,
             last_modified_nanosecond,
@@ -117,6 +126,7 @@ pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
         crate::utils::release_c_string(&mut metadata.content_md5);
         crate::utils::release_c_string(&mut metadata.content_type);
         crate::utils::release_c_string(&mut metadata.content_encoding);
+        crate::utils::release_c_string(&mut metadata.content_language);
         crate::utils::release_c_string(&mut metadata.etag);
         crate::utils::release_c_string(&mut metadata.content_disposition);
         crate::utils::release_c_string(&mut metadata.version);
@@ -126,4 +136,84 @@ pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
             &mut metadata.user_metadata_len,
         );
     }
+}
+
+impl OpendalMetadata {
+    /// Rebuild the metadata through `MetadataBuilder` from fields the caller
+    /// owns, as options such as `if_not_changed` pass them.
+    ///
+    /// Every pointer is only borrowed: strings are copied, and nothing is
+    /// released.
+    pub(crate) fn to_metadata(&self) -> Result<opendal::Metadata, OpenDALError> {
+        // `MetadataBuilder` takes the content length only through `file`.
+        let mut builder = match self.mode {
+            code if code == entry_mode_code(EntryMode::FILE) => {
+                MetadataBuilder::file(self.content_length)
+            }
+            code if code == entry_mode_code(EntryMode::DIR) => MetadataBuilder::dir(),
+            _ => MetadataBuilder::unknown(),
+        };
+        builder.is_current((self.is_current_has_value != 0).then_some(self.is_current != 0));
+        builder.is_deleted(self.is_deleted != 0);
+        if let Some(value) = crate::utils::borrowed_string(self.cache_control, "cache_control")? {
+            builder.cache_control(value);
+        }
+        if let Some(value) = crate::utils::borrowed_string(self.content_md5, "content_md5")? {
+            builder.content_md5(value);
+        }
+        if let Some(value) = crate::utils::borrowed_string(self.content_type, "content_type")? {
+            builder.content_type(value);
+        }
+        if let Some(value) =
+            crate::utils::borrowed_string(self.content_encoding, "content_encoding")?
+        {
+            builder.content_encoding(value);
+        }
+        if let Some(value) =
+            crate::utils::borrowed_string(self.content_language, "content_language")?
+        {
+            builder.content_language(value);
+        }
+        if let Some(value) = crate::utils::borrowed_timestamp(
+            self.last_modified_has_value,
+            self.last_modified_second,
+            self.last_modified_nanosecond,
+        )? {
+            builder.last_modified(value);
+        }
+        if let Some(value) = crate::utils::borrowed_string(self.etag, "etag")? {
+            builder.etag(value);
+        }
+        if let Some(value) =
+            crate::utils::borrowed_string(self.content_disposition, "content_disposition")?
+        {
+            builder.content_disposition(value);
+        }
+        if let Some(value) = crate::utils::borrowed_string(self.version, "version")? {
+            builder.version(value);
+        }
+        if let Some(values) = crate::utils::borrowed_string_pairs(
+            self.user_metadata_has_value,
+            self.user_metadata_keys as *const *const c_char,
+            self.user_metadata_values as *const *const c_char,
+            self.user_metadata_len,
+            "user_metadata",
+        )? {
+            builder.user_metadata(values);
+        }
+
+        Ok(builder.build())
+    }
+}
+
+/// Rebuild metadata passed by pointer, where null is `None`.
+///
+/// `metadata` must be null or point to a valid mirror whose pointers stay
+/// valid for the duration of the call.
+pub(crate) fn borrowed_metadata(
+    metadata: *const OpendalMetadata,
+) -> Result<Option<opendal::Metadata>, OpenDALError> {
+    unsafe { metadata.as_ref() }
+        .map(OpendalMetadata::to_metadata)
+        .transpose()
 }

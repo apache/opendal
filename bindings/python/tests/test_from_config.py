@@ -16,12 +16,13 @@
 # under the License.
 
 import pickle
+from datetime import timedelta
 from pathlib import PurePosixPath
 
 import pytest
 
 import opendal
-from opendal.config import FsConfig, S3Config
+from opendal.config import FsConfig, MiniMokaConfig, MokaConfig, S3Config
 from opendal.exceptions import Unsupported
 
 
@@ -71,3 +72,45 @@ def test_from_config_stringifies_native_values():
     _, args = op.__reduce__()
     assert args[1]["probe_flag"] == "true"
     assert args[1]["probe_path"] == "/x"
+
+
+@pytest.mark.parametrize("scheme", ["moka", "mini-moka"])
+@pytest.mark.parametrize(
+    "duration", ["2s", timedelta(days=1, seconds=2, microseconds=3)]
+)
+def test_from_config_cache_durations(service_name, scheme, duration):
+    if service_name.replace("_", "-") != scheme:
+        pytest.skip("requires the matching cache service")
+    config_type = MokaConfig if scheme == "moka" else MiniMokaConfig
+    config = config_type(scheme=scheme, time_to_live=duration, time_to_idle=duration)
+    operator = opendal.Operator.from_config(config)
+    operator.write("test", b"hello")
+    assert operator.read("test") == b"hello"
+    _, args = operator.__reduce__()
+    expected = "2s" if isinstance(duration, str) else "86402000003us"
+    assert args[1]["time_to_live"] == expected
+    assert args[1]["time_to_idle"] == expected
+
+
+class TimedeltaSubclass(timedelta):
+    microseconds = 0
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+@pytest.mark.parametrize(
+    ("duration", "expected"),
+    [
+        (timedelta(0), "0us"),
+        (timedelta(microseconds=-1), "-1us"),
+        (timedelta(days=2, seconds=3, microseconds=4), "172803000004us"),
+        (timedelta.min, "-86399999913600000000us"),
+        (timedelta.max, "86399999999999999999us"),
+        (TimedeltaSubclass(microseconds=1), "1us"),
+    ],
+)
+def test_from_config_timedelta_precision(operator_type, duration, expected):
+    operator = operator_type.from_config(
+        {"scheme": "memory", "probe_duration": duration}  # type: ignore[arg-type]
+    )
+    _, args = operator.__reduce__()
+    assert args[1]["probe_duration"] == expected

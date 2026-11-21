@@ -264,7 +264,7 @@ impl GdriveCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         match self.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Deleted => {
                 return Err(Error::new(
@@ -545,6 +545,102 @@ impl GdriveCore {
         ctx.http_transport().send(req).await
     }
 
+    pub async fn gdrive_initiate_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        file_id: Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let (builder, metadata) = if let Some(file_id) = file_id {
+            (
+                Request::patch(format!(
+                    "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=resumable&supportsAllDrives=true"
+                )),
+                json!({}),
+            )
+        } else {
+            let parent = self.ensure_dir(ctx, get_parent(path)).await?;
+            (
+                Request::post(
+                    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true",
+                ),
+                json!({"name": get_basename(path), "parents": [parent]}),
+            )
+        };
+        let body = serde_json::to_vec(&metadata).map_err(new_json_serialize_error)?;
+        let mut req = builder
+            .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header("X-Upload-Content-Type", "application/octet-stream")
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateResumableUpload"))
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_upload_resumable_chunk(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        offset: u64,
+        body: Buffer,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let mut range =
+            BytesContentRange::default().with_range(offset, offset + body.len() as u64 - 1);
+        if let Some(total) = total {
+            range = range.with_size(total);
+        }
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header(header::CONTENT_RANGE, range.to_header())
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadResumableChunk"))
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_query_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let range = match total {
+            Some(total) => format!("bytes */{total}"),
+            None => "bytes */*".to_string(),
+        };
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .header(header::CONTENT_RANGE, range)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("QueryResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_cancel_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+    ) -> Result<Response<Buffer>> {
+        let mut req = Request::delete(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
     pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
         signer.sign(ctx, req).await
@@ -556,7 +652,7 @@ impl GdriveCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
+        let from = build_absolute_path(&self.root, from);
 
         let from_file_id = match self.resolve_path(ctx, &from).await? {
             Some(id) => id,
@@ -572,7 +668,7 @@ impl GdriveCore {
         };
 
         let to_name = get_basename(to);
-        let to_path = build_abs_path(&self.root, to);
+        let to_path = build_absolute_path(&self.root, to);
         let to_parent_id = self.ensure_dir(ctx, get_parent(&to_path)).await?;
 
         self.trash_path_if_exists(ctx, &to_path).await?;
@@ -968,6 +1064,19 @@ pub(crate) struct GdriveFileList {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(
+                r#"{"error":{"message":"Request range not satisfiable"}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DownloadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
     fn mock_gdrive_core() -> GdriveCore {
         let info = ServiceInfo::new("gdrive", "", "");
         let signer = Arc::new(Mutex::new(GdriveSigner::new()));
@@ -1152,6 +1261,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

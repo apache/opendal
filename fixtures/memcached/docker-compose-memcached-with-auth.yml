@@ -17,7 +17,7 @@
 
 services:
   memcached:
-    image: docker.io/bitnamilegacy/memcached:1.6.39-debian-12-r0
+    image: docker.io/bitnamisecure/memcached@sha256:6c2290e460bece5f2041aeb2ab65074ac222058ccb97cd8f793aae13988e4983
     environment:
       # memcache's max item size is 1MiB, But opendal's behavior tests
       # will produce larger file.

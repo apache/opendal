@@ -5,31 +5,40 @@
 A C binding for OpenDAL, providing blocking access to S3, GCS, Azure Blob, the
 local filesystem, and 50+ more storage backends through a single C API.
 
-We release the OpenDAL C binding independently of the
-[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
-and compatibility, use the C binding version instead of the `opendal` crate
-version.
+The C binding is available as source. Its [Cargo.toml](./Cargo.toml) enables
+the OpenDAL blocking API, and CMake builds the memory and `fs` services
+by default.
 
 **User guide**: https://opendal.apache.org/docs/bindings/c
 
 ## Building
 
-Requirements: C11/C++14 compiler, CMake, Rust toolchain.
+Requirements: C11/C++14 compiler, CMake 3.24 or later, Rust toolchain.
 
 ```shell
 mkdir -p build && cd build
 
 # Default build (memory + fs services)
 cmake ..
-make
-
-# Enable additional services
-cmake .. -DFEATURES="opendal/services-s3,opendal/services-gcs"
-make
+cmake --build .
 ```
 
-The header is at `include/opendal.h`. The shared library is written to
-`../../target/debug/` after building.
+`FEATURES` is a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+Setting `FEATURES` replaces the default list, so include `opendal/services-fs`
+to retain the `fs` service.
+
+To add S3 and GCS, reconfigure and rebuild from the same build directory:
+
+```shell
+cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gcs"
+cmake --build .
+```
+
+Exposing additional Rust layers requires C binding code.
+
+The header is at `include/opendal.h`. The default build writes the shared
+library to `target/debug/` relative to `bindings/c`.
 
 ## Example
 
@@ -41,21 +50,22 @@ The header is at `include/opendal.h`. The shared library is written to
 int main(void)
 {
     /* Build an operator for the "memory" service. */
-    opendal_result_operator_new result = opendal_operator_new("memory", NULL);
-    assert(result.op != NULL && result.error == NULL);
-    opendal_operator *op = result.op;
+    opendal_operator *op = NULL;
+    opendal_error *err = opendal_operator_new("memory", NULL, &op);
+    assert(err == NULL && op != NULL);
 
     /* Write bytes. */
     const char *msg = "Hello, OpenDAL!";
-    opendal_bytes data = { .data = (uint8_t *)msg, .len = 15 };
-    opendal_error *err = opendal_operator_write(op, "/hello.txt", &data);
+    opendal_bytes data = { .data = (uint8_t *)msg, .len = 15, .capacity = 15 };
+    err = opendal_operator_write(op, "/hello.txt", &data);
     assert(err == NULL);
 
     /* Read them back. */
-    opendal_result_read r = opendal_operator_read(op, "/hello.txt");
-    assert(r.error == NULL);
-    printf("%.*s\n", (int)r.data.len, r.data.data);
-    opendal_bytes_free(&r.data);
+    opendal_bytes read_bytes;
+    err = opendal_operator_read(op, "/hello.txt", &read_bytes);
+    assert(err == NULL);
+    printf("%.*s\n", (int)read_bytes.len, read_bytes.data);
+    opendal_bytes_free(&read_bytes);
 
     opendal_operator_free(op);
     return 0;
@@ -66,10 +76,26 @@ See `examples/` for more, including error handling patterns.
 
 Full documentation is at https://opendal.apache.org/docs/bindings/c.
 
+## Output parameters
+
+Fallible operations return `opendal_error *`: `NULL` means success. Result values
+are written through output parameters; free a returned error with
+`opendal_error_free()`.
+
+Each output pointer must be non-NULL, correctly aligned, and point to writable
+storage for its declared type. The storage may be uninitialized. Calls initialize
+outputs on success and ordinary failure and do not retain their addresses.
+Failure outputs are NULL pointers, zero scalars, or empty `opendal_bytes`.
+Release any previously owned output before reusing its storage: the call
+replaces the value without freeing it. Free returned handles and byte buffers
+with their corresponding OpenDAL release routines.
+
 ## Contributing
 
 See [`CONTRIBUTING.md`](../../CONTRIBUTING.md) at the repository root. To run
-tests you need Valgrind and GTest:
+tests you need Valgrind and GTest. The C test suite requires the `fs` service,
+which the default CMake configuration enables alongside the built-in memory
+service:
 
 ```shell
 cd build && make tests && ./tests

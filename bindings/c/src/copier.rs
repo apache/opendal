@@ -66,30 +66,38 @@ impl opendal_copier {
     /// backends that copy in multiple requests, or the entire copy for backends that
     /// only support single-request copy.
     ///
-    /// Returns the number of bytes copied in this step (best-effort; may be 0 when
-    /// the backend advances without a reliable byte delta). When `has_next` is true
-    /// the caller should call this function again to continue the copy. When
-    /// `has_next` is false and `error` is null the copy has completed.
+    /// Writes the number of bytes copied in this step to `*size` (best-effort; may be 0
+    /// when the backend advances without a reliable byte delta) and whether more steps
+    /// remain to `*has_next`. When `*has_next` is true the caller should call this
+    /// function again to continue the copy. When `*has_next` is false and the returned
+    /// error is NULL the copy has completed. On failure, writes `0` to `*size` and
+    /// `false` to `*has_next`, and returns an `opendal_error *`.
     ///
     /// @see opendal_operator_copier()
     #[no_mangle]
-    pub unsafe extern "C" fn opendal_copier_next(&mut self) -> opendal_result_copier_next {
+    pub unsafe extern "C" fn opendal_copier_next(
+        &mut self,
+        size: *mut usize,
+        has_next: *mut bool,
+    ) -> *mut opendal_error {
+        assert!(!size.is_null());
+        assert!(!has_next.is_null());
         match self.deref_mut().next() {
-            Some(Ok(n)) => opendal_result_copier_next {
-                size: n,
-                has_next: true,
-                error: std::ptr::null_mut(),
-            },
-            None => opendal_result_copier_next {
-                size: 0,
-                has_next: false,
-                error: std::ptr::null_mut(),
-            },
-            Some(Err(e)) => opendal_result_copier_next {
-                size: 0,
-                has_next: false,
-                error: opendal_error::new(e),
-            },
+            Some(Ok(n)) => {
+                std::ptr::write(size, n);
+                std::ptr::write(has_next, true);
+                std::ptr::null_mut()
+            }
+            None => {
+                std::ptr::write(size, 0);
+                std::ptr::write(has_next, false);
+                std::ptr::null_mut()
+            }
+            Some(Err(e)) => {
+                std::ptr::write(size, 0);
+                std::ptr::write(has_next, false);
+                opendal_error::new(e)
+            }
         }
     }
 

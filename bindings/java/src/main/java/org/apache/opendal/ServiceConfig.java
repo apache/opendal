@@ -2152,12 +2152,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2174,10 +2174,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2207,12 +2207,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle"><code>moka::future::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live"><code>moka::future::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2232,10 +2232,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2990,6 +2990,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -3023,6 +3031,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);

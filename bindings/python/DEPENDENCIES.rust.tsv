@@ -286,6 +286,7 @@ opendal-service-gcs@0.59.5	X
 opendal-service-gcs-grpc@0.59.5	X														
 opendal-service-gdrive@0.59.5	X														
 opendal-service-ghac@0.59.5	X														
+opendal-service-github@0.59.5	X														
 opendal-service-gridfs@0.59.5	X														
 opendal-service-hdfs-native@0.59.5	X														
 opendal-service-hf@0.59.5	X														

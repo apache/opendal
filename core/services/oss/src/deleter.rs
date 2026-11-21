@@ -93,7 +93,7 @@ impl oio::BatchDelete for OssDeleter {
         };
 
         for i in result.deleted {
-            let path = build_rel_path(&self.core.root, &i.key);
+            let path = build_relative_path(&self.core.root, &i.key);
             let op = OpDelete::from_options(
                 &Capability::default(),
                 options::DeleteOptions {

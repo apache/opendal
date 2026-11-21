@@ -175,8 +175,11 @@ for (Entry entry : op.list("dir/", options)) {
 
 ```java
 op.delete("path/to/file");   // single path; succeeds even if missing
-op.removeAll("dir/");        // a path and everything under it
+op.removeAll("a/");
 ```
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
 
 ## Create a directory
 

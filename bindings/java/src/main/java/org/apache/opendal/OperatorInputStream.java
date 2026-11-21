@@ -25,6 +25,7 @@ import java.util.Objects;
 /**
  * Reads a byte range sequentially through an {@link OperatorReader}.
  * Each stream owns its native iterator and must be closed independently of its source reader.
+ * A bulk read returns as soon as it fills the requested portion of the destination array.
  * Reading a closed stream throws {@link IllegalStateException}.
  */
 public class OperatorInputStream extends InputStream {
@@ -114,12 +115,7 @@ public class OperatorInputStream extends InputStream {
             len -= n;
         }
 
-        if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(iterator.nativeHandle);
-            offset = 0;
-        }
-
-        return bytes != null ? read : (read != 0 ? read : -1);
+        return read;
     }
 
     @Override

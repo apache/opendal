@@ -18,19 +18,17 @@
 name: Core CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - "core/**"
       - ".github/workflows/ci_core.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-core-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_docs:
@@ -112,7 +110,31 @@ jobs:
 
       - name: Check
         working-directory: core
-        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy --locked --features services-fs -- -D warnings
+
+  check_tls_features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check that GCS with rustls and no default provider excludes aws-lc-rs
+        shell: bash
+        working-directory: core
+        run: |
+          tree=$(cargo tree --locked -p opendal \
+            --no-default-features \
+            --features services-gcs,http-transport-reqwest-rustls-no-provider \
+            --edges normal,build \
+            --prefix none)
+          if grep -E '^aws-lc-rs( |$)' <<< "$tree"; then
+            echo "::error::aws-lc-rs is in the dependency tree for services-gcs with http-transport-reqwest-rustls-no-provider"
+            exit 1
+          fi
 
   build_default_features:
     runs-on: ${{ matrix.os }}
@@ -150,34 +172,8 @@ jobs:
         working-directory: core
         run: cargo run -p opendal-examples-getting-started
 
-  build_all_features:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Checkout python env
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
-
-      - name: Checkout java env
-        uses: actions/setup-java@v5
-        with:
-          distribution: zulu
-          java-version: 25
-
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-        with:
-          need-rocksdb: true
-          need-protoc: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build
-        working-directory: core
-        run: cargo build --all-features --locked
-
   build_all_platforms:
+    if: github.event_name == 'workflow_call'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -276,6 +272,7 @@ jobs:
         working-directory: core
         run: |
           FEATURES=(
+            executors-tokio
             services-azblob
             services-gdrive
             services-opfs

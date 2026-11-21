@@ -140,7 +140,7 @@ jobs:
           SHA: ${{ needs.prepare.outputs.sha }}
         run: |
           # GITHUB_TOKEN pushes do not trigger the existing tag workflows.
-          for workflow in ci_bindings_{c,cpp,d,dart,dotnet,go,haskell,java,lua,moonbit,nodejs,ocaml,php,ruby,swift,zig}.yml release_{dart,dotnet,java,nodejs,python,ruby,rust}.yml docs.yml; do
+          for workflow in ci_bindings_{c,cpp,d,dart,dotnet,go,haskell,java,lua,moonbit,nodejs,ocaml,php,python,ruby,swift,zig}.yml release_{dart,dotnet,java,nodejs,python,ruby,rust}.yml docs.yml; do
             state=$(gh api "repos/apache/opendal/actions/workflows/$workflow" --jq .state)
             case "$state" in
               disabled_*)

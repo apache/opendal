@@ -228,7 +228,14 @@ mod tests {
         assert_eq!(buf.to_vec(), data[10..20]);
 
         let err = op.read_with("test").range(95..105).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "reader got too little data");
+
+        let err = op.read_with("test").range(100..105).await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        let buf = op.read_with("test").range(95..105).limit(10).await.unwrap();
+        assert_eq!(buf.to_vec(), data[95..]);
 
         let buf = op.read_with("test").range(100..).await.unwrap();
         assert!(buf.is_empty());

@@ -343,6 +343,7 @@ fn make_read_options<'a>(
 
     Ok(opendal::options::ReadOptions {
         range: convert::offset_length_to_range(offset, length)?.into(),
+        limit: None,
         version: convert::read_string_field(env, options, "version")?,
         if_match: convert::read_string_field(env, options, "ifMatch")?,
         if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,

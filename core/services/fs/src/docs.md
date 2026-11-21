@@ -15,6 +15,17 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Delete
+
+Deleting a symbolic link removes the link and preserves its target, even with
+recursive deletion enabled. Use a path without a trailing `/` to delete a
+dangling link.
+
+A trailing `/` requires a directory target. A symbolic link to a file returns
+[`opendal_core::ErrorKind::NotADirectory`] when addressed this way. If the link
+target is missing, deletion through a directory path succeeds and leaves the
+link in place.
+
 ## Configuration
 
 Use [`crate::FsConfig`] for serializable configuration and this builder's

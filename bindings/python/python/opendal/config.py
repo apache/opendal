@@ -175,6 +175,23 @@ class B2Config(TypedDict):
     """root of this backend.  All operations will happen under this root."""
 
 
+class BaiduNetdiskConfig(TypedDict):
+    """Configuration for the `baidu-netdisk` service."""
+
+    scheme: Required[Literal["baidu-netdisk"]]
+    """The service scheme; fixed to `"baidu-netdisk"`."""
+    access_token: NotRequired[str]
+    """Access token. Applications using configuration alone manage renewal externally."""
+    client_id: NotRequired[str]
+    """AppKey for automatic renewal with the Rust token persistence callback."""
+    client_secret: NotRequired[str]
+    """SecretKey, required together with client_id and refresh_token."""
+    refresh_token: NotRequired[str]
+    """Latest single-use refresh token returned by Baidu OAuth."""
+    root: NotRequired[str | os.PathLike[str]]
+    """Required absolute root inside `/apps/<application name>/`."""
+
+
 class CacacheConfig(TypedDict):
     """Configuration for the `cacache` service."""
 
@@ -1064,6 +1081,7 @@ ServiceConfig = (
     | AzdlsConfig
     | AzfileConfig
     | B2Config
+    | BaiduNetdiskConfig
     | CacacheConfig
     | CosConfig
     | DashmapConfig
@@ -1119,6 +1137,7 @@ __all__ = [
     "AzdlsConfig",
     "AzfileConfig",
     "B2Config",
+    "BaiduNetdiskConfig",
     "CacacheConfig",
     "CosConfig",
     "DashmapConfig",

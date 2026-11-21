@@ -130,25 +130,19 @@ impl BaiduNetdiskCore {
         }
         Ok(())
     }
-    pub async fn transfer(
-        &self,
-        ctx: &OperationContext,
-        operation: &str,
-        from: &str,
-        to: &str,
-    ) -> Result<()> {
+    pub async fn copy(&self, ctx: &OperationContext, from: &str, to: &str) -> Result<()> {
         match self.stat(ctx, to).await {
             Ok(file) if file.isdir == 1 => {
                 return Err(Error::new(
                     ErrorKind::IsADirectory,
-                    "transfer destination is a directory",
+                    "copy destination is a directory",
                 ));
             }
             Err(e) if e.kind() != ErrorKind::NotFound => return Err(e),
             _ => {}
         }
         self.create_dir(ctx, get_parent(to)).await?;
-        self.manage(ctx, operation, json!([{"path":self.absolute_path(from),
+        self.manage(ctx, "copy", json!([{"path":self.absolute_path(from),
             "dest":self.absolute_path(get_parent(to)), "newname":get_basename(to), "ondup":"overwrite"}])).await
     }
 }
@@ -191,6 +185,13 @@ impl FileMetadata {
 }
 
 pub fn api_error(code: i64) -> Error {
+    if code == 31023 {
+        return Error::new(
+            ErrorKind::ConfigInvalid,
+            "Baidu Netdisk rejected a request parameter",
+        )
+        .with_context("errno", code.to_string());
+    }
     let kind = match code {
         -9 | 31066 | 31190 => ErrorKind::NotFound,
         -8 => ErrorKind::AlreadyExists,

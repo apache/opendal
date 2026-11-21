@@ -17,9 +17,13 @@
 
 use crate::auth::{BaiduNetdiskSigner, TokenRefreshCallback};
 use crate::{
-    BAIDU_NETDISK_SCHEME, config::BaiduNetdiskConfig, core::BaiduNetdiskCore,
-    deleter::BaiduNetdiskDeleter, lister::BaiduNetdiskLister, reader::BaiduNetdiskReader,
-    writer::BaiduNetdiskWriter,
+    BAIDU_NETDISK_SCHEME,
+    config::BaiduNetdiskConfig,
+    core::BaiduNetdiskCore,
+    deleter::BaiduNetdiskDeleter,
+    lister::BaiduNetdiskLister,
+    reader::BaiduNetdiskReader,
+    writer::{BaiduNetdiskWriter, MAX_WRITE_SIZE},
 };
 use opendal_core::{raw::*, *};
 use std::sync::Arc;
@@ -73,7 +77,7 @@ impl BaiduNetdiskBuilder {
     /// The callback receives the new access token and refresh token. It runs under
     /// the refresh lock and must not call this operator. If it fails, subsequent
     /// requests retry the callback without consuming another refresh token.
-    /// Without a callback, rotated tokens are retained only in memory.
+    /// Automatic renewal requires this callback to durably store each new pair.
     pub fn on_token_refresh(
         mut self,
         callback: impl Fn(&str, &str) -> Result<()> + Send + Sync + 'static,
@@ -111,7 +115,7 @@ pub struct BaiduNetdiskBackend {
 
 impl Service for BaiduNetdiskBackend {
     type Reader = oio::StreamReader<BaiduNetdiskReader>;
-    type Writer = oio::OneShotWriter<BaiduNetdiskWriter>;
+    type Writer = BaiduNetdiskWriter;
     type Lister = oio::PageLister<BaiduNetdiskLister>;
     type Deleter = oio::OneShotDeleter<BaiduNetdiskDeleter>;
     type Copier = oio::OneShotCopier;
@@ -127,14 +131,13 @@ impl Service for BaiduNetdiskBackend {
             read_with_suffix: true,
             write: true,
             write_can_empty: true,
-            write_total_max_size: Some((4u64 * 1024 * 1024 * 1024).min(usize::MAX as u64) as usize),
+            write_total_max_size: Some(MAX_WRITE_SIZE),
             create_dir: true,
             list: true,
             list_with_limit: true,
             delete: true,
             delete_with_recursive: true,
             copy: true,
-            rename: true,
             shared: true,
             ..Default::default()
         }
@@ -165,11 +168,12 @@ impl Service for BaiduNetdiskBackend {
         }))
     }
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        Ok(oio::OneShotWriter::new(BaiduNetdiskWriter {
+        Ok(BaiduNetdiskWriter {
+            buffer: None,
             core: self.core.clone(),
             ctx: ctx.clone(),
             path: path.into(),
-        }))
+        })
     }
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         Ok(oio::PageLister::new(BaiduNetdiskLister {
@@ -211,7 +215,7 @@ impl Service for BaiduNetdiskBackend {
                     ));
                 }
                 if from != to {
-                    core.transfer(&ctx, "copy", &from, &to).await?;
+                    core.copy(&ctx, &from, &to).await?;
                 }
                 Ok(metadata)
             }
@@ -219,29 +223,14 @@ impl Service for BaiduNetdiskBackend {
     }
     async fn rename(
         &self,
-        ctx: &OperationContext,
-        from: &str,
-        to: &str,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
         _: OpRename,
     ) -> Result<RpRename> {
-        if self.core.stat(ctx, from).await?.isdir == 1 {
-            return Err(Error::new(
-                ErrorKind::IsADirectory,
-                "rename source is a directory",
-            ));
-        }
-        if from != to {
-            // The move API rejects existing destinations even with ondup=overwrite.
-            // Use copy then delete consistently to provide overwrite semantics.
-            self.core.transfer(ctx, "copy", from, to).await?;
-            self.core
-                .manage(
-                    ctx,
-                    "delete",
-                    serde_json::json!([self.core.absolute_path(from)]),
-                )
-                .await?;
-        }
-        Ok(RpRename::default())
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "Baidu Netdisk does not support rename with overwrite",
+        ))
     }
 }

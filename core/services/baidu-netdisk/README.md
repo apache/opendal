@@ -14,40 +14,40 @@ let operator = Operator::new(BaiduNetdisk::default()
     .access_token("access-token"))?;
 ```
 
-The service supports stat, list, ranged reads, create directory, write, copy,
-rename and delete. Writes require the complete file in memory before upload,
-use 4 MiB blocks, and are limited to 4 GiB. Streaming writes and append are not
-supported. Account membership affects download speed and server limits.
+The service supports stat, list, ranged reads, create directory, write, copy
+and delete. Baidu requires all block hashes before it opens an upload. Each
+writer accepts one payload of up to 16 MiB, retains it until close or abort,
+and uploads it in 4 MiB blocks. Larger writes and a second write to the same
+writer return `Unsupported`. Account membership affects download speed.
 
-Baidu rejects some file name characters at the final file creation step.
-Live tests accept ordinary Chinese and accented Latin names but reject the
-emoji `🐂🍺` and supplementary character `𠮷` with error `-7`. The service preserves
-the requested name and reports the rejected characters when the API supplies
-them; callers must explicitly choose another name.
+Baidu accepts ordinary Chinese and accented Latin names. The metadata lookup
+before upload rejects the tested emoji and supplementary character `𠮷` with
+parameter error `31023`. The create API can also reject names with error `-7`
+and identify the characters in `illegal_chars`. The service preserves the path
+and returns the API error.
 
-Rename uses server-side copy followed by delete because Baidu's move API rejects
-existing destinations even when overwrite is requested. It is not atomic; if
-deleting the source fails, the operation returns an error and both files remain.
+Copy accepts file sources and rejects existing directory destinations. Baidu's
+native move rejects an existing destination, so the service omits rename.
 
-Copy and rename accept files only, including when a directory path omits the
-trailing slash. Copy, rename and write reject existing directory destinations.
-Non-recursive delete rejects non-empty directories. Use
-`delete_with("dir/").recursive(true)` to delete a directory and its contents.
+Baidu's delete API removes directory trees. Ordinary deletion of an existing
+directory returns `Unsupported`, including when it is empty. Use
+`delete_with("dir/").recursive(true)` to remove a directory and its contents.
 Without the trailing slash, recursive deletion removes all matching paths in
-the parent directory, including matching directories and their contents.
-Recursive deletion checks that paths ending in `/` refer to directories.
-The emptiness check and deletion are separate requests. Files added between
-the check and deletion can also be removed by Baidu's recursive delete API.
-Path-type checks and mutations are also separate requests; concurrent
-changes to checked paths are not protected by an atomic type check.
+the parent directory, including matching directory trees. File deletion is
+path-based. Applications must serialize changes that replace a file with a
+directory at the same path during deletion.
 
-For automatic renewal, configure `client_id` (AppKey), `client_secret` (SecretKey),
-and `refresh_token` together. An initial `access_token` is used until the API
-reports it expired; subsequent tokens refresh before expiration. Refresh tokens
-are single-use. Use `on_token_refresh` to persist the new access and refresh
-tokens before restarting; without it, rotation is retained only in memory.
-A failed or cancelled refresh requires a new authorization. Independent operators
-must not use the same refresh token concurrently.
+For automatic renewal in Rust, configure `client_id` (AppKey), `client_secret`
+(SecretKey), `refresh_token`, and `on_token_refresh` together. The callback
+must atomically persist the new access and refresh tokens before returning
+success. Clones of one operator serialize refresh and persistence. A failed
+callback blocks use of the new pair and subsequent requests retry persistence.
+Restart with the most recently persisted pair. Use one owner per grant across
+operators and processes. If a crash or interrupted request loses the response
+after Baidu consumes the refresh token, obtain a new authorization.
+
+For configuration via bindings or environment variables, supply an access token
+and manage renewal outside OpenDAL.
 
 Official documentation: <https://pan.baidu.com/union/doc/>.
 

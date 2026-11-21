@@ -55,6 +55,7 @@ services-all = [
   'services-alluxio',
   'services-azfile',
   'services-b2',
+  'services-baidu-netdisk',
   'services-cacache',
   'services-dashmap',
   'services-dropbox',
@@ -103,6 +104,7 @@ services-azblob = ["opendal/services-azblob"]
 services-azdls = ["opendal/services-azdls"]
 services-azfile = ["opendal/services-azfile"]
 services-b2 = ["opendal/services-b2"]
+services-baidu-netdisk = ["opendal/services-baidu-netdisk"]
 services-cacache = ["opendal/services-cacache"]
 services-cloudflare-kv = [
   "opendal/services-cloudflare-kv",

@@ -70,6 +70,12 @@ impl BaiduNetdiskSigner {
                 "access_token or refresh credentials are required",
             ));
         }
+        if complete && on_refresh.is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "Baidu Netdisk automatic renewal requires on_token_refresh to persist rotated tokens",
+            ));
+        }
         Ok(Self {
             client_id: config.client_id.clone().unwrap_or_default(),
             client_secret: config.client_secret.clone().unwrap_or_default(),
@@ -85,10 +91,11 @@ impl BaiduNetdiskSigner {
 
     pub async fn token(&self, ctx: &OperationContext) -> Result<String> {
         let mut state = self.state.lock().await;
-        if state.access_token.is_empty()
-            || state
-                .expires_at
-                .is_some_and(|expiry| expiry <= Timestamp::now() + Duration::from_secs(120))
+        if !state.pending_persistence
+            && (state.access_token.is_empty()
+                || state
+                    .expires_at
+                    .is_some_and(|expiry| expiry <= Timestamp::now() + Duration::from_secs(120)))
         {
             // Baidu refresh tokens are single-use, including uncertain failures.
             // Taking it before I/O prevents concurrent callers or retries from replaying it.
@@ -150,18 +157,18 @@ impl BaiduNetdiskSigner {
             })?);
             state.access_token = token.access_token;
             state.refresh_token = Some(token.refresh_token);
-            state.pending_persistence = self.on_refresh.is_some();
+            state.pending_persistence = true;
         }
         if state.pending_persistence {
-            if let Some(callback) = &self.on_refresh {
-                callback(
-                    &state.access_token,
-                    state
-                        .refresh_token
-                        .as_deref()
-                        .expect("successful refresh has a refresh token"),
-                )?;
-            }
+            self.on_refresh
+                .as_ref()
+                .expect("refresh requires a persistence callback")(
+                &state.access_token,
+                state
+                    .refresh_token
+                    .as_deref()
+                    .expect("successful refresh has a refresh token"),
+            )?;
             state.pending_persistence = false;
         }
         Ok(state.access_token.clone())

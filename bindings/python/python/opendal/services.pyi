@@ -25,6 +25,7 @@ class Scheme:
     Azdls: Final[Scheme]
     Azfile: Final[Scheme]
     B2: Final[Scheme]
+    BaiduNetdisk: Final[Scheme]
     Cacache: Final[Scheme]
     Cos: Final[Scheme]
     Dashmap: Final[Scheme]

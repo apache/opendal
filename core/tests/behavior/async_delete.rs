@@ -105,6 +105,28 @@ pub async fn test_delete_empty_dir(op: Operator) -> Result<()> {
 
     op.create_dir(&path).await.expect("create must succeed");
 
+    #[cfg(feature = "services-baidu-netdisk")]
+    if op.info().scheme() == services::BAIDU_NETDISK_SCHEME {
+        // Baidu's only directory deletion is recursive, even for an empty directory.
+        assert_eq!(
+            op.delete(&path).await.unwrap_err().kind(),
+            ErrorKind::Unsupported
+        );
+        let child = format!("{path}child");
+        op.write(&child, "keep").await?;
+        assert_eq!(
+            op.delete(path.trim_end_matches('/'))
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert!(op.exists(&child).await?);
+        op.delete_with(&path).recursive(true).await?;
+        assert!(!op.exists(&path).await?);
+        return Ok(());
+    }
+
     op.delete(&path).await?;
 
     Ok(())

@@ -27,9 +27,9 @@ use std::fmt;
 pub struct BaiduNetdiskConfig {
     /// Required absolute root inside `/apps/<application name>/`.
     pub root: Option<String>,
-    /// Initial access token; refresh credentials allow renewal when it expires.
+    /// Access token. Applications using configuration alone manage renewal externally.
     pub access_token: Option<String>,
-    /// AppKey, required together with client_secret and refresh_token.
+    /// AppKey for automatic renewal with the Rust token persistence callback.
     pub client_id: Option<String>,
     /// SecretKey, required together with client_id and refresh_token.
     pub client_secret: Option<String>,

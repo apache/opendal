@@ -192,15 +192,19 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    // Baidu rejects these emoji at file creation with errno -7 and illegal_chars.
+    let (source_path, target_path) = ("🐂🍺中文.docx", "😈🐅Français.docx");
     #[cfg(feature = "services-baidu-netdisk")]
-    if op.info().scheme() == services::BAIDU_NETDISK_SCHEME {
-        log::warn!("skip non-ASCII copy test: Baidu Netdisk rejects emoji filenames");
-        return Ok(());
-    }
-
-    let source_path = "🐂🍺中文.docx";
-    let target_path = "😈🐅Français.docx";
+    let (source_path, target_path) = if op.info().scheme() == services::BAIDU_NETDISK_SCHEME {
+        // The metadata lookup preceding a write rejects these paths before upload.
+        for path in [source_path, target_path] {
+            let err = op.write(path, "filename probe").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert!(err.to_string().contains("errno: 31023"), "{err}");
+        }
+        ("中文.docx", "Français.docx")
+    } else {
+        (source_path, target_path)
+    };
     let (source_content, _) = gen_bytes(op.info().capability());
 
     op.write(source_path, source_content.clone()).await?;
@@ -275,7 +279,7 @@ pub async fn test_copy_target_dir(op: Operator) -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::IsADirectory);
 
     op.delete(&source_path).await.expect("delete must succeed");
-    op.delete(&target_path).await.expect("delete must succeed");
+    op.delete_with(&target_path).recursive(true).await?;
     Ok(())
 }
 

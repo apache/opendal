@@ -41,6 +41,8 @@ pub enum Scheme {
     Azfile,
     #[cfg(feature = "services-b2")]
     B2,
+    #[cfg(feature = "services-baidu-netdisk")]
+    BaiduNetdisk,
     #[cfg(feature = "services-cacache")]
     Cacache,
     #[cfg(feature = "services-cos")]
@@ -183,6 +185,8 @@ impl_enum_to_str!(
         Azfile => "azfile",
         #[cfg(feature = "services-b2")]
         B2 => "b2",
+        #[cfg(feature = "services-baidu-netdisk")]
+        BaiduNetdisk => "baidu-netdisk",
         #[cfg(feature = "services-cacache")]
         Cacache => "cacache",
         #[cfg(feature = "services-cos")]

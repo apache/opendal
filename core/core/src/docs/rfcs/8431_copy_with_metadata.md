@@ -76,7 +76,7 @@ Without REPLACE, S3 copies the source metadata and ignores these headers.
 
 A service advertises a capability only when it honors the option on
 single-request, multipart, and same-path copy. The `s3` behavior tests for
-these options pass against Garage v2.1.0, Silo, and SeaweedFS. See Unresolved
+these options pass against AWS S3, Garage v2.1.0, Silo, and SeaweedFS. See Unresolved
 questions for the other S3-compatible services.
 
 # Drawbacks

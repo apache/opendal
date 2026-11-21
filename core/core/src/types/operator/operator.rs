@@ -1585,8 +1585,10 @@ impl Operator {
             );
         }
 
-        let args = OpCopy::from_options(&srv.capability(), opts)
+        let capability = srv.capability();
+        let args = OpCopy::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_copy_metadata_args(srv.info().scheme(), capability, &args)?;
         Copier::create(ctx, srv, &from, &to, args)
     }
 

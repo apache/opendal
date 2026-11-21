@@ -70,6 +70,38 @@ pub(crate) fn new_unsupported_error(scheme: &'static str, op: Operation, args: &
     .with_operation(op)
 }
 
+// `Operator` runs this check against the effective capability: this layer sits
+// below user layers, so it would miss a `CapabilityOverrideLayer` either way.
+pub(crate) fn check_copy_metadata_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpCopy,
+) -> Result<()> {
+    if args.user_metadata().is_some() && !capability.copy_with_user_metadata {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "user_metadata",
+        ));
+    }
+    if args.content_type().is_some() && !capability.copy_with_content_type {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_type",
+        ));
+    }
+    if args.content_language().is_some() && !capability.copy_with_content_language {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_language",
+        ));
+    }
+
+    Ok(())
+}
+
 fn check_delete_args(scheme: &'static str, capability: Capability, args: &OpDelete) -> Result<()> {
     if args.version().is_some() && !capability.delete_with_version {
         return Err(new_unsupported_error(scheme, Operation::Delete, "version"));
@@ -326,27 +358,6 @@ impl Service for CorrectnessService {
                 scheme,
                 Operation::Copy,
                 "if_version_not_match",
-            ));
-        }
-        if args.user_metadata().is_some() && !capability.copy_with_user_metadata {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "user_metadata",
-            ));
-        }
-        if args.content_type().is_some() && !capability.copy_with_content_type {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "content_type",
-            ));
-        }
-        if args.content_language().is_some() && !capability.copy_with_content_language {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "content_language",
             ));
         }
         if args.source_version().is_some() && !capability.copy_with_source_version {

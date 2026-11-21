@@ -1089,6 +1089,10 @@ public interface ServiceConfig {
          */
         public final String atomicWriteDir;
         /**
+         * <p>Bypass the page cache for file reads and writes on Linux. Defaults to <code>false</code>.</p>
+         */
+        public final Boolean directIo;
+        /**
          * <p>root dir for backend</p>
          */
         public final String root;
@@ -1103,6 +1107,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (atomicWriteDir != null) {
                 map.put("atomic_write_dir", atomicWriteDir);
+            }
+            if (directIo != null) {
+                map.put("direct_io", String.valueOf(directIo));
             }
             if (root != null) {
                 map.put("root", root);

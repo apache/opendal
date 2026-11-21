@@ -263,6 +263,8 @@ class FsConfig(TypedDict):
     """The service scheme; fixed to `"fs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """tmp dir for atomic write"""
+    direct_io: NotRequired[bool]
+    """Bypass the page cache for file reads and writes on Linux. Defaults to `false`."""
     root: NotRequired[str | os.PathLike[str]]
     """root dir for backend"""
 

@@ -17,9 +17,8 @@
 
 import collections.abc
 import types
+import typing
 from typing import Any, final
-
-import typing_extensions
 
 @final
 class AsyncFile:
@@ -29,7 +28,7 @@ class AsyncFile:
     Created by the `open` method of the `AsyncOperator` class.
     """
 
-    def __aenter__(self, /) -> collections.abc.Awaitable[typing_extensions.Self]: ...
+    def __aenter__(self, /) -> collections.abc.Awaitable[typing.Self]: ...
     def __aexit__(
         self,
         /,

@@ -89,6 +89,46 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     if cap.read && !cap.write && cap.read_with_suffix {
         tests.extend(async_trials!(op, test_read_only_read_with_suffix))
     }
+
+    #[cfg(all(feature = "services-http", feature = "layers-retry"))]
+    if std::env::var("OPENDAL_HTTP_NGINX_FIXTURE").as_deref() == Ok("true") {
+        for method in [http::Method::GET, http::Method::HEAD] {
+            let name = format!("test_nginx_retry_after_{method}");
+            tests.push(build_async_trial(&name, op, move |_| {
+                test_nginx_retry_after(method)
+            }));
+        }
+    }
+}
+
+#[cfg(all(feature = "services-http", feature = "layers-retry"))]
+async fn test_nginx_retry_after(method: http::Method) -> anyhow::Result<()> {
+    use opendal::layers::{RetryEvent, RetryLayer};
+    use opendal::services::Http;
+
+    let endpoint = std::env::var("OPENDAL_HTTP_ENDPOINT")?;
+    let op = Operator::new(Http::default().endpoint(&endpoint))?;
+    let (send, events) = std::sync::mpsc::channel();
+    let retry = RetryLayer::new()
+        .with_min_delay(Duration::from_millis(20))
+        .with_max_times(1)
+        .with_notify(move |event: RetryEvent<'_>| send.send(event.retry_after).unwrap());
+    let op = op.layer(retry);
+
+    // Each URI has its own Nginx rate limit. The first request consumes its allowance.
+    let path = format!("retry-after/{}", uuid::Uuid::new_v4());
+    let size = op.stat(&path).await?.content_length();
+    let start = std::time::Instant::now();
+    let result_size = if method == http::Method::GET {
+        op.read(&path).await?.len() as u64
+    } else {
+        op.stat(&path).await?.content_length()
+    };
+    let hint = Duration::from_secs(2);
+    assert_eq!(result_size, size);
+    assert_eq!(events.try_recv()?, hint);
+    assert!(start.elapsed() >= hint);
+    Ok(())
 }
 
 /// Read full content should match.

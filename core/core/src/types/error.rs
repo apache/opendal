@@ -41,6 +41,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::io;
+use std::time::Duration;
 
 /// A specialized [`std::result::Result`] whose default error type is [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -245,6 +246,7 @@ pub struct Error {
     message: String,
 
     status: ErrorStatus,
+    retry_after: Option<Duration>,
     operation: &'static str,
     context: Vec<(&'static str, String)>,
 
@@ -290,6 +292,9 @@ impl Debug for Error {
             de.field("kind", &self.kind);
             de.field("message", &self.message);
             de.field("status", &self.status);
+            if let Some(retry_after) = self.retry_after {
+                de.field("retry_after", &retry_after);
+            }
             de.field("operation", &self.operation);
             de.field("context", &self.context);
             de.field("source", &self.source);
@@ -339,6 +344,7 @@ impl Error {
             message: message.into(),
 
             status: ErrorStatus::Permanent,
+            retry_after: None,
             operation: "",
             context: Vec::default(),
             source: None,
@@ -444,6 +450,21 @@ impl Error {
         self
     }
 
+    /// Set the minimum delay the service requests before retrying.
+    ///
+    /// [`Error::is_temporary`] determines whether the operation can be retried.
+    pub fn with_retry_after(mut self, delay: Duration) -> Self {
+        self.retry_after = Some(delay);
+        self
+    }
+
+    /// Return the minimum delay requested by the service, if available.
+    ///
+    /// HTTP delays larger than a `Duration` are reported as [`Duration::MAX`].
+    pub fn retry_after(&self) -> Option<Duration> {
+        self.retry_after
+    }
+
     /// Return error's kind.
     pub fn kind(&self) -> ErrorKind {
         self.kind
@@ -540,6 +561,7 @@ mod tests {
         kind: ErrorKind::Unexpected,
         message: "something wrong happened".to_string(),
         status: ErrorStatus::Permanent,
+        retry_after: None,
         operation: "Read",
         context: vec![
             ("path", "/path/to/file".to_string()),

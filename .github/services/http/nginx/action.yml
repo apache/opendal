@@ -30,5 +30,6 @@ runs:
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HTTP_ENDPOINT=http://127.0.0.1:8080
+        OPENDAL_HTTP_NGINX_FIXTURE=true
         OPENDAL_DISABLE_RANDOM_ROOT=true
         EOF

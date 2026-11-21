@@ -671,6 +671,8 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
+    /// - See [`crate::Operator::delete`] for the `fs` service's symbolic link
+    ///   behavior.
     ///
     /// # Examples
     ///

@@ -35,8 +35,7 @@ let builder = S3::default().bucket("data");
 
 // 2. Build the operator and 3. wrap it with layers.
 let op = Operator::new(builder)?
-    .layer(RetryLayer::new())
-    .finish();
+    .layer(RetryLayer::new());
 
 // 4. Call operations.
 op.write("hello.txt", "Hello, World!").await?;

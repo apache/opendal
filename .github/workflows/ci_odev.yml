@@ -18,17 +18,13 @@
 name: odev CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - "**/*.rs"
+      - "dev/**"
       - ".github/workflows/ci_odev.yml"
-      - "dev/Cargo.toml"
-      - "dev/Cargo.lock"
       - "scripts/verify_source_reproducibility.py"
       - "scripts/sign_source_release.py"
       - "scripts/test_sign_source_release.py"
@@ -40,10 +36,11 @@ on:
       - ".github/workflows/release_lifecycle.yml"
       - ".github/workflows/release_publish.yml"
       - ".github/workflows/release-compose.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-odev-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_clippy:

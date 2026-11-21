@@ -1,21 +1,19 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 package opendal
 
@@ -24,9 +22,6 @@ import (
 	"errors"
 	"math"
 	"time"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // OperatorOption configures operator layers.
@@ -204,65 +199,10 @@ func (l retryLayer) apply(ctx context.Context, layers *operatorLayers) error {
 
 type operatorLayers struct{}
 
-var ffiOperatorLayersNew = newFFI(ffiOpts{
-	sym:   "opendal_operator_layers_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() (layers *operatorLayers) {
-	return func() (layers *operatorLayers) {
-		ffiCall(unsafe.Pointer(&layers))
-		return
-	}
-})
+var ffiOperatorLayersNew = newDirectFFI[func() *operatorLayers]("opendal_operator_layers_new")
 
-var ffiOperatorLayersAddRetry = newFFI(ffiOpts{
-	sym:   "opendal_operator_layers_add_retry",
-	rType: &ffi.TypeVoid,
-	aTypes: []*ffi.Type{
-		&ffi.TypePointer,
-		&ffi.TypeUint8,
-		&ffi.TypeFloat,
-		&ffi.TypeUint64,
-		&ffi.TypeUint64,
-		&ffi.TypeUint64,
-	},
-}, func(_ context.Context, ffiCall ffiCall) func(layers *operatorLayers, jitter bool, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
-	return func(layers *operatorLayers, jitter bool, factor float32, minDelayNS, maxDelayNS, maxTimes uint64) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&layers),
-			unsafe.Pointer(&jitter),
-			unsafe.Pointer(&factor),
-			unsafe.Pointer(&minDelayNS),
-			unsafe.Pointer(&maxDelayNS),
-			unsafe.Pointer(&maxTimes),
-		)
-	}
-})
+var ffiOperatorLayersAddRetry = newDirectFFI[func(layers *operatorLayers, jitter bool, factor float32, minDelayNS, maxDelayNS, maxTimes uint64)]("opendal_operator_layers_add_retry")
 
-var ffiOperatorLayersAddTimeout = newFFI(ffiOpts{
-	sym:    "opendal_operator_layers_add_timeout",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64, &ffi.TypeUint64},
-}, func(_ context.Context, ffiCall ffiCall) func(layers *operatorLayers, timeoutNS, ioTimeoutNS uint64) {
-	return func(layers *operatorLayers, timeoutNS, ioTimeoutNS uint64) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&layers),
-			unsafe.Pointer(&timeoutNS),
-			unsafe.Pointer(&ioTimeoutNS),
-		)
-	}
-})
+var ffiOperatorLayersAddTimeout = newDirectFFI[func(layers *operatorLayers, timeoutNS, ioTimeoutNS uint64)]("opendal_operator_layers_add_timeout")
 
-var ffiOperatorLayersFree = newFFI(ffiOpts{
-	sym:    "opendal_operator_layers_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(layers *operatorLayers) {
-	return func(layers *operatorLayers) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&layers),
-		)
-	}
-})
+var ffiOperatorLayersFree = newDirectFFI[func(layers *operatorLayers)]("opendal_operator_layers_free")

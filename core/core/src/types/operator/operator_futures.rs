@@ -295,6 +295,17 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
         self
     }
 
+    /// Return at most `limit` bytes from the start of the selected range.
+    ///
+    /// A short read succeeds after a valid starting byte. A zero limit returns
+    /// an empty buffer after option and capability validation, without
+    /// accessing storage. See [`options::ReadOptions::limit`] for EOF and
+    /// option compatibility rules.
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.args.limit = Some(limit);
+        self
+    }
+
     /// Sets known content length as a hint for this `read` request.
     ///
     /// Refer to [`options::ReadOptions::content_length_hint`] for more details.
@@ -846,6 +857,14 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.0.content_language = Some(value.to_string());
+        self
+    }
+
     /// Write only when the file at the write path has this exact ETag.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for the full contract.
@@ -974,6 +993,17 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ```
     pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.args.0.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Sets how long the new file lives after the write commits.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. The write returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability or
+    /// [`crate::ErrorKind::ConfigInvalid`] for a zero or unrepresentable duration.
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.0.expires = Some(expires);
         self
     }
 }
@@ -1189,6 +1219,14 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.content_language = Some(value.to_string());
+        self
+    }
+
     /// Write only when the file at the write path has this exact ETag.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for the full contract.
@@ -1327,6 +1365,17 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ```
     pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.args.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Sets how long the new file lives after the writer commits it on close.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. Opening the writer returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability. A zero or
+    /// unrepresentable duration fails the write with [`crate::ErrorKind::ConfigInvalid`].
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.expires = Some(expires);
         self
     }
 }

@@ -19,31 +19,30 @@ name: Bindings Haskell CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
-    paths: &paths
-      - "bindings/haskell/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_haskell.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/haskell/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_haskell.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-haskell-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # GHC's hsc2hs links with -fuse-ld=gold, which Ubuntu 26.04's
+    # binutils no longer ships.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: Install Haskell build tools
@@ -110,7 +109,9 @@ jobs:
             bindings/haskell/dist-newstyle
 
   package:
-    runs-on: ubuntu-latest
+    # GHC's hsc2hs links with -fuse-ld=gold, which Ubuntu 26.04's
+    # binutils no longer ships.
+    runs-on: ubuntu-24.04
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     steps:
       - uses: actions/checkout@v7
@@ -170,7 +171,7 @@ jobs:
 #          name: bindings-haskell-sdist
 #      - name: Load secret
 #        id: op-load-secret
-#        uses: 1Password/load-secrets-action@92467eb28f72e8255933372f1e0707c567ce2259 # v4.0.0
+#        uses: 1Password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
 #        with:
 #          export-env: true
 #        env:

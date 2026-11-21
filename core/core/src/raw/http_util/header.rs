@@ -25,6 +25,7 @@ use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -182,6 +183,10 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_encoding(headers)? {
         m.content_encoding(v);
+    }
+
+    if let Some(v) = parse_header_to_str(headers, CONTENT_LANGUAGE)? {
+        m.content_language(v);
     }
 
     if let Some(v) = parse_etag(headers)? {

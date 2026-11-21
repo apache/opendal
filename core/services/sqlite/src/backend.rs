@@ -223,9 +223,9 @@ impl Service for SqliteBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let length = self.core.get_length(&p).await?;
@@ -271,7 +271,7 @@ impl Service for SqliteBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: SqliteWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(SqliteWriter::new(self.core.clone(), &p))
         }?;
 
@@ -295,7 +295,7 @@ impl Service for SqliteBackend {
         path: &str,
         _: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // Ensure path ends with '/' for directory marker
         let dir_path = if p.ends_with('/') {

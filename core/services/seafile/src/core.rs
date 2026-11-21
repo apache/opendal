@@ -200,10 +200,10 @@ impl SeafileCore {
             .extension(ServiceOperation("UploadFile"));
 
         let (filename, relative_path) = if path.ends_with('/') {
-            ("", build_abs_path(&self.root, path))
+            ("", build_absolute_path(&self.root, path))
         } else {
             let (filename, relative_path) = (get_basename(path), get_parent(path));
-            (filename, build_abs_path(&self.root, relative_path))
+            (filename, build_absolute_path(&self.root, relative_path))
         };
 
         let file_part = FormDataPart::new("file")
@@ -231,7 +231,7 @@ impl SeafileCore {
             return Ok(());
         }
 
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let path = percent_encode_path(path.trim_end_matches('/'));
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -263,7 +263,7 @@ impl SeafileCore {
 
     /// get download
     async fn get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -321,7 +321,7 @@ impl SeafileCore {
 
     /// file detail
     pub async fn file_detail(&self, ctx: &OperationContext, path: &str) -> Result<FileDetail> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -357,7 +357,7 @@ impl SeafileCore {
 
     /// dir detail
     pub async fn dir_detail(&self, ctx: &OperationContext, path: &str) -> Result<DirDetail> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -393,7 +393,7 @@ impl SeafileCore {
 
     /// delete file or dir
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         let path = percent_encode_path(&path);
 
         let auth_info = self.get_auth_info(ctx).await?;
@@ -433,7 +433,7 @@ impl SeafileCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
-        let rooted_abs_path = build_rooted_abs_path(&self.root, path);
+        let rooted_abs_path = build_rooted_absolute_path(&self.root, path);
 
         let auth_info = self.get_auth_info(ctx).await?;
 
@@ -561,10 +561,13 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, _retryable) = match parts.status.as_u16() {
+    let (kind, retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
-        520 => (ErrorKind::Unexpected, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
+        // Seafile reports a transient backend failure as a 5xx, including its own 520;
+        // retrying is the documented recovery, so mark these temporary.
+        500 | 502 | 503 | 504 | 520 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
@@ -576,6 +579,10 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     err = err.with_context("service_operation", ctx.service_operation.0);
     err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
 
     err
 }
@@ -592,6 +599,17 @@ mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(""))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DownloadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[derive(Clone)]
     struct AuthTransport {

@@ -16,10 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import argparse
 import json
 import os
 import re
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -35,32 +35,74 @@ LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotne
 
 INTEGRATIONS = ["object_store"]
 
+VALID_MODES = ("pr", "nightly-local", "nightly-live")
 
-def provided_cases() -> list[dict[str, str]]:
+# Setups that access external network services without 1Password secrets.
+ONLINE_SETUPS = {
+    ("github", "read_only"),
+}
+
+# Deterministic local smoke setups for shared core / workflow PRs.
+CORE_PR_SMOKE_SETUPS = {
+    ("memory", "memory"),
+    ("fs", "local_fs"),
+    ("s3", "0_silo_s3"),
+    ("azblob", "azurite_azblob"),
+    ("http", "nginx"),
+}
+
+# Deterministic local smoke setups for binding PRs.
+BINDING_PR_SMOKE_SETUPS = {
+    ("memory", "memory"),
+    ("fs", "local_fs"),
+    ("s3", "0_silo_s3"),
+}
+
+# Helper crates under core/services/ that are not standalone OpenDAL services.
+SERVICE_HELPER_CRATES = {"azure_common"}
+
+# Direct service crate dependency edges (verified from core/services/*/Cargo.toml).
+SERVICE_DEPENDENTS = {
+    "azure_common": ["azblob", "azdls", "azfile", "ghac"],
+    "azblob": ["ghac"],
+}
+
+
+def is_live_setup(service: str, setup: str, content: str) -> bool:
+    return "op://services" in content or (service, setup) in ONLINE_SETUPS
+
+
+def _all_service_cases() -> list[dict[str, Any]]:
     root_dir = f"{GITHUB_DIR}/services"
-
     cases = [
         {
             "service": service,
             "setup": setup,
             "feature": "services-{}".format(service.replace("_", "-")),
-            "content": Path(
-                os.path.join(root_dir, service, setup, "action.yml")
-            ).read_text(),
+            "live": is_live_setup(
+                service,
+                setup,
+                Path(os.path.join(root_dir, service, setup, "action.yml")).read_text(),
+            ),
         }
         for service in os.listdir(root_dir)
         for setup in os.listdir(os.path.join(root_dir, service))
         if os.path.exists(os.path.join(root_dir, service, setup, "action.yml"))
     ]
+    return sorted(cases, key=lambda x: (x["service"], x["setup"]))
 
-    # Check if this workflow needs to read secrets.
-    #
-    # We will check if pattern `op://services` exist in content.
-    if not os.getenv("GITHUB_HAS_SECRETS") == "true":
-        cases[:] = [v for v in cases if "op://services" not in v["content"]]
 
-    # Remove content from cases.
-    cases = [
+def provided_cases(mode: str = "pr") -> list[dict[str, str]]:
+    if mode not in VALID_MODES:
+        raise ValueError(f"unsupported planner mode: {mode}")
+
+    cases = _all_service_cases()
+    if mode in ("pr", "nightly-local"):
+        cases = [v for v in cases if not v["live"]]
+    elif mode == "nightly-live":
+        cases = [v for v in cases if v["live"]]
+
+    return [
         {
             "setup": v["setup"],
             "service": v["service"],
@@ -69,85 +111,71 @@ def provided_cases() -> list[dict[str, str]]:
         for v in cases
     ]
 
-    # Make sure the order is stable.
-    sorted_cases = sorted(cases, key=lambda x: (x["service"], x["setup"]))
-    return sorted_cases
-
 
 @dataclass
 class Hint:
-    # Is core affected?
-    core: bool = field(default=False, init=False)
-    # Is binding java affected?
-    binding_java: bool = field(default=False, init=False)
-    # Is binding python affected?
-    binding_python: bool = field(default=False, init=False)
-    # Is binding ruby affected?
-    binding_ruby: bool = field(default=False, init=False)
-    # Is binding nodejs affected?
-    binding_nodejs: bool = field(default=False, init=False)
-    # Is binding go affected?
-    binding_go: bool = field(default=False, init=False)
-    # Is binding c affected?
-    binding_c: bool = field(default=False, init=False)
-    # Is binding cpp affected?
-    binding_cpp: bool = field(default=False, init=False)
-    # Is binding dotnet affected?
-    binding_dotnet: bool = field(default=False, init=False)
-    # Is integration object_store affected ?
-    integration_object_store: bool = field(default=False, init=False)
+    core_smoke: bool = field(default=False, init=False)
+    core_services: set[str] = field(default_factory=set, init=False)
+    binding_smoke: set[str] = field(default_factory=set, init=False)
+    integration_smoke: set[str] = field(default_factory=set, init=False)
 
-    # Should we run all services tests?
-    all_service: bool = field(default=False, init=False)
-    # affected services set.
-    services: set = field(default_factory=set, init=False)
+
+def _expand_service_dependents(service: str) -> set[str]:
+    norm = service.replace("-", "_")
+    affected: set[str] = set()
+    queue = [norm]
+    while queue:
+        cur = queue.pop()
+        if cur in affected:
+            continue
+        affected.add(cur)
+        for dep in SERVICE_DEPENDENTS.get(cur, []):
+            if dep not in affected:
+                queue.append(dep)
+    return affected
 
 
 def calculate_hint(changed_files: list[str]) -> Hint:
     hint = Hint()
 
-    # Remove all files that end with `.md`
+    # Ignore documentation-only markdown files.
     changed_files = [f for f in changed_files if not f.endswith(".md")]
 
     def mark_service_affected(service: str) -> None:
-        hint.core = True
-        for language in LANGUAGE_BINDING:
-            setattr(hint, f"binding_{language}", True)
-        for integration in INTEGRATIONS:
-            setattr(hint, f"integration_{integration}", True)
-
-        hint.services.add(service)
-        hint.services.add(service.replace("-", "_"))
-        hint.services.add(service.replace("_", "-"))
+        for svc in _expand_service_dependents(service):
+            if svc not in SERVICE_HELPER_CRATES:
+                hint.core_services.add(svc)
 
     for p in changed_files:
-        # workflow behavior tests affected
+        # Behavior workflow / planner wiring changes.
         if p == ".github/workflows/test_behavior.yml":
-            hint.core = True
-            for language in LANGUAGE_BINDING:
-                setattr(hint, f"binding_{language}", True)
-            for integration in INTEGRATIONS:
-                setattr(hint, f"integration_{integration}", True)
-            hint.all_service = True
+            hint.core_smoke = True
+            hint.binding_smoke.add("c")
+            hint.integration_smoke.add("object_store")
 
-        if p in [
-            ".github/workflows/test_behavior_core.yml",
-            ".github/actions/test_behavior_core/action.yaml",
-        ]:
-            hint.core = True
-            hint.all_service = True
+        if (
+            p == ".github/workflows/test_behavior_core.yml"
+            or p.startswith(".github/actions/test_behavior_core/")
+            or p.startswith(".github/scripts/test_behavior/")
+        ):
+            hint.core_smoke = True
 
         for language in LANGUAGE_BINDING:
-            if p == f".github/workflows/test_behavior_binding_{language}.yml":
-                setattr(hint, f"binding_{language}", True)
-                hint.all_service = True
+            if p == f".github/workflows/test_behavior_binding_{language}.yml" or p.startswith(
+                f".github/actions/test_behavior_binding_{language}/"
+            ):
+                hint.binding_smoke.add(language)
 
         for integration in INTEGRATIONS:
-            if p == f".github/workflows/test_behavior_integration_{integration}.yml":
-                setattr(hint, f"integration_{integration}", True)
-                hint.all_service = True
+            if (
+                p == f".github/workflows/test_behavior_integration_{integration}.yml"
+                or p.startswith(
+                    f".github/actions/test_behavior_integration_{integration}/"
+                )
+            ):
+                hint.integration_smoke.add(integration)
 
-        # core affected
+        # Shared core runtime, facade, layers, HTTP transports, and testkit.
         if (
             p.startswith("core/")
             and not p.startswith("core/benches/")
@@ -159,83 +187,47 @@ def calculate_hint(changed_files: list[str]) -> Hint:
             and not p.startswith("core/src/docs/")
             and not p.startswith("core/core/src/docs/")
         ):
-            hint.core = True
-            for language in LANGUAGE_BINDING:
-                setattr(hint, f"binding_{language}", True)
-            for integration in INTEGRATIONS:
-                setattr(hint, f"integration_{integration}", True)
-            hint.all_service = True
+            hint.core_smoke = True
 
-        # language binding affected
+        # Language bindings (C ABI changes also verify Go runtime).
         for language in LANGUAGE_BINDING:
             if p.startswith(f"bindings/{language}/"):
-                setattr(hint, f"binding_{language}", True)
-                hint.all_service = True
+                hint.binding_smoke.add(language)
 
-        # c affected
         if p.startswith("bindings/c/"):
-            hint.binding_c = True
-            hint.binding_go = True
-            hint.all_service = True
+            hint.binding_smoke.add("c")
+            hint.binding_smoke.add("go")
 
-        # cpp affected
-        if p.startswith("bindings/cpp/"):
-            hint.binding_cpp = True
-            hint.all_service = True
+        if p.startswith(".github/scripts/test_go_binding/"):
+            hint.binding_smoke.add("go")
 
-        # go affected
-        if p.startswith(".github/scripts/test_go_binding"):
-            hint.binding_go = True
-            hint.all_service = True
-
-        # integration affected
+        # Integrations.
         for integration in INTEGRATIONS:
-            if p.startswith(f"integrations/{integration}"):
-                setattr(hint, f"integration_{integration}", True)
-                hint.all_service = True
+            if p.startswith(f"integrations/{integration}/"):
+                hint.integration_smoke.add(integration)
 
-        # core service affected
-        match = re.search(r"core/src/services/([^/]+)/", p)
-        if match:
-            mark_service_affected(match.group(1))
-
-        # service crate affected
-        match = re.search(r"core/services/([^/]+)/", p)
-        if match:
-            mark_service_affected(match.group(1))
-
-        # opendal-core internal service affected
-        match = re.search(r"core/core/src/services/([^/]+)/", p)
-        if match:
-            mark_service_affected(match.group(1))
-
-        # core test affected
-        match = re.search(r".github/services/([^/]+)/", p)
-        if match:
-            mark_service_affected(match.group(1))
-
-        # fixture affected
-        match = re.search(r"fixtures/([^/]+)/", p)
-        if match:
-            mark_service_affected(match.group(1))
+        # Service-specific paths (core only; no cross-binding fan-out on PR).
+        for pattern in (
+            r"core/src/services/([^/]+)/",
+            r"core/services/([^/]+)/",
+            r"core/core/src/services/([^/]+)/",
+            r"\.github/services/([^/]+)/",
+            r"fixtures/([^/]+)/",
+        ):
+            match = re.search(pattern, p)
+            if match:
+                mark_service_affected(match.group(1))
 
     return hint
 
 
-# `unique_cases` is used to only one setup for each service.
-#
-# We need this because we have multiple setups for each service, and they have already been
-# tested by `core` workflow. So we can only test unique setup for each service for bindings.
-#
-# We make sure that we return the first setup for each service in alphabet order.
-def unique_cases(cases):
+# `unique_cases` picks one setup for each service (first alphabetically).
+def unique_cases(cases: list[dict[str, str]]) -> list[dict[str, str]]:
     ucases = {}
     for case in cases:
         service = case["service"]
         if service not in ucases:
             ucases[service] = case
-
-    # Convert the dictionary back to a list if needed
     return list(ucases.values())
 
 
@@ -255,141 +247,228 @@ def group_cases_by_service(cases: list[dict[str, str]]) -> list[dict[str, Any]]:
 
 
 def generate_core_cases(
-    cases: list[dict[str, str]], hint: Hint
+    cases: list[dict[str, str]], hint: Hint, mode: str = "pr"
 ) -> list[dict[str, str]]:
-    # Always run all tests if it is a push event.
-    if os.getenv("GITHUB_IS_PUSH") == "true":
+    if mode in ("nightly-local", "nightly-live"):
         return cases
 
-    # Return empty if core is False
-    if not hint.core:
-        return []
+    selected = []
+    for case in cases:
+        in_service = case["service"] in hint.core_services
+        in_smoke = hint.core_smoke and (
+            case["service"],
+            case["setup"],
+        ) in CORE_PR_SMOKE_SETUPS
+        if in_service or in_smoke:
+            selected.append(case)
+    return selected
 
-    # Return all services if all_service is True
-    if hint.all_service:
-        return cases
 
-    # Filter all cases that not shown un in changed files
-    cases = [v for v in cases if v["service"] in hint.services]
+def _filter_binding_cases(
+    cases: list[dict[str, str]], language: str
+) -> list[dict[str, str]]:
+    cases = unique_cases(cases)
+
+    # Disable aliyun_drive case for every language due to upstream rate limits.
+    cases = [v for v in cases if v["service"] != "aliyun_drive"]
+
+    # These fixtures target core services without enabling bindings.
+    cases = [v for v in cases if v["service"] not in ["github", "smb"]]
+
+    if language == "java":
+        cases = [
+            v
+            for v in cases
+            if v["service"]
+            not in [
+                "compfs",
+                # FIXME: Re-enable hf after https://github.com/apache/opendal/issues/7367 is fixed.
+                "hf",
+                "hdfs",
+                "hdfs_native",
+                "monoiofs",
+                "rocksdb",
+            ]
+        ]
+
+    if language == "dotnet":
+        cases = [
+            v
+            for v in cases
+            if v["service"]
+            not in [
+                "hdfs",
+                "hdfs_native",
+                "rocksdb",
+            ]
+        ]
+
+    if language == "go":
+        cases = [
+            v
+            for v in cases
+            if v["service"]
+            not in [
+                # opendal-go-services doesn't provide TOS yet.
+                "tos",
+            ]
+        ]
+
+    # Ruby binding only integrates a subset of services (see bindings/ruby/Cargo.toml).
+    if language == "ruby":
+        cases = [
+            v
+            for v in cases
+            if v["service"]
+            in [
+                "azblob",
+                "azdls",
+                "cos",
+                "fs",
+                "gcs",
+                "ghac",
+                "http",
+                "ipmfs",
+                "memory",
+                "obs",
+                "oss",
+                "s3",
+                "webdav",
+                "webhdfs",
+                "azfile",
+            ]
+        ]
+
     return cases
 
 
 def generate_language_binding_cases(
-    cases: list[dict[str, str]], hint: Hint, language: str
+    cases: list[dict[str, str]], hint: Hint, language: str, mode: str = "pr"
 ) -> list[dict[str, str]]:
-    cases = unique_cases(cases)
+    cases = _filter_binding_cases(cases, language)
 
-    # Disable aliyun_drive case for every language.
-    #
-    # This is because aliyun_drive has a speed limit and tests may not be stable enough.
-    # Bindings may be treated as parallel requests, so we need to disable it for all languages.
-    cases = [v for v in cases if v["service"] != "aliyun_drive"]
-
-    # Remove invalid cases for java.
-    if language == "java":
-        cases = [v for v in cases if v["service"] not in [
-            "compfs",
-            # FIXME: Re-enable hf after https://github.com/apache/opendal/issues/7367 is fixed.
-            "hf",
-            "hdfs",
-            "hdfs_native",
-            "monoiofs",
-            "rocksdb",
-        ]]
-
-    # Remove invalid cases for dotnet.
-    if language == "dotnet":
-        cases = [v for v in cases if v["service"] not in [
-            "hdfs",
-            "hdfs_native",
-            "rocksdb",
-        ]]
-
-    # Remove invalid cases for go.
-    if language == "go":
-        cases = [v for v in cases if v["service"] not in [
-            # opendal-go-services doesn't provide TOS yet.
-            "tos",
-        ]]
-    
-    # Enable integrated services (cases) for ruby.
-    # Ruby binding only integrates some services. Read more in bindings/ruby/Cargo.toml
-    if language == "ruby":
-        cases = [v for v in cases if v["service"] in [
-            "azblob",
-            "azdls",
-            "cos",
-            "fs",
-            "gcs",
-            "ghac",
-            "http",
-            "ipmfs",
-            "memory",
-            "obs",
-            "oss",
-            "s3",
-            "webdav",
-            "webhdfs",
-            "azfile",
-        ]]
-
-    if os.getenv("GITHUB_IS_PUSH") == "true":
+    if mode in ("nightly-local", "nightly-live"):
         return cases
 
-    # Return empty if this binding is False
-    if not getattr(hint, f"binding_{language}"):
+    if language not in hint.binding_smoke:
         return []
 
-    # Return all services if all_service is True
-    if hint.all_service:
-        return cases
-
-    # Filter all cases that not shown up in changed files
-    cases = [v for v in cases if v["service"] in hint.services]
-    return cases
+    return [
+        v for v in cases if (v["service"], v["setup"]) in BINDING_PR_SMOKE_SETUPS
+    ]
 
 
 def generate_integration_cases(
-    cases: list[dict[str, str]], hint: Hint, integration: str
+    cases: list[dict[str, str]], hint: Hint, integration: str, mode: str = "pr"
 ) -> list[dict[str, str]]:
-    # Return empty if this integration is False
-    if not getattr(hint, f"integration_{integration}"):
-        return []
-
     cases = unique_cases(cases)
 
     if integration == "object_store":
         supported_services = ["fs", "s3"]
         cases = [v for v in cases if v["service"] in supported_services]
 
-    # Return all services if all_service is True
-    if hint.all_service:
+    if mode in ("nightly-local", "nightly-live"):
         return cases
 
-    # Filter all cases that not shown up in changed files
-    cases = [v for v in cases if v["service"] in hint.services]
+    if integration not in hint.integration_smoke:
+        return []
 
     return cases
 
 
-def plan(changed_files: list[str]) -> dict[str, Any]:
-    cases = provided_cases()
+def validate_nightly_plan(jobs: dict[str, Any], mode: str) -> None:
+    if mode == "nightly-local":
+        if not jobs["components"]["core"]:
+            raise RuntimeError("nightly-local plan must include core")
+        core_services = {
+            case["service"] for target in jobs["core"] for case in target["cases"]
+        }
+        missing_core = {"memory", "fs", "s3", "azblob", "http"} - core_services
+        if missing_core:
+            raise RuntimeError(
+                f"nightly-local plan missing core services: {sorted(missing_core)}"
+            )
+        for language in LANGUAGE_BINDING:
+            if not jobs["components"][f"binding_{language}"]:
+                raise RuntimeError(
+                    f"nightly-local plan must include binding_{language}"
+                )
+        for integration in INTEGRATIONS:
+            if not jobs["components"][f"integration_{integration}"]:
+                raise RuntimeError(
+                    f"nightly-local plan must include integration_{integration}"
+                )
+    elif mode == "nightly-live":
+        if not jobs["components"]["core"]:
+            raise RuntimeError("nightly-live plan must include core")
+        core_services = {
+            case["service"] for target in jobs["core"] for case in target["cases"]
+        }
+        if "github" not in core_services:
+            raise RuntimeError("nightly-live plan must include github/read_only")
+        if not jobs["components"]["integration_object_store"]:
+            raise RuntimeError(
+                "nightly-live plan must include integration_object_store"
+            )
+
+
+def _pr_coverage_notes(hint: Hint, local_cases: list[dict[str, str]]) -> list[str]:
+    if not hint.core_services:
+        return []
+    local_services = {c["service"] for c in local_cases}
+    live_services = {c["service"] for c in _all_service_cases() if c["live"]}
+    notes: list[str] = []
+    for svc in sorted(hint.core_services):
+        if svc in local_services:
+            continue
+        if svc == "ghac":
+            notes.append(
+                "Service 'ghac' has no local behavior fixture here; it is verified via service_test_ghac.yml and Nightly Tier B."
+            )
+        elif svc in live_services:
+            notes.append(
+                f"Service '{svc}' only has live/online behavior fixtures; PR runs local deterministic tests only. Live verification runs in Nightly Tier B or via manual workflow_dispatch (mode=nightly-live)."
+            )
+        else:
+            notes.append(
+                f"Service '{svc}' has no configured behavior test fixture under .github/services/."
+            )
+    return notes
+
+
+def plan(changed_files: list[str], mode: str | None = None) -> dict[str, Any]:
+    resolved_mode = mode or os.getenv("BEHAVIOR_PLAN_MODE", "pr")
+    cases = provided_cases(mode=resolved_mode)
     hint = calculate_hint(changed_files)
 
-    core_cases = group_cases_by_service(generate_core_cases(cases, hint))
+    if resolved_mode == "nightly-live":
+        core_cases = [
+            {
+                "service": c["service"],
+                "feature": c["feature"],
+                "setups": [c["setup"]],
+                "label": f"{c['service']} / {c['setup']}",
+            }
+            for c in generate_core_cases(cases, hint, mode=resolved_mode)
+        ]
+    else:
+        core_cases = group_cases_by_service(
+            generate_core_cases(cases, hint, mode=resolved_mode)
+        )
 
-    jobs = {
+    jobs: dict[str, Any] = {
         "components": {
             "core": False,
         },
         "core": [],
+        "notes": _pr_coverage_notes(hint, cases) if resolved_mode == "pr" else [],
     }
 
     if len(core_cases) > 0:
         jobs["components"]["core"] = True
         jobs["core"].append({"os": "ubuntu-latest", "cases": core_cases})
 
-        # fs is the only services need to run upon windows, let's hard code it here.
+        # fs is the only service tested on Windows core runners.
         if "fs" in [v["service"] for v in core_cases]:
             jobs["core"].append(
                 {
@@ -406,19 +485,25 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     for language in LANGUAGE_BINDING:
         jobs[f"binding_{language}"] = []
         jobs["components"][f"binding_{language}"] = False
-        language_cases = generate_language_binding_cases(cases, hint, language)
+        language_cases = generate_language_binding_cases(
+            cases, hint, language, mode=resolved_mode
+        )
         if len(language_cases) > 0:
             jobs["components"][f"binding_{language}"] = True
             jobs[f"binding_{language}"].append(
                 {"os": "ubuntu-latest", "cases": language_cases}
             )
-            if language == "go":
+            if language == "go" and "fs" in [v["service"] for v in language_cases]:
                 # Add fs service to ensure the go binding works on Windows and macOS.
                 jobs[f"binding_{language}"].append(
                     {
                         "os": "windows-latest",
                         "cases": [
-                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                            {
+                                "setup": "local_fs",
+                                "service": "fs",
+                                "feature": "services-fs",
+                            }
                         ],
                     }
                 )
@@ -426,7 +511,11 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
                     {
                         "os": "macos-latest",
                         "cases": [
-                            {"setup": "local_fs", "service": "fs", "feature": "services-fs"}
+                            {
+                                "setup": "local_fs",
+                                "service": "fs",
+                                "feature": "services-fs",
+                            }
                         ],
                     }
                 )
@@ -434,17 +523,35 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     for integration in INTEGRATIONS:
         jobs[f"integration_{integration}"] = []
         jobs["components"][f"integration_{integration}"] = False
-        integration_cases = generate_integration_cases(cases, hint, integration)
+        integration_cases = generate_integration_cases(
+            cases, hint, integration, mode=resolved_mode
+        )
         if len(integration_cases) > 0:
             jobs["components"][f"integration_{integration}"] = True
             jobs[f"integration_{integration}"].append(
                 {"os": "ubuntu-latest", "cases": integration_cases}
             )
 
+    if resolved_mode in ("nightly-local", "nightly-live"):
+        validate_nightly_plan(jobs, resolved_mode)
+
     return jobs
 
 
-if __name__ == "__main__":
-    changed_files = sys.argv[1:]
-    result = plan(changed_files)
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Plan OpenDAL behavior tests")
+    parser.add_argument(
+        "--mode",
+        choices=VALID_MODES,
+        default=os.getenv("BEHAVIOR_PLAN_MODE", "pr"),
+        help="Planning mode: pr, nightly-local, or nightly-live",
+    )
+    parser.add_argument("changed_files", nargs="*")
+    args = parser.parse_args(argv)
+    result = plan(args.changed_files, mode=args.mode)
     print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

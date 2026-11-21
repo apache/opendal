@@ -35,16 +35,18 @@ void test_reader_basic(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Create reader
-    opendal_result_operator_reader reader_result = opendal_operator_reader(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(reader_result.error,
+    opendal_reader* reader = NULL;
+    error = opendal_operator_reader(ctx->config->operator_instance, path, &reader);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Reader creation should succeed");
-    OPENDAL_ASSERT_NOT_NULL(reader_result.reader, "Reader should not be null");
+    OPENDAL_ASSERT_NOT_NULL(reader, "Reader should not be null");
 
     // Read entire content
     uint8_t buffer[100];
-    opendal_result_reader_read read_result = opendal_reader_read(reader_result.reader, buffer, sizeof(buffer));
-    OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read operation should succeed");
-    OPENDAL_ASSERT_EQ(content_len, read_result.size,
+    uintptr_t read_size = 0;
+    error = opendal_reader_read(reader, buffer, sizeof(buffer), &read_size);
+    OPENDAL_ASSERT_NO_ERROR(error, "Read operation should succeed");
+    OPENDAL_ASSERT_EQ(content_len, read_size,
         "Read size should match content length");
 
     // Verify content
@@ -52,7 +54,7 @@ void test_reader_basic(opendal_test_context* ctx)
         "Read content should match written content");
 
     // Cleanup
-    opendal_reader_free(reader_result.reader);
+    opendal_reader_free(reader);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -72,52 +74,55 @@ void test_reader_seek(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Create reader
-    opendal_result_operator_reader reader_result = opendal_operator_reader(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(reader_result.error,
+    opendal_reader* reader = NULL;
+    error = opendal_operator_reader(ctx->config->operator_instance, path, &reader);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Reader creation should succeed");
 
     // Test seek from current position
-    opendal_result_reader_seek seek_result = opendal_reader_seek(reader_result.reader, 5, OPENDAL_SEEK_CUR);
-    OPENDAL_ASSERT_NO_ERROR(seek_result.error,
+    uint64_t seek_pos = 0;
+    error = opendal_reader_seek(reader, 5, OPENDAL_SEEK_CUR, &seek_pos);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Seek from current should succeed");
-    OPENDAL_ASSERT_EQ(5, seek_result.pos, "Position should be 5");
+    OPENDAL_ASSERT_EQ(5, seek_pos, "Position should be 5");
 
     // Read after seek
     uint8_t buffer[5];
-    opendal_result_reader_read read_result = opendal_reader_read(reader_result.reader, buffer, 5);
-    OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read after seek should succeed");
-    OPENDAL_ASSERT_EQ(5, read_result.size, "Should read 5 bytes");
+    uintptr_t read_size = 0;
+    error = opendal_reader_read(reader, buffer, 5, &read_size);
+    OPENDAL_ASSERT_NO_ERROR(error, "Read after seek should succeed");
+    OPENDAL_ASSERT_EQ(5, read_size, "Should read 5 bytes");
     OPENDAL_ASSERT(memcmp("56789", buffer, 5) == 0,
         "Should read correct content after seek");
 
     // Test seek from beginning
-    seek_result = opendal_reader_seek(reader_result.reader, 0, OPENDAL_SEEK_SET);
-    OPENDAL_ASSERT_NO_ERROR(seek_result.error,
+    error = opendal_reader_seek(reader, 0, OPENDAL_SEEK_SET, &seek_pos);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Seek from beginning should succeed");
-    OPENDAL_ASSERT_EQ(0, seek_result.pos, "Position should be 0");
+    OPENDAL_ASSERT_EQ(0, seek_pos, "Position should be 0");
 
     // Read from beginning
-    read_result = opendal_reader_read(reader_result.reader, buffer, 5);
-    OPENDAL_ASSERT_NO_ERROR(read_result.error,
+    error = opendal_reader_read(reader, buffer, 5, &read_size);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Read from beginning should succeed");
     OPENDAL_ASSERT(memcmp("01234", buffer, 5) == 0,
         "Should read correct content from beginning");
 
     // Test seek from end
-    seek_result = opendal_reader_seek(reader_result.reader, -5, OPENDAL_SEEK_END);
-    OPENDAL_ASSERT_NO_ERROR(seek_result.error, "Seek from end should succeed");
-    OPENDAL_ASSERT_EQ(content_len - 5, seek_result.pos,
+    error = opendal_reader_seek(reader, -5, OPENDAL_SEEK_END, &seek_pos);
+    OPENDAL_ASSERT_NO_ERROR(error, "Seek from end should succeed");
+    OPENDAL_ASSERT_EQ(content_len - 5, seek_pos,
         "Position should be content_len - 5");
 
     // Read from near end
-    read_result = opendal_reader_read(reader_result.reader, buffer, 5);
-    OPENDAL_ASSERT_NO_ERROR(read_result.error,
+    error = opendal_reader_read(reader, buffer, 5, &read_size);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Read from near end should succeed");
     OPENDAL_ASSERT(memcmp("FGHIJ", buffer, 5) == 0,
         "Should read correct content from near end");
 
     // Cleanup
-    opendal_reader_free(reader_result.reader);
+    opendal_reader_free(reader);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -129,10 +134,11 @@ void test_writer_basic(opendal_test_context* ctx)
     const char* content2 = "OpenDAL Writer!";
 
     // Create writer
-    opendal_result_operator_writer writer_result = opendal_operator_writer(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(writer_result.error,
+    opendal_writer* writer = NULL;
+    opendal_error* error = opendal_operator_writer(ctx->config->operator_instance, path, &writer);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Writer creation should succeed");
-    OPENDAL_ASSERT_NOT_NULL(writer_result.writer, "Writer should not be null");
+    OPENDAL_ASSERT_NOT_NULL(writer, "Writer should not be null");
 
     // Write first part
     opendal_bytes data1;
@@ -140,9 +146,10 @@ void test_writer_basic(opendal_test_context* ctx)
     data1.len = strlen(content1);
     data1.capacity = strlen(content1);
 
-    opendal_result_writer_write write_result = opendal_writer_write(writer_result.writer, &data1);
-    OPENDAL_ASSERT_NO_ERROR(write_result.error, "First write should succeed");
-    OPENDAL_ASSERT_EQ(strlen(content1), write_result.size,
+    uintptr_t write_size = 0;
+    error = opendal_writer_write(writer, &data1, &write_size);
+    OPENDAL_ASSERT_NO_ERROR(error, "First write should succeed");
+    OPENDAL_ASSERT_EQ(strlen(content1), write_size,
         "Write size should match content length");
 
     // Write second part - handle OneShotWriter limitation
@@ -151,60 +158,63 @@ void test_writer_basic(opendal_test_context* ctx)
     data2.len = strlen(content2);
     data2.capacity = strlen(content2);
 
-    write_result = opendal_writer_write(writer_result.writer, &data2);
+    error = opendal_writer_write(writer, &data2, &write_size);
 
     // Check if this is a OneShotWriter limitation
-    if (write_result.error != NULL && write_result.error->message.data != NULL && strstr((char*)write_result.error->message.data, "OneShotWriter doesn't support multiple write") != NULL) {
+    if (error != NULL && error->message.data != NULL && strstr((char*)error->message.data, "OneShotWriter doesn't support multiple write") != NULL) {
         printf("Note: Service uses OneShotWriter, skipping multiple write test\n");
+        opendal_error_free(error);
 
         // Close current writer and verify single write worked
-        opendal_error* error = opendal_writer_close(writer_result.writer);
+        error = opendal_writer_close(writer);
         OPENDAL_ASSERT_NO_ERROR(error, "Writer close should succeed");
 
         // Verify first write content
-        opendal_result_read read_result = opendal_operator_read(ctx->config->operator_instance, path);
-        OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read should succeed");
-        OPENDAL_ASSERT_EQ(strlen(content1), read_result.data.len,
+        opendal_bytes read_data;
+        error = opendal_operator_read(ctx->config->operator_instance, path, &read_data);
+        OPENDAL_ASSERT_NO_ERROR(error, "Read should succeed");
+        OPENDAL_ASSERT_EQ(strlen(content1), read_data.len,
             "Content length should match first write");
         OPENDAL_ASSERT(
-            memcmp(content1, read_result.data.data, read_result.data.len) == 0,
+            memcmp(content1, read_data.data, read_data.len) == 0,
             "Content should match first write");
 
         // Cleanup
-        opendal_bytes_free(&read_result.data);
-        opendal_writer_free(writer_result.writer);
+        opendal_bytes_free(&read_data);
+        opendal_writer_free(writer);
         opendal_operator_delete(ctx->config->operator_instance, path);
         return;
     }
 
-    OPENDAL_ASSERT_NO_ERROR(write_result.error, "Second write should succeed");
-    OPENDAL_ASSERT_EQ(strlen(content2), write_result.size,
+    OPENDAL_ASSERT_NO_ERROR(error, "Second write should succeed");
+    OPENDAL_ASSERT_EQ(strlen(content2), write_size,
         "Write size should match content length");
 
     // Close writer
-    opendal_error* error = opendal_writer_close(writer_result.writer);
+    error = opendal_writer_close(writer);
     OPENDAL_ASSERT_NO_ERROR(error, "Writer close should succeed");
 
     // Verify written content
-    opendal_result_read read_result = opendal_operator_read(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read should succeed");
+    opendal_bytes read_data;
+    error = opendal_operator_read(ctx->config->operator_instance, path, &read_data);
+    OPENDAL_ASSERT_NO_ERROR(error, "Read should succeed");
 
     size_t expected_len = strlen(content1) + strlen(content2);
-    OPENDAL_ASSERT_EQ(expected_len, read_result.data.len,
+    OPENDAL_ASSERT_EQ(expected_len, read_data.len,
         "Total content length should match");
 
     // Verify combined content
     char expected_content[100];
     snprintf(expected_content, sizeof(expected_content), "%s%s", content1,
         content2);
-    OPENDAL_ASSERT(memcmp(expected_content, read_result.data.data,
-                       read_result.data.len)
+    OPENDAL_ASSERT(memcmp(expected_content, read_data.data,
+                       read_data.len)
             == 0,
         "Combined content should match");
 
     // Cleanup
-    opendal_bytes_free(&read_result.data);
-    opendal_writer_free(writer_result.writer);
+    opendal_bytes_free(&read_data);
+    opendal_writer_free(writer);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -216,8 +226,9 @@ void test_writer_large_data(opendal_test_context* ctx)
     const size_t num_chunks = 10;
 
     // Create writer
-    opendal_result_operator_writer writer_result = opendal_operator_writer(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(writer_result.error,
+    opendal_writer* writer = NULL;
+    opendal_error* error = opendal_operator_writer(ctx->config->operator_instance, path, &writer);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Writer creation should succeed");
 
     // Generate and write chunks
@@ -233,45 +244,48 @@ void test_writer_large_data(opendal_test_context* ctx)
     bool is_one_shot_writer = false;
 
     for (size_t i = 0; i < num_chunks; i++) {
-        opendal_result_writer_write write_result = opendal_writer_write(writer_result.writer, &chunk);
+        uintptr_t write_size = 0;
+        error = opendal_writer_write(writer, &chunk, &write_size);
 
         // Check for OneShotWriter limitation on subsequent writes
-        if (i > 0 && write_result.error != NULL && write_result.error->message.data != NULL && strstr((char*)write_result.error->message.data, "OneShotWriter doesn't support multiple write") != NULL) {
+        if (i > 0 && error != NULL && error->message.data != NULL && strstr((char*)error->message.data, "OneShotWriter doesn't support multiple write") != NULL) {
             printf("Note: Service uses OneShotWriter, completed %zu write(s)\n", i);
+            opendal_error_free(error);
             is_one_shot_writer = true;
             break;
         }
 
-        OPENDAL_ASSERT_NO_ERROR(write_result.error, "Write should succeed");
-        OPENDAL_ASSERT_EQ(chunk_size, write_result.size,
+        OPENDAL_ASSERT_NO_ERROR(error, "Write should succeed");
+        OPENDAL_ASSERT_EQ(chunk_size, write_size,
             "Write size should match chunk size");
-        total_written += write_result.size;
+        total_written += write_size;
     }
 
     // Close writer
-    opendal_error* error = opendal_writer_close(writer_result.writer);
+    error = opendal_writer_close(writer);
     OPENDAL_ASSERT_NO_ERROR(error, "Writer close should succeed");
 
     // Verify total size - adjust expectations for OneShotWriter
-    opendal_result_stat stat_result = opendal_operator_stat(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(stat_result.error, "Stat should succeed");
+    opendal_metadata* meta = NULL;
+    error = opendal_operator_stat(ctx->config->operator_instance, path, &meta);
+    OPENDAL_ASSERT_NO_ERROR(error, "Stat should succeed");
 
     if (is_one_shot_writer) {
         // For OneShotWriter, we expect only one chunk to be written
         OPENDAL_ASSERT_EQ(chunk_size,
-            opendal_metadata_content_length(stat_result.meta),
+            opendal_metadata_content_length(meta),
             "OneShotWriter should have written one chunk");
     } else {
         // For normal writers, we expect all chunks
         OPENDAL_ASSERT_EQ(chunk_size * num_chunks,
-            opendal_metadata_content_length(stat_result.meta),
+            opendal_metadata_content_length(meta),
             "Total file size should match all chunks");
     }
 
     // Cleanup
     free(chunk_data);
-    opendal_metadata_free(stat_result.meta);
-    opendal_writer_free(writer_result.writer);
+    opendal_metadata_free(meta);
+    opendal_writer_free(writer);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -292,8 +306,9 @@ void test_reader_partial_read(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Write operation should succeed");
 
     // Create reader
-    opendal_result_operator_reader reader_result = opendal_operator_reader(ctx->config->operator_instance, path);
-    OPENDAL_ASSERT_NO_ERROR(reader_result.error,
+    opendal_reader* reader = NULL;
+    error = opendal_operator_reader(ctx->config->operator_instance, path, &reader);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Reader creation should succeed");
 
     // Read in small chunks
@@ -302,25 +317,26 @@ void test_reader_partial_read(opendal_test_context* ctx)
     size_t total_read = 0;
 
     while (total_read < content_len) {
-        opendal_result_reader_read read_result = opendal_reader_read(reader_result.reader, buffer, chunk_size);
-        OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read should succeed");
+        uintptr_t read_size = 0;
+        error = opendal_reader_read(reader, buffer, chunk_size, &read_size);
+        OPENDAL_ASSERT_NO_ERROR(error, "Read should succeed");
 
-        if (read_result.size == 0) {
+        if (read_size == 0) {
             break; // EOF
         }
 
         // Verify chunk content
-        OPENDAL_ASSERT(memcmp(content + total_read, buffer, read_result.size) == 0,
+        OPENDAL_ASSERT(memcmp(content + total_read, buffer, read_size) == 0,
             "Chunk content should match");
 
-        total_read += read_result.size;
+        total_read += read_size;
     }
 
     OPENDAL_ASSERT_EQ(content_len, total_read,
         "Total read should match content length");
 
     // Cleanup
-    opendal_reader_free(reader_result.reader);
+    opendal_reader_free(reader);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 
@@ -347,25 +363,26 @@ void test_reader_with_options(opendal_test_context* ctx)
     opendal_reader_options_set_gap(options, 4096);
     opendal_reader_options_set_prefetch(options, 2);
 
-    opendal_result_operator_reader reader_result
-        = opendal_operator_reader_with(ctx->config->operator_instance, path, options);
+    opendal_reader* reader = NULL;
+    error = opendal_operator_reader_with(ctx->config->operator_instance, path, options, &reader);
     opendal_reader_options_free(options);
-    OPENDAL_ASSERT_NO_ERROR(reader_result.error,
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Reader-with-options creation should succeed");
-    OPENDAL_ASSERT_NOT_NULL(reader_result.reader, "Reader should not be null");
+    OPENDAL_ASSERT_NOT_NULL(reader, "Reader should not be null");
 
     // A single read() may return a short count under chunked/concurrent reads,
     // so accumulate until the whole object has been read.
     uint8_t buffer[100];
     size_t total_read = 0;
     while (total_read < content_len) {
-        opendal_result_reader_read read_result = opendal_reader_read(
-            reader_result.reader, buffer + total_read, sizeof(buffer) - total_read);
-        OPENDAL_ASSERT_NO_ERROR(read_result.error, "Read operation should succeed");
-        if (read_result.size == 0) {
+        uintptr_t read_size = 0;
+        error = opendal_reader_read(
+            reader, buffer + total_read, sizeof(buffer) - total_read, &read_size);
+        OPENDAL_ASSERT_NO_ERROR(error, "Read operation should succeed");
+        if (read_size == 0) {
             break; // EOF
         }
-        total_read += read_result.size;
+        total_read += read_size;
     }
     OPENDAL_ASSERT_EQ(content_len, total_read,
         "Total read size should match content length");
@@ -373,15 +390,15 @@ void test_reader_with_options(opendal_test_context* ctx)
         "Read content should match written content");
 
     // A NULL options pointer must behave like opendal_operator_reader.
-    opendal_result_operator_reader default_result
-        = opendal_operator_reader_with(ctx->config->operator_instance, path, NULL);
-    OPENDAL_ASSERT_NO_ERROR(default_result.error,
+    opendal_reader* default_reader = NULL;
+    error = opendal_operator_reader_with(ctx->config->operator_instance, path, NULL, &default_reader);
+    OPENDAL_ASSERT_NO_ERROR(error,
         "Reader-with-NULL-options creation should succeed");
-    OPENDAL_ASSERT_NOT_NULL(default_result.reader, "Reader should not be null");
+    OPENDAL_ASSERT_NOT_NULL(default_reader, "Reader should not be null");
 
     // Cleanup
-    opendal_reader_free(reader_result.reader);
-    opendal_reader_free(default_result.reader);
+    opendal_reader_free(reader);
+    opendal_reader_free(default_reader);
     opendal_operator_delete(ctx->config->operator_instance, path);
 }
 

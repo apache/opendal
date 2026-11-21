@@ -18,7 +18,7 @@ The primary repository runbook is `website/community/release/release.md`. The sp
 - Do not claim any step succeeded until the external system confirms it.
 - Treat an RC as bound to its tag, target commit, and signed source artifacts. Manual RC tags are signed; weekly preparation creates a lightweight tag and compose signs the artifacts. Do not create a new RC merely because `main` advances after tagging.
 - Do not assume bindings or integrations share the top-level OpenDAL version. Each released binding or integration can have its own version.
-- Do not start a public vote with broken links, open Maven staging, missing source artifacts at the selected staging location, or incomplete required workflows.
+- ATR is the authority for ATR candidates. Other builds and language package staging are optional and do not block starting the vote. Use the manual SVN checklist only for candidates outside ATR.
 - Do not conflate Nexus `Close` before voting with Nexus `Release` after the vote passes.
 - Do not over-block on unrelated/noncritical CI if the release gate is explicitly narrowed.
 - Do not put SVN, Nexus, or mail credentials in commands, files, issue text, PRs, or release notes. Read them from environment variables or an interactive prompt and avoid shell history when possible.
@@ -64,7 +64,10 @@ Use these states explicitly when reporting status:
 
 Weekly preparation replaces the manual bump-PR path and can compose sources while downstream builds run. A candidate Discussion confirms upload and dispatch, not readiness to vote.
 For new `releases/<version>-rc.N` branches, hourly ATR synchronization maintains
-that Discussion. Resolving a vote as passed starts final publication, announcement,
+that Discussion through status comments. Start future ATR votes with automatic
+resolution and publication enabled, and verify both settings in the returned
+task. ATR attempts resolution at the scheduled vote end; unresolved votes need
+manual follow-up. Resolving a vote as passed starts final publication, announcement,
 version-sync PR creation and same-version RC branch cleanup. Do not duplicate
 those operations manually. Older weekly branches stay on the manual path.
 

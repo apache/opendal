@@ -10,8 +10,9 @@ See [Reproducible source archives](./reproducible-source.md) for rebuilding and
 comparing the source packages before signing.
 
 For candidates prepared on `releases/<version>-rc.N`, follow the
-[weekly release lifecycle](weekly.md): verify and resolve the vote in ATR, then
-monitor automatic publication and review the version-sync PR. The manual steps
+[weekly release lifecycle](weekly.md): start the vote with ATR automatic resolution
+and publication enabled, then monitor publication and review the version-sync PR.
+The manual steps
 below apply to candidates outside that lifecycle, including older weekly branches.
 
 ## Introduction

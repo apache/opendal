@@ -17,7 +17,7 @@ Every service is behind a `services-*` Cargo feature. Enable the ones you use:
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", features = ["services-s3", "services-gcs"] }
+opendal = { version = "0.59", features = ["services-s3", "services-gcs"] }
 ```
 
 The in-memory service is always available; every other service needs its

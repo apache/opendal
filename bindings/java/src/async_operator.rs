@@ -34,17 +34,16 @@ use opendal::Operator;
 use opendal::blocking;
 
 use crate::Result;
-use crate::convert::{
-    bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string, offset_length_to_range,
-    read_int64_field,
-};
+use crate::convert::{bytes_to_jbytearray, jmap_to_hashmap, jstring_to_string};
 use crate::error::ThrowException;
 use crate::executor::Executor;
 use crate::executor::executor_or_default;
 use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
-use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
+use crate::{
+    make_entry, make_list_options, make_read_options, make_stat_options, make_write_options,
+};
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_AsyncOperator_constructor<'local>(
@@ -67,7 +66,7 @@ fn intern_constructor(
     let scheme = jstring_to_string(env, &scheme)?;
     let map = jmap_to_hashmap(env, &map)?;
     let op = Operator::via_iter(scheme, map)?;
-    let executor = executor_or_default(executor)?;
+    let executor = executor_or_default(env, executor)?;
     let ctx = op
         .context()
         .with_executor(opendal::Executor::with(executor));
@@ -133,7 +132,7 @@ fn intern_write(
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.write_options(&path, content, write_opts).await;
         complete_future(id, move |_env| {
             result?;
@@ -173,7 +172,7 @@ fn intern_stat(
     let path = jstring_to_string(env, &path)?;
     let stat_opts = make_stat_options(env, &options)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.stat_options(&path, stat_opts).await;
         complete_future(id, move |env| make_metadata(env, result?));
     });
@@ -205,19 +204,16 @@ fn intern_read(
     options: JObject,
 ) -> Result<jlong> {
     // Prepare inputs before spawning
-    let id = request_id(env)?;
     let path_str = jstring_to_string(env, &path)?;
-    let offset = read_int64_field(env, &options, "offset")?;
-    let length = read_int64_field(env, &options, "length")?;
-    let range = offset_length_to_range(offset, length)?;
+    let read_opts = make_read_options(env, &options)?;
 
     // Clone operator handle to move into the task
     let op_cloned = unsafe { &*op }.clone();
 
-    executor_or_default(executor)?.spawn(async move {
-        let mut read_op = op_cloned.read_with(&path_str);
-        read_op = read_op.range(range);
-        let result = read_op.await;
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
+        let result = op_cloned.read_options(&path_str, read_opts).await;
         complete_future(id, move |env| {
             let buffer = result?;
             Ok(bytes_to_jbytearray(env, buffer.to_bytes())?.into())
@@ -253,7 +249,7 @@ fn intern_delete(
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.delete(&path).await;
         complete_future(id, move |_env| {
             result?;
@@ -279,13 +275,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlocking
 }
 
 fn intern_make_blocking_op(
-    _env: &mut Env,
+    env: &mut Env,
     op: *mut Operator,
     executor: *const Executor,
 ) -> Result<jlong> {
     let op = unsafe { &mut *op };
-    let op =
-        executor_or_default(executor)?.enter_with(move || blocking::Operator::new(op.clone()))?;
+    let op = executor_or_default(env, executor)?
+        .enter_with(move || blocking::Operator::new(op.clone()))?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
 }
 
@@ -336,7 +332,7 @@ fn intern_create_dir(
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.create_dir(&path).await;
         complete_future(id, move |_env| {
             result?;
@@ -376,7 +372,7 @@ fn intern_copy(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.copy(&source_path, &target_path).await;
         complete_future(id, move |_env| {
             result?;
@@ -416,7 +412,7 @@ fn intern_rename(
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.rename(&source_path, &target_path).await;
         complete_future(id, move |_env| {
             result?;
@@ -453,7 +449,7 @@ fn intern_remove_all(
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.delete_with(&path).recursive(true).await;
         complete_future(id, move |_env| {
             result?;
@@ -492,7 +488,7 @@ fn intern_list(
 
     let path = jstring_to_string(env, &path)?;
     let list_opts = make_list_options(env, &options)?;
-    executor_or_default(executor)?.spawn(async move {
+    executor_or_default(env, executor)?.spawn(async move {
         let result = op.list_options(&path, list_opts).await;
         complete_future(id, move |env| make_entries(env, result?));
     });
@@ -526,8 +522,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead<
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_read(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_read(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
@@ -537,15 +534,17 @@ fn intern_presign_read(
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
+    let read_opts = make_read_options(env, &options)?;
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_read(&path, expire).await;
+    executor_or_default(env, executor)?.spawn(async move {
+        let result = op.presign_read_options(&path, expire, read_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
 
@@ -562,8 +561,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_write(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_write(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
@@ -573,15 +573,17 @@ fn intern_presign_write(
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
+    let write_opts = make_write_options(env, &options)?;
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_write(&path, expire).await;
+    executor_or_default(env, executor)?.spawn(async move {
+        let result = op.presign_write_options(&path, expire, write_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
 
@@ -599,8 +601,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat<
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_presign_stat(env, op, executor, path, expire))
+    env.with_env(|env| intern_presign_stat(env, op, executor, path, expire, options))
         .resolve::<ThrowException>()
 }
 
@@ -610,15 +613,17 @@ fn intern_presign_stat(
     executor: *const Executor,
     path: JString,
     expire: jlong,
+    options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
+    let stat_opts = make_stat_options(env, &options)?;
     let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let expire = Duration::from_nanos(expire as u64);
 
-    executor_or_default(executor)?.spawn(async move {
-        let result = op.presign_stat(&path, expire).await;
+    executor_or_default(env, executor)?.spawn(async move {
+        let result = op.presign_stat_options(&path, expire, stat_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
 

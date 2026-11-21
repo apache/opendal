@@ -2,7 +2,10 @@
 
 Repository paths and shell commands are relative to the repository root.
 
-## Pre-Vote Readiness Checklist
+For ATR candidates, follow **ATR voting for new weekly candidates** below.
+The following checklist applies to the manual SVN path.
+
+## Manual SVN Pre-Vote Readiness Checklist
 
 Run this checklist immediately before creating the vote discussion:
 
@@ -31,13 +34,25 @@ SVN directory in the vote text. The template below applies to SVN-staged votes.
 
 ## ATR voting for new weekly candidates
 
-Use the commands and exact revision in `Release candidate: <RC>`. Start voting
-with `--auto-publish` after verification and RM authorization. Inspect the tally
-before resolving. A `passed` resolution initiates the automatic final publication
-path, including public announcements. `failed` and `cancelled` do not publish.
-Hourly synchronization updates the candidate Discussion and posts one reminder
-per vote round; do not manually create a duplicate GitHub vote or result thread.
-See `website/community/release/weekly.md` for CLI usage and recovery.
+Use the official ATR Python client command in
+`website/community/release/weekly.md` with the candidate's exact revision and RM
+authorization. Enable both `automatic_resolve_when_finished` and
+`automatic_publish_when_resolved`, plus `notify_when_finished`. Read back the
+returned task arguments to confirm the two automation flags are true; the
+dedicated CLI's `--auto-publish` option alone is insufficient. Do not replace the
+Python command with `atr api post`: that generic CLI sends strings, which the
+boolean fields reject. Other builds and
+language staging are optional and do not block starting an ATR vote.
+
+ATR attempts automatic resolution at the scheduled end. If the vote does not
+pass then, inspect ATR and handle the unresolved vote manually; do not promise
+another automatic attempt when later ballots arrive. A `passed` resolution
+initiates publication, including public announcements. `failed` and `cancelled`
+do not publish. Never restart an active vote to change automation flags.
+
+Hourly GitHub synchronization posts status comments and one reminder per vote
+round; it does not resolve votes. Do not create duplicate GitHub vote or result
+threads. See the weekly runbook for CLI usage and manual recovery.
 
 ## Start Vote Discussion (manual SVN path)
 

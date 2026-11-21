@@ -141,22 +141,70 @@ class LifecycleTests(unittest.TestCase):
                 release.publish_builds(self.candidate)
             dispatch.assert_not_called()
 
-    def test_waiting_for_packages_does_not_announce_or_cleanup(self):
-        with (
-            patch.object(release.Candidate, "atr", return_value=self.atr),
-            patch.object(release, "final_refs"),
-            patch.object(release, "publish_builds", return_value=False),
-            patch.object(release, "nexus_release", return_value=True),
-            patch.object(release, "notice"),
-            patch.object(release, "api") as api,
-            patch.object(release, "cleanup") as cleanup,
-        ):
-            release.publish(self.candidate)
-            api.assert_not_called()
-            cleanup.assert_not_called()
+    def test_optional_distribution_does_not_block_source_publication(self):
+        for outcome in (False, RuntimeError("Dart publication failed")):
+            with self.subTest(outcome=outcome):
+
+                def distribute(candidate, outcome=outcome):
+                    created = [
+                        call.args[1]
+                        for call in github.call_args_list
+                        if call.args[0] == "repos/apache/opendal/releases"
+                    ]
+                    self.assertEqual(len(created), 1)
+                    self.assertEqual(created[0]["name"], "v0.59.3")
+                    self.assertEqual(created[0]["tag_name"], "v0.59.3")
+                    self.assertTrue(created[0]["generate_release_notes"])
+                    self.assertEqual(
+                        http.call_args.args[0],
+                        f"{release.ATR}/api/publisher/release/announce",
+                    )
+                    sync_pr.assert_called_once()
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+
+                with (
+                    patch.object(
+                        release.Candidate,
+                        "atr",
+                        side_effect=[self.atr, self.atr | {"phase": "release"}],
+                    ),
+                    patch.object(release, "final_refs"),
+                    patch.object(release, "publish_builds", side_effect=distribute),
+                    patch.object(release, "nexus_release", return_value=True) as nexus,
+                    patch.object(release, "api", return_value=None) as github,
+                    patch.object(release, "version_notes", return_value=""),
+                    patch.object(
+                        release, "request_json", side_effect=[{"value": "jwt"}, {}]
+                    ) as http,
+                    patch.object(release, "discussion"),
+                    patch.object(
+                        release, "sync_versions", return_value="sync-pr"
+                    ) as sync_pr,
+                    patch.object(
+                        release, "notice", return_value={"id": "discussion"}
+                    ) as notice,
+                    patch.object(release, "comment_once"),
+                    patch.object(release, "cleanup") as cleanup,
+                    patch.dict(
+                        os.environ,
+                        {
+                            "ACTIONS_ID_TOKEN_REQUEST_URL": "https://example.invalid/token?request=1",
+                            "ACTIONS_ID_TOKEN_REQUEST_TOKEN": "test",
+                        },
+                    ),
+                ):
+                    release.publish(self.candidate)
+                    nexus.assert_called_once_with(self.candidate)
+                    cleanup.assert_not_called()
+                    self.assertIn("has been released", notice.call_args.args[2])
+                    self.assertIn(
+                        "Optional package distribution", notice.call_args.args[2]
+                    )
 
     def test_announcement_resume_uses_external_completion_records(self):
-        atr = self.atr | {"phase": "release"}
+        atr = self.atr | {"phase": "release", "latest_revision_number": None}
         with (
             patch.object(release.Candidate, "atr", return_value=atr),
             patch.object(release, "final_refs"),
@@ -166,11 +214,12 @@ class LifecycleTests(unittest.TestCase):
                 release, "api", return_value={"draft": False, "prerelease": False}
             ) as api,
             patch.object(release, "request_json") as http,
-            patch.object(release, "discussion"),
+            patch.object(
+                release, "discussion", return_value={"id": "discussion"}
+            ) as discussion,
             patch.object(
                 release, "sync_versions", return_value="https://example.invalid/pr"
             ),
-            patch.object(release, "notice", return_value={"id": "discussion"}),
             patch.object(release, "comment_once"),
             patch.object(release, "cleanup") as cleanup,
         ):
@@ -178,6 +227,25 @@ class LifecycleTests(unittest.TestCase):
             http.assert_not_called()  # ATR has already sent the email.
             self.assertEqual(api.call_count, 1)  # GitHub Release already exists.
             cleanup.assert_called_once_with(self.candidate)
+            notice_body = discussion.call_args.args[1]
+            self.assertIn("has been released", notice_body)
+            self.assertNotIn("VoteStartArgs", notice_body)
+            self.assertNotIn("None", notice_body)
+
+    def test_unpublished_notice_requires_revision(self):
+        for phase in (
+            "release_candidate_draft",
+            "release_candidate",
+            "release_preview",
+        ):
+            with (
+                self.subTest(phase=phase),
+                self.assertRaisesRegex(ValueError, "revision"),
+            ):
+                release.notice(
+                    self.candidate,
+                    self.atr | {"phase": phase, "latest_revision_number": None},
+                )
 
     def test_sync_pr_can_recover_after_branch_push(self):
         with (
@@ -315,6 +383,83 @@ class LifecycleTests(unittest.TestCase):
         ):
             release.comment_once("discussion", marker, "Vote now")
             api.assert_not_called()
+
+    def test_sync_announces_vote_without_editing_existing_discussion(self):
+        discussion = {
+            "id": "discussion",
+            "title": f"Release candidate: {self.candidate.rc}",
+            "body": "Candidate uploaded; RM verification is next.",
+        }
+        comments = []
+
+        def github_read(*args):
+            return json.dumps([{"data": {"node": {"comments": {"nodes": comments}}}}])
+
+        def github_write(path, payload):
+            self.assertIn("addDiscussionComment(", payload["query"])
+            comments.append({"body": payload["variables"]["body"]})
+
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict(os.environ, {"GITHUB_OUTPUT": f"{directory}/outputs"}),
+            patch.object(release, "candidates", return_value=[self.candidate.rc]),
+            patch.object(release.Candidate, "load", return_value=self.candidate),
+            patch.object(
+                release.Candidate,
+                "atr",
+                return_value=self.atr
+                | {"phase": "release_candidate", "vote_resolved": None},
+            ),
+            patch.object(release, "version_notes", return_value="Package versions"),
+            patch.object(
+                release, "discussion_data", return_value=("repo", {}, [discussion])
+            ),
+            patch.object(release, "gh", side_effect=github_read),
+            patch.object(release, "api", side_effect=github_write),
+        ):
+            release.sync()
+            release.sync()
+        self.assertEqual(len(comments), 1)
+        self.assertIn("Voting is now open", comments[0]["body"])
+        self.assertEqual(
+            discussion["body"], "Candidate uploaded; RM verification is next."
+        )
+
+    def test_publication_status_comments_only_change_with_progress(self):
+        comments = []
+
+        def github_write(path, payload):
+            self.assertIn("addDiscussionComment(", payload["query"])
+            comments.append({"body": payload["variables"]["body"]})
+
+        with (
+            patch.object(release, "version_notes", return_value="Package versions"),
+            patch.object(release, "discussion", return_value={"id": "discussion"}),
+            patch.object(
+                release,
+                "gh",
+                side_effect=lambda *args: json.dumps(
+                    [{"data": {"node": {"comments": {"nodes": comments}}}}]
+                ),
+            ),
+            patch.object(release, "api", side_effect=github_write),
+        ):
+            release.notice(self.candidate, self.atr, "Publication is running.")
+            release.notice(self.candidate, self.atr, "Publication is running.")
+            release.notice(
+                self.candidate,
+                self.atr | {"phase": "release"},
+                "Publication is complete.",
+            )
+            release.notice(
+                self.candidate,
+                self.atr | {"phase": "release"},
+                "Publication is complete.",
+            )
+        self.assertEqual(len(comments), 2)
+        self.assertIn("Publication is running.", comments[0]["body"])
+        self.assertIn("Publication is complete.", comments[1]["body"])
+        self.assertIn("tree/releases/0.59.3)", comments[1]["body"])
 
     def test_baseline_does_not_require_git_ancestry(self):
         releases = [

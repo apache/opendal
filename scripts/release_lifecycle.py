@@ -24,6 +24,7 @@ releases own their respective completion records; this module keeps no journal.
 import argparse
 import base64
 import dataclasses
+import hashlib
 import json
 import os
 import re
@@ -179,16 +180,9 @@ def discussion(title, body, category="General"):
     if len(matches) > 1:
         raise ValueError(f"multiple discussions named {title}")
     if matches:
-        current = matches[0]
-        if current["body"] != body:
-            api(
-                "graphql",
-                {
-                    "query": "mutation($id:ID!,$body:String!){updateDiscussion(input:{discussionId:$id,body:$body}){discussion{id}}}",
-                    "variables": {"id": current["id"], "body": body},
-                },
-            )
-        return current
+        # Actions tokens can create Discussions but cannot edit their bodies.
+        # Publish lifecycle changes as comments on the original entry point.
+        return matches[0]
     result = api(
         "graphql",
         {
@@ -270,7 +264,7 @@ def notice(candidate, release, status=None):
     rc = candidate.rc
     phase = release["phase"]
     revision = release.get("latest_revision_number")
-    if not revision or not re.fullmatch(r"[0-9]+", revision):
+    if phase != "release" and (not revision or not re.fullmatch(r"[0-9]+", revision)):
         raise ValueError("ATR revision is missing")
     if status is None:
         status = {
@@ -284,19 +278,32 @@ def notice(candidate, release, status=None):
         if release["phase"] == "release"
         else candidate.branch
     )
-    body = f"""**{status}**
+    body = (
+        f"""**Apache OpenDAL {candidate.version} has been released.**
+
+- [GitHub Release](https://github.com/{REPO}/releases/tag/v{candidate.version})
+- [ATR status]({ATR}/vote/opendal/{rc})
+- [Source branch](https://github.com/{REPO}/tree/{branch}); commit: `{candidate.sha}`.
+
+Follow the status replies below for optional package distribution and cleanup.
+"""
+        if phase == "release"
+        else f"""**Release candidate: {rc}**
+
+ATR is the release authority. Follow the latest status replies below and the ATR
+vote page for current progress; this opening post contains candidate instructions.
 
 - [ATR checks]({ATR}/checks/opendal/{rc}) · [Download candidate]({ATR}/download/path/opendal/{rc}) · [Vote]({ATR}/vote/opendal/{rc})
 - [Candidate branch](https://github.com/{REPO}/tree/{branch}) · [RC tag](https://github.com/{REPO}/releases/tag/v{rc})
 - Candidate commit: `{candidate.sha}`; ATR revision: `{revision}`.
-- [RC builds](https://github.com/{REPO}/actions?query=branch%3Av{rc}) · [Publication runs](https://github.com/{REPO}/actions/workflows/release_publish.yml)
+- [RC builds](https://github.com/{REPO}/actions?query=branch%3Av{rc}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml)
 
 {version_notes(candidate)}
 ### Release manager: next actions
 
-1. Check required build results and language staging, including the closed Nexus repository. Dispatch acceptance alone is not build success.
-2. Independently download, verify signatures and checksums, inspect licenses, and build the source candidate. Review the announcement draft below.
-3. Start the vote on the verified revision. After the voting period, inspect the tally and resolve according to the result.
+1. Review the candidate in ATR. Other builds and language package staging are optional and do not block starting the ATR vote.
+2. Review the source artifacts and announcement draft below.
+3. Start the vote on the selected revision with automatic resolution and publication enabled. ATR checks the tally at the scheduled end; inspect ATR if the vote remains unresolved.
 
 ### CLI for release managers and agents
 
@@ -310,16 +317,40 @@ atr vote tabulate opendal {rc}
 After verification, start the vote (do not repeat this if voting is already open):
 
 ```bash
-atr vote start opendal {rc} {revision} -m dev@opendal.apache.org --auto-publish
+uv run --python 3.13 --with "apache-trusted-releases @ git+https://github.com/apache/tooling-releases-client" python - <<'PYTHON'
+from atrclient import api
+from atrclient.models.api import VoteStartArgs
+
+task = api.vote_start(VoteStartArgs(
+    project="opendal",
+    version="{rc}",
+    revision="{revision}",
+    email_to="dev@opendal.apache.org",
+    automatic_resolve_when_finished=True,
+    automatic_publish_when_resolved=True,
+    notify_when_finished=True,
+)).task
+print(task.model_dump_json(indent=2))
+assert task.task_args["automatic_resolve_when_finished"] is True
+assert task.task_args["automatic_publish_when_resolved"] is True
+PYTHON
 ```
 
-After reviewing the vote result, resolve with `passed`, `failed`, or `cancelled`:
+This uses the official ATR client and the same credentials as `atr`. It checks
+that the returned task enables both automatic resolution and publication. If a
+check fails, inspect that task in ATR; do not repeat the start command. The CLI's
+`--auto-publish` option alone does not enable automatic resolution.
+
+ATR attempts automatic resolution at the scheduled vote end and publishes the
+source archives if the vote passes. Insufficient votes leave the vote open for
+manual follow-up; do not assume later ballots automatically trigger another
+attempt. If manual resolution is needed, review the tally first:
 
 ```bash
 atr vote resolve opendal {rc} passed
 ```
 
-These commands change the release state; agents need the RM's authorization for voting actions. `--auto-publish` lets ATR publish the approved source archives after a passing vote. The hourly GitHub workflow then creates the final branch and tag, publishes packages, and finishes announcements and cleanup.
+These commands change the release state; agents need the RM's authorization for voting actions. The hourly GitHub workflow follows ATR's resolved result to create the final branch and tag, publish packages, and finish announcements and cleanup. It does not tally or resolve votes.
 
 <details><summary>CLI installation and first-time authentication</summary>
 
@@ -336,6 +367,7 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
 {announcement(candidate)}
 </details>
 """
+    )
     current = discussion(f"Release candidate: {rc}", body)
     if phase == "release_candidate":
         seq = release.get("current_vote_seq")
@@ -344,7 +376,24 @@ Download and verify the candidate. During voting, ASF committers can vote on ATR
         comment_once(
             current["id"],
             f"<!-- opendal-vote:{rc}:{seq} -->",
-            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Please verify the candidate and vote there or in the dev mailing-list thread.",
+            f"Voting is now open: [{rc}]({ATR}/vote/opendal/{rc}). The ATR page shows the deadline and participation instructions. Follow ATR and these status replies for current progress; the opening post records candidate preparation. Other builds and language package staging are optional and do not block this vote.",
+        )
+    else:
+        atr_status = (
+            "ATR source release published"
+            if phase == "release"
+            else f"ATR revision: `{revision}`"
+        )
+        progress = f"""**{status}**
+
+- {atr_status}; [current ATR status]({ATR}/vote/opendal/{rc}).
+- [Source branch](https://github.com/{REPO}/tree/{branch}) · [Scheduled publication](https://github.com/{REPO}/actions/workflows/release_lifecycle.yml) · [Manual publication](https://github.com/{REPO}/actions/workflows/release_publish.yml).
+"""
+        digest = hashlib.sha256(progress.encode()).hexdigest()
+        comment_once(
+            current["id"],
+            f"<!-- opendal-status:{rc}:{release.get('current_vote_seq')}:{digest} -->",
+            progress,
         )
     return current
 
@@ -489,9 +538,7 @@ def publish_builds(candidate):
             and r["event"] in {"push", "workflow_dispatch"}
         ]
         if not runs:
-            fields = (
-                {"release_type": "none"} if workflow == "release_dotnet.yml" else {}
-            )
+            fields = {}
             if workflow == "release_nodejs.yml":
                 fields = {"nodejs-publish": "true", "nodejs-publish-dry-run": "false"}
             if workflow == "docs.yml":
@@ -732,15 +779,6 @@ def publish(candidate):
     if not passed(release):
         raise ValueError("ATR has not resolved this vote as passed")
     final_refs(candidate)
-    complete = publish_builds(candidate)
-    java_complete = nexus_release(candidate)
-    if not complete or not java_complete:
-        notice(
-            candidate,
-            release,
-            "Vote passed; publication jobs or Nexus promotion are still running.",
-        )
-        return
     body = announcement(candidate)
     existing = api(f"repos/{REPO}/releases/tags/v{candidate.version}", optional=True)
     if existing and (existing["draft"] or existing["prerelease"]):
@@ -750,7 +788,7 @@ def publish(candidate):
             f"repos/{REPO}/releases",
             {
                 "tag_name": f"v{candidate.version}",
-                "name": f"Apache OpenDAL {candidate.version}",
+                "name": f"v{candidate.version}",
                 "body": body + "\n" + version_notes(candidate),
                 "draft": False,
                 "prerelease": False,
@@ -800,8 +838,30 @@ def publish(candidate):
         current["id"],
         f"<!-- opendal-published:{candidate.rc} -->",
         f"[Apache OpenDAL {candidate.version}](https://github.com/{REPO}/releases/tag/v{candidate.version}) is available. "
-        f"[Source branch](https://github.com/{REPO}/tree/releases/{candidate.version}). Version sync: {sync_pr}. RC tags are retained; candidate branches are being removed.",
+        f"[Source branch](https://github.com/{REPO}/tree/releases/{candidate.version}). Version sync: {sync_pr}. RC tags are retained.",
     )
+    # Language distributions are conveniences, not prerequisites for the ASF release.
+    complete = True
+    errors = []
+    for distribute in (publish_builds, nexus_release):
+        try:
+            if not distribute(candidate):
+                complete = False
+        except (RuntimeError, ValueError, OSError) as error:
+            complete = False
+            errors.append(str(error))
+    if not complete:
+        status = (
+            f"Apache OpenDAL {candidate.version} has been released. "
+            "Optional package distribution "
+        )
+        status += (
+            "needs attention: " + "; ".join(errors) if errors else "is still running."
+        )
+        print(status)
+        notice(candidate, release, status)
+        # Discovery uses RC branches; retain them until optional follow-up completes.
+        return
     cleanup(candidate)
 
 

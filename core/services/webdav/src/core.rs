@@ -110,7 +110,7 @@ impl Debug for WebdavCore {
 
 impl WebdavCore {
     pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
@@ -176,7 +176,7 @@ impl WebdavCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
@@ -228,7 +228,7 @@ impl WebdavCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::put(&url);
@@ -316,7 +316,7 @@ impl WebdavCore {
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPPATCH").uri(&url);
@@ -346,14 +346,19 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::delete(&url);
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(header::IF_MATCH, if_match);
         }
 
         let req = req
@@ -374,10 +379,10 @@ impl WebdavCore {
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("COPY").uri(&source_uri);
@@ -403,16 +408,17 @@ impl WebdavCore {
         ctx: &OperationContext,
         from: &str,
         to: &str,
+        if_not_exists: bool,
     ) -> Result<Response<Buffer>> {
         // Check if source file exists.
         let _ = self.webdav_stat(ctx, from).await?;
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("MOVE").uri(&source_uri);
@@ -422,7 +428,7 @@ impl WebdavCore {
         }
 
         req = req.header(HEADER_DESTINATION, target_uri);
-        req = req.header(HEADER_OVERWRITE, "T");
+        req = req.header(HEADER_OVERWRITE, if if_not_exists { "F" } else { "T" });
 
         let req = req
             .extension(Operation::Rename)
@@ -439,7 +445,7 @@ impl WebdavCore {
         path: &str,
         args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPFIND").uri(&url);
@@ -471,7 +477,7 @@ impl WebdavCore {
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
     pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
@@ -671,10 +677,10 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             Ok(Event::Start(ref e)) => {
                 // Extract namespace declarations from attributes
                 for attr in e.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    let key = attr.key.as_ref().to_string();
                     if key.starts_with("xmlns:") {
                         let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        let uri = attr.value.to_string();
                         if uri == namespace_uri && !target_prefixes.contains(&prefix) {
                             target_prefixes.push(prefix.clone());
                         }
@@ -683,7 +689,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 }
 
                 // Check if this element is in our target namespace
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -696,10 +702,10 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             Ok(Event::Empty(ref e)) => {
                 // Extract namespace declarations from attributes
                 for attr in e.attributes().flatten() {
-                    let key = String::from_utf8_lossy(attr.key.as_ref()).to_string();
+                    let key = attr.key.as_ref().to_string();
                     if key.starts_with("xmlns:") {
                         let prefix = key.strip_prefix("xmlns:").unwrap_or("").to_string();
-                        let uri = String::from_utf8_lossy(&attr.value).to_string();
+                        let uri = attr.value.to_string();
                         if uri == namespace_uri && !target_prefixes.contains(&prefix) {
                             target_prefixes.push(prefix.clone());
                         }
@@ -708,7 +714,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 }
 
                 // For Empty events (self-closing tags), immediately insert with empty value
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -719,13 +725,11 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
             }
             Ok(Event::Text(ref e)) if current_prop_key.is_some() => {
                 // Text content - add directly (no escaping needed)
-                let text_str = String::from_utf8_lossy(e.as_ref());
-                current_prop_value.push_str(&text_str);
+                current_prop_value.push_str(e.as_ref());
             }
             Ok(Event::GeneralRef(ref e)) if current_prop_key.is_some() => {
                 // Handle XML entity references (e.g., &lt; &gt; &amp; &quot; &apos;)
-                let entity_name = String::from_utf8_lossy(e.as_ref());
-                let decoded = match entity_name.as_ref() {
+                let decoded = match e.as_ref() {
                     "lt" => "<",
                     "gt" => ">",
                     "amp" => "&",
@@ -736,7 +740,7 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
                 current_prop_value.push_str(decoded);
             }
             Ok(Event::End(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_string();
+                let name = e.name().as_ref().to_string();
                 if let Some(colon_pos) = name.find(':') {
                     let prefix = &name[..colon_pos];
                     let local_name = &name[colon_pos + 1..];
@@ -778,7 +782,7 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
     loop {
         match reader.read_event_into(&mut buf) {
             Ok(Event::Start(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                let name = e.name().as_ref().to_lowercase();
                 // Match status element regardless of namespace prefix
                 if name.ends_with(":status") || name == "status" {
                     in_status = true;
@@ -786,11 +790,10 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                 }
             }
             Ok(Event::Text(ref e)) if in_status => {
-                let text_str = String::from_utf8_lossy(e.as_ref());
-                status_text.push_str(&text_str);
+                status_text.push_str(e.as_ref());
             }
             Ok(Event::End(ref e)) => {
-                let name = String::from_utf8_lossy(e.name().as_ref()).to_lowercase();
+                let name = e.name().as_ref().to_lowercase();
                 if name.ends_with(":status") || name == "status" {
                     // Parse status code from "HTTP/1.1 XXX Description"
                     if let Some(code_str) = status_text.split_whitespace().nth(1)
@@ -1678,6 +1681,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_maps_missing_if_match_to_not_found() {
         let resp = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1752,6 +1766,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

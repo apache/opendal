@@ -158,7 +158,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
             await output.CompleteAsync(CT);
         }
 
-        Assert.Equal(content, await Op.ReadAsync(path, CT));
+        Assert.Equal(content, await Op.ReadAsync(path, cancellationToken: CT));
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
             await output.WriteAsync(content.AsMemory(), CT);
         }
 
-        Assert.Equal(content, await Op.ReadAsync(path, CT));
+        Assert.Equal(content, await Op.ReadAsync(path, cancellationToken: CT));
     }
 
     [Fact]
@@ -297,5 +297,24 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
         });
 
         Assert.Equal(ErrorCode.Unsupported, ex.Code);
+    }
+
+    [Fact]
+    public void StreamBehavior_OpenReadStream_WithSuffixLength_ReturnsTail()
+    {
+        if (!Supports(c => c.Read && c.Write && c.ReadWithSuffix))
+        {
+            return;
+        }
+
+        var path = NewPath("stream-suffix");
+        var content = RandomBytes(1024);
+        Op.Write(path, content);
+
+        using var input = Op.OpenReadStream(path, new ReadOptions { SuffixLength = 100 });
+        using var output = new MemoryStream();
+        input.CopyTo(output);
+
+        Assert.Equal(content.AsSpan(content.Length - 100).ToArray(), output.ToArray());
     }
 }

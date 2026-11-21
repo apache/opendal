@@ -107,6 +107,11 @@ test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
 
+# Execute the cookbook notebooks against the installed binding
+[group('dev')]
+test-notebooks:
+    @uv run --no-sync python -m nbconvert --to notebook --execute --stdout docs/examples/*.ipynb > /dev/null
+
 # ==============================================================================
 # Documentation
 # ==============================================================================
@@ -154,7 +159,7 @@ fmt: setup
     ## Fixes generated stubs
     @uv run ruff check --unsafe-fixes --fix --silent
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
-    @hawkeye format --config ../../licenserc.toml --fail-if-updated false
+    @hawkeye format --config ../../licenserc.toml .
     @echo "{{ BOLD }}--- Formatting Misc ---{{ NORMAL }}"
     @taplo fmt --config ../../.taplo.toml
     @just --fmt --unstable
@@ -163,7 +168,7 @@ fmt: setup
 [group('lint')]
 pre-commit: fmt lint
     @echo "{{ BOLD }}--- Checking license headers (Hawkeye) ---{{ NORMAL }}"
-    @hawkeye check --config ../../licenserc.toml
+    @hawkeye check --config ../../licenserc.toml .
     @echo "{{ BOLD }}--- Running Misc checks ---{{ NORMAL }}"
     @taplo lint --config ../../.taplo.toml
     @just --fmt --unstable --check

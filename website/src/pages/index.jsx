@@ -26,7 +26,6 @@ import {
   Capabilities,
   Services,
   Bindings,
-  Layers,
   FinalCta,
 } from "../components/landing/sections";
 
@@ -34,16 +33,15 @@ export default function Home() {
   return (
     <Layout
       title="One Layer, All Storage"
-      description="Apache OpenDAL™ is an Open Data Access Layer that gives every language a unified, zero-cost way to access object storage, file systems, cloud SaaS, databases, protocols and key-value services."
+      description="Apache OpenDAL™ is an Open Data Access Layer for Rust, Python, Node.js, Java, Go, and more. It keeps application storage code clean from simple file access to streaming, concurrent transfers, and multi-backend storage."
     >
       <main>
         <Hero />
-        <UsedBy />
         <ValueProps />
         <Capabilities />
-        <Services />
+        <UsedBy />
         <Bindings />
-        <Layers />
+        <Services />
         <FinalCta />
       </main>
     </Layout>

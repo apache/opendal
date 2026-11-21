@@ -45,8 +45,8 @@ can migrate, or explain the removal and available alternatives.
 # AI Usage Statement
 
 <!--
-If AI materially assisted this PR, list each harness/model/effort combination
-that materially contributed, and briefly describe its role:
+If AI materially assisted or authored this PR, list each harness/model/effort
+combination that materially contributed, and briefly describe its role:
 
 - Harness: Application or agent framework used to run the model.
 - Model: Model name or identifier shown by the harness, with version if available.
@@ -55,6 +55,6 @@ that materially contributed, and briefly describe its role:
 
 Do not include routine command output or repeat information provided elsewhere.
 
-The author remains responsible for every submitted claim and change. If AI did
-not materially assist this PR, write "None".
+The accountable human author remains responsible for every submitted claim and
+change. If AI did not materially assist this PR, write "None".
 -->

@@ -62,12 +62,11 @@ def breaking_declaration(pull, packages):
     labeled = any(
         label["name"] == "breaking-changes" for label in pull.get("labels", [])
     )
-    if section.lower() in {
+    if section.lower().rstrip(".").strip() in {
         "",
         "none",
         "n/a",
         "no breaking changes",
-        "no breaking changes.",
     }:
         if labeled:
             raise ValueError(

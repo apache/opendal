@@ -43,6 +43,8 @@ class ImpactTests(unittest.TestCase):
             "",
             "Fix a typo",
             "# Breaking changes\nNone",
+            "# Breaking changes\nNone.\n\n# AI Usage Statement\nNone",
+            "# Breaking changes\nN/A.",
             Path(".github/pull_request_template.md").read_text(),
         ):
             self.assertIsNone(
@@ -79,6 +81,7 @@ class ImpactTests(unittest.TestCase):
         )
         for body, labeled in (
             ("", True),
+            ("# Breaking changes\nNone.", True),
             (valid, False),
             (valid.replace("core", "bindings/go"), True),
             (valid.replace("core", "core, core"), True),
@@ -256,7 +259,10 @@ class ImpactTests(unittest.TestCase):
             self.assertIn(candidate.sha, api.call_args.args[0])
         with (
             patch.object(release, "version_notes", return_value=notes),
-            patch.object(release, "discussion", return_value={}) as discussion,
+            patch.object(
+                release, "discussion", return_value={"id": "discussion"}
+            ) as discussion,
+            patch.object(release, "comment_once"),
         ):
             release.notice(
                 candidate,

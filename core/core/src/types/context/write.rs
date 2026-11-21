@@ -646,6 +646,26 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_sink_position_after_partial_write() -> Result<()> {
+        use futures::SinkExt;
+
+        let op = Operator::new(services::Memory::default())?;
+        let mut sink = with_write_fault(&op, 2)
+            .writer_with("target")
+            .chunk(10)
+            .await?
+            .into_sink();
+
+        let err = sink
+            .send(Buffer::from("abcdefghijklmnopqrstuvwxy"))
+            .await
+            .expect_err("second flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        assert_eq!(sink.position(), 10);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_exact_write_rejects_replay_after_partial_progress() -> Result<()> {
         let op = Operator::new(services::Memory::default())?;
         let mut writer = with_write_fault(&op, 2)

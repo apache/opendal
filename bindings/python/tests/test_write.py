@@ -290,30 +290,30 @@ def test_sync_writer_tell(operator):
 
 
 @pytest.mark.asyncio
-async def test_async_writer_tell_after_partial_write(service_name, tmp_path):
+async def test_async_writer_tell_after_first_flush_fails(service_name, tmp_path):
     if service_name != "fs":
         pytest.skip("requires the fs service")
     (tmp_path / "directory").mkdir()
     operator = opendal.AsyncOperator("fs", root=str(tmp_path))
     file = await operator.open("directory", "wb", chunk=4)
 
-    # The writer buffers the first chunk, then fails to open the directory as a file.
+    # Opening the directory fails before the writer accepts its first chunk.
     with pytest.raises(OSError, match="OpenForWrite"):
         await file.write(b"abcdefgh")
-    assert await file.tell() == 4
+    assert await file.tell() == 0
 
 
-def test_sync_writer_tell_after_partial_write(service_name, tmp_path):
+def test_sync_writer_tell_after_first_flush_fails(service_name, tmp_path):
     if service_name != "fs":
         pytest.skip("requires the fs service")
     (tmp_path / "directory").mkdir()
     operator = opendal.Operator("fs", root=str(tmp_path))
     file = operator.open("directory", "wb", chunk=4)
 
-    # The writer buffers the first chunk, then fails to open the directory as a file.
+    # Opening the directory fails before the writer accepts its first chunk.
     with pytest.raises(OSError, match="OpenForWrite"):
         file.write(b"abcdefgh")
-    assert file.tell() == 4
+    assert file.tell() == 0
 
 
 @pytest.mark.need_capability("write", "delete", "write_with_if_not_exists")

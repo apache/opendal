@@ -737,6 +737,33 @@ typedef struct opendal_copier {
 } opendal_copier;
 
 /**
+ * \brief opendal_deleter removes many paths from storage.
+ *
+ * Uses batch deletion when the service supports it. Submitting paths can
+ * delete them immediately or trigger a batch. Call `opendal_deleter_flush` to
+ * wait for any pending deletions to complete.
+ *
+ * The handle stays usable after a flush. On a batch flush failure, pending
+ * paths remain queued for another flush.
+ *
+ * Construct a deleter with `opendal_operator_deleter` and release it with
+ * `opendal_deleter_free`. Calls using the same handle must not overlap.
+ *
+ * @see opendal_operator_deleter()
+ * @see opendal_deleter_delete()
+ * @see opendal_deleter_delete_many()
+ * @see opendal_deleter_delete_with()
+ * @see opendal_deleter_flush()
+ */
+typedef struct opendal_deleter {
+  /**
+   * The pointer to the opendal::blocking::Deleter in the Rust code.
+   * Only used to check whether the deleter is NULL.
+   */
+  void *inner;
+} opendal_deleter;
+
+/**
  * \brief Metadata for **operator**, users can use this metadata to get information
  * of operator.
  */
@@ -2150,6 +2177,24 @@ struct opendal_error *opendal_operator_copier_with(const struct opendal_operator
                                                    struct opendal_copier **copier);
 
 /**
+ * \brief Create a blocking deleter to remove multiple paths.
+ *
+ * Submit paths with `opendal_deleter_delete` or `opendal_deleter_delete_many`.
+ * Call `opendal_deleter_flush` to complete pending deletions and
+ * `opendal_deleter_free` to release the handle.
+ *
+ * @param op The opendal_operator created previously
+ * @param deleter_out Output pointer receiving the allocated deleter on success, or NULL on failure
+ * @return NULL if the operation succeeds, or an `opendal_error *` on failure.
+ *
+ * # Safety
+ *
+ * * `deleter_out` must point to writable storage for an `opendal_deleter *`.
+ */
+struct opendal_error *opendal_operator_deleter(const struct opendal_operator *op,
+                                               struct opendal_deleter **deleter_out);
+
+/**
  * \brief Get information of underlying accessor.
  *
  * # Example
@@ -2934,6 +2979,92 @@ struct opendal_error *opendal_copier_abort(struct opendal_copier *self);
  * \brief Free the heap memory used by the opendal_copier.
  */
 void opendal_copier_free(struct opendal_copier *ptr);
+
+/**
+ * \brief Submit `path` for deletion.
+ *
+ * Call `opendal_deleter_flush` to complete any pending deletions.
+ *
+ * @param path The path to delete
+ * @return NULL on success, or an `opendal_error *` on failure.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the
+ *   end of the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics
+ */
+struct opendal_error *opendal_deleter_delete(struct opendal_deleter *self, const char *path);
+
+/**
+ * \brief Submit multiple paths for deletion in one call.
+ *
+ * All paths use default options. Use `opendal_deleter_delete_with` for
+ * per-path options. Submission stops at the first error. Earlier paths may
+ * already have been deleted. Call `opendal_deleter_flush` to complete any
+ * pending deletions.
+ *
+ * @param paths The paths to delete
+ * @param paths_len The number of paths in `paths`
+ * @return NULL on success, or an `opendal_error *` on failure.
+ *
+ * # Safety
+ *
+ * * When `paths_len` is greater than zero, `paths` must point to an array of
+ *   `paths_len` pointers.
+ * * Every pointer in `paths` must point to a string with a valid nul
+ *   terminator.
+ *
+ * # Panic
+ *
+ * * If `paths` or any pointer in `paths` is NULL when `paths_len` is greater
+ *   than zero, this function panics.
+ */
+struct opendal_error *opendal_deleter_delete_many(struct opendal_deleter *self,
+                                                  const char *const *paths,
+                                                  uintptr_t paths_len);
+
+/**
+ * \brief Submit `path` for deletion with per-path options.
+ *
+ * @param path The path to delete
+ * @param opts The options for this path, or NULL to use defaults
+ * @see opendal_delete_options
+ * @return NULL on success, or an `opendal_error *` on failure.
+ *
+ * # Safety
+ *
+ * * The memory pointed to by `path` must contain a valid nul terminator at the
+ *   end of the string.
+ *
+ * # Panic
+ *
+ * * If the `path` points to NULL, this function panics
+ */
+struct opendal_error *opendal_deleter_delete_with(struct opendal_deleter *self,
+                                                  const char *path,
+                                                  const struct opendal_delete_options *opts);
+
+/**
+ * \brief Complete pending deletions and keep the deleter usable.
+ *
+ * Call this before freeing the handle to complete the deletions. If a batch
+ * flush fails, pending paths remain queued for a retry.
+ *
+ * @return NULL on success, or an `opendal_error *` on failure.
+ */
+struct opendal_error *opendal_deleter_flush(struct opendal_deleter *self);
+
+/**
+ * \brief Free the heap memory used by the opendal_deleter.
+ *
+ * Freeing a deleter drops the queued paths that were never flushed: call
+ * `opendal_deleter_flush` first unless you mean to discard them.
+ */
+void opendal_deleter_free(struct opendal_deleter *ptr);
 
 #ifdef __cplusplus
 }  // extern "C"

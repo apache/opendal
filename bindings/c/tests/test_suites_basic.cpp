@@ -19,6 +19,8 @@
 
 #include "test_framework.h"
 
+#include <memory>
+
 // Test: Basic check operation
 void test_check(opendal_test_context* ctx)
 {
@@ -175,6 +177,31 @@ void test_delete(opendal_test_context* ctx)
     OPENDAL_ASSERT_NO_ERROR(error, "Delete operation should be idempotent");
 }
 
+void test_deleter(opendal_test_context* ctx)
+{
+    const auto* op = ctx->config->operator_instance;
+    const char* paths[] = { "test_deleter_a.txt", "test_deleter_b.txt" };
+    uint8_t content[] = { 'x' };
+    opendal_bytes data = { content, sizeof(content), sizeof(content) };
+    for (const auto* path : paths) {
+        OPENDAL_ASSERT_NO_ERROR(opendal_operator_write(op, path, &data), "Write should succeed");
+    }
+
+    opendal_deleter* raw = nullptr;
+    OPENDAL_ASSERT_NO_ERROR(opendal_operator_deleter(op, &raw), "Create deleter should succeed");
+    OPENDAL_ASSERT_NOT_NULL(raw, "Deleter should not be null");
+    const std::unique_ptr<opendal_deleter, decltype(&opendal_deleter_free)> deleter(raw, opendal_deleter_free);
+    OPENDAL_ASSERT_NO_ERROR(opendal_deleter_delete_many(deleter.get(), nullptr, 0), "An empty batch should succeed");
+    OPENDAL_ASSERT_NO_ERROR(opendal_deleter_delete_many(deleter.get(), paths, 2), "Delete many should succeed");
+    OPENDAL_ASSERT_NO_ERROR(opendal_deleter_flush(deleter.get()), "Flush should succeed");
+
+    for (const auto* path : paths) {
+        bool exists = true;
+        OPENDAL_ASSERT_NO_ERROR(opendal_operator_exists(op, path, &exists), "Exists should succeed");
+        OPENDAL_ASSERT(!exists, "Flushed path should be gone");
+    }
+}
+
 // Test: Create directory operation
 void test_create_dir(opendal_test_context* ctx)
 {
@@ -211,6 +238,7 @@ opendal_test_case basic_tests[] = {
     { "exists", test_exists, make_capability_write() },
     { "stat", test_stat, make_capability_write_stat() },
     { "delete", test_delete, make_capability_write_delete() },
+    { "deleter", test_deleter, make_capability_write_delete() },
     { "create_dir", test_create_dir, make_capability_create_dir() },
 };
 

@@ -87,6 +87,8 @@ type opendalWriter struct{}
 
 type opendalCopier struct{}
 
+type opendalDeleter struct{}
+
 type opendalPresignedRequest struct{}
 
 type opendalHttpHeaderPair struct {

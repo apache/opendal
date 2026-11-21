@@ -34,10 +34,17 @@ use super::utils::convert_error;
 
 /// OpendalFs is a `DavFileSystem` implementation for opendal.
 ///
+/// `OpendalFs` omits weak ETags because dav-server emits only strong ETag headers
+/// from filesystem metadata.
+///
+/// OpenDAL metadata has no symbolic-link flag, so
+/// [`hide_symlinks(true)`](dav_server::DavConfig::hide_symlinks) cannot filter
+/// symbolic links through this adapter.
+///
 /// ```
 /// use anyhow::Result;
-/// use dav_server::davpath::DavPath;
-/// use dav_server::fs::DavFileSystem;
+/// use dav_server_opendalfs::dav_server::davpath::DavPath;
+/// use dav_server_opendalfs::dav_server::fs::DavFileSystem;
 /// use dav_server_opendalfs::OpendalFs;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
@@ -138,6 +145,10 @@ impl DavFileSystem for OpendalFs {
             Ok(Box::new(OpendalMetaData::new(metadata)) as Box<dyn DavMetaData>)
         }
         .boxed()
+    }
+
+    fn symlink_metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, Box<dyn DavMetaData>> {
+        self.metadata(path)
     }
 
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {

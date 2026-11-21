@@ -34,6 +34,11 @@ CRATE_PACKAGE_NAME = "opendal-ruby"
 EXTENSION = "opendal_ruby"
 EXTENSION_FILE = "#{EXTENSION}.#{RbConfig::CONFIG["DLEXT"]}"
 EXTENSION_PATH = "lib/#{EXTENSION_FILE}"
+NATIVE_RUBY_VERSIONS = %w[3.3 3.4 4.0].freeze
+NATIVE_BUILD_DIR = "tmp/native"
+NATIVE_EXTENSION_PATHS = NATIVE_RUBY_VERSIONS.map do |version|
+  "#{version}/#{EXTENSION_FILE}"
+end.freeze
 
 desc "Copy core files for compilation"
 task :copy_core do
@@ -122,20 +127,22 @@ end
 # Rake's file task below writes into lib/, so model the directory explicitly.
 directory "lib"
 
-extension_sources = FileList["Cargo.toml", "build.rs", "src/**/*.rs"]
-file EXTENSION_PATH => ["lib", "Cargo.lock", *extension_sources] do
+def compile_extension(destination)
   original_verbose = Gem.configuration.verbose
   # `:loud` enables RubyGems' highest verbosity and prints the exact Cargo
   # command plus compiler output. That context is helpful when native CI fails.
   Gem.configuration.verbose = :loud
-  Gem::Ext::CargoBuilder.new.build("Cargo.toml", ".", [], [], "lib", __dir__)
-  FileUtils.rm_f EXTENSION_FILE
+  Gem::Ext::CargoBuilder.new.build("Cargo.toml", destination, [], [], nil, __dir__)
 ensure
   Gem.configuration.verbose = original_verbose
 end
 
-# Make `rake clean` remove the generated native extension.
-CLEAN.include EXTENSION_PATH
+extension_sources = FileList["Cargo.toml", "build.rs", "src/**/*.rs"]
+file EXTENSION_PATH => ["lib", "Cargo.lock", *extension_sources] do
+  compile_extension("lib")
+end
+
+CLEAN.include EXTENSION_PATH, NATIVE_BUILD_DIR
 
 desc "Compile #{EXTENSION}"
 task "compile:#{EXTENSION}" => EXTENSION_PATH
@@ -146,22 +153,46 @@ task compile: "compile:#{EXTENSION}"
 Rake::Task[:test].prerequisites << EXTENSION_PATH
 
 namespace :native do
-  desc "Build a native gem for #{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}"
+  desc "Compile the native extension for the current Ruby ABI"
+  task :compile do
+    ruby_version = RUBY_VERSION.split(".").first(2).join(".")
+    abort "Unsupported native gem Ruby version: #{ruby_version}" unless NATIVE_RUBY_VERSIONS.include?(ruby_version)
+
+    compile_extension("#{NATIVE_BUILD_DIR}/#{ruby_version}")
+  end
+
+  desc "Package the precompiled extensions for #{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}"
   task PACKAGE_NAME do
     platform = ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)
     Rake::Task["native:#{PACKAGE_NAME}:#{platform}"].invoke
   end
 
-  task "#{PACKAGE_NAME}:#{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}" => EXTENSION_PATH do
+  task "#{PACKAGE_NAME}:#{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}" do
+    missing_paths = NATIVE_EXTENSION_PATHS.reject { |path| File.file?(File.join(NATIVE_BUILD_DIR, path)) }
+    unless missing_paths.empty?
+      abort "Missing native extensions. Run rake native:compile with each supported Ruby.\n#{missing_paths.join("\n")}"
+    end
+
     platform = ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)
     spec = GEMSPEC.dup
     spec.platform = Gem::Platform.new(platform)
     spec.extensions.clear
-    spec.files |= [EXTENSION_PATH]
+    # New Ruby ABIs need their own extension. The source gem has no upper bound.
+    spec.required_ruby_version = [*spec.required_ruby_version.as_list, "< 4.1.dev"]
+    extension_paths = NATIVE_EXTENSION_PATHS.map { |path| "lib/#{EXTENSION}/#{path}" }
+    spec.files |= extension_paths
 
     FileUtils.mkdir_p "pkg"
-    gem_file = Gem::Package.build(spec)
-    FileUtils.mv gem_file, "pkg/#{File.basename(gem_file)}"
+    begin
+      NATIVE_EXTENSION_PATHS.zip(extension_paths).each do |source, destination|
+        FileUtils.mkdir_p File.dirname(destination)
+        FileUtils.cp File.join(NATIVE_BUILD_DIR, source), destination
+      end
+      gem_file = Gem::Package.build(spec)
+      FileUtils.mv gem_file, "pkg/#{File.basename(gem_file)}"
+    ensure
+      FileUtils.rm_f extension_paths
+    end
   end
 end
 

@@ -29,10 +29,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Entry;
 import org.apache.opendal.Layer;
+import org.apache.opendal.ListOptions;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.ImmutableIndexLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
 import org.apache.opendal.layer.ThrottleLayer;
@@ -44,6 +47,9 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class LayerTest {
+    private static final ServiceConfig.Http OFFLINE_HTTP =
+            ServiceConfig.Http.builder().endpoint("http://127.0.0.1:1").build();
+
     @Test
     void testOperatorWithRetryLayer() {
         final ServiceConfig.Memory memory =
@@ -62,6 +68,48 @@ public class LayerTest {
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
         assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testImmutableIndexLayerListsHttpKeys() {
+        final String[] keys = {"readme.txt", "docs/guide.txt", "docs/examples/sample.txt", "empty/"};
+        final Layer index = new ImmutableIndexLayer(keys);
+        keys[0] = "changed.txt";
+
+        @Cleanup final AsyncOperator op = AsyncOperator.of(OFFLINE_HTTP);
+        assertThat(op.info.capability.list).isFalse();
+        @Cleanup final AsyncOperator layeredOp = op.layer(index);
+        op.close();
+
+        assertThat(layeredOp.info.capability.list).isTrue();
+        assertThat(layeredOp.info.capability.listWithRecursive).isTrue();
+        assertThat(layeredOp.list("").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("readme.txt", "docs/", "empty/");
+        assertThat(layeredOp.list("docs/").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("docs/guide.txt", "docs/examples/");
+        assertThat(layeredOp
+                        .list("", ListOptions.builder().recursive(true).build())
+                        .join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("readme.txt", "docs/guide.txt", "docs/examples/sample.txt", "empty/");
+    }
+
+    @Test
+    void testImmutableIndexLayerWithNoKeys() {
+        @Cleanup final AsyncOperator op = AsyncOperator.of(OFFLINE_HTTP);
+        try (AsyncOperator layeredOp = op.layer(new ImmutableIndexLayer())) {
+            assertThat(layeredOp.list("").join()).isEmpty();
+        }
+        assertThatThrownBy(() -> op.list("").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
+    }
+
+    @Test
+    void testImmutableIndexLayerRejectsNullKeys() {
+        assertThatThrownBy(() -> new ImmutableIndexLayer((String[]) null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ImmutableIndexLayer("key", null)).isInstanceOf(NullPointerException.class);
     }
 
     @ParameterizedTest

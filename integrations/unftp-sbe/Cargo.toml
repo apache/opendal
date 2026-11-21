@@ -37,9 +37,17 @@ unftp-core = "0.1.0"
 anyhow = "1"
 libunftp = "0.23.0"
 opendal = { version = "0.59.5", path = "../../core", features = [
+  "services-fs",
   "services-s3",
 ] }
+suppaftp = { version = "10.0.2", default-features = false, features = [
+  "tokio",
+] }
+tempfile = "3"
 tokio = { version = "1.38.0", default-features = false, features = [
   "io-util",
+  "macros",
+  "net",
   "rt-multi-thread",
+  "time",
 ] }

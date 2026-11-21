@@ -60,6 +60,7 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     /// <summary>
     /// Filter entries with a case-sensitive Unix shell style glob pattern.
     /// </summary>
+    /// <seealso cref="Capability.ListWithGlob"/>
     public string? Glob { get; init; }
 
     void IOptions<OpenDALListOptions>.Validate()

@@ -71,19 +71,19 @@ public sealed class CopyOptions : IOptions<OpenDALCopyOptions>
     public string? SourceVersion { get; init; }
 
     /// <summary>
-    /// Replaces the destination's user metadata with exactly these entries.
+    /// Replaces the destination's whole metadata set and stores exactly these user metadata entries; every field left unset takes the service default.
     /// </summary>
     /// <seealso cref="Capability.CopyWithUserMetadata"/>
     public IReadOnlyDictionary<string, string>? UserMetadata { get; init; }
 
     /// <summary>
-    /// Replaces the destination's Content-Type with this value.
+    /// Replaces the destination's whole metadata set and stores this Content-Type; omitted user metadata and other fields take the service default.
     /// </summary>
     /// <seealso cref="Capability.CopyWithContentType"/>
     public string? ContentType { get; init; }
 
     /// <summary>
-    /// Replaces the destination's Content-Language with this value.
+    /// Replaces the destination's whole metadata set and stores this Content-Language; omitted user metadata and other fields take the service default.
     /// </summary>
     /// <seealso cref="Capability.CopyWithContentLanguage"/>
     public string? ContentLanguage { get; init; }

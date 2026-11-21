@@ -374,6 +374,21 @@ class GhacConfig(TypedDict):
     """The version that used by cache."""
 
 
+class GithubConfig(TypedDict):
+    """Configuration for the `github` service."""
+
+    scheme: Required[Literal["github"]]
+    """The service scheme; fixed to `"github"`."""
+    owner: Required[str]
+    """GitHub repo owner.  required."""
+    repo: Required[str]
+    """GitHub repo name.  required."""
+    root: NotRequired[str | os.PathLike[str]]
+    """root of this backend.  All operations will happen under this root."""
+    token: NotRequired[str]
+    """GitHub access_token.  optional. If not provided, the backend will only support read operations for public repositories. And rate limit will be limited to 60 requests per hour."""
+
+
 class GridfsConfig(TypedDict):
     """Configuration for the `gridfs` service."""
 
@@ -1055,6 +1070,7 @@ ServiceConfig = (
     | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
+    | GithubConfig
     | GridfsConfig
     | HdfsNativeConfig
     | HfConfig
@@ -1110,6 +1126,7 @@ __all__ = [
     "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
+    "GithubConfig",
     "GridfsConfig",
     "HdfsNativeConfig",
     "HfConfig",

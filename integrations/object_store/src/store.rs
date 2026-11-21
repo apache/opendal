@@ -715,11 +715,15 @@ impl ObjectStore for OpendalStore {
         let this = self.clone();
 
         let fut = async move {
-            let list_with_start_after = this.inner.info().capability().list_with_start_after;
+            let info = this.inner.info();
+            // object_store::path::Path compares percent-encoded strings, so
+            // a%7Eb sorts before a-b. FS compares filenames as stored, where
+            // a~b sorts after a-b. Keep FS offsets in object_store path order.
+            let use_native_offset =
+                info.capability().list_with_start_after && info.scheme() != "fs";
             let mut fut = this.inner.lister_with(&path).recursive(true);
 
-            // Use native start_after support if possible.
-            if list_with_start_after {
+            if use_native_offset {
                 fut = fut.start_after(offset.as_ref());
             }
 
@@ -753,7 +757,7 @@ impl ObjectStore for OpendalStore {
                 .into_send()
                 .boxed();
 
-            let stream = if list_with_start_after {
+            let stream = if use_native_offset {
                 lister
             } else {
                 lister
@@ -1207,6 +1211,32 @@ mod tests {
             result[0].as_ref().unwrap().location.as_ref(),
             "data/test.txt"
         );
+    }
+
+    #[tokio::test]
+    async fn test_list_with_offset_fs_uses_encoded_path_order() {
+        let root =
+            std::env::temp_dir().join(format!("opendal-object-store-{}", uuid::Uuid::new_v4()));
+        let op = Operator::new(services::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let store = OpendalStore::new(op);
+        for path in ["a~b", "a-b", "z"] {
+            store
+                .put(&Path::from(path), Bytes::from_static(b"data").into())
+                .await
+                .unwrap();
+        }
+
+        let offset = Path::from("a~b");
+        let result = store
+            .list_with_offset(None, &offset)
+            .map_ok(|meta| meta.location)
+            .try_collect::<Vec<_>>()
+            .await;
+        tokio::fs::remove_dir_all(root).await.unwrap();
+
+        let mut locations = result.unwrap();
+        locations.sort();
+        assert_eq!(locations, vec![Path::from("a-b"), Path::from("z")]);
     }
 
     /// Custom layer that counts stat operations and optionally records read ranges.

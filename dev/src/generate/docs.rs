@@ -203,7 +203,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
         let mut examples = Vec::new();
         for (binding, support) in BINDINGS.iter().zip(support.iter()) {
             let enabled = match support {
-                None => true,
+                None => binding.id != "go" || scheme != "smb",
                 Some(set) => set.contains(&scheme),
             };
             if !enabled {
@@ -495,7 +495,7 @@ fn render_examples(
         "c" => Syntax {
             open: "#include \"opendal.h\"\n\nopendal_operator_options *options = opendal_operator_options_new();\n".to_string(),
             close: format!(
-                "opendal_result_operator_new result = opendal_operator_new(\"{scheme}\", options);\nopendal_operator *operator = result.op;\n\n/* ... use operator ... */\n\nopendal_operator_free(operator);\nopendal_operator_options_free(options);"
+                "opendal_operator *operator = NULL;\nopendal_error *error = opendal_operator_new(\"{scheme}\", options, &operator);\n\n/* ... use operator ... */\n\nopendal_operator_free(operator);\nopendal_operator_options_free(options);"
             ),
             indent: "",
             comment: "// ",

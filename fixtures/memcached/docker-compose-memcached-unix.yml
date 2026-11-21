@@ -17,17 +17,9 @@
 
 services:
   memcached:
-    image: bitnami/memcached:latest
-    environment:
-      # memcache's max item size is 1MiB, But opendal's behavior tests
-      # will produce larger file.
-      #
-      # Specify the setting here to make our test happy.
-      MEMCACHED_MAX_ITEM_SIZE: 16777216
-      # Enable Unix socket with extra flags
-      # -s: socket path
-      # -a: socket access mask (0777 for world-readable/writable)
-      MEMCACHED_EXTRA_FLAGS: "-s /tmp/memcached/memcached.sock -a 0777"
+    image: docker.io/library/memcached@sha256:462fa779babc9b64a235a69dd843cb79fb3591f229ee1f3ff6cb2ca058d8a759
+    # Allow large test objects and let the runner access the mounted socket.
+    command: ["memcached", "-I", "16777216", "-s", "/tmp/memcached/memcached.sock", "-a", "0777"]
     volumes:
       - /tmp/memcached:/tmp/memcached
     healthcheck:

@@ -112,7 +112,7 @@ impl GithubCore {
     }
 
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -143,7 +143,7 @@ impl GithubCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -177,7 +177,7 @@ impl GithubCore {
     ) -> Result<Response<Buffer>> {
         let sha = self.get_file_sha(ctx, path).await?;
 
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -214,7 +214,7 @@ impl GithubCore {
         self.send(ctx, req).await
     }
 
-    pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
+    pub async fn delete(&self, ctx: &OperationContext, path: &str, args: &OpDelete) -> Result<()> {
         // If path is a directory, we should delete path/.gitkeep
         let formatted_path = format!("{path}.gitkeep");
         let p = if path.ends_with('/') {
@@ -223,11 +223,15 @@ impl GithubCore {
             path
         };
 
-        let Some(sha) = self.get_file_sha(ctx, p).await? else {
-            return Ok(());
+        let sha = match args.if_match() {
+            Some(sha) => sha.to_string(),
+            None => match self.get_file_sha(ctx, p).await? {
+                Some(sha) => sha,
+                None => return Ok(()),
+            },
         };
 
-        let path = build_abs_path(&self.root, p);
+        let path = build_absolute_path(&self.root, p);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -260,7 +264,15 @@ impl GithubCore {
 
         match resp.status() {
             StatusCode::OK => Ok(()),
+            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete precondition requires a live target",
+            )),
             StatusCode::NOT_FOUND => Ok(()),
+            StatusCode::CONFLICT if args.if_match().is_some() => Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "delete sha does not match the current blob",
+            )),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("DeleteFile")),
                 resp,
@@ -269,7 +281,7 @@ impl GithubCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -429,6 +441,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
         // https://github.com/apache/opendal/issues/4146
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
         // We should retry it when we get 423 error.
@@ -462,6 +475,17 @@ mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[tokio::test]
     async fn test_parse_error() {

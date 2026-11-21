@@ -36,6 +36,7 @@ class Scheme:
     GcsGrpc: Final[Scheme]
     Gdrive: Final[Scheme]
     Ghac: Final[Scheme]
+    Github: Final[Scheme]
     Gridfs: Final[Scheme]
     HdfsNative: Final[Scheme]
     Hf: Final[Scheme]

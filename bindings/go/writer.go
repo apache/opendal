@@ -23,9 +23,6 @@ import (
 	"io"
 	"runtime"
 	"strings"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // Write writes the given bytes to the specified path and returns the metadata
@@ -416,136 +413,86 @@ func (w *Writer) Close() (*Metadata, error) {
 
 var _ io.Writer = (*Writer)(nil)
 
-var ffiOperatorWriteWithMetadata = newFFI(ffiOpts{
-	sym:    "opendal_operator_write_with_metadata",
-	rType:  &typeResultWrite,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
-	return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorWriteWithMetadata = newFFI(
+	"opendal_operator_write_with_metadata",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, bytes *opendalBytes, opts *opendalWriteOptions, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
+		return func(op *opendalOperator, path string, data []byte, opts *opendalWriteOptions) (*opendalMetadata, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			bytes := toOpendalBytes(data)
+			var meta *opendalMetadata
+			e := cFunc(op, bytePath, bytes, opts, &meta)
+			runtime.KeepAlive(bytePath)
+			runtime.KeepAlive(data)
+			runtime.KeepAlive(bytes)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return meta, nil
 		}
-		bytes := toOpendalBytes(data)
-		var result resultWrite
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&bytes),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.meta, nil
-	}
-})
+	},
+)
 
-var ffiOperatorCreateDir = newFFI(ffiOpts{
-	sym:    "opendal_operator_create_dir",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) error {
-	return func(op *opendalOperator, path string) error {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return err
+var ffiOperatorCreateDir = newFFI(
+	"opendal_operator_create_dir",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte) *opendalError) func(op *opendalOperator, path string) error {
+		return func(op *opendalOperator, path string) error {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return err
+			}
+			e := cFunc(op, bytePath)
+			runtime.KeepAlive(bytePath)
+			return parseError(ctx, e)
 		}
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		return parseError(ctx, e)
-	}
-})
+	},
+)
 
-var ffiOperatorWriter = newFFI(ffiOpts{
-	sym:    "opendal_operator_writer",
-	rType:  &typeResultOperatorWriter,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string) (*opendalWriter, error) {
-	return func(op *opendalOperator, path string) (*opendalWriter, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorWriter = newFFI(
+	"opendal_operator_writer",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, writer **opendalWriter) *opendalError) func(op *opendalOperator, path string) (*opendalWriter, error) {
+		return func(op *opendalOperator, path string) (*opendalWriter, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var writer *opendalWriter
+			e := cFunc(op, bytePath, &writer)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return writer, nil
 		}
-		var result resultOperatorWriter
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.writer, nil
-	}
-})
+	},
+)
 
-var ffiOperatorWriterWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_writer_with",
-	rType:  &typeResultOperatorWriter,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
-	return func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
-		bytePath, err := BytePtrFromString(path)
-		if err != nil {
-			return nil, err
+var ffiOperatorWriterWith = newFFI(
+	"opendal_operator_writer_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalWriteOptions, writer **opendalWriter) *opendalError) func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
+		return func(op *opendalOperator, path string, opts *opendalWriteOptions) (*opendalWriter, error) {
+			bytePath, err := BytePtrFromString(path)
+			if err != nil {
+				return nil, err
+			}
+			var writer *opendalWriter
+			e := cFunc(op, bytePath, opts, &writer)
+			runtime.KeepAlive(bytePath)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return writer, nil
 		}
-		var result resultOperatorWriter
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&bytePath),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.writer, nil
-	}
-})
+	},
+)
 
-var ffiWriteOptionsNew = newFFI(ffiOpts{
-	sym:   "opendal_write_options_new",
-	rType: &ffi.TypePointer,
-}, func(_ context.Context, ffiCall ffiCall) func() *opendalWriteOptions {
-	return func() *opendalWriteOptions {
-		var opts *opendalWriteOptions
-		ffiCall(unsafe.Pointer(&opts))
-		return opts
-	}
-})
+var ffiWriteOptionsNew = newDirectFFI[func() *opendalWriteOptions]("opendal_write_options_new")
 
-var ffiWriteOptionsFree = newFFI(ffiOpts{
-	sym:    "opendal_write_options_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions) {
-	return func(opts *opendalWriteOptions) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&opts),
-		)
-	}
-})
+var ffiWriteOptionsFree = newDirectFFI[func(opts *opendalWriteOptions)]("opendal_write_options_free")
 
-var ffiWriteOptionsSetAppend = newFFI(ffiOpts{
-	sym:    "opendal_write_options_set_append",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions, append bool) {
-	return func(opts *opendalWriteOptions, append bool) {
-		var v uint8
-		if append {
-			v = 1
-		}
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&v))
-	}
-})
+var ffiWriteOptionsSetAppend = newDirectFFI[func(opts *opendalWriteOptions, append bool)]("opendal_write_options_set_append")
 
 func byteSliceFromString(value string) ([]byte, error) {
 	if strings.IndexByte(value, 0) >= 0 {
@@ -554,22 +501,21 @@ func byteSliceFromString(value string) ([]byte, error) {
 	return append([]byte(value), 0), nil
 }
 
-func newWriteOptionsSetStringFFI(sym string) *FFI[func(*opendalWriteOptions, string) ([]byte, error)] {
-	return newFFI(ffiOpts{
-		sym:    contextKey(sym),
-		rType:  &ffi.TypeVoid,
-		aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-	}, func(_ context.Context, ffiCall ffiCall) func(*opendalWriteOptions, string) ([]byte, error) {
-		return func(opts *opendalWriteOptions, value string) ([]byte, error) {
-			data, err := byteSliceFromString(value)
-			if err != nil {
-				return nil, err
+func newWriteOptionsSetStringFFI(sym string) *FFI[func(*opendalWriteOptions, string) ([]byte, error), func(*opendalWriteOptions, *byte)] {
+	return newFFI(
+		contextKey(sym),
+		func(_ context.Context, cFunc func(opts *opendalWriteOptions, value *byte)) func(*opendalWriteOptions, string) ([]byte, error) {
+			return func(opts *opendalWriteOptions, value string) ([]byte, error) {
+				data, err := byteSliceFromString(value)
+				if err != nil {
+					return nil, err
+				}
+				cFunc(opts, &data[0])
+				runtime.KeepAlive(data)
+				return data, nil
 			}
-			byteValue := &data[0]
-			ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&byteValue))
-			return data, nil
-		}
-	})
+		},
+	)
 }
 
 var ffiWriteOptionsSetCacheControl = newWriteOptionsSetStringFFI("opendal_write_options_set_cache_control")
@@ -579,102 +525,55 @@ var ffiWriteOptionsSetContentEncoding = newWriteOptionsSetStringFFI("opendal_wri
 var ffiWriteOptionsSetIfMatch = newWriteOptionsSetStringFFI("opendal_write_options_set_if_match")
 var ffiWriteOptionsSetIfNoneMatch = newWriteOptionsSetStringFFI("opendal_write_options_set_if_none_match")
 
-var ffiWriteOptionsSetIfNotExists = newFFI(ffiOpts{
-	sym:    "opendal_write_options_set_if_not_exists",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint8},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions, ifNotExists bool) {
-	return func(opts *opendalWriteOptions, ifNotExists bool) {
-		var v uint8
-		if ifNotExists {
-			v = 1
+var ffiWriteOptionsSetIfNotExists = newDirectFFI[func(opts *opendalWriteOptions, ifNotExists bool)]("opendal_write_options_set_if_not_exists")
+
+var ffiWriteOptionsSetConcurrent = newDirectFFI[func(opts *opendalWriteOptions, concurrent uint)]("opendal_write_options_set_concurrent")
+
+var ffiWriteOptionsSetChunk = newDirectFFI[func(opts *opendalWriteOptions, chunk uint)]("opendal_write_options_set_chunk")
+
+var ffiWriteOptionsSetUserMetadata = newFFI(
+	"opendal_write_options_set_user_metadata",
+	func(_ context.Context, cFunc func(opts *opendalWriteOptions, pairs *opendalWriteUserMetadataPair, length uint)) func(opts *opendalWriteOptions, userMetadata []opendalWriteUserMetadataPair) {
+		return func(opts *opendalWriteOptions, userMetadata []opendalWriteUserMetadataPair) {
+			var ptr *opendalWriteUserMetadataPair
+			if len(userMetadata) > 0 {
+				ptr = &userMetadata[0]
+			}
+			cFunc(opts, ptr, uint(len(userMetadata)))
+			runtime.KeepAlive(userMetadata)
 		}
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&v))
-	}
-})
+	},
+)
 
-var ffiWriteOptionsSetConcurrent = newFFI(ffiOpts{
-	sym:    "opendal_write_options_set_concurrent",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions, concurrent uint) {
-	return func(opts *opendalWriteOptions, concurrent uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&concurrent))
-	}
-})
+var ffiWriterFree = newDirectFFI[func(w *opendalWriter)]("opendal_writer_free")
 
-var ffiWriteOptionsSetChunk = newFFI(ffiOpts{
-	sym:    "opendal_write_options_set_chunk",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions, chunk uint) {
-	return func(opts *opendalWriteOptions, chunk uint) {
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&chunk))
-	}
-})
-
-var ffiWriteOptionsSetUserMetadata = newFFI(ffiOpts{
-	sym:    "opendal_write_options_set_user_metadata",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(opts *opendalWriteOptions, userMetadata []opendalWriteUserMetadataPair) {
-	return func(opts *opendalWriteOptions, userMetadata []opendalWriteUserMetadataPair) {
-		var ptr *opendalWriteUserMetadataPair
-		if len(userMetadata) > 0 {
-			ptr = &userMetadata[0]
+var ffiWriterWrite = newFFI(
+	"opendal_writer_write",
+	func(ctx context.Context, cFunc func(r *opendalWriter, bytes *opendalBytes, size *uint) *opendalError) func(r *opendalWriter, buf []byte) (size int, err error) {
+		return func(r *opendalWriter, buf []byte) (size int, err error) {
+			bytes := toOpendalBytes(buf)
+			var outSize uint
+			e := cFunc(r, bytes, &outSize)
+			runtime.KeepAlive(buf)
+			runtime.KeepAlive(bytes)
+			if e != nil {
+				return 0, parseError(ctx, e)
+			}
+			return int(outSize), nil
 		}
-		length := uint(len(userMetadata))
-		ffiCall(nil, unsafe.Pointer(&opts), unsafe.Pointer(&ptr), unsafe.Pointer(&length))
-	}
-})
+	},
+)
 
-var ffiWriterFree = newFFI(ffiOpts{
-	sym:    "opendal_writer_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(w *opendalWriter) {
-	return func(w *opendalWriter) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&w),
-		)
-	}
-})
-
-var ffiWriterWrite = newFFI(ffiOpts{
-	sym:    "opendal_writer_write",
-	rType:  &typeResultWriterWrite,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter, buf []byte) (size int, err error) {
-	return func(r *opendalWriter, buf []byte) (size int, err error) {
-		bytes := toOpendalBytes(buf)
-		var result resultWriterWrite
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&r),
-			unsafe.Pointer(&bytes),
-		)
-		if result.error != nil {
-			return 0, parseError(ctx, result.error)
+var ffiWriterCloseWithMetadata = newFFI(
+	"opendal_writer_close_with_metadata",
+	func(ctx context.Context, cFunc func(r *opendalWriter, meta **opendalMetadata) *opendalError) func(r *opendalWriter) (*opendalMetadata, error) {
+		return func(r *opendalWriter) (*opendalMetadata, error) {
+			var meta *opendalMetadata
+			e := cFunc(r, &meta)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return meta, nil
 		}
-		return int(result.size), nil
-	}
-})
-
-var ffiWriterCloseWithMetadata = newFFI(ffiOpts{
-	sym:    "opendal_writer_close_with_metadata",
-	rType:  &typeResultWrite,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(r *opendalWriter) (*opendalMetadata, error) {
-	return func(r *opendalWriter) (*opendalMetadata, error) {
-		var result resultWrite
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&r),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.meta, nil
-	}
-})
+	},
+)

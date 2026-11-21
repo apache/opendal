@@ -91,7 +91,7 @@ pub fn all_packages() -> Vec<Package> {
 
     // Integrations
     let dav_server = make_package("integrations/dav-server", "0.7.11", vec![core.clone()])
-        .with_public_compat_dependencies(&["opendal-core"]);
+        .with_public_compat_dependencies(&["opendal-core", "dav-server"]);
     let object_store = make_package("integrations/object_store", "0.60.5", vec![core.clone()])
         .with_public_compat_dependencies(&["opendal", "object_store"]);
     let parquet = make_package("integrations/parquet", "0.10.5", vec![core.clone()])
@@ -811,7 +811,10 @@ mod tests {
         let object_store = release_package("integrations/object_store");
         let parquet = release_package("integrations/parquet");
 
-        assert_eq!(dav.public_compat_dependencies(), ["opendal-core"]);
+        assert_eq!(
+            dav.public_compat_dependencies(),
+            ["opendal-core", "dav-server"]
+        );
         assert_eq!(
             object_store.public_compat_dependencies(),
             ["opendal", "object_store"]

@@ -17,34 +17,22 @@
  * under the License.
  */
 
-using System.Runtime.InteropServices;
-using OpenDAL.Interop.Result.Abstractions;
+package org.apache.opendal.layer;
 
-namespace OpenDAL.Interop.Result;
+import org.apache.opendal.Layer;
 
-[StructLayout(LayoutKind.Sequential)]
-/// <summary>
-/// Result wrapper for operations that return an options pointer payload.
-/// </summary>
-internal struct OpenDALOptionsResult
-    : INativeValueResult<IntPtr>
-{
-    public IntPtr Ptr;
+/**
+ * Fills in the content type on writes and stat results based on the file extension.
+ * Content types supplied by the caller or returned by the service are preserved.
+ *
+ * @see <a href="https://docs.rs/opendal/latest/opendal/layers/struct.MimeGuessLayer.html">MimeGuessLayer's rustdoc</a>
+ */
+public class MimeGuessLayer extends Layer {
 
-    public OpenDALError Error;
-
-    public readonly void Release()
-    {
-        NativeMethods.opendal_error_release(Error);
+    @Override
+    protected long layer(long nativeOp) {
+        return doLayer(nativeOp);
     }
 
-    public readonly OpenDALError GetError()
-    {
-        return Error;
-    }
-
-    public readonly IntPtr ToValue()
-    {
-        return Ptr;
-    }
+    private static native long doLayer(long nativeHandle);
 }

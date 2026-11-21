@@ -26,7 +26,6 @@ require (
 
 require (
 	github.com/ebitengine/purego v0.10.1 // indirect
-	github.com/jupiterrider/ffi v0.7.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	golang.org/x/sys v0.48.0 // indirect
 )

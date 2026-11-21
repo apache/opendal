@@ -238,17 +238,28 @@ impl CompleteLister {
         }
         .into();
 
-        let stat_metadata = self.srv.stat(&self.ctx, &path, op).await?.into_metadata();
+        let stat_metadata = match self.srv.stat(&self.ctx, &path, op).await {
+            Ok(rp) => rp.into_metadata(),
+            // The entry comes from the service's own listing, so a stat that
+            // cannot see its target — a dangling symlink in fs, whose stat
+            // follows the link — cannot refine the mode, but it does not mean
+            // the entry is gone. Keep the entry as listed.
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(entry),
+            Err(err) => return Err(err),
+        };
         if stat_metadata.mode() == EntryMode::Unknown {
             return Ok(entry);
         }
 
-        let (path, metadata) = entry.into_parts();
+        let (mut path, metadata) = entry.into_parts();
         let mut builder = metadata.into_builder();
         if stat_metadata.is_file() {
             builder.set_file(stat_metadata.content_length());
         } else {
             builder.set_dir();
+            if !path.ends_with('/') {
+                path.push('/');
+            }
         }
         Ok(oio::Entry::with(path, builder.build()))
     }
@@ -256,21 +267,15 @@ impl CompleteLister {
 
 impl oio::List for CompleteLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        loop {
-            let Some(entry) = self.inner.next().await? else {
-                return Ok(None);
-            };
+        let Some(entry) = self.inner.next().await? else {
+            return Ok(None);
+        };
 
-            if entry.mode() != EntryMode::Unknown || entry.metadata().is_deleted() {
-                return Ok(Some(entry));
-            }
-
-            match self.complete_unknown_entry_mode(entry).await {
-                Ok(entry) => return Ok(Some(entry)),
-                Err(err) if err.kind() == ErrorKind::NotFound => continue,
-                Err(err) => return Err(err),
-            }
+        if entry.mode() != EntryMode::Unknown || entry.metadata().is_deleted() {
+            return Ok(Some(entry));
         }
+
+        Ok(Some(self.complete_unknown_entry_mode(entry).await?))
     }
 }
 
@@ -286,16 +291,36 @@ impl<R> CompleteReader<R> {
 
 impl<R: oio::Read> oio::Read for CompleteReader<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let size = if range.is_suffix() {
-            None
-        } else {
-            range.size()
-        };
         let (rp, stream) = self.inner.open(range).await?;
-        Ok((
-            rp,
-            Box::new(CompleteReadStream::new(stream, size)) as Box<dyn oio::ReadStreamDyn>,
-        ))
+        let require_start = !range.is_suffix() && range.size().is_some_and(|size| size > 0);
+        let available = rp
+            .metadata()
+            .filter(|metadata| metadata.is_file())
+            .map(|metadata| {
+                let length = metadata.content_length();
+                match range {
+                    BytesRange::Range { offset, size } => {
+                        let remaining = length.saturating_sub(offset);
+                        size.map_or(remaining, |size| size.min(remaining))
+                    }
+                    BytesRange::Suffix { size } => size.min(length),
+                }
+            });
+        if require_start && available == Some(0) {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range starts at or beyond the end of the object",
+            )
+            .with_context("offset", range.offset()));
+        }
+        let stream = CompleteReadStream {
+            inner: stream,
+            max_size: available.or(range.size()),
+            expected_size: available,
+            require_start: require_start && available.is_none(),
+            read: 0,
+        };
+        Ok((rp, Box::new(stream)))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
@@ -310,41 +335,36 @@ impl<R: oio::Read> oio::Read for CompleteReader<R> {
     }
 }
 
-pub struct CompleteReadStream<R> {
+struct CompleteReadStream<R> {
     inner: R,
-    size: Option<u64>,
+    max_size: Option<u64>,
+    expected_size: Option<u64>,
+    require_start: bool,
     read: u64,
-}
-
-impl<R> CompleteReadStream<R> {
-    pub fn new(inner: R, size: Option<u64>) -> Self {
-        Self {
-            inner,
-            size,
-            read: 0,
-        }
-    }
-
-    pub fn check(&self) -> Result<()> {
-        check_complete(self.size, self.read)
-    }
 }
 
 impl<R: oio::ReadStream> oio::ReadStream for CompleteReadStream<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let buf = self.inner.read().await?;
-
         if buf.is_empty() {
-            self.check()?;
+            if self.require_start && self.read == 0 {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                ));
+            }
+            check_complete(self.expected_size, self.read)?;
         } else {
             self.read += buf.len() as u64;
+            if self.max_size.is_some_and(|size| self.read > size) {
+                check_complete(self.max_size, self.read)?;
+            }
         }
-
         Ok(buf)
     }
 }
 
-fn check_complete(size: Option<u64>, actual: u64) -> Result<()> {
+pub(crate) fn check_complete(size: Option<u64>, actual: u64) -> Result<()> {
     let Some(size) = size else {
         return Ok(());
     };
@@ -659,6 +679,49 @@ mod tests {
         async fn abort(&mut self) -> Result<()> {
             Ok(())
         }
+    }
+
+    struct TestReadStream {
+        buffer: Buffer,
+        object_length: Option<u64>,
+    }
+
+    impl oio::StreamRead for TestReadStream {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let rp = self.object_length.map_or_else(RpRead::default, |length| {
+                RpRead::new(MetadataBuilder::file(length).build())
+            });
+            Ok((rp, Box::new(self.buffer.clone())))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_open_validates_available_bytes() -> Result<()> {
+        let range = BytesRange::from(2..6);
+        for length in [None, Some(4)] {
+            let reader = CompleteReader::new(oio::StreamReader::new(TestReadStream {
+                buffer: Buffer::from("ab"),
+                object_length: length,
+            }));
+            let (_, mut stream) = oio::Read::open(&reader, range).await?;
+            assert_eq!(stream.read_all_dyn().await?.to_bytes(), "ab");
+        }
+
+        for (length, content, message) in [
+            (Some(5), "ab", "reader got too little data"),
+            (Some(3), "ab", "reader got too much data"),
+            (None, "abcde", "reader got too much data"),
+        ] {
+            let reader = CompleteReader::new(oio::StreamReader::new(TestReadStream {
+                buffer: Buffer::from(content),
+                object_length: length,
+            }));
+            let (_, mut stream) = oio::Read::open(&reader, range).await?;
+            let err = stream.read_all_dyn().await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), message);
+        }
+        Ok(())
     }
 
     struct MockReadReader {

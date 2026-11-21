@@ -21,8 +21,6 @@
 
 namespace opendal::utils {
 Entry parse_entry(ffi::Entry &&other) {
-  return Entry{
-      .path = std::string(std::move(other.path)),
-  };
+  return Entry{std::string(std::move(other.path))};
 }
 }  // namespace opendal::utils

@@ -36,6 +36,7 @@ default = [
   "services-fs",
   "services-gcs",
   "services-ghac",
+  "services-github",
   "services-http",
   "services-ipmfs",
   "services-memory",
@@ -120,9 +121,7 @@ services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
-services-github = [
-  "opendal/services-github",
-] # FIXME EXCLUDED: Needs tests/ maintenance
+services-github = ["opendal/services-github"]
 services-goosefs = [
   "opendal/services-goosefs",
 ] # FIXME EXCLUDED: armhf build failure because of tokiofs dependency
@@ -200,7 +199,7 @@ doc = false
 name = "_opendal"
 
 [dependencies]
-asyncband = { version = "0.7.1", features = ["mutex"] }
+asyncband = { version = "0.8.0", features = ["mutex"] }
 bytes = "1.10.1"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }

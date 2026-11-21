@@ -442,40 +442,43 @@ Writer Operator::GetWriter(std::string_view path, const WriteOptions &options) {
 
 }  // namespace opendal
 opendal::Capability opendal::Operator::Info() {
-  auto op_info = operator_->info();
-  return Capability{
-      .stat = op_info.stat,
-      .stat_with_if_match = op_info.stat_with_if_match,
-      .stat_with_if_none_match = op_info.stat_with_if_none_match,
-      .read = op_info.read,
-      .read_with_if_match = op_info.read_with_if_match,
-      .read_with_if_none_match = op_info.read_with_if_none_match,
-      .read_with_override_cache_control = op_info.read_with_override_cache_control,
-      .read_with_override_content_disposition =
-          op_info.read_with_override_content_disposition,
-      .read_with_override_content_type = op_info.read_with_override_content_type,
-      .write = op_info.write,
-      .write_can_multi = op_info.write_can_multi,
-      .write_can_empty = op_info.write_can_empty,
-      .write_can_append = op_info.write_can_append,
-      .write_with_content_type = op_info.write_with_content_type,
-      .write_with_content_disposition = op_info.write_with_content_disposition,
-      .write_with_cache_control = op_info.write_with_cache_control,
-      .write_multi_max_size = op_info.write_multi_max_size,
-      .write_multi_min_size = op_info.write_multi_min_size,
-      .write_total_max_size = op_info.write_total_max_size,
-      .create_dir = op_info.create_dir,
-      .delete_feature = op_info.delete_feature,
-      .copy = op_info.copy,
-      .rename = op_info.rename,
-      .list = op_info.list,
-      .list_with_limit = op_info.list_with_limit,
-      .list_with_start_after = op_info.list_with_start_after,
-      .list_with_recursive = op_info.list_with_recursive,
-      .presign = op_info.presign,
-      .presign_read = op_info.presign_read,
-      .presign_stat = op_info.presign_stat,
-      .presign_write = op_info.presign_write,
-      .shared = op_info.shared,
-  };
+  const auto op_info = operator_->info();
+  Capability capability{};
+  capability.stat = op_info.stat;
+  capability.stat_with_if_match = op_info.stat_with_if_match;
+  capability.stat_with_if_none_match = op_info.stat_with_if_none_match;
+  capability.read = op_info.read;
+  capability.read_with_if_match = op_info.read_with_if_match;
+  capability.read_with_if_none_match = op_info.read_with_if_none_match;
+  capability.read_with_override_cache_control =
+      op_info.read_with_override_cache_control;
+  capability.read_with_override_content_disposition =
+      op_info.read_with_override_content_disposition;
+  capability.read_with_override_content_type =
+      op_info.read_with_override_content_type;
+  capability.write = op_info.write;
+  capability.write_can_multi = op_info.write_can_multi;
+  capability.write_can_empty = op_info.write_can_empty;
+  capability.write_can_append = op_info.write_can_append;
+  capability.write_with_content_type = op_info.write_with_content_type;
+  capability.write_with_content_disposition =
+      op_info.write_with_content_disposition;
+  capability.write_with_cache_control = op_info.write_with_cache_control;
+  capability.write_multi_max_size = op_info.write_multi_max_size;
+  capability.write_multi_min_size = op_info.write_multi_min_size;
+  capability.write_total_max_size = op_info.write_total_max_size;
+  capability.create_dir = op_info.create_dir;
+  capability.delete_feature = op_info.delete_feature;
+  capability.copy = op_info.copy;
+  capability.rename = op_info.rename;
+  capability.list = op_info.list;
+  capability.list_with_limit = op_info.list_with_limit;
+  capability.list_with_start_after = op_info.list_with_start_after;
+  capability.list_with_recursive = op_info.list_with_recursive;
+  capability.presign = op_info.presign;
+  capability.presign_read = op_info.presign_read;
+  capability.presign_stat = op_info.presign_stat;
+  capability.presign_write = op_info.presign_write;
+  capability.shared = op_info.shared;
+  return capability;
 }

@@ -21,7 +21,7 @@ package org.apache.opendal;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Arrays;
+import java.util.Objects;
 
 public class OperatorOutputStream extends OutputStream {
     private static class Writer extends NativeObject {
@@ -36,56 +36,98 @@ public class OperatorOutputStream extends OutputStream {
     }
 
     private static final int DEFAULT_MAX_BYTES = 16384;
+    private static final int MAX_DIRECT_WRITE_BYTES = 1024 * 1024;
 
     private final Writer writer;
     private final byte[] bytes;
-    private final int maxBytes;
+    private final int maxBatchBytes;
 
     private int offset = 0;
 
     public OperatorOutputStream(Operator operator, String path, WriteOptions options) {
-        this(operator, path, DEFAULT_MAX_BYTES, options);
+        this(operator, path, DEFAULT_MAX_BYTES, MAX_DIRECT_WRITE_BYTES, options);
     }
 
+    /**
+     * Creates a stream with the given buffer size and maximum native write size.
+     *
+     * @throws IllegalArgumentException if maxBytes is not positive
+     */
     public OperatorOutputStream(Operator operator, String path, int maxBytes, WriteOptions options) {
+        this(operator, path, maxBytes, maxBytes, options);
+    }
+
+    private OperatorOutputStream(
+            Operator operator, String path, int maxBytes, int maxBatchBytes, WriteOptions options) {
+        if (maxBytes <= 0) {
+            throw new IllegalArgumentException("maxBytes must be positive");
+        }
         final long op = operator.nativeHandle;
         this.writer = new Writer(constructWriter(op, path, options));
-        this.maxBytes = maxBytes;
         this.bytes = new byte[maxBytes];
+        this.maxBatchBytes = maxBatchBytes;
     }
 
     @Override
-    public void write(int b) throws IOException {
+    public synchronized void write(int b) throws IOException {
+        ensureOpen();
         bytes[offset++] = (byte) b;
-        if (offset != maxBytes) {
-            return;
+        if (offset == bytes.length) {
+            flush();
         }
-        flush();
     }
 
     @Override
-    public void flush() {
-        if (offset > maxBytes) {
-            // unreachable
-            throw new IllegalStateException("INTERNAL ERROR: " + offset + " > " + maxBytes);
-        } else if (offset < maxBytes) {
-            final byte[] bytes = Arrays.copyOf(this.bytes, offset);
-            writeBytes(writer.nativeHandle, bytes);
-        } else {
-            writeBytes(writer.nativeHandle, bytes);
+    public synchronized void write(byte[] b, int off, int len) throws IOException {
+        Objects.requireNonNull(b);
+        if (off < 0 || len < 0 || off > b.length - len) {
+            throw new IndexOutOfBoundsException();
         }
-        offset = 0;
+        ensureOpen();
+        while (len > 0) {
+            final int count;
+            if (offset == 0 && len >= bytes.length) {
+                count = Math.min(len, maxBatchBytes);
+                writeByteRange(writer.nativeHandle, b, off, count);
+            } else {
+                count = Math.min(len, bytes.length - offset);
+                System.arraycopy(b, off, bytes, offset, count);
+                offset += count;
+                if (offset == bytes.length) {
+                    flush();
+                }
+            }
+            off += count;
+            len -= count;
+        }
     }
 
     @Override
-    public void close() {
-        flush();
-        writer.close();
+    public synchronized void flush() {
+        ensureOpen();
+        if (offset != 0) {
+            writeByteRange(writer.nativeHandle, bytes, 0, offset);
+            offset = 0;
+        }
+    }
+
+    @Override
+    public synchronized void close() {
+        if (!writer.isDisposed()) {
+            flush();
+            writer.close();
+        }
+    }
+
+    private void ensureOpen() {
+        if (writer.isDisposed()) {
+            throw new IllegalStateException("OperatorOutputStream is closed");
+        }
     }
 
     private static native long constructWriter(long op, String path, WriteOptions options);
 
     private static native void disposeWriter(long writer);
 
-    private static native void writeBytes(long writer, byte[] bytes);
+    private static native void writeByteRange(long writer, byte[] bytes, int off, int len);
 }

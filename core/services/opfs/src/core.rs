@@ -43,6 +43,7 @@ impl OpfsCore {
             write_can_multi: true,
 
             delete: true,
+            delete_with_recursive: true,
 
             shared: true,
 
@@ -165,10 +166,10 @@ mod utils {
     /// Split a file path into its parent directory handle and filename.
     ///
     /// When `create` is true, intermediate directories are created as needed.
-    pub(crate) async fn get_parent_dir_and_name<'a>(
-        path: &'a str,
+    pub(crate) async fn get_parent_dir_and_name(
+        path: &str,
         create: bool,
-    ) -> Result<(FileSystemDirectoryHandle, &'a str)> {
+    ) -> Result<(FileSystemDirectoryHandle, &str)> {
         let trimmed = path.trim_matches('/');
         match trimmed.rsplit_once('/') {
             Some((parent, name)) => {

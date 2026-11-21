@@ -52,10 +52,19 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 
     if cap.stat && !cap.write {
+        if is_gist(op) {
+            #[cfg(feature = "services-gist")]
+            tests.extend(async_trials!(op, test_gist_read_only_stat_flat))
+        } else {
+            tests.extend(async_trials!(
+                op,
+                test_read_only_stat_file_and_dir,
+                test_read_only_stat_special_chars
+            ))
+        }
+
         tests.extend(async_trials!(
             op,
-            test_read_only_stat_file_and_dir,
-            test_read_only_stat_special_chars,
             test_read_only_stat_not_cleaned_path,
             test_read_only_stat_not_exist,
             test_read_only_stat_with_if_match,
@@ -636,6 +645,29 @@ pub async fn test_read_only_stat_root(op: Operator) -> Result<()> {
 
     let meta = op.stat("/").await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
+
+    Ok(())
+}
+
+/// Gist is a flat store: stat the fixture files and a missing directory.
+#[cfg(feature = "services-gist")]
+pub async fn test_gist_read_only_stat_flat(op: Operator) -> Result<()> {
+    let meta = op.stat("normal_file.txt").await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 30482);
+
+    let meta = op.stat("special_file  !@#$%^&()_+-=;',.txt").await?;
+    assert_eq!(meta.mode(), EntryMode::FILE);
+    assert_eq!(meta.content_length(), 30482);
+
+    // Only the root is a directory, so a directory path that is not the root
+    // is simply not found.
+    let path = format!("{}/", uuid::Uuid::new_v4());
+    let err = op
+        .stat(&path)
+        .await
+        .expect_err("a gist has no directory to stat");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     Ok(())
 }

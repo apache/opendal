@@ -288,6 +288,10 @@ def generate_language_binding_cases(
     # These fixtures target core services without enabling bindings.
     cases = [v for v in cases if v["service"] not in ["github", "smb"]]
 
+    # The gist fixture is read-only, and the binding workflows do not forward
+    # GITHUB_TOKEN, so the unauthenticated API rate limit would make it flaky.
+    cases = [v for v in cases if v["service"] != "gist"]
+
     # Remove invalid cases for java.
     if language == "java":
         cases = [v for v in cases if v["service"] not in [

@@ -89,6 +89,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     if cap.read && !cap.write && cap.read_with_suffix {
         tests.extend(async_trials!(op, test_read_only_read_with_suffix))
     }
+
+    #[cfg(feature = "services-gist")]
+    if is_gist(op) {
+        tests.extend(async_trials!(op, test_gist_read_only_read_flat))
+    }
 }
 
 /// Read full content should match.
@@ -1092,6 +1097,32 @@ pub async fn test_read_only_read_with_dir_path(op: Operator) -> anyhow::Result<(
     let result = op.read(&path).await;
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().kind(), ErrorKind::IsADirectory);
+
+    Ok(())
+}
+
+/// Gist serves binary files as inline base64 content; reads must decode them.
+#[cfg(feature = "services-gist")]
+pub async fn test_gist_read_only_read_flat(op: Operator) -> anyhow::Result<()> {
+    let bs = op.read("binary_file.png").await?.to_bytes();
+    assert_eq!(bs.len(), 42781, "read size");
+    assert_eq!(
+        sha256_digest(&bs),
+        "581bd656c83f4324d4ad23e9badbbdf1ed205b232569ee3250576fcde34ffa15",
+        "read content"
+    );
+
+    let bs = op
+        .read_with("binary_file.png")
+        .range(16..40)
+        .await?
+        .to_bytes();
+    assert_eq!(bs.len(), 24, "range size");
+    assert_eq!(
+        sha256_digest(&bs),
+        "51dece2617b1268b2a71eb24da49e491b63a48bf1832acd3929a273398d5705f",
+        "range content"
+    );
 
     Ok(())
 }

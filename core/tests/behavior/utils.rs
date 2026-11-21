@@ -73,6 +73,17 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
     (offset as u64, length as u64)
 }
 
+/// Whether the operator targets the gist service, a flat store whose only
+/// directory is the root.
+pub fn is_gist(_op: &Operator) -> bool {
+    #[cfg(feature = "services-gist")]
+    if _op.info().scheme() == services::GIST_SCHEME {
+        return true;
+    }
+
+    false
+}
+
 /// Build a new async trail as a test case.
 pub fn build_async_trial<F, Fut>(name: &str, op: &Operator, f: F) -> Trial
 where

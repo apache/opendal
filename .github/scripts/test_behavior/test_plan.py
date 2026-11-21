@@ -62,6 +62,36 @@ class BehaviorTestPlan(unittest.TestCase):
                 self.assertIn("fs", cases)
                 self.assertNotIn("github", cases)
 
+    def test_gist_fixture_is_core_only(self):
+        result = plan([
+            ".github/services/gist/read_only/action.yml",
+            ".github/services/gist/read_only_raw_url/action.yml",
+            "core/services/fs/src/lib.rs",
+        ])
+        core = [case["service"] for target in result["core"] for case in target["cases"]]
+        self.assertIn("gist", core)
+
+        gist = next(
+            case
+            for target in result["core"]
+            for case in target["cases"]
+            if case["service"] == "gist"
+        )
+        self.assertEqual(
+            gist["setups"],
+            ["read_only", "read_only_raw_url"],
+        )
+
+        for language in LANGUAGE_BINDING:
+            with self.subTest(language=language):
+                cases = [
+                    case["service"]
+                    for target in result[f"binding_{language}"]
+                    for case in target["cases"]
+                ]
+                self.assertIn("fs", cases)
+                self.assertNotIn("gist", cases)
+
     def test_smb_fixture_is_core_only(self):
         result = plan([
             ".github/services/smb/samba/action.yml",

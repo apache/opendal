@@ -56,7 +56,12 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     }
 
     if cap.read && !cap.write && cap.list {
-        tests.extend(async_trials!(op, test_list_only))
+        if is_gist(op) {
+            #[cfg(feature = "services-gist")]
+            tests.extend(async_trials!(op, test_gist_read_only_list_flat))
+        } else {
+            tests.extend(async_trials!(op, test_list_only))
+        }
     }
 }
 
@@ -647,6 +652,30 @@ pub async fn test_list_only(op: Operator) -> Result<()> {
 
     assert_eq!(entries["normal_dir/"], EntryMode::DIR);
     assert_eq!(entries["special_dir  !@#$%^&()_+-=;',/"], EntryMode::DIR);
+
+    Ok(())
+}
+
+/// Gist is a flat store: every entry listed from the root is a file.
+#[cfg(feature = "services-gist")]
+pub async fn test_gist_read_only_list_flat(op: Operator) -> Result<()> {
+    let mut entries = HashMap::new();
+
+    let mut ds = op.lister("/").await?;
+    while let Some(de) = ds.try_next().await? {
+        entries.insert(de.path().to_string(), op.stat(de.path()).await?.mode());
+    }
+
+    assert_eq!(entries["normal_file.txt"], EntryMode::FILE);
+    assert_eq!(
+        entries["special_file  !@#$%^&()_+-=;',.txt"],
+        EntryMode::FILE
+    );
+
+    assert!(
+        entries.values().all(|mode| *mode == EntryMode::FILE),
+        "every gist entry must be a file, entries: {entries:?}"
+    );
 
     Ok(())
 }

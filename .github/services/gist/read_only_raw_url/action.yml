@@ -1,0 +1,41 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: read_only_raw_url
+description: 'Behavior test for gist service in read-only mode, serving every file through the raw_url fallback'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup
+      shell: bash
+      run: |
+        # Run the read-only behavior tests against the public fixture gist
+        # 37a2c7e6ff0fd263d3352d17732c0689. Its 2 MiB large_file.txt makes
+        # GitHub truncate the inline content of every file, so all reads
+        # exercise the raw_url fallback path.
+        cat << EOF >> $GITHUB_ENV
+        OPENDAL_GIST_GIST_ID=37a2c7e6ff0fd263d3352d17732c0689
+        OPENDAL_DISABLE_RANDOM_ROOT=true
+        OPENDAL_TEST_CAPABILITY_OVERRIDES=write=false,delete=false,create_dir=false
+        EOF
+
+        # GITHUB_TOKEN is injected by the caller workflow; forward it to raise
+        # the GitHub API rate limit for the read-only behavior tests.
+        if [ -n "${GITHUB_TOKEN:-}" ]; then
+          echo "OPENDAL_GIST_TOKEN=$GITHUB_TOKEN" >> $GITHUB_ENV
+        fi

@@ -22,10 +22,17 @@ on:
     branches:
       - main
     paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
+      - "core/layers/mime-guess/**"
+      - "bindings/python/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_python.yml"
-      - "bindings/python/**"
-      - "core/**"
   workflow_call:
   workflow_dispatch:
 

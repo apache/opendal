@@ -22,15 +22,7 @@ on:
     branches:
       - main
     paths:
-      - "core/Cargo.toml"
-      - "core/Cargo.lock"
-      - "core/core/Cargo.toml"
-      - "core/core/src/**"
       - "core/fuzz/**"
-      - "core/layers/**"
-      - "core/services/**"
-      - "core/testkit/**"
-      - "!core/core/src/docs/**"
       - ".github/actions/fuzz_test/**"
       - ".github/workflows/test_fuzz.yml"
   schedule:

@@ -23,7 +23,6 @@ on:
       - main
     paths:
       - "integrations/dav-server/**"
-      - "core/**"
       - ".github/workflows/ci_integration_dav_server.yml"
   workflow_call:
 

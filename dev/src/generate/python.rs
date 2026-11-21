@@ -20,11 +20,38 @@ use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
 use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+
+/// Subset of the `cargo metadata --format-version 1` output consumed here.
+/// The schema is controlled by cargo, so only the fields this generator reads
+/// are declared; serde ignores everything else.
+#[derive(Deserialize)]
+struct CargoMetadata {
+    packages: Vec<MetadataPackage>,
+    resolve: MetadataResolve,
+}
+
+#[derive(Deserialize)]
+struct MetadataPackage {
+    name: String,
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolve {
+    nodes: Vec<MetadataResolveNode>,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolveNode {
+    id: String,
+    features: Vec<String>,
+}
 
 /// Load the services enabled by the Python binding's `services-all` feature
 /// via `cargo metadata`, so the generated code always matches the feature set
@@ -47,28 +74,25 @@ fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
         );
     }
 
-    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)
+    let metadata: CargoMetadata = serde_json::from_slice(&output.stdout)
         .context("failed to parse `cargo metadata` output")?;
-    let pkg_id = metadata["packages"]
-        .as_array()
-        .and_then(|pkgs| {
-            pkgs.iter()
-                .find(|pkg| pkg["name"] == "opendal-python")
-                .map(|pkg| pkg["id"].clone())
-        })
+    let pkg_id = metadata
+        .packages
+        .iter()
+        .find(|pkg| pkg.name == "opendal-python")
+        .map(|pkg| pkg.id.as_str())
         .with_context(|| "package `opendal-python` not found in `cargo metadata` output")?;
-    let node = metadata["resolve"]["nodes"]
-        .as_array()
-        .and_then(|nodes| nodes.iter().find(|node| node["id"] == pkg_id))
+    let node = metadata
+        .resolve
+        .nodes
+        .iter()
+        .find(|node| node.id == pkg_id)
         .with_context(
             || "resolve node for `opendal-python` not found in `cargo metadata` output",
         )?;
 
     let mut services = HashSet::new();
-    for feature in node["features"].as_array().into_iter().flatten() {
-        let Some(name) = feature.as_str() else {
-            continue;
-        };
+    for name in &node.features {
         let Some(srv) = name.strip_prefix("services-") else {
             continue;
         };

@@ -195,6 +195,8 @@ pub struct Capability {
     pub copy_with_user_metadata: bool,
     /// Indicates if copy operations can replace the destination's Content-Type.
     pub copy_with_content_type: bool,
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    pub copy_with_content_language: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.

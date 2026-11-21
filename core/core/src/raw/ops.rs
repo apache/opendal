@@ -1315,6 +1315,7 @@ enum CopyField {
     IfVersionNotMatch,
     SourceVersion,
     ContentType,
+    ContentLanguage,
     UserMetadata,
 }
 
@@ -1376,6 +1377,7 @@ impl OpCopy {
             options.if_version_not_match.as_deref().map(str::as_bytes),
             options.source_version.as_deref().map(str::as_bytes),
             options.content_type.as_deref().map(str::as_bytes),
+            options.content_language.as_deref().map(str::as_bytes),
             None,
         ];
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
@@ -1457,6 +1459,12 @@ impl OpCopy {
     #[inline]
     pub fn content_type(&self) -> Option<&str> {
         string_value(&self.values, CopyField::ContentType as usize)
+    }
+
+    /// Get the replacement destination Content-Language.
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        string_value(&self.values, CopyField::ContentLanguage as usize)
     }
 
     /// Get the replacement destination user metadata.
@@ -1965,6 +1973,7 @@ mod tests {
             options::CopyOptions {
                 if_match: Some("etag".to_owned()),
                 content_type: Some("text/plain".to_owned()),
+                content_language: Some("fr-CA, en".to_owned()),
                 user_metadata: Some(HashMap::from([("mtime".to_owned(), "42".to_owned())])),
                 ..Default::default()
             },
@@ -1972,6 +1981,7 @@ mod tests {
         .unwrap();
         assert_eq!(copy.if_match(), Some("etag"));
         assert_eq!(copy.content_type(), Some("text/plain"));
+        assert_eq!(copy.content_language(), Some("fr-CA, en"));
         assert_eq!(copy.user_metadata().unwrap().get("mtime"), Some("42"));
 
         let list: OpList = options::ListOptions {

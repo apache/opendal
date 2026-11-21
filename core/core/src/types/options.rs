@@ -1048,12 +1048,12 @@ pub struct CopyOptions {
 
     /// Replaces the destination's user metadata with exactly these entries.
     ///
-    /// Setting this option or [`Self::content_type`] replaces the destination's
-    /// whole metadata set. The destination gets exactly the values given here
+    /// Setting this option, [`Self::content_type`] or [`Self::content_language`]
+    /// replaces the destination's whole metadata set. The destination gets exactly the values given here
     /// and inherits nothing from the source: every field left unset, including
-    /// user metadata, Content-Type and other system metadata such as
-    /// Cache-Control, takes the service default. To change one field and keep
-    /// the others, pass the complete target set. Setting either option also
+    /// user metadata, Content-Type, Content-Language and other system metadata
+    /// such as Cache-Control, takes the service default. To change one field
+    /// and keep the others, pass the complete target set. Setting any of them also
     /// allows `from` and `to` to be the same path, which updates metadata
     /// without rewriting the content. On S3 this is `CopyObject` with
     /// `x-amz-metadata-directive: REPLACE`.
@@ -1070,6 +1070,15 @@ pub struct CopyOptions {
     /// service does not advertise
     /// [`crate::Capability::copy_with_content_type`].
     pub content_type: Option<String>,
+    /// Replaces the destination's Content-Language with this value.
+    ///
+    /// Use a language tag or a comma-separated list of tags, such as `fr-CA, en`.
+    /// Follows the same replacement rules as [`Self::user_metadata`].
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_content_language`].
+    pub content_language: Option<String>,
 
     /// Asserted complete content length of the source object.
     ///

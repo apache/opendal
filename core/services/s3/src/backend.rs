@@ -1253,6 +1253,7 @@ impl S3Builder {
                     copy_with_source_version: !is_s3_express,
                     copy_with_user_metadata: true,
                     copy_with_content_type: true,
+                    copy_with_content_language: true,
                     // The min multipart size of S3 is 5 MiB.
                     //
                     // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -2253,6 +2254,7 @@ mod tests {
         op.copy_with("source", "source")
             .user_metadata([("mtime".to_owned(), "42".to_owned())])
             .content_type("text/plain")
+            .content_language("fr-CA, en")
             .source_content_length_hint(7)
             .await
             .expect("same-key copy with new metadata must succeed");
@@ -2265,6 +2267,7 @@ mod tests {
         );
         assert_eq!(header(&requests[0], "x-amz-meta-mtime"), "42");
         assert_eq!(header(&requests[0], "content-type"), "text/plain");
+        assert_eq!(header(&requests[0], "content-language"), "fr-CA, en");
 
         op.copy_with("source", "target")
             .source_content_length_hint(7)
@@ -2285,6 +2288,7 @@ mod tests {
 
         op.copy_with("source", "target")
             .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_language("es-MX")
             .source_content_length_hint(5 * 1024 * 1024 + 1)
             .chunk(5 * 1024 * 1024)
             .await
@@ -2296,6 +2300,7 @@ mod tests {
             .find(|request| request.uri.query() == Some("uploads"))
             .expect("CreateMultipartUpload request must be captured");
         assert_eq!(header(create, "x-amz-meta-mtime"), "42");
+        assert_eq!(header(create, "content-language"), "es-MX");
     }
 
     #[tokio::test]

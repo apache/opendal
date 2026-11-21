@@ -830,11 +830,17 @@ impl S3Core {
         }
 
         // Without REPLACE, S3 copies the source metadata and ignores these headers.
-        if args.content_type().is_some() || args.user_metadata().is_some() {
+        if args.content_type().is_some()
+            || args.content_language().is_some()
+            || args.user_metadata().is_some()
+        {
             req = req.header(constants::X_AMZ_METADATA_DIRECTIVE, "REPLACE");
         }
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
+        }
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {
@@ -1094,6 +1100,9 @@ impl S3Core {
         // A multipart copy never inherits source metadata, so set it on creation.
         if let Some(mime) = args.content_type() {
             req = req.header(CONTENT_TYPE, mime);
+        }
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
         if let Some(user_metadata) = args.user_metadata() {
             for (key, value) in user_metadata {

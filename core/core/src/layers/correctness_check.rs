@@ -342,6 +342,13 @@ impl Service for CorrectnessService {
                 "content_type",
             ));
         }
+        if args.content_language().is_some() && !capability.copy_with_content_language {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::Copy,
+                "content_language",
+            ));
+        }
         if args.source_version().is_some() && !capability.copy_with_source_version {
             return Err(new_unsupported_error(
                 scheme,
@@ -1046,10 +1053,18 @@ mod tests {
             .expect_err("content type must require a capability");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
+        let err = op
+            .copy_with("from", "to")
+            .content_language("en")
+            .await
+            .expect_err("content language must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
         let op = new_test_operator(Capability {
             copy: true,
             copy_with_user_metadata: true,
             copy_with_content_type: true,
+            copy_with_content_language: true,
             ..Default::default()
         });
 
@@ -1064,6 +1079,11 @@ mod tests {
             .content_type("text/plain")
             .await
             .expect("replacing metadata in place must be forwarded");
+
+        op.copy_with("same", "same")
+            .content_language("en")
+            .await
+            .expect("replacing content language in place must be forwarded");
     }
 
     #[tokio::test]

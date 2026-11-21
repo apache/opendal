@@ -1814,6 +1814,14 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Replace the destination's Content-Language with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_language`] for the full contract.
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
+        self
+    }
+
     /// Sets concurrent copy operations for this copy.
     ///
     /// Refer to [`options::CopyOptions::concurrent`] for more details.
@@ -1914,6 +1922,14 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     /// Refer to [`options::CopyOptions::content_type`] for the full contract.
     pub fn content_type(mut self, v: &str) -> Self {
         self.args.0.content_type = Some(v.to_string());
+        self
+    }
+
+    /// Replace the destination's Content-Language with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_language`] for the full contract.
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
         self
     }
 

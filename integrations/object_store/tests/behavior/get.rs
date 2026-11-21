@@ -311,8 +311,9 @@ async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()>
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
+    // S3 ignores future If-Modified-Since dates.
     let opts = GetOptions {
-        if_modified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
+        if_modified_since: Some(meta.last_modified),
         ..Default::default()
     };
     let ret = store.get_opts(&location, opts).await;

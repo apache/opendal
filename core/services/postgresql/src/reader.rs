@@ -38,7 +38,7 @@ impl oio::StreamRead for PostgresqlReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
         let bs = match backend.core.get(&p).await? {
             Some(bs) => bs,
             None => {

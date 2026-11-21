@@ -56,7 +56,8 @@ void simple_test()
     // Test basic write/read if supported
     opendal_operator_info* info = opendal_operator_info_new(config->operator_instance);
     if (info) {
-        opendal_capability cap = opendal_operator_info_get_capability(info);
+        opendal_capability cap;
+        opendal_operator_info_get_capability(info, &cap);
 
         if (cap.write && cap.read) {
             printf("Testing write/read operations...\n");
@@ -77,22 +78,23 @@ void simple_test()
                 printf("Write successful!\n");
 
                 // Read test data back
-                opendal_result_read result = opendal_operator_read(config->operator_instance, test_path);
-                if (result.error) {
-                    printf("Read failed: %d\n", result.error->code);
-                    opendal_error_free(result.error);
+                opendal_bytes read_data;
+                error = opendal_operator_read(config->operator_instance, test_path, &read_data);
+                if (error) {
+                    printf("Read failed: %d\n", error->code);
+                    opendal_error_free(error);
                 } else {
-                    printf("Read successful! Content: %.*s\n", (int)result.data.len,
-                        (char*)result.data.data);
+                    printf("Read successful! Content: %.*s\n", (int)read_data.len,
+                        (char*)read_data.data);
 
                     // Verify content
-                    if (result.data.len == strlen(test_content) && memcmp(result.data.data, test_content, result.data.len) == 0) {
+                    if (read_data.len == strlen(test_content) && memcmp(read_data.data, test_content, read_data.len) == 0) {
                         printf("Content verification passed!\n");
                     } else {
                         printf("Content verification failed!\n");
                     }
 
-                    opendal_bytes_free(&result.data);
+                    opendal_bytes_free(&read_data);
                 }
 
                 // Cleanup

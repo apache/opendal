@@ -15,6 +15,30 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## List
+
+When set, `start_after` returns entries in lexicographic order and excludes
+paths at or before the marker in both non-recursive and recursive listings.
+Pass a path relative to the operator root, including the trailing `/` for a
+directory entry. Pass an empty marker to start a sorted listing from the
+beginning.
+
+With `start_after`, the service reads and sorts each visited directory before
+yielding its entries. This can increase latency and memory usage for large
+directories. With `start_after` unset, the traversal follows the order of
+entries from the filesystem.
+
+## Delete
+
+Deleting a symbolic link removes the link and preserves its target, even with
+recursive deletion enabled. Use a path without a trailing `/` to delete a
+dangling link.
+
+A trailing `/` requires a directory target. A symbolic link to a file returns
+[`opendal_core::ErrorKind::NotADirectory`] when addressed this way. If the link
+target is missing, deletion through a directory path succeeds and leaves the
+link in place.
+
 ## Configuration
 
 Use [`crate::FsConfig`] for serializable configuration and this builder's

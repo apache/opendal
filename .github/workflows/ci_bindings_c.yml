@@ -19,24 +19,28 @@ name: Bindings C CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/c/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_c.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
+      - "bindings/c/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_c.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-c-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -71,7 +75,7 @@ jobs:
         working-directory: "bindings/c"
         run: |
           mkdir build && cd build
-          cmake .. -DTEST_ENABLE_ASAN=ON -DFEATURES=opendal/services-memory
+          cmake .. -DTEST_ENABLE_ASAN=ON -DFEATURES=opendal/services-fs
           make -j$(nproc)
 
       - name: Check diff
@@ -87,7 +91,7 @@ jobs:
 
       - name: Build OpenDAL C library for test framework
         working-directory: "bindings/c"
-        run: cargo build --features="opendal/services-memory"
+        run: cargo build --features="opendal/services-fs"
 
       - name: Build test framework
         working-directory: "bindings/c/tests"

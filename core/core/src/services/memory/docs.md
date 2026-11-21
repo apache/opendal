@@ -12,6 +12,13 @@ This service can be used to:
 - [ ] rename
 - [ ] presign
 
+## Deleting directories
+
+Deleting a path ending in `/` returns `ErrorKind::Unexpected` if the directory
+has children, including when the directory is inferred from their paths. Use
+`delete_with(path).recursive(true)` to delete the directory and its children.
+Include the trailing `/` to limit recursive deletion to that directory.
+
 ## Example
 
 ### Via Builder

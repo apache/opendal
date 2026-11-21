@@ -39,11 +39,15 @@ pub fn new_request_credential_error(err: anyhow::Error) -> Error {
     .set_source(err)
 }
 
-/// Create a new error happened during signing request.
+/// Wrap a signing failure, preserving reqsign's retryability when available.
 pub fn new_request_sign_error(err: anyhow::Error) -> Error {
-    Error::new(ErrorKind::Unexpected, "signing http request")
-        .with_operation("reqsign::Sign")
-        .set_source(err)
+    let error = Error::new(ErrorKind::Unexpected, "signing http request");
+    #[cfg(feature = "reqsign")]
+    let error = error.with_temporary(
+        err.downcast_ref::<reqsign_core::Error>()
+            .is_some_and(reqsign_core::Error::is_retryable),
+    );
+    error.with_operation("reqsign::Sign").set_source(err)
 }
 
 /// Add response context to error.
@@ -61,6 +65,15 @@ pub fn with_error_response_context(mut err: Error, mut parts: Parts) -> Error {
     parts.headers.remove("Set-Cookie");
     parts.headers.remove("WWW-Authenticate");
     parts.headers.remove("Proxy-Authenticate");
+
+    if parts.headers.contains_key(http::header::LOCATION) {
+        let location = crate::HttpUri::from_response_location(&mut parts)
+            .map(|uri| uri.redacted_uri())
+            .unwrap_or("<invalid URL>")
+            .parse()
+            .unwrap_or_else(|_| http::HeaderValue::from_static("<invalid URL>"));
+        parts.headers.insert(http::header::LOCATION, location);
+    }
 
     err = err.with_context("response", format!("{parts:?}"));
 

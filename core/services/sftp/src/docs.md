@@ -21,6 +21,13 @@ Use [`crate::SftpConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+`acquire_timeout` applies only while waiting for a pool slot. Once a slot is
+available, `connect_timeout` applies separately to the SSH connection and
+authentication, SFTP subsystem initialization, root directory initialization,
+and each pooled connection health check. Both limits default to `10s` and
+accept subsecond values such as `500ms`. Set either limit to `0s` to disable
+it. The OpenSSH client's own configuration can still impose limits.
+
 For security reasons, it doesn't support password login. Use SSH key-based authentication (e.g., configure your public key on the server via `ssh-copy-id` and provide the private key here).
 
 ## Example

@@ -7,7 +7,7 @@
 This package provides a native Python binding for **Apache OpenDAL™**, a data access
 layer that allows you to access various storage services in a unified way.
 
-![OpenDAL Python Usage Demo](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![OpenDAL Architecture](https://opendal.apache.org/img/architectural.png)
 
 We release the OpenDAL Python binding independently of the
 [`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
@@ -24,9 +24,60 @@ version.
 
 ## Installation
 
+The OpenDAL Python binding requires Python 3.11 or later. We retire each Python
+version in the first binding release line after that Python version reaches
+[upstream end of life](https://devguide.python.org/versions/).
+
+Install from PyPI:
+
 ```bash
 pip install opendal
 ```
+
+Or install from [Anaconda main](https://anaconda.org/main/opendal):
+
+```bash
+conda install opendal
+```
+
+Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
+
+```bash
+conda install conda-forge::opendal
+```
+
+## Services in PyPI wheels
+
+Official PyPI wheels ship the largest verified service set for each target.
+Every wheel enables the common `services-all` group plus one of the
+`services-platform-*` sets in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
+The [release workflow](https://github.com/apache/opendal/blob/main/.github/workflows/release_python.yml)
+selects the set for each target and builds both standard and free-threaded CPython.
+
+| Wheel platform | Architecture | Feature set | Additional services |
+| --- | --- | --- | --- |
+| Linux (manylinux) | x86_64, aarch64 | `services-platform-linux` | Foyer, SFTP |
+| Linux (musllinux) | x86_64, aarch64 | `services-platform-linux` | Foyer, SFTP |
+| Linux (manylinux and musllinux) | ARMv7 (32-bit) | `services-platform-linux-armv7` | None |
+| macOS | x86_64, arm64 | `services-platform-macos` | Foyer, SFTP |
+| Windows | x86_64 | `services-platform-windows` | Foyer |
+
+Foyer's Linux dependency `io-uring` lacks prebuilt ARMv7 bindings. SFTP
+requires the OpenSSH `ssh` executable at runtime. Its Rust dependency chain
+supports Unix and fails to build for ARMv7 at the supported Rust version.
+
+## Build with additional services
+
+To add D1 to the common service set, run this from `bindings/python` in
+an active virtual environment with Maturin installed:
+
+```shell
+maturin develop --release --features services-all,services-d1
+```
+
+Python layers such as `RetryLayer` and `MimeGuessLayer` are built in.
+Exposing a new Rust layer requires Python binding code.
 
 ## Quickstart
 
@@ -82,3 +133,7 @@ components. Their source code is available from the linked project pages:
 - `persy` 1.8.1 ([source](https://crates.io/crates/persy/1.8.1), [homepage](https://persy.rs)), licensed under MPL-2.0.
 
 The distribution includes the MPL-2.0 text in `LICENSE-MPL-2.0.txt`.
+
+Musllinux wheels also bundle `libgcc_s`, the [GCC runtime library](https://gcc.gnu.org/),
+licensed under `GPL-3.0-or-later WITH GCC-exception-3.1`. The complete license and
+exception texts are included in `LICENSE-libgcc.txt`.

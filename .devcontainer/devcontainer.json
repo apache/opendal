@@ -1,7 +1,8 @@
 {
   "name": "OpenDAL",
-  "image": "mcr.microsoft.com/devcontainers/rust:bullseye",
-  "postCreateCommand": "bash .devcontainer/post_create.sh",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
   "customizations": {
     "vscode": {
       "extensions": [

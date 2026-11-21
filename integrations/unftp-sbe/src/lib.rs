@@ -39,10 +39,8 @@
 //!             ("secret_key".to_string(), "my_secret_key".to_string()),
 //!             ("endpoint".to_string(), "my_endpoint".to_string()),
 //!             ("region".to_string(), "my_region".to_string()),
-//!         ]
-//!             .into_iter()
-//!             .collect(),
-//!     )?.finish();
+//!         ],
+//!     )?;
 //!
 //!     // Wrap the operator with `OpendalStorage`
 //!     let backend = OpendalStorage::new(op);
@@ -182,11 +180,18 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     where
         Self::Metadata: storage::Metadata,
     {
-        let ret = self
-            .op
-            .list(convert_path(path.as_ref())?)
-            .await
-            .map_err(convert_err)?
+        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let directory = format!("{}/", path.trim_end_matches('/'));
+        let mut entries = self.op.list(&directory).await.map_err(convert_err)?;
+        if entries.is_empty() && path != directory {
+            // A listing can also name a single file.
+            entries = self.op.list(&path).await.map_err(convert_err)?;
+            entries.retain(|entry| entry.path() == path);
+        } else {
+            // OpenDAL can include the directory entry itself in a prefix listing.
+            entries.retain(|entry| entry.path() != directory);
+        }
+        let ret = entries
             .into_iter()
             .map(|x| {
                 let (path, metadata) = x.into_parts();

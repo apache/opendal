@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use asyncband::pool::bounded;
 use bytes::Buf;
-use fastpool::bounded;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 

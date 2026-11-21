@@ -99,7 +99,7 @@ impl Debug for GhacCore {
 
 impl GhacCore {
     async fn ghac_get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -230,7 +230,7 @@ impl GhacCore {
     }
 
     pub async fn ghac_get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -354,7 +354,7 @@ impl GhacCore {
         url: &str,
         size: u64,
     ) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -533,6 +533,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let response = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Download")), response);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_build_cache_url_handles_leading_slash() {
         assert_eq!(
             build_cache_url(
@@ -564,6 +575,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
         StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

@@ -356,3 +356,7 @@ pub mod rfc_8145_conflict_error_kind {}
 /// FFI Plugin ABI
 #[doc = include_str!("8207_ffi_plugin_abi.md")]
 pub mod rfc_8207_ffi_plugin_abi {}
+
+/// Chunked Cache Layer
+#[doc = include_str!("8569_chunked_cache_layer.md")]
+pub mod rfc_8569_chunked_cache_layer {}

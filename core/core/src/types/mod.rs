@@ -20,13 +20,16 @@ pub use mode::EntryMode;
 
 mod buffer;
 pub use buffer::Buffer;
+pub use buffer::BufferCursor;
 
 pub(crate) mod compact;
 
 mod http_transport;
 pub use http_transport::HttpBody;
+pub use http_transport::HttpRedirect;
 pub use http_transport::HttpTransport;
 pub use http_transport::HttpTransporter;
+pub use http_transport::HttpUri;
 
 mod entry;
 pub use entry::Entry;

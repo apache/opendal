@@ -53,6 +53,13 @@ using OpenDAL.Options;
 byte[] head = op.Read("path/to/file", new ReadOptions { Offset = 0, Length = 1024 });
 ```
 
+`SuffixLength` reads the end of a file instead, on services that report
+`Capability.ReadWithSuffix`:
+
+```csharp
+byte[] tail = op.Read("path/to/file", new ReadOptions { SuffixLength = 1024 });
+```
+
 ## Write a whole file
 
 ```csharp
@@ -60,6 +67,9 @@ using System.Text;
 
 op.Write("path/to/file", Encoding.UTF8.GetBytes("Hello, World!"));
 ```
+
+`Write` returns the metadata of the new object, so its size or ETag is
+available without a follow-up `Stat`.
 
 When you are producing the payload rather than holding it, the fill callback
 serializes straight into native memory with no intermediate `byte[]` — the
@@ -125,10 +135,25 @@ buffered before flushing to the backend.
 
 ## Check existence and metadata
 
+`Exists` returns `false` instead of throwing when the path is missing:
+
+```csharp
+if (op.Exists("path/to/file"))
+{
+    Console.WriteLine("found");
+}
+```
+
+`Stat` returns the metadata:
+
 ```csharp
 var meta = op.Stat("path/to/file");
 Console.WriteLine($"{meta.ContentLength} bytes, dir = {meta.IsDir}");
 ```
+
+`UserMetadata` holds the pairs written through `WriteOptions.UserMetadata`
+on services that support it. `IsDeleted` and `IsCurrent` describe entries
+returned by listings that include deleted objects or old versions.
 
 A missing path throws `OpenDALException` with `ErrorCode.NotFound`; see
 [error handling](./05-production.md#error-handling).
@@ -156,7 +181,27 @@ var entries = op.List("dir/", new ListOptions { Recursive = true });
 
 ```csharp
 op.Delete("path/to/file");   // single path
-op.RemoveAll("dir/");        // a path and everything under it
+op.RemoveAll("a/");
+```
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
+
+`DeleteMany` deletes several paths and batches the requests on services that
+support batch deletion. It consumes the sequence lazily and deletes it chunk
+by chunk, so a large sequence is never held in memory at once:
+
+```csharp
+op.DeleteMany(["a.txt", "b.txt"]);
+```
+
+A `DeleteInput` can carry `DeleteOptions`, for example to delete one version.
+A listed `Entry` converts to a `DeleteInput` that keeps the entry's version:
+
+```csharp
+op.DeleteMany(op.List("logs/")
+    .Where(e => e.Metadata.IsFile)
+    .Select(e => (DeleteInput)e));
 ```
 
 ## Create a directory
@@ -172,8 +217,53 @@ op.Copy("from.txt", "to.txt");
 op.Rename("old.txt", "new.txt");
 ```
 
+`Copy` returns the metadata of the new object.
 Both operate within a single operator and require a service that supports them;
 see [capability checks](./05-production.md#capability-checks).
+
+`CopyOptions` and `RenameOptions` add conditions, such as refusing to replace
+an existing target. A failed condition throws `OpenDALException` with
+`ErrorCode.ConditionNotMatch`:
+
+```csharp
+op.Rename("old.txt", "new.txt", new RenameOptions { IfNotExists = true });
+```
+
+## Write only if a file is unchanged
+
+Pass metadata from an earlier `Stat` as `IfNotChanged` to make a write,
+delete, or copy fail with `ErrorCode.ConditionNotMatch` when someone else
+changed the file in between:
+
+```csharp
+var meta = op.Stat("config.json");
+// ... compute the new content ...
+op.Write("config.json", content, new WriteOptions { IfNotChanged = meta });
+```
+
+The condition compares the version or the ETag, whichever the service
+supports.
+
+## Restore a deleted file
+
+On services with object versioning, `Restore` brings back the latest deleted
+state of a path, or a chosen version through `RestoreOptions`:
+
+```csharp
+op.Restore("path/to/file");
+```
+
+## Compose files
+
+On services that report `Capability.Compose`, `Compose` concatenates complete
+source files into a target in order without reading them through the client:
+
+```csharp
+var meta = op.Compose(["parts/0", "parts/1", "parts/2"], "result");
+```
+
+Each `ComposeInput` can carry `ComposeSourceOptions` to pin a version or guard
+a source.
 
 ## Generate a presigned URL
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -103,6 +104,15 @@ pub struct Writer {
     inner: WriteGenerator<oio::Writer>,
 }
 
+impl fmt::Debug for Writer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+            .field("chunk", &self.ctx.options().chunk())
+            .field("append", &self.ctx.args().append())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
@@ -115,6 +125,10 @@ impl Writer {
     /// Write [`Buffer`] into writer.
     ///
     /// This operation will write all data in given buffer into writer.
+    ///
+    /// When a single call spans multiple chunks, a failure after the underlying
+    /// writer accepts part of the input returns a persistent error. Call
+    /// [`Writer::abort`] and start a new writer if you need to retry that write.
     ///
     /// ## Examples
     ///
@@ -137,13 +151,7 @@ impl Writer {
     /// }
     /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-
-        Ok(())
+        self.inner.write_all(bs.into()).await
     }
 
     /// Write [`bytes::Buf`] into inner writer.
@@ -449,6 +457,22 @@ mod tests {
             .await
             .expect("write must succeed");
         writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_with_chunk_zero() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let path = "test_file";
+
+        let content = vec![b'x'; 4096];
+        op.write_with(path, content.clone())
+            .chunk(0)
+            .await
+            .expect("write with chunk 0 must succeed");
 
         let buf = op.read(path).await.expect("read to end mut succeed");
 

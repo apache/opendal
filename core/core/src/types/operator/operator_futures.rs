@@ -295,6 +295,17 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
         self
     }
 
+    /// Return at most `limit` bytes from the start of the selected range.
+    ///
+    /// A short read succeeds after a valid starting byte. A zero limit returns
+    /// an empty buffer after option and capability validation, without
+    /// accessing storage. See [`options::ReadOptions::limit`] for EOF and
+    /// option compatibility rules.
+    pub fn limit(mut self, limit: u64) -> Self {
+        self.args.limit = Some(limit);
+        self
+    }
+
     /// Sets known content length as a hint for this `read` request.
     ///
     /// Refer to [`options::ReadOptions::content_length_hint`] for more details.
@@ -846,6 +857,14 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.0.content_language = Some(value.to_string());
+        self
+    }
+
     /// Write only when the file at the write path has this exact ETag.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for the full contract.
@@ -974,6 +993,17 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     /// ```
     pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
         self.args.0.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Sets how long the new file lives after the write commits.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. The write returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability or
+    /// [`crate::ErrorKind::ConfigInvalid`] for a zero or unrepresentable duration.
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.0.expires = Some(expires);
         self
     }
 }
@@ -1189,6 +1219,14 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self
     }
 
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.content_language = Some(value.to_string());
+        self
+    }
+
     /// Write only when the file at the write path has this exact ETag.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for the full contract.
@@ -1329,6 +1367,17 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
         self.args.user_metadata = Some(HashMap::from_iter(data));
         self
     }
+
+    /// Sets how long the new file lives after the writer commits it on close.
+    ///
+    /// The duration overrides the service's default TTL and requires
+    /// [`crate::Capability::write_with_expires`]. Opening the writer returns
+    /// [`crate::ErrorKind::Unsupported`] without that capability. A zero or
+    /// unrepresentable duration fails the write with [`crate::ErrorKind::ConfigInvalid`].
+    pub fn expires(mut self, expires: Duration) -> Self {
+        self.args.expires = Some(expires);
+        self
+    }
 }
 
 /// [`Operator::delete_with`] returns this future.
@@ -1414,8 +1463,10 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self
     }
 
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1432,28 +1483,19 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self
     }
 
-    /// Controls whether the `list` operation should return file versions.
+    /// Include file versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// information about different versions of files, if versioning is supported and enabled.
-    ///
-    /// If `true`, subsequent `list` operations will include version information for each file.
-    /// If `false`, version information will be omitted from the `list` results.
-    ///
-    /// Default to `false`
+    /// Setting `true` requires [`Capability::list_with_versions`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
     }
 
-    /// Controls whether the `list` operation should include deleted files (or versions).
+    /// Include deleted files or versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// entries for files or versions that have been marked as deleted. This is particularly relevant
-    /// in object storage systems that support soft deletion or versioning.
-    ///
-    /// If `true`, subsequent `list` operations will include deleted files or versions.
-    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    /// Setting `true` requires [`Capability::list_with_deleted`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self
@@ -1475,8 +1517,10 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self
     }
 
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1493,28 +1537,19 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self
     }
 
-    /// Controls whether the `list` operation should return file versions.
+    /// Include file versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// information about different versions of files, if versioning is supported and enabled.
-    ///
-    /// If `true`, subsequent `list` operations will include version information for each file.
-    /// If `false`, version information will be omitted from the `list` results.
-    ///
-    /// Default to `false`
+    /// Setting `true` requires [`Capability::list_with_versions`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
     }
 
-    /// Controls whether the `list` operation should include deleted files (or versions).
+    /// Include deleted files or versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// entries for files or versions that have been marked as deleted. This is particularly relevant
-    /// in object storage systems that support soft deletion or versioning.
-    ///
-    /// If `true`, subsequent `list` operations will include deleted files or versions.
-    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    /// Setting `true` requires [`Capability::list_with_deleted`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self

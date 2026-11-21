@@ -23,8 +23,8 @@ notice between releases. It is not yet recommended for production use.
 
 ## Status
 
-Unreleased. Built from source only. Only **Clang** and **AppleClang** are
-currently supported as compilers; MSVC and GCC are not yet tested.
+Unreleased. Build from source with Clang, AppleClang, or MSVC for the sync API.
+The async API requires Clang or AppleClang.
 
 ## Capabilities
 
@@ -37,8 +37,8 @@ currently supported as compilers; MSVC and GCC are not yet tested.
   intermediate copy; `Lister` / `Lister::Iterator` for directory traversal.
 - **Capability introspection** — `Operator::Info()` returns a `Capability`
   struct so you can check at runtime which features a backend supports.
-- **Services** controlled at build time via the `OPENDAL_FEATURES` CMake
-  variable (e.g. `"opendal/services-s3,opendal/services-memory"`).
+- **Services** — the default build includes memory. Enable additional services
+  with [`OPENDAL_FEATURES`](./02-getting-started.md#point-it-at-a-real-backend).
 
 ## Integration via CMake
 
@@ -74,7 +74,8 @@ target_link_libraries(your_target opendal_cpp)
 ### Prerequisites
 
 - CMake ≥ 3.22
-- Clang or AppleClang with C++17 support (C++20 required for async)
+- Clang, AppleClang, or MSVC with C++17 support for the sync API
+- Clang or AppleClang with C++20 support for the async API
 
 ## Useful Links
 

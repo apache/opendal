@@ -2536,7 +2536,7 @@ mod tests {
             .endpoint("https://s3.us-west-2.amazonaws.com")
             .profile("sso-test")
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv {

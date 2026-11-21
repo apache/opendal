@@ -40,17 +40,19 @@ pub extern crate opendal_testkit as tests;
 /// and installs the default executor and HTTP transport when their features are
 /// enabled.
 ///
-/// # Process-wide HTTP transport
+/// # Process-wide defaults
 ///
 /// When `auto-register-services` is enabled, a process constructor calls this
-/// function before `main`. If a default HTTP transport feature is also enabled,
-/// that transport occupies the process-wide default because
-/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+/// function before `main`. The first installed HTTP transport and executor
+/// remain the process-wide defaults.
 ///
 /// Applications that need to install their own process-wide transport should
 /// disable `auto-register-services`, call [`init_default_registry`] explicitly
 /// when URI-based construction is needed, and install the transport themselves.
-/// Per-operator transports can be configured regardless of this setting.
+/// If `auto-register-services` is disabled, call this function to install the
+/// facade defaults, or configure your own defaults with
+/// [`HttpTransporter::install_default`] and [`Executor::install_default`].
+/// Use [`OperationContext`] to configure runtime resources for one operator.
 pub fn install_default() {
     init_default_registry();
 
@@ -66,6 +68,28 @@ pub fn install_default() {
     opendal_http_transport_reqwest::install_default();
 }
 
+#[cfg(all(
+    test,
+    feature = "auto-register-services",
+    feature = "executors-tokio",
+    not(target_arch = "wasm32")
+))]
+mod tests {
+    #[tokio::test]
+    async fn default_executor_runs_concurrent_reads() -> crate::Result<()> {
+        let op = crate::Operator::via_iter("memory", [])?;
+        op.write("file", "abcdefgh").await?;
+        let content = op
+            .read_with("file")
+            .range(0..8)
+            .chunk(2)
+            .concurrent(2)
+            .await?;
+        assert_eq!(content.to_bytes(), "abcdefgh");
+        Ok(())
+    }
+}
+
 /// Initialize the global [`OperatorRegistry`] with enabled services.
 ///
 /// This function is safe to call multiple times and will only perform
@@ -75,8 +99,8 @@ pub fn install_default() {
 ///
 /// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
 /// initializers may not be executed due to linker behavior. Those bindings
-/// should call this function explicitly before using `Operator::from_uri` or
-/// `Operator::via_iter`.
+/// should call [`install_default`] explicitly before using `Operator::from_uri`
+/// or `Operator::via_iter`.
 pub fn init_default_registry() {
     static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
     DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));

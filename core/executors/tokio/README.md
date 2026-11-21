@@ -21,7 +21,9 @@ Add the split crates directly:
 cargo add opendal-core opendal-executor-tokio
 ```
 
-Pass `TokioExecutor` to `Executor::with` when constructing an operation context.
+Pass `TokioExecutor` to `Executor::with` when constructing an operation context,
+or call `Executor::install_default(TokioExecutor::default())` before running
+concurrent OpenDAL operations. Tokio tasks require an active Tokio runtime.
 
 ## License
 

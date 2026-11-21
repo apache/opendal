@@ -19,11 +19,10 @@
 import argparse
 import json
 import os
+import tomllib
 from collections import defaultdict, deque
 from dataclasses import dataclass
 from pathlib import Path
-
-import tomllib
 
 SCRIPT_PATH = Path(__file__).resolve()
 PROJECT_DIR = SCRIPT_PATH.parents[3]

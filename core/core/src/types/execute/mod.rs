@@ -36,7 +36,7 @@ impl Execute for TestExecutor {
         let _handle = tokio::task::spawn(f);
     }
 
-    fn timeout(&self, timeout: std::time::Duration) -> crate::raw::BoxedStaticFuture<()> {
-        Box::pin(tokio::time::sleep(timeout))
+    fn sleep(&self, duration: std::time::Duration) -> Option<crate::raw::BoxedStaticFuture<()>> {
+        Some(Box::pin(tokio::time::sleep(duration)))
     }
 }

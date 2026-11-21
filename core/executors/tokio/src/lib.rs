@@ -26,17 +26,23 @@ use opendal_core::Execute;
 use opendal_core::Executor;
 use opendal_core::raw::BoxedStaticFuture;
 
-/// Executor that uses [`tokio::task::spawn`] to execute futures.
+/// Runs background tasks on the current Tokio runtime.
+///
+/// On `wasm32`, operations that submit background tasks must run inside a
+/// [`tokio::task::LocalSet`] because the executor uses [`tokio::task::spawn_local`].
 #[derive(Default)]
 pub struct TokioExecutor {}
 
 impl Execute for TokioExecutor {
     fn execute(&self, f: BoxedStaticFuture<()>) {
+        #[cfg(not(target_arch = "wasm32"))]
         let _handle = tokio::task::spawn(f);
+        #[cfg(target_arch = "wasm32")]
+        let _handle = tokio::task::spawn_local(f);
     }
 
-    fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
-        Box::pin(tokio::time::sleep(timeout))
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        Some(Box::pin(tokio::time::sleep(duration)))
     }
 }
 

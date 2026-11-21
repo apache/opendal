@@ -22,9 +22,8 @@ use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::Duration;
 
-use futures::FutureExt;
-
 use super::*;
+use crate::Result;
 use crate::raw::BoxedStaticFuture;
 use crate::raw::MaybeSend;
 
@@ -40,7 +39,6 @@ static DEFAULT_EXECUTOR: OnceLock<Executor> = OnceLock::new();
 #[derive(Clone)]
 pub struct Executor {
     executor: Arc<dyn Execute>,
-    timeout: Option<Duration>,
 }
 
 impl Debug for Executor {
@@ -56,7 +54,9 @@ impl Default for Executor {
 }
 
 impl Executor {
-    /// Create a default executor.
+    /// Create an executor that uses the process-wide default for each task.
+    ///
+    /// Concurrent I/O returns an error if no default has been installed.
     pub fn new() -> Self {
         Self::with(DefaultExecutor)
     }
@@ -65,14 +65,14 @@ impl Executor {
     pub fn with(exec: impl Execute) -> Self {
         Self {
             executor: Arc::new(exec),
-            timeout: None,
         }
     }
 
     /// Install the process-wide default executor.
     ///
     /// The first installed executor wins. Later calls are ignored.
-    /// The `opendal` facade installs Tokio by default.
+    /// The `opendal` facade installs Tokio when its `executors-tokio` and
+    /// `auto-register-services` features are both enabled.
     pub fn install_default(exec: impl Execute) {
         let _ = DEFAULT_EXECUTOR.set(Self::with(exec));
     }
@@ -87,29 +87,18 @@ impl Executor {
         self.executor.as_ref()
     }
 
-    /// Return a copy with the timeout used by internal concurrent operations.
-    #[doc(hidden)]
-    pub fn with_timeout(&self, timeout: Duration) -> Self {
-        Self {
-            executor: self.executor.clone(),
-            timeout: Some(timeout),
-        }
-    }
-
-    /// Return a future that will be resolved after the given timeout.
+    /// Return the configured timeout for an individual I/O task.
     pub(crate) fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
-        Some(self.executor.timeout(self.timeout?))
+        self.executor.timeout()
     }
 
     /// Run given future in background immediately.
-    pub(crate) fn execute<F>(&self, f: F) -> Task<F::Output>
+    pub(crate) fn execute<F>(&self, f: F) -> Result<Task<F::Output>>
     where
         F: Future + MaybeSend + 'static,
         F::Output: MaybeSend + 'static,
     {
-        let (fut, handle) = f.remote_handle();
-        self.executor.execute(Box::pin(fut));
-        Task::new(handle)
+        Task::submit(self.inner(), f)
     }
 }
 
@@ -123,10 +112,18 @@ impl Execute for DefaultExecutor {
         }
     }
 
-    fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
         match DEFAULT_EXECUTOR.get() {
-            Some(executor) => executor.inner().timeout(timeout),
-            None => panic!("default executor is not installed"),
+            Some(executor) => executor.inner().try_execute(f),
+            None => ().try_execute(f),
         }
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        DEFAULT_EXECUTOR.get()?.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        DEFAULT_EXECUTOR.get()?.inner().sleep(duration)
     }
 }

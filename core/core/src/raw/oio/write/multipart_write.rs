@@ -539,9 +539,9 @@ mod tests {
             self.exec.execute(f)
         }
 
-        fn timeout(&self, _: Duration) -> BoxedStaticFuture<()> {
+        fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
             let time = rng().random_range(0..100);
-            self.exec.timeout(Duration::from_nanos(time))
+            self.exec.sleep(Duration::from_nanos(time))
         }
     }
 

@@ -19,19 +19,26 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+#![cfg(not(target_arch = "wasm32"))]
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use compio::dispatcher::Dispatcher;
-use futures::channel::oneshot;
+use futures_timer::Delay;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 use opendal_core::Execute;
+use opendal_core::Result;
 use opendal_core::raw::BoxedStaticFuture;
 
-/// Executor that runs futures and timers on a Compio [`Dispatcher`].
+/// Runs OpenDAL background tasks on a Compio [`Dispatcher`].
 ///
-/// Task submission and timer creation panic if the dispatcher cannot accept
-/// work, such as after all worker threads stop.
+/// Timers run independently of the dispatcher, including with a single worker
+/// configured to run tasks sequentially.
+///
+/// Use [`Execute::try_execute`] to receive submission errors. The infallible
+/// [`Execute::execute`] method logs submission errors.
 #[derive(Clone)]
 pub struct CompioExecutor {
     dispatcher: Arc<Dispatcher>,
@@ -46,21 +53,20 @@ impl CompioExecutor {
 
 impl Execute for CompioExecutor {
     fn execute(&self, f: BoxedStaticFuture<()>) {
-        let _ = self.dispatcher.dispatch(move || f);
+        if let Err(err) = self.try_execute(f) {
+            log::error!("{err}");
+        }
     }
 
-    fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
-        let (cancel_tx, cancel_rx) = oneshot::channel::<()>();
-        let receiver = match self
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        let _completion = self
             .dispatcher
-            .dispatch(move || async move { compio::time::timeout(timeout, cancel_rx).await })
-        {
-            Ok(receiver) => receiver,
-            Err(_) => panic!("compio dispatcher is unavailable"),
-        };
-        Box::pin(async move {
-            let _cancel_on_drop = cancel_tx;
-            let _ = receiver.await;
-        })
+            .dispatch(move || f)
+            .map_err(|_| Error::new(ErrorKind::Unexpected, "compio dispatcher is unavailable"))?;
+        Ok(())
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        Some(Box::pin(Delay::new(duration)))
     }
 }

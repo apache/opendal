@@ -191,8 +191,17 @@ impl Execute for TracingExecutor {
             .execute(Box::pin(f.instrument(Span::current())) as BoxedStaticFuture<()>)
     }
 
-    fn timeout(&self, timeout: Duration) -> BoxedStaticFuture<()> {
-        self.inner.timeout(timeout)
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(f.instrument(Span::current())))
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
     }
 }
 

@@ -7124,6 +7124,8 @@ dependencies = [
  "log",
  "logforth",
  "opendal-core",
+ "opendal-executor-compio",
+ "opendal-executor-tokio",
  "opendal-http-transport-reqwest",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
@@ -7315,6 +7317,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-executor-compio"
+version = "0.59.5"
+dependencies = [
+ "compio",
+ "futures",
+ "futures-timer",
+ "log",
+ "opendal-core",
+ "opendal-layer-timeout",
+ "opendal-layer-tracing",
+ "opendal-service-fs",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-executor-tokio"
+version = "0.59.5"
+dependencies = [
+ "futures",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-fuzz"
 version = "0.59.5"
 dependencies = [
@@ -7379,6 +7406,7 @@ dependencies = [
  "futures",
  "http 1.4.2",
  "opendal-core",
+ "opendal-executor-tokio",
  "tokio",
 ]
 
@@ -8059,6 +8087,7 @@ dependencies = [
  "http 1.4.2",
  "log",
  "opendal-core",
+ "opendal-executor-tokio",
  "opendal-http-transport-reqwest",
  "percent-encoding",
  "serde",

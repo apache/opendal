@@ -66,9 +66,9 @@ endif()
 
 if (OPENDAL_ENABLE_TESTING)
     if (OPENDAL_FEATURES)
-        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},testing")
+        set(OPENDAL_FEATURES "${OPENDAL_FEATURES},testing,opendal/services-dashmap")
     else()
-        set(OPENDAL_FEATURES "testing")
+        set(OPENDAL_FEATURES "testing,opendal/services-dashmap")
     endif()
 endif()
 

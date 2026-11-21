@@ -422,6 +422,21 @@ impl Service for CorrectnessService {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        let capability = self.capability();
+        let scheme = self.info().scheme();
+        if args.start_after().is_some() && !capability.list_with_start_after {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::List,
+                "start_after",
+            ));
+        }
+        if args.versions() && !capability.list_with_versions {
+            return Err(new_unsupported_error(scheme, Operation::List, "versions"));
+        }
+        if args.deleted() && !capability.list_with_deleted {
+            return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
+        }
         self.inner.list(ctx, path, args)
     }
 
@@ -867,6 +882,60 @@ mod tests {
         });
         let res = op.delete_with("path").version("version").await;
         assert!(res.is_ok())
+    }
+
+    #[tokio::test]
+    async fn test_list() {
+        let op = new_test_operator(Capability {
+            list: true,
+            ..Default::default()
+        });
+        for recursive in [false, true] {
+            let err = op
+                .list_with("path/")
+                .recursive(recursive)
+                .start_after("path/key")
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+            assert!(err.message().contains("start_after"));
+        }
+        let err = op.list_with("path/").versions(true).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("versions"));
+        let err = op.list_with("path/").deleted(true).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("deleted"));
+        assert!(
+            op.list_with("path/")
+                .versions(false)
+                .deleted(false)
+                .await
+                .is_ok()
+        );
+
+        let op = new_test_operator(Capability {
+            list: true,
+            list_with_start_after: true,
+            list_with_versions: true,
+            list_with_deleted: true,
+            ..Default::default()
+        });
+        assert!(op.list_with("path/").start_after("path/key").await.is_ok());
+        assert!(op.list_with("path/").versions(true).await.is_ok());
+        assert!(op.list_with("path/").deleted(true).await.is_ok());
+    }
+
+    /// `limit` is a backend hint and `recursive` is simulated by `SimulateLayer`,
+    /// so neither is gated on a capability.
+    #[tokio::test]
+    async fn test_list_limit_and_recursive_need_no_capability() {
+        let op = new_test_operator(Capability {
+            list: true,
+            ..Default::default()
+        });
+        assert!(op.list_with("path/").limit(1).await.is_ok());
+        assert!(op.list_with("path/").recursive(true).await.is_ok());
     }
 
     #[tokio::test]

@@ -1463,8 +1463,10 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self
     }
 
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1481,28 +1483,19 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self
     }
 
-    /// Controls whether the `list` operation should return file versions.
+    /// Include file versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// information about different versions of files, if versioning is supported and enabled.
-    ///
-    /// If `true`, subsequent `list` operations will include version information for each file.
-    /// If `false`, version information will be omitted from the `list` results.
-    ///
-    /// Default to `false`
+    /// Setting `true` requires [`Capability::list_with_versions`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
     }
 
-    /// Controls whether the `list` operation should include deleted files (or versions).
+    /// Include deleted files or versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// entries for files or versions that have been marked as deleted. This is particularly relevant
-    /// in object storage systems that support soft deletion or versioning.
-    ///
-    /// If `true`, subsequent `list` operations will include deleted files or versions.
-    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    /// Setting `true` requires [`Capability::list_with_deleted`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self
@@ -1524,8 +1517,10 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self
     }
 
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Requires [`Capability::list_with_start_after`]; otherwise the operation
+    /// fails with [`ErrorKind::Unsupported`].
     pub fn start_after(mut self, v: &str) -> Self {
         self.args.start_after = Some(v.to_string());
         self
@@ -1542,28 +1537,19 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self
     }
 
-    /// Controls whether the `list` operation should return file versions.
+    /// Include file versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// information about different versions of files, if versioning is supported and enabled.
-    ///
-    /// If `true`, subsequent `list` operations will include version information for each file.
-    /// If `false`, version information will be omitted from the `list` results.
-    ///
-    /// Default to `false`
+    /// Setting `true` requires [`Capability::list_with_versions`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn versions(mut self, v: bool) -> Self {
         self.args.versions = v;
         self
     }
 
-    /// Controls whether the `list` operation should include deleted files (or versions).
+    /// Include deleted files or versions when `v` is `true`. Defaults to `false`.
     ///
-    /// This function allows you to specify if the `list` operation, when executed, should include
-    /// entries for files or versions that have been marked as deleted. This is particularly relevant
-    /// in object storage systems that support soft deletion or versioning.
-    ///
-    /// If `true`, subsequent `list` operations will include deleted files or versions.
-    /// If `false`, deleted files or versions will be excluded from the `list` results.
+    /// Setting `true` requires [`Capability::list_with_deleted`]. Without that
+    /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
         self

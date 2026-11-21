@@ -16,7 +16,6 @@
 // under the License.
 
 use super::core::*;
-use super::lister::FsLister;
 use super::writer::FsWriter;
 use super::writer::FsWriters;
 use opendal_core::raw::*;
@@ -138,38 +137,6 @@ impl oio::Write for FsLazyWriter {
         match self.inner.as_mut() {
             Some(inner) => inner.abort().await,
             None => Ok(()),
-        }
-    }
-}
-
-pub struct FsLazyLister {
-    core: Arc<FsCore>,
-    path: String,
-    inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
-}
-
-impl FsLazyLister {
-    pub(super) fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-}
-
-impl oio::List for FsLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if self.inner.is_none() {
-            self.inner = Some(match self.core.fs_list(&self.path).await? {
-                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
-                None => None,
-            });
-        }
-
-        match self.inner.as_mut().expect("lister must be initialized") {
-            Some(lister) => lister.next().await,
-            None => Ok(None),
         }
     }
 }

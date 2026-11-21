@@ -77,6 +77,7 @@ impl MemoryBackend {
             write_with_content_language: true,
             write_with_if_not_exists: true,
             delete: true,
+            delete_with_recursive: true,
             stat: true,
             list: true,
             list_with_recursive: true,

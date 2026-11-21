@@ -69,6 +69,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if op.info().scheme() == "webdav" && cap.write_can_multi {
+        tests.extend(async_trials!(op, test_webdav_partial_put));
+    }
+
     if cap.write && cap.write_with_content_language && cap.stat {
         tests.extend(async_trials!(op, test_write_with_content_language));
         if cap.write_can_multi {
@@ -455,6 +459,61 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
         "read content b"
     );
 
+    Ok(())
+}
+
+/// Preserve an overwrite until commit and remove the temporary upload on abort or close.
+async fn test_webdav_partial_put(op: Operator) -> Result<()> {
+    let dir = TEST_FIXTURE.new_dir_path();
+    let path = format!("{dir}nested/target.bin");
+    let parent = format!("{dir}nested/");
+    let original = b"original destination bytes".as_slice();
+
+    // Uploading to a missing parent creates it without publishing the target.
+    let mut writer = op.writer(&path).await?;
+    writer.write("first").await?;
+    writer.write(Buffer::new()).await?;
+    writer.write("second").await?;
+    assert!(!op.exists(&path).await?);
+    let entries = op.list(&parent).await?;
+    let staged = entries
+        .iter()
+        .find(|entry| entry.metadata().is_file())
+        .unwrap();
+    TEST_FIXTURE.add_path(staged.path().to_owned());
+    assert_eq!(op.read(staged.path()).await?.to_bytes(), "firstsecond");
+    assert_eq!(writer.close().await?.content_length(), 11);
+    assert_eq!(op.read(&path).await?.to_bytes(), "firstsecond");
+    assert!(!op.exists(staged.path()).await?);
+
+    op.write(&path, original).await?;
+    let mut writer = op.writer(&path).await?;
+    writer.write("new").await?;
+    writer.write(" bytes").await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), original);
+    let entries = op.list(&parent).await?;
+    let staged = entries
+        .iter()
+        .find(|entry| entry.metadata().is_file() && entry.path() != path)
+        .unwrap();
+    TEST_FIXTURE.add_path(staged.path().to_owned());
+    writer.abort().await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), original);
+    assert!(!op.exists(staged.path()).await?);
+
+    let payload = gen_fixed_bytes(600 * 1024);
+    let mut writer = op.writer(&path).await?.into_futures_async_write();
+    writer.write_all(&payload).await?;
+    writer.close().await?;
+    assert_eq!(op.read(&path).await?.to_vec(), payload);
+    let entries = op.list(&parent).await?;
+    let files: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.metadata().is_file())
+        .map(|entry| entry.path())
+        .collect();
+    assert_eq!(files, [path.as_str()]);
+    op.delete_with(&dir).recursive(true).await?;
     Ok(())
 }
 

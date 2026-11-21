@@ -224,7 +224,7 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
+        content_range: Option<BytesContentRange>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
@@ -237,8 +237,9 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, v)
         }
 
-        if let Some(v) = size {
-            req = req.header(header::CONTENT_LENGTH, v)
+        req = req.header(header::CONTENT_LENGTH, body.len());
+        if let Some(range) = content_range {
+            req = req.header(header::CONTENT_RANGE, range.to_header());
         }
 
         if let Some(v) = args.content_type() {
@@ -365,12 +366,8 @@ impl WebdavCore {
         from: &str,
         to: &str,
         if_not_exists: bool,
+        operation: Operation,
     ) -> Result<Response<Buffer>> {
-        // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
-        // Make sure target's dir is exist.
-        self.webdav_mkcol(ctx, get_parent(to)).await?;
-
         let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
@@ -387,7 +384,7 @@ impl WebdavCore {
         req = req.header(HEADER_OVERWRITE, if if_not_exists { "F" } else { "T" });
 
         let req = req
-            .extension(Operation::Rename)
+            .extension(operation)
             .extension(ServiceOperation("Move"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

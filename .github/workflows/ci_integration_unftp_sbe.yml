@@ -23,7 +23,6 @@ on:
       - main
     paths:
       - "integrations/unftp-sbe/**"
-      - "core/**"
       - ".github/workflows/ci_integration_unftp_sbe.yml"
   workflow_call:
 

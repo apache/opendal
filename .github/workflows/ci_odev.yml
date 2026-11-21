@@ -23,9 +23,8 @@ on:
       - main
     paths:
       - "**/*.rs"
+      - "dev/**"
       - ".github/workflows/ci_odev.yml"
-      - "dev/Cargo.toml"
-      - "dev/Cargo.lock"
       - "scripts/verify_source_reproducibility.py"
       - "scripts/sign_source_release.py"
       - "scripts/test_sign_source_release.py"

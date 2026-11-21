@@ -83,38 +83,39 @@ jobs:
           files_changed=""
           has_secrets="false"
 
-          if [ "$mode" == "nightly-local" ]; then
-            has_secrets="false"
-          elif [ "$mode" == "nightly-live" ]; then
+          if [ "$mode" == "nightly-live" ]; then
             if [ "$repository" == "apache/opendal" ]; then
               has_secrets="true"
             fi
           elif [ "$event_name" == "pull_request" ]; then
-            pr_head_repo_fork="${{ github.event.pull_request.head.repo.fork }}"
-            # Only expose secrets for main repo and non-dependabot runs to mitigate security risks.
-            if [ "$pr_head_repo_fork" != "true" ] && [ "${{ github.actor }}" != "dependabot[bot]" ]; then
-              has_secrets="true"
-            fi
-
+            # PR behavior tests are strictly local/deterministic; live cloud
+            # setups run in Nightly Tier B or via manual nightly-live dispatch.
+            has_secrets="false"
             files_changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
             echo "$files_changed"
-          elif [ "$event_name" == "workflow_dispatch" ]; then
-            if [ "$repository" == "apache/opendal" ]; then
-              has_secrets="true"
-            fi
+          elif [ "$event_name" == "workflow_dispatch" ] && [ "$mode" == "pr" ]; then
+            has_secrets="false"
             git fetch --no-tags --prune --depth=1 origin main
             files_changed=$(git diff --name-only origin/main HEAD)
             echo "Files changed (main..HEAD):"
             echo "$files_changed"
           fi
 
-          export GITHUB_HAS_SECRETS=$has_secrets
-
           PLAN=$(./.github/scripts/test_behavior/plan.py --mode "$mode" -- $files_changed)
           echo "Mode: $mode (enable_secrets=$has_secrets, retry_attempts=$retry_attempts)"
           echo "Plan:"
           echo "$PLAN" | jq .
+          NOTES=$(echo "$PLAN" | jq -r '.notes[]? // empty')
+          if [ -n "$NOTES" ]; then
+            {
+              echo "### Behavior Test Coverage Notes"
+              echo ""
+              while IFS= read -r line; do
+                echo "- $line"
+              done <<< "$NOTES"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
           echo "enable_secrets=$has_secrets" >> "$GITHUB_OUTPUT"
           echo "retry_attempts=$retry_attempts" >> "$GITHUB_OUTPUT"

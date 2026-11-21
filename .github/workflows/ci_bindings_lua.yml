@@ -26,7 +26,6 @@ on:
       - main
     paths:
       - "bindings/lua/**"
-      - "core/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_lua.yml"
   workflow_call:

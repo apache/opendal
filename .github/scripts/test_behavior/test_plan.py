@@ -17,9 +17,10 @@
 
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 from plan import (
+    BINDING_PR_SMOKE_SETUPS,
+    CORE_PR_SMOKE_SETUPS,
     INTEGRATIONS,
     LANGUAGE_BINDING,
     group_cases_by_service,
@@ -36,67 +37,77 @@ class BehaviorTestPlan(unittest.TestCase):
         self.assertEqual(result["components"]["binding_java"], False)
         self.assertEqual(len(result["core"]), 0)
         self.assertEqual(len(result["binding_java"]), 0)
+        self.assertEqual(result["notes"], [])
 
-    def test_core_cargo_toml(self):
+    def test_shared_core_change_runs_local_smoke_only_without_binding_fanout(self):
         result = plan(["core/Cargo.toml"])
         self.assertTrue(result["components"]["core"])
+        ubuntu_cases = result["core"][0]["cases"]
+        actual_setups = {
+            (c["service"], s) for c in ubuntu_cases for s in c["setups"]
+        }
+        self.assertEqual(actual_setups, CORE_PR_SMOKE_SETUPS)
+        # Windows fs smoke is included because fs is in the core smoke set.
+        windows = next(v for v in result["core"] if v["os"] == "windows-latest")
+        self.assertEqual(windows["cases"][0]["setups"], ["local_fs"])
+        # Shared core changes do not fan out to all 8 bindings on PR.
+        for language in LANGUAGE_BINDING:
+            self.assertFalse(result["components"][f"binding_{language}"], language)
+        self.assertFalse(result["components"]["integration_object_store"])
 
-    def test_core_services_fs(self):
+    def test_single_service_change_is_core_only_without_binding_fanout(self):
         result = plan(["core/services/fs/src/lib.rs"])
         self.assertTrue(result["components"]["core"])
-        self.assertTrue(len(result["core"]) > 0)
-
         cases = [v["service"] for v in result["core"][0]["cases"]]
-        # Should contain fs
-        self.assertTrue("fs" in cases)
-        # Should not contain s3
-        self.assertFalse("s3" in cases)
-
-    def test_github_fixture_is_core_only(self):
-        result = plan([
-            ".github/services/github/read_only/action.yml",
-            "core/services/fs/src/lib.rs",
-        ])
-        core = [case["service"] for target in result["core"] for case in target["cases"]]
-        self.assertIn("github", core)
+        self.assertEqual(cases, ["fs"])
         for language in LANGUAGE_BINDING:
-            with self.subTest(language=language):
-                cases = [
-                    case["service"]
-                    for target in result[f"binding_{language}"]
-                    for case in target["cases"]
-                ]
-                self.assertIn("fs", cases)
-                self.assertNotIn("github", cases)
+            self.assertFalse(result["components"][f"binding_{language}"], language)
+        self.assertFalse(result["components"]["integration_object_store"])
+
+    def test_azure_common_expands_to_dependent_services(self):
+        result = plan(["core/services/azure-common/src/lib.rs"])
+        self.assertTrue(result["components"]["core"])
+        core_services = {c["service"] for c in result["core"][0]["cases"]}
+        # azblob has a local Azurite fixture; azdls/azfile/ghac emit explicit notes.
+        self.assertEqual(core_services, {"azblob"})
+        notes_text = "\n".join(result["notes"])
+        self.assertIn("azdls", notes_text)
+        self.assertIn("azfile", notes_text)
+        self.assertIn("ghac", notes_text)
+
+    def test_live_only_service_emits_explicit_note_without_live_fixture(self):
+        result = plan(["core/services/gcs/src/backend.rs"])
+        self.assertFalse(result["components"]["core"])
+        self.assertTrue(
+            any("gcs" in note and "Nightly Tier B" in note for note in result["notes"])
+        )
+
+    def test_github_fixture_is_live_only_and_excluded_from_pr(self):
+        result = plan([".github/services/github/read_only/action.yml"])
+        self.assertFalse(result["components"]["core"])
+        self.assertTrue(any("github" in note for note in result["notes"]))
 
     def test_smb_fixture_is_core_only(self):
         result = plan([
             ".github/services/smb/samba/action.yml",
             "core/services/fs/src/lib.rs",
         ])
-        core = [case["service"] for target in result["core"] for case in target["cases"]]
-        self.assertIn("smb", core)
+        core = {
+            case["service"]
+            for target in result["core"]
+            for case in target["cases"]
+        }
+        self.assertEqual(core, {"smb", "fs"})
         for language in LANGUAGE_BINDING:
-            with self.subTest(language=language):
-                cases = [
-                    case["service"]
-                    for target in result[f"binding_{language}"]
-                    for case in target["cases"]
-                ]
-                self.assertIn("fs", cases)
-                self.assertNotIn("smb", cases)
+            self.assertFalse(result["components"][f"binding_{language}"], language)
 
     def test_core_services_hdfs_native_mapping(self):
         result = plan(["core/services/hdfs-native/src/lib.rs"])
         self.assertTrue(result["components"]["core"])
-        self.assertTrue(len(result["core"]) > 0)
-
         cases = [v["service"] for v in result["core"][0]["cases"]]
-        self.assertTrue("hdfs_native" in cases)
-        self.assertFalse("fs" in cases)
+        self.assertEqual(cases, ["hdfs_native"])
 
-    @patch.dict("os.environ", {"GITHUB_HAS_SECRETS": "true"})
-    def test_s3_crate_schedules_provider_cases(self):
+    def test_s3_crate_schedules_local_presets_and_reports_live_coverage(self):
         result = plan(["core/services/s3/src/lib.rs"])
         core_cases = {
             (case["service"], case["feature"])
@@ -105,23 +116,40 @@ class BehaviorTestPlan(unittest.TestCase):
         }
         self.assertEqual(
             core_cases,
+            {("s3", "services-s3"), ("minio", "services-minio")},
+        )
+        self.assertTrue(
+            any("'r2'" in note and "Nightly Tier B" in note for note in result["notes"])
+        )
+        for language in LANGUAGE_BINDING:
+            self.assertFalse(result["components"][f"binding_{language}"], language)
+
+    def test_nightly_presets_keep_independent_features_and_binding_support(self):
+        provider_cases = set()
+        ruby_services = set()
+        go_services = set()
+        for mode in ("nightly-local", "nightly-live"):
+            result = plan([], mode=mode)
+            provider_cases.update(
+                (case["service"], case["feature"])
+                for target in result["core"]
+                for case in target["cases"]
+                if case["service"] in {"s3", "minio", "r2"}
+            )
+            for language, services in (("ruby", ruby_services), ("go", go_services)):
+                services.update(
+                    case["service"]
+                    for target in result[f"binding_{language}"]
+                    for case in target["cases"]
+                )
+        self.assertEqual(
+            provider_cases,
             {
                 ("s3", "services-s3"),
                 ("minio", "services-minio"),
                 ("r2", "services-r2"),
             },
         )
-
-        go_services = {
-            case["service"]
-            for target in result["binding_go"]
-            for case in target["cases"]
-        }
-        ruby_services = {
-            case["service"]
-            for target in result["binding_ruby"]
-            for case in target["cases"]
-        }
         self.assertTrue({"minio", "r2"}.isdisjoint(go_services))
         self.assertTrue({"minio", "r2"} <= ruby_services)
 
@@ -176,18 +204,20 @@ class BehaviorTestPlan(unittest.TestCase):
             1,
         )
 
-    def test_core_action(self):
-        result = plan([".github/actions/test_behavior_core/action.yaml"])
-        self.assertTrue(result["components"]["core"])
-        self.assertTrue(len(result["core"]) > 0)
-
-        for target in result["core"]:
-            for case in target["cases"]:
-                self.assertIn("setups", case)
-                self.assertNotIn("setup", case)
-
-        windows = next(v for v in result["core"] if v["os"] == "windows-latest")
-        self.assertEqual(windows["cases"][0]["setups"], ["local_fs"])
+    def test_core_action_and_planner_changes_trigger_core_smoke(self):
+        for changed in (
+            ".github/actions/test_behavior_core/action.yaml",
+            ".github/scripts/test_behavior/plan.py",
+        ):
+            with self.subTest(changed=changed):
+                result = plan([changed])
+                self.assertTrue(result["components"]["core"])
+                actual_setups = {
+                    (c["service"], s)
+                    for c in result["core"][0]["cases"]
+                    for s in c["setups"]
+                }
+                self.assertEqual(actual_setups, CORE_PR_SMOKE_SETUPS)
 
     def test_service_setups_do_not_checkout(self):
         service_dir = Path(__file__).parents[2] / "services"
@@ -196,27 +226,43 @@ class BehaviorTestPlan(unittest.TestCase):
         for action in setup_actions:
             self.assertNotIn("actions/checkout@", action.read_text(), str(action))
 
-    def test_binding_java(self):
+    def test_binding_java_runs_local_smoke_set_only(self):
         result = plan(["bindings/java/pom.xml"])
         self.assertFalse(result["components"]["core"])
-        self.assertTrue(len(result["core"]) == 0)
         self.assertTrue(result["components"]["binding_java"])
-        self.assertTrue(len(result["binding_java"]) > 0)
+        actual = {
+            (c["service"], c["setup"])
+            for target in result["binding_java"]
+            for c in target["cases"]
+        }
+        self.assertEqual(actual, BINDING_PR_SMOKE_SETUPS)
 
-    def test_binding_java_excludes_hf(self):
-        result = plan(["bindings/java/pom.xml"])
-        cases = [v["service"] for target in result["binding_java"] for v in target["cases"]]
-        self.assertFalse("hf" in cases)
+    def test_binding_c_change_triggers_c_and_go_smoke(self):
+        result = plan(["bindings/c/src/lib.rs"])
+        self.assertTrue(result["components"]["binding_c"])
+        self.assertTrue(result["components"]["binding_go"])
+        self.assertFalse(result["components"]["binding_java"])
+        go_oses = {target["os"] for target in result["binding_go"]}
+        self.assertEqual(go_oses, {"ubuntu-latest", "windows-latest", "macos-latest"})
+
+    def test_dependency_union_combines_core_and_service_and_binding(self):
+        result = plan([
+            "core/core/src/types/operator/operator.rs",
+            "core/services/webdav/src/backend.rs",
+            "bindings/python/src/lib.rs",
+        ])
+        core_services = {c["service"] for c in result["core"][0]["cases"]}
+        self.assertTrue({"memory", "fs", "s3", "azblob", "http", "webdav"} <= core_services)
+        self.assertTrue(result["components"]["binding_python"])
+        self.assertFalse(result["components"]["binding_java"])
 
     def test_integration_object_store(self):
         result = plan(["integrations/object_store/Cargo.toml"])
         self.assertTrue(result["components"]["integration_object_store"])
-        self.assertTrue(len(result["integration_object_store"]) > 0)
-
-        result = plan(["core/services/fs/src/lib.rs"])
-        cases = [v["service"] for v in result["integration_object_store"][0]["cases"]]
-        # Should contain fs
-        self.assertTrue("fs" in cases)
+        services = {
+            v["service"] for v in result["integration_object_store"][0]["cases"]
+        }
+        self.assertEqual(services, {"fs", "s3"})
 
     def test_nightly_local_and_live_partition_all_setups(self):
         service_dir = Path(__file__).parents[2] / "services"
@@ -296,6 +342,7 @@ class BehaviorTestPlan(unittest.TestCase):
             validate_nightly_plan(empty, "nightly-local")
         with self.assertRaises(RuntimeError):
             validate_nightly_plan(empty, "nightly-live")
+
 
 if __name__ == "__main__":
     unittest.main()

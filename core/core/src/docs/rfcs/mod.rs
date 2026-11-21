@@ -354,5 +354,5 @@ pub mod rfc_8109_writer_copy_from {}
 pub mod rfc_8145_conflict_error_kind {}
 
 /// Chunked Cache Layer
-#[doc = include_str!("0000_chunked_cache_layer.md")]
-pub mod rfc_0000_chunked_cache_layer {}
+#[doc = include_str!("8569_chunked_cache_layer.md")]
+pub mod rfc_8569_chunked_cache_layer {}

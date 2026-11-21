@@ -1,6 +1,6 @@
 - Proposal Name: `chunked_cache_layer`
 - Start Date: 2026-11-21
-- RFC PR: [apache/opendal#0000](https://github.com/apache/opendal/pull/0000)
+- RFC PR: [apache/opendal#8569](https://github.com/apache/opendal/pull/8569)
 - Tracking Issue: [apache/opendal#7107](https://github.com/apache/opendal/issues/7107)
 - Supersedes: [RFC-6297: Cache Layer](6297_cache_layer.md)
 

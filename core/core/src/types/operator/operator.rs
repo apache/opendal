@@ -614,13 +614,10 @@ impl Operator {
             .await
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// Use [`FutureRead::limit`] to cap the result and accept EOF after a valid
+    /// starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Options
     ///
@@ -650,13 +647,10 @@ impl Operator {
         )
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// See [`options::ReadOptions::limit`] to cap the result and accept EOF after
+    /// a valid starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Examples
     ///
@@ -697,12 +691,38 @@ impl Operator {
             );
         }
 
-        let (range, args, opts) = opts.into();
+        let limit = opts.limit;
+        if limit.is_some() && (opts.chunk.is_some() || opts.concurrent > 1) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be combined with chunk or concurrent reads",
+            ));
+        }
+
+        let (mut range, args, opts) = opts.into();
+        // Creating a reader validates capabilities without opening the object.
         let reader = srv.read(&ctx, &path, args.clone())?;
+        if limit == Some(0) || range.size() == Some(0) {
+            return Ok(Buffer::new());
+        }
+
+        if let (Some(limit), BytesRange::Range { offset, size }) = (limit, range) {
+            // A length represented by u64 can never contain a byte at u64::MAX.
+            let available = u64::MAX - offset;
+            if available == 0 {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                )
+                .with_context("offset", offset));
+            }
+            let size = size.unwrap_or(limit).min(limit).min(available);
+            range = BytesRange::new(offset, Some(size));
+        }
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
-        let r = Reader::new(read_context);
-        let buf = r.read(range).await?;
-        Ok(buf)
+        Reader::new(read_context)
+            .read_with_limit(range, limit)
+            .await
     }
 
     /// Create a new reader of given path.
@@ -1817,6 +1837,9 @@ impl Operator {
     ///
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first.
+    /// - With `recursive(true)`, include the trailing slash in directory paths
+    ///   (for example, `"a/"`). On prefix-based services, `"a"` can also match
+    ///   entries under `"ab/"`.
     ///
     /// # Options
     ///
@@ -1833,6 +1856,16 @@ impl Operator {
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Recursively delete the `a/` directory:
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete_with("a/").recursive(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1855,6 +1888,9 @@ impl Operator {
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first. Visit
     ///   [`options::DeleteOptions`] for the conditional delete contract.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Examples
     ///
@@ -1974,7 +2010,10 @@ impl Operator {
         Deleter::create(self.context().clone(), self.service().clone())
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Deprecated
     ///
@@ -1985,12 +2024,12 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// ```
     ///
     /// Use:
     /// ```ignore
-    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// op.delete_with("a/").recursive(true).await?;
     /// ```
     ///
     /// # Notes
@@ -2006,7 +2045,7 @@ impl Operator {
     /// # use opendal_core::Operator;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2561,6 +2600,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
+        if opts.limit.is_some() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be used with presigned reads",
+            ));
+        }
+
         let (range, op_read, _) = opts.into();
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2824,5 +2870,141 @@ impl Operator {
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_limit_rejects_chunk_and_concurrency() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let err = op.read_with("missing").limit(0).chunk(2).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        let err = op
+            .read_with("missing")
+            .concurrent(2)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        op.write("file", "data").await?;
+        let buf = op.read_with("file").limit(2).concurrent(1).await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_limited_read_validates_conditions() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        assert!(!op.info().capability().read_with_if_match);
+
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .limit(0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .range(1..1)
+            .limit(5)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        assert!(op.read_with("missing").limit(0).await?.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_read_at_max_offset() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let err = op
+            .read_with("file")
+            .range(u64::MAX..)
+            .limit(1)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(
+            op.read_with("file")
+                .range(u64::MAX..)
+                .limit(0)
+                .await?
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_suffix_of_empty_file() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("empty", Buffer::new()).await?;
+
+        let buf = op
+            .read_with("empty")
+            .range(BytesRange::suffix(4))
+            .limit(2)
+            .await?;
+        assert!(buf.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_rejects_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        for limit in [0, 2] {
+            let result = op
+                .presign_read_options(
+                    "file",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        limit: Some(limit),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bounded_read_requires_full_length() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let err = op.read_with("file").range(2..6).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "reader got too little data");
+        Ok(())
+    }
+
+    #[cfg(feature = "blocking")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blocking_read_options_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let op = blocking::Operator::new(op)?;
+        let buf = tokio::task::spawn_blocking(move || {
+            op.read_options(
+                "file",
+                options::ReadOptions {
+                    range: BytesRange::from(2..),
+                    limit: Some(u64::MAX),
+                    ..Default::default()
+                },
+            )
+        })
+        .await
+        .expect("blocking read task must complete")?;
+        assert_eq!(buf.to_bytes(), "ta");
+        Ok(())
     }
 }

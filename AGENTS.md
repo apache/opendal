@@ -11,12 +11,19 @@ Guidance for AI coding agents working in this repository.
 
 ## AI-Assisted Contributions
 
-Follow [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
+Follow the [AI-Assisted Contributions](CONTRIBUTING.md#ai-assisted-contributions)
 policy.
 
-- Do not publish an Issue, Pull Request, Discussion, or review comment unless a
-  human has meaningfully reviewed the content and explicitly asked you to submit
-  it.
+- Publish an Issue, Pull Request, Discussion, or review comment only within
+  explicit authorization from an accountable human contributor or maintainer.
+  Do not take unsolicited public actions or claim to speak on behalf of the
+  OpenDAL PMC.
+- Clearly identify AI-authored comments, triage notes, and reviews as
+  AI-generated, including when posting under a contributor's or committer's
+  personal GitHub account.
+- Verify every claim, code reference, API behavior, and test result against the
+  repository before posting. Never fabricate command output, claim unexecuted
+  checks passed, or post unedited LLM dumps.
 - Do not implement or submit a service-specific change based only on source-code
   analysis, a mock or emulator, a synthetic malformed response, or another
   service's implementation. Reproduce the problem against the actual service
@@ -26,12 +33,53 @@ policy.
   maintainer has explicitly accepted it as a hardening or maintenance goal.
 - A test against a fabricated response can verify implementation behavior, but
   it does not establish that the change solves a real-world problem.
+- Do not weaken, skip, or delete existing assertions, behavior tests, or lint
+  rules to make CI pass; fix the underlying bug or escalate when a contract
+  must change.
+- Keep changes scoped to the agreed goal. Do not bundle unrelated refactors,
+  speculative abstractions, or capability claims unsupported by the
+  implementation.
 - In a Pull Request, disclose each materially contributing harness, model, and
   reasoning effort setting, along with AI's role and any assumptions or unknowns
   that affect review. Follow the AI Usage Statement requirements in
-  CONTRIBUTING.md. Do not repeat routine validation output.
+  `CONTRIBUTING.md`. Do not repeat routine validation output.
 
-The human contributor remains responsible for every submitted claim and change.
+The accountable human contributor or maintainer remains responsible for every
+submitted claim, review, and change.
+
+## Maintenance and Review Agents
+
+Agents assisting with OpenDAL maintenance and code review must protect community
+attention and uphold project quality.
+
+- **Governance boundaries:** Maintenance agents may triage issues, check for
+  duplicates and security boundaries (`SECURITY-THREAT-MODEL.md`), screen pull
+  requests for evidence and scope, review code, assist with reproduction, and
+  prepare routine maintenance pull requests. Every pull request requires at
+  least one human OpenDAL committer to review, approve, and merge it; do not
+  approve or merge PRs, declare PMC consensus, issue official security
+  decisions, or cast Apache release votes without explicit human committer or
+  PMC review and action.
+- **Fast-fail screening:** Screen incoming Issues and Pull Requests in order:
+  duplicates, threat-model and project scope, linked issue or consensus, real
+  reproduction and evidence, change scope and contract alignment, and CI
+  status. Stop and report blocking prerequisite failures rather than spending
+  review cycles polishing an unverified or out-of-scope submission.
+- **High-signal comments:** Post review comments only for concrete defects,
+  contract or capability mismatches, missing evidence, security risks, or
+  maintainability regressions backed by specific code references. Omit filler,
+  restatements of the diff, and style nitpicks already enforced by CI.
+- **Bounded interaction and escalation:** Limit automated back-and-forth to at
+  most one or two rounds on a thread. If a discussion does not converge, or
+  touches public APIs (`core/core/src/types/`), portable specifications
+  (`core/core/src/docs/specs/`), breaking changes, new services or
+  dependencies, concurrency or consistency semantics, or security boundaries,
+  stop automated replies and escalate to a human maintainer.
+- **Contract and test rigor:** Treat passing CI as necessary, not sufficient.
+  Verify that advertised `Capability` flags match implementation guarantees,
+  fallbacks preserve concurrency and retry semantics, and tests protect real
+  contracts. Flag or reject bloated mock tests that mirror implementation
+  details without proving real behavior.
 
 ## Helper Functions
 
@@ -226,7 +274,7 @@ Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward
 - Before opening a PR, search for similar open PRs, issues, and in-progress branches that already address the same problem. Prefer contributing to or coordinating with existing work over opening a duplicate.
 - Always use `.github/pull_request_template.md` when creating a PR.
 - Keep PR titles and descriptions factual and concise.
-- Do not add AI-tool branding or co-author trailers.
+- Do not add AI-tool marketing banners or AI co-author trailers to commits or PR descriptions; record AI usage in the AI Usage Statement section.
 - If public APIs or user-facing behavior change, update docs and call out the user-facing impact in the PR template.
 
 ## Important Notes

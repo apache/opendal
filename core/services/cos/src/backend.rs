@@ -536,7 +536,7 @@ impl Service for CosBackend {
             quick_xml::de::from_reader(resp.into_body().reader())
                 .map_err(new_xml_deserialize_error)
                 .map_err(Error::set_temporary)?;
-        let abs_path = build_abs_path(&self.core.root, path);
+        let abs_path = build_absolute_path(&self.core.root, path);
 
         if output
             .version

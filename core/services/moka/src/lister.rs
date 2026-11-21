@@ -47,7 +47,7 @@ impl oio::List for MokaLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self.entries.next() {
             Some((key, metadata)) => {
-                let mut path = build_rel_path(&self.root, &key);
+                let mut path = build_relative_path(&self.root, &key);
                 if path.is_empty() {
                     path = "/".to_string();
                 }

@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-azurite_version="${AZURITE_VERSION:-3.35.0}"
+azurite_version="${AZURITE_VERSION:-3.38.0}"
 azurite_log="${RUNNER_TEMP:-/tmp}/azurite-blob.log"
 azurite_data_dir="${RUNNER_TEMP:-/tmp}/azurite-blob-data"
 

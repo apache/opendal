@@ -35,7 +35,12 @@ pub type Reader = Box<dyn ReadDyn>;
 /// This trait returns `impl Future`, so it is not object safe. Use [`ReadDyn`] when
 /// type erasure is required.
 pub trait Read: Unpin + Send + Sync {
-    /// Open a range stream for the given range.
+    /// Open a stream of the available bytes within the given range.
+    ///
+    /// A non-empty bounded forward range whose starting byte is at or beyond
+    /// EOF returns [`ErrorKind::RangeNotSatisfied`] when opening or reading the
+    /// stream. After a valid starting byte, reaching object EOF before the end
+    /// of the range is successful. The stream must never exceed the range.
     fn open(
         &self,
         range: BytesRange,

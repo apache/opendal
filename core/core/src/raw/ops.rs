@@ -833,6 +833,7 @@ enum WriteField {
     IfVersionMatch,
     IfVersionNotMatch,
     UserMetadata,
+    Expires,
 }
 
 impl OpWrite {
@@ -898,6 +899,12 @@ impl OpWrite {
         if options.if_not_exists {
             flags |= OP_WRITE_IF_NOT_EXISTS;
         }
+        let expires = options.expires.map(|duration| {
+            let mut bytes = [0; 12];
+            bytes[..8].copy_from_slice(&duration.as_secs().to_le_bytes());
+            bytes[8..].copy_from_slice(&duration.subsec_nanos().to_le_bytes());
+            bytes
+        });
         let fields = [
             options.content_type.as_deref().map(str::as_bytes),
             options.content_disposition.as_deref().map(str::as_bytes),
@@ -908,6 +915,7 @@ impl OpWrite {
             options.if_version_match.as_deref().map(str::as_bytes),
             options.if_version_not_match.as_deref().map(str::as_bytes),
             None,
+            expires.as_ref().map(<[u8; 12]>::as_slice),
         ];
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[WriteField::UserMetadata as usize] =
@@ -1017,6 +1025,17 @@ impl OpWrite {
         self.values
             .get(WriteField::UserMetadata as usize)
             .map(UserMetadata::new)
+    }
+
+    /// Returns the lifetime requested for the new file.
+    pub fn expires(&self) -> Option<Duration> {
+        self.values.get(WriteField::Expires as usize).map(|bytes| {
+            let (seconds, nanos) = bytes.split_at(8);
+            Duration::new(
+                u64::from_le_bytes(seconds.try_into().expect("encoded seconds")),
+                u32::from_le_bytes(nanos.try_into().expect("encoded nanoseconds")),
+            )
+        })
     }
 
     #[doc(hidden)]
@@ -1568,10 +1587,12 @@ mod tests {
 
     #[test]
     fn write_options_preserve_owned_views() {
+        let expires = Duration::new(u64::MAX, 123_456_789);
         let (args, _) = OpWrite::from_options(
             &Capability::default(),
             options::WriteOptions {
                 append: true,
+                expires: Some(expires),
                 concurrent: 4,
                 content_type: Some("text/plain".to_owned()),
                 content_disposition: Some("attachment".to_owned()),
@@ -1600,6 +1621,8 @@ mod tests {
         assert_eq!(args.if_version_not_match(), Some("version-not-match"));
         assert!(args.if_not_exists());
         assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+        assert_eq!(args.expires(), Some(expires));
+        assert_eq!(OpWrite::default().expires(), None);
         assert!(args.is_conditional());
     }
 

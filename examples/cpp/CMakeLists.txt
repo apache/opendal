@@ -15,10 +15,15 @@
 # specific language governing permissions and limitations
 # under the License.
 
-cmake_minimum_required(VERSION 3.10)
-project(opendal-cpp-examples)
+cmake_minimum_required(VERSION 3.22)
+project(opendal-cpp-examples LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
+
+if(MSVC)
+    # Match the CRT used by the binding and the Rust static library.
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+endif()
 
 # use local bindings/cpp directory
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../bindings/cpp opendal_cpp_build)

@@ -107,6 +107,11 @@ test *args: install-dev
     @echo "{{ BOLD }}--- Running tests ---{{ NORMAL }}"
     @uv run pytest -v {{ args }}
 
+# Execute the cookbook notebooks against the installed binding
+[group('dev')]
+test-notebooks:
+    @uv run --no-sync python -m nbconvert --to notebook --execute --stdout docs/examples/*.ipynb > /dev/null
+
 # ==============================================================================
 # Documentation
 # ==============================================================================

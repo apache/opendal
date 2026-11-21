@@ -36,7 +36,7 @@ impl DashmapLister {
             .iter()
             .map(|item| (item.key().clone(), item.value().metadata.clone()))
             .collect();
-        let path = build_abs_path(&root, &path);
+        let path = build_absolute_path(&root, &path);
 
         Self {
             root,
@@ -50,7 +50,7 @@ impl oio::List for DashmapLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         for (key, metadata) in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_rel_path(&self.root, &key);
+                let path = build_relative_path(&self.root, &key);
                 let entry = oio::Entry::new(&path, metadata);
                 return Ok(Some(entry));
             }

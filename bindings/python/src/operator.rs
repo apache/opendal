@@ -22,6 +22,8 @@ use std::time::Duration;
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
 use pyo3::types::PyBytes;
+use pyo3::types::PyDelta;
+use pyo3::types::PyDeltaAccess;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
@@ -92,8 +94,8 @@ fn extract_delete_paths(paths: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
 /// consumes.
 ///
 /// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
-/// `bool`, `int`, `os.PathLike`, and `list`/`tuple` of those (`,`-joined, as
-/// core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
+/// `bool`, `int`, `datetime.timedelta`, `os.PathLike`, and `list`/`tuple` of those
+/// (`,`-joined, as core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
 fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     // `str` before the list branch (a `str` is also a sequence); `bool` before
     // `int` (a Python `bool` also extracts as `int`); `dict` before the list
@@ -104,6 +106,11 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(if b { "true" } else { "false" }.to_string())
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
+    } else if let Ok(delta) = value.cast::<PyDelta>() {
+        let micros = i128::from(delta.get_days()) * 86_400_000_000
+            + i128::from(delta.get_seconds()) * 1_000_000
+            + i128::from(delta.get_microseconds());
+        Ok(format!("{micros}us"))
     } else if value.cast::<PyDict>().is_ok() {
         Err(Unsupported::new_err(
             "a map-valued config field cannot be built via from_config; leave it unset",
@@ -118,7 +125,7 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
         Ok(path.to_string_lossy().into_owned())
     } else {
         Err(Unsupported::new_err(
-            "unsupported config value type; pass a str, bool, int, os.PathLike, or list of those",
+            "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
         ))
     }
 }
@@ -300,8 +307,8 @@ impl Operator {
     /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-    /// are converted to the string form core consumes.
+    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
     ///
     /// Parameters
     /// ----------
@@ -1110,8 +1117,8 @@ impl AsyncOperator {
     /// The config is an ``opendal.config.ServiceConfig`` (e.g. ``S3Config``); its
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
-    /// type. Non-string values (``bool``, ``int``, ``os.PathLike``, ``list``)
-    /// are converted to the string form core consumes.
+    /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
+    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
     ///
     /// Parameters
     /// ----------

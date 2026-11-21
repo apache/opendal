@@ -146,6 +146,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
     #[cfg(feature = "services-gist")]
     opendal_service_gist::register_gist_service(registry);
 
+    #[cfg(feature = "services-git")]
+    opendal_service_git::register_git_service(registry);
+
     #[cfg(feature = "services-github")]
     opendal_service_github::register_github_service(registry);
 
@@ -232,6 +235,9 @@ fn init_default_registry_inner(registry: &OperatorRegistry) {
 
     #[cfg(feature = "services-sled")]
     opendal_service_sled::register_sled_service(registry);
+
+    #[cfg(feature = "services-smb")]
+    opendal_service_smb::register_smb_service(registry);
 
     #[cfg(feature = "services-sqlite")]
     opendal_service_sqlite::register_sqlite_service(registry);
@@ -338,6 +344,8 @@ pub mod services {
     pub use opendal_service_ghac::*;
     #[cfg(feature = "services-gist")]
     pub use opendal_service_gist::*;
+    #[cfg(feature = "services-git")]
+    pub use opendal_service_git::*;
     #[cfg(feature = "services-github")]
     pub use opendal_service_github::*;
     #[cfg(feature = "services-goosefs")]
@@ -400,6 +408,8 @@ pub mod services {
     pub use opendal_service_sftp::*;
     #[cfg(feature = "services-sled")]
     pub use opendal_service_sled::*;
+    #[cfg(feature = "services-smb")]
+    pub use opendal_service_smb::*;
     #[cfg(feature = "services-sqlite")]
     pub use opendal_service_sqlite::*;
     #[cfg(feature = "services-surrealdb")]
@@ -472,6 +482,8 @@ pub mod layers {
     pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-route")]
     pub use opendal_layer_route::*;
+    #[cfg(feature = "layers-sanity-check")]
+    pub use opendal_layer_sanity_check::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

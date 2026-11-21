@@ -42,7 +42,7 @@ rust-version = "1.91"
 version = "0.59.5"
 
 [workspace.dependencies]
-asyncband = { version = "0.7.1" }
+asyncband = { version = "0.8.0" }
 base64 = "0.23"
 bytes = "1.10"
 ctor = "1.0.7"
@@ -137,6 +137,7 @@ layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
 layers-route = ["dep:opendal-layer-route"]
+layers-sanity-check = ["dep:opendal-layer-sanity-check"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
@@ -172,6 +173,7 @@ services-gcs-grpc = ["dep:opendal-service-gcs-grpc"]
 services-gdrive = ["dep:opendal-service-gdrive"]
 services-ghac = ["dep:opendal-service-ghac"]
 services-gist = ["dep:opendal-service-gist"]
+services-git = ["dep:opendal-service-git"]
 services-github = ["dep:opendal-service-github"]
 services-goosefs = ["dep:opendal-service-goosefs"]
 services-gridfs = ["dep:opendal-service-gridfs"]
@@ -210,6 +212,7 @@ services-s3 = ["dep:opendal-service-s3"]
 services-seafile = ["dep:opendal-service-seafile"]
 services-sftp = ["dep:opendal-service-sftp"]
 services-sled = ["dep:opendal-service-sled"]
+services-smb = ["dep:opendal-service-smb"]
 services-sqlite = ["dep:opendal-service-sqlite"]
 services-surrealdb = ["dep:opendal-service-surrealdb"]
 services-swift = ["dep:opendal-service-swift"]
@@ -269,6 +272,7 @@ opendal-layer-prometheus = { path = "layers/prometheus", version = "0.59.5", opt
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-route = { path = "layers/route", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-sanity-check = { path = "layers/sanity-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.59.5", optional = true, default-features = false }
@@ -297,6 +301,7 @@ opendal-service-gcs-grpc = { path = "services/gcs-grpc", version = "0.59.5", opt
 opendal-service-gdrive = { path = "services/gdrive", version = "0.59.5", optional = true, default-features = false }
 opendal-service-ghac = { path = "services/ghac", version = "0.59.5", optional = true, default-features = false }
 opendal-service-gist = { path = "services/gist", version = "0.59.5", optional = true, default-features = false }
+opendal-service-git = { path = "services/git", version = "0.59.5", optional = true, default-features = false }
 opendal-service-github = { path = "services/github", version = "0.59.5", optional = true, default-features = false }
 opendal-service-goosefs = { path = "services/goosefs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-gridfs = { path = "services/gridfs", version = "0.59.5", optional = true, default-features = false }
@@ -327,6 +332,7 @@ opendal-service-s3 = { path = "services/s3", version = "0.59.5", optional = true
 opendal-service-seafile = { path = "services/seafile", version = "0.59.5", optional = true, default-features = false }
 opendal-service-sftp = { path = "services/sftp", version = "0.59.5", optional = true, default-features = false }
 opendal-service-sled = { path = "services/sled", version = "0.59.5", optional = true, default-features = false }
+opendal-service-smb = { path = "services/smb", version = "0.59.5", optional = true, default-features = false }
 opendal-service-sqlite = { path = "services/sqlite", version = "0.59.5", optional = true, default-features = false }
 opendal-service-surrealdb = { path = "services/surrealdb", version = "0.59.5", optional = true, default-features = false }
 opendal-service-swift = { path = "services/swift", version = "0.59.5", optional = true, default-features = false }

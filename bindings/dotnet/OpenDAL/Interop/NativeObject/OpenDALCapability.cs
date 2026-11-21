@@ -64,6 +64,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfVersionNotMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfNotExists;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithUserMetadata;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeWithExpires;
     internal nuint writeMultiMaxSize;
     internal nuint writeMultiMinSize;
     internal nuint writeTotalMaxSize;

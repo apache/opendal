@@ -116,6 +116,10 @@ impl Writer {
     ///
     /// This operation will write all data in given buffer into writer.
     ///
+    /// When a single call spans multiple chunks, a failure after the underlying
+    /// writer accepts part of the input returns a persistent error. Call
+    /// [`Writer::abort`] and start a new writer if you need to retry that write.
+    ///
     /// ## Examples
     ///
     /// ```
@@ -137,13 +141,7 @@ impl Writer {
     /// }
     /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-
-        Ok(())
+        self.inner.write_all(bs.into()).await
     }
 
     /// Write [`bytes::Buf`] into inner writer.

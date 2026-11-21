@@ -2049,6 +2049,11 @@ public interface ServiceConfig {
          */
         public final Duration defaultTtl;
         /**
+         * <p>Enable TLS for TCP connections. Defaults to false.</p>
+         * <p>The server certificate must match the endpoint host and a native trust root.</p>
+         */
+        public final Boolean enableTls;
+        /**
          * <p>network address of the memcached service.</p>
          * <p>For example: &quot;tcp://localhost:11211&quot;</p>
          */
@@ -2080,6 +2085,9 @@ public interface ServiceConfig {
             }
             if (defaultTtl != null) {
                 map.put("default_ttl", defaultTtl.toString());
+            }
+            if (enableTls != null) {
+                map.put("enable_tls", String.valueOf(enableTls));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -2144,12 +2152,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2166,10 +2174,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2199,12 +2207,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle"><code>moka::future::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live"><code>moka::future::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2224,10 +2232,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -3078,10 +3086,52 @@ public interface ServiceConfig {
          */
         public final String checksumAlgorithm;
         /**
+         * <p>Authorization token sent to the AWS container credential endpoint.</p>
+         * <p>This token takes precedence over the configured token file and the
+         * ambient direct and file token forms.</p>
+         */
+        public final String containerAuthorizationToken;
+        /**
+         * <p>File containing the authorization token sent to the AWS container
+         * credential endpoint.</p>
+         * <p>This file takes precedence over both ambient token forms. The credential
+         * provider trims surrounding whitespace after reading the file.</p>
+         */
+        public final String containerAuthorizationTokenFile;
+        /**
+         * <p>Full URI for AWS container credential metadata.</p>
+         * <p>This endpoint takes precedence over the relative container credential
+         * URI and both ambient container credential URI forms. It does not change
+         * the position or priority of the default ECS credential provider.</p>
+         */
+        public final String containerCredentialsEndpoint;
+        /**
+         * <p>Relative URI for AWS container credential metadata.</p>
+         * <p>An explicit full endpoint takes precedence over this value. This value
+         * takes precedence over the ambient full and relative container credential
+         * URIs. OpenDAL joins it to <code>container_metadata_uri_override</code> when set,
+         * otherwise to <code>http://169.254.170.2</code>.</p>
+         * <p>Setting any container credential field replaces the ECS slot in the
+         * default credential chain. It does not move that slot ahead of earlier
+         * default providers.</p>
+         */
+        public final String containerCredentialsRelativeUri;
+        /**
+         * <p>Base URI used to resolve a relative AWS container credential URI.</p>
+         * <p>This override affects relative URIs only. It does not alter a configured
+         * or ambient full URI. The override alone does not select an endpoint.</p>
+         */
+        public final String containerMetadataUriOverride;
+        /**
          * <p>Default ACL for new objects.
          * Note that some s3 services like minio do not support this option.</p>
          */
         public final String defaultAcl;
+        /**
+         * <p>Fallback signing region when neither <code>region</code>, <code>AWS_REGION</code>, nor
+         * <code>AWS_DEFAULT_REGION</code> supplies one.</p>
+         */
+        public final String defaultRegion;
         /**
          * <p>default storage_class for this backend.</p>
          * <p>Available values:</p>
@@ -3107,13 +3157,12 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
-         * <p>Disable config load so that opendal will not load config from
-         * environment.</p>
-         * <p>For examples:</p>
-         * <ul>
-         * <li>envs like <code>AWS_ACCESS_KEY_ID</code></li>
-         * <li>files like <code>~/.aws/config</code></li>
-         * </ul>
+         * <p>Disable automatic endpoint loading and the environment/profile
+         * credential providers.</p>
+         * <p>This skips endpoint environment variables and removes the static
+         * environment and shared-profile credential slots. Region environment
+         * lookup and other credential providers, including AWS container
+         * credentials and EC2 instance metadata, remain enabled.</p>
          */
         public final Boolean disableConfigLoad;
         /**
@@ -3253,6 +3302,12 @@ public interface ServiceConfig {
          */
         public final String serverSideEncryptionAwsKmsKeyId;
         /**
+         * <p>Control S3 Bucket Keys for SSE-KMS writes and copies.</p>
+         * <p>Omit this option to inherit the bucket setting. <code>false</code> disables Bucket
+         * Keys for destination objects, and <code>true</code> enables them.</p>
+         */
+        public final Boolean serverSideEncryptionBucketKeyEnabled;
+        /**
          * <p>server_side_encryption_customer_algorithm for this backend.</p>
          * <p>Available values: <code>AES256</code>.</p>
          */
@@ -3306,8 +3361,26 @@ public interface ServiceConfig {
             if (checksumAlgorithm != null) {
                 map.put("checksum_algorithm", checksumAlgorithm);
             }
+            if (containerAuthorizationToken != null) {
+                map.put("container_authorization_token", containerAuthorizationToken);
+            }
+            if (containerAuthorizationTokenFile != null) {
+                map.put("container_authorization_token_file", containerAuthorizationTokenFile);
+            }
+            if (containerCredentialsEndpoint != null) {
+                map.put("container_credentials_endpoint", containerCredentialsEndpoint);
+            }
+            if (containerCredentialsRelativeUri != null) {
+                map.put("container_credentials_relative_uri", containerCredentialsRelativeUri);
+            }
+            if (containerMetadataUriOverride != null) {
+                map.put("container_metadata_uri_override", containerMetadataUriOverride);
+            }
             if (defaultAcl != null) {
                 map.put("default_acl", defaultAcl);
+            }
+            if (defaultRegion != null) {
+                map.put("default_region", defaultRegion);
             }
             if (defaultStorageClass != null) {
                 map.put("default_storage_class", defaultStorageClass);
@@ -3371,6 +3444,11 @@ public interface ServiceConfig {
             }
             if (serverSideEncryptionAwsKmsKeyId != null) {
                 map.put("server_side_encryption_aws_kms_key_id", serverSideEncryptionAwsKmsKeyId);
+            }
+            if (serverSideEncryptionBucketKeyEnabled != null) {
+                map.put(
+                        "server_side_encryption_bucket_key_enabled",
+                        String.valueOf(serverSideEncryptionBucketKeyEnabled));
             }
             if (serverSideEncryptionCustomerAlgorithm != null) {
                 map.put("server_side_encryption_customer_algorithm", serverSideEncryptionCustomerAlgorithm);

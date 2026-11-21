@@ -167,7 +167,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -216,7 +216,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -301,7 +301,7 @@ impl GcsCore {
         op: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
             storage_class: self.default_storage_class.as_deref(),
@@ -398,7 +398,7 @@ impl GcsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let base = format!("{}/upload/storage/v1/b/{}/o", self.endpoint, self.bucket);
         let mut url = QueryPairsWriter::new(&base)
             .push("uploadType", "resumable")
@@ -513,7 +513,7 @@ impl GcsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -567,7 +567,7 @@ impl GcsCore {
     }
 
     pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -612,7 +612,7 @@ impl GcsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -697,7 +697,7 @@ impl GcsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -764,7 +764,7 @@ impl GcsCore {
         to: &str,
         args: &OpCompose,
     ) -> Result<Request<Buffer>> {
-        let destination = build_abs_path(&self.root, to);
+        let destination = build_absolute_path(&self.root, to);
         let base = format!(
             "{}/storage/v1/b/{}/o/{}/compose",
             self.endpoint,
@@ -784,7 +784,7 @@ impl GcsCore {
         let source_objects = sources
             .iter()
             .map(|source| ComposeSourceObject {
-                name: build_abs_path(&self.root, &source.path),
+                name: build_absolute_path(&self.root, &source.path),
                 generation: source.version.clone(),
                 object_preconditions: source.if_version_match.as_ref().map(|version| {
                     ComposeSourceObjectPreconditions {
@@ -836,8 +836,8 @@ impl GcsCore {
         max_bytes_rewritten_per_call: Option<usize>,
         rewrite_token: Option<&str>,
     ) -> Result<Request<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let dest = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let dest = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
@@ -896,51 +896,50 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
+    fn gcs_build_list_objects_request(
+        &self,
+        path: &str,
+        page_token: &str,
+        args: &OpList,
+    ) -> Result<Request<Buffer>> {
+        let p = build_absolute_path(&self.root, path);
+        let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket);
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("prefix", &gcs_percent_encode_path(&p));
+        if args.versions() {
+            url = url.push("versions", "true");
+        }
+        if !args.recursive() {
+            url = url.push("delimiter", "/");
+        }
+        if let Some(limit) = args.limit() {
+            url = url.push("maxResults", &limit.to_string());
+        }
+        if page_token.is_empty() {
+            if let Some(start_after) = args.start_after() {
+                let start_after = build_absolute_path(&self.root, start_after);
+                url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
+            }
+        } else {
+            url = url.push("pageToken", &gcs_percent_encode_path(page_token));
+        }
+
+        Request::get(url.finish())
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
+
     pub async fn gcs_list_objects(
         &self,
         ctx: &OperationContext,
         path: &str,
         page_token: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-        start_after: Option<String>,
+        args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket,);
-
-        let mut url = QueryPairsWriter::new(&url);
-        url = url.push("prefix", &gcs_percent_encode_path(&p));
-
-        if !delimiter.is_empty() {
-            url = url.push("delimiter", delimiter);
-        }
-        if let Some(limit) = limit {
-            url = url.push("maxResults", &limit.to_string());
-        }
-        if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
-            url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
-        }
-
-        if !page_token.is_empty() {
-            // NOTE:
-            //
-            // GCS uses pageToken in request and nextPageToken in response
-            //
-            // Don't know how will those tokens be like so this part are copied
-            // directly from AWS S3 service.
-            url = url.push("pageToken", &gcs_percent_encode_path(page_token));
-        }
-
-        let req = Request::get(url.finish())
-            .extension(Operation::List)
-            .extension(ServiceOperation("ListObjects"))
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
+        let req = self.gcs_build_list_objects_request(path, page_token, args)?;
         let req = self.sign(ctx, req).await?;
-
         self.send(ctx, req).await
     }
 
@@ -950,7 +949,7 @@ impl GcsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploads",
@@ -1011,7 +1010,7 @@ impl GcsCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?partNumber={}&uploadId={}",
@@ -1043,7 +1042,7 @@ impl GcsCore {
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",
@@ -1080,7 +1079,7 @@ impl GcsCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",
@@ -1392,6 +1391,56 @@ mod tests {
 
     fn copy_args(options: options::CopyOptions) -> OpCopy {
         OpCopy::from_options(&Capability::default(), options).unwrap()
+    }
+
+    #[test]
+    fn test_list_request_defaults() {
+        let core = test_core();
+        let request = core
+            .gcs_build_list_objects_request("dir/", "", &OpList::default())
+            .unwrap();
+        let query = request.uri().query().unwrap();
+        assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
+        assert!(query.contains("delimiter=/"));
+        assert!(!query.contains("versions="));
+        assert!(!query.contains("pageToken="));
+        assert!(!query.contains("startOffset="));
+        assert_eq!(request.method(), http::Method::GET);
+    }
+
+    #[test]
+    fn test_version_list_request_preserves_pagination_options() {
+        let core = test_core();
+        let args = OpList::from(options::ListOptions {
+            versions: true,
+            recursive: true,
+            limit: Some(2),
+            start_after: Some("after one/".to_owned()),
+            ..Default::default()
+        });
+        let first = core
+            .gcs_build_list_objects_request("dir/", "", &args)
+            .unwrap();
+        let query = first.uri().query().unwrap();
+        assert!(query.contains("versions=true"));
+        assert!(query.contains("maxResults=2"));
+        assert!(query.contains(&format!(
+            "startOffset={}",
+            gcs_percent_encode_path("after one/")
+        )));
+        assert!(!query.contains("delimiter="));
+        assert!(!query.contains("pageToken="));
+
+        let next = core
+            .gcs_build_list_objects_request("dir/", "page+/=", &args)
+            .unwrap();
+        let query = next.uri().query().unwrap();
+        assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
+        assert!(query.contains("versions=true"));
+        assert!(query.contains("maxResults=2"));
+        assert!(query.contains(&format!("pageToken={}", gcs_percent_encode_path("page+/="))));
+        assert!(!query.contains("startOffset="));
+        assert!(!query.contains("delimiter="));
     }
 
     #[tokio::test]
@@ -2216,6 +2265,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -2280,6 +2330,17 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 #[cfg(test)]
 mod error_tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from("Request range not satisfiable"))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     fn condition_not_met(ctx: ErrorContext) -> Error {
         let body = Buffer::from(

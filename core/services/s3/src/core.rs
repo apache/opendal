@@ -67,6 +67,8 @@ pub mod constants {
         "x-amz-server-side-encryption-customer-key-md5";
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION_AWS_KMS_KEY_ID: &str =
         "x-amz-server-side-encryption-aws-kms-key-id";
+    pub const X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED: &str =
+        "x-amz-server-side-encryption-bucket-key-enabled";
     pub const X_AMZ_STORAGE_CLASS: &str = "x-amz-storage-class";
 
     pub const X_AMZ_COPY_SOURCE_SERVER_SIDE_ENCRYPTION_CUSTOMER_ALGORITHM: &str =
@@ -101,6 +103,7 @@ pub struct S3Core {
     pub root: String,
     pub server_side_encryption: Option<HeaderValue>,
     pub server_side_encryption_aws_kms_key_id: Option<HeaderValue>,
+    pub server_side_encryption_bucket_key_enabled: Option<HeaderValue>,
     pub server_side_encryption_customer_algorithm: Option<HeaderValue>,
     pub server_side_encryption_customer_key: Option<HeaderValue>,
     pub server_side_encryption_customer_key_md5: Option<HeaderValue>,
@@ -177,8 +180,9 @@ impl Debug for S3Core {
 
 impl S3Core {
     fn sign_error(&self, err: reqsign_core::Error) -> Error {
+        let retryable = err.is_retryable();
         if !self.signers.is_express() {
-            return new_request_sign_error(err.into());
+            return new_request_sign_error(err.into()).with_temporary(retryable);
         }
 
         let kind = match err.kind() {
@@ -190,7 +194,6 @@ impl S3Core {
                 ErrorKind::Unexpected
             }
         };
-        let retryable = err.is_retryable();
         Error::new(kind, "failed to sign S3 Express request")
             .with_operation("S3Core::sign")
             .set_source(err)
@@ -308,16 +311,15 @@ impl S3Core {
             .await
     }
 
-    /// # Note
+    /// Adds SSE-C headers and, for object creation, SSE-S3/SSE-KMS configuration.
     ///
-    /// header like X_AMZ_SERVER_SIDE_ENCRYPTION doesn't need to set while
-    /// get or stat.
+    /// Multipart uploads choose SSE-S3/SSE-KMS encryption at initiation.
     pub fn insert_sse_headers(
         &self,
         mut req: http::request::Builder,
-        is_write: bool,
+        configure_destination_encryption: bool,
     ) -> http::request::Builder {
-        if is_write {
+        if configure_destination_encryption {
             if let Some(v) = &self.server_side_encryption {
                 let mut v = v.clone();
                 v.set_sensitive(true);
@@ -465,7 +467,7 @@ impl S3Core {
 
 impl S3Core {
     pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -540,7 +542,7 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // Construct headers to add to the request
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -636,7 +638,7 @@ impl S3Core {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -649,6 +651,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Calculate Checksum.
         if let Some(checksum) = self.calculate_checksum(&body) {
@@ -675,7 +683,7 @@ impl S3Core {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
         let mut req = Request::put(&url);
 
@@ -694,6 +702,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Calculate Checksum.
         if let Some(checksum) = self.calculate_checksum(&body) {
@@ -723,7 +737,7 @@ impl S3Core {
     }
 
     pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -780,8 +794,8 @@ impl S3Core {
         source_if_match: Option<&str>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = source_version {
@@ -811,6 +825,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
             let mut v = v.clone();
@@ -873,7 +893,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
@@ -914,7 +934,7 @@ impl S3Core {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("list-type", "2");
@@ -963,7 +983,7 @@ impl S3Core {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -1007,6 +1027,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         // Set checksum type headers.
         // For multipart upload creation, only CRC32 | CRC32C | SHA1 | SHA256 | CRC64NVME are accepted.
@@ -1035,7 +1061,7 @@ impl S3Core {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -1056,6 +1082,12 @@ impl S3Core {
 
         // Set SSE headers.
         req = self.insert_sse_headers(req, true);
+        if let Some(value) = &self.server_side_encryption_bucket_key_enabled {
+            req = req.header(
+                constants::X_AMZ_SERVER_SIDE_ENCRYPTION_BUCKET_KEY_ENABLED,
+                value,
+            );
+        }
 
         let req = req
             .extension(Operation::Copy)
@@ -1070,8 +1102,8 @@ impl S3Core {
         &self,
         input: S3UploadPartCopyRequest<'_>,
     ) -> Result<Request<Buffer>> {
-        let from = build_abs_path(&self.root, input.from);
-        let to = build_abs_path(&self.root, input.to);
+        let from = build_absolute_path(&self.root, input.from);
+        let to = build_absolute_path(&self.root, input.to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = input.source_version {
@@ -1115,7 +1147,7 @@ impl S3Core {
         }
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(v) = &self.server_side_encryption_customer_algorithm {
             let mut v = v.clone();
@@ -1176,7 +1208,7 @@ impl S3Core {
         body: Buffer,
         checksum: Option<String>,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -1194,7 +1226,7 @@ impl S3Core {
         req = self.insert_request_payer_header(req);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         if let Some(checksum) = checksum {
             // Set Checksum header.
@@ -1220,7 +1252,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1232,7 +1264,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
@@ -1272,7 +1304,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1284,7 +1316,7 @@ impl S3Core {
         let mut req = Request::post(&url);
 
         // Set SSE headers.
-        req = self.insert_sse_headers(req, true);
+        req = self.insert_sse_headers(req, false);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
@@ -1319,7 +1351,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1350,7 +1382,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1387,7 +1419,7 @@ impl S3Core {
             object: paths
                 .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, path),
+                    key: build_absolute_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                     etag: op.if_match().map(|v| v.to_owned()),
                 })
@@ -1426,7 +1458,7 @@ impl S3Core {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = format!("{}?versions", self.endpoint);
         if !p.is_empty() {
@@ -2181,7 +2213,9 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
-        403 => (ErrorKind::PermissionDenied, false),
+        // Some S3-compatible services answer a missing or invalid credential
+        // with 401 instead of 403; both mean the request was not authorized.
+        401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
         // Service like R2 could return 499 error with a message like:
@@ -2306,5 +2340,18 @@ mod error_tests {
             parse_s3_error_code(no_condition, "PreconditionFailed"),
             None
         );
+    }
+
+    #[test]
+    fn unauthorized_and_forbidden_are_permission_denied() {
+        for status in [401, 403] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
     }
 }

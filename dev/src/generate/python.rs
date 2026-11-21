@@ -17,25 +17,125 @@
 
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use serde::Deserialize;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 
-fn enabled_service(srv: &str) -> bool {
-    match srv {
-        // Services omitted from the generated Python API.
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "cloudflare_kv" | "monoiofs"
-        | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud" | "vercel_blob"
-        | "goosefs" | "git" | "smb" => false,
-        _ => true,
+/// Naming of the service sets the PyPI wheels are built with per platform, for
+/// example `services-platform-linux`.
+const PLATFORM_FEATURE_PREFIX: &str = "services-platform-";
+
+/// Subset of the `cargo metadata --format-version 1` output consumed here.
+/// The schema is controlled by cargo, so only the fields this generator reads
+/// are declared; serde ignores everything else.
+#[derive(Deserialize)]
+struct CargoMetadata {
+    packages: Vec<MetadataPackage>,
+    resolve: MetadataResolve,
+}
+
+#[derive(Deserialize)]
+struct MetadataPackage {
+    name: String,
+    id: String,
+    features: HashMap<String, Vec<String>>,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolve {
+    nodes: Vec<MetadataResolveNode>,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolveNode {
+    id: String,
+    features: Vec<String>,
+}
+
+fn cargo_metadata(workspace_dir: &Path, features: &[String]) -> Result<CargoMetadata> {
+    let mut command = Command::new("cargo");
+    command
+        .arg("metadata")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(workspace_dir.join("bindings/python/Cargo.toml"));
+    if !features.is_empty() {
+        command.arg("--features").arg(features.join(","));
     }
+
+    let output = command
+        .output()
+        .context("failed to run `cargo metadata` for bindings/python")?;
+    if !output.status.success() {
+        bail!(
+            "`cargo metadata` failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    serde_json::from_slice(&output.stdout).context("failed to parse `cargo metadata` output")
+}
+
+/// Union the services enabled by every `services-platform-*` feature, i.e. the
+/// service sets the PyPI wheels are built with on their respective platforms.
+/// `cargo metadata` only resolves features and never compiles, so services that
+/// build on a subset of the wheel platforms, such as SFTP and Foyer, are still
+/// resolved on every host.
+fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
+    let all = cargo_metadata(workspace_dir, &[])?;
+    let package = all
+        .packages
+        .iter()
+        .find(|package| package.name == "opendal-python")
+        .with_context(|| "package `opendal-python` not found in `cargo metadata` output")?;
+    let mut platforms: Vec<String> = package
+        .features
+        .keys()
+        .filter(|name| name.starts_with(PLATFORM_FEATURE_PREFIX))
+        .cloned()
+        .collect();
+    platforms.sort();
+    if platforms.is_empty() {
+        bail!("no `{PLATFORM_FEATURE_PREFIX}*` feature declared in bindings/python/Cargo.toml");
+    }
+
+    let resolved = cargo_metadata(workspace_dir, &platforms)?;
+    let node = resolved
+        .resolve
+        .nodes
+        .iter()
+        .find(|node| node.id == package.id)
+        .with_context(
+            || "resolve node for `opendal-python` not found in `cargo metadata` output",
+        )?;
+
+    // Service keys are directory names under core/services, which mix `-` and
+    // `_` (e.g. `aliyun-drive` vs `mini_moka`), so normalize both sides.
+    let services: HashSet<String> = node
+        .features
+        .iter()
+        .filter(|name| !name.starts_with(PLATFORM_FEATURE_PREFIX))
+        .filter_map(|name| name.strip_prefix("services-"))
+        .filter(|service| *service != "all")
+        .map(|service| service.replace('-', "_"))
+        .collect();
+    if services.is_empty() {
+        bail!("no `services-*` feature enabled by the `{PLATFORM_FEATURE_PREFIX}*` features");
+    }
+
+    Ok(services)
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let srvs = sorted_services(services, enabled_service);
+    let enabled = enabled_services(&workspace_dir)?;
+    let srvs = sorted_services(services, |srv| enabled.contains(&srv.replace('-', "_")));
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_template("python_config", include_str!("python_config.j2"))?;

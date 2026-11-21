@@ -43,8 +43,6 @@ pub enum Scheme {
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
-    #[cfg(feature = "services-cloudflare-kv")]
-    CloudflareKv,
     #[cfg(feature = "services-cos")]
     Cos,
     #[cfg(feature = "services-dashmap")]
@@ -125,8 +123,6 @@ pub enum Scheme {
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
-    #[cfg(feature = "services-vercel-blob")]
-    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -189,8 +185,6 @@ impl_enum_to_str!(
         B2 => "b2",
         #[cfg(feature = "services-cacache")]
         Cacache => "cacache",
-        #[cfg(feature = "services-cloudflare-kv")]
-        CloudflareKv => "cloudflare-kv",
         #[cfg(feature = "services-cos")]
         Cos => "cos",
         #[cfg(feature = "services-dashmap")]
@@ -271,8 +265,6 @@ impl_enum_to_str!(
         Upyun => "upyun",
         #[cfg(feature = "services-vercel-artifacts")]
         VercelArtifacts => "vercel-artifacts",
-        #[cfg(feature = "services-vercel-blob")]
-        VercelBlob => "vercel-blob",
         #[cfg(feature = "services-webdav")]
         Webdav => "webdav",
         #[cfg(feature = "services-webhdfs")]

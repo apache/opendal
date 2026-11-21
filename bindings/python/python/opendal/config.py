@@ -184,23 +184,6 @@ class CacacheConfig(TypedDict):
     """That path to the cacache data directory."""
 
 
-class CloudflareKvConfig(TypedDict):
-    """Configuration for the `cloudflare-kv` service."""
-
-    scheme: Required[Literal["cloudflare-kv"]]
-    """The service scheme; fixed to `"cloudflare-kv"`."""
-    account_id: NotRequired[str]
-    """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
-    api_token: NotRequired[str]
-    """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str | timedelta]
-    """The default ttl for write operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
-    namespace_id: NotRequired[str]
-    """The namespace ID. Used as URI path parameter."""
-    root: NotRequired[str | os.PathLike[str]]
-    """Root within this backend."""
-
-
 class CosConfig(TypedDict):
     """Configuration for the `cos` service."""
 
@@ -859,25 +842,6 @@ class SeafileConfig(TypedDict):
     """username of this backend."""
 
 
-class SftpConfig(TypedDict):
-    """Configuration for the `sftp` service."""
-
-    scheme: Required[Literal["sftp"]]
-    """The service scheme; fixed to `"sftp"`."""
-    enable_copy: NotRequired[bool]
-    """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
-    endpoint: NotRequired[str]
-    """endpoint of this backend"""
-    key: NotRequired[str]
-    """key of this backend"""
-    known_hosts_strategy: NotRequired[str]
-    """known_hosts_strategy of this backend"""
-    root: NotRequired[str | os.PathLike[str]]
-    """root of this backend"""
-    user: NotRequired[str]
-    """user of this backend"""
-
-
 class SledConfig(TypedDict):
     """Configuration for the `sled` service."""
 
@@ -982,17 +946,6 @@ class VercelArtifactsConfig(TypedDict):
     """The Vercel team slug. When set, the `slug` query parameter is appended to all API requests."""
 
 
-class VercelBlobConfig(TypedDict):
-    """Configuration for the `vercel-blob` service."""
-
-    scheme: Required[Literal["vercel-blob"]]
-    """The service scheme; fixed to `"vercel-blob"`."""
-    root: NotRequired[str | os.PathLike[str]]
-    """root of this backend.  All operations will happen under this root."""
-    token: NotRequired[str]
-    """vercel blob token."""
-
-
 class WebdavConfig(TypedDict):
     """Configuration for the `webdav` service."""
 
@@ -1060,7 +1013,6 @@ ServiceConfig = (
     | AzfileConfig
     | B2Config
     | CacacheConfig
-    | CloudflareKvConfig
     | CosConfig
     | DashmapConfig
     | DropboxConfig
@@ -1093,14 +1045,12 @@ ServiceConfig = (
     | RedisConfig
     | S3Config
     | SeafileConfig
-    | SftpConfig
     | SledConfig
     | SqliteConfig
     | SwiftConfig
     | TosConfig
     | UpyunConfig
     | VercelArtifactsConfig
-    | VercelBlobConfig
     | WebdavConfig
     | WebhdfsConfig
     | YandexDiskConfig
@@ -1116,7 +1066,6 @@ __all__ = [
     "AzfileConfig",
     "B2Config",
     "CacacheConfig",
-    "CloudflareKvConfig",
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
@@ -1149,14 +1098,12 @@ __all__ = [
     "RedisConfig",
     "S3Config",
     "SeafileConfig",
-    "SftpConfig",
     "SledConfig",
     "SqliteConfig",
     "SwiftConfig",
     "TosConfig",
     "UpyunConfig",
     "VercelArtifactsConfig",
-    "VercelBlobConfig",
     "WebdavConfig",
     "WebhdfsConfig",
     "YandexDiskConfig",

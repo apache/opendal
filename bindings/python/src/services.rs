@@ -43,8 +43,6 @@ pub enum Scheme {
     B2,
     #[cfg(feature = "services-cacache")]
     Cacache,
-    #[cfg(feature = "services-cloudflare-kv")]
-    CloudflareKv,
     #[cfg(feature = "services-cos")]
     Cos,
     #[cfg(feature = "services-dashmap")]
@@ -109,8 +107,6 @@ pub enum Scheme {
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
-    #[cfg(feature = "services-sftp")]
-    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
@@ -123,8 +119,6 @@ pub enum Scheme {
     Upyun,
     #[cfg(feature = "services-vercel-artifacts")]
     VercelArtifacts,
-    #[cfg(feature = "services-vercel-blob")]
-    VercelBlob,
     #[cfg(feature = "services-webdav")]
     Webdav,
     #[cfg(feature = "services-webhdfs")]
@@ -187,8 +181,6 @@ impl_enum_to_str!(
         B2 => "b2",
         #[cfg(feature = "services-cacache")]
         Cacache => "cacache",
-        #[cfg(feature = "services-cloudflare-kv")]
-        CloudflareKv => "cloudflare-kv",
         #[cfg(feature = "services-cos")]
         Cos => "cos",
         #[cfg(feature = "services-dashmap")]
@@ -253,8 +245,6 @@ impl_enum_to_str!(
         S3 => "s3",
         #[cfg(feature = "services-seafile")]
         Seafile => "seafile",
-        #[cfg(feature = "services-sftp")]
-        Sftp => "sftp",
         #[cfg(feature = "services-sled")]
         Sled => "sled",
         #[cfg(feature = "services-sqlite")]
@@ -267,8 +257,6 @@ impl_enum_to_str!(
         Upyun => "upyun",
         #[cfg(feature = "services-vercel-artifacts")]
         VercelArtifacts => "vercel-artifacts",
-        #[cfg(feature = "services-vercel-blob")]
-        VercelBlob => "vercel-blob",
         #[cfg(feature = "services-webdav")]
         Webdav => "webdav",
         #[cfg(feature = "services-webhdfs")]

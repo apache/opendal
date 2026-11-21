@@ -28,7 +28,11 @@ op.copy_with("photo.jpg", "photo.jpg")
 
 The call stores exactly this metadata on `photo.jpg`. Metadata that the call
 does not pass, including user metadata the file had before, is gone. A caller
-that changes one field passes the complete target set.
+that changes one field passes the complete target set. Only `user_metadata`,
+`content_type`, and `content_language` can be passed back this way; other
+source headers such as Cache-Control, Content-Disposition, and
+Content-Encoding cannot be preserved through this API and reset to the service
+default under S3 `REPLACE`.
 
 # Reference-level explanation
 
@@ -42,8 +46,10 @@ that changes one field passes the complete target set.
 
 `copy_with` and `copier_with` expose matching builder methods, and `OpCopy`
 exposes matching getters. All capabilities default to `false`.
-`CorrectnessCheckLayer` returns `Unsupported` for an option whose capability
-the service does not advertise, before the service sends any request.
+`Operator` returns `Unsupported` for an option whose capability the operator's
+effective capability does not have, before the service sends any request. The
+check runs against the effective capability, so `CapabilityOverrideLayer` can
+turn each flag off or on.
 
 ## Whole-set replacement
 
@@ -57,7 +63,9 @@ current behavior.
 
 `Operator::copy*` returns `IsSameFile` for `from == to` unless the call sets
 `source_version` or one of the three options. A same-path copy with a
-replacement option keeps the content and replaces the metadata.
+replacement option keeps the content and replaces the metadata. If it also sets
+`source_version`, the destination receives the bytes of that source version,
+not necessarily the current object's bytes.
 
 ## Multipart copy
 
@@ -75,9 +83,13 @@ Without REPLACE, S3 copies the source metadata and ignores these headers.
 ## Providers
 
 A service advertises a capability only when it honors the option on
-single-request, multipart, and same-path copy. The `s3` behavior tests for
-these options pass against AWS S3, Garage v2.1.0, Silo, and SeaweedFS. See Unresolved
-questions for the other S3-compatible services.
+single-request, multipart, and same-path copy. Following the
+maximum-capability default, `s3` enables the three capabilities for every
+endpoint, including S3 Express One Zone. The `s3` behavior tests for these
+options pass against AWS S3, Garage v2.1.0, Silo, and SeaweedFS 4.52. The s3
+`compatible_services.md` lists the verified providers and shows how to turn the
+capabilities off with `CapabilityOverrideLayer` for a provider that does not
+honor them.
 
 # Drawbacks
 
@@ -101,9 +113,9 @@ Azure Blob `Copy Blob` also accept destination metadata on copy.
 
 # Unresolved questions
 
-The `s3` service has no per-provider capability selection, so it advertises the
-three capabilities for every endpoint. Providers that are not verified need a
-documented capability override or provider-specific capabilities.
+The other S3-compatible providers and S3 Express One Zone are not verified yet.
+Per-provider capability presets could replace the documented override once the
+`s3` service has them.
 
 # Future possibilities
 

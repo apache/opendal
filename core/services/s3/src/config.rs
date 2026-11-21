@@ -349,6 +349,7 @@ pub struct S3Config {
     ///
     /// Available options:
     /// - "crc32c"
+    /// - "sha256"
     /// - "md5"
     ///
     /// <!-- @group Behavior -->

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -62,6 +63,9 @@ class BehaviorTestPlan(unittest.TestCase):
                 self.assertIn("fs", cases)
                 self.assertNotIn("github", cases)
 
+    # The gist fixture setups read a token through 1Password secrets, so they
+    # only enter the matrix when secrets are available.
+    @patch.dict(os.environ, {"GITHUB_HAS_SECRETS": "true"})
     def test_gist_fixture_is_core_only(self):
         result = plan([
             ".github/services/gist/read_only/action.yml",
@@ -91,6 +95,18 @@ class BehaviorTestPlan(unittest.TestCase):
                 ]
                 self.assertIn("fs", cases)
                 self.assertNotIn("gist", cases)
+
+    def test_gist_fixture_needs_secrets(self):
+        with patch.dict(os.environ, {"GITHUB_HAS_SECRETS": "false"}):
+            result = plan([
+                ".github/services/gist/read_only/action.yml",
+                "core/services/fs/src/lib.rs",
+            ])
+            core = [
+                case["service"] for target in result["core"] for case in target["cases"]
+            ]
+            self.assertIn("fs", core)
+            self.assertNotIn("gist", core)
 
     def test_smb_fixture_is_core_only(self):
         result = plan([

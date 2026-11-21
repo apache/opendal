@@ -16,26 +16,30 @@
 # under the License.
 
 name: read_only_raw_url
-description: 'Behavior test for gist service in read-only mode, serving every file through the raw_url fallback'
+description: 'Behavior test for gist service in read-only mode, serving truncated files through the raw_url fallback'
 
 runs:
   using: "composite"
   steps:
-    - name: Setup
+    # The Actions GITHUB_TOKEN cannot read gists at all (403 "Resource not
+    # accessible by integration"), so these tests need a stored personal
+    # token with gist access to keep the API rate limit far from the
+    # unauthenticated 60 requests per hour.
+    - name: Setup secret
+      uses: 1Password/load-secrets-action@70062d7a876d3eb6334754fa26efd2fbd90c32f2 # v5.0.1
+      with:
+        export-env: true
+      env:
+        OPENDAL_GIST_TOKEN: op://services/gist/token
+    - name: Setup env
       shell: bash
       run: |
         # Run the read-only behavior tests against the public fixture gist
         # 37a2c7e6ff0fd263d3352d17732c0689. Its 2 MiB large_file.txt makes
-        # GitHub truncate the inline content of every file, so all reads
-        # exercise the raw_url fallback path.
+        # GitHub truncate the inline content of the text files, so those
+        # reads exercise the raw_url fallback path.
         cat << EOF >> $GITHUB_ENV
         OPENDAL_GIST_GIST_ID=37a2c7e6ff0fd263d3352d17732c0689
         OPENDAL_DISABLE_RANDOM_ROOT=true
         OPENDAL_TEST_CAPABILITY_OVERRIDES=write=false,delete=false,create_dir=false
         EOF
-
-        # GITHUB_TOKEN is injected by the caller workflow; forward it to raise
-        # the GitHub API rate limit for the read-only behavior tests.
-        if [ -n "${GITHUB_TOKEN:-}" ]; then
-          echo "OPENDAL_GIST_TOKEN=$GITHUB_TOKEN" >> $GITHUB_ENV
-        fi

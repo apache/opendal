@@ -39,6 +39,15 @@ namespace OpenDAL;
 [SkipLocalsInit]
 public partial class Operator : SafeHandle
 {
+    /// <summary>
+    /// Maximum number of targets handed to one native delete call.
+    /// </summary>
+    /// <remarks>
+    /// Matches the largest batch most services accept in one request, so a
+    /// chunk boundary rarely splits a batch.
+    /// </remarks>
+    private const int DeleteManyChunkSize = 1000;
+
     private readonly OperatorInfo info;
 
     private Operator(IntPtr nativeHandle) : base(IntPtr.Zero, true)
@@ -873,6 +882,115 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
+    /// Deletes several paths, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When this method throws, some of the targets may already be
+    /// deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    public void DeleteMany(IEnumerable<DeleteInput> targets)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            DeleteChunk(chunk, offset, nameof(targets));
+            offset += chunk.Length;
+        }
+    }
+
+    /// <summary>
+    /// Deletes several paths asynchronously, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When the task faults or is canceled, some of the targets may
+    /// already be deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when every deletion is applied.</returns>
+    public async Task DeleteManyAsync(IEnumerable<DeleteInput> targets, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            await SubmitDeleteChunkAsync(chunk, offset, nameof(targets), cancellationToken).ConfigureAwait(false);
+            offset += chunk.Length;
+        }
+    }
+
+    private unsafe void DeleteChunk(DeleteInput[] chunk, long offset, string paramName)
+    {
+        using var nativeTargets = NativeOptionsScope.Create(
+            ToPathOptions(chunk, offset, paramName),
+            stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_delete_many(
+            this,
+            nativeTargets.Pointer->Items,
+            nativeTargets.Pointer->Len);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    private Task SubmitDeleteChunkAsync(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName,
+        CancellationToken cancellationToken)
+    {
+        var pathOptions = ToPathOptions(chunk, offset, paramName);
+        return SubmitAsyncOperation(SubmitAsync, cancellationToken);
+
+        OpenDALResult SubmitAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeTargets = NativeOptionsScope.Create(
+                    pathOptions,
+                    stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_delete_many_async(
+                    this,
+                    nativeTargets.Pointer->Items,
+                    nativeTargets.Pointer->Len,
+                    &OnDeleteCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Encodes one chunk of targets; <paramref name="offset"/> is the chunk's
+    /// position in the whole sequence, so a null target is reported by its
+    /// index there.
+    /// </summary>
+    private static PathOptionsArray<OpenDALDeleteOptions> ToPathOptions(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName)
+    {
+        return PathOptionsArray<OpenDALDeleteOptions>.From(
+            chunk,
+            static target => target.Path,
+            static target => target.Options,
+            paramName,
+            offset);
+    }
+
+    /// <summary>
     /// Creates a directory at the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
@@ -1014,6 +1132,142 @@ public partial class Operator : SafeHandle
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Restores the file at the specified path from its latest deleted state.
+    /// </summary>
+    /// <remarks>
+    /// Restoring a path that already holds a live file succeeds without changes.
+    /// Check <see cref="Capability.Restore"/> before using this operation.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="options">Additional restore options.</param>
+    public unsafe void Restore(string path, RestoreOptions? options = null)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_restore_with_options(this, path, nativeOptions.Pointer);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    /// <summary>
+    /// Restores the file at the specified path from its latest deleted state asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// Restoring a path that already holds a live file succeeds without changes.
+    /// Check <see cref="Capability.Restore"/> before using this operation.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="options">Additional restore options.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    public Task RestoreAsync(string path, RestoreOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation(SubmitRestoreAsync, cancellationToken);
+
+        OpenDALResult SubmitRestoreAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_restore_with_options_async(
+                    this,
+                    path,
+                    nativeOptions.Pointer,
+                    &OnRestoreCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Composes complete source files into the target path in order.
+    /// </summary>
+    /// <remarks>
+    /// The sources must be non-empty and must not include <paramref name="targetPath"/>.
+    /// Every source file is preserved. Check <see cref="Capability.Compose"/> before
+    /// using this operation.
+    /// </remarks>
+    /// <param name="sources">Ordered source files; a plain path converts to a <see cref="ComposeInput"/>.</param>
+    /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional compose options.</param>
+    /// <returns>Metadata of the composed object at <paramref name="targetPath"/>.</returns>
+    public unsafe Metadata Compose(IEnumerable<ComposeInput> sources, string targetPath, ComposeOptions? options = null)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(sources);
+        using var nativeSources = NativeOptionsScope.Create(
+            ToPathOptions(sources, nameof(sources)),
+            stackalloc byte[NativeOptionsScope.StackSize]);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_compose_with_options(
+            this,
+            nativeSources.Pointer->Items,
+            nativeSources.Pointer->Len,
+            targetPath,
+            nativeOptions.Pointer);
+        return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
+    }
+
+    /// <summary>
+    /// Composes complete source files into the target path in order asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// The sources must be non-empty and must not include <paramref name="targetPath"/>.
+    /// Every source file is preserved. Check <see cref="Capability.Compose"/> before
+    /// using this operation.
+    /// </remarks>
+    /// <param name="sources">Ordered source files; a plain path converts to a <see cref="ComposeInput"/>.</param>
+    /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional compose options.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that resolves with the metadata of the composed object.</returns>
+    public Task<Metadata> ComposeAsync(
+        IEnumerable<ComposeInput> sources,
+        string targetPath,
+        ComposeOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(sources);
+        var pathOptions = ToPathOptions(sources, nameof(sources));
+
+        return SubmitAsyncOperation<Metadata>(SubmitComposeAsync, cancellationToken);
+
+        OpenDALResult SubmitComposeAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeSources = NativeOptionsScope.Create(
+                    pathOptions,
+                    stackalloc byte[NativeOptionsScope.StackSize]);
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_compose_with_options_async(
+                    this,
+                    nativeSources.Pointer->Items,
+                    nativeSources.Pointer->Len,
+                    targetPath,
+                    nativeOptions.Pointer,
+                    &OnComposeCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    private static PathOptionsArray<OpenDALComposeSourceOptions> ToPathOptions(
+        IEnumerable<ComposeInput> sources,
+        string paramName)
+    {
+        return PathOptionsArray<OpenDALComposeSourceOptions>.From(
+            sources,
+            static source => source.Path,
+            static source => source.Options,
+            paramName);
     }
 
     /// <summary>
@@ -1544,6 +1798,28 @@ public partial class Operator : SafeHandle
     private static void OnRenameCompleted(long context, OpenDALResult result)
     {
         CompleteAsyncCallback(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous restore operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Restore completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnRestoreCompleted(long context, OpenDALResult result)
+    {
+        CompleteAsyncCallback(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous compose operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Compose completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnComposeCompleted(long context, OpenDALMetadataResult result)
+    {
+        CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
     }
 
     /// <summary>

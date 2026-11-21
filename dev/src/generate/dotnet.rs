@@ -201,6 +201,9 @@ const EXPOSED_OPTIONS: &[(&str, &str)] = &[
     ("DeleteOptions", "delete"),
     ("CopyOptions", "copy"),
     ("RenameOptions", "rename"),
+    ("RestoreOptions", "restore"),
+    ("ComposeOptions", "compose"),
+    ("ComposeSourceOptions", "compose_source"),
 ];
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {

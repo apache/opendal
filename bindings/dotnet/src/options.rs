@@ -28,7 +28,7 @@ use opendal::BytesRange;
 use crate::error::OpenDALError;
 use crate::metadata::{OpendalMetadata, borrowed_metadata};
 use crate::utils::{
-    borrowed_string, borrowed_string_pairs, borrowed_timestamp, config_invalid_error,
+    borrowed_string, borrowed_string_pairs, borrowed_timestamp, config_invalid_error, require_cstr,
 };
 use crate::validators::prelude::validate_read_range_end;
 use crate::validators::validate_positive_integer;
@@ -58,6 +58,41 @@ pub(crate) fn read_options<T: NativeOptions>(
         Some(options) => options.to_options(),
         None => Ok(T::Options::default()),
     }
+}
+
+/// One path with its own options, an element of an array that native code
+/// borrows for the duration of a call. A null `options` selects the defaults.
+#[repr(C)]
+pub struct OpendalPathOptions<T> {
+    pub path: *const c_char,
+    pub options: *const T,
+}
+
+/// Convert an array of paths with options into ordered pairs.
+///
+/// When `len > 0`, `items` must point to `len` valid items whose pointers
+/// stay valid for the duration of the call.
+pub(crate) fn read_path_options<T: NativeOptions>(
+    items: *const OpendalPathOptions<T>,
+    len: usize,
+    field: &str,
+) -> Result<Vec<(String, T::Options)>, OpenDALError> {
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    if items.is_null() {
+        return Err(config_invalid_error(format!(
+            "{field} is null while len > 0"
+        )));
+    }
+
+    unsafe { std::slice::from_raw_parts(items, len) }
+        .iter()
+        .map(|item| {
+            let path = require_cstr(item.path, &format!("{field} path"))?;
+            Ok((path.to_owned(), read_options(item.options)?))
+        })
+        .collect()
 }
 
 /// Build a byte range from `offset` and `length`, or from `suffix_length`
@@ -559,6 +594,144 @@ impl Default for OpendalRenameOptions {
     }
 }
 
+/// FFI representation of `opendal::options::RestoreOptions`.
+#[repr(C)]
+pub struct OpendalRestoreOptions {
+    pub version: *const c_char,
+    pub if_not_exists: u8,
+}
+
+impl NativeOptions for OpendalRestoreOptions {
+    type Options = opendal::options::RestoreOptions;
+
+    fn to_options(&self) -> Result<Self::Options, OpenDALError> {
+        let mut options = Self::Options::default();
+        options.version = borrowed_string(self.version, "version")?;
+        options.if_not_exists = self.if_not_exists != 0;
+
+        Ok(options)
+    }
+}
+
+/// The mirror of default options, as the C# class sends it unchanged.
+#[cfg(test)]
+impl Default for OpendalRestoreOptions {
+    fn default() -> Self {
+        Self {
+            version: std::ptr::null(),
+            if_not_exists: 0,
+        }
+    }
+}
+
+/// FFI representation of `opendal::options::ComposeOptions`.
+#[repr(C)]
+pub struct OpendalComposeOptions {
+    pub cache_control: *const c_char,
+    pub content_type: *const c_char,
+    pub content_disposition: *const c_char,
+    pub content_encoding: *const c_char,
+    pub user_metadata_has_value: u8,
+    pub user_metadata_keys: *const *const c_char,
+    pub user_metadata_values: *const *const c_char,
+    pub user_metadata_len: usize,
+    pub if_match: *const c_char,
+    pub if_none_match: *const c_char,
+    pub if_version_match: *const c_char,
+    pub if_version_not_match: *const c_char,
+    pub if_not_exists: u8,
+    pub if_not_changed: *const OpendalMetadata,
+    pub concurrent: usize,
+}
+
+impl NativeOptions for OpendalComposeOptions {
+    type Options = opendal::options::ComposeOptions;
+
+    fn to_options(&self) -> Result<Self::Options, OpenDALError> {
+        let mut options = Self::Options::default();
+        options.cache_control = borrowed_string(self.cache_control, "cache_control")?;
+        options.content_type = borrowed_string(self.content_type, "content_type")?;
+        options.content_disposition =
+            borrowed_string(self.content_disposition, "content_disposition")?;
+        options.content_encoding = borrowed_string(self.content_encoding, "content_encoding")?;
+        options.user_metadata = borrowed_string_pairs(
+            self.user_metadata_has_value,
+            self.user_metadata_keys,
+            self.user_metadata_values,
+            self.user_metadata_len,
+            "user_metadata",
+        )?;
+        options.if_match = borrowed_string(self.if_match, "if_match")?;
+        options.if_none_match = borrowed_string(self.if_none_match, "if_none_match")?;
+        options.if_version_match = borrowed_string(self.if_version_match, "if_version_match")?;
+        options.if_version_not_match =
+            borrowed_string(self.if_version_not_match, "if_version_not_match")?;
+        options.if_not_exists = self.if_not_exists != 0;
+        options.if_not_changed = borrowed_metadata(self.if_not_changed)?;
+        validate_positive_integer(self.concurrent, "compose concurrent")?;
+        options.concurrent = self.concurrent;
+
+        Ok(options)
+    }
+}
+
+/// The mirror of default options, as the C# class sends it unchanged.
+#[cfg(test)]
+impl Default for OpendalComposeOptions {
+    fn default() -> Self {
+        Self {
+            cache_control: std::ptr::null(),
+            content_type: std::ptr::null(),
+            content_disposition: std::ptr::null(),
+            content_encoding: std::ptr::null(),
+            user_metadata_has_value: 0,
+            user_metadata_keys: std::ptr::null(),
+            user_metadata_values: std::ptr::null(),
+            user_metadata_len: 0,
+            if_match: std::ptr::null(),
+            if_none_match: std::ptr::null(),
+            if_version_match: std::ptr::null(),
+            if_version_not_match: std::ptr::null(),
+            if_not_exists: 0,
+            if_not_changed: std::ptr::null(),
+            concurrent: 1,
+        }
+    }
+}
+
+/// FFI representation of `opendal::options::ComposeSourceOptions`.
+#[repr(C)]
+pub struct OpendalComposeSourceOptions {
+    pub version: *const c_char,
+    pub if_match: *const c_char,
+    pub if_not_changed: *const OpendalMetadata,
+}
+
+impl NativeOptions for OpendalComposeSourceOptions {
+    type Options = opendal::options::ComposeSourceOptions;
+
+    fn to_options(&self) -> Result<Self::Options, OpenDALError> {
+        let mut options = Self::Options::default();
+        options.version = borrowed_string(self.version, "version")?;
+        options.if_match = borrowed_string(self.if_match, "if_match")?;
+        options.if_not_changed = borrowed_metadata(self.if_not_changed)?;
+
+        Ok(options)
+    }
+}
+
+/// The mirror of default options, as the C# class sends it unchanged.
+#[cfg(test)]
+impl Default for OpendalComposeSourceOptions {
+    fn default() -> Self {
+        Self {
+            version: std::ptr::null(),
+            if_match: std::ptr::null(),
+            if_not_changed: std::ptr::null(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
@@ -694,6 +867,44 @@ mod tests {
         assert!(rebuilt.is_file());
         assert_eq!(rebuilt.content_length(), 5);
         assert_eq!(rebuilt.etag(), Some("e"));
+    }
+
+    #[test]
+    fn read_path_options_keeps_order_and_defaults() {
+        let first = CString::new("a").unwrap();
+        let second = CString::new("b").unwrap();
+        let version = CString::new("1").unwrap();
+        let options = OpendalDeleteOptions {
+            version: version.as_ptr(),
+            ..Default::default()
+        };
+        let items = [
+            OpendalPathOptions {
+                path: first.as_ptr(),
+                options: &options,
+            },
+            OpendalPathOptions {
+                path: second.as_ptr(),
+                options: ptr::null(),
+            },
+        ];
+
+        let pairs = read_path_options(items.as_ptr(), items.len(), "targets").unwrap();
+        assert_eq!(pairs[0].0, "a");
+        assert_eq!(pairs[0].1.version.as_deref(), Some("1"));
+        assert_eq!(pairs[1].0, "b");
+        assert_eq!(pairs[1].1, opendal::options::DeleteOptions::default());
+    }
+
+    #[test]
+    fn read_path_options_names_null_path() {
+        let items = [OpendalPathOptions::<OpendalDeleteOptions> {
+            path: ptr::null(),
+            options: ptr::null(),
+        }];
+        let err = read_path_options(items.as_ptr(), items.len(), "targets")
+            .expect_err("a null path must fail");
+        assert!(message(&err).contains("targets path"));
     }
 
     #[test]

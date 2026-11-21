@@ -187,6 +187,23 @@ op.RemoveAll("a/");
 Pass a trailing slash to limit recursive deletion to the directory. On
 prefix-based services, `"a"` can also match entries under `"ab/"`.
 
+`DeleteMany` deletes several paths and batches the requests on services that
+support batch deletion. It consumes the sequence lazily and deletes it chunk
+by chunk, so a large sequence is never held in memory at once:
+
+```csharp
+op.DeleteMany(["a.txt", "b.txt"]);
+```
+
+A `DeleteInput` can carry `DeleteOptions`, for example to delete one version.
+A listed `Entry` converts to a `DeleteInput` that keeps the entry's version:
+
+```csharp
+op.DeleteMany(op.List("logs/")
+    .Where(e => e.Metadata.IsFile)
+    .Select(e => (DeleteInput)e));
+```
+
 ## Create a directory
 
 ```csharp
@@ -226,6 +243,27 @@ op.Write("config.json", content, new WriteOptions { IfNotChanged = meta });
 
 The condition compares the version or the ETag, whichever the service
 supports.
+
+## Restore a deleted file
+
+On services with object versioning, `Restore` brings back the latest deleted
+state of a path, or a chosen version through `RestoreOptions`:
+
+```csharp
+op.Restore("path/to/file");
+```
+
+## Compose files
+
+On services that report `Capability.Compose`, `Compose` concatenates complete
+source files into a target in order without reading them through the client:
+
+```csharp
+var meta = op.Compose(["parts/0", "parts/1", "parts/2"], "result");
+```
+
+Each `ComposeInput` can carry `ComposeSourceOptions` to pin a version or guard
+a source.
 
 ## Generate a presigned URL
 

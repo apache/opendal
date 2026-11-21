@@ -91,21 +91,10 @@ services-all = [
 # dev/src/generate/python.rs unions all of them via `cargo metadata` to derive
 # the generated service list, so it does not need to know which platform a
 # wheel is built for.
-services-platform-linux = [
-  'services-all',
-  'services-foyer',
-  'services-sftp',
-]
+services-platform-linux = ['services-all', 'services-foyer', 'services-sftp']
 services-platform-linux-armv7 = ['services-all']
-services-platform-macos = [
-  'services-all',
-  'services-foyer',
-  'services-sftp',
-]
-services-platform-windows = [
-  'services-all',
-  'services-foyer',
-]
+services-platform-macos = ['services-all', 'services-foyer', 'services-sftp']
+services-platform-windows = ['services-all', 'services-foyer']
 
 # List of feature-flags for all services provided by opendal.
 services-aliyun-drive = ["opendal/services-aliyun-drive"]

@@ -10,6 +10,13 @@ Operation paths and service roots remove components equal to `.`. For example,
 `./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
 to mark directories.
 
+## Per-write expiration
+
+`WriteOptions` and `Capability` now have `expires` and `write_with_expires`
+fields, respectively. For exhaustive struct literals, add `expires: None` or
+`write_with_expires: false` to preserve the previous behavior, or use
+`..Default::default()` to pick up the new defaults.
+
 ## Shared semaphores for `ConcurrentLimitLayer`
 
 `ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.

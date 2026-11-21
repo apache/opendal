@@ -18,7 +18,7 @@
 //! Options module provides options definitions for operations.
 
 use crate::Metadata;
-use crate::raw::Timestamp;
+use crate::raw::{Duration, Timestamp};
 use crate::types::BytesRange;
 use std::collections::HashMap;
 
@@ -700,6 +700,17 @@ pub struct WriteOptions {
     /// User metadata provides a way to attach custom metadata to objects during write operations.
     /// This metadata can be retrieved later when reading the object.
     pub user_metadata: Option<HashMap<String, String>>,
+
+    /// Sets how long the new file lives after the write commits.
+    ///
+    /// A supplied duration overrides the service's default TTL. When unset,
+    /// the service uses its usual expiration policy. Services round positive
+    /// durations up to their supported precision.
+    ///
+    /// Returns [`crate::ErrorKind::Unsupported`] when the service does not
+    /// advertise [`crate::Capability::write_with_expires`]. A zero or
+    /// unrepresentable duration returns [`crate::ErrorKind::ConfigInvalid`].
+    pub expires: Option<Duration>,
 
     /// Write only when the file at the write path has this exact ETag.
     ///

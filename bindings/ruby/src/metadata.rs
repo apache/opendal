@@ -25,6 +25,7 @@
 use magnus::Error;
 use magnus::RModule;
 use magnus::method;
+use magnus::time::{Offset, Time, Timespec};
 
 use crate::*;
 
@@ -95,10 +96,24 @@ impl Metadata {
 
     /// @yard
     /// @def last_modified
-    /// Last modified time of this entry.
+    /// Last modified time of this entry in UTC, or nil if unavailable.
     /// @return [Time, nil]
-    pub fn last_modified(&self) -> Option<std::time::SystemTime> {
-        self.0.last_modified().map(|t| t.into_inner().into())
+    fn last_modified(ruby: &Ruby, rb_self: &Self) -> Result<Option<Time>, Error> {
+        let Some(timestamp) = rb_self.0.last_modified() else {
+            return Ok(None);
+        };
+        let timestamp = timestamp.into_inner();
+        let mut timespec = Timespec {
+            tv_sec: timestamp.as_second(),
+            tv_nsec: i64::from(timestamp.subsec_nanosecond()),
+        };
+        // Jiff uses signed fractional seconds, while a timespec uses nonnegative nanoseconds.
+        if timespec.tv_nsec < 0 {
+            timespec.tv_sec -= 1;
+            timespec.tv_nsec += 1_000_000_000;
+        }
+
+        ruby.time_timespec_new(timespec, Offset::utc()).map(Some)
     }
 }
 

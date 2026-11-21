@@ -29,6 +29,7 @@ use napi::bindgen_prelude::*;
 use opendal::options::{
     DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
 };
+use tokio::sync::Mutex;
 
 use crate::layer::Layer;
 
@@ -270,11 +271,12 @@ impl Operator {
             .reader_options(&path, options)
             .await
             .map_err(format_napi_error)?;
+        let inner = r
+            .into_futures_async_read(std::ops::RangeFull)
+            .await
+            .map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r
-                .into_futures_async_read(std::ops::RangeFull)
-                .await
-                .map_err(format_napi_error)?,
+            inner: Mutex::new(inner),
         })
     }
 
@@ -1020,21 +1022,63 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: opendal::FuturesAsyncReader,
+    inner: Mutex<opendal::FuturesAsyncReader>,
 }
 
 #[napi]
 impl Reader {
-    /// # Safety
+    /// Read bytes from this reader into the given buffer.
     ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
-    /// Read bytes from this reader into given buffer.
+    /// Wait for the promise to settle before accessing the buffer again.
     #[napi]
-    pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let n = self.inner.read(buf).await.map_err(format_napi_error)?;
-        Ok(n)
+    pub async fn read(&self, mut buf: Buffer) -> Result<usize> {
+        let mut inner = self.inner.lock().await;
+        inner.read(buf.as_mut()).await.map_err(format_napi_error)
+    }
+
+    /// Read up to `maxBytes` bytes from the same cursor as `read`.
+    ///
+    /// `maxBytes` must be an integer between 1 and 4294967295. The promise
+    /// resolves to a writable Buffer, or `null` at the end of the input.
+    #[napi]
+    pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<Buffer>> {
+        // N-API's uint32 conversion truncates and wraps JavaScript numbers.
+        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "maxBytes must be an integer between 1 and 4294967295",
+            ));
+        }
+
+        let mut chunk = self
+            .inner
+            .lock()
+            .await
+            .read_buffer(max_bytes as usize)
+            .await
+            .map_err(format_napi_error)?;
+        let len = chunk.len();
+        let Some(first) = chunk.next() else {
+            return Ok(None);
+        };
+
+        let data = if first.len() == len {
+            drop(chunk);
+            // Bytes transfers a unique allocation to Vec and copies shared or
+            // static data. Shrink the owner so a tiny tail cannot keep a large
+            // backing allocation alive in JavaScript.
+            let mut data = Vec::from(first);
+            data.shrink_to_fit();
+            data
+        } else {
+            let mut data = Vec::with_capacity(len);
+            data.extend_from_slice(&first);
+            for part in chunk {
+                data.extend_from_slice(&part);
+            }
+            data
+        };
+        Ok(Some(Buffer::from(data)))
     }
 }
 

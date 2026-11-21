@@ -25,9 +25,8 @@ on:
     branches:
       - main
     paths:
-      - "bindings/swift/**"
       - "bindings/c/**"
-      - "core/**"
+      - "bindings/swift/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_swift.yml"
   workflow_call:

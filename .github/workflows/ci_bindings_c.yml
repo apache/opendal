@@ -25,8 +25,14 @@ on:
     branches:
       - main
     paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
       - "bindings/c/**"
-      - "core/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_c.yml"
   workflow_call:

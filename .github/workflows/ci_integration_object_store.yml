@@ -22,8 +22,14 @@ on:
     branches:
       - main
     paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
       - "integrations/object_store/**"
-      - "core/**"
       - ".github/workflows/ci_integration_object_store.yml"
   workflow_call:
 

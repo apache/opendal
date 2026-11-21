@@ -23,7 +23,6 @@ on:
       - main
     paths:
       - "integrations/parquet/**"
-      - "core/**"
       - ".github/workflows/ci_integration_parquet.yml"
   workflow_call:
 

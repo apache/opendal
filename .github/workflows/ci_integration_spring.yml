@@ -23,7 +23,6 @@ on:
       - main
     paths:
       - "integrations/spring/**"
-      - "core/**"
       - ".github/workflows/ci_integration_spring.yml"
   workflow_call:
 

@@ -564,6 +564,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (kind, retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
         // Seafile reports a transient backend failure as a 5xx, including its own 520;
         // retrying is the documented recovery, so mark these temporary.
         500 | 502 | 503 | 504 | 520 => (ErrorKind::Unexpected, true),
@@ -598,6 +599,17 @@ mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(""))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DownloadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[derive(Clone)]
     struct AuthTransport {

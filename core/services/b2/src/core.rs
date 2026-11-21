@@ -906,6 +906,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status.as_u16() {
         403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
         // Service b2 could return 403, show the authorization error
         401 => (ErrorKind::PermissionDenied, true),
@@ -948,6 +949,20 @@ mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(r#"{"status":416,"code":"range_not_satisfiable","message":"byte range bytes=6-7 for a file of length 6"}"#))
+            .unwrap();
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("DownloadFileByName")),
+            resp,
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn test_parse_b2_error_code() {

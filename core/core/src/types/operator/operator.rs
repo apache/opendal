@@ -2981,7 +2981,7 @@ mod tests {
         let op = Operator::new(services::Memory::default())?;
         op.write("file", "data").await?;
         let err = op.read_with("file").range(2..6).await.unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert_eq!(err.message(), "reader got too little data");
         Ok(())
     }

@@ -369,25 +369,12 @@ impl Stream for BufferStream {
                     this.state = State::Idle(Some(reader));
                     return match buf {
                         Ok(buf) if buf.is_empty() => {
-                            if this.exact
-                                && let Some(size) = this.size
-                            {
-                                // Service and transport validation already ran. A clean
-                                // EOF before the requested length leaves the range unsatisfied.
-                                if this.read < size {
-                                    let err = Error::new(
-                                        ErrorKind::RangeNotSatisfied,
-                                        "reader got too little data",
-                                    )
-                                    .with_context("expect", size)
-                                    .with_context("actual", this.read);
-                                    return Poll::Ready(Some(Err(err)));
-                                }
-                                return Poll::Ready(
-                                    check_complete(Some(size), this.read).err().map(Err),
-                                );
-                            }
-                            Poll::Ready(None)
+                            let error = if this.exact {
+                                check_complete(this.size, this.read).err()
+                            } else {
+                                None
+                            };
+                            Poll::Ready(error.map(Err))
                         }
                         Ok(mut buf) => {
                             if let Some(remaining) = remaining {

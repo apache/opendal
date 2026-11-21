@@ -73,7 +73,30 @@ impl MemoryCore {
     }
 
     pub fn delete(&self, key: &str) -> Result<()> {
-        self.data.lock().unwrap().remove(key);
+        let mut data = self.data.lock().unwrap();
+        if (key.is_empty() || key.ends_with('/'))
+            && data
+                .range::<str, _>((Bound::Excluded(key), Bound::Unbounded))
+                .next()
+                .is_some_and(|(child, _)| child.starts_with(key))
+        {
+            return Err(Error::new(ErrorKind::Unexpected, "directory not empty"));
+        }
+        data.remove(key);
+        Ok(())
+    }
+
+    pub fn delete_prefix(&self, prefix: &str) -> Result<()> {
+        let mut data = self.data.lock().unwrap();
+        let keys: Vec<_> = data
+            .range::<str, _>((Bound::Included(prefix), Bound::Unbounded))
+            .map(|(key, _)| key)
+            .take_while(|key| key.starts_with(prefix))
+            .cloned()
+            .collect();
+        for key in keys {
+            data.remove(&key);
+        }
         Ok(())
     }
 

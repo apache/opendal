@@ -33,7 +33,7 @@ doc = false
 name = "opendal_ruby"
 
 [dependencies]
-magnus = { version = "0.8", features = ["bytes", "io"] }
+magnus = { version = "0.9", features = ["bytes", "io"] }
 # 1. we don't use published core but a local copy
 # 2. for a source release, this path must be the local "./core".
 #   we set it via rake copy_core. Read more in:
@@ -59,9 +59,9 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-webhdfs",
   "services-azfile",
 ] }
-rb-sys = { version = "0.9.110", default-features = false }
+rb-sys = { version = "0.9.130", default-features = false }
 # should be in sync with opendal
-bytes = "1.6"
+bytes = "1.12"
 tokio = { version = "1", features = ["full"] }
 
 [build-dependencies]

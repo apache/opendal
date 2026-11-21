@@ -5,8 +5,7 @@
 A C++ binding for OpenDAL, providing access to S3, GCS, Azure Blob, HDFS, the
 local filesystem, and 50+ more services through one API.
 
-> **Note**: This binding is experimental/WIP. Only Clang and AppleClang are
-> currently supported. The API may change without notice.
+> **Note** This binding is experimental. The API may change without notice.
 
 The C++ binding is available as source. Its [Cargo.toml](./Cargo.toml)
 enables the OpenDAL blocking API, and the default build includes the memory
@@ -53,7 +52,13 @@ target_link_libraries(your_target opendal_cpp)
 ### Prerequisites
 
 - CMake ≥ 3.22
-- Clang or AppleClang with C++17 support (C++20 required for async)
+- Clang, AppleClang, or MSVC with C++17 support for the sync API
+- Clang or AppleClang with C++20 support for the async API
+
+On Windows, compile targets that link `opendal_cpp` with the release DLL runtime
+(`/MD`) in every configuration to match the Rust static library. In CMake, set
+`CMAKE_MSVC_RUNTIME_LIBRARY` to `MultiThreadedDLL` before creating those targets.
+When using a system GoogleTest package, use one built with the same runtime.
 
 ### Build
 

@@ -1930,12 +1930,6 @@
           "language": "python",
           "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"gist\",\n    gist_id=\"...\",\n)",
           "full": "import opendal\n\noperator = opendal.Operator(\n    \"gist\",\n    # GitHub access token.\n    #\n    # optional.\n    # Without a token this service can only read public gists and is limited to\n    # 60 requests per hour. Updating files requires a token with the `gist` scope.\n    # token=\"...\",\n\n    # Identifier of the gist this service operates on.\n    #\n    # required.\n    gist_id=\"...\",\n)"
-        },
-        {
-          "binding": "go",
-          "language": "go",
-          "minimal": "import (\n\t\"github.com/apache/opendal-go-services/gist\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(gist.Scheme, opendal.OperatorOptions{\n\t\"gist_id\": \"...\",\n})",
-          "full": "import (\n\t\"github.com/apache/opendal-go-services/gist\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(gist.Scheme, opendal.OperatorOptions{\n\t// GitHub access token.\n\t//\n\t// optional.\n\t// Without a token this service can only read public gists and is limited to\n\t// 60 requests per hour. Updating files requires a token with the `gist` scope.\n\t// \"token\": \"...\",\n\n\t// Identifier of the gist this service operates on.\n\t//\n\t// required.\n\t\"gist_id\": \"...\",\n})"
         }
       ]
     },

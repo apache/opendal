@@ -203,7 +203,9 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
         let mut examples = Vec::new();
         for (binding, support) in BINDINGS.iter().zip(support.iter()) {
             let enabled = match support {
-                None => binding.id != "go" || scheme != "smb",
+                // The go services ship in the external opendal-go-services
+                // repository, so schemes it does not provide yet are listed here.
+                None => binding.id != "go" || !matches!(scheme.as_str(), "smb" | "gist"),
                 Some(set) => set.contains(&scheme),
             };
             if !enabled {

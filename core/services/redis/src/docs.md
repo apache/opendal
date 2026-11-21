@@ -21,6 +21,16 @@ Use [`crate::RedisConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## Redis Cluster replica reads
+
+With `cluster_endpoints` configured, set `read_from_replicas` to `true` to route
+read-only commands for `read` and `stat` to replicas when available. The default
+is `false`, which routes these commands to the primary. Writes go to the primary.
+
+Replication lag can cause stale results. For example, `read` or `stat` can
+briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+a replica miss without retrying on the primary.
+
 ## Per-write expiration
 
 A write with `expires` overrides `default_ttl` for that key. Redis applies

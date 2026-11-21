@@ -69,10 +69,13 @@ public class ReadOptionsTest {
                 methods.add(exchange.getRequestMethod());
                 urls.add(exchange.getRequestURI());
                 if ("changed".equals(exchange.getRequestHeaders().getFirst("If-Match"))) {
+                    // Finish the request before the bodyless response completes the exchange.
+                    exchange.getRequestBody().close();
                     exchange.sendResponseHeaders(412, -1);
                     return;
                 }
                 if ("HEAD".equals(exchange.getRequestMethod())) {
+                    exchange.getRequestBody().close();
                     exchange.getResponseHeaders().set("Content-Length", Integer.toString(CONTENT.length));
                     exchange.sendResponseHeaders(200, -1);
                     return;

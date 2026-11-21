@@ -28,9 +28,13 @@ on:
       - main
     paths:
       - ".github/workflows/release_java.yml"
+      - "scripts/merge_local_staging.py"
       - "bindings/java/pom.xml"
       - "bindings/java/src/assembly/**"
+      - "bindings/java/src/main/java/org/apache/opendal/Environment.java"
+      - "bindings/java/src/main/java/org/apache/opendal/NativeLibrary.java"
       - "bindings/java/src/main/resources/META-INF/**"
+      - "bindings/java/tools/all_natives.py"
       - "bindings/java/tools/build.py"
   workflow_dispatch:
 
@@ -68,7 +72,7 @@ jobs:
           server-id: apache.releases.https
           server-username: MAVEN_USERNAME
           server-password: MAVEN_CENTRAL_TOKEN
-          gpg-private-key: ${{ secrets.GPG_SECRET_KEY }}
+          gpg-private-key: ${{ github.event_name != 'pull_request' && secrets.GPG_SECRET_KEY || '' }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - uses: actions/setup-python@v6
         with:
@@ -124,8 +128,10 @@ jobs:
             EXTRA_MVN_ARGS="-Dexec.skip=true"
           fi
 
-          MVN_GOALS="package verify"
-          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+          MVN_GOALS="verify"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            EXTRA_MVN_ARGS="$EXTRA_MVN_ARGS -Dgpg.skip=true"
+          else
             MVN_GOALS="$MVN_GOALS org.sonatype.plugins:nexus-staging-maven-plugin:deploy"
             EXTRA_MVN_ARGS="$EXTRA_MVN_ARGS \
               -DaltStagingDirectory=local-staging \
@@ -141,8 +147,8 @@ jobs:
             -Dcargo-build.enableZigbuild=${{ env.CARGO_BUILD_ENABLE_ZIGBUILD }} \
             $EXTRA_MVN_ARGS
         env:
-          MAVEN_USERNAME: ${{ secrets.NEXUS_STAGE_DEPLOYER_USER }}
-          MAVEN_CENTRAL_TOKEN: ${{ secrets.NEXUS_STAGE_DEPLOYER_PW }}
+          MAVEN_USERNAME: ${{ github.event_name != 'pull_request' && secrets.NEXUS_STAGE_DEPLOYER_USER || '' }}
+          MAVEN_CENTRAL_TOKEN: ${{ github.event_name != 'pull_request' && secrets.NEXUS_STAGE_DEPLOYER_PW || '' }}
           MAVEN_GPG_PASSPHRASE: ""
       - name: Smoke linux musl JNI library in Alpine
         if: ${{ contains(matrix.os, 'ubuntu') && contains(matrix.classifier, 'musl') }}
@@ -178,6 +184,13 @@ jobs:
 
               java -cp "$BASE_JAR:$NATIVE_JAR" /tmp/OpenDALSmoke.java
             '
+      - name: Upload platform JAR
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-native-${{ matrix.classifier }}
+          path: bindings/java/target/opendal-*-${{ matrix.classifier }}.jar
+          if-no-files-found: error
+          compression-level: 0
       - name: Upload local staging directory
         if: ${{ github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
@@ -187,10 +200,106 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
 
+  assemble-all-natives:
+    runs-on: ubuntu-latest
+    needs: [stage-snapshot]
+    defaults:
+      run:
+        working-directory: bindings/java
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 8
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: "8"
+          cache: "maven"
+          server-id: apache.releases.https
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_CENTRAL_TOKEN
+          gpg-private-key: ${{ github.event_name != 'pull_request' && secrets.GPG_SECRET_KEY || '' }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Download platform JARs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: java-native-*
+          merge-multiple: true
+          path: bindings/java/target/platform-jars
+      - name: Assemble all-natives JAR
+        shell: bash
+        run: |
+          mvn_args=(-Pall-natives -Dall.natives.dir=target/platform-jars -DskipTests=true)
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ./mvnw -B -ntp "${mvn_args[@]}" package
+          else
+            ./mvnw -B -ntp "${mvn_args[@]}" -Papache-release verify \
+              org.sonatype.plugins:nexus-staging-maven-plugin:deploy \
+              -DaltStagingDirectory=local-staging \
+              -DskipRemoteStaging=true \
+              -DserverId=apache.releases.https \
+              -DnexusUrl=https://repository.apache.org
+          fi
+        env:
+          MAVEN_USERNAME: ${{ github.event_name != 'pull_request' && secrets.NEXUS_STAGE_DEPLOYER_USER || '' }}
+          MAVEN_CENTRAL_TOKEN: ${{ github.event_name != 'pull_request' && secrets.NEXUS_STAGE_DEPLOYER_PW || '' }}
+          MAVEN_GPG_PASSPHRASE: ""
+      - name: Verify all-natives JAR
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          shopt -s nullglob
+          all_jars=(target/opendal-*-all.jar)
+          test "${#all_jars[@]}" -eq 1
+          all_jar="${all_jars[0]}"
+          python3 tools/all_natives.py verify target/platform-jars "${all_jar%-all.jar}.jar" "$all_jar"
+
+          smoke_dir="$(mktemp -d)"
+          mkdir "$smoke_dir/empty"
+          cat > "$smoke_dir/OpenDALSmoke.java" <<'JAVA'
+          import java.nio.charset.StandardCharsets;
+          import java.util.Arrays;
+          import java.util.Collections;
+          import org.apache.opendal.NativeLibrary;
+          import org.apache.opendal.Operator;
+
+          public class OpenDALSmoke {
+              public static void main(String[] args) {
+                  try {
+                      NativeLibrary.loadLibrary();
+                      byte[] content = "OpenDAL".getBytes(StandardCharsets.UTF_8);
+                      try (Operator op = Operator.of("memory", Collections.emptyMap())) {
+                          op.write("smoke", content);
+                          if (!Arrays.equals(content, op.read("smoke"))) {
+                              throw new AssertionError("Memory service returned unexpected data");
+                          }
+                      }
+                  } catch (Throwable error) {
+                      error.printStackTrace();
+                      System.exit(1);
+                  }
+                  // JNI worker threads can keep a standalone JVM alive after main returns.
+                  System.exit(0);
+              }
+          }
+          JAVA
+          javac -cp "$all_jar" -d "$smoke_dir" "$smoke_dir/OpenDALSmoke.java"
+          java -Djava.library.path="$smoke_dir/empty" -cp "$smoke_dir:$all_jar" OpenDALSmoke
+      - name: Upload all-natives local staging directory
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: java-all-local-staging
+          path: bindings/java/local-staging
+          if-no-files-found: error
+          include-hidden-files: true
+
   deploy-staged-snapshots:
     if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
-    needs: [stage-snapshot]
+    needs: [assemble-all-natives]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -211,56 +320,32 @@ jobs:
       - name: Prepare environment variables
         run: echo "LOCAL_STAGING_DIR=$HOME/local-staging" >> $GITHUB_ENV
 
-      - name: Download windows staging directory
+      - name: Download local staging directories
         uses: actions/download-artifact@v8
         with:
-          name: windows-x86_64-local-staging
-          path: ~/windows-x86_64-local-staging
-      - name: Download linux x86_64 staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-x86_64-local-staging
-          path: ~/linux-x86_64-local-staging
-      - name: Download linux x86_64 (musl) staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-x86_64-musl-local-staging
-          path: ~/linux-x86_64-musl-local-staging
-      - name: Download linux aarch_64 staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-aarch_64-local-staging
-          path: ~/linux-aarch_64-local-staging
-      - name: Download linux aarch_64 (musl) staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: linux-aarch_64-musl-local-staging
-          path: ~/linux-aarch_64-musl-local-staging
-      - name: Download darwin staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: osx-x86_64-local-staging
-          path: ~/osx-x86_64-local-staging
-      - name: Download darwin (aarch64) staging directory
-        uses: actions/download-artifact@v8
-        with:
-          name: osx-aarch_64-local-staging
-          path: ~/osx-aarch_64-local-staging
+          pattern: "*-local-staging"
+          path: ~/java-local-staging
 
       - uses: actions/checkout@v7
         with:
           path: ci-opendal
       - name: Merge staging repositories
         working-directory: ci-opendal
+        shell: bash
         run: |
-          python ./scripts/merge_local_staging.py $LOCAL_STAGING_DIR/staging \
-            ~/windows-x86_64-local-staging/staging \
-            ~/linux-x86_64-local-staging/staging \
-            ~/linux-x86_64-musl-local-staging/staging \
-            ~/linux-aarch_64-local-staging/staging \
-            ~/linux-aarch_64-musl-local-staging/staging \
-            ~/osx-x86_64-local-staging/staging \
-            ~/osx-aarch_64-local-staging/staging
+          shopt -s nullglob
+          downloaded="$HOME/java-local-staging"
+          repositories=("$downloaded"/*-local-staging)
+          if [[ "${#repositories[@]}" -ne 8 || ! -d "$downloaded/java-all-local-staging" ]]; then
+            echo "Expected local staging artifacts for all seven platforms and the all classifier" >&2
+            exit 1
+          fi
+          # Nexus keeps snapshot files and their index under deferred/.
+          if [[ -f "$downloaded/java-all-local-staging/deferred/.index" ]]; then
+            python3 ./scripts/merge_local_staging.py "$LOCAL_STAGING_DIR" "${repositories[@]}"
+          else
+            python3 ./scripts/merge_local_staging.py "$LOCAL_STAGING_DIR/staging" "${repositories[@]/%//staging}"
+          fi
 
       - name: Deploy local staged artifacts
         if: ${{ github.event_name != 'pull_request' }}

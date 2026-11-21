@@ -36,9 +36,22 @@ the `org.apache.opendal` group.
 
 ## Installation
 
-The binding ships a platform-specific native library, so you depend on the main
-artifact plus a classifier for your platform. The simplest setup uses an OS
-detector plugin to fill in the classifier automatically.
+The `all` classifier bundles the Java API and the JNI libraries for all seven
+published platforms. Declare a single Maven dependency to compile and run
+without an OS detector plugin or a separate platform JAR.
+
+```xml
+<dependency>
+  <groupId>org.apache.opendal</groupId>
+  <artifactId>opendal</artifactId>
+  <version>${opendal.version}</version>
+  <classifier>all</classifier>
+</dependency>
+```
+
+For Gradle, use `implementation "org.apache.opendal:opendal:$opendalVersion:all"`.
+The `all` JAR is about 200 MB. To download only the native library for your
+target platform, use the default JAR and a platform classifier as shown below.
 
 ### Maven
 

@@ -374,6 +374,17 @@ class GhacConfig(TypedDict):
     """The version that used by cache."""
 
 
+class GistConfig(TypedDict):
+    """Configuration for the `gist` service."""
+
+    scheme: Required[Literal["gist"]]
+    """The service scheme; fixed to `"gist"`."""
+    gist_id: Required[str]
+    """Identifier of the gist this service operates on.  required."""
+    token: NotRequired[str]
+    """GitHub access token.  optional. Without a token this service can only read public gists and is limited to 60 requests per hour. Updating files requires a token with the `gist` scope."""
+
+
 class GithubConfig(TypedDict):
     """Configuration for the `github` service."""
 
@@ -1070,6 +1081,7 @@ ServiceConfig = (
     | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
+    | GistConfig
     | GithubConfig
     | GridfsConfig
     | HdfsNativeConfig
@@ -1126,6 +1138,7 @@ __all__ = [
     "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
+    "GistConfig",
     "GithubConfig",
     "GridfsConfig",
     "HdfsNativeConfig",

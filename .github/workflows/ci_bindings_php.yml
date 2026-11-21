@@ -62,6 +62,16 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Use matching Clang and libclang for bindgen
+        run: |
+          # The runner ships multiple LLVM versions. Bindgen discovers Clang and libclang separately.
+          clang_path="$(realpath -e /usr/bin/clang)"
+          llvm_dir="$(dirname "$(dirname "$clang_path")")"
+          {
+            echo "CLANG_PATH=$clang_path"
+            echo "LIBCLANG_PATH=$llvm_dir/lib"
+          } >> "$GITHUB_ENV"
+
       # Useful for debugging
       - name: Print Clippy version
         working-directory: "bindings/php"

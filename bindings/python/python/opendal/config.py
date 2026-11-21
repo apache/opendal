@@ -770,6 +770,8 @@ class RedisConfig(TypedDict):
     """network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.  default is "tcp://127.0.0.1:6379\""""
     password: NotRequired[str]
     """the password for authentication  default is None"""
+    read_from_replicas: NotRequired[bool]
+    """Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.  Defaults to `false`. Enabling this option requires `cluster_endpoints`. Replication lag can cause stale results. For example, `read` or `stat` can briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns a replica miss without retrying on the primary."""
     root: NotRequired[str | os.PathLike[str]]
     """the working directory of the Redis service. Can be "/path/to/dir"  default is "/\""""
     username: NotRequired[str]

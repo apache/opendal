@@ -28,6 +28,7 @@ use redis::IntoConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 
 use super::REDIS_SCHEME;
 use super::config::RedisConfig;
@@ -74,6 +75,17 @@ impl RedisBuilder {
         if !cluster_endpoints.is_empty() {
             self.config.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
+        self
+    }
+
+    /// Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.
+    ///
+    /// Defaults to `false`. Enabling this option requires [`Self::cluster_endpoints`].
+    /// Replication lag can cause stale results. For example, `read` or `stat` can
+    /// briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+    /// a replica miss without retrying on the primary.
+    pub fn read_from_replicas(mut self, enabled: bool) -> Self {
+        self.config.read_from_replicas = enabled;
         self
     }
 
@@ -145,6 +157,20 @@ impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Service> {
+        if self.config.read_from_replicas
+            && self
+                .config
+                .cluster_endpoints
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read_from_replicas requires cluster_endpoints",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
         let default_ttl = match self.default_ttl {
             Some(ttl) => Some(ttl),
             None => self
@@ -167,6 +193,9 @@ impl Builder for RedisBuilder {
                 cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
             }
             let mut client_builder = ClusterClientBuilder::new(cluster_endpoints);
+            if self.config.read_from_replicas {
+                client_builder = client_builder.read_routing_strategy(RandomReplicaStrategy);
+            }
             if let Some(username) = &self.config.username {
                 client_builder = client_builder.username(username.clone());
             }
@@ -432,5 +461,33 @@ impl Service for RedisBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replica_reads_require_cluster_endpoints() {
+        let standalone = RedisBuilder::default()
+            .endpoint("redis://localhost:6379")
+            .read_from_replicas(true);
+        let empty_cluster = RedisConfig {
+            cluster_endpoints: Some(String::new()),
+            read_from_replicas: true,
+            ..Default::default()
+        };
+
+        for builder in [standalone, empty_cluster.into_builder()] {
+            let err = builder
+                .build()
+                .expect_err("replica reads require a cluster");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert_eq!(
+                err.message(),
+                "read_from_replicas requires cluster_endpoints"
+            );
+        }
     }
 }

@@ -427,6 +427,7 @@ pub struct OpendalListOptions {
     pub recursive: u8,
     pub versions: u8,
     pub deleted: u8,
+    pub glob: *const c_char,
 }
 
 impl NativeOptions for OpendalListOptions {
@@ -442,6 +443,7 @@ impl NativeOptions for OpendalListOptions {
         options.recursive = self.recursive != 0;
         options.versions = self.versions != 0;
         options.deleted = self.deleted != 0;
+        options.glob = borrowed_string(self.glob, "glob")?;
 
         Ok(options)
     }
@@ -458,6 +460,7 @@ impl Default for OpendalListOptions {
             recursive: 0,
             versions: 0,
             deleted: 0,
+            glob: std::ptr::null(),
         }
     }
 }

@@ -256,6 +256,23 @@ impl OpList {
         Self::default()
     }
 
+    pub(crate) fn from_options(value: options::ListOptions) -> Result<Self> {
+        if let Some(glob) = &value.glob {
+            // CompactValues stores a u16 bitmap and one u16 offset per field.
+            let mut encoded_len = 2 * size_of::<u16>() + glob.len();
+            if let Some(start_after) = &value.start_after {
+                encoded_len += size_of::<u16>() + start_after.len();
+            }
+            if encoded_len > u16::MAX as usize {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "glob and start_after exceed the maximum size of list options",
+                ));
+            }
+        }
+        Ok(value.into())
+    }
+
     /// Return the maximum number of results per request.
     #[inline]
     pub fn limit(&self) -> Option<usize> {
@@ -278,6 +295,10 @@ impl OpList {
     /// Set the glob pattern for this list operation.
     ///
     /// See [`options::ListOptions::glob`] for the pattern contract.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
     pub fn with_glob(mut self, glob: &str) -> Self {
         self.values = self.values.replace(1, glob.as_bytes());
         self
@@ -1970,7 +1991,7 @@ mod tests {
         assert!(list.recursive());
         assert!(list.versions());
         assert!(list.deleted());
-    
+
         let mut list = list.with_glob("é/*.txt");
         assert_eq!(list.glob(), Some("é/*.txt"));
         list.clear_glob();

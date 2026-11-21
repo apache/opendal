@@ -121,6 +121,7 @@ public struct Capability
         ListWithRecursive = native.listWithRecursive != 0;
         ListWithVersions = native.listWithVersions != 0;
         ListWithDeleted = native.listWithDeleted != 0;
+        ListWithGlob = native.listWithGlob != 0;
         Presign = native.presign != 0;
         PresignRead = native.presignRead != 0;
         PresignStat = native.presignStat != 0;
@@ -558,6 +559,11 @@ public struct Capability
     /// Indicates if listing with deleted files included is supported.
     /// </summary>
     public bool ListWithDeleted { get; private set; }
+
+    /// <summary>
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    /// </summary>
+    public bool ListWithGlob { get; private set; }
 
     /// <summary>
     /// Indicates if presigned URL generation is supported.

@@ -552,6 +552,7 @@ fn list_options(opts: ffi::FfiListOptions) -> od::options::ListOptions {
         recursive: opts.recursive,
         versions: opts.versions,
         deleted: opts.deleted,
+        glob: None,
     }
 }
 

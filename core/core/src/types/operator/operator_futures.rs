@@ -1501,15 +1501,10 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self
     }
 
-    /// Filter entries returned by this `list` operation using a Unix shell
-    /// style glob pattern.
+    /// Filter entries using a Unix shell style glob pattern.
     ///
-    /// Patterns support `*`, `?`, `**`, `{a,b}` and character classes like
-    /// `[a-z]`. The pattern is matched against entry paths relative to the
-    /// list root.
-    ///
-    /// Services without native glob support require the `GlobLayer` (or a
-    /// similar client-side layer) to be installed.
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
     pub fn glob(mut self, v: &str) -> Self {
         self.args.glob = Some(v.to_string());
         self
@@ -1569,10 +1564,10 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
         self
     }
 
-    /// Filter entries returned by this `list` operation using a Unix shell
-    /// style glob pattern.
+    /// Filter entries using a Unix shell style glob pattern.
     ///
-    /// See [`FutureList::glob`] for syntax details.
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
     pub fn glob(mut self, v: &str) -> Self {
         self.args.glob = Some(v.to_string());
         self

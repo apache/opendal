@@ -128,9 +128,8 @@ pub struct DeleteOptions {
 /// - Pagination: `limit`, `start_after`.
 /// - Versioning: `versions`, `deleted`.
 ///
-/// The operation fails with [`crate::ErrorKind::Unsupported`] if `start_after`
-/// is set, `versions` is `true`, or `deleted` is `true` without its corresponding
-/// capability.
+/// The operation fails with [`crate::ErrorKind::Unsupported`] when an option
+/// requires a capability that the operator lacks.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
     /// Maximum results per request (backend hint) to control memory and throttling.
@@ -149,11 +148,24 @@ pub struct ListOptions {
     ///
     /// Requires [`Capability::list_with_deleted`](crate::Capability::list_with_deleted).
     pub deleted: bool,
-    /// Filter entries with a Unix shell style glob pattern.
+    /// Filter entries with a case-sensitive Unix shell style glob pattern.
     ///
-    /// Pattern matching is delegated to the underlying service when
-    /// [`Capability::list_with_glob`] is set; otherwise a client-side layer
-    /// (e.g. `GlobLayer`) is required.
+    /// The pattern is relative to the listed directory, or to the parent
+    /// directory when the list path is a prefix without a trailing slash.
+    /// Entries must also satisfy the list prefix. The pattern determines which
+    /// depths can match, independently of [`Self::recursive`].
+    ///
+    /// - `*` matches zero or more characters within one path component.
+    /// - `?` matches one Unicode scalar value within one path component.
+    /// - `**` matches zero or more path components and must occupy a whole component.
+    /// - `{a,b}` matches either alternative within a component.
+    /// - `[ab]`, `[a-z]`, and `[!a-z]` match character sets, ranges, and negated sets.
+    /// - A backslash escapes the next character within a component.
+    /// - A trailing slash restricts matches to directories.
+    ///
+    /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Standard operators use native
+    /// glob support when available and otherwise filter entries client-side.
+    /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
     pub glob: Option<String>,
 }
 

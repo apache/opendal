@@ -2115,7 +2115,7 @@ impl Operator {
     /// ## Options
     ///
     /// See [`options::ListOptions`] for the full set. Common knobs:
-    /// - Traversal: `recursive` (default `false`) toggles depth-first listing under the prefix.
+    /// - Traversal: `recursive` toggles recursive listing under the prefix. A `glob` pattern filters entries and determines how deeply to traverse.
     /// - Pagination: `limit` and `start_after` tune page size and resume positions (backend dependent).
     /// - Versioning: `versions` / `deleted` ask versioned backends to return extra entries.
     ///
@@ -2211,9 +2211,10 @@ impl Operator {
         path: String,
         opts: options::ListOptions,
     ) -> Result<Vec<Entry>> {
-        let args = opts.into();
-        let lister = Lister::create(ctx, srv, &path, args)?;
-        lister.try_collect().await
+        Self::lister_inner(ctx, srv, path, opts)
+            .await?
+            .try_collect()
+            .await
     }
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
@@ -2224,7 +2225,7 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
+    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with), including glob filtering, pagination, and versioning.
     ///
     /// # Examples
     ///
@@ -2352,7 +2353,7 @@ impl Operator {
         path: String,
         opts: options::ListOptions,
     ) -> Result<Lister> {
-        let args = opts.into();
+        let args = OpList::from_options(opts)?;
         Lister::create(ctx, srv, &path, args)
     }
 }

@@ -15,472 +15,368 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Internal Unix shell style glob matcher used by `GlobLayer` to provide
-//! `list_with_glob` semantics for services that lack native support.
-//!
-//! Exposes [`SegmentMatcher`] (compiles a single segment with no `/`) plus
-//! [`compile_segments`] and the [`Segment`] enum that classifies each part of
-//! a pattern. These are the building blocks consumed by
-//! [`crate::layers::GlobLayer`]'s guided traversal.
-//!
-//! Kept dependency-free on purpose; supports `*`, `?`, `**`, character classes
-//! (`[a-z]`, `[!abc]`) and alternation (`{a,b}`).
+use crate::{Error, ErrorKind, Result};
 
-use crate::*;
-
-/// Classification of a single pattern segment used by guided traversal.
-#[derive(Debug, Clone)]
-pub(crate) enum Segment {
-    /// A literal path piece — append directly to the path without listing.
-    ///
-    /// At the leading edge of a pattern this may contain `/` (consecutive
-    /// literal segments are folded together by `compile_segments` into a
-    /// single `Literal("a/b/c")`). After any `Glob` or `DoubleStar` has
-    /// appeared, every `Literal` corresponds to a single path component
-    /// and contains no `/`.
-    Literal(String),
-    /// Single-segment glob (`*.jpg`, `[ab].txt`, `{x,y}.csv`). Matched by
-    /// listing the parent and filtering child names.
-    Glob(SegmentMatcher),
-    /// `**` — match zero or more path components.
-    DoubleStar,
+#[derive(Debug)]
+pub(crate) struct GlobPattern {
+    segments: Vec<Segment>,
+    directories_only: bool,
 }
 
-/// Compiled single-segment glob. The input must not contain `/`.
-#[derive(Debug, Clone)]
-pub(crate) struct SegmentMatcher {
-    nodes: Vec<Node>,
+impl GlobPattern {
+    pub(crate) fn new(pattern: &str) -> Result<Self> {
+        let mut segments = Vec::new();
+        for segment in pattern.split('/').filter(|part| !part.is_empty()) {
+            if segment == "**" {
+                if !matches!(segments.last(), Some(Segment::Recursive)) {
+                    segments.push(Segment::Recursive);
+                }
+                continue;
+            }
+            let matcher = SegmentMatcher::new(segment)?;
+            if let Some(literal) = matcher.literal() {
+                if matches!(literal.as_str(), "." | "..") || literal.contains('\0') {
+                    return Err(invalid("invalid literal path component in glob pattern"));
+                }
+                segments.push(Segment::Literal(literal));
+            } else {
+                segments.push(Segment::Glob(matcher));
+            }
+        }
+        if segments.is_empty() {
+            return Err(invalid("glob pattern must contain a path component"));
+        }
+        Ok(Self {
+            segments,
+            directories_only: pattern.ends_with('/'),
+        })
+    }
+
+    /// Leading literal directories can be addressed without listing their parents.
+    pub(crate) fn literal_directories(&self) -> impl Iterator<Item = &str> {
+        let terminal_components = if matches!(self.segments.last(), Some(Segment::Recursive)) {
+            // The directory before a trailing `**` can itself match.
+            2
+        } else {
+            1
+        };
+        self.segments[..self.segments.len().saturating_sub(terminal_components)]
+            .iter()
+            .map_while(|segment| match segment {
+                // Backslashes and drive prefixes can have path semantics on some services.
+                Segment::Literal(value) if !value.contains(['\\', ':']) => Some(value.as_str()),
+                _ => None,
+            })
+    }
+
+    pub(crate) fn spans_directories(&self) -> bool {
+        self.segments.len() > 1 || matches!(self.segments[0], Segment::Recursive)
+    }
+
+    /// Advance every viable pattern position against one path component.
+    pub(crate) fn advance(&self, positions: &[usize], name: &str) -> Vec<usize> {
+        let mut next = Vec::new();
+        for &position in positions {
+            match self.segments.get(position) {
+                Some(Segment::Recursive) => {
+                    next.push(position);
+                    match self.segments.get(position + 1) {
+                        Some(segment) if segment.matches(name) => next.push(position + 2),
+                        None => next.push(position + 1),
+                        _ => {}
+                    }
+                }
+                Some(segment) if segment.matches(name) => next.push(position + 1),
+                _ => {}
+            }
+        }
+        next.sort_unstable();
+        next.dedup();
+        next
+    }
+
+    pub(crate) fn accepts(&self, positions: &[usize], is_dir: bool) -> bool {
+        if self.directories_only && !is_dir {
+            return false;
+        }
+        let end = self.segments.len();
+        positions.last() == Some(&end)
+            || (is_dir
+                && matches!(self.segments.last(), Some(Segment::Recursive))
+                && positions.last() == Some(&(end - 1)))
+    }
+
+    pub(crate) fn can_descend(&self, positions: &[usize]) -> bool {
+        positions
+            .first()
+            .is_some_and(|&first| first < self.segments.len())
+    }
+
+    pub(crate) fn matches(&self, path: &str, is_dir: bool) -> bool {
+        let mut positions = vec![0];
+        for component in path.trim_end_matches('/').split('/') {
+            positions = self.advance(&positions, component);
+            if positions.is_empty() {
+                return false;
+            }
+        }
+        self.accepts(&positions, is_dir)
+    }
+}
+
+#[derive(Debug)]
+enum Segment {
+    Literal(String),
+    Glob(SegmentMatcher),
+    Recursive,
+}
+
+impl Segment {
+    fn matches(&self, name: &str) -> bool {
+        match self {
+            Self::Literal(literal) => literal == name,
+            Self::Glob(matcher) => matcher.matches(name),
+            Self::Recursive => unreachable!("consecutive recursive wildcards are collapsed"),
+        }
+    }
+}
+
+#[derive(Debug)]
+struct SegmentMatcher {
+    tokens: Vec<Token>,
+}
+
+#[derive(Debug)]
+enum Token {
+    Literal(char),
+    Any,
+    Star,
+    Class {
+        ranges: Vec<(char, char)>,
+        negated: bool,
+    },
+    Split(usize),
+    Jump(usize),
+}
+
+#[derive(Default)]
+struct Alternation {
+    split: usize,
+    exits: Vec<usize>,
 }
 
 impl SegmentMatcher {
-    pub(crate) fn new(segment: &str) -> Result<Self> {
-        debug_assert!(
-            !segment.contains('/'),
-            "SegmentMatcher::new received a segment containing '/': {segment:?}",
-        );
-        // `**` is only meaningful as a whole segment. Embedded forms like
-        // `a**b` are rejected by fsspec; reject them here for parity with the
-        // documented surface so users don't get silently surprising matches.
-        if segment != "**" && segment.contains("**") {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                format!("glob segment {segment:?} contains `**` outside a whole segment"),
-            ));
-        }
+    fn new(segment: &str) -> Result<Self> {
         let mut chars = segment.chars().peekable();
-        let nodes = parse_nodes(&mut chars, false)?;
-        Ok(Self { nodes })
+        let mut tokens = Vec::new();
+        let mut alternations = Vec::<Alternation>::new();
+        while let Some(ch) = chars.next() {
+            let token = match ch {
+                '*' => {
+                    if chars.peek() == Some(&'*') {
+                        return Err(invalid("`**` must occupy a whole glob path component"));
+                    }
+                    Token::Star
+                }
+                '?' => Token::Any,
+                '[' => parse_class(&mut chars)?,
+                '\\' => Token::Literal(escaped_char(&mut chars)?),
+                '{' => {
+                    alternations.push(Alternation {
+                        split: tokens.len(),
+                        ..Default::default()
+                    });
+                    Token::Split(0)
+                }
+                ',' if !alternations.is_empty() => {
+                    let group = alternations.last_mut().unwrap();
+                    group.exits.push(tokens.len());
+                    tokens.push(Token::Jump(0));
+                    let next_branch = tokens.len();
+                    tokens[group.split] = Token::Split(next_branch);
+                    group.split = next_branch;
+                    Token::Split(0)
+                }
+                '}' if !alternations.is_empty() => {
+                    let group = alternations.pop().unwrap();
+                    tokens[group.split] = Token::Jump(group.split + 1);
+                    let end = tokens.len();
+                    for exit in group.exits {
+                        tokens[exit] = Token::Jump(end);
+                    }
+                    continue;
+                }
+                _ => Token::Literal(ch),
+            };
+            tokens.push(token);
+        }
+        if !alternations.is_empty() {
+            return Err(invalid("unterminated alternation in glob pattern"));
+        }
+        Ok(Self { tokens })
     }
 
-    /// True if `name` (no `/`) matches the compiled segment.
-    pub(crate) fn matches(&self, name: &str) -> bool {
-        match_nodes_at(&self.nodes, 0, name.as_bytes(), 0)
+    fn literal(&self) -> Option<String> {
+        self.tokens
+            .iter()
+            .map(|token| match token {
+                Token::Literal(ch) => Some(*ch),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn matches(&self, name: &str) -> bool {
+        if name.contains('/') {
+            return false;
+        }
+        let mut current = vec![false; self.tokens.len() + 1];
+        let mut next = current.clone();
+        current[0] = true;
+        for ch in name.chars().map(Some).chain(std::iter::once(None)) {
+            // Branch targets only point forward. A single scan resolves all
+            // transitions that consume no characters before advancing the input.
+            for (index, token) in self.tokens.iter().enumerate() {
+                if !current[index] {
+                    continue;
+                }
+                match token {
+                    Token::Star => {
+                        current[index + 1] = true;
+                        next[index] |= ch.is_some();
+                    }
+                    Token::Split(branch) => {
+                        current[index + 1] = true;
+                        current[*branch] = true;
+                    }
+                    Token::Jump(target) => current[*target] = true,
+                    Token::Any => next[index + 1] |= ch.is_some(),
+                    Token::Literal(literal) => next[index + 1] |= ch == Some(*literal),
+                    Token::Class { ranges, negated } => {
+                        next[index + 1] |= ch.is_some_and(|ch| {
+                            ranges.iter().any(|(lo, hi)| *lo <= ch && ch <= *hi) != *negated
+                        });
+                    }
+                }
+            }
+            if ch.is_none() {
+                break;
+            }
+            std::mem::swap(&mut current, &mut next);
+            next.fill(false);
+        }
+        current[self.tokens.len()]
     }
 }
 
-/// Compile a pattern into the per-segment representation used by guided
-/// traversal. Returns the segments in order.
-///
-/// Two collapses happen at compile time to reduce work at traversal time:
-///
-/// - **Consecutive `**`**: `**/**` ≡ `**`. Both match "zero or more
-///   components". Collapsing avoids redundant list calls.
-/// - **Leading literal prefix**: consecutive literal segments at the very
-///   start of the pattern (before any `Glob` or `DoubleStar`) are folded
-///   into a single `Literal("a/b/c")`. This skips a frame-loop iteration
-///   per segment when seeding the traversal, which is the most common
-///   case (e.g. `a/b/c/**/*.json`). Literals following a wildcard segment
-///   are kept separate so that downstream entry handlers — which compare
-///   the next segment against a single basename — can match them
-///   unambiguously.
-pub(crate) fn compile_segments(pattern: &str) -> Result<Vec<Segment>> {
-    let mut out: Vec<Segment> = Vec::new();
-    // Only fold while we are still in the leading literal prefix region.
-    let mut in_leading_prefix = true;
-    for seg in split_segments(pattern) {
-        if seg == "**" {
-            in_leading_prefix = false;
-            // Skip if previous segment is already `**` — `**/**` ≡ `**`.
-            if matches!(out.last(), Some(Segment::DoubleStar)) {
+fn escaped_char(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Result<char> {
+    chars
+        .next()
+        .ok_or_else(|| invalid("trailing backslash in glob path component"))
+}
+
+fn parse_class(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Result<Token> {
+    let negated = chars.next_if(|ch| matches!(ch, '!' | '^')).is_some();
+    let mut ranges = Vec::new();
+    while let Some(ch) = chars.next() {
+        if ch == ']' && !ranges.is_empty() {
+            return Ok(Token::Class { ranges, negated });
+        }
+        let start = if ch == '\\' { escaped_char(chars)? } else { ch };
+        if chars.next_if_eq(&'-').is_none() {
+            ranges.push((start, start));
+            continue;
+        }
+        let end = match chars.peek() {
+            Some(']') => {
+                ranges.push((start, start));
+                ranges.push(('-', '-'));
                 continue;
             }
-            out.push(Segment::DoubleStar);
-        } else if has_meta(seg) {
-            in_leading_prefix = false;
-            out.push(Segment::Glob(SegmentMatcher::new(seg)?));
-        } else if in_leading_prefix {
-            if let Some(Segment::Literal(prev)) = out.last_mut() {
-                prev.push('/');
-                prev.push_str(seg);
-            } else {
-                out.push(Segment::Literal(seg.to_string()));
+            Some('\\') => {
+                chars.next();
+                escaped_char(chars)?
             }
-        } else {
-            out.push(Segment::Literal(seg.to_string()));
+            _ => escaped_char(chars)?,
+        };
+        if end < start {
+            return Err(invalid("reversed character range in glob pattern"));
         }
+        ranges.push((start, end));
     }
-    Ok(out)
+    Err(invalid("unterminated character class in glob pattern"))
 }
 
-/// Split a glob pattern into `/`-delimited segments, dropping empty parts.
-pub(crate) fn split_segments(pattern: &str) -> Vec<&str> {
-    pattern.split('/').filter(|s| !s.is_empty()).collect()
-}
-
-/// True when the segment contains any glob metacharacter.
-pub(crate) fn has_meta(segment: &str) -> bool {
-    segment
-        .chars()
-        .any(|c| matches!(c, '*' | '?' | '[' | ']' | '{' | '}'))
-}
-
-#[derive(Debug, Clone)]
-enum Node {
-    Literal(char),
-    AnyChar,
-    AnyRun,
-    AnyRecursive,
-    Class(Vec<(char, char)>, bool /* negated */),
-    Alt(Vec<Vec<Node>>),
-    Separator,
-}
-
-fn parse_nodes(
-    chars: &mut std::iter::Peekable<std::str::Chars<'_>>,
-    in_alt: bool,
-) -> Result<Vec<Node>> {
-    let mut nodes = Vec::new();
-    while let Some(&c) = chars.peek() {
-        match c {
-            ',' | '}' if in_alt => break,
-            '*' => {
-                chars.next();
-                if chars.peek() == Some(&'*') {
-                    chars.next();
-                    // `**/` should match zero or more path components; consume
-                    // the trailing separator so the recursive wildcard owns it.
-                    if chars.peek() == Some(&'/') {
-                        chars.next();
-                    }
-                    nodes.push(Node::AnyRecursive);
-                } else {
-                    nodes.push(Node::AnyRun);
-                }
-            }
-            '?' => {
-                chars.next();
-                nodes.push(Node::AnyChar);
-            }
-            '/' => {
-                chars.next();
-                nodes.push(Node::Separator);
-            }
-            '[' => {
-                chars.next();
-                nodes.push(parse_class(chars)?);
-            }
-            '{' => {
-                chars.next();
-                nodes.push(parse_alt(chars)?);
-            }
-            '\\' => {
-                chars.next();
-                match chars.next() {
-                    Some(escaped) => nodes.push(Node::Literal(escaped)),
-                    None => {
-                        return Err(Error::new(
-                            ErrorKind::ConfigInvalid,
-                            "trailing `\\` in glob pattern",
-                        ));
-                    }
-                }
-            }
-            _ => {
-                chars.next();
-                nodes.push(Node::Literal(c));
-            }
-        }
-    }
-    Ok(nodes)
-}
-
-fn parse_class(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Result<Node> {
-    let mut ranges: Vec<(char, char)> = Vec::new();
-    let mut negated = false;
-    if chars.peek() == Some(&'!') || chars.peek() == Some(&'^') {
-        negated = true;
-        chars.next();
-    }
-    while let Some(&c) = chars.peek() {
-        if c == ']' {
-            chars.next();
-            return Ok(Node::Class(ranges, negated));
-        }
-        chars.next();
-        let start = c;
-        if chars.peek() == Some(&'-') {
-            chars.next();
-            if let Some(&end) = chars.peek() {
-                if end == ']' {
-                    ranges.push((start, start));
-                    ranges.push(('-', '-'));
-                } else {
-                    chars.next();
-                    ranges.push((start, end));
-                }
-            }
-        } else {
-            ranges.push((start, start));
-        }
-    }
-    Err(Error::new(
-        ErrorKind::ConfigInvalid,
-        "unterminated character class in glob pattern",
-    ))
-}
-
-fn parse_alt(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Result<Node> {
-    let mut alts = Vec::new();
-    loop {
-        let branch = parse_nodes(chars, true)?;
-        alts.push(branch);
-        match chars.next() {
-            Some(',') => continue,
-            Some('}') => return Ok(Node::Alt(alts)),
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "unterminated alternation in glob pattern",
-                ));
-            }
-        }
-    }
-}
-
-fn match_nodes_at(nodes: &[Node], ni: usize, text: &[u8], ti: usize) -> bool {
-    if ni == nodes.len() {
-        return ti == text.len();
-    }
-
-    match &nodes[ni] {
-        Node::Literal(c) => {
-            let mut buf = [0u8; 4];
-            let s = c.encode_utf8(&mut buf).as_bytes();
-            if text[ti..].starts_with(s) {
-                match_nodes_at(nodes, ni + 1, text, ti + s.len())
-            } else {
-                false
-            }
-        }
-        Node::Separator => {
-            if text.get(ti) == Some(&b'/') {
-                match_nodes_at(nodes, ni + 1, text, ti + 1)
-            } else {
-                false
-            }
-        }
-        Node::AnyChar => {
-            if ti < text.len() && text[ti] != b'/' {
-                match_nodes_at(nodes, ni + 1, text, ti + 1)
-            } else {
-                false
-            }
-        }
-        Node::AnyRun => {
-            let mut end = ti;
-            while end < text.len() && text[end] != b'/' {
-                end += 1;
-            }
-            let mut k = end;
-            loop {
-                if match_nodes_at(nodes, ni + 1, text, k) {
-                    return true;
-                }
-                if k == ti {
-                    return false;
-                }
-                k -= 1;
-            }
-        }
-        Node::AnyRecursive => {
-            let mut k = ti;
-            loop {
-                if match_nodes_at(nodes, ni + 1, text, k) {
-                    return true;
-                }
-                if k == text.len() {
-                    return false;
-                }
-                k += 1;
-            }
-        }
-        Node::Class(ranges, negated) => {
-            if ti >= text.len() {
-                return false;
-            }
-            let ch = text[ti] as char;
-            if ch == '/' {
-                return false;
-            }
-            let mut hit = false;
-            for (lo, hi) in ranges {
-                if ch >= *lo && ch <= *hi {
-                    hit = true;
-                    break;
-                }
-            }
-            if hit ^ *negated {
-                match_nodes_at(nodes, ni + 1, text, ti + 1)
-            } else {
-                false
-            }
-        }
-        Node::Alt(branches) => {
-            for branch in branches {
-                let mut combined = Vec::with_capacity(branch.len() + nodes.len() - ni - 1);
-                combined.extend_from_slice(branch);
-                combined.extend_from_slice(&nodes[ni + 1..]);
-                if match_nodes_at(&combined, 0, text, ti) {
-                    return true;
-                }
-            }
-            false
-        }
-    }
+fn invalid(message: &str) -> Error {
+    Error::new(ErrorKind::ConfigInvalid, message)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn m(pat: &str, name: &str) -> bool {
-        SegmentMatcher::new(pat).unwrap().matches(name)
+    #[test]
+    fn matches_one_component_by_unicode_scalar() {
+        for (pattern, name, expected) in [
+            ("*.jpg", "a.jpg", true),
+            ("*.jpg", "dir/a.jpg", false),
+            ("?.jpg", "猫.jpg", true),
+            ("?.jpg", "猫犬.jpg", false),
+            ("?.jpg", "/.jpg", false),
+            ("[à-é]", "é", true),
+            ("[!a-z]", "é", true),
+            ("[!a-z]", "a", false),
+            ("[]a]", "]", true),
+            ("[**]", "*", true),
+            (r"[a\-z]", "-", true),
+            (r"[a\-z]", "m", false),
+            (r"\*\?\[\\", "*?[\\", true),
+            (r"foo\**", "foo*猫", true),
+            ("*.{jpg,{png,gif}}", "猫.gif", true),
+            ("{,é}.txt", ".txt", true),
+            ("{a,b}{1,2}", "b2", true),
+            ("{a,b}{1,2}", "a", false),
+        ] {
+            assert_eq!(
+                GlobPattern::new(pattern).unwrap().matches(name, false),
+                expected,
+                "{pattern:?} against {name:?}"
+            );
+        }
     }
 
     #[test]
-    fn star_does_not_cross_separator() {
-        assert!(m("*.jpg", "a.jpg"));
-        assert!(!m("*.jpg", "dir/a.jpg"));
+    fn rejects_invalid_patterns() {
+        for pattern in [
+            "",
+            "/",
+            "a**b",
+            "a/***/b",
+            "file\\",
+            "[",
+            "[]",
+            "[z-a]",
+            "{one,two",
+            "../*.jpg",
+            r"\../*.jpg",
+        ] {
+            assert_eq!(
+                GlobPattern::new(pattern).unwrap_err().kind(),
+                ErrorKind::ConfigInvalid,
+                "{pattern:?}"
+            );
+        }
     }
 
     #[test]
-    fn question_mark_single_char() {
-        assert!(m("?.txt", "a.txt"));
-        assert!(!m("?.txt", "ab.txt"));
-        assert!(!m("?.txt", "/.txt"));
-    }
-
-    #[test]
-    fn character_class() {
-        assert!(m("[abc].rs", "a.rs"));
-        assert!(m("[a-z].rs", "k.rs"));
-        assert!(!m("[!a-z].rs", "k.rs"));
-        assert!(m("[!a-z].rs", "1.rs"));
-    }
-
-    #[test]
-    fn alternation() {
-        assert!(m("*.{jpg,png}", "a.jpg"));
-        assert!(m("*.{jpg,png}", "a.png"));
-        assert!(!m("*.{jpg,png}", "a.gif"));
-    }
-
-    #[test]
-    fn segment_helpers() {
-        let segs = split_segments("media/2024/**/*.jpg");
-        assert_eq!(segs, vec!["media", "2024", "**", "*.jpg"]);
-        assert!(!has_meta("media"));
-        assert!(has_meta("*.jpg"));
-        assert!(has_meta("**"));
-    }
-
-    #[test]
-    fn segment_matcher_basic() {
-        let m = SegmentMatcher::new("*.jpg").unwrap();
-        assert!(m.matches("a.jpg"));
-        assert!(!m.matches("a.png"));
-        assert!(!m.matches("dir/a.jpg")); // segment matcher never crosses '/'
-
-        let m = SegmentMatcher::new("[ab].*").unwrap();
-        assert!(m.matches("a.jpg"));
-        assert!(m.matches("b.png"));
-        assert!(!m.matches("c.jpg"));
-
-        let m = SegmentMatcher::new("?.txt").unwrap();
-        assert!(m.matches("a.txt"));
-        assert!(!m.matches("ab.txt"));
-
-        let m = SegmentMatcher::new("{foo,bar}.csv").unwrap();
-        assert!(m.matches("foo.csv"));
-        assert!(m.matches("bar.csv"));
-        assert!(!m.matches("baz.csv"));
-    }
-
-    #[test]
-    fn compile_segments_classifies() {
-        let segs = compile_segments("media/2024/**/*.jpg").unwrap();
-        assert_eq!(segs.len(), 3);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "media/2024"));
-        assert!(matches!(segs[1], Segment::DoubleStar));
-        assert!(matches!(&segs[2], Segment::Glob(_)));
-    }
-
-    #[test]
-    fn compile_segments_collapses_consecutive_double_stars() {
-        let segs = compile_segments("**/**/x.txt").unwrap();
-        assert_eq!(segs.len(), 2);
-        assert!(matches!(segs[0], Segment::DoubleStar));
-        assert!(matches!(&segs[1], Segment::Literal(s) if s == "x.txt"));
-
-        let segs = compile_segments("a/**/**/**/b").unwrap();
-        assert_eq!(segs.len(), 3);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
-        assert!(matches!(segs[1], Segment::DoubleStar));
-        assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
-    }
-
-    #[test]
-    fn compile_segments_folds_leading_literal_prefix() {
-        // Leading literal run folds into one segment.
-        let segs = compile_segments("a/b/c/**/*.jpg").unwrap();
-        assert_eq!(segs.len(), 3);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a/b/c"));
-        assert!(matches!(segs[1], Segment::DoubleStar));
-        assert!(matches!(&segs[2], Segment::Glob(_)));
-
-        // Pure literal pattern folds end-to-end.
-        let segs = compile_segments("a/b/c.txt").unwrap();
-        assert_eq!(segs.len(), 1);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a/b/c.txt"));
-
-        // Literals after a wildcard segment stay one-component-per-Literal
-        // so downstream basename matching works.
-        let segs = compile_segments("a/*/b/c").unwrap();
-        assert_eq!(segs.len(), 4);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
-        assert!(matches!(&segs[1], Segment::Glob(_)));
-        assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
-        assert!(matches!(&segs[3], Segment::Literal(s) if s == "c"));
-
-        // Literals after `**` likewise stay one-component-per-Literal.
-        let segs = compile_segments("a/**/b/c").unwrap();
-        assert_eq!(segs.len(), 4);
-        assert!(matches!(&segs[0], Segment::Literal(s) if s == "a"));
-        assert!(matches!(segs[1], Segment::DoubleStar));
-        assert!(matches!(&segs[2], Segment::Literal(s) if s == "b"));
-        assert!(matches!(&segs[3], Segment::Literal(s) if s == "c"));
-    }
-
-    #[test]
-    fn segment_matcher_rejects_double_star_in_segment() {
-        assert!(SegmentMatcher::new("a**b").is_err());
-        assert!(SegmentMatcher::new("**suffix").is_err());
-        // Bare `**` segment is fine.
-        assert!(SegmentMatcher::new("**").is_ok());
-    }
-
-    #[test]
-    fn parse_rejects_trailing_backslash() {
-        assert!(SegmentMatcher::new("foo\\").is_err());
+    fn only_leading_literal_directories_can_be_skipped() {
+        let pattern = GlobPattern::new(r"a/\[b\]/**/*.json").unwrap();
+        assert_eq!(
+            pattern.literal_directories().collect::<Vec<_>>(),
+            ["a", "[b]"]
+        );
+        assert!(pattern.matches("a/[b]/x.json", false));
+        assert!(pattern.matches("a/[b]/c/x.json", false));
+        assert!(!pattern.matches("a/c/x.json", false));
     }
 }

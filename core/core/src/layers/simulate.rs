@@ -204,6 +204,9 @@ impl SimulateService {
         args: OpList,
     ) -> Result<SimulateLister> {
         let cap = self.srv.capability();
+        if cap.list_with_glob && args.glob().is_some() {
+            return self.srv.list(ctx, path, args).map(SimulateLister::One);
+        }
 
         let lister = match (
             args.recursive(),

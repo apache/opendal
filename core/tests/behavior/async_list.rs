@@ -55,6 +55,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if cap.write && cap.list_with_glob && matches!(op.info().scheme(), "memory" | "fs") {
+        tests.extend(async_trials!(op, test_list_with_glob));
+    }
+
     if cap.read && !cap.write && cap.list {
         tests.extend(async_trials!(op, test_list_only))
     }
@@ -117,6 +121,49 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
     assert_eq!(obs[0].metadata().mode(), EntryMode::FILE);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// Glob filters a streamed directory tree and preserves the service cursor.
+pub async fn test_list_with_glob(op: Operator) -> Result<()> {
+    let root = format!("{}/", uuid::Uuid::new_v4());
+    let names = ["a.jpg", "b.png", "nested/c.jpg", "nested/猫.jpg"];
+    for name in names {
+        op.write(&format!("{root}{name}"), "data").await?;
+    }
+
+    let expected = ["a.jpg", "nested/c.jpg", "nested/猫.jpg"];
+    let entries: Vec<Entry> = op
+        .lister_with(&root)
+        .glob("**/?.jpg")
+        .limit(1)
+        .await?
+        .try_collect()
+        .await?;
+    let mut paths: Vec<_> = entries
+        .iter()
+        .map(|entry| entry.path().strip_prefix(&root).unwrap())
+        .collect();
+    paths.sort_unstable();
+    assert_eq!(paths, expected);
+
+    let entries = op.list_with(&root).recursive(true).glob("?.jpg").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [format!("{root}a.jpg")]
+    );
+
+    let entries = op
+        .list_with(&root)
+        .glob("**/?.jpg")
+        .start_after(&format!("{root}nested/c.jpg"))
+        .await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [format!("{root}nested/猫.jpg")]
+    );
+
+    op.delete_with(&root).recursive(true).await?;
     Ok(())
 }
 

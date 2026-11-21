@@ -29,13 +29,15 @@ use crate::error::ThrowException;
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorInputStream_disposeIterator<
     'local,
 >(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     iterator: *mut StdBytesIterator,
 ) {
-    unsafe {
-        drop(Box::from_raw(iterator));
-    }
+    env.with_env(|_| -> crate::Result<()> {
+        unsafe { drop(Box::from_raw(iterator)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }
 
 /// # Safety

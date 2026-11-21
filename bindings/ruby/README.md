@@ -21,7 +21,9 @@ version.
 
 ## Installation
 
-The Ruby binding requires Ruby 3.3 or later.
+The Ruby binding requires Ruby 3.3 or later. Precompiled gems include native
+extensions for Ruby 3.3, 3.4, and 4.0. The source gem builds the native
+extension during installation and requires Rust 1.91 or later.
 
 ```shell
 gem install opendal

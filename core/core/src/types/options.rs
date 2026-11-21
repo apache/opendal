@@ -693,6 +693,13 @@ pub struct WriteOptions {
     ///
     /// This operation allows specifying the encoding applied to the content being written.
     pub content_encoding: Option<String>,
+    /// Sets Content-Language system metadata on the object being written.
+    ///
+    /// Use a language tag or a comma-separated list of tags, such as `fr-CA, en`.
+    /// Check [`crate::Capability::write_with_content_language`] for support. A
+    /// subsequent stat can retrieve the stored value with [`Metadata::content_language`].
+    /// Services without support may ignore this option.
+    pub content_language: Option<String>,
     /// Sets user metadata for this write request.
     ///
     /// ### Capability

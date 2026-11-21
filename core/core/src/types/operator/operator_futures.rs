@@ -857,6 +857,14 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
         self
     }
 
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.0.content_language = Some(value.to_string());
+        self
+    }
+
     /// Write only when the file at the write path has this exact ETag.
     ///
     /// Refer to [`options::WriteOptions::if_match`] for the full contract.
@@ -1208,6 +1216,14 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     /// ```
     pub fn content_encoding(mut self, v: &str) -> Self {
         self.args.content_encoding = Some(v.to_string());
+        self
+    }
+
+    /// Set the Content-Language metadata for the object.
+    ///
+    /// Refer to [`options::WriteOptions::content_language`] for support and behavior.
+    pub fn content_language(mut self, value: &str) -> Self {
+        self.args.content_language = Some(value.to_string());
         self
     }
 

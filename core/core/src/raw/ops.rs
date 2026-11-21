@@ -827,6 +827,7 @@ enum WriteField {
     ContentType,
     ContentDisposition,
     ContentEncoding,
+    ContentLanguage,
     CacheControl,
     IfMatch,
     IfNoneMatch,
@@ -909,6 +910,7 @@ impl OpWrite {
             options.content_type.as_deref().map(str::as_bytes),
             options.content_disposition.as_deref().map(str::as_bytes),
             options.content_encoding.as_deref().map(str::as_bytes),
+            options.content_language.as_deref().map(str::as_bytes),
             options.cache_control.as_deref().map(str::as_bytes),
             options.if_match.as_deref().map(str::as_bytes),
             options.if_none_match.as_deref().map(str::as_bytes),
@@ -962,6 +964,12 @@ impl OpWrite {
     #[inline]
     pub fn content_encoding(&self) -> Option<&str> {
         string_value(&self.values, WriteField::ContentEncoding as usize)
+    }
+
+    /// Get the Content-Language value.
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        string_value(&self.values, WriteField::ContentLanguage as usize)
     }
 
     /// Get the cache control from option
@@ -1036,6 +1044,17 @@ impl OpWrite {
                 u32::from_le_bytes(nanos.try_into().expect("encoded nanoseconds")),
             )
         })
+    }
+
+    /// Set the Content-Language value.
+    ///
+    /// # Panics
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_content_language(mut self, v: &str) -> Self {
+        self.values = self
+            .values
+            .replace(WriteField::ContentLanguage as usize, v.as_bytes());
+        self
     }
 
     #[doc(hidden)]
@@ -1597,6 +1616,7 @@ mod tests {
                 content_type: Some("text/plain".to_owned()),
                 content_disposition: Some("attachment".to_owned()),
                 content_encoding: Some("gzip".to_owned()),
+                content_language: Some("en-US".to_owned()),
                 cache_control: Some("no-cache".to_owned()),
                 if_match: Some("etag".to_owned()),
                 if_none_match: Some("other-etag".to_owned()),
@@ -1624,6 +1644,12 @@ mod tests {
         assert_eq!(args.expires(), Some(expires));
         assert_eq!(OpWrite::default().expires(), None);
         assert!(args.is_conditional());
+        assert_eq!(args.content_language(), Some("en-US"));
+        assert_eq!(OpWrite::default().content_language(), None);
+        let changed = args.clone().with_content_language("fr-CA, en");
+        assert_eq!(changed.content_language(), Some("fr-CA, en"));
+        assert_eq!(changed.expires(), Some(expires));
+        assert_eq!(args.content_language(), Some("en-US"));
     }
 
     #[test]

@@ -48,7 +48,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 if TYPE_CHECKING:
-    from typing_extensions import NotRequired, Required
+    from typing import NotRequired, Required
 
 
 class AliyunDriveConfig(TypedDict):

@@ -37,7 +37,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v7
-    
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -95,7 +95,7 @@ jobs:
         shell: bash
         working-directory: "bindings/python"
         run: |
-          uv venv --python=python3.10
+          uv venv --python=python3.11
           uv sync --all-groups --all-extras
           uv run -- maturin develop -F ${{ matrix.cases.feature }}
 

@@ -12,7 +12,7 @@ This program builds an operator, writes a file, reads it back, inspects its
 metadata, and deletes it. It runs against the in-memory service with no
 credentials, so you can run it right after installing.
 
-Install from PyPI:
+Use Python 3.11 or later and install from PyPI:
 
 ```shell
 pip install opendal

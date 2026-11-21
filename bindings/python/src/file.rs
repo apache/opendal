@@ -690,8 +690,7 @@ impl AsyncFile {
         })
     }
 
-    // `typing_extensions.Self` because `typing.Self` is 3.11+ and the floor is 3.10.
-    #[pyo3(signature = () -> "collections.abc.Awaitable[typing_extensions.Self]")]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[typing.Self]")]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })

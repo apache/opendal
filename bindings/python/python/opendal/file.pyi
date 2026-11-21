@@ -77,6 +77,30 @@ class AsyncFile:
         coroutine
             An awaitable that returns the bytes read from the stream.
         """
+    def read_buffered(self, /, size: int) -> collections.abc.Awaitable[bytes]:
+        """
+        Read up to `size` bytes by combining immediately available data.
+
+        A positive-sized read waits for the first bytes, then returns when
+        more data would require waiting, at EOF, or at the requested limit.
+        Keep reading until an empty result to consume the file. A zero-sized
+        read returns empty bytes without consuming data or a pending error.
+
+        If a read encounters an error after collecting bytes, it returns those
+        bytes and the next positive-sized read raises the error. A successful
+        seek clears a pending error. Cancelling a pending read preserves the
+        file position and any bytes collected for that read.
+
+        Parameters
+        ----------
+        size : int
+            The maximum number of bytes to read. Must be non-negative.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the bytes read from the stream.
+        """
     def readable(self, /) -> collections.abc.Awaitable[bool]:
         """
         Whether this file can be read from.

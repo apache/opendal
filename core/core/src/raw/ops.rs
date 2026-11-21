@@ -262,6 +262,13 @@ impl OpList {
         (self.flags & OP_LIST_HAS_LIMIT != 0).then_some(self.limit)
     }
 
+    /// Remove the per-request result limit.
+    pub fn without_limit(mut self) -> Self {
+        self.flags &= !OP_LIST_HAS_LIMIT;
+        self.limit = 0;
+        self
+    }
+
     /// Return the key after which listing should start.
     #[inline]
     pub fn start_after(&self) -> Option<&str> {

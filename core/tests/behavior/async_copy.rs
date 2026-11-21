@@ -97,7 +97,13 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
-    if cap.read && cap.write && cap.stat && cap.copy && cap.copy_with_user_metadata {
+    if cap.read
+        && cap.write
+        && cap.write_with_user_metadata
+        && cap.stat
+        && cap.copy
+        && cap.copy_with_user_metadata
+    {
         tests.extend(async_trials!(op, test_copy_with_user_metadata_in_place))
     }
 
@@ -114,6 +120,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
 
     if cap.read
         && cap.write
+        && cap.write_with_user_metadata
+        && cap.write_with_content_type
         && cap.stat
         && cap.copy_can_multi
         && cap.copy_with_user_metadata
@@ -959,14 +967,18 @@ pub async fn test_copy_with_content_language_in_place(op: Operator) -> Result<()
 }
 
 /// A multipart copy with metadata options should store exactly the given
-/// metadata on the destination.
+/// metadata on the destination: source user metadata and Content-Type are not
+/// inherited.
 pub async fn test_copy_with_metadata_multipart(op: Operator) -> Result<()> {
     let Some((chunk, source_size)) = copy_multi_chunk_size(op.info().capability()) else {
         return Ok(());
     };
 
     let source_path = uuid::Uuid::new_v4().to_string();
-    op.write(&source_path, gen_fixed_bytes(source_size)).await?;
+    op.write_with(&source_path, gen_fixed_bytes(source_size))
+        .user_metadata([("old".to_string(), "value".to_string())])
+        .content_type("text/plain")
+        .await?;
 
     let target_path = uuid::Uuid::new_v4().to_string();
     let new_metadata = HashMap::from([("mtime".to_string(), "1700000000".to_string())]);
@@ -979,6 +991,7 @@ pub async fn test_copy_with_metadata_multipart(op: Operator) -> Result<()> {
     let meta = op.stat(&target_path).await.expect("stat must succeed");
     assert_eq!(meta.content_length(), source_size as u64);
     assert_eq!(meta.content_language(), Some("es-MX"));
+    assert_ne!(meta.content_type(), Some("text/plain"));
     let current = meta
         .user_metadata()
         .expect("user metadata must exist")

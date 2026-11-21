@@ -34,7 +34,7 @@ use opendal_core::*;
 use crate::GCS_GRPC_SCHEME;
 use crate::config::GcsGrpcConfig;
 use crate::copier::new_gcs_grpc_copier;
-use crate::core::{GcsGrpcCore, parse_generation, parse_object, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_generation, parse_object, parse_status};
 use crate::deleter::GcsGrpcDeleter;
 use crate::generated::google::storage::v2::GetObjectRequest;
 use crate::lister::GcsGrpcLister;
@@ -105,6 +105,10 @@ impl GcsGrpcBuilder {
     }
 
     /// Set a custom Google credential provider.
+    ///
+    /// Implement the provider against [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider(
         mut self,
         provider: impl ProvideCredential<Credential = Credential> + 'static,
@@ -118,6 +122,10 @@ impl GcsGrpcBuilder {
     }
 
     /// Set a custom Google credential provider chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_google`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_provider_chain = Some(chain);
         self
@@ -347,7 +355,9 @@ impl Service for GcsGrpcBackend {
             .client()
             .get_object(request)
             .await
-            .map_err(parse_status)?;
+            .map_err(|status| {
+                parse_status(ErrorContext::new(ServiceOperation("GetObject")), status)
+            })?;
         Ok(RpStat::new(parse_object(response.get_ref())))
     }
 

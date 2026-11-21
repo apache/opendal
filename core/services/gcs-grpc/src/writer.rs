@@ -22,7 +22,7 @@ use futures::stream;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use crate::core::{GcsGrpcCore, parse_object, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_object, parse_status};
 use crate::generated::google::storage::v2::*;
 
 const WRITE_CHUNK_ALIGNMENT: usize = 256 * 1024;
@@ -58,6 +58,10 @@ impl GcsGrpcWriter {
             pending: None,
             state: GcsGrpcWriterState::Open,
         }
+    }
+
+    fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
+        ErrorContext::new(service_operation).with_if_not_exists(self.args.if_not_exists())
     }
 
     fn ensure_open(&self) -> Result<()> {
@@ -121,7 +125,12 @@ impl GcsGrpcWriter {
             .client()
             .start_resumable_write(request)
             .await
-            .map_err(parse_status)?
+            .map_err(|status| {
+                parse_status(
+                    self.error_context(ServiceOperation("StartResumableWrite")),
+                    status,
+                )
+            })?
             .into_inner();
         if response.upload_id.is_empty() {
             return Err(Error::new(
@@ -146,7 +155,9 @@ impl GcsGrpcWriter {
             .client()
             .write_object(request)
             .await
-            .map_err(parse_status)?
+            .map_err(|status| {
+                parse_status(self.error_context(ServiceOperation("WriteObject")), status)
+            })?
             .into_inner();
         match response.write_status {
             Some(write_object_response::WriteStatus::Resource(object)) => Ok(object),
@@ -254,7 +265,9 @@ impl GcsGrpcWriter {
                 .client()
                 .write_object(request)
                 .await
-                .map_err(parse_status)?
+                .map_err(|status| {
+                    parse_status(self.error_context(ServiceOperation("WriteObject")), status)
+                })?
                 .into_inner();
 
             match response.write_status {
@@ -300,7 +313,12 @@ impl GcsGrpcWriter {
             Err(status) if status.code() == tonic::Code::NotFound => {
                 return Ok(QueryOutcome::NotFound);
             }
-            Err(status) => return Err(parse_status(status)),
+            Err(status) => {
+                return Err(parse_status(
+                    ErrorContext::new(ServiceOperation("QueryWriteStatus")),
+                    status,
+                ));
+            }
         };
         match response.write_status {
             Some(query_write_status_response::WriteStatus::PersistedSize(size)) => {
@@ -435,7 +453,12 @@ impl oio::Write for GcsGrpcWriter {
             match self.core.client().cancel_resumable_write(request).await {
                 Ok(_) => {}
                 Err(status) if status.code() == tonic::Code::NotFound => {}
-                Err(status) => return Err(parse_status(status)),
+                Err(status) => {
+                    return Err(parse_status(
+                        ErrorContext::new(ServiceOperation("CancelResumableWrite")),
+                        status,
+                    ));
+                }
             }
         }
         self.buffer = None;

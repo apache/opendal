@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use fastpool::{ManageObject, ObjectStatus, bounded};
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
 use log::debug;
 use opendal_core::raw::*;
 use opendal_core::*;

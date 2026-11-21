@@ -53,6 +53,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Password { get; init; }
         /// <summary>
+        /// Route read-only commands for `read` and `stat` to Redis Cluster replicas when available. Defaults to `false`. Enabling this option requires `cluster_endpoints`. Replication lag can cause stale results. For example, `read` or `stat` can briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns a replica miss without retrying on the primary.
+        /// </summary>
+        public bool? ReadFromReplicas { get; init; }
+        /// <summary>
         /// the working directory of the Redis service. Can be "/path/to/dir" default is "/"
         /// </summary>
         public string? Root { get; init; }
@@ -86,6 +90,10 @@ namespace OpenDAL.ServiceConfig
             if (Password is not null)
             {
                 map["password"] = Utilities.ToOptionString(Password);
+            }
+            if (ReadFromReplicas is not null)
+            {
+                map["read_from_replicas"] = Utilities.ToOptionString(ReadFromReplicas);
             }
             if (Root is not null)
             {

@@ -75,7 +75,7 @@ impl oio::MultipartWrite for GcsWriter {
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("InsertObject"))
-                    .with_if_not_exists(self.op.if_not_exists()),
+                    .with_caller_condition(self.op.is_conditional()),
                 resp,
             )),
         }
@@ -238,11 +238,7 @@ impl GcsConditionalWriter {
             if !resp.status().is_success() {
                 return Err(parse_error(
                     ErrorContext::new(ServiceOperation("InitiateResumableUpload"))
-                        .with_if_not_exists(self.op.if_not_exists())
-                        .with_if_match(self.op.if_match().is_some())
-                        .with_if_none_match(self.op.if_none_match().is_some())
-                        .with_if_version_match(self.op.if_version_match().is_some())
-                        .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                        .with_caller_condition(self.op.is_conditional()),
                     resp,
                 ));
             }
@@ -354,11 +350,7 @@ impl GcsConditionalWriter {
 
         Err(parse_error(
             ErrorContext::new(ServiceOperation("UploadResumableChunk"))
-                .with_if_not_exists(self.op.if_not_exists())
-                .with_if_match(self.op.if_match().is_some())
-                .with_if_none_match(self.op.if_none_match().is_some())
-                .with_if_version_match(self.op.if_version_match().is_some())
-                .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                .with_caller_condition(self.op.is_conditional()),
             resp,
         ))
     }
@@ -450,11 +442,7 @@ impl oio::Write for GcsConditionalWriter {
 
         let err = parse_error(
             ErrorContext::new(ServiceOperation("UploadResumableChunk"))
-                .with_if_not_exists(self.op.if_not_exists())
-                .with_if_match(self.op.if_match().is_some())
-                .with_if_none_match(self.op.if_none_match().is_some())
-                .with_if_version_match(self.op.if_version_match().is_some())
-                .with_if_version_not_match(self.op.if_version_not_match().is_some()),
+                .with_caller_condition(self.op.is_conditional()),
             resp,
         );
         if !err.is_temporary() {

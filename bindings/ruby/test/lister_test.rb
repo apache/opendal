@@ -67,9 +67,11 @@ class ListerTest < ActiveSupport::TestCase
     assert_equal ["/", "sample", "sub/"], lists
   end
 
-  test "rejects start_after when the service does not support it" do
-    error = assert_raises(RuntimeError) { @op.list("", start_after: "sub/") }
+  test "lists the directory with start_after" do
+    lister = @op.list("", start_after: "sample")
 
-    assert_match(/does not support the operation list with the arguments start_after/, error.message)
+    lists = lister.map(&:to_h).map { |e| e[:path] }
+
+    assert_equal ["sub/"], lists
   end
 end

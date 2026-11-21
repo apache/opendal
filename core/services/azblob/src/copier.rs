@@ -122,8 +122,7 @@ impl oio::BlockCopy for AzblobCopier {
             StatusCode::ACCEPTED => AzblobWriter::parse_metadata(resp.headers()),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("CopyBlob"))
-                    .with_if_match(self.args.if_match().is_some())
-                    .with_if_none_match(self.args.if_none_match().is_some())
+                    .with_caller_condition(self.args.is_conditional())
                     .with_if_not_exists(self.args.if_not_exists()),
                 resp,
             )),
@@ -163,8 +162,7 @@ impl oio::BlockCopy for AzblobCopier {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("PutBlockList"))
-                    .with_if_match(self.args.if_match().is_some())
-                    .with_if_none_match(self.args.if_none_match().is_some())
+                    .with_caller_condition(self.args.is_conditional())
                     .with_if_not_exists(self.args.if_not_exists()),
                 resp,
             )),

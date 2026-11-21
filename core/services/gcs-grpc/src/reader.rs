@@ -20,7 +20,7 @@ use std::sync::Arc;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-use crate::core::{GcsGrpcCore, parse_generation, parse_status};
+use crate::core::{ErrorContext, GcsGrpcCore, parse_generation, parse_status};
 use crate::generated::google::storage::v2::{ReadObjectRequest, ReadObjectResponse};
 
 pub(super) struct GcsGrpcReader {
@@ -70,12 +70,15 @@ impl oio::Read for GcsGrpcReader {
             .client()
             .read_object(request)
             .await
-            .map_err(parse_status)?;
+            .map_err(|status| {
+                parse_status(ErrorContext::new(ServiceOperation("ReadObject")), status)
+            })?;
         Ok((
             RpRead::default(),
             Box::new(GcsGrpcReadStream {
                 stream: response.into_inner(),
                 done: false,
+                error_context: ErrorContext::new(ServiceOperation("ReadObject")),
             }),
         ))
     }
@@ -105,6 +108,7 @@ fn parse_read_range(range: BytesRange) -> Result<(i64, i64)> {
 struct GcsGrpcReadStream {
     stream: tonic::Streaming<ReadObjectResponse>,
     done: bool,
+    error_context: ErrorContext,
 }
 
 impl oio::ReadStream for GcsGrpcReadStream {
@@ -113,7 +117,12 @@ impl oio::ReadStream for GcsGrpcReadStream {
             return Ok(Buffer::new());
         }
         loop {
-            match self.stream.message().await.map_err(parse_status)? {
+            match self
+                .stream
+                .message()
+                .await
+                .map_err(|status| parse_status(self.error_context, status))?
+            {
                 Some(response) => {
                     if let Some(data) = response.checksummed_data
                         && !data.content.is_empty()

@@ -15,20 +15,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::backend::*;
-use super::config::OpfsConfig;
-use super::core::OpfsCore;
+use super::backend::OpfsBackend;
 use super::core::*;
-use super::deleter::OpfsDeleter;
-use super::lister::OpfsLister;
-use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 use send_wrapper::SendWrapper;
-use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
-use web_sys::File;
 use web_sys::FileSystemFileHandle;
 
 pub struct OpfsReadStream {
@@ -101,7 +94,7 @@ impl oio::StreamRead for OpfsReader {
         let backend = &self.backend;
         let path = self.path.as_str();
 
-        let p = build_abs_path(&backend.core.root, path);
+        let p = build_absolute_path(&backend.core.root, path);
         let handle = get_file_handle(&p, false).await?;
         let rp = RpRead::default();
         let stream = OpfsReadStream::new(handle, range);

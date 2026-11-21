@@ -19,12 +19,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use asyncband::rwlock::RwLock;
 use goosefs_sdk::client::MasterClient;
 use goosefs_sdk::config::GoosefsConfig as ClientConfig;
 use goosefs_sdk::context::FileSystemContext;
 use goosefs_sdk::io::{GoosefsFileReader, GoosefsFileWriter};
 use goosefs_sdk::proto::grpc::file::FileInfo;
-use tokio::sync::RwLock;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -200,7 +200,7 @@ impl GoosefsCore {
 
     /// Build the full GooseFS path from a relative OpenDAL path.
     fn full_path(&self, path: &str) -> String {
-        build_rooted_abs_path(&self.root, path)
+        build_rooted_absolute_path(&self.root, path)
     }
 
     // ── Metadata Operations ──────────────────────────────────
@@ -582,7 +582,7 @@ impl GoosefsCore {
         } else {
             path
         };
-        let rel = build_rel_path(&self.root, &rel_path);
+        let rel = build_relative_path(&self.root, &rel_path);
         Ok((rel, self.file_info_to_metadata(info)?))
     }
 }
@@ -627,7 +627,7 @@ async fn rename_creating_parent_if_missing(
 ///
 /// Input paths here are always produced by [`GoosefsCore::full_path`],
 /// so they are already normalized, absolute (leading `/`) and do not
-/// contain trailing slashes (OpenDAL's `build_rooted_abs_path` strips
+/// contain trailing slashes (OpenDAL's `build_rooted_absolute_path` strips
 /// them for non-directory paths). We deliberately do not depend on
 /// `opendal_core::raw::get_parent` because that function's contract is
 /// defined for OpenDAL *relative* paths and treats trailing slashes

@@ -40,11 +40,10 @@ impl oio::BatchDelete for GcsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let resp = self.core.gcs_delete_object(&self.ctx, &path, &args).await?;
         let error_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
-            .with_if_match(args.if_match().is_some())
-            .with_if_none_match(args.if_none_match().is_some())
-            .with_if_version_match(args.if_version_match().is_some())
-            .with_if_version_not_match(args.if_version_not_match().is_some())
-            .with_delete();
+            .with_caller_condition(args.is_conditional())
+            .with_delete_match_condition(
+                args.if_match().is_some() || args.if_version_match().is_some(),
+            );
 
         if resp.status().is_success()
             || (resp.status() == StatusCode::NOT_FOUND
@@ -89,11 +88,10 @@ impl oio::BatchDelete for GcsDeleter {
             // TODO: maybe we can take it directly?
             let (path, op) = batch[i].clone();
             let error_ctx = ErrorContext::new(ServiceOperation("BatchDeleteObjects"))
-                .with_if_match(op.if_match().is_some())
-                .with_if_none_match(op.if_none_match().is_some())
-                .with_if_version_match(op.if_version_match().is_some())
-                .with_if_version_not_match(op.if_version_not_match().is_some())
-                .with_delete();
+                .with_caller_condition(op.is_conditional())
+                .with_delete_match_condition(
+                    op.if_match().is_some() || op.if_version_match().is_some(),
+                );
 
             if resp.status().is_success()
                 || (resp.status() == StatusCode::NOT_FOUND

@@ -58,6 +58,10 @@ pub mod constants {
     pub const X_GOOG_ACL: &str = "x-goog-acl";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
+
+    pub const RESPONSE_CONTENT_DISPOSITION: &str = "response-content-disposition";
+    pub const RESPONSE_CONTENT_TYPE: &str = "response-content-type";
+    pub const RESPONSE_CACHE_CONTROL: &str = "response-cache-control";
 }
 
 pub struct GcsCore {
@@ -163,7 +167,7 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -173,6 +177,9 @@ impl GcsCore {
         );
 
         let mut url = QueryPairsWriter::new(&url).push("alt", "media");
+        if let Some(version) = args.version() {
+            url = url.push("generation", &gcs_percent_encode_path(version));
+        }
         if let Some(version) = args.if_version_match() {
             url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
         }
@@ -209,9 +216,38 @@ impl GcsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut query_args = Vec::new();
+        if let Some(version) = args.version() {
+            query_args.push(format!("generation={}", percent_encode_path(version)))
+        }
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::get(&url);
 
@@ -265,7 +301,7 @@ impl GcsCore {
         op: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let request_metadata = InsertRequestMetadata {
             storage_class: self.default_storage_class.as_deref(),
@@ -362,7 +398,7 @@ impl GcsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let base = format!("{}/upload/storage/v1/b/{}/o", self.endpoint, self.bucket);
         let mut url = QueryPairsWriter::new(&base)
             .push("uploadType", "resumable")
@@ -477,7 +513,7 @@ impl GcsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
 
@@ -531,7 +567,7 @@ impl GcsCore {
     }
 
     pub fn gcs_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -541,6 +577,9 @@ impl GcsCore {
         );
 
         let mut url = QueryPairsWriter::new(&url);
+        if let Some(version) = args.version() {
+            url = url.push("generation", &gcs_percent_encode_path(version));
+        }
         if let Some(version) = args.if_version_match() {
             url = url.push("ifGenerationMatch", &gcs_percent_encode_path(version));
         }
@@ -573,9 +612,38 @@ impl GcsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        let url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+        let mut url = format!("{}/{}/{}", self.endpoint, self.bucket, p);
+
+        let mut query_args = Vec::new();
+        if let Some(version) = args.version() {
+            query_args.push(format!("generation={}", percent_encode_path(version)))
+        }
+        if let Some(override_content_disposition) = args.override_content_disposition() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_DISPOSITION,
+                percent_encode_path(override_content_disposition)
+            ))
+        }
+        if let Some(override_content_type) = args.override_content_type() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CONTENT_TYPE,
+                percent_encode_path(override_content_type)
+            ))
+        }
+        if let Some(override_cache_control) = args.override_cache_control() {
+            query_args.push(format!(
+                "{}={}",
+                constants::RESPONSE_CACHE_CONTROL,
+                percent_encode_path(override_cache_control)
+            ))
+        }
+        if !query_args.is_empty() {
+            url.push_str(&format!("?{}", query_args.join("&")));
+        }
 
         let mut req = Request::head(&url);
 
@@ -629,7 +697,7 @@ impl GcsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}",
@@ -662,6 +730,16 @@ impl GcsCore {
         ctx: &OperationContext,
         paths: &[(String, OpDelete)],
     ) -> Result<Response<Buffer>> {
+        let req = self.gcs_delete_objects_request(paths)?;
+
+        let req = self.sign(ctx, req).await?;
+        self.send(ctx, req).await
+    }
+
+    pub fn gcs_delete_objects_request(
+        &self,
+        paths: &[(String, OpDelete)],
+    ) -> Result<Request<Buffer>> {
         let uri = format!("{}/batch/storage/v1", self.endpoint);
 
         let mut multipart = Multipart::new();
@@ -677,10 +755,7 @@ impl GcsCore {
         let req = Request::post(uri)
             .extension(Operation::Delete)
             .extension(ServiceOperation("BatchDeleteObjects"));
-        let req = multipart.apply(req)?;
-
-        let req = self.sign(ctx, req).await?;
-        self.send(ctx, req).await
+        multipart.apply(req)
     }
 
     pub fn gcs_compose_object_request(
@@ -689,7 +764,7 @@ impl GcsCore {
         to: &str,
         args: &OpCompose,
     ) -> Result<Request<Buffer>> {
-        let destination = build_abs_path(&self.root, to);
+        let destination = build_absolute_path(&self.root, to);
         let base = format!(
             "{}/storage/v1/b/{}/o/{}/compose",
             self.endpoint,
@@ -709,7 +784,7 @@ impl GcsCore {
         let source_objects = sources
             .iter()
             .map(|source| ComposeSourceObject {
-                name: build_abs_path(&self.root, &source.path),
+                name: build_absolute_path(&self.root, &source.path),
                 generation: source.version.clone(),
                 object_preconditions: source.if_version_match.as_ref().map(|version| {
                     ComposeSourceObjectPreconditions {
@@ -761,8 +836,8 @@ impl GcsCore {
         max_bytes_rewritten_per_call: Option<usize>,
         rewrite_token: Option<&str>,
     ) -> Result<Request<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let dest = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let dest = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/storage/v1/b/{}/o/{}/rewriteTo/b/{}/o/{}",
@@ -821,51 +896,50 @@ impl GcsCore {
         self.send(ctx, req).await
     }
 
+    fn gcs_build_list_objects_request(
+        &self,
+        path: &str,
+        page_token: &str,
+        args: &OpList,
+    ) -> Result<Request<Buffer>> {
+        let p = build_absolute_path(&self.root, path);
+        let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket);
+        let mut url = QueryPairsWriter::new(&url);
+        url = url.push("prefix", &gcs_percent_encode_path(&p));
+        if args.versions() {
+            url = url.push("versions", "true");
+        }
+        if !args.recursive() {
+            url = url.push("delimiter", "/");
+        }
+        if let Some(limit) = args.limit() {
+            url = url.push("maxResults", &limit.to_string());
+        }
+        if page_token.is_empty() {
+            if let Some(start_after) = args.start_after() {
+                let start_after = build_absolute_path(&self.root, start_after);
+                url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
+            }
+        } else {
+            url = url.push("pageToken", &gcs_percent_encode_path(page_token));
+        }
+
+        Request::get(url.finish())
+            .extension(Operation::List)
+            .extension(ServiceOperation("ListObjects"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
+
     pub async fn gcs_list_objects(
         &self,
         ctx: &OperationContext,
         path: &str,
         page_token: &str,
-        delimiter: &str,
-        limit: Option<usize>,
-        start_after: Option<String>,
+        args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
-
-        let url = format!("{}/storage/v1/b/{}/o", self.endpoint, self.bucket,);
-
-        let mut url = QueryPairsWriter::new(&url);
-        url = url.push("prefix", &gcs_percent_encode_path(&p));
-
-        if !delimiter.is_empty() {
-            url = url.push("delimiter", delimiter);
-        }
-        if let Some(limit) = limit {
-            url = url.push("maxResults", &limit.to_string());
-        }
-        if let Some(start_after) = start_after {
-            let start_after = build_abs_path(&self.root, &start_after);
-            url = url.push("startOffset", &gcs_percent_encode_path(&start_after));
-        }
-
-        if !page_token.is_empty() {
-            // NOTE:
-            //
-            // GCS uses pageToken in request and nextPageToken in response
-            //
-            // Don't know how will those tokens be like so this part are copied
-            // directly from AWS S3 service.
-            url = url.push("pageToken", &gcs_percent_encode_path(page_token));
-        }
-
-        let req = Request::get(url.finish())
-            .extension(Operation::List)
-            .extension(ServiceOperation("ListObjects"))
-            .body(Buffer::new())
-            .map_err(new_request_build_error)?;
-
+        let req = self.gcs_build_list_objects_request(path, page_token, args)?;
         let req = self.sign(ctx, req).await?;
-
         self.send(ctx, req).await
     }
 
@@ -875,7 +949,7 @@ impl GcsCore {
         path: &str,
         op: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploads",
@@ -936,7 +1010,7 @@ impl GcsCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?partNumber={}&uploadId={}",
@@ -968,7 +1042,7 @@ impl GcsCore {
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",
@@ -1005,7 +1079,7 @@ impl GcsCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?uploadId={}",
@@ -1319,6 +1393,56 @@ mod tests {
         OpCopy::from_options(&Capability::default(), options).unwrap()
     }
 
+    #[test]
+    fn test_list_request_defaults() {
+        let core = test_core();
+        let request = core
+            .gcs_build_list_objects_request("dir/", "", &OpList::default())
+            .unwrap();
+        let query = request.uri().query().unwrap();
+        assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
+        assert!(query.contains("delimiter=/"));
+        assert!(!query.contains("versions="));
+        assert!(!query.contains("pageToken="));
+        assert!(!query.contains("startOffset="));
+        assert_eq!(request.method(), http::Method::GET);
+    }
+
+    #[test]
+    fn test_version_list_request_preserves_pagination_options() {
+        let core = test_core();
+        let args = OpList::from(options::ListOptions {
+            versions: true,
+            recursive: true,
+            limit: Some(2),
+            start_after: Some("after one/".to_owned()),
+            ..Default::default()
+        });
+        let first = core
+            .gcs_build_list_objects_request("dir/", "", &args)
+            .unwrap();
+        let query = first.uri().query().unwrap();
+        assert!(query.contains("versions=true"));
+        assert!(query.contains("maxResults=2"));
+        assert!(query.contains(&format!(
+            "startOffset={}",
+            gcs_percent_encode_path("after one/")
+        )));
+        assert!(!query.contains("delimiter="));
+        assert!(!query.contains("pageToken="));
+
+        let next = core
+            .gcs_build_list_objects_request("dir/", "page+/=", &args)
+            .unwrap();
+        let query = next.uri().query().unwrap();
+        assert!(query.contains(&format!("prefix={}", gcs_percent_encode_path("dir/"))));
+        assert!(query.contains("versions=true"));
+        assert!(query.contains("maxResults=2"));
+        assert!(query.contains(&format!("pageToken={}", gcs_percent_encode_path("page+/="))));
+        assert!(!query.contains("startOffset="));
+        assert!(!query.contains("delimiter="));
+    }
+
     #[tokio::test]
     async fn test_insert_object_signing_preserves_wire_uri() {
         let core = test_core();
@@ -1489,6 +1613,174 @@ mod tests {
     }
 
     #[test]
+    fn test_xml_requests_with_version() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_xml_request(
+                "object",
+                BytesRange::default(),
+                &read_args(options::ReadOptions {
+                    version: Some("123".to_owned()),
+                    override_content_type: Some("text/plain".to_string()),
+                    ..Default::default()
+                }),
+            )
+            .expect("read request must build");
+        assert_eq!(read.method(), http::Method::GET);
+        assert_eq!(
+            read.uri().to_string(),
+            "https://storage.googleapis.com/test-bucket/object?generation=123&response-content-type=text/plain"
+        );
+
+        let stat = core
+            .gcs_head_object_xml_request(
+                "object",
+                &options::StatOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+        assert_eq!(stat.method(), http::Method::HEAD);
+        assert_eq!(
+            stat.uri().to_string(),
+            "https://storage.googleapis.com/test-bucket/object?generation=123"
+        );
+    }
+
+    #[test]
+    fn test_get_object_request_with_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_get_object_request(
+                "object",
+                BytesRange::default(),
+                &read_args(options::ReadOptions {
+                    version: Some("123".to_owned()),
+                    if_version_match: Some("456".to_owned()),
+                    ..Default::default()
+                }),
+            )
+            .expect("read request must build");
+        assert_eq!(req.method(), http::Method::GET);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/object?alt=media&generation=123&ifGenerationMatch=456"
+        );
+    }
+
+    #[test]
+    fn test_rewrite_object_request_with_source_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_rewrite_object_request(
+                "source",
+                "target",
+                &copy_args(options::CopyOptions {
+                    source_version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+                None,
+                Some("token"),
+            )
+            .expect("rewrite request must build");
+        assert_eq!(req.method(), http::Method::POST);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/source/rewriteTo/b/test-bucket/o/target?sourceGeneration=123&rewriteToken=token"
+        );
+    }
+
+    #[test]
+    fn test_head_object_request_with_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_head_object_request(
+                "object",
+                &options::StatOptions {
+                    version: Some("123".to_owned()),
+                    if_version_match: Some("456".to_owned()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+        assert_eq!(req.method(), http::Method::GET);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/object?generation=123&ifGenerationMatch=456"
+        );
+    }
+
+    fn delete_args(options: options::DeleteOptions) -> OpDelete {
+        OpDelete::from_options(&Capability::default(), options).unwrap()
+    }
+
+    #[test]
+    fn test_delete_object_request_with_version() {
+        let core = test_core();
+
+        let req = core
+            .gcs_delete_object_request(
+                "object",
+                &delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+            )
+            .expect("delete request must build");
+        assert_eq!(req.method(), http::Method::DELETE);
+        assert_eq!(
+            req.uri().to_string(),
+            "https://storage.googleapis.com/storage/v1/b/test-bucket/o/object?generation=123"
+        );
+
+        let req = core
+            .gcs_delete_object_request(
+                "object",
+                &delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    if_version_match: Some("456".to_owned()),
+                    ..Default::default()
+                }),
+            )
+            .expect("delete request must build");
+        assert_eq!(
+            req.uri().query(),
+            Some("generation=123&ifGenerationMatch=456")
+        );
+    }
+
+    #[test]
+    fn test_delete_objects_request_with_version() {
+        let core = test_core();
+        let batch = vec![
+            (
+                "one".to_string(),
+                delete_args(options::DeleteOptions {
+                    version: Some("123".to_owned()),
+                    ..Default::default()
+                }),
+            ),
+            ("two".to_string(), OpDelete::new()),
+        ];
+
+        let req = core
+            .gcs_delete_objects_request(&batch)
+            .expect("batch delete request must build");
+        let body = String::from_utf8(req.body().to_bytes().to_vec()).unwrap();
+
+        assert!(body.contains("DELETE /storage/v1/b/test-bucket/o/one?generation=123 HTTP/1.1"));
+        assert!(body.contains("DELETE /storage/v1/b/test-bucket/o/two HTTP/1.1"));
+        assert_eq!(body.matches("generation=").count(), 1);
+    }
+
+    #[test]
     fn test_compose_object_request() {
         let mut core = test_core();
         core.default_storage_class = Some("NEARLINE".to_string());
@@ -1619,6 +1911,64 @@ mod tests {
     }
 
     #[test]
+    fn test_gcs_get_object_xml_request_with_response_overrides() {
+        let core = test_core();
+
+        let read = core
+            .gcs_get_object_xml_request(
+                "object",
+                BytesRange::default(),
+                &read_args(options::ReadOptions {
+                    override_content_disposition: Some(
+                        "attachment; filename=\"other.txt\"".to_string(),
+                    ),
+                    override_content_type: Some("application/pdf".to_string()),
+                    override_cache_control: Some("max-age=3600".to_string()),
+                    ..Default::default()
+                }),
+            )
+            .expect("read request must build");
+
+        let query = read.uri().query().unwrap();
+        assert!(
+            query.contains(
+                "response-content-disposition=attachment%3B%20filename%3D%22other.txt%22"
+            )
+        );
+        assert!(query.contains("response-content-type=application/pdf"));
+        assert!(query.contains("response-cache-control=max-age%3D3600"));
+    }
+
+    #[test]
+    fn test_gcs_head_object_xml_request_with_response_overrides() {
+        let core = test_core();
+
+        let stat = core
+            .gcs_head_object_xml_request(
+                "object",
+                &options::StatOptions {
+                    override_content_disposition: Some(
+                        "attachment; filename=\"other.txt\"".to_string(),
+                    ),
+                    override_content_type: Some("application/pdf".to_string()),
+                    override_cache_control: Some("max-age=3600".to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .expect("stat request must build");
+
+        let query = stat.uri().query().unwrap();
+        assert!(
+            query.contains(
+                "response-content-disposition=attachment%3B%20filename%3D%22other.txt%22"
+            )
+        );
+        assert!(query.contains("response-content-type=application/pdf"));
+        assert!(query.contains("response-cache-control=max-age%3D3600"));
+    }
+
+    #[test]
     fn test_parse_missing_target_with_version_condition() {
         let parse_missing = |ctx| {
             let resp = Response::builder()
@@ -1628,16 +1978,11 @@ mod tests {
             parse_error(ctx, resp).kind()
         };
 
-        for ctx in [
-            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_match(true),
-            ErrorContext::new(ServiceOperation("GetObject")).with_if_version_not_match(true),
-        ] {
-            assert_eq!(parse_missing(ctx), ErrorKind::NotFound);
-        }
+        let read_ctx = ErrorContext::new(ServiceOperation("GetObject")).with_caller_condition(true);
+        assert_eq!(parse_missing(read_ctx), ErrorKind::NotFound);
 
-        let delete_ctx = ErrorContext::new(ServiceOperation("DeleteObject"))
-            .with_if_version_match(true)
-            .with_delete();
+        let delete_ctx =
+            ErrorContext::new(ServiceOperation("DeleteObject")).with_delete_match_condition(true);
         assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
     }
 
@@ -1845,63 +2190,35 @@ mod tests {
 #[derive(Clone, Copy, Debug)]
 pub struct ErrorContext {
     service_operation: ServiceOperation,
-    if_match: bool,
-    if_none_match: bool,
-    if_not_exists: bool,
-    if_version_match: bool,
-    if_version_not_match: bool,
-    is_delete: bool,
+    caller_condition: bool,
+    delete_match_condition: bool,
+    internal_condition: bool,
 }
 
 impl ErrorContext {
     pub const fn new(service_operation: ServiceOperation) -> Self {
         Self {
             service_operation,
-            if_match: false,
-            if_none_match: false,
-            if_not_exists: false,
-            if_version_match: false,
-            if_version_not_match: false,
-            is_delete: false,
+            caller_condition: false,
+            delete_match_condition: false,
+            internal_condition: false,
         }
     }
 
-    pub const fn with_if_match(mut self, if_match: bool) -> Self {
-        self.if_match = if_match;
+    pub const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
         self
     }
 
-    pub const fn with_if_none_match(mut self, if_none_match: bool) -> Self {
-        self.if_none_match = if_none_match;
+    pub const fn with_delete_match_condition(mut self, delete_match_condition: bool) -> Self {
+        self.caller_condition = self.caller_condition || delete_match_condition;
+        self.delete_match_condition = delete_match_condition;
         self
     }
 
-    pub const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
-        self.if_not_exists = if_not_exists;
+    pub const fn with_internal_condition(mut self, internal_condition: bool) -> Self {
+        self.internal_condition = internal_condition;
         self
-    }
-
-    pub const fn with_if_version_match(mut self, if_version_match: bool) -> Self {
-        self.if_version_match = if_version_match;
-        self
-    }
-
-    pub const fn with_if_version_not_match(mut self, if_version_not_match: bool) -> Self {
-        self.if_version_not_match = if_version_not_match;
-        self
-    }
-
-    pub const fn with_delete(mut self) -> Self {
-        self.is_delete = true;
-        self
-    }
-
-    const fn has_condition(self) -> bool {
-        self.if_match
-            || self.if_none_match
-            || self.if_not_exists
-            || self.if_version_match
-            || self.if_version_not_match
     }
 }
 
@@ -1937,14 +2254,18 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let gcs_error = de::from_slice::<GcsErrorResponse>(&bs).ok();
 
     let (mut kind, mut retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.is_delete && (ctx.if_match || ctx.if_version_match) => {
+        StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.has_condition() => {
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.internal_condition => {
+            (ErrorKind::Conflict, false)
+        }
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1965,7 +2286,13 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             .iter()
             .any(|detail| detail.reason == "conditionNotMet")
         {
-            (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            if ctx.internal_condition {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            } else if ctx.caller_condition {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            } else {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
         } else if gcs_error
             .error
             .errors
@@ -1998,6 +2325,54 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from("Request range not satisfiable"))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    fn condition_not_met(ctx: ErrorContext) -> Error {
+        let body = Buffer::from(
+            r#"{"error":{"code":412,"message":"condition failed","errors":[{"reason":"conditionNotMet"}]}}"#,
+        );
+        let resp = Response::builder()
+            .status(StatusCode::PRECONDITION_FAILED)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn condition_not_met_uses_operation_context() {
+        let caller =
+            ErrorContext::new(ServiceOperation("ComposeObject")).with_caller_condition(true);
+        assert_eq!(
+            condition_not_met(caller).kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let internal = ErrorContext::new(ServiceOperation("ComposeObject"))
+            .with_caller_condition(true)
+            .with_internal_condition(true);
+        assert_eq!(condition_not_met(internal).kind(), ErrorKind::Conflict);
+
+        let no_condition = ErrorContext::new(ServiceOperation("ComposeObject"));
+        assert_eq!(
+            condition_not_met(no_condition).kind(),
+            ErrorKind::Unexpected
+        );
+    }
 }
 
 mod uri {

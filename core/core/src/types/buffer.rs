@@ -817,6 +817,112 @@ impl ExactSizeIterator for BufferChunks {
 
 impl FusedIterator for BufferChunks {}
 
+/// `BufferCursor` is a [`Read`] + [`Seek`] cursor for `Buffer`, analogous to [`std::io::Cursor`].
+///
+/// `BufferCursor` supports seeking over potentially non-contiguous bytes in a Buffer. It is useful when
+/// seekability is required, such as when interfacing with archiving and compression libraries, while
+/// maintaining zero-copy semantics.
+///
+/// ## Notes
+/// - [`BufferCursor`] does not implement [`std::io::Write`], because [`Buffer`] instances are immutable.
+///
+/// ## Features
+/// - [`BufferCursor`] can be used as a [`Read`], [`BufRead`], and [`Seek`] directly.
+/// - [`BufferCursor`] is cheap to read and seek, as it only updates the [`Buffer`] reference count
+///   without additional allocations.
+///
+/// # Examples
+///
+/// ```rust
+/// use bytes::Bytes;
+/// use opendal_core::{Buffer, BufferCursor};
+/// use std::io::{Read, Seek, SeekFrom};
+///
+/// fn test() -> std::io::Result<()> {
+///     let mut cur = BufferCursor::new(Buffer::from(vec![
+///         Bytes::from("abc"),
+///         Bytes::from("def"),
+///     ]));
+///
+///     cur.seek(SeekFrom::Start(3))?;
+///
+///     let mut out = vec![];
+///     cur.read_to_end(&mut out); // def
+///
+///     cur.seek(SeekFrom::Start(0))?;
+///
+///     let mut out = vec![];
+///     cur.read_to_end(&mut out); // abcdef
+///
+///     Ok(())
+/// }
+/// ```
+///
+pub struct BufferCursor {
+    data: Buffer,
+    view: Buffer,
+    pos: u64,
+}
+
+impl BufferCursor {
+    /// Create a BufferCursor for a Buffer.
+    #[inline]
+    pub fn new(buffer: Buffer) -> Self {
+        Self {
+            view: buffer.slice(..),
+            data: buffer,
+            pos: 0,
+        }
+    }
+}
+
+impl Read for BufferCursor {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let size = self.view.read(buf)?;
+        self.seek(SeekFrom::Current(size as i64))?;
+        Ok(size)
+    }
+}
+
+impl BufRead for BufferCursor {
+    fn fill_buf(&mut self) -> io::Result<&[u8]> {
+        self.view.fill_buf()
+    }
+
+    fn consume(&mut self, amount: usize) {
+        let amount = amount.min(self.view.remaining());
+        self.view.advance(amount);
+        self.pos += amount as u64;
+    }
+}
+
+impl Seek for BufferCursor {
+    fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
+        let end = self.data.len() as u64;
+        match pos {
+            SeekFrom::Start(pos) => {
+                self.pos = pos.min(end);
+            }
+            SeekFrom::Current(pos) => {
+                if pos.is_negative() {
+                    self.pos = self.pos.saturating_sub(pos.unsigned_abs());
+                } else {
+                    self.pos = self.pos.saturating_add(pos as u64).min(end);
+                }
+            }
+            SeekFrom::End(pos) => {
+                if pos.is_negative() {
+                    self.pos = end.saturating_sub(pos.unsigned_abs());
+                } else {
+                    self.pos = end.saturating_add(pos as u64).min(end);
+                }
+            }
+        }
+        self.view = self.data.slice(self.pos as usize..);
+        Ok(self.pos)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::io::BufRead;
@@ -1398,5 +1504,52 @@ mod tests {
             vectored_bytes(&tail),
             (Bytes::from("cdef"), Bytes::from("cdef"))
         );
+    }
+
+    #[test]
+    fn fuzz_buffer_cursor_seek_and_read() -> io::Result<()> {
+        let (buf, total_size, total_content) = setup_buffer();
+        let mut buf = BufferCursor::new(buf);
+
+        let mut rng = rng();
+        for _ in 0..100 {
+            let pos = match rng.random_range(0..3) {
+                0 => buf.seek(SeekFrom::Start(rng.random_range(0..=total_size as u64)))?,
+                1 => buf.seek(SeekFrom::Current(rng.random_range(
+                    -(buf.pos as i64)..=(total_size as i64 - buf.pos as i64),
+                )))?,
+                _ => buf.seek(SeekFrom::End(rng.random_range(-(total_size as i64)..=0)))?,
+            };
+
+            let mut out = vec![];
+            buf.read_to_end(&mut out)?;
+
+            assert_eq!(&out[..], &total_content[pos as usize..]);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_buffer_cursor_bufread_consume() -> io::Result<()> {
+        let data = || Buffer::from(vec![Bytes::from("line one\nline "), Bytes::from("two\n")]);
+
+        let mut cur = BufferCursor::new(data());
+        assert_eq!(cur.fill_buf()?, b"line one\nline ");
+        cur.consume(5);
+        assert_eq!(cur.fill_buf()?, b"one\nline ");
+
+        let mut out = [0; 3];
+        assert_eq!(cur.read(&mut out)?, 3);
+        assert_eq!(&out, b"one");
+        assert_eq!(cur.stream_position()?, 8);
+
+        let lines = BufferCursor::new(data())
+            .lines()
+            .take(3)
+            .collect::<io::Result<Vec<_>>>()?;
+        assert_eq!(lines, vec!["line one", "line two"]);
+
+        Ok(())
     }
 }

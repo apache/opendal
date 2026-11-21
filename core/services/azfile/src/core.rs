@@ -103,7 +103,7 @@ impl AzfileCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -134,7 +134,7 @@ impl AzfileCore {
         size: usize,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
         let url = format!(
@@ -187,7 +187,7 @@ impl AzfileCore {
         position: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -223,7 +223,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -247,7 +247,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?restype=directory",
@@ -273,11 +273,11 @@ impl AzfileCore {
         path: &str,
         new_path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
-        let new_p = build_abs_path(&self.root, new_path)
+        let new_p = build_absolute_path(&self.root, new_path)
             .trim_start_matches('/')
             .to_string();
 
@@ -331,7 +331,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -360,7 +360,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -387,7 +387,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -416,7 +416,7 @@ impl AzfileCore {
         limit: &Option<usize>,
         continuation: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -552,12 +552,20 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, retryable) = match parts.status {
+    let mut azfile_error = de::from_reader::<_, AzfileError>(bs.clone().reader()).ok();
+    if azfile_error.as_ref().is_none_or(|err| err.code.is_empty())
+        && let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|value| value.to_str().ok())
+    {
+        azfile_error.get_or_insert_with(AzfileError::default).code = code.to_string();
+    }
+
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
-            (ErrorKind::ConditionNotMatch, false)
-        }
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -565,24 +573,67 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzfileError>(bs.clone().reader()) {
-        Ok(azfile_err) => format!("{azfile_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
-
-    // If there is no body here, fill with error code.
-    if message.is_empty()
-        && let Some(v) = parts.headers.get("x-ms-error-code")
-        && let Ok(code) = v.to_str()
-    {
-        message = format!(
-            "{:?}",
-            AzfileError {
-                code: code.to_string(),
-                ..Default::default()
+    if let Some(azfile_error) = &azfile_error {
+        match azfile_error.code.as_str() {
+            "ParentNotFound" => {
+                (kind, retryable) = (ErrorKind::NotFound, false);
             }
-        )
+            "ResourceAlreadyExists" => {
+                (kind, retryable) = (ErrorKind::AlreadyExists, false);
+            }
+            "DeletePending" | "ShareBeingDeleted"
+                if ctx.service_operation == ServiceOperation("CreateDirectory") =>
+            {
+                (kind, retryable) = (ErrorKind::Conflict, true);
+            }
+            "CannotDeleteFileOrDirectory"
+            | "ContainerQuotaDowngradeNotAllowed"
+            | "DeletePending"
+            | "DeleteShareWhenSnapshotLeased"
+            | "DirectoryNotEmpty"
+            | "FileGenerationMismatch"
+            | "FileLockConflict"
+            | "FileOpenBySmbClient"
+            | "LeaseAcquireDuringShareDelete"
+            | "LeaseIdMismatchWithFileLeaseOperation"
+            | "LeaseIdMismatchWithFileOperation"
+            | "LeaseIdMismatchWithFileShareLeaseOperation"
+            | "LeaseIdMismatchWithFileShareOperation"
+            | "LeaseIdMissingWithFileOperation"
+            | "LeaseIdMissingWithFileShareOperation"
+            | "LeaseLostWithFileOperation"
+            | "LeaseLostWithFileShareOperation"
+            | "LeaseNotPresentWithFileLeaseOperation"
+            | "LeaseNotPresentWithFileOperation"
+            | "LeaseNotPresentWithFileShareLeaseOperation"
+            | "LeaseNotPresentWithFileShareOperation"
+            | "PreviousSnapshotNotFound"
+            | "PreviousSnapshotOperationNotSupported"
+            | "ReadOnlyAttribute"
+            | "RenameCannotOverwriteDestinationFile"
+            | "RenameCycle"
+            | "RenameDirectoryHasOpenFiles"
+            | "ShareAlreadyExists"
+            | "ShareBeingDeleted"
+            | "ShareHasSnapshots"
+            | "ShareSnapshotInProgress"
+            | "SharingViolation" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
     }
+
+    let message = azfile_error
+        .map(|err| format!("{err:?}"))
+        .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
 
     let mut err = Error::new(kind, &message);
 
@@ -594,4 +645,63 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     }
 
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse_native_error(operation: &'static str, status: StatusCode, code: &str) -> Error {
+        let resp = Response::builder()
+            .status(status)
+            .header("x-ms-error-code", code)
+            .body(Buffer::new())
+            .expect("response must build");
+        parse_error(ErrorContext::new(ServiceOperation(operation)), resp)
+    }
+
+    #[test]
+    fn test_parse_native_conflict_codes() {
+        let err = parse_native_error("CreateDirectory", StatusCode::CONFLICT, "DeletePending");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.is_temporary());
+
+        let err = parse_native_error("PutRange", StatusCode::CONFLICT, "FileLockConflict");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+
+        let err = parse_native_error(
+            "GetFileProperties",
+            StatusCode::PRECONDITION_FAILED,
+            "LeaseIdMismatchWithFileOperation",
+        );
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_non_conflict_native_codes() {
+        assert_eq!(
+            parse_native_error(
+                "CreateDirectory",
+                StatusCode::CONFLICT,
+                "ResourceAlreadyExists"
+            )
+            .kind(),
+            ErrorKind::AlreadyExists
+        );
+        assert_eq!(
+            parse_native_error("CreateDirectory", StatusCode::NOT_FOUND, "ParentNotFound").kind(),
+            ErrorKind::NotFound
+        );
+        assert_eq!(
+            parse_native_error(
+                "GetFileProperties",
+                StatusCode::PRECONDITION_FAILED,
+                "UnknownPrecondition"
+            )
+            .kind(),
+            ErrorKind::Unexpected
+        );
+    }
 }

@@ -70,10 +70,7 @@ impl S3Writer {
     }
 
     fn error_context(&self, service_operation: ServiceOperation) -> ErrorContext {
-        ErrorContext::new(service_operation)
-            .with_if_match(self.op.if_match().is_some())
-            .with_if_none_match(self.op.if_none_match().is_some())
-            .with_if_not_exists(self.op.if_not_exists())
+        ErrorContext::new(service_operation).with_caller_condition(self.op.is_conditional())
     }
 }
 
@@ -198,10 +195,7 @@ impl oio::MultipartWrite for S3Writer {
             .expect("multipart writer copy range must be bounded");
         let part_number = part_number + 1;
         let error_context = ErrorContext::new(ServiceOperation("UploadPartCopy"))
-            .with_if_match(args.if_match().is_some())
-            .with_if_none_match(args.if_none_match().is_some())
-            .with_if_modified_since(args.if_modified_since().is_some())
-            .with_if_unmodified_since(args.if_unmodified_since().is_some());
+            .with_caller_condition(args.is_conditional());
         let req = self
             .core
             .s3_upload_part_copy_request(S3UploadPartCopyRequest {

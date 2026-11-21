@@ -112,7 +112,7 @@ impl oio::PageList for AzdlsLister {
             meta.etag(format!("\"{}\"", object.etag))
                 .last_modified(Timestamp::parse_rfc2822(&object.last_modified)?);
 
-            let mut path = build_rel_path(&self.core.root, &object.name);
+            let mut path = build_relative_path(&self.core.root, &object.name);
             if mode.is_dir() {
                 path += "/"
             };

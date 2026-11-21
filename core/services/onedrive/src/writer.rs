@@ -92,7 +92,8 @@ impl OneDriveWriter {
                 Ok(meta.build())
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("UploadContent")),
+                ErrorContext::new(ServiceOperation("UploadContent"))
+                    .with_caller_condition(self.op.is_conditional()),
                 response,
             )),
         }
@@ -177,7 +178,8 @@ impl OneDriveWriter {
                 Ok(result)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CreateUploadSession")),
+                ErrorContext::new(ServiceOperation("CreateUploadSession"))
+                    .with_caller_condition(self.op.is_conditional()),
                 response,
             )),
         }

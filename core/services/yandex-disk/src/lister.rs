@@ -84,7 +84,7 @@ impl oio::PageList for YandexDiskLister {
                         let path = mf.path.strip_prefix("disk:");
 
                         if let Some(path) = path {
-                            let mut path = build_rel_path(&self.core.root, path);
+                            let mut path = build_relative_path(&self.core.root, path);
 
                             let md = parse_info(mf)?;
 
@@ -110,7 +110,7 @@ impl oio::PageList for YandexDiskLister {
                 let rel = resp
                     .path
                     .strip_prefix("disk:")
-                    .map(|p| build_rel_path(&self.core.root, p));
+                    .map(|p| build_relative_path(&self.core.root, p));
                 if let Some(rel) = rel {
                     let md = parse_info(resp)?;
                     let path = if md.mode().is_dir() {

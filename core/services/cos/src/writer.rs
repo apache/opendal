@@ -88,7 +88,8 @@ impl oio::MultipartWrite for CosWriter {
         match status {
             StatusCode::CREATED | StatusCode::OK => Ok(meta),
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("PutObject")),
+                ErrorContext::new(ServiceOperation("PutObject"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -113,7 +114,8 @@ impl oio::MultipartWrite for CosWriter {
                 Ok(result.upload_id)
             }
             _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("InitiateMultipartUpload")),
+                ErrorContext::new(ServiceOperation("InitiateMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
                 resp,
             )),
         }
@@ -181,20 +183,20 @@ impl oio::MultipartWrite for CosWriter {
 
         let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 
+        let status = resp.status();
+        if status != StatusCode::OK {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
+                resp,
+            ));
+        }
+
         let result: CompleteMultipartUploadResult =
             quick_xml::de::from_reader(resp.body_mut().reader())
                 .map_err(new_xml_deserialize_error)?;
         meta.etag(&result.etag);
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(meta.build()),
-            _ => Err(parse_error(
-                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
-                resp,
-            )),
-        }
+        Ok(meta.build())
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {

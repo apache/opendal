@@ -27,7 +27,11 @@ use crate::*;
 
 /// BytesRange carries a range of content.
 ///
-/// BytesRange implements `ToString` which can be used as `Range` HTTP header directly.
+/// `Display` formats the range without the `bytes=` prefix.
+/// [`BytesRange::to_header`] builds the HTTP `Range` header value.
+///
+/// Bounded ranges with a zero size or an overflowing end render as an empty
+/// string. [`BytesRange::to_header`] also returns an empty string for them.
 ///
 /// `<unit>` should always be `bytes`.
 ///
@@ -139,17 +143,16 @@ impl BytesRange {
 
     /// Convert bytes range into Range header.
     ///
-    /// Returns an empty string for a range with no valid HTTP representation -- a zero size, or
-    /// an end that overflows -- which [`Display`] reports by failing. `format!` turns a
-    /// `Display` failure into a panic, and this runs while a request is being built.
+    /// Returns an empty string for a range with no valid HTTP representation --
+    /// a zero size, or an end that overflows -- which [`Display`] renders as
+    /// an empty string.
     pub fn to_header(&self) -> String {
-        use std::fmt::Write;
-
-        let mut header = String::from("bytes=");
-        if write!(header, "{self}").is_err() {
-            header.clear();
+        let range = self.to_string();
+        if range.is_empty() {
+            String::new()
+        } else {
+            format!("bytes={range}")
         }
-        header
     }
 
     /// Convert bytes range into rust range.
@@ -206,79 +209,37 @@ impl BytesRange {
         )
     }
 
-    /// Convert bytes range into a checked content slice range.
+    /// Convert a read range into the available slice of the content.
+    ///
+    /// A non-empty bounded forward range that starts at or beyond the content
+    /// length returns [`ErrorKind::RangeNotSatisfied`]. Otherwise, the slice
+    /// ends at the earlier of the requested end and the content length.
     pub fn to_content_range(self, content_length: usize) -> Result<Range<usize>> {
-        let (range_offset, range_size) = match self {
+        let length = content_length as u64;
+        let (offset, size) = match self {
             BytesRange::Range { offset, size } => (offset, size),
             BytesRange::Suffix { size } => {
-                let content_length = content_length as u64;
-                let start = content_length.saturating_sub(size);
-                let start: usize = start.try_into().map_err(|_| {
-                    Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                        .with_operation("BytesRange::to_content_range")
-                        .with_context("size", size)
-                        .with_context("content_length", content_length)
-                })?;
-                let end: usize = content_length.try_into().map_err(|_| {
-                    Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                        .with_operation("BytesRange::to_content_range")
-                        .with_context("size", size)
-                        .with_context("content_length", content_length)
-                })?;
-                return Ok(start..end);
+                return Ok(length.saturating_sub(size) as usize..content_length);
             }
         };
-
-        if range_size == Some(0) {
+        if size == Some(0) {
             return Ok(0..0);
         }
-
-        if range_offset >= content_length as u64 && range_size.is_none() {
-            return Ok(content_length..content_length);
-        }
-
-        let offset: usize = range_offset.try_into().map_err(|_| {
-            Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                .with_operation("BytesRange::to_content_range")
-                .with_context("offset", range_offset)
-                .with_context("content_length", content_length)
-        })?;
-
-        match range_size {
-            Some(size) => {
-                let end = range_offset
-                    .checked_add(size)
-                    .ok_or_else(|| {
-                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                            .with_operation("BytesRange::to_content_range")
-                            .with_context("offset", range_offset)
-                            .with_context("size", size)
-                            .with_context("content_length", content_length)
-                    })?
-                    .try_into()
-                    .map_err(|_| {
-                        Error::new(ErrorKind::RangeNotSatisfied, "range exceeds content length")
-                            .with_operation("BytesRange::to_content_range")
-                            .with_context("offset", range_offset)
-                            .with_context("size", size)
-                            .with_context("content_length", content_length)
-                    })?;
-
-                if end > content_length {
-                    return Err(Error::new(
-                        ErrorKind::RangeNotSatisfied,
-                        "range exceeds content length",
-                    )
-                    .with_operation("BytesRange::to_content_range")
-                    .with_context("offset", range_offset)
-                    .with_context("size", size)
-                    .with_context("content_length", content_length));
-                }
-
-                Ok(offset..end)
+        if offset >= length {
+            if size.is_none() {
+                return Ok(content_length..content_length);
             }
-            None => Ok(offset..content_length),
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "range starts at or beyond the end of the object",
+            )
+            .with_operation("BytesRange::to_content_range")
+            .with_context("offset", offset)
+            .with_context("content_length", content_length));
         }
+
+        let end = size.map_or(length, |size| offset.saturating_add(size).min(length));
+        Ok(offset as usize..end as usize)
     }
 }
 
@@ -286,16 +247,18 @@ impl Display for BytesRange {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match *self {
             BytesRange::Range { offset, size: None } => write!(f, "{offset}-"),
-            // A zero-size range can't be represented as a valid HTTP Range.
-            BytesRange::Range { size: Some(0), .. } => Err(std::fmt::Error),
+            // A zero-size bounded range has no valid HTTP Range representation, and
+            // neither does a range whose end overflows u64. Display must stay
+            // total -- returning Err makes `format!` panic -- so these render
+            // as an empty string, which `to_header` maps to an empty header.
+            BytesRange::Range { size: Some(0), .. } => Ok(()),
             BytesRange::Range {
                 offset,
                 size: Some(size),
-            } => write!(
-                f,
-                "{offset}-{}",
-                offset.checked_add(size - 1).ok_or(std::fmt::Error)?
-            ),
+            } => match offset.checked_add(size - 1) {
+                Some(end) => write!(f, "{offset}-{end}"),
+                None => Ok(()),
+            },
             BytesRange::Suffix { size } => write!(f, "-{size}"),
         }
     }
@@ -383,13 +346,11 @@ mod tests {
 
     #[test]
     fn test_bytes_range_display_zero_size() {
-        // Zero-size at offset 0
-        let range = BytesRange::new(0, Some(0));
-        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
-
-        // Zero-size at nonzero offset
-        let range = BytesRange::new(5, Some(0));
-        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+        // Zero-size ranges have no valid HTTP representation, so Display
+        // renders them as an empty string instead of failing: a Display
+        // failure makes `format!` panic.
+        assert_eq!(BytesRange::new(0, Some(0)).to_string(), "");
+        assert_eq!(BytesRange::new(5, Some(0)).to_string(), "");
     }
 
     #[test]
@@ -409,8 +370,8 @@ mod tests {
 
     #[test]
     fn test_bytes_range_to_header_is_empty_when_unrepresentable() {
-        // `Display` fails for these, and `format!` turns a `Display` failure into a panic --
-        // `to_header` is called while building a request, at more than forty service call sites.
+        // `Display` renders these as an empty string, and `to_header` maps
+        // that to an empty header.
         assert_eq!(BytesRange::new(0, Some(0)).to_header(), "");
         assert_eq!(BytesRange::new(5, Some(0)).to_header(), "");
         assert_eq!(BytesRange::new(u64::MAX, Some(2)).to_header(), "");
@@ -512,9 +473,9 @@ mod tests {
 
     #[test]
     fn test_bytes_range_display_overflow() {
-        // offset=u64::MAX, size=2 would overflow in Display (u64::MAX + 1)
-        let range = BytesRange::new(u64::MAX, Some(2));
-        assert!(std::fmt::write(&mut String::new(), format_args!("{}", range)).is_err());
+        // offset=u64::MAX, size=2 would overflow in Display (u64::MAX + 1),
+        // so it renders as an empty string instead of failing.
+        assert_eq!(BytesRange::new(u64::MAX, Some(2)).to_string(), "");
     }
 
     #[test]
@@ -551,7 +512,12 @@ mod tests {
             0..0
         );
 
-        let err = BytesRange::new(8, Some(4))
+        assert_eq!(BytesRange::new(8, Some(4)).to_content_range(10)?, 8..10);
+        assert_eq!(
+            BytesRange::new(8, Some(u64::MAX)).to_content_range(10)?,
+            8..10
+        );
+        let err = BytesRange::new(10, Some(1))
             .to_content_range(10)
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);

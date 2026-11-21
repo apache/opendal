@@ -106,9 +106,8 @@ impl S3Copier {
         source_if_match: bool,
     ) -> ErrorContext {
         ErrorContext::new(service_operation)
-            .with_if_match(self.args.if_match().is_some() || source_if_match)
-            .with_if_none_match(self.args.if_none_match().is_some())
-            .with_if_not_exists(self.args.if_not_exists())
+            .with_caller_condition(self.args.is_conditional())
+            .with_source_if_match(source_if_match)
     }
 
     fn copy_source(&self) -> Result<S3CopySource<'_>> {

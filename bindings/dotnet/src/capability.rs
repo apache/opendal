@@ -92,6 +92,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// Indicates if Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    pub write_with_content_language: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
@@ -106,6 +108,8 @@ pub struct Capability {
     pub write_with_if_not_exists: bool,
     /// Indicates if custom user metadata can be attached during write operations.
     pub write_with_user_metadata: bool,
+    /// Indicates if writes can set a lifetime for the new file.
+    pub write_with_expires: bool,
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
     pub write_multi_max_size: usize,
     /// Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part.
@@ -247,6 +251,7 @@ impl Capability {
             write_with_content_type: cap.write_with_content_type,
             write_with_content_disposition: cap.write_with_content_disposition,
             write_with_content_encoding: cap.write_with_content_encoding,
+            write_with_content_language: cap.write_with_content_language,
             write_with_cache_control: cap.write_with_cache_control,
             write_with_if_match: cap.write_with_if_match,
             write_with_if_none_match: cap.write_with_if_none_match,
@@ -254,6 +259,7 @@ impl Capability {
             write_with_if_version_not_match: cap.write_with_if_version_not_match,
             write_with_if_not_exists: cap.write_with_if_not_exists,
             write_with_user_metadata: cap.write_with_user_metadata,
+            write_with_expires: cap.write_with_expires,
             write_multi_max_size: cap.write_multi_max_size.unwrap_or(usize::MAX),
             write_multi_min_size: cap.write_multi_min_size.unwrap_or(usize::MAX),
             write_total_max_size: cap.write_total_max_size.unwrap_or(usize::MAX),

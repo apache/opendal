@@ -120,7 +120,7 @@ impl AzdlsCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -168,7 +168,7 @@ impl AzdlsCore {
         resource: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -237,8 +237,8 @@ impl AzdlsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "{}/{}/{}",
@@ -273,7 +273,7 @@ impl AzdlsCore {
         close: bool,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=append&position={}",
@@ -314,7 +314,7 @@ impl AzdlsCore {
         position: u64,
         close: bool,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/{}/{}?action=flush&position={}",
@@ -345,7 +345,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -391,7 +391,8 @@ impl AzdlsCore {
 
         if resp.status() != StatusCode::OK {
             return Err(parse_error(
-                ErrorContext::new(ServiceOperation("GetPathProperties")),
+                ErrorContext::new(ServiceOperation("GetPathProperties"))
+                    .with_caller_condition(args.is_conditional()),
                 resp,
             ));
         }
@@ -457,7 +458,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -490,7 +491,7 @@ impl AzdlsCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -534,7 +535,8 @@ impl AzdlsCore {
                 StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NOT_FOUND => {}
                 _ => {
                     return Err(parse_error(
-                        ErrorContext::new(ServiceOperation("RecursiveDeletePath")),
+                        ErrorContext::new(ServiceOperation("RecursiveDeletePath"))
+                            .with_delete_match_condition(args.if_match().is_some()),
                         resp,
                     ));
                 }
@@ -562,7 +564,7 @@ impl AzdlsCore {
         continuation: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -643,6 +645,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("ReadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn encode_then_decode_roundtrips() {
         let mut input = HashMap::new();
         input.insert("location".to_string(), "everywhere".to_string());
@@ -691,13 +705,54 @@ mod tests {
             parse_error(ctx, resp).kind()
         };
 
-        let read_ctx = ErrorContext::new(ServiceOperation("ReadFile")).with_if_match(true);
+        let read_ctx = ErrorContext::new(ServiceOperation("ReadFile")).with_caller_condition(true);
         assert_eq!(parse_missing(read_ctx), ErrorKind::NotFound);
 
-        let delete_ctx = ErrorContext::new(ServiceOperation("DeletePath"))
-            .with_if_match(true)
-            .with_delete();
+        let delete_ctx =
+            ErrorContext::new(ServiceOperation("DeletePath")).with_delete_match_condition(true);
         assert_eq!(parse_missing(delete_ctx), ErrorKind::ConditionNotMatch);
+    }
+
+    #[test]
+    fn test_parse_conflict_uses_native_code_and_operation_context() {
+        let parse_conflict = |ctx, code: &str| {
+            let body = Buffer::from(format!(
+                "<Error><Code>{code}</Code><Message>test</Message></Error>"
+            ));
+            let resp = Response::builder()
+                .status(StatusCode::CONFLICT)
+                .body(body)
+                .expect("response must build");
+            parse_error(ctx, resp)
+        };
+
+        let conditional =
+            ErrorContext::new(ServiceOperation("CreateFile")).with_if_not_exists(true);
+        assert_eq!(
+            parse_conflict(conditional, "PathAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("CreateFile"));
+        assert_eq!(
+            parse_conflict(unconditional, "PathAlreadyExists").kind(),
+            ErrorKind::AlreadyExists
+        );
+        for code in [
+            "DestinationPathIsBeingDeleted",
+            "PathConflict",
+            "ResourceTypeMismatch",
+        ] {
+            assert_eq!(
+                parse_conflict(unconditional, code).kind(),
+                ErrorKind::Conflict,
+                "native code {code}"
+            );
+        }
+        assert_eq!(
+            parse_conflict(unconditional, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
     }
 }
 
@@ -743,26 +798,38 @@ impl Debug for AzdlsError {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
     service_operation: ServiceOperation,
-    if_match: bool,
-    is_delete: bool,
+    caller_condition: bool,
+    if_not_exists: bool,
+    delete_match_condition: bool,
 }
 
 impl ErrorContext {
     pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
         Self {
             service_operation,
-            if_match: false,
-            is_delete: false,
+            caller_condition: false,
+            if_not_exists: false,
+            delete_match_condition: false,
         }
     }
 
-    pub(crate) const fn with_if_match(mut self, if_match: bool) -> Self {
-        self.if_match = if_match;
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
         self
     }
 
-    pub(crate) const fn with_delete(mut self) -> Self {
-        self.is_delete = true;
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
+    }
+
+    pub(crate) const fn with_delete_match_condition(
+        mut self,
+        delete_match_condition: bool,
+    ) -> Self {
+        self.caller_condition = self.caller_condition || delete_match_condition;
+        self.delete_match_condition = delete_match_condition;
         self
     }
 }
@@ -772,15 +839,26 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
 
-    let (kind, retryable) = match parts.status {
-        StatusCode::NOT_FOUND if ctx.is_delete && ctx.if_match => {
+    let mut azdls_error = de::from_reader::<_, AzdlsError>(bs.clone().reader()).ok();
+    if azdls_error.as_ref().is_none_or(|err| err.code.is_empty())
+        && let Some(code) = parts
+            .headers
+            .get("x-ms-error-code")
+            .and_then(|value| value.to_str().ok())
+    {
+        azdls_error.get_or_insert_with(AzdlsError::default).code = code.to_string();
+    }
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND if ctx.delete_match_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -789,23 +867,50 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let mut message = match de::from_reader::<_, AzdlsError>(bs.clone().reader()) {
-        Ok(azdls_err) => format!("{azdls_err:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-    };
-    // If there is no body here, fill with error code.
-    if message.is_empty()
-        && let Some(v) = parts.headers.get("x-ms-error-code")
-        && let Ok(code) = v.to_str()
-    {
-        message = format!(
-            "{:?}",
-            AzdlsError {
-                code: code.to_string(),
-                ..Default::default()
+    if let Some(azdls_error) = &azdls_error {
+        match azdls_error.code.as_str() {
+            "ConditionNotMet" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
-        )
+            "PathAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "PathAlreadyExists" => {
+                (kind, retryable) = (ErrorKind::AlreadyExists, false);
+            }
+            "DestinationPathIsBeingDeleted"
+            | "DirectoryNotEmpty"
+            | "FilesystemBeingDeleted"
+            | "InvalidDestinationPath"
+            | "InvalidFlushOperation"
+            | "LeaseAlreadyPresent"
+            | "LeaseIdMismatchWithLeaseOperation"
+            | "LeaseIdMismatchWithPathOperation"
+            | "LeaseIdMissing"
+            | "LeaseIsAlreadyBroken"
+            | "LeaseIsBreakingAndCannotBeAcquired"
+            | "LeaseIsBreakingAndCannotBeChanged"
+            | "LeaseIsBrokenAndCannotBeRenewed"
+            | "LeaseNotPresentWithLeaseOperation"
+            | "PathConflict"
+            | "ResourceTypeMismatch"
+            | "SourcePathIsBeingDeleted" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
     }
+
+    let message = azdls_error
+        .map(|err| format!("{err:?}"))
+        .unwrap_or_else(|| String::from_utf8_lossy(&bs).into_owned());
 
     let mut err = Error::new(kind, &message);
 

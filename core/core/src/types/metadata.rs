@@ -32,8 +32,8 @@ const IS_CURRENT_TRUE: u16 = 0b10 << 2;
 const IS_DELETED: u16 = 1 << 4;
 const HAS_LAST_MODIFIED: u16 = 1 << 5;
 
-const STRING_FIELD_COUNT: usize = 7;
-const VALUE_FIELD_COUNT: usize = 9;
+const STRING_FIELD_COUNT: usize = 8;
+const VALUE_FIELD_COUNT: usize = 10;
 
 #[derive(Clone, Copy)]
 #[repr(usize)]
@@ -43,6 +43,7 @@ enum ValueField {
     ContentMd5,
     ContentType,
     ContentEncoding,
+    ContentLanguage,
     Etag,
     Version,
     UserMetadata,
@@ -180,6 +181,9 @@ impl fmt::Debug for Metadata {
         if let Some(value) = self.content_encoding() {
             ds.field("content_encoding", &value);
         }
+        if let Some(value) = self.content_language() {
+            ds.field("content_language", &value);
+        }
         if let Some(value) = self.etag() {
             ds.field("etag", &value);
         }
@@ -277,6 +281,15 @@ impl Metadata {
     #[inline]
     pub fn content_encoding(&self) -> Option<&str> {
         self.string(ValueField::ContentEncoding)
+    }
+
+    /// Return this entry's Content-Language value, if available.
+    ///
+    /// The value can contain multiple language tags.
+    /// See [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#field.content-language).
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        self.string(ValueField::ContentLanguage)
     }
 
     /// Return this entry's Last-Modified timestamp.
@@ -442,6 +455,11 @@ impl MetadataBuilder {
     /// Set the Content-Encoding value.
     pub fn content_encoding(&mut self, value: impl Into<String>) -> &mut Self {
         self.set_string(ValueField::ContentEncoding, value.into())
+    }
+
+    /// Set the Content-Language value.
+    pub fn content_language(&mut self, value: impl Into<String>) -> &mut Self {
+        self.set_string(ValueField::ContentLanguage, value.into())
     }
 
     /// Set the last-modified timestamp.
@@ -743,6 +761,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_pointer_width = "64")]
     fn metadata_layout_is_40_bytes() {
         assert_eq!(size_of::<MetadataHeader>(), 24);
         assert_eq!(size_of::<CompactValues>(), 16);

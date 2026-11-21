@@ -19,26 +19,22 @@ name: Bindings Java CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
+  pull_request:
+    branches:
+      - main
+    paths:
       - "core/**"
       - "bindings/java/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_java.yml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
-  schedule:
-    - cron: '30 1 * * 1'
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-java-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

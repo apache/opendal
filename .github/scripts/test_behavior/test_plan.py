@@ -19,7 +19,14 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from plan import LANGUAGE_BINDING, group_cases_by_service, plan
+from plan import (
+    INTEGRATIONS,
+    LANGUAGE_BINDING,
+    group_cases_by_service,
+    plan,
+    provided_cases,
+    validate_nightly_plan,
+)
 
 
 class BehaviorTestPlan(unittest.TestCase):
@@ -180,6 +187,85 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["integration_object_store"][0]["cases"]]
         # Should contain fs
         self.assertTrue("fs" in cases)
+
+    def test_nightly_local_and_live_partition_all_setups(self):
+        service_dir = Path(__file__).parents[2] / "services"
+        all_setups = {
+            (action.parents[1].name, action.parent.name)
+            for action in service_dir.glob("*/*/action.yml")
+        }
+        local_setups = {
+            (c["service"], c["setup"]) for c in provided_cases(mode="nightly-local")
+        }
+        live_setups = {
+            (c["service"], c["setup"]) for c in provided_cases(mode="nightly-live")
+        }
+
+        self.assertEqual(local_setups & live_setups, set())
+        self.assertEqual(local_setups | live_setups, all_setups)
+        self.assertNotIn(("github", "read_only"), local_setups)
+        self.assertIn(("github", "read_only"), live_setups)
+
+    def test_nightly_local_ignores_empty_diff_and_covers_all_components(self):
+        result = plan([], mode="nightly-local")
+        self.assertTrue(result["components"]["core"])
+        for language in LANGUAGE_BINDING:
+            self.assertTrue(result["components"][f"binding_{language}"], language)
+        for integration in INTEGRATIONS:
+            self.assertTrue(
+                result["components"][f"integration_{integration}"], integration
+            )
+
+        core_setups = {
+            (case["service"], setup)
+            for target in result["core"]
+            for case in target["cases"]
+            for setup in case["setups"]
+        }
+        self.assertIn(("memory", "memory"), core_setups)
+        self.assertIn(("fs", "local_fs"), core_setups)
+        self.assertNotIn(("github", "read_only"), core_setups)
+        self.assertNotIn(("s3", "aws_s3"), core_setups)
+
+        obj_services = {
+            case["service"]
+            for target in result["integration_object_store"]
+            for case in target["cases"]
+        }
+        self.assertEqual(obj_services, {"fs", "s3"})
+
+        go_oses = {target["os"] for target in result["binding_go"]}
+        self.assertEqual(go_oses, {"ubuntu-latest", "windows-latest", "macos-latest"})
+
+    def test_nightly_live_ignores_empty_diff_and_excludes_local_setups(self):
+        result = plan([], mode="nightly-live")
+        self.assertTrue(result["components"]["core"])
+        self.assertTrue(result["components"]["integration_object_store"])
+
+        core_cases = result["core"][0]["cases"]
+        # Each live setup runs as an independent core job for per-setup reporting.
+        self.assertTrue(all(len(c["setups"]) == 1 for c in core_cases))
+        self.assertTrue(all("label" in c for c in core_cases))
+        core_setups = {
+            (case["service"], setup)
+            for target in result["core"]
+            for case in target["cases"]
+            for setup in case["setups"]
+        }
+        self.assertIn(("github", "read_only"), core_setups)
+        self.assertIn(("s3", "aws_s3"), core_setups)
+        self.assertNotIn(("fs", "local_fs"), core_setups)
+        self.assertNotIn(("memory", "memory"), core_setups)
+
+        go_oses = {target["os"] for target in result["binding_go"]}
+        self.assertEqual(go_oses, {"ubuntu-latest"})
+
+    def test_validate_nightly_plan_rejects_empty_components(self):
+        empty = {"components": {"core": False}, "core": []}
+        with self.assertRaises(RuntimeError):
+            validate_nightly_plan(empty, "nightly-local")
+        with self.assertRaises(RuntimeError):
+            validate_nightly_plan(empty, "nightly-live")
 
 if __name__ == "__main__":
     unittest.main()

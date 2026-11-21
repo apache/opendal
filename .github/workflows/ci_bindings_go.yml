@@ -19,30 +19,26 @@ name: Bindings Go CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
+  pull_request:
+    branches:
+      - main
+    paths:
       - "core/**"
       - "bindings/c/**"
       - "bindings/go/**"
       - ".github/workflows/ci_bindings_go.yml"
       - ".github/scripts/test_go_binding/matrix.yaml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-go-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  pull-requests: read
-  checks: write
 
 jobs:
   lint:

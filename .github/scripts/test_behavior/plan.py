@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import argparse
 import json
 import os
 import re
@@ -35,8 +36,22 @@ LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotne
 
 INTEGRATIONS = ["object_store"]
 
+VALID_MODES = ("pr", "nightly-local", "nightly-live")
 
-def provided_cases() -> list[dict[str, str]]:
+# Setups that access external network services without 1Password secrets.
+ONLINE_SETUPS = {
+    ("github", "read_only"),
+}
+
+
+def is_live_setup(service: str, setup: str, content: str) -> bool:
+    return "op://services" in content or (service, setup) in ONLINE_SETUPS
+
+
+def provided_cases(mode: str = "pr") -> list[dict[str, str]]:
+    if mode not in VALID_MODES:
+        raise ValueError(f"unsupported planner mode: {mode}")
+
     root_dir = f"{GITHUB_DIR}/services"
 
     cases = [
@@ -53,10 +68,20 @@ def provided_cases() -> list[dict[str, str]]:
         if os.path.exists(os.path.join(root_dir, service, setup, "action.yml"))
     ]
 
-    # Check if this workflow needs to read secrets.
-    #
-    # We will check if pattern `op://services` exist in content.
-    if not os.getenv("GITHUB_HAS_SECRETS") == "true":
+    if mode == "nightly-local":
+        cases[:] = [
+            v
+            for v in cases
+            if not is_live_setup(v["service"], v["setup"], v["content"])
+        ]
+    elif mode == "nightly-live":
+        cases[:] = [
+            v for v in cases if is_live_setup(v["service"], v["setup"], v["content"])
+        ]
+    elif not os.getenv("GITHUB_HAS_SECRETS") == "true":
+        # Check if this workflow needs to read secrets.
+        #
+        # We will check if pattern `op://services` exist in content.
         cases[:] = [v for v in cases if "op://services" not in v["content"]]
 
     # Remove content from cases.
@@ -255,8 +280,11 @@ def group_cases_by_service(cases: list[dict[str, str]]) -> list[dict[str, Any]]:
 
 
 def generate_core_cases(
-    cases: list[dict[str, str]], hint: Hint
+    cases: list[dict[str, str]], hint: Hint, mode: str = "pr"
 ) -> list[dict[str, str]]:
+    if mode in ("nightly-local", "nightly-live"):
+        return cases
+
     # Always run all tests if it is a push event.
     if os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
@@ -275,7 +303,7 @@ def generate_core_cases(
 
 
 def generate_language_binding_cases(
-    cases: list[dict[str, str]], hint: Hint, language: str
+    cases: list[dict[str, str]], hint: Hint, language: str, mode: str = "pr"
 ) -> list[dict[str, str]]:
     cases = unique_cases(cases)
 
@@ -336,7 +364,7 @@ def generate_language_binding_cases(
             "azfile",
         ]]
 
-    if os.getenv("GITHUB_IS_PUSH") == "true":
+    if mode in ("nightly-local", "nightly-live") or os.getenv("GITHUB_IS_PUSH") == "true":
         return cases
 
     # Return empty if this binding is False
@@ -353,17 +381,20 @@ def generate_language_binding_cases(
 
 
 def generate_integration_cases(
-    cases: list[dict[str, str]], hint: Hint, integration: str
+    cases: list[dict[str, str]], hint: Hint, integration: str, mode: str = "pr"
 ) -> list[dict[str, str]]:
-    # Return empty if this integration is False
-    if not getattr(hint, f"integration_{integration}"):
-        return []
-
     cases = unique_cases(cases)
 
     if integration == "object_store":
         supported_services = ["fs", "s3"]
         cases = [v for v in cases if v["service"] in supported_services]
+
+    if mode in ("nightly-local", "nightly-live"):
+        return cases
+
+    # Return empty if this integration is False
+    if not getattr(hint, f"integration_{integration}"):
+        return []
 
     # Return all services if all_service is True
     if hint.all_service:
@@ -375,11 +406,61 @@ def generate_integration_cases(
     return cases
 
 
-def plan(changed_files: list[str]) -> dict[str, Any]:
-    cases = provided_cases()
+def validate_nightly_plan(jobs: dict[str, Any], mode: str) -> None:
+    if mode == "nightly-local":
+        if not jobs["components"]["core"]:
+            raise RuntimeError("nightly-local plan must include core")
+        core_services = {
+            case["service"] for target in jobs["core"] for case in target["cases"]
+        }
+        missing_core = {"memory", "fs", "s3", "azblob", "http"} - core_services
+        if missing_core:
+            raise RuntimeError(
+                f"nightly-local plan missing core services: {sorted(missing_core)}"
+            )
+        for language in LANGUAGE_BINDING:
+            if not jobs["components"][f"binding_{language}"]:
+                raise RuntimeError(
+                    f"nightly-local plan must include binding_{language}"
+                )
+        for integration in INTEGRATIONS:
+            if not jobs["components"][f"integration_{integration}"]:
+                raise RuntimeError(
+                    f"nightly-local plan must include integration_{integration}"
+                )
+    elif mode == "nightly-live":
+        if not jobs["components"]["core"]:
+            raise RuntimeError("nightly-live plan must include core")
+        core_services = {
+            case["service"] for target in jobs["core"] for case in target["cases"]
+        }
+        if "github" not in core_services:
+            raise RuntimeError("nightly-live plan must include github/read_only")
+        if not jobs["components"]["integration_object_store"]:
+            raise RuntimeError(
+                "nightly-live plan must include integration_object_store"
+            )
+
+
+def plan(changed_files: list[str], mode: str | None = None) -> dict[str, Any]:
+    resolved_mode = mode or os.getenv("BEHAVIOR_PLAN_MODE", "pr")
+    cases = provided_cases(mode=resolved_mode)
     hint = calculate_hint(changed_files)
 
-    core_cases = group_cases_by_service(generate_core_cases(cases, hint))
+    if resolved_mode == "nightly-live":
+        core_cases = [
+            {
+                "service": c["service"],
+                "feature": c["feature"],
+                "setups": [c["setup"]],
+                "label": f"{c['service']} / {c['setup']}",
+            }
+            for c in generate_core_cases(cases, hint, mode=resolved_mode)
+        ]
+    else:
+        core_cases = group_cases_by_service(
+            generate_core_cases(cases, hint, mode=resolved_mode)
+        )
 
     jobs = {
         "components": {
@@ -409,13 +490,15 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     for language in LANGUAGE_BINDING:
         jobs[f"binding_{language}"] = []
         jobs["components"][f"binding_{language}"] = False
-        language_cases = generate_language_binding_cases(cases, hint, language)
+        language_cases = generate_language_binding_cases(
+            cases, hint, language, mode=resolved_mode
+        )
         if len(language_cases) > 0:
             jobs["components"][f"binding_{language}"] = True
             jobs[f"binding_{language}"].append(
                 {"os": "ubuntu-latest", "cases": language_cases}
             )
-            if language == "go":
+            if language == "go" and "fs" in [v["service"] for v in language_cases]:
                 # Add fs service to ensure the go binding works on Windows and macOS.
                 jobs[f"binding_{language}"].append(
                     {
@@ -437,17 +520,35 @@ def plan(changed_files: list[str]) -> dict[str, Any]:
     for integration in INTEGRATIONS:
         jobs[f"integration_{integration}"] = []
         jobs["components"][f"integration_{integration}"] = False
-        integration_cases = generate_integration_cases(cases, hint, integration)
+        integration_cases = generate_integration_cases(
+            cases, hint, integration, mode=resolved_mode
+        )
         if len(integration_cases) > 0:
             jobs["components"][f"integration_{integration}"] = True
             jobs[f"integration_{integration}"].append(
                 {"os": "ubuntu-latest", "cases": integration_cases}
             )
 
+    if resolved_mode in ("nightly-local", "nightly-live"):
+        validate_nightly_plan(jobs, resolved_mode)
+
     return jobs
 
 
-if __name__ == "__main__":
-    changed_files = sys.argv[1:]
-    result = plan(changed_files)
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Plan OpenDAL behavior tests")
+    parser.add_argument(
+        "--mode",
+        choices=VALID_MODES,
+        default=os.getenv("BEHAVIOR_PLAN_MODE", "pr"),
+        help="Planning mode: pr, nightly-local, or nightly-live",
+    )
+    parser.add_argument("changed_files", nargs="*")
+    args = parser.parse_args(argv)
+    result = plan(args.changed_files, mode=args.mode)
     print(json.dumps(result))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

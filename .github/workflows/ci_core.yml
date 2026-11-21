@@ -18,19 +18,17 @@
 name: Core CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - "core/**"
       - ".github/workflows/ci_core.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-core-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_docs:

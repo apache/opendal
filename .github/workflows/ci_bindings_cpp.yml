@@ -19,25 +19,23 @@ name: Bindings Cpp CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
+  pull_request:
+    branches:
+      - main
+    paths:
       - "bindings/cpp/**"
       - "core/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_cpp.yml"
       - "examples/cpp/**"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-cpp-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

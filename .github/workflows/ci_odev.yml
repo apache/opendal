@@ -18,9 +18,6 @@
 name: odev CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -40,10 +37,11 @@ on:
       - ".github/workflows/release_lifecycle.yml"
       - ".github/workflows/release_publish.yml"
       - ".github/workflows/release-compose.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-odev-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check_clippy:

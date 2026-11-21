@@ -60,10 +60,22 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
     public string? ContentEncoding { get; init; }
 
     /// <summary>
+    /// Sets Content-Language system metadata on the object being written.
+    /// </summary>
+    /// <seealso cref="Capability.WriteWithContentLanguage"/>
+    public string? ContentLanguage { get; init; }
+
+    /// <summary>
     /// Sets user metadata for this write request.
     /// </summary>
     /// <seealso cref="Capability.WriteWithUserMetadata"/>
     public IReadOnlyDictionary<string, string>? UserMetadata { get; init; }
+
+    /// <summary>
+    /// Sets how long the new file lives after the write commits.
+    /// </summary>
+    /// <seealso cref="Capability.WriteWithExpires"/>
+    public TimeSpan? Expires { get; init; }
 
     /// <summary>
     /// Write only when the file at the write path has this exact ETag.
@@ -114,6 +126,7 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
 
     void IOptions<OpenDALWriteOptions>.Validate()
     {
+        OptionValidators.RequireNullableGreaterThanZero(Expires?.Ticks, nameof(Expires));
         OptionValidators.RequireGreaterThanZero(Concurrent, nameof(Concurrent));
         OptionValidators.RequireNullableGreaterThanZero(Chunk, nameof(Chunk));
     }
@@ -126,7 +139,13 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
         native.ContentType = writer.String(ContentType);
         native.ContentDisposition = writer.String(ContentDisposition);
         native.ContentEncoding = writer.String(ContentEncoding);
+        native.ContentLanguage = writer.String(ContentLanguage);
         (native.UserMetadataHasValue, native.UserMetadataKeys, native.UserMetadataValues, native.UserMetadataLen) = writer.Pairs(UserMetadata);
+        if (Expires is { } expires)
+        {
+            native.ExpiresHasValue = 1;
+            native.ExpiresTicks = expires.Ticks;
+        }
         native.IfMatch = writer.String(IfMatch);
         native.IfNoneMatch = writer.String(IfNoneMatch);
         native.IfVersionMatch = writer.String(IfVersionMatch);
@@ -155,10 +174,13 @@ internal struct OpenDALWriteOptions
     public IntPtr ContentType;
     public IntPtr ContentDisposition;
     public IntPtr ContentEncoding;
+    public IntPtr ContentLanguage;
     public byte UserMetadataHasValue;
     public IntPtr UserMetadataKeys;
     public IntPtr UserMetadataValues;
     public nuint UserMetadataLen;
+    public byte ExpiresHasValue;
+    public long ExpiresTicks;
     public IntPtr IfMatch;
     public IntPtr IfNoneMatch;
     public IntPtr IfVersionMatch;

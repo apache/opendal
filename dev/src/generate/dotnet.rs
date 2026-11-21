@@ -201,6 +201,9 @@ const EXPOSED_OPTIONS: &[(&str, &str)] = &[
     ("DeleteOptions", "delete"),
     ("CopyOptions", "copy"),
     ("RenameOptions", "rename"),
+    ("RestoreOptions", "restore"),
+    ("ComposeOptions", "compose"),
+    ("ComposeSourceOptions", "compose_source"),
 ];
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
@@ -638,11 +641,33 @@ fn options_class(options: &OptionsStruct, operation: &str) -> OptionsClass {
                     "options.{key} =\n            borrowed_timestamp(self.{has_value}, self.{key}_second, self.{key}_nanosecond)?;"
                 ));
             }
+            OptionKind::OptionDuration => {
+                properties.push(property("TimeSpan?", ""));
+                validations.push(format!(
+                    "OptionValidators.RequireNullableGreaterThanZero({pascal}?.Ticks, nameof({pascal}));"
+                ));
+                parts.push(part(&has_value, "u8", "byte"));
+                parts.push(part(&format!("{key}_ticks"), "i64", "long"));
+                cs_writes.push(format!(
+                    "if ({pascal} is {{ }} {camel})\n        {{\n            native.{pascal}HasValue = 1;\n            native.{pascal}Ticks = {camel}.Ticks;\n        }}"
+                ));
+                rs_convert.push(format!(
+                    "if self.{has_value} != 0 {{\n            let ticks = u64::try_from(self.{key}_ticks)\n                .ok()\n                .filter(|ticks| *ticks > 0)\n                .ok_or_else(|| config_invalid_error(\"{key} must be positive\"))?;\n            options.{key} = Some(Duration::new(\n                ticks / 10_000_000,\n                (ticks % 10_000_000) as u32 * 100,\n            ));\n        }}"
+                ));
+            }
             OptionKind::OptionStringMap => {
                 properties.push(property("IReadOnlyDictionary<string, string>?", ""));
                 parts.push(part(&has_value, "u8", "byte"));
-                parts.push(part(&format!("{key}_keys"), "*const *const c_char", "IntPtr"));
-                parts.push(part(&format!("{key}_values"), "*const *const c_char", "IntPtr"));
+                parts.push(part(
+                    &format!("{key}_keys"),
+                    "*const *const c_char",
+                    "IntPtr",
+                ));
+                parts.push(part(
+                    &format!("{key}_values"),
+                    "*const *const c_char",
+                    "IntPtr",
+                ));
                 parts.push(part(&format!("{key}_len"), "usize", "nuint"));
                 cs_writes.push(format!(
                     "(native.{pascal}HasValue, native.{pascal}Keys, native.{pascal}Values, native.{pascal}Len) = writer.Pairs({pascal});"
@@ -654,10 +679,10 @@ fn options_class(options: &OptionsStruct, operation: &str) -> OptionsClass {
             OptionKind::OptionMetadata => {
                 properties.push(property("Metadata?", ""));
                 parts.push(part(key, "*const OpendalMetadata", "IntPtr"));
-                cs_writes.push(format!("native.{pascal} = writer.MetadataPointer({pascal});"));
-                rs_convert.push(format!(
-                    "options.{key} = borrowed_metadata(self.{key})?;"
+                cs_writes.push(format!(
+                    "native.{pascal} = writer.MetadataPointer({pascal});"
                 ));
+                rs_convert.push(format!("options.{key} = borrowed_metadata(self.{key})?;"));
             }
             OptionKind::BytesRange => {
                 // The established surface spells a range as an offset and an

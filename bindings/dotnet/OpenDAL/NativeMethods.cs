@@ -317,6 +317,24 @@ internal partial class NativeMethods
         long context
     );
 
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_many")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_delete_many(
+        Operator op,
+        OpenDALPathOptions* targets,
+        nuint targetsLen
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_delete_many_async")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_delete_many_async(
+        Operator op,
+        OpenDALPathOptions* targets,
+        nuint targetsLen,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
     #endregion
 
     #region CreateDir
@@ -382,6 +400,54 @@ internal partial class NativeMethods
         string targetPath,
         OpenDALRenameOptions* options,
         delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
+    #endregion
+
+    #region Restore
+
+    [LibraryImport(__DllName, EntryPoint = "operator_restore_with_options", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_restore_with_options(
+        Operator op,
+        string path,
+        OpenDALRestoreOptions* options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_restore_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_restore_with_options_async(
+        Operator op,
+        string path,
+        OpenDALRestoreOptions* options,
+        delegate* unmanaged[Cdecl]<long, OpenDALResult, void> callback,
+        long context
+    );
+
+    #endregion
+
+    #region Compose
+
+    [LibraryImport(__DllName, EntryPoint = "operator_compose_with_options", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALMetadataResult operator_compose_with_options(
+        Operator op,
+        OpenDALPathOptions* sources,
+        nuint sourcesLen,
+        string targetPath,
+        OpenDALComposeOptions* options
+    );
+
+    [LibraryImport(__DllName, EntryPoint = "operator_compose_with_options_async", StringMarshalling = StringMarshalling.Utf8)]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static unsafe partial OpenDALResult operator_compose_with_options_async(
+        Operator op,
+        OpenDALPathOptions* sources,
+        nuint sourcesLen,
+        string targetPath,
+        OpenDALComposeOptions* options,
+        delegate* unmanaged[Cdecl]<long, OpenDALMetadataResult, void> callback,
         long context
     );
 

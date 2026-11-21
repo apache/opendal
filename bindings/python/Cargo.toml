@@ -36,6 +36,7 @@ default = [
   "services-fs",
   "services-gcs",
   "services-ghac",
+  "services-github",
   "services-http",
   "services-ipmfs",
   "services-memory",
@@ -48,9 +49,8 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: this is the feature we used to build pypi wheels.
-# When enable or disable some features,
-# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
+# Common service set for all PyPI wheels. The release matrix adds platform-specific features.
+# Keep the generated service list in dev/src/generate/python.rs in sync.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -122,9 +122,7 @@ services-gcs = ["opendal/services-gcs"]
 services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
-services-github = [
-  "opendal/services-github",
-] # FIXME EXCLUDED: Needs tests/ maintenance
+services-github = ["opendal/services-github"]
 services-goosefs = [
   "opendal/services-goosefs",
 ] # FIXME EXCLUDED: armhf build failure because of tokiofs dependency
@@ -191,12 +189,8 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 
-# we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
+# Enable the stable ABI for standard CPython wheels. Build free-threaded wheels without it.
 abi3 = ["pyo3/abi3-py311"]
-
-# Conditionally include sftp only on non-windows targets
-[target.'cfg(not(windows))'.features]
-services-all = ["services-sftp"]
 
 [lib]
 crate-type = ["cdylib"]

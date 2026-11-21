@@ -73,6 +73,34 @@ func (s localTestScheme) Name() string    { return s.name }
 func (s localTestScheme) Path() string    { return s.path }
 func (s localTestScheme) LoadOnce() error { return nil }
 
+func TestLiveCDeleterStopsAtFirstError(t *testing.T) {
+	op, err := NewOperator(localTestScheme{name: "fs", path: findLocalCLibrary(t)}, OperatorOptions{"root": t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer op.Close()
+
+	paths := []string{"first.txt", "blocked.txt", "last.txt"}
+	for _, path := range paths {
+		if _, err := op.Write(path, []byte("test")); err != nil {
+			t.Fatalf("Write(%q): %v", path, err)
+		}
+	}
+
+	// FS deletes each path immediately and rejects a directory path to a file.
+	err = op.Remove([]string{paths[0], paths[1] + "/", paths[2]})
+	var opErr *Error
+	if !errors.As(err, &opErr) || opErr.Code() != CodeNotADirectory {
+		t.Fatalf("Remove error = %v, want CodeNotADirectory", err)
+	}
+	for i, path := range paths {
+		want := i != 0
+		if exists, err := op.IsExist(path); err != nil || exists != want {
+			t.Fatalf("IsExist(%q) = %v, %v, want %v, nil", path, exists, err, want)
+		}
+	}
+}
+
 func TestLiveCLibraryEndToEndAndNoLibffi(t *testing.T) {
 	libPath := findLocalCLibrary(t)
 
@@ -200,9 +228,9 @@ func TestLiveCLibraryEndToEndAndNoLibffi(t *testing.T) {
 		t.Fatalf("Reader(dir/stream.txt) failed: %v", err)
 	}
 	smallBuf := make([]byte, 5)
-	n, err = r.Read(smallBuf)
+	n, err = io.ReadFull(r, smallBuf)
 	if err != nil || n != 5 || string(smallBuf) != "01234" {
-		t.Fatalf("r.Read(5) = %d (%q), %v, want 5 (01234), nil", n, smallBuf[:n], err)
+		t.Fatalf("io.ReadFull(5) = %d (%q), %v, want 5 (01234), nil", n, smallBuf[:n], err)
 	}
 	pos, err := r.Seek(10, io.SeekStart)
 	if err != nil || pos != 10 {

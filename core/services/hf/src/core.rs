@@ -735,7 +735,7 @@ impl HfCore {
     /// Convert an operator-relative path to a repo-absolute path
     /// (no leading `/`) for use in commit/delete/batch payloads.
     pub(super) fn repo_path(&self, path: &str) -> String {
-        build_abs_path(&self.root, path)
+        build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string()
     }
@@ -1835,6 +1835,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let (parts, _) = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Resolve")), parts);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_other_precondition_failed_is_not_temporary() {
         let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1894,6 +1906,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, mut parts: http::response::Parts) -
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED if branch_updated_conflict => (ErrorKind::Conflict, true),
         StatusCode::PRECONDITION_FAILED => (ErrorKind::Unexpected, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1956,7 +1969,7 @@ mod uri {
         pub fn uri(&self, root: &str, path: &str) -> HfUri {
             HfUri {
                 repo: self.clone(),
-                path: build_abs_path(root, path)
+                path: build_absolute_path(root, path)
                     .trim_start_matches('/')
                     .trim_end_matches('/')
                     .to_string(),

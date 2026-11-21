@@ -74,6 +74,7 @@ impl MemoryBackend {
             write_with_content_type: true,
             write_with_content_disposition: true,
             write_with_content_encoding: true,
+            write_with_content_language: true,
             write_with_if_not_exists: true,
             delete: true,
             stat: true,
@@ -127,9 +128,9 @@ impl Service for MemoryBackend {
     }
 
     async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p)? {
@@ -151,7 +152,7 @@ impl Service for MemoryBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
@@ -163,8 +164,10 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let p = build_abs_path(&self.root, path);
-        let start_after = args.start_after().map(|v| build_abs_path(&self.root, v));
+        let p = build_absolute_path(&self.root, path);
+        let start_after = args
+            .start_after()
+            .map(|v| build_absolute_path(&self.root, v));
         let mut keys = self.core.scan(&p, start_after.as_deref())?;
 
         // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
@@ -231,7 +234,7 @@ impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let value = match backend.core.get(&p)? {
             Some(value) => value,
@@ -243,14 +246,11 @@ impl oio::StreamRead for MemoryReader {
             }
         };
 
-        let total_size = value.content.len() as u64;
         let content = value
             .content
             .slice(range.to_content_range(value.content.len())?);
-        let metadata = MetadataBuilder::file(total_size);
-        let metadata = metadata.build();
         Ok((
-            RpRead::new(metadata),
+            RpRead::new(value.metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
@@ -259,6 +259,19 @@ impl oio::StreamRead for MemoryReader {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[tokio::test]
+    async fn test_write_content_language_overwrite() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let written = op.write_with(path, "hello").content_language("en").await?;
+        assert_eq!(written.content_language(), Some("en"));
+        assert_eq!(op.stat(path).await?.content_language(), Some("en"));
+
+        op.write(path, "bonjour").await?;
+        assert_eq!(op.stat(path).await?.content_language(), None);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_list_with_start_after() {

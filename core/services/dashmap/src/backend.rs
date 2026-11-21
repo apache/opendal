@@ -139,7 +139,7 @@ impl Service for DashmapBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.core.get(&p)? {
             Some(value) => {
@@ -171,7 +171,7 @@ impl Service for DashmapBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let output: DashmapWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(DashmapWriter::new(self.core.clone(), p, args))
         }?;
 

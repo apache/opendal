@@ -75,6 +75,12 @@ internal unsafe ref struct NativeOptionsWriter
     public T* Reserve<T>() where T : unmanaged => (T*)Allocate(sizeof(T), Alignment);
 
     /// <summary>
+    /// Reserves an aligned, uninitialized array of <paramref name="count"/>
+    /// <typeparamref name="T"/> values, or returns null when it does not fit.
+    /// </summary>
+    public T* ReserveArray<T>(int count) where T : unmanaged => (T*)Allocate(checked(sizeof(T) * count), Alignment);
+
+    /// <summary>
     /// Writes an option string, where null and empty both mean unset.
     /// </summary>
     public IntPtr String(string? value) => string.IsNullOrEmpty(value) ? IntPtr.Zero : Utf8(value);
@@ -155,6 +161,28 @@ internal unsafe ref struct NativeOptionsWriter
 
         var target = Reserve<OpenDALMetadata>();
         var native = OpenDALMetadata.From(metadata, ref this);
+        if (target is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        *target = native;
+        return (IntPtr)target;
+    }
+
+    /// <summary>
+    /// Writes options for native code to read by pointer, or returns null
+    /// for the defaults.
+    /// </summary>
+    public IntPtr OptionsPointer<TNative>(IOptions<TNative>? options) where TNative : unmanaged
+    {
+        if (options is null)
+        {
+            return IntPtr.Zero;
+        }
+
+        var target = Reserve<TNative>();
+        var native = options.ToNative(ref this);
         if (target is null)
         {
             return IntPtr.Zero;
@@ -275,5 +303,95 @@ internal static unsafe class NativeOptionsScope
             NativeMemory.Free(heap);
             throw;
         }
+    }
+}
+
+/// <summary>
+/// Mirror of the native <c>OpendalPathOptions</c> struct: one path with a
+/// pointer to its own options, or null for the defaults.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal struct OpenDALPathOptions
+{
+    public IntPtr Path;
+    public IntPtr Options;
+}
+
+/// <summary>
+/// An array of <see cref="OpenDALPathOptions"/> in the options buffer of a
+/// single call.
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct OpenDALPathOptionsArray
+{
+    public OpenDALPathOptions* Items;
+    public nuint Len;
+}
+
+/// <summary>
+/// Ordered paths that each carry their own options, written as one
+/// <see cref="OpenDALPathOptionsArray"/>.
+/// </summary>
+internal sealed class PathOptionsArray<TNative> : IOptions<OpenDALPathOptionsArray> where TNative : unmanaged
+{
+    private readonly (string Path, IOptions<TNative>? Options)[] items;
+
+    private PathOptionsArray((string Path, IOptions<TNative>? Options)[] items)
+    {
+        this.items = items;
+    }
+
+    /// <summary>
+    /// Captures the path and options of every item in order.
+    /// </summary>
+    /// <exception cref="ArgumentException">An item is null.</exception>
+    public static PathOptionsArray<TNative> From<T>(
+        IEnumerable<T?> source,
+        Func<T, string> path,
+        Func<T, IOptions<TNative>?> options,
+        string paramName,
+        long indexOffset = 0)
+        where T : class
+    {
+        var items = new List<(string, IOptions<TNative>?)>();
+        foreach (var item in source)
+        {
+            if (item is null)
+            {
+                throw new ArgumentException($"Item at index {indexOffset + items.Count} is null.", paramName);
+            }
+
+            items.Add((path(item), options(item)));
+        }
+
+        return new PathOptionsArray<TNative>(items.ToArray());
+    }
+
+    void IOptions<OpenDALPathOptionsArray>.Validate()
+    {
+        foreach (var item in items)
+        {
+            item.Options?.Validate();
+        }
+    }
+
+    unsafe OpenDALPathOptionsArray IOptions<OpenDALPathOptionsArray>.ToNative(ref NativeOptionsWriter writer)
+    {
+        var native = writer.ReserveArray<OpenDALPathOptions>(items.Length);
+        for (var index = 0; index < items.Length; index++)
+        {
+            // Count the strings and options even when the array did not fit.
+            var item = new OpenDALPathOptions
+            {
+                Path = writer.Utf8(items[index].Path),
+                Options = writer.OptionsPointer(items[index].Options),
+            };
+            if (native is not null)
+            {
+                native[index] = item;
+            }
+        }
+
+        return new OpenDALPathOptionsArray { Items = native, Len = (nuint)items.Length };
     }
 }

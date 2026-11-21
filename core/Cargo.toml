@@ -126,6 +126,7 @@ layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
 layers-foyer = ["dep:opendal-layer-foyer"]
+layers-hedge = ["dep:opendal-layer-hedge"]
 layers-hotpath = ["dep:opendal-layer-hotpath"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-logging = ["dep:opendal-layer-logging"]
@@ -137,6 +138,7 @@ layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
 layers-route = ["dep:opendal-layer-route"]
+layers-sanity-check = ["dep:opendal-layer-sanity-check"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
@@ -260,6 +262,7 @@ opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-foyer = { path = "layers/foyer", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-hedge = { path = "layers/hedge", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-hotpath = { path = "layers/hotpath", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-logging = { path = "layers/logging", version = "0.59.5", optional = true, default-features = false }
@@ -272,6 +275,7 @@ opendal-layer-prometheus = { path = "layers/prometheus", version = "0.59.5", opt
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-route = { path = "layers/route", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-sanity-check = { path = "layers/sanity-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.59.5", optional = true, default-features = false }

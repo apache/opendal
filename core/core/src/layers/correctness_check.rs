@@ -124,6 +124,9 @@ impl CorrectnessService {
         if args.append() && !capability.write_can_append {
             return Err(new_unsupported_error(scheme, Operation::Write, "append"));
         }
+        if args.expires().is_some() && !capability.write_with_expires {
+            return Err(new_unsupported_error(scheme, Operation::Write, "expires"));
+        }
         if args.if_not_exists() && !capability.write_with_if_not_exists {
             return Err(new_unsupported_error(
                 scheme,
@@ -825,6 +828,26 @@ mod tests {
         });
         let res = op.writer_with("path").append(true).await;
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_write_with_unsupported_expiration() {
+        let op = Operator::new(crate::services::Memory::default()).unwrap();
+        let expires = Duration::from_secs(60);
+        let err = op
+            .write_with("path", "data")
+            .expires(expires)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .writer_with("path")
+            .expires(expires)
+            .await
+            .expect_err("writer with expiration must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!op.exists("path").await.unwrap());
     }
 
     #[tokio::test]

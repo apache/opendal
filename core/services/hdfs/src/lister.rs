@@ -50,7 +50,7 @@ impl oio::List for HdfsLister {
             None => return Ok(None),
         };
 
-        let path = build_rel_path(&self.root, de.path());
+        let path = build_relative_path(&self.root, de.path());
 
         let entry = if de.is_file() {
             let mut meta = MetadataBuilder::file(de.len());

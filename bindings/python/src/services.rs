@@ -51,6 +51,8 @@ pub enum Scheme {
     Dashmap,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
+    #[cfg(feature = "services-foyer")]
+    Foyer,
     #[cfg(feature = "services-fs")]
     Fs,
     #[cfg(feature = "services-ftp")]
@@ -63,6 +65,8 @@ pub enum Scheme {
     Gdrive,
     #[cfg(feature = "services-ghac")]
     Ghac,
+    #[cfg(feature = "services-github")]
+    Github,
     #[cfg(feature = "services-gridfs")]
     Gridfs,
     #[cfg(feature = "services-hdfs-native")]
@@ -197,6 +201,8 @@ impl_enum_to_str!(
         Dashmap => "dashmap",
         #[cfg(feature = "services-dropbox")]
         Dropbox => "dropbox",
+        #[cfg(feature = "services-foyer")]
+        Foyer => "foyer",
         #[cfg(feature = "services-fs")]
         Fs => "fs",
         #[cfg(feature = "services-ftp")]
@@ -209,6 +215,8 @@ impl_enum_to_str!(
         Gdrive => "gdrive",
         #[cfg(feature = "services-ghac")]
         Ghac => "ghac",
+        #[cfg(feature = "services-github")]
+        Github => "github",
         #[cfg(feature = "services-gridfs")]
         Gridfs => "gridfs",
         #[cfg(feature = "services-hdfs-native")]

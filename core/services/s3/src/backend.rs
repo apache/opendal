@@ -1229,6 +1229,7 @@ impl S3Builder {
                     write_with_content_type: true,
                     write_with_content_disposition: true,
                     write_with_content_encoding: !is_s3_express,
+                    write_with_content_language: true,
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
@@ -1522,7 +1523,7 @@ impl Service for S3Backend {
             quick_xml::de::from_reader(resp.into_body().reader())
                 .map_err(new_xml_deserialize_error)
                 .map_err(Error::set_temporary)?;
-        let abs_path = build_abs_path(&self.core.root, path);
+        let abs_path = build_absolute_path(&self.core.root, path);
 
         if output
             .version
@@ -2704,7 +2705,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_presign_write_preserves_content_type() {
+    async fn test_presign_write_preserves_content_headers() {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
@@ -2718,6 +2719,7 @@ mod tests {
             &backend.capability(),
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
+                content_language: Some("fr-CA".to_owned()),
                 ..Default::default()
             },
         )
@@ -2733,6 +2735,13 @@ mod tests {
         assert_eq!(
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
+        );
+        assert_eq!(
+            presigned
+                .header()
+                .get(http::header::CONTENT_LANGUAGE)
+                .unwrap(),
+            "fr-CA"
         );
     }
 

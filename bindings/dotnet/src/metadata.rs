@@ -49,6 +49,8 @@ pub struct OpendalMetadata {
     pub content_type: *mut c_char,
     /// Return this entry's Content-Encoding value.
     pub content_encoding: *mut c_char,
+    /// Return this entry's Content-Language value, if available.
+    pub content_language: *mut c_char,
     /// Return this entry's Last-Modified timestamp.
     pub last_modified_has_value: u8,
     pub last_modified_second: i64,
@@ -76,6 +78,7 @@ impl OpendalMetadata {
         let content_md5 = crate::utils::optional_c_string(metadata.content_md5());
         let content_type = crate::utils::optional_c_string(metadata.content_type());
         let content_encoding = crate::utils::optional_c_string(metadata.content_encoding());
+        let content_language = crate::utils::optional_c_string(metadata.content_language());
         let (last_modified_has_value, last_modified_second, last_modified_nanosecond) =
             crate::utils::optional_timestamp(metadata.last_modified());
         let etag = crate::utils::optional_c_string(metadata.etag());
@@ -94,6 +97,7 @@ impl OpendalMetadata {
             content_md5,
             content_type,
             content_encoding,
+            content_language,
             last_modified_has_value,
             last_modified_second,
             last_modified_nanosecond,
@@ -122,6 +126,7 @@ pub(crate) unsafe fn metadata_release_fields(metadata: &mut OpendalMetadata) {
         crate::utils::release_c_string(&mut metadata.content_md5);
         crate::utils::release_c_string(&mut metadata.content_type);
         crate::utils::release_c_string(&mut metadata.content_encoding);
+        crate::utils::release_c_string(&mut metadata.content_language);
         crate::utils::release_c_string(&mut metadata.etag);
         crate::utils::release_c_string(&mut metadata.content_disposition);
         crate::utils::release_c_string(&mut metadata.version);
@@ -163,6 +168,11 @@ impl OpendalMetadata {
             crate::utils::borrowed_string(self.content_encoding, "content_encoding")?
         {
             builder.content_encoding(value);
+        }
+        if let Some(value) =
+            crate::utils::borrowed_string(self.content_language, "content_language")?
+        {
+            builder.content_language(value);
         }
         if let Some(value) = crate::utils::borrowed_timestamp(
             self.last_modified_has_value,

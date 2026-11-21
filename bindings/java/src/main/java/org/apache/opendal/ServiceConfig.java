@@ -3156,6 +3156,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -3189,6 +3197,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);

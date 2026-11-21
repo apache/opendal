@@ -66,6 +66,7 @@ public struct Capability
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
+        WriteWithContentLanguage = native.writeWithContentLanguage != 0;
         WriteWithCacheControl = native.writeWithCacheControl != 0;
         WriteWithIfMatch = native.writeWithIfMatch != 0;
         WriteWithIfNoneMatch = native.writeWithIfNoneMatch != 0;
@@ -73,6 +74,7 @@ public struct Capability
         WriteWithIfVersionNotMatch = native.writeWithIfVersionNotMatch != 0;
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
+        WriteWithExpires = native.writeWithExpires != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
         WriteMultiMinSize = native.writeMultiMinSize == nuint.MaxValue ? null : native.writeMultiMinSize;
         WriteTotalMaxSize = native.writeTotalMaxSize == nuint.MaxValue ? null : native.writeTotalMaxSize;
@@ -283,6 +285,11 @@ public struct Capability
     public bool WriteWithContentEncoding { get; private set; }
 
     /// <summary>
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    /// </summary>
+    public bool WriteWithContentLanguage { get; private set; }
+
+    /// <summary>
     /// Indicates if Cache-Control can be specified during write operations.
     /// </summary>
     public bool WriteWithCacheControl { get; private set; }
@@ -316,6 +323,11 @@ public struct Capability
     /// Indicates if custom user metadata can be attached during write operations.
     /// </summary>
     public bool WriteWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if writes can set a lifetime for the new file.
+    /// </summary>
+    public bool WriteWithExpires { get; private set; }
 
     /// <summary>
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.

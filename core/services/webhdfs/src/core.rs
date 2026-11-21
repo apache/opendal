@@ -57,7 +57,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=MKDIRS&overwrite=true&noredirect=true",
@@ -91,7 +91,7 @@ impl WebhdfsCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=CREATE&overwrite=true&noredirect=true",
@@ -153,8 +153,8 @@ impl WebhdfsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_rooted_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_rooted_absolute_path(&self.root, to);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=RENAME&destination={}",
@@ -177,7 +177,7 @@ impl WebhdfsCore {
     }
 
     async fn webhdfs_init_append(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=APPEND&noredirect=true",
             self.endpoint,
@@ -250,11 +250,11 @@ impl WebhdfsCore {
         path: &str,
         sources: Vec<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let sources = sources
             .iter()
-            .map(|p| build_rooted_abs_path(&self.root, p))
+            .map(|p| build_rooted_absolute_path(&self.root, p))
             .collect::<Vec<String>>()
             .join(",");
 
@@ -287,7 +287,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS",
             self.endpoint,
@@ -312,7 +312,7 @@ impl WebhdfsCore {
         path: &str,
         start_after: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=LISTSTATUS_BATCH",
@@ -336,7 +336,7 @@ impl WebhdfsCore {
     }
 
     fn webhdfs_open_request(&self, path: &str, range: &BytesRange) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=OPEN",
             self.endpoint,
@@ -380,7 +380,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=GETFILESTATUS",
             self.endpoint,
@@ -407,7 +407,7 @@ impl WebhdfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = format!(
             "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
             self.endpoint,
@@ -468,8 +468,22 @@ impl ErrorContext {
 pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (parts, body) = resp.into_parts();
     let bs = body.to_bytes();
+    let remote_error = serde_json::from_slice::<WebHdfsErrorWrapper>(&bs)
+        .ok()
+        .map(|error| error.remote_exception);
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        // Hadoop reports an unsatisfiable OPEN offset as a 403 IOException.
+        StatusCode::FORBIDDEN
+            if ctx.service_operation == ServiceOperation("Open")
+                && remote_error.as_ref().is_some_and(|error| {
+                    error.java_class_name == "java.io.IOException"
+                        && error.message.starts_with("Offset=")
+                        && error.message.contains(" out of the range [0, ")
+                }) =>
+        {
+            (ErrorKind::RangeNotSatisfied, false)
+        }
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         // passing invalid arguments will return BAD_REQUEST
         // should be un-retryable
@@ -481,9 +495,9 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let message = match serde_json::from_slice::<WebHdfsErrorWrapper>(&bs) {
-        Ok(wh_error) => format!("{:?}", wh_error.remote_exception),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    let message = match remote_error {
+        Some(error) => format!("{error:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
     };
 
     let mut err = Error::new(kind, message);
@@ -504,6 +518,47 @@ mod tests {
     use serde_json::from_reader;
 
     use super::*;
+
+    #[test]
+    fn test_parse_open_offset_out_of_range() {
+        for (operation, class, message, expected) in [
+            (
+                "Open",
+                "java.io.IOException",
+                "Offset=6 out of the range [0, 6); OPEN, path=/file",
+                ErrorKind::RangeNotSatisfied,
+            ),
+            (
+                "Open",
+                "java.io.IOException",
+                "Permission denied",
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                "Open",
+                "org.apache.hadoop.security.AccessControlException",
+                "Offset=6 out of the range [0, 6); OPEN, path=/file",
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                "GetFileStatus",
+                "java.io.IOException",
+                "Offset=6 out of the range [0, 6); OPEN, path=/file",
+                ErrorKind::PermissionDenied,
+            ),
+        ] {
+            let body = serde_json::json!({
+                "RemoteException": { "exception": class.rsplit('.').next().unwrap(), "javaClassName": class, "message": message }
+            });
+            let response = Response::builder()
+                .status(StatusCode::FORBIDDEN)
+                .body(Buffer::from(body.to_string()))
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation(operation)), response);
+            assert_eq!(err.kind(), expected, "{operation}: {message}");
+            assert!(!err.is_temporary());
+        }
+    }
 
     /// Error response example from https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html#Error%20Responses
     #[tokio::test]

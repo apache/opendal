@@ -18,14 +18,25 @@
 use crate::raw::*;
 use crate::*;
 
-/// Executor that uses the [`tokio::task::spawn`] to execute futures.
+/// Executor that runs futures as Tokio tasks.
+///
+/// On `wasm32`, run operations that submit background tasks inside a
+/// [`tokio::task::LocalSet`]. The executor uses [`tokio::task::spawn_local`],
+/// which panics if called outside a local task context.
+///
+/// On other targets, the executor uses [`tokio::task::spawn`] and requires a
+/// Tokio runtime context.
 #[derive(Default)]
 pub struct TokioExecutor {}
 
 impl Execute for TokioExecutor {
     /// Tokio's JoinHandle has its own `abort` support, so dropping handle won't cancel the task.
     fn execute(&self, f: BoxedStaticFuture<()>) {
+        #[cfg(not(target_arch = "wasm32"))]
         let _handle = tokio::task::spawn(f);
+
+        #[cfg(target_arch = "wasm32")]
+        let _handle = tokio::task::spawn_local(f);
     }
 }
 

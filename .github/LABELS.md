@@ -32,10 +32,11 @@ remove them when subsequent edits change the scope. Maintainers can correct
 these labels. Size labels are recalculated on PR events and replace prior size
 labels.
 
-Maintainers control `lgtm`, `run-with-secrets`, `release-blocker`,
-`good first issue`, `good first vibe`, and `help wanted`. The model cannot select
-them. Language labels, `dependencies`, and `github_actions` remain under the
-existing Dependabot/manual workflow and are preserved.
+Maintainers control `lgtm`, `release-blocker`, `good first issue`,
+`good first vibe`, and `help wanted`. Nightly workflows manage `ci/nightly`
+and `ci/live-service`. The model cannot select them. Language labels,
+`dependencies`, and `github_actions` remain under the existing
+Dependabot/manual workflow and are preserved.
 
 ## Component catalog
 

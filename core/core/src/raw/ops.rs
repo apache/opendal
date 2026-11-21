@@ -115,14 +115,14 @@ impl OpDelete {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Delete));
             };
@@ -437,14 +437,14 @@ impl OpRead {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.version, version, "source version")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "source if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.version, version, "source version")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -659,7 +659,7 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
         let range = value.range;
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk,
+            chunk: value.chunk.map(|v| v.max(1)),
             gap: value.gap,
             prefetch: 0,
         };
@@ -671,7 +671,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
     fn from(value: options::ReaderOptions) -> Self {
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk,
+            chunk: value.chunk.map(|v| v.max(1)),
             gap: value.gap,
             prefetch: value.prefetch,
         };
@@ -827,12 +827,14 @@ enum WriteField {
     ContentType,
     ContentDisposition,
     ContentEncoding,
+    ContentLanguage,
     CacheControl,
     IfMatch,
     IfNoneMatch,
     IfVersionMatch,
     IfVersionNotMatch,
     UserMetadata,
+    Expires,
 }
 
 impl OpWrite {
@@ -862,14 +864,14 @@ impl OpWrite {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Write));
             };
@@ -888,7 +890,7 @@ impl OpWrite {
         }
 
         let writer = OpWriter {
-            chunk: options.chunk,
+            chunk: options.chunk.map(|v| v.max(1)),
         };
         let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
         let mut flags = 0;
@@ -898,16 +900,24 @@ impl OpWrite {
         if options.if_not_exists {
             flags |= OP_WRITE_IF_NOT_EXISTS;
         }
+        let expires = options.expires.map(|duration| {
+            let mut bytes = [0; 12];
+            bytes[..8].copy_from_slice(&duration.as_secs().to_le_bytes());
+            bytes[8..].copy_from_slice(&duration.subsec_nanos().to_le_bytes());
+            bytes
+        });
         let fields = [
             options.content_type.as_deref().map(str::as_bytes),
             options.content_disposition.as_deref().map(str::as_bytes),
             options.content_encoding.as_deref().map(str::as_bytes),
+            options.content_language.as_deref().map(str::as_bytes),
             options.cache_control.as_deref().map(str::as_bytes),
             options.if_match.as_deref().map(str::as_bytes),
             options.if_none_match.as_deref().map(str::as_bytes),
             options.if_version_match.as_deref().map(str::as_bytes),
             options.if_version_not_match.as_deref().map(str::as_bytes),
             None,
+            expires.as_ref().map(<[u8; 12]>::as_slice),
         ];
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[WriteField::UserMetadata as usize] =
@@ -954,6 +964,12 @@ impl OpWrite {
     #[inline]
     pub fn content_encoding(&self) -> Option<&str> {
         string_value(&self.values, WriteField::ContentEncoding as usize)
+    }
+
+    /// Get the Content-Language value.
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        string_value(&self.values, WriteField::ContentLanguage as usize)
     }
 
     /// Get the cache control from option
@@ -1019,6 +1035,28 @@ impl OpWrite {
             .map(UserMetadata::new)
     }
 
+    /// Returns the lifetime requested for the new file.
+    pub fn expires(&self) -> Option<Duration> {
+        self.values.get(WriteField::Expires as usize).map(|bytes| {
+            let (seconds, nanos) = bytes.split_at(8);
+            Duration::new(
+                u64::from_le_bytes(seconds.try_into().expect("encoded seconds")),
+                u32::from_le_bytes(nanos.try_into().expect("encoded nanoseconds")),
+            )
+        })
+    }
+
+    /// Set the Content-Language value.
+    ///
+    /// # Panics
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_content_language(mut self, v: &str) -> Self {
+        self.values = self
+            .values
+            .replace(WriteField::ContentLanguage as usize, v.as_bytes());
+        self
+    }
+
     #[doc(hidden)]
     pub fn into_content_type(mut self, value: &str) -> Self {
         self.values = self
@@ -1057,7 +1095,7 @@ impl OpWriter {
     /// operations like multipart uploads. So the chunk size may be larger than
     /// the given buffer size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk);
+        self.chunk = Some(chunk.max(1));
         self
     }
 }
@@ -1110,14 +1148,14 @@ impl OpCompose {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -1296,14 +1334,14 @@ impl OpCopy {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Copy));
             };
@@ -1568,14 +1606,17 @@ mod tests {
 
     #[test]
     fn write_options_preserve_owned_views() {
+        let expires = Duration::new(u64::MAX, 123_456_789);
         let (args, _) = OpWrite::from_options(
             &Capability::default(),
             options::WriteOptions {
                 append: true,
+                expires: Some(expires),
                 concurrent: 4,
                 content_type: Some("text/plain".to_owned()),
                 content_disposition: Some("attachment".to_owned()),
                 content_encoding: Some("gzip".to_owned()),
+                content_language: Some("en-US".to_owned()),
                 cache_control: Some("no-cache".to_owned()),
                 if_match: Some("etag".to_owned()),
                 if_none_match: Some("other-etag".to_owned()),
@@ -1600,7 +1641,15 @@ mod tests {
         assert_eq!(args.if_version_not_match(), Some("version-not-match"));
         assert!(args.if_not_exists());
         assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+        assert_eq!(args.expires(), Some(expires));
+        assert_eq!(OpWrite::default().expires(), None);
         assert!(args.is_conditional());
+        assert_eq!(args.content_language(), Some("en-US"));
+        assert_eq!(OpWrite::default().content_language(), None);
+        let changed = args.clone().with_content_language("fr-CA, en");
+        assert_eq!(changed.content_language(), Some("fr-CA, en"));
+        assert_eq!(changed.expires(), Some(expires));
+        assert_eq!(args.content_language(), Some("en-US"));
     }
 
     #[test]
@@ -1716,6 +1765,127 @@ mod tests {
         .unwrap();
         assert_eq!(compose_source.if_match(), None);
         assert_eq!(compose_source.version(), Some("version"));
+    }
+
+    #[test]
+    fn if_not_changed_rejects_a_weak_etag_without_a_version() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#);
+        let condition = Some(metadata.build());
+
+        let err = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn if_not_changed_falls_back_to_version_for_a_weak_etag() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#).version("v1");
+        let condition = Some(metadata.build());
+
+        let (write, _) = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(write.if_match(), None);
+        assert_eq!(write.if_version_match(), Some("v1"));
+
+        let delete = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(delete.if_match(), None);
+        assert_eq!(delete.if_version_match(), Some("v1"));
+
+        let copy = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(copy.if_match(), None);
+        assert_eq!(copy.if_version_match(), Some("v1"));
+
+        let compose = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose.if_match(), None);
+        assert_eq!(compose.if_version_match(), Some("v1"));
+
+        let source = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(source.if_match(), None);
+        assert_eq!(source.version(), Some("v1"));
     }
 
     #[test]

@@ -47,6 +47,8 @@ class LabelTests(unittest.TestCase):
             "bindings/zig",
             "bindings/moonbit",
             "integrations/parquet",
+            "ci/nightly",
+            "ci/live-service",
         ):
             self.assertIn(name, catalog)
         self.assertNotIn("services/hf", catalog)

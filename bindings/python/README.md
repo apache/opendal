@@ -24,6 +24,10 @@ version.
 
 ## Installation
 
+The OpenDAL Python binding requires Python 3.11 or later. We retire each Python
+version in the first binding release line after that Python version reaches
+[upstream end of life](https://devguide.python.org/versions/).
+
 Install from PyPI:
 
 ```bash
@@ -41,6 +45,38 @@ Or install from [conda-forge](https://anaconda.org/conda-forge/opendal):
 ```bash
 conda install conda-forge::opendal
 ```
+
+## Services in PyPI wheels
+
+Official PyPI wheels ship the largest verified service set for each target.
+Every wheel enables the common `services-all` group in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
+The [release workflow](https://github.com/apache/opendal/blob/main/.github/workflows/release_python.yml)
+builds the following additional services for both standard and free-threaded CPython.
+
+| Wheel platform | Architecture | Additional services |
+| --- | --- | --- |
+| Linux (manylinux) | x86_64, aarch64 | Foyer, SFTP |
+| Linux (musllinux) | x86_64, aarch64 | Foyer, SFTP |
+| Linux (manylinux and musllinux) | ARMv7 (32-bit) | None |
+| macOS | x86_64, arm64 | Foyer, SFTP |
+| Windows | x86_64 | Foyer |
+
+Foyer's Linux dependency `io-uring` lacks prebuilt ARMv7 bindings. SFTP
+requires the OpenSSH `ssh` executable at runtime. Its Rust dependency chain
+supports Unix and fails to build for ARMv7 at the supported Rust version.
+
+## Build with additional services
+
+To add D1 to the common service set, run this from `bindings/python` in
+an active virtual environment with Maturin installed:
+
+```shell
+maturin develop --release --features services-all,services-d1
+```
+
+Python layers such as `RetryLayer` and `MimeGuessLayer` are built in.
+Exposing a new Rust layer requires Python binding code.
 
 ## Quickstart
 

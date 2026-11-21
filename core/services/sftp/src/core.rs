@@ -302,18 +302,24 @@ fn classify_ssh_error(error: &SshError) -> (ErrorKind, bool) {
             }) {
                 return (ErrorKind::PermissionDenied, false);
             }
-            let temporary = diagnostic.lines().any(|line| {
-                let line = line
+            let temporary = diagnostic.lines().any(|raw_line| {
+                let line = raw_line
                     .strip_prefix("kex_exchange_identification: ")
-                    .unwrap_or(line);
+                    .or_else(|| raw_line.strip_prefix("ssh_exchange_identification: "))
+                    .unwrap_or(raw_line);
                 let line = line.strip_prefix("read: ").unwrap_or(line);
-                line == "Connection timed out during banner exchange"
-                    || line.ends_with(" Connection timed out")
-                    || line.ends_with(" Operation timed out")
-                    || line.ends_with(": Network is unreachable")
-                    || line.ends_with(": No route to host")
-                    || line.ends_with(" Connection reset by peer")
-                    || line.ends_with(" Broken pipe")
+                matches!(
+                    line,
+                    "Connection timed out during banner exchange"
+                        | "Connection timed out"
+                        | "Operation timed out"
+                        | "Broken pipe"
+                ) || raw_line.ends_with(" Connection timed out")
+                    || raw_line.ends_with(" Operation timed out")
+                    || raw_line.ends_with(": Network is unreachable")
+                    || raw_line.ends_with(": No route to host")
+                    || raw_line.ends_with(" Connection reset by peer")
+                    || raw_line.ends_with(" Broken pipe")
                     || line.starts_with("Connection closed by ")
                     || line.starts_with("Connection reset by ")
             });
@@ -450,22 +456,6 @@ mod tests {
             (
                 SshError::Connect(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
-                    "kex_exchange_identification: Connection closed by remote host",
-                )),
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                SshError::Connect(io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
-                    "kex_exchange_identification: read: Connection reset by peer",
-                )),
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                SshError::Connect(io::Error::new(
-                    io::ErrorKind::ConnectionAborted,
                     "Host key verification failed.\nConnection closed by remote host",
                 )),
                 ErrorKind::PermissionDenied,
@@ -483,6 +473,27 @@ mod tests {
             let error = parse_ssh_error(source);
             assert_eq!(error.kind(), expected_kind, "{error:?}");
             assert_eq!(error.is_temporary(), temporary, "{error:?}");
+            assert!(error.source().unwrap().is::<SshError>());
+        }
+    }
+
+    #[test]
+    fn ssh_transport_diagnostics_are_temporary() {
+        for diagnostic in [
+            "kex_exchange_identification: Connection closed by remote host",
+            "kex_exchange_identification: read: Connection reset by peer",
+            "kex_exchange_identification: read: Connection timed out",
+            "kex_exchange_identification: Connection timed out",
+            "read: Operation timed out",
+            "read: Broken pipe",
+            "ssh_exchange_identification: Connection closed by remote host",
+        ] {
+            let error = parse_ssh_error(SshError::Connect(io::Error::new(
+                io::ErrorKind::ConnectionAborted,
+                diagnostic,
+            )));
+            assert_eq!(error.kind(), ErrorKind::Unexpected, "{error:?}");
+            assert!(error.is_temporary(), "{error:?}");
             assert!(error.source().unwrap().is::<SshError>());
         }
     }

@@ -166,6 +166,12 @@ services-rocksdb = [
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
 services-s3 = ["opendal/services-s3"]
 services-seafile = ["opendal/services-seafile"]
+# Explicit opt-in for source builds on unix targets only: not enabled by
+# `default` or `services-all`, and no `Scheme` member is generated for it,
+# so no wheel ever builds with it. Do not add it to a feature set built
+# on windows or armv7l: openssh's `concurrent_arena` 0.1.11 fails to
+# build on armv7l, and its fix requires Rust 1.95, above the workspace MSRV.
+services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-surrealdb = [

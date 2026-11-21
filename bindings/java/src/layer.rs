@@ -22,7 +22,9 @@ use crate::convert::jstring_to_string;
 use crate::error::ThrowException;
 use jni::Env;
 use jni::EnvUnowned;
+use jni::objects::IntoAuto;
 use jni::objects::JClass;
+use jni::objects::JObjectArray;
 use jni::objects::JString;
 use jni::sys::jboolean;
 use jni::sys::jfloat;
@@ -30,6 +32,7 @@ use jni::sys::jlong;
 use opendal::Operator;
 use opendal::layers::CapabilityOverrideLayer;
 use opendal::layers::ConcurrentLimitLayer;
+use opendal::layers::ImmutableIndexLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::ThrottleLayer;
@@ -93,6 +96,25 @@ pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLaye
     let op = unsafe { &*op };
     let concurrent_limit = ConcurrentLimitLayer::new(permits as usize);
     Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_ImmutableIndexLayer_doLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+    keys: JObjectArray<'local, JString<'local>>,
+) -> jlong {
+    env.with_env(|env| -> Result<jlong> {
+        let mut layer = ImmutableIndexLayer::new();
+        for index in 0..keys.len(env)? {
+            let key = keys.get_element(env, index)?.auto();
+            layer.insert(jstring_to_string(env, &key)?);
+        }
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

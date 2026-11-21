@@ -7419,7 +7419,9 @@ name = "opendal-layer-foyer"
 version = "0.59.5"
 dependencies = [
  "foyer",
+ "futures",
  "opendal-core",
+ "opendal-service-fs",
  "size",
  "tempfile",
  "tokio",

@@ -19,6 +19,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+mod copier;
 mod deleter;
 mod error;
 mod full;
@@ -35,6 +36,7 @@ use foyer::{Code, HybridCache, Result as FoyerResult};
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use copier::FoyerCopier;
 pub use deleter::Deleter;
 pub use writer::Writer;
 
@@ -157,8 +159,13 @@ impl Code for FoyerValue {
 /// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
 ///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
 ///   deleter is closed, so the data remains invalidated if closing the deleter fails.
-/// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
-///   and `rename` to the service without caching their results.
+/// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
+///   cache entry for the destination.
+/// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
+///   cache entries for both the source and the destination.
+///
+/// Reads of paths invalidated by copy or rename bypass the cache until a
+/// write through the layer repopulates the corresponding entry.
 ///
 /// # Range Reads
 ///
@@ -262,6 +269,21 @@ pub(crate) struct Inner {
     pub(crate) deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
 }
 
+impl Inner {
+    fn invalidate_unversioned(&self, path: String) {
+        let key = FoyerKey {
+            path,
+            version: None,
+        };
+        let mut deleted_keys = self
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned");
+        self.cache.remove(&key);
+        deleted_keys.insert(key);
+    }
+}
+
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct FoyerService {
@@ -346,7 +368,12 @@ impl Service for FoyerService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args)
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(Box::new(FoyerCopier::new(
+            copier,
+            to.to_string(),
+            self.operation_inner(ctx),
+        )))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -373,7 +400,11 @@ impl Service for FoyerService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        self.inner.rename(ctx, from, to, args).await
+        let rp = self.inner.rename(ctx, from, to, args).await?;
+        let inner = self.operation_inner(ctx);
+        inner.invalidate_unversioned(from.to_string());
+        inner.invalidate_unversioned(to.to_string());
+        Ok(rp)
     }
 
     async fn restore(
@@ -396,8 +427,6 @@ impl Service for FoyerService {
     ) -> Result<RpPresign> {
         self.inner.presign(ctx, path, args).await
     }
-
-    // TODO(MrCroxx): Implement copy, rename with foyer cache.
 }
 
 #[cfg(test)]
@@ -406,6 +435,7 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
+    use opendal_core::raw::oio::Copy as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};
@@ -615,6 +645,59 @@ mod tests {
 
     fn service_context(_: &Servicer) -> OperationContext {
         OperationContext::new()
+    }
+
+    struct ChunkedCopier {
+        chunks: std::array::IntoIter<usize, 2>,
+    }
+
+    impl oio::Copy for ChunkedCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.chunks.next())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(MetadataBuilder::file(8).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_copy_invalidation_waits_for_completion() {
+        let cache = memory_cache().await;
+        let layer = FoyerLayer::new(cache.clone());
+        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let ctx = OperationContext::new();
+        let current = FoyerKey {
+            path: "destination".to_string(),
+            version: None,
+        };
+        let versioned = FoyerKey {
+            path: current.path.clone(),
+            version: Some("previous".to_string()),
+        };
+        cache.insert(current.clone(), FoyerValue("current".into()));
+        cache.insert(versioned.clone(), FoyerValue("previous".into()));
+        let mut copier = FoyerCopier::new(
+            ChunkedCopier {
+                chunks: [3, 5].into_iter(),
+            },
+            current.path.clone(),
+            service.operation_inner(&ctx),
+        );
+
+        assert_eq!(copier.next().await.unwrap(), Some(3));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), Some(5));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert!(!cache.contains(&current));
+        assert!(cache.contains(&versioned));
     }
 
     #[tokio::test]

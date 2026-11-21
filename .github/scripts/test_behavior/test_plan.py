@@ -107,6 +107,52 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["core"][0]["cases"]]
         self.assertEqual(cases, ["hdfs_native"])
 
+    def test_s3_crate_schedules_local_presets_and_reports_live_coverage(self):
+        result = plan(["core/services/s3/src/lib.rs"])
+        core_cases = {
+            (case["service"], case["feature"])
+            for target in result["core"]
+            for case in target["cases"]
+        }
+        self.assertEqual(
+            core_cases,
+            {("s3", "services-s3"), ("minio", "services-minio")},
+        )
+        self.assertTrue(
+            any("'r2'" in note and "Nightly Tier B" in note for note in result["notes"])
+        )
+        for language in LANGUAGE_BINDING:
+            self.assertFalse(result["components"][f"binding_{language}"], language)
+
+    def test_nightly_presets_keep_independent_features_and_binding_support(self):
+        provider_cases = set()
+        ruby_services = set()
+        go_services = set()
+        for mode in ("nightly-local", "nightly-live"):
+            result = plan([], mode=mode)
+            provider_cases.update(
+                (case["service"], case["feature"])
+                for target in result["core"]
+                for case in target["cases"]
+                if case["service"] in {"s3", "minio", "r2"}
+            )
+            for language, services in (("ruby", ruby_services), ("go", go_services)):
+                services.update(
+                    case["service"]
+                    for target in result[f"binding_{language}"]
+                    for case in target["cases"]
+                )
+        self.assertEqual(
+            provider_cases,
+            {
+                ("s3", "services-s3"),
+                ("minio", "services-minio"),
+                ("r2", "services-r2"),
+            },
+        )
+        self.assertTrue({"minio", "r2"}.isdisjoint(go_services))
+        self.assertTrue({"minio", "r2"} <= ruby_services)
+
     def test_group_core_cases_by_service(self):
         cases = [
             {

@@ -87,6 +87,8 @@ pub enum Scheme {
     Memory,
     #[cfg(feature = "services-mini-moka")]
     MiniMoka,
+    #[cfg(feature = "services-minio")]
+    Minio,
     #[cfg(feature = "services-moka")]
     Moka,
     #[cfg(feature = "services-mongodb")]
@@ -103,6 +105,8 @@ pub enum Scheme {
     Persy,
     #[cfg(feature = "services-postgresql")]
     Postgresql,
+    #[cfg(feature = "services-r2")]
+    R2,
     #[cfg(feature = "services-redb")]
     Redb,
     #[cfg(feature = "services-redis")]
@@ -233,6 +237,8 @@ impl_enum_to_str!(
         Memory => "memory",
         #[cfg(feature = "services-mini-moka")]
         MiniMoka => "mini-moka",
+        #[cfg(feature = "services-minio")]
+        Minio => "minio",
         #[cfg(feature = "services-moka")]
         Moka => "moka",
         #[cfg(feature = "services-mongodb")]
@@ -249,6 +255,8 @@ impl_enum_to_str!(
         Persy => "persy",
         #[cfg(feature = "services-postgresql")]
         Postgresql => "postgresql",
+        #[cfg(feature = "services-r2")]
+        R2 => "r2",
         #[cfg(feature = "services-redb")]
         Redb => "redb",
         #[cfg(feature = "services-redis")]

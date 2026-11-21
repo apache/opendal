@@ -35,6 +35,10 @@ LANGUAGE_BINDING = ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotne
 
 INTEGRATIONS = ["object_store"]
 
+SHARED_SERVICE_SCHEMES = {
+    "s3": {"s3", "minio", "r2"},
+}
+
 VALID_MODES = ("pr", "nightly-local", "nightly-live")
 
 # Setups that access external network services without 1Password secrets.
@@ -144,7 +148,7 @@ def calculate_hint(changed_files: list[str]) -> Hint:
     def mark_service_affected(service: str) -> None:
         for svc in _expand_service_dependents(service):
             if svc not in SERVICE_HELPER_CRATES:
-                hint.core_services.add(svc)
+                hint.core_services.update(SHARED_SERVICE_SCHEMES.get(svc, {svc}))
 
     for p in changed_files:
         # Behavior workflow / planner wiring changes.
@@ -309,8 +313,10 @@ def _filter_binding_cases(
             for v in cases
             if v["service"]
             not in [
-                # opendal-go-services doesn't provide TOS yet.
+                # opendal-go-services does not provide these services yet.
                 "tos",
+                "minio",
+                "r2",
             ]
         ]
 
@@ -332,6 +338,8 @@ def _filter_binding_cases(
                 "memory",
                 "obs",
                 "oss",
+                "minio",
+                "r2",
                 "s3",
                 "webdav",
                 "webhdfs",

@@ -929,12 +929,26 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
-        self.build_backend()
+        self.build_inner(S3_SCHEME)
     }
 }
 
 impl S3Builder {
-    fn build_backend(self) -> Result<S3Backend> {
+    pub(crate) fn from_provider_config(
+        config: S3Config,
+        credential_providers: ProvideCredentialChain<Credential>,
+    ) -> Self {
+        Self {
+            config,
+            credential_providers: Some(credential_providers),
+        }
+    }
+
+    pub(crate) fn build_with_scheme(self, scheme: &'static str) -> Result<S3Backend> {
+        self.build_inner(scheme)
+    }
+
+    fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
         let S3Builder {
@@ -956,7 +970,7 @@ impl S3Builder {
         } else {
             Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", S3_SCHEME),
+                    .with_context("service", scheme),
             )
         }?;
         debug!("backend use bucket {}", bucket);
@@ -1034,7 +1048,7 @@ impl S3Builder {
                         "region is missing. Set region, an AWS region environment variable, or default_region.",
                     )
                     .with_operation("Builder::build")
-                    .with_context("service", S3_SCHEME)
+                    .with_context("service", scheme)
                 })?
         };
         debug!("backend use region: {region}");
@@ -1065,7 +1079,9 @@ impl S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = {
+        let provider = if let Some(credential_providers) = credential_providers {
+            credential_providers
+        } else {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -1109,53 +1125,50 @@ impl S3Builder {
                 builder = builder.ecs(ecs);
             }
 
-            ProvideCredentialChain::new().push(builder.build())
-        };
+            let mut provider = ProvideCredentialChain::new().push(builder.build());
 
-        // Insert static key if user provided.
-        if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
-            let static_provider = if let Some(token) = config.session_token.as_deref() {
-                StaticCredentialProvider::new(ak, sk).with_session_token(token)
-            } else {
-                StaticCredentialProvider::new(ak, sk)
-            };
-            provider = provider.push_front(static_provider);
-        }
+            // Insert static key if user provided.
+            if let (Some(ak), Some(sk)) = (&config.access_key_id, &config.secret_access_key) {
+                let static_provider = if let Some(token) = config.session_token.as_deref() {
+                    StaticCredentialProvider::new(ak, sk).with_session_token(token)
+                } else {
+                    StaticCredentialProvider::new(ak, sk)
+                };
+                provider = provider.push_front(static_provider);
+            }
 
-        // Insert assume role provider if user provided.
-        if let Some(role_arn) = &config.role_arn {
-            // The assume-role provider owns its STS signer, so give it a
-            // concrete HTTP sender instead of relying on a future operation
-            // context.
-            let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
-            let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
-            let mut assume_role_provider =
-                AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
-                    .with_region(region.clone())
-                    .with_regional_sts_endpoint();
+            // Insert assume role provider if user provided.
+            if let Some(role_arn) = &config.role_arn {
+                // The assume-role provider owns its STS signer, so give it a
+                // concrete HTTP sender instead of relying on a future operation
+                // context.
+                let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
+                let sts_request_signer = AwsV4Signer::new("sts", &region);
+                let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+                let mut assume_role_provider =
+                    AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
+                        .with_region(region.clone())
+                        .with_regional_sts_endpoint();
 
-            if let Some(external_id) = &config.external_id {
-                assume_role_provider = assume_role_provider.with_external_id(external_id.clone());
+                if let Some(external_id) = &config.external_id {
+                    assume_role_provider =
+                        assume_role_provider.with_external_id(external_id.clone());
+                }
+                if let Some(role_session_name) = &config.role_session_name {
+                    assume_role_provider =
+                        assume_role_provider.with_role_session_name(role_session_name.clone());
+                }
+                if let Some(duration_seconds) = config.assume_role_duration_seconds {
+                    assume_role_provider =
+                        assume_role_provider.with_duration_seconds(duration_seconds);
+                }
+                if let Some(tags) = &config.assume_role_session_tags {
+                    assume_role_provider = assume_role_provider
+                        .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+                }
+                provider = ProvideCredentialChain::new().push(assume_role_provider);
             }
-            if let Some(role_session_name) = &config.role_session_name {
-                assume_role_provider =
-                    assume_role_provider.with_role_session_name(role_session_name.clone());
-            }
-            if let Some(duration_seconds) = config.assume_role_duration_seconds {
-                assume_role_provider = assume_role_provider.with_duration_seconds(duration_seconds);
-            }
-            if let Some(tags) = &config.assume_role_session_tags {
-                assume_role_provider = assume_role_provider
-                    .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
-            }
-            provider = ProvideCredentialChain::new().push(assume_role_provider);
-        }
 
-        // Replace provider if user provide their own.
-        let provider = if let Some(credential_providers) = credential_providers {
-            credential_providers
-        } else {
             provider
         };
 
@@ -1183,7 +1196,7 @@ impl S3Builder {
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
-                info: ServiceInfo::new(S3_SCHEME, &root, bucket),
+                info: ServiceInfo::new(scheme, &root, bucket),
                 capability: Capability {
                     stat: true,
                     stat_with_if_match: true,
@@ -2410,7 +2423,7 @@ mod tests {
             .region("us-west-2")
             .disable_config_load()
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .expect("S3 backend must build");
         let mut core = Arc::into_inner(backend.core).expect("S3 core must not be shared");
         core.signers = S3Signers::General(Signer::new(

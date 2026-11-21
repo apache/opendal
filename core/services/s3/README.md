@@ -1,19 +1,26 @@
 # Apache OpenDAL™ Amazon S3 Service
 
 `opendal-service-s3` provides access to Amazon S3 and S3-compatible object storage for
-applications built with Apache OpenDAL™.
+applications built with Apache OpenDAL™. It includes provider presets for Cloudflare R2
+and MinIO.
 
 ## Use through `opendal`
 
-Applications should normally enable this service through the `opendal` facade with the
-`services-s3` feature:
+Applications should enable the service or provider they use through its
+matching `opendal` facade feature:
 
 ```shell
+# Generic S3
 cargo add opendal --features services-s3
+# Cloudflare R2
+cargo add opendal --features services-r2
+# MinIO
+cargo add opendal --features services-minio
 ```
 
-The service is available as `opendal::services::S3`. Configure the
-service builder, then pass it to `opendal::Operator::new`.
+The matching builders are available as `opendal::services::S3`,
+`opendal::services::R2`, and `opendal::services::Minio`. Configure a builder,
+then pass it to `opendal::Operator::new`.
 
 ## Use with `opendal-core`
 
@@ -38,8 +45,10 @@ fn register_for_uri() {
 }
 ```
 
-`register_for_uri` is only needed for scheme-driven construction through
-`Operator::from_uri` or `Operator::via_iter`.
+`register_for_uri` registers only the `s3` scheme. Use
+`register_r2_service` or `register_minio_service` for the corresponding
+provider scheme. Registration is only needed for scheme-driven construction
+through `Operator::from_uri` or `Operator::via_iter`.
 
 Services that send HTTP requests also require an HTTP transport in
 `OperationContext`. See the
@@ -48,6 +57,8 @@ Services that send HTTP requests also require an HTTP transport in
 ## Documentation
 
 - [Service configuration and examples](https://opendal.apache.org/services/s3)
+- [Cloudflare R2 preset](https://opendal.apache.org/services/r2)
+- [MinIO preset](https://opendal.apache.org/services/minio)
 - [Rust API documentation](https://docs.rs/opendal-service-s3)
 - [Apache OpenDAL documentation](https://opendal.apache.org/docs/)
 

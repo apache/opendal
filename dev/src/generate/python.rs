@@ -21,11 +21,12 @@ use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
+use toml_edit::{DocumentMut, Item};
 
 /// Naming of the service sets the PyPI wheels are built with per platform, for
 /// example `services-platform-linux`.
@@ -44,7 +45,6 @@ struct CargoMetadata {
 struct MetadataPackage {
     name: String,
     id: String,
-    features: HashMap<String, Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -83,47 +83,68 @@ fn cargo_metadata(workspace_dir: &Path, features: &[String]) -> Result<CargoMeta
     serde_json::from_slice(&output.stdout).context("failed to parse `cargo metadata` output")
 }
 
+/// Parse the `services-platform-*` feature names declared in the `[features]`
+/// table of `bindings/python/Cargo.toml`.
+fn platform_features(workspace_dir: &Path) -> Result<Vec<String>> {
+    let manifest_path = workspace_dir.join("bindings/python/Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .with_context(|| format!("failed to read {}", manifest_path.display()))?;
+    let document = manifest
+        .parse::<DocumentMut>()
+        .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+    let features = document
+        .get("features")
+        .and_then(Item::as_table)
+        .with_context(|| format!("no [features] table in {}", manifest_path.display()))?;
+
+    let mut platforms: Vec<String> = features
+        .iter()
+        .map(|(name, _)| name.to_string())
+        .filter(|name| name.starts_with(PLATFORM_FEATURE_PREFIX))
+        .collect();
+    platforms.sort();
+    if platforms.is_empty() {
+        bail!(
+            "no `{PLATFORM_FEATURE_PREFIX}*` feature declared in {}",
+            manifest_path.display()
+        );
+    }
+
+    Ok(platforms)
+}
+
 /// Union the services enabled by every `services-platform-*` feature, i.e. the
 /// service sets the PyPI wheels are built with on their respective platforms.
 /// `cargo metadata` only resolves features and never compiles, so services that
 /// build on a subset of the wheel platforms, such as SFTP and Foyer, are still
 /// resolved on every host.
+///
+/// The enabled services are read from the resolve node of the `opendal` facade
+/// crate, whose `services-*` features are exactly one per service, instead of
+/// the binding's own feature namespace, which also carries aggregate sets such
+/// as `services-all` and `services-platform-*`.
 fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
-    let all = cargo_metadata(workspace_dir, &[])?;
-    let package = all
+    let platforms = platform_features(workspace_dir)?;
+    let metadata = cargo_metadata(workspace_dir, &platforms)?;
+
+    let package = metadata
         .packages
         .iter()
-        .find(|package| package.name == "opendal-python")
-        .with_context(|| "package `opendal-python` not found in `cargo metadata` output")?;
-    let mut platforms: Vec<String> = package
-        .features
-        .keys()
-        .filter(|name| name.starts_with(PLATFORM_FEATURE_PREFIX))
-        .cloned()
-        .collect();
-    platforms.sort();
-    if platforms.is_empty() {
-        bail!("no `{PLATFORM_FEATURE_PREFIX}*` feature declared in bindings/python/Cargo.toml");
-    }
-
-    let resolved = cargo_metadata(workspace_dir, &platforms)?;
-    let node = resolved
+        .find(|package| package.name == "opendal")
+        .with_context(|| "package `opendal` not found in `cargo metadata` output")?;
+    let node = metadata
         .resolve
         .nodes
         .iter()
         .find(|node| node.id == package.id)
-        .with_context(
-            || "resolve node for `opendal-python` not found in `cargo metadata` output",
-        )?;
+        .with_context(|| "resolve node for `opendal` not found in `cargo metadata` output")?;
 
     // Service keys are directory names under core/services, which mix `-` and
     // `_` (e.g. `aliyun-drive` vs `mini_moka`), so normalize both sides.
     let services: HashSet<String> = node
         .features
         .iter()
-        .filter(|name| !name.starts_with(PLATFORM_FEATURE_PREFIX))
         .filter_map(|name| name.strip_prefix("services-"))
-        .filter(|service| *service != "all")
         .map(|service| service.replace('-', "_"))
         .collect();
     if services.is_empty() {

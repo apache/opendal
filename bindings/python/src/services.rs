@@ -107,6 +107,8 @@ pub enum Scheme {
     S3,
     #[cfg(feature = "services-seafile")]
     Seafile,
+    #[cfg(feature = "services-sftp")]
+    Sftp,
     #[cfg(feature = "services-sled")]
     Sled,
     #[cfg(feature = "services-sqlite")]
@@ -245,6 +247,8 @@ impl_enum_to_str!(
         S3 => "s3",
         #[cfg(feature = "services-seafile")]
         Seafile => "seafile",
+        #[cfg(feature = "services-sftp")]
+        Sftp => "sftp",
         #[cfg(feature = "services-sled")]
         Sled => "sled",
         #[cfg(feature = "services-sqlite")]

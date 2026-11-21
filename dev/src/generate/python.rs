@@ -53,23 +53,23 @@ struct MetadataResolveNode {
     features: Vec<String>,
 }
 
-/// Load the services enabled by the Python binding's `services-all` feature
-/// via `cargo metadata`, so the generated code always matches the feature set
-/// the PyPI wheels are built with.
+/// Load the services enabled by the Python binding's `services-generator`
+/// feature via `cargo metadata`, so the generated code always matches the
+/// union of what the PyPI wheels build with across target platforms.
 fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
     let output = Command::new("cargo")
         .arg("metadata")
         .arg("--format-version")
         .arg("1")
         .arg("--features")
-        .arg("services-all")
+        .arg("services-generator")
         .arg("--manifest-path")
         .arg(workspace_dir.join("bindings/python/Cargo.toml"))
         .output()
         .context("failed to run `cargo metadata` for bindings/python")?;
     if !output.status.success() {
         bail!(
-            "`cargo metadata --features services-all` failed: {}",
+            "`cargo metadata --features services-generator` failed: {}",
             String::from_utf8_lossy(&output.stderr)
         );
     }

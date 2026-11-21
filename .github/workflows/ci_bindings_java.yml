@@ -19,85 +19,155 @@ name: Bindings Java CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "core/**"
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
+      - "core/layers/concurrent-limit/**"
+      - "core/layers/logging/**"
+      - "core/layers/mime-guess/**"
+      - "core/layers/retry/**"
+      - "core/layers/throttle/**"
+      - "core/layers/timeout/**"
       - "bindings/java/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_java.yml"
-  schedule:
-    - cron: '30 1 * * 1'
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-java-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
+  scope:
+    runs-on: ubuntu-slim
+    outputs:
+      cache_os: ${{ steps.scope.outputs.cache_os }}
+      test_os: ${{ steps.scope.outputs.test_os }}
+      java_versions: ${{ steps.scope.outputs.java_versions }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - name: Determine Java test matrix scope
+        id: scope
+        run: |
+          full="true"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+            if ! grep -Eq '^(bindings/java/|\.github/workflows/ci_bindings_java\.yml$)' <<< "$changed"; then
+              full="false"
+            fi
+          fi
+          if [ "$full" = "true" ]; then
+            echo 'cache_os=["ubuntu-latest","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'test_os=["ubuntu-latest","ubuntu-24.04-arm","macos-latest","windows-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'java_versions=[8,11,17,21,25]' >> "$GITHUB_OUTPUT"
+          else
+            echo 'cache_os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'test_os=["ubuntu-latest"]' >> "$GITHUB_OUTPUT"
+            echo 'java_versions=[25]' >> "$GITHUB_OUTPUT"
+          fi
+
+  # Prevent parallel cache building in `test` job by building cache in a separate job
+  java-cache:
+    needs: scope
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJson(needs.scope.outputs.cache_os) }}
+
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          # The cache key is `setup-java-${{ platform }}-${{ packageManager }}-${{ fileHash }}`. Relevant params are:
+          # - cache
+          # - cache-dependency-path
+          java-version: 25
+          distribution: zulu
+          cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
+
+  lint:
+    runs-on: ubuntu-latest
+    needs: java-cache
+    steps:
+      - uses: actions/checkout@v7
       - name: Set up Rust toolchain
         uses: ./.github/actions/setup
         with:
-          need-nextest: true
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up JDK 25
         uses: actions/setup-java@v5
         with:
+          # params must be in sync with `test` job:
+          # - cache
+          # - cache-dependency-path
           distribution: zulu
           java-version: 25
           cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
       - name: Build and check
         working-directory: bindings/java
         run: |
           ./mvnw clean compile spotless:check
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: bindings/java
+        run: cargo clippy --version
+
       - name: Check Clippy
         working-directory: bindings/java
         run: cargo clippy -- -D warnings
 
   test:
     runs-on: ${{ matrix.os }}
+    needs: [scope, java-cache]
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - ubuntu-24.04-arm
-          - macos-latest
-          - windows-latest
-        java-version:
-          - 8
-          - 11
-          - 17
-          - 21
-          - 25
+        os: ${{ fromJson(needs.scope.outputs.test_os) }}
+        java-version: ${{ fromJson(needs.scope.outputs.java_versions) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Set up Rust toolchain
         uses: ./.github/actions/setup
         with:
-          need-nextest: true
           need-protoc: true
           need-rocksdb: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set up JDK ${{ matrix.java-version }}
         uses: actions/setup-java@v5
         with:
+          # params must be in sync with `test` job:
+          # - cache
+          # - cache-dependency-path
           distribution: zulu
           java-version: ${{ matrix.java-version }}
           cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
       - name: Build and test
         working-directory: bindings/java
         # `mvn install` and `mvn artifact:compare` are required to verify reproducible builds:
@@ -106,3 +176,36 @@ jobs:
         run: |
           ./mvnw clean install -DskipTests
           ./mvnw verify artifact:compare
+
+  run_examples:
+    runs-on: ubuntu-latest
+    needs: java-cache
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-protoc: true
+          need-rocksdb: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          # params must be in sync with `test` job:
+          # - cache
+          # - cache-dependency-path
+          distribution: zulu
+          java-version: 25
+          cache: 'maven'
+          cache-dependency-path: |
+            bindings/java/pom.xml
+      # The example backs the snippet shown in the website guide. Running it keeps
+      # the docs honest: a broken example fails CI instead of shipping bad docs.
+      # `test-compile` builds the native library and the example, then `exec:java`
+      # runs it against the in-memory service with the test classpath.
+      - name: Run guide example
+        working-directory: bindings/java
+        run: |
+          ./mvnw test-compile exec:java \
+            -Dexec.mainClass=org.apache.opendal.examples.Main \
+            -Dexec.classpathScope=test

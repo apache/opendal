@@ -185,7 +185,7 @@ pub async fn test_get_opts_with_invalid_range(store: OpendalStore) -> Result<()>
 }
 
 pub async fn test_get_opts_with_version(store: OpendalStore) -> Result<()> {
-    if !store.info().full_capability().read_with_version {
+    if !store.info().capability().read_with_version {
         return Ok(());
     }
 
@@ -228,7 +228,7 @@ pub async fn test_get_opts_with_version(store: OpendalStore) -> Result<()> {
 }
 
 async fn test_get_ops_with_if_match(store: OpendalStore) -> Result<()> {
-    if !store.info().full_capability().read_with_if_match {
+    if !store.info().capability().read_with_if_match {
         return Ok(());
     }
 
@@ -261,7 +261,7 @@ async fn test_get_ops_with_if_match(store: OpendalStore) -> Result<()> {
 }
 
 async fn test_get_ops_with_if_none_match(store: OpendalStore) -> Result<()> {
-    if !store.info().full_capability().read_with_if_none_match {
+    if !store.info().capability().read_with_if_none_match {
         return Ok(());
     }
 
@@ -294,7 +294,7 @@ async fn test_get_ops_with_if_none_match(store: OpendalStore) -> Result<()> {
 }
 
 async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()> {
-    if !store.info().full_capability().read_with_if_modified_since {
+    if !store.info().capability().read_with_if_modified_since {
         return Ok(());
     }
 
@@ -311,8 +311,9 @@ async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()>
     let data = ret.bytes().await?;
     assert_eq!(value, data);
 
+    // S3 ignores future If-Modified-Since dates.
     let opts = GetOptions {
-        if_modified_since: Some(meta.last_modified + std::time::Duration::from_secs(1)),
+        if_modified_since: Some(meta.last_modified),
         ..Default::default()
     };
     let ret = store.get_opts(&location, opts).await;
@@ -327,7 +328,7 @@ async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()>
 }
 
 async fn test_get_opts_with_if_unmodified_since(store: OpendalStore) -> Result<()> {
-    if !store.info().full_capability().read_with_if_unmodified_since {
+    if !store.info().capability().read_with_if_unmodified_since {
         return Ok(());
     }
 

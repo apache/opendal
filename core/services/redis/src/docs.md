@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] ~~create_dir~~
 - [x] stat
@@ -12,16 +12,30 @@ This service can be used to:
 - [ ] ~~rename~~
 - [ ] ~~presign~~
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
 
-- `root`: Set the working directory of `OpenDAL`
-- `endpoint`: Set the network address of redis server
-- `cluster_endpoints`: Set the network address of redis cluster server. This parameter is mutually exclusive with the `endpoint` parameter.
-- `username`: Set the username of Redis
-- `password`: Set the password for authentication
-- `db`: Set the DB of redis
+Use [`crate::RedisConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
-You can refer to [`RedisBuilder`]'s docs for more information
+## Redis Cluster replica reads
+
+With `cluster_endpoints` configured, set `read_from_replicas` to `true` to route
+read-only commands for `read` and `stat` to replicas when available. The default
+is `false`, which routes these commands to the primary. Writes go to the primary.
+
+Replication lag can cause stale results. For example, `read` or `stat` can
+briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+a replica miss without retrying on the primary.
+
+## Per-write expiration
+
+A write with `expires` overrides `default_ttl` for that key. Redis applies
+the expiration in the same command that stores the value, rounding positive
+durations up to a whole millisecond.
 
 ## Example
 
@@ -37,7 +51,7 @@ async fn main() -> Result<()> {
     let mut builder = Redis::default();
 
     // this will build a Operator accessing Redis which runs on tcp://localhost:6379
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
     Ok(())
 }
 ```

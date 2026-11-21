@@ -18,10 +18,14 @@
 use std::ffi::{c_char, CStr, CString};
 use std::time::Duration;
 
+use ::opendal as core;
 use opendal::raw::PresignedRequest as ocorePresignedRequest;
 
 use crate::error::opendal_error;
 use crate::operator::opendal_operator;
+use crate::types::{
+    opendal_delete_options, opendal_read_options, opendal_stat_options, opendal_write_options,
+};
 
 /// \brief The key-value pair for the headers of the presigned request.
 #[repr(C)]
@@ -81,6 +85,27 @@ impl opendal_presigned_request_inner {
     }
 }
 
+unsafe fn make_presign_result(
+    result: core::Result<ocorePresignedRequest>,
+    req_out: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
+    assert!(!req_out.is_null());
+    match result {
+        Ok(req) => {
+            let inner = Box::new(opendal_presigned_request_inner::new(req));
+            let presigned_req = Box::new(opendal_presigned_request {
+                inner: Box::into_raw(inner),
+            });
+            std::ptr::write(req_out, Box::into_raw(presigned_req));
+            std::ptr::null_mut()
+        }
+        Err(e) => {
+            std::ptr::write(req_out, std::ptr::null_mut());
+            opendal_error::new(e)
+        }
+    }
+}
+
 /// \brief The underlying presigned request, which contains the HTTP method, URI, and headers.
 /// This is an opaque struct, please use the accessor functions to get the fields.
 #[repr(C)]
@@ -88,136 +113,211 @@ pub struct opendal_presigned_request {
     inner: *mut opendal_presigned_request_inner,
 }
 
-/// @brief The result of a presign operation.
-#[repr(C)]
-pub struct opendal_result_presign {
-    /// The presigned request.
-    pub req: *mut opendal_presigned_request,
-    /// The error.
-    pub error: *mut opendal_error,
-}
-
 /// \brief Presign a read operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_read(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
-) -> opendal_result_presign {
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
+    assert!(!req.is_null());
 
     let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
-    match op.presign_read(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    make_presign_result(op.presign_read(path, duration), req)
+}
+
+/// \brief Presign a read operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_read_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_read_options,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    assert!(!req.is_null());
+
+    let op = op.deref();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let duration = Duration::from_secs(expire_secs);
+    let opts = if opts.is_null() {
+        core::options::ReadOptions::default()
+    } else {
+        (&*opts).into()
+    };
+
+    make_presign_result(op.presign_read_options(path, duration, opts), req)
 }
 
 /// \brief Presign a write operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_write(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
-) -> opendal_result_presign {
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
+    assert!(!req.is_null());
 
     let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
-    match op.presign_write(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    make_presign_result(op.presign_write(path, duration), req)
+}
+
+/// \brief Presign a write operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_write_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_write_options,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    assert!(!req.is_null());
+
+    let op = op.deref();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let duration = Duration::from_secs(expire_secs);
+    let opts = if opts.is_null() {
+        core::options::WriteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+
+    make_presign_result(op.presign_write_options(path, duration, opts), req)
 }
 
 /// \brief Presign a delete operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_delete(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
-) -> opendal_result_presign {
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
+    assert!(!req.is_null());
 
     let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
-    match op.presign_delete(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    make_presign_result(op.presign_delete(path, duration), req)
+}
+
+/// \brief Presign a delete operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_delete_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_delete_options,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    assert!(!req.is_null());
+
+    let op = op.deref();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let duration = Duration::from_secs(expire_secs);
+    let opts = if opts.is_null() {
+        core::options::DeleteOptions::default()
+    } else {
+        (&*opts).into()
+    };
+
+    make_presign_result(op.presign_delete_options(path, duration, opts), req)
 }
 
 /// \brief Presign a stat operation.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
 #[no_mangle]
 pub unsafe extern "C" fn opendal_operator_presign_stat(
     op: &opendal_operator,
     path: *const c_char,
     expire_secs: u64,
-) -> opendal_result_presign {
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
+    assert!(!req.is_null());
 
     let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
 
-    match op.presign_stat(path, duration) {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            opendal_result_presign {
-                req: Box::into_raw(presigned_req),
-                error: std::ptr::null_mut(),
-            }
-        }
-        Err(e) => opendal_result_presign {
-            req: std::ptr::null_mut(),
-            error: opendal_error::new(e),
-        },
-    }
+    make_presign_result(op.presign_stat(path, duration), req)
+}
+
+/// \brief Presign a stat operation with options.
+///
+/// `req` must point to writable storage for a request pointer. On success,
+/// writes the request to `*req` and returns NULL; free the request with
+/// `opendal_presigned_request_free()`. On failure, writes NULL to `*req` and
+/// returns an error that must be freed with `opendal_error_free()`.
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_stat_with(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_stat_options,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
+    assert!(!path.is_null());
+    assert!(!req.is_null());
+
+    let op = op.deref();
+    let path = CStr::from_ptr(path).to_str().expect("malformed path");
+    let duration = Duration::from_secs(expire_secs);
+    let opts = if opts.is_null() {
+        core::options::StatOptions::default()
+    } else {
+        (&*opts).into()
+    };
+
+    make_presign_result(op.presign_stat_options(path, duration, opts), req)
 }
 
 /// Get the method of the presigned request.
@@ -256,9 +356,7 @@ pub unsafe extern "C" fn opendal_presigned_request_headers_len(
 #[no_mangle]
 pub unsafe extern "C" fn opendal_presigned_request_free(req: *mut opendal_presigned_request) {
     if !req.is_null() {
-        // Drop the inner struct
         drop(Box::from_raw((*req).inner));
-        // Drop the outer struct
         drop(Box::from_raw(req));
     }
 }

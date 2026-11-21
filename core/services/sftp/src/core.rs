@@ -15,38 +15,34 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use super::error::is_sftp_protocol_error;
-use super::error::parse_sftp_error;
-use super::error::parse_ssh_error;
-use fastpool::{ManageObject, ObjectStatus, bounded};
+use std::fmt::Debug;
+use std::future::Future;
+use std::io;
+use std::ops::Deref;
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+
+use asyncband::pool::{ManageObject, ObjectStatus, unbounded};
+use asyncband::semaphore::{OwnedSemaphorePermit, Semaphore};
 use log::debug;
 use opendal_core::raw::*;
 use opendal_core::*;
-use openssh::KnownHosts;
-use openssh::SessionBuilder;
-use openssh_sftp_client::Sftp;
-use openssh_sftp_client::SftpOptions;
-use std::fmt::Debug;
-use std::path::Path;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::Duration;
+use openssh::Error as SshError;
+use openssh::{KnownHosts, SessionBuilder};
+use openssh_sftp_client::Error as SftpClientError;
+use openssh_sftp_client::error::SftpErrorKind;
+use openssh_sftp_client::{Sftp, SftpOptions};
+
+const POOL_CAPACITY: usize = 64;
 
 pub struct SftpCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub endpoint: String,
     pub root: String,
-    pub acquire_timeout: Duration,
-    pub connect_timeout: Duration,
-    client: Arc<bounded::Pool<Manager>>,
-}
-
-pub struct SftpConnectionOptions {
-    pub user: Option<String>,
-    pub key: Option<String>,
-    pub known_hosts_strategy: KnownHosts,
-    pub acquire_timeout: Duration,
-    pub connect_timeout: Duration,
+    client: Arc<unbounded::Pool<Sftp, Manager>>,
+    capacity: Arc<Semaphore>,
+    acquire_timeout: Option<Duration>,
 }
 
 impl Debug for SftpCore {
@@ -54,82 +50,94 @@ impl Debug for SftpCore {
         f.debug_struct("SftpCore")
             .field("endpoint", &self.endpoint)
             .field("root", &self.root)
-            .field("acquire_timeout", &self.acquire_timeout)
-            .field("connect_timeout", &self.connect_timeout)
             .finish_non_exhaustive()
     }
 }
 
 impl SftpCore {
     pub fn new(
-        info: Arc<AccessorInfo>,
-        endpoint: String,
-        root: String,
-        options: SftpConnectionOptions,
+        info: ServiceInfo,
+        capability: Capability,
+        manager: Manager,
+        acquire_timeout: Option<Duration>,
     ) -> Self {
-        let client = bounded::Pool::new(
-            bounded::PoolConfig::new(64),
-            Manager {
-                endpoint: endpoint.clone(),
-                root: root.clone(),
-                user: options.user,
-                key: options.key,
-                known_hosts_strategy: options.known_hosts_strategy.clone(),
-                connect_timeout: options.connect_timeout,
-            },
-        );
-
-        SftpCore {
+        Self {
             info,
-            endpoint,
-            root,
-            acquire_timeout: options.acquire_timeout,
-            connect_timeout: options.connect_timeout,
-            client,
+            capability,
+            endpoint: manager.endpoint.clone(),
+            root: manager.root.clone(),
+            client: unbounded::Pool::new(unbounded::PoolConfig::default(), manager),
+            capacity: Arc::new(Semaphore::new(POOL_CAPACITY)),
+            acquire_timeout,
         }
     }
 
-    pub async fn connect(&self) -> Result<bounded::Object<Manager>> {
-        acquire_pooled_sftp_connection(&self.client, self.acquire_timeout).await
+    pub async fn connect(&self) -> Result<SftpConnection> {
+        let permit = connection_stage(self.acquire_timeout, "waiting for pool capacity", async {
+            Ok(self.capacity.clone().acquire_owned(1).await)
+        })
+        .await?;
+        let object = self.client.get().await?;
+        Ok(SftpConnection {
+            object,
+            _permit: permit,
+        })
     }
 }
 
-// Only apply acquire timeout when the pool is saturated. Otherwise `fastpool::get()`
-// may perform connection creation, and wrapping that path in a generic timeout would
-// hide the underlying SSH/SFTP error again.
-async fn acquire_pooled_sftp_connection<M>(
-    pool: &Arc<bounded::Pool<M>>,
-    acquire_timeout: Duration,
-) -> Result<bounded::Object<M>>
-where
-    M: ManageObject<Error = Error>,
-{
-    let status = pool.status();
-    let should_timeout = !acquire_timeout.is_zero()
-        && status.current_size >= status.max_size
-        && status.idle_count == 0;
+pub struct SftpConnection {
+    // Return the connection to the pool before another checkout can take its slot.
+    object: unbounded::Object<Sftp, Manager>,
+    _permit: OwnedSemaphorePermit,
+}
 
-    if should_timeout {
-        return match tokio::time::timeout(acquire_timeout, pool.get()).await {
-            Ok(result) => result,
-            Err(_) => Err(Error::new(
-                ErrorKind::Unexpected,
-                "timed out waiting for pooled sftp connection",
-            )
-            .set_temporary()),
-        };
+impl Deref for SftpConnection {
+    type Target = Sftp;
+
+    fn deref(&self) -> &Self::Target {
+        &self.object
     }
-
-    pool.get().await
 }
 
 pub struct Manager {
-    endpoint: String,
-    root: String,
-    user: Option<String>,
-    key: Option<String>,
-    known_hosts_strategy: KnownHosts,
-    connect_timeout: Duration,
+    pub(super) endpoint: String,
+    pub(super) root: String,
+    pub(super) user: Option<String>,
+    pub(super) key: Option<String>,
+    pub(super) known_hosts_strategy: KnownHosts,
+    pub(super) connect_timeout: Option<Duration>,
+}
+
+impl Manager {
+    async fn initialize_root(&self, sftp: &Sftp) -> Result<()> {
+        let mut fs = sftp.fs();
+        let mut current = PathBuf::new();
+        for component in Path::new(&self.root).components() {
+            let path = component.as_os_str();
+            current.push(path);
+            if component != Component::RootDir
+                && let Err(error) = fs.create_dir(path).await
+            {
+                // Servers may reject mkdir even when an existing directory can be used.
+                if !matches!(
+                    error,
+                    SftpClientError::SftpError(
+                        SftpErrorKind::Failure | SftpErrorKind::PermDenied,
+                        _
+                    )
+                ) {
+                    return Err(parse_sftp_error(error));
+                }
+                match fs.metadata(path).await {
+                    Ok(metadata) if metadata.file_type().is_some_and(|kind| kind.is_dir()) => {}
+                    Err(err) if classify_sftp_error(&err).1 => return Err(parse_sftp_error(err)),
+                    _ => return Err(parse_sftp_error(error)),
+                }
+            }
+            fs.set_cwd(&current);
+        }
+        Ok(())
+    }
 }
 
 impl ManageObject for Manager {
@@ -147,127 +155,306 @@ impl ManageObject for Manager {
             session.keyfile(key);
         }
 
-        session.connect_timeout(self.connect_timeout);
         session.known_hosts_check(self.known_hosts_strategy.clone());
-
-        let session = session
-            .connect(&self.endpoint)
-            .await
-            .map_err(parse_ssh_error)?;
-
-        let sftp = Sftp::from_session(session, SftpOptions::default())
-            .await
-            .map_err(parse_sftp_error)?;
-
-        if !self.root.is_empty() {
-            let mut fs = sftp.fs();
-
-            let paths = Path::new(&self.root).components();
-            let mut current = PathBuf::new();
-            for p in paths {
-                current.push(p);
-                let res = fs.create_dir(p).await;
-
-                if let Err(e) = res {
-                    // ignore error if dir already exists
-                    if !is_sftp_protocol_error(&e) {
-                        return Err(parse_sftp_error(e));
-                    }
-                }
-                fs.set_cwd(&current);
-            }
+        if let Some(timeout) = self.connect_timeout {
+            // OpenSSH uses whole seconds. Keep a process-side limit even if the Rust
+            // deadline expires first and drops the connect future.
+            let seconds = timeout
+                .as_secs()
+                .saturating_add(u64::from(timeout.subsec_nanos() != 0))
+                .min(i32::MAX as u64);
+            session.connect_timeout(Duration::from_secs(seconds));
         }
+
+        let session = connection_stage(
+            self.connect_timeout,
+            "SSH connection and authentication",
+            async {
+                session
+                    .connect(&self.endpoint)
+                    .await
+                    .map_err(parse_ssh_error)
+            },
+        )
+        .await?;
+
+        let sftp = connection_stage(
+            self.connect_timeout,
+            "SFTP subsystem initialization",
+            async {
+                Sftp::from_session(session, SftpOptions::default())
+                    .await
+                    .map_err(parse_sftp_error)
+            },
+        )
+        .await?;
+
+        connection_stage(
+            self.connect_timeout,
+            "SFTP root initialization",
+            self.initialize_root(&sftp),
+        )
+        .await
+        .map_err(|err| err.with_context("root", &self.root))?;
 
         debug!("sftp connection created at {}", self.root);
         Ok(sftp)
     }
 
-    // Check if connect valid by checking the root path.
     async fn is_recyclable(
         &self,
         o: &mut Self::Object,
         _: &ObjectStatus,
     ) -> Result<(), Self::Error> {
-        match o.fs().metadata("./").await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(parse_sftp_error(e)),
+        let mut fs = o.fs();
+        fs.set_cwd(&self.root);
+        let result = connection_stage(
+            self.connect_timeout,
+            "SFTP connection health check",
+            async {
+                fs.metadata("./").await.map_err(parse_sftp_error)?;
+                Ok(())
+            },
+        )
+        .await;
+        if let Err(err) = &result {
+            // The pool discards the failed connection and tries another checkout.
+            debug!("discarding pooled SFTP connection: {err:?}");
         }
+        result
     }
 }
 
+async fn connection_stage<T>(
+    timeout: Option<Duration>,
+    stage: &'static str,
+    future: impl Future<Output = Result<T>>,
+) -> Result<T> {
+    let result = match timeout {
+        Some(timeout) => tokio::time::timeout(timeout, future)
+            .await
+            .unwrap_or_else(|err| {
+                Err(
+                    Error::new(ErrorKind::Unexpected, "SFTP connection timed out")
+                        .set_temporary()
+                        .set_source(err),
+                )
+            }),
+        None => future.await,
+    };
+    result.map_err(|err| err.with_context("stage", stage))
+}
+
+pub fn parse_sftp_error(e: SftpClientError) -> Error {
+    let (kind, temporary) = classify_sftp_error(&e);
+    let error = Error::new(kind, "sftp error").set_source(e);
+    if temporary {
+        error.set_temporary()
+    } else {
+        error
+    }
+}
+
+fn classify_sftp_error(error: &SftpClientError) -> (ErrorKind, bool) {
+    match error {
+        SftpClientError::UnsupportedSftpProtocol { .. }
+        | SftpClientError::SftpError(SftpErrorKind::OpUnsupported, _) => {
+            (ErrorKind::Unsupported, false)
+        }
+        SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _) => (ErrorKind::NotFound, false),
+        SftpClientError::SftpError(SftpErrorKind::PermDenied, _) => {
+            (ErrorKind::PermissionDenied, false)
+        }
+        SftpClientError::IOError(err) => classify_io_error(err),
+        SftpClientError::BackgroundTaskFailure(_) => (ErrorKind::Unexpected, true),
+        SftpClientError::RemoteChildSpawnError(err) => classify_ssh_error(err),
+        SftpClientError::RecursiveErrors(errors) => classify_sftp_error(&errors.original_error),
+        SftpClientError::RecursiveErrors3(errors) => classify_sftp_error(&errors.err1),
+        _ => (ErrorKind::Unexpected, false),
+    }
+}
+
+pub fn parse_ssh_error(e: SshError) -> Error {
+    let (kind, temporary) = classify_ssh_error(&e);
+    let error = Error::new(kind, "failed to establish SSH connection").set_source(e);
+    if temporary {
+        error.set_temporary()
+    } else {
+        error
+    }
+}
+
+fn classify_ssh_error(error: &SshError) -> (ErrorKind, bool) {
+    match error {
+        SshError::Disconnected | SshError::RemoteProcessTerminated => (ErrorKind::Unexpected, true),
+        SshError::Connect(err)
+            if matches!(
+                err.kind(),
+                io::ErrorKind::ConnectionAborted | io::ErrorKind::Other
+            ) =>
+        {
+            // openssh uses ConnectionAborted for unrecognized diagnostics, including
+            // host key and authentication failures as well as network failures.
+            let diagnostic = err.to_string();
+            if diagnostic.lines().any(|line| {
+                line == "Host key verification failed." || line.contains(": Permission denied (")
+            }) {
+                return (ErrorKind::PermissionDenied, false);
+            }
+            let temporary = diagnostic.lines().any(|line| {
+                line == "Connection timed out during banner exchange"
+                    || line.ends_with(" Connection timed out")
+                    || line.ends_with(" Operation timed out")
+                    || line.ends_with(": Network is unreachable")
+                    || line.ends_with(": No route to host")
+                    || line.ends_with(" Connection reset by peer")
+                    || line.ends_with(" Broken pipe")
+                    || line.starts_with("Connection closed by ")
+                    || line.starts_with("Connection reset by ")
+            });
+            (ErrorKind::Unexpected, temporary)
+        }
+        SshError::Connect(err)
+        | SshError::Master(err)
+        | SshError::Ssh(err)
+        | SshError::Remote(err)
+        | SshError::ChildIo(err) => classify_io_error(err),
+        _ => (ErrorKind::Unexpected, false),
+    }
+}
+
+fn classify_io_error(error: &io::Error) -> (ErrorKind, bool) {
+    match error.kind() {
+        io::ErrorKind::PermissionDenied => (ErrorKind::PermissionDenied, false),
+        io::ErrorKind::NotFound => (ErrorKind::NotFound, false),
+        io::ErrorKind::TimedOut
+        | io::ErrorKind::ConnectionRefused
+        | io::ErrorKind::ConnectionReset
+        | io::ErrorKind::ConnectionAborted
+        | io::ErrorKind::NotConnected
+        | io::ErrorKind::NetworkUnreachable
+        | io::ErrorKind::HostUnreachable
+        | io::ErrorKind::BrokenPipe
+        | io::ErrorKind::UnexpectedEof => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    }
+}
+
+pub(crate) fn is_not_found(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::NoSuchFile, _))
+}
+
+pub(crate) fn is_sftp_protocol_error(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(_, _))
+}
+
+pub(crate) fn is_sftp_failure(e: &SftpClientError) -> bool {
+    matches!(e, SftpClientError::SftpError(SftpErrorKind::Failure, _))
+}
+
+mod utils {
+    use openssh_sftp_client::metadata::MetaData as SftpMeta;
+
+    use opendal_core::EntryMode;
+    use opendal_core::Error;
+    use opendal_core::ErrorKind;
+    use opendal_core::Metadata;
+    use opendal_core::MetadataBuilder;
+    use opendal_core::Result;
+    use opendal_core::raw::Timestamp;
+
+    pub fn to_metadata(meta: SftpMeta) -> Result<Metadata> {
+        let mode = meta
+            .file_type()
+            .map(|filetype| {
+                if filetype.is_file() {
+                    EntryMode::FILE
+                } else if filetype.is_dir() {
+                    EntryMode::DIR
+                } else {
+                    EntryMode::Unknown
+                }
+            })
+            .unwrap_or(EntryMode::Unknown);
+
+        let mut metadata = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "sftp metadata does not contain file length",
+                )
+            })?),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+
+        if let Some(modified) = meta.modified()
+            && let Ok(m) = Timestamp::try_from(modified.as_system_time())
+        {
+            metadata.last_modified(m);
+        }
+
+        Ok(metadata.build())
+    }
+}
+
+pub(super) use utils::*;
+
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::error::Error as _;
 
     use super::*;
 
-    #[derive(Clone, Default)]
-    struct TestManager {
-        create_delay: Duration,
-        recycle_delay: Duration,
-        created: Arc<AtomicUsize>,
-    }
-
-    impl ManageObject for TestManager {
-        type Object = usize;
-        type Error = Error;
-
-        async fn create(&self) -> Result<Self::Object> {
-            if !self.create_delay.is_zero() {
-                tokio::time::sleep(self.create_delay).await;
-            }
-
-            Ok(self.created.fetch_add(1, Ordering::SeqCst))
-        }
-
-        async fn is_recyclable(
-            &self,
-            _: &mut Self::Object,
-            _: &ObjectStatus,
-        ) -> Result<(), Self::Error> {
-            if !self.recycle_delay.is_zero() {
-                tokio::time::sleep(self.recycle_delay).await;
-            }
-
-            Ok(())
-        }
-    }
-
     #[tokio::test]
-    async fn acquire_timeout_only_applies_when_pool_is_saturated() {
-        let pool = bounded::Pool::new(
-            bounded::PoolConfig::new(1),
-            TestManager {
-                create_delay: Duration::from_millis(50),
-                ..Default::default()
+    async fn checkout_times_out_when_capacity_is_reserved_without_idle_connections() {
+        let core = SftpCore::new(
+            ServiceInfo::new("sftp", "", ""),
+            Capability::default(),
+            Manager {
+                endpoint: String::new(),
+                root: String::new(),
+                user: None,
+                key: None,
+                known_hosts_strategy: KnownHosts::Strict,
+                connect_timeout: None,
             },
+            Some(Duration::from_millis(10)),
         );
+        let _reserved = core.capacity.clone().acquire_owned(POOL_CAPACITY).await;
 
-        let started = std::time::Instant::now();
-        let conn = acquire_pooled_sftp_connection(&pool, Duration::from_millis(10))
+        let error = tokio::time::timeout(Duration::from_secs(3), core.connect())
             .await
-            .expect("pool should create a new connection");
-
-        assert!(started.elapsed() >= Duration::from_millis(50));
-        drop(conn);
+            .expect("checkout should respect the pool wait limit")
+            .err()
+            .expect("all pool slots are reserved");
+        assert!(error.is_temporary(), "{error:?}");
+        assert!(error.to_string().contains("waiting for pool capacity"));
+        assert!(error.source().unwrap().is::<tokio::time::error::Elapsed>());
     }
 
-    #[tokio::test]
-    async fn acquire_timeout_reports_waiting_for_pooled_connection() {
-        let pool = bounded::Pool::new(bounded::PoolConfig::new(1), TestManager::default());
-        let held = pool.get().await.expect("first connection should succeed");
-
-        let err = acquire_pooled_sftp_connection(&pool, Duration::from_millis(20))
-            .await
-            .expect_err("second acquire should time out");
-
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-        assert!(
-            err.to_string()
-                .contains("timed out waiting for pooled sftp connection")
-        );
-
-        drop(held);
+    #[test]
+    fn ssh_error_classification_preserves_original_error() {
+        for (source, expected_kind, temporary) in [
+            (SshError::Disconnected, ErrorKind::Unexpected, true),
+            (
+                SshError::Connect(io::ErrorKind::TimedOut.into()),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                SshError::Connect(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Host key verification failed.",
+                )),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+        ] {
+            let error = parse_ssh_error(source);
+            assert_eq!(error.kind(), expected_kind);
+            assert_eq!(error.is_temporary(), temporary);
+            assert!(error.source().unwrap().is::<SshError>());
+        }
     }
 }

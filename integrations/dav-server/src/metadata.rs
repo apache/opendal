@@ -17,7 +17,7 @@
 
 use dav_server::fs::FsError;
 use dav_server::fs::{DavMetaData, FsResult};
-use opendal::Metadata;
+use opendal_core::Metadata;
 use std::time::SystemTime;
 
 /// OpendalMetaData is a `DavMetaData` implementation for opendal.
@@ -50,11 +50,29 @@ impl DavMetaData for OpendalMetaData {
     }
 
     fn etag(&self) -> Option<String> {
-        self.metadata.etag().map(|s| s.to_string())
+        let etag = self.metadata.etag()?;
+        let tag = match etag.strip_prefix('"') {
+            Some(quoted) => quoted.strip_suffix('"')?,
+            None => etag,
+        };
+
+        // dav-server quotes the ETag header, so return only opaque tag bytes allowed by RFC 9110.
+        //   entity-tag = [ weak ] opaque-tag
+        //   weak       = %s"W/"
+        //   opaque-tag = DQUOTE *etagc DQUOTE
+        //   etagc      = %x21 / %x23-7E / obs-text
+        //   obs-text   = %x80-FF
+        tag.bytes()
+            .all(|b| matches!(b, 0x21 | 0x23..=0x7e | 0x80..=0xff))
+            .then(|| tag.to_owned())
     }
 
     fn is_file(&self) -> bool {
         self.metadata.is_file()
+    }
+
+    fn is_symlink(&self) -> bool {
+        false
     }
 
     fn status_changed(&self) -> FsResult<SystemTime> {

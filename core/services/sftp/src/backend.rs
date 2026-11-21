@@ -15,29 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::SeekFrom;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use log::debug;
 use openssh::KnownHosts;
-use tokio::io::AsyncSeekExt;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
-use super::core::SftpConnectionOptions;
+use super::core::Manager;
 use super::core::SftpCore;
+use super::core::is_sftp_protocol_error;
+use super::core::parse_sftp_error;
+use super::core::to_metadata;
 use super::deleter::SftpDeleter;
-use super::error::is_not_found;
-use super::error::is_sftp_failure;
-use super::error::is_sftp_protocol_error;
-use super::error::parse_sftp_error;
-use super::lister::SftpLister;
-use super::reader::SftpReader;
-use super::utils::to_metadata;
-use super::writer::SftpWriter;
+use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -54,28 +47,26 @@ use opendal_core::*;
 #[derive(Debug, Default)]
 pub struct SftpBuilder {
     pub(super) config: SftpConfig,
+    pub(super) acquire_timeout: Option<Duration>,
+    pub(super) connect_timeout: Option<Duration>,
 }
 
 impl SftpBuilder {
-    /// set acquire timeout for pooled sftp connections.
+    /// Sets the time limit for waiting for a connection pool slot.
+    ///
+    /// Defaults to 10 seconds. A zero duration disables this limit.
     pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
-        self.config.acquire_timeout = if timeout.is_zero() {
-            None
-        } else {
-            Some(format!("{}s", timeout.as_secs()))
-        };
-
+        self.acquire_timeout = Some(timeout);
         self
     }
 
-    /// set connect timeout for sftp backend.
+    /// Sets the time limit for each connection setup stage and each pooled connection health check.
+    ///
+    /// The limit applies separately to SSH connection and authentication, SFTP subsystem
+    /// initialization, and root directory initialization. Defaults to 10 seconds.
+    /// A zero duration disables these limits.
     pub fn connect_timeout(mut self, timeout: Duration) -> Self {
-        self.config.connect_timeout = if timeout.is_zero() {
-            None
-        } else {
-            Some(format!("{}s", timeout.as_secs()))
-        };
-
+        self.connect_timeout = Some(timeout);
         self
     }
 
@@ -140,11 +131,12 @@ impl SftpBuilder {
         self
     }
 
-    /// set enable_copy for sftp backend.
-    /// It requires the server supports copy-file extension.
-    pub fn enable_copy(mut self, enable_copy: bool) -> Self {
-        self.config.enable_copy = enable_copy;
-
+    /// Deprecated: SFTP copy capability is enabled by default.
+    #[deprecated(
+        since = "0.57.0",
+        note = "SFTP copy capability is enabled by default and this option is no longer needed."
+    )]
+    pub fn enable_copy(self, _enable_copy: bool) -> Self {
         self
     }
 }
@@ -152,11 +144,8 @@ impl SftpBuilder {
 impl Builder for SftpBuilder {
     type Config = SftpConfig;
 
-    fn build(self) -> Result<impl Access> {
-        debug!("sftp backend build started: {:?}", &self);
-        const DEFAULT_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
-        const DEFAULT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-
+    fn build(self) -> Result<impl Service> {
+        debug!("sftp backend build started: {:?}", self);
         let endpoint = match self.config.endpoint.clone() {
             Some(v) => v,
             None => return Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")),
@@ -190,96 +179,99 @@ impl Builder for SftpBuilder {
             None => KnownHosts::Strict,
         };
 
-        let acquire_timeout = match self.config.acquire_timeout.as_deref() {
-            Some(value) => signed_to_duration(value)?,
-            None => DEFAULT_ACQUIRE_TIMEOUT,
+        const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+        let resolve_timeout = |override_value, configured: Option<SignedDuration>, key| {
+            let timeout = match override_value {
+                Some(timeout) => timeout,
+                None => configured
+                    .map(signed_duration_to_duration)
+                    .transpose()
+                    .map_err(|err| err.with_context("config", key))?
+                    .unwrap_or(DEFAULT_TIMEOUT),
+            };
+            Ok::<_, Error>((!timeout.is_zero()).then_some(timeout))
         };
-        let connect_timeout = match self.config.connect_timeout.as_deref() {
-            Some(value) => signed_to_duration(value)?,
-            None => DEFAULT_CONNECT_TIMEOUT,
+        let acquire_timeout = resolve_timeout(
+            self.acquire_timeout,
+            self.config.acquire_timeout,
+            "acquire_timeout",
+        )?;
+        let connect_timeout = resolve_timeout(
+            self.connect_timeout,
+            self.config.connect_timeout,
+            "connect_timeout",
+        )?;
+
+        let info = ServiceInfo::new(SFTP_SCHEME, root.as_str(), "");
+        let capability = Capability {
+            stat: true,
+
+            read: true,
+
+            write: true,
+            write_can_multi: true,
+            write_with_if_not_exists: true,
+
+            create_dir: true,
+            delete: true,
+
+            list: true,
+            list_with_limit: true,
+
+            copy: true,
+            rename: true,
+
+            shared: true,
+
+            ..Default::default()
         };
-
-        let info = AccessorInfo::default();
-        info.set_root(root.as_str())
-            .set_scheme(SFTP_SCHEME)
-            .set_native_capability(Capability {
-                stat: true,
-
-                read: true,
-
-                write: true,
-                write_can_multi: true,
-                write_with_if_not_exists: true,
-
-                create_dir: true,
-                delete: true,
-
-                list: true,
-                list_with_limit: true,
-
-                copy: self.config.enable_copy,
-                rename: true,
-
-                shared: true,
-
-                ..Default::default()
-            });
 
         let core = Arc::new(SftpCore::new(
-            Arc::new(info),
-            endpoint,
-            root,
-            SftpConnectionOptions {
+            info,
+            capability,
+            Manager {
+                endpoint,
+                root,
                 user,
                 key: self.config.key.clone(),
                 known_hosts_strategy,
-                acquire_timeout,
                 connect_timeout,
             },
+            acquire_timeout,
         ));
 
-        debug!("sftp backend finished: {:?}", &self);
+        debug!("sftp backend finished: {:?}", self);
         Ok(SftpBackend { core })
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn build_rejects_invalid_timeout() {
-        let builder = SftpBuilder {
-            config: SftpConfig {
-                endpoint: Some("host".to_string()),
-                connect_timeout: Some("invalid".to_string()),
-                ..Default::default()
-            },
-        };
-
-        let err = builder.build().unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        assert!(err.to_string().contains("failed to parse duration"));
-    }
-}
-
-/// Backend is used to serve `Accessor` support for sftp.
 #[derive(Clone, Debug)]
 pub struct SftpBackend {
     pub core: Arc<SftpCore>,
 }
 
-impl Access for SftpBackend {
-    type Reader = SftpReader;
-    type Writer = SftpWriter;
-    type Lister = Option<SftpLister>;
+impl Service for SftpBackend {
+    type Reader = oio::StreamReader<SftpReader>;
+    type Writer = SftpLazyWriter;
+    type Lister = SftpLazyLister;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
+    type Copier = oio::OneShotCopier;
+    type Composer = ();
 
-    fn info(&self) -> Arc<AccessorInfo> {
+    fn info(&self) -> ServiceInfo {
         self.core.info.clone()
     }
 
-    async fn create_dir(&self, path: &str, _: OpCreateDir) -> Result<RpCreateDir> {
+    fn capability(&self) -> Capability {
+        self.core.capability
+    }
+
+    async fn create_dir(
+        &self,
+        _ctx: &OperationContext,
+        path: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
         let client = self.core.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
@@ -302,152 +294,125 @@ impl Access for SftpBackend {
         Ok(RpCreateDir::default())
     }
 
-    async fn stat(&self, path: &str, _: OpStat) -> Result<RpStat> {
+    async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let client = self.core.connect().await?;
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?);
+        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?)?;
 
         Ok(RpStat::new(meta))
     }
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        let output: oio::StreamReader<SftpReader> = {
+            Ok(oio::StreamReader::new(SftpReader::new(
+                self.clone(),
+                path,
+                args,
+            )))
+        }?;
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        let client = self.core.connect().await?;
+        Ok(output)
+    }
 
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
+    fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        Ok(SftpLazyWriter::new(self.clone(), ctx.clone(), path, op))
+    }
 
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
+    fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+        let output: oio::OneShotDeleter<SftpDeleter> = {
+            Ok(oio::OneShotDeleter::new(SftpDeleter::new(
+                self.core.clone(),
+            )))
+        }?;
 
-        let mut f = client
-            .open(path.as_path())
-            .await
-            .map_err(parse_sftp_error)?;
+        Ok(output)
+    }
 
-        if args.range().offset() != 0 {
-            f.seek(SeekFrom::Start(args.range().offset()))
+    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+        Ok(SftpLazyLister::new(self.clone(), path))
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        let backend = self.clone();
+        let ctx = ctx.clone();
+        let from = from.to_string();
+        let to = to.to_string();
+        Ok(oio::OneShotCopier::new(async move {
+            if let Some((dir, _)) = to.rsplit_once('/') {
+                backend
+                    .create_dir(&ctx, dir, OpCreateDir::default())
+                    .await?;
+            }
+
+            let client = backend.core.connect().await?;
+            let mut fs = client.fs();
+            fs.set_cwd(&backend.core.root);
+
+            let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
+            let dst = fs.canonicalize(&to).await.map_err(parse_sftp_error)?;
+            let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
+            let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
+
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => src_file
+                    .metadata()
+                    .await
+                    .map_err(parse_sftp_error)?
+                    .len()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "sftp source metadata does not contain file length",
+                        )
+                    })?,
+            };
+
+            src_file
+                .copy_all_to(&mut dst_file)
                 .await
-                .map_err(new_std_io_error)?;
-        }
+                .map_err(parse_sftp_error)?;
 
-        Ok((
-            RpRead::default(),
-            SftpReader::new(client, f, args.range().size()),
-        ))
+            Ok(MetadataBuilder::file(source_size).build())
+        }))
     }
 
-    async fn write(&self, path: &str, op: OpWrite) -> Result<(RpWrite, Self::Writer)> {
-        if let Some((dir, _)) = path.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
-
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-        let path = fs.canonicalize(path).await.map_err(parse_sftp_error)?;
-
-        let mut option = client.options();
-        if op.if_not_exists() {
-            option.create_new(true);
-        } else {
-            option.create(true);
-        }
-
-        if op.append() {
-            option.append(true);
-        } else {
-            option.write(true).truncate(true);
-        }
-
-        let res = option.open(&path).await;
-        let file = match res {
-            Ok(f) => f,
-            Err(e) if op.if_not_exists() && is_sftp_failure(&e) => {
-                // OpenSSH returns Failure for create_new if file exists.
-                // We perform a post-check to confirm if it was a ConditionNotMatch.
-                if fs.metadata(&path).await.is_ok() {
-                    return Err(Error::new(
-                        ErrorKind::ConditionNotMatch,
-                        "file already exists, doesn't match the condition if_not_exists",
-                    )
-                    .set_source(e));
-                }
-                return Err(parse_sftp_error(e));
-            }
-            Err(e) => return Err(parse_sftp_error(e)),
-        };
-
-        Ok((RpWrite::new(), SftpWriter::new(file)))
-    }
-
-    async fn delete(&self) -> Result<(RpDelete, Self::Deleter)> {
-        Ok((
-            RpDelete::default(),
-            oio::OneShotDeleter::new(SftpDeleter::new(self.core.clone())),
-        ))
-    }
-
-    async fn list(&self, path: &str, _: OpList) -> Result<(RpList, Self::Lister)> {
-        let client = self.core.connect().await?;
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        let file_path = format!("./{path}");
-
-        let dir = match fs.open_dir(&file_path).await {
-            Ok(dir) => dir,
-            Err(e) => {
-                return if is_not_found(&e) {
-                    Ok((RpList::default(), None))
-                } else {
-                    Err(parse_sftp_error(e))
-                };
-            }
-        }
-        .read_dir();
-
-        Ok((
-            RpList::default(),
-            Some(SftpLister::new(dir, path.to_owned())),
-        ))
-    }
-
-    async fn copy(&self, from: &str, to: &str, _: OpCopy) -> Result<RpCopy> {
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
         let client = self.core.connect().await?;
 
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
         if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
-        }
-
-        let src = fs.canonicalize(from).await.map_err(parse_sftp_error)?;
-        let dst = fs.canonicalize(to).await.map_err(parse_sftp_error)?;
-        let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
-        let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
-
-        src_file
-            .copy_all_to(&mut dst_file)
-            .await
-            .map_err(parse_sftp_error)?;
-
-        Ok(RpCopy::default())
-    }
-
-    async fn rename(&self, from: &str, to: &str, _: OpRename) -> Result<RpRename> {
-        let client = self.core.connect().await?;
-
-        let mut fs = client.fs();
-        fs.set_cwd(&self.core.root);
-
-        if let Some((dir, _)) = to.rsplit_once('/') {
-            self.create_dir(dir, OpCreateDir::default()).await?;
+            self.create_dir(ctx, dir, OpCreateDir::default()).await?;
         }
         fs.rename(from, to).await.map_err(parse_sftp_error)?;
 
         Ok(RpRename::default())
+    }
+
+    async fn presign(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpPresign,
+    ) -> Result<RpPresign> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not supported",
+        ))
     }
 }

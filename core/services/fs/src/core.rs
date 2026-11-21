@@ -15,28 +15,33 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(unix)]
 use std::collections::HashMap;
-use std::io::SeekFrom;
+use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
-use super::error::*;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 #[derive(Debug)]
 pub struct FsCore {
-    pub info: Arc<AccessorInfo>,
+    pub info: ServiceInfo,
+    pub capability: Capability,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
     pub buf_pool: oio::PooledBuf,
 }
 
 impl FsCore {
+    #[inline]
+    pub fn root_join(&self, path: &str) -> Result<PathBuf> {
+        confined_join(&self.root, path)
+    }
+
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = parent.join(path);
+        let p = confined_join(parent, path)?;
 
         // Create dir before write path.
         //
@@ -63,7 +68,7 @@ impl FsCore {
     }
 
     pub async fn fs_create_dir(&self, path: &str) -> Result<()> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
         tokio::fs::create_dir_all(&p)
             .await
             .map_err(new_std_io_error)?;
@@ -71,7 +76,7 @@ impl FsCore {
     }
 
     pub async fn fs_stat(&self, path: &str) -> Result<Metadata> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
         let meta = tokio::fs::metadata(&p).await.map_err(new_std_io_error)?;
         let mode = if meta.is_dir() {
             EntryMode::DIR
@@ -80,39 +85,37 @@ impl FsCore {
         } else {
             EntryMode::Unknown
         };
-        let mut m = Metadata::new(mode)
-            .with_content_length(meta.len())
-            .with_last_modified(Timestamp::try_from(
-                meta.modified().map_err(new_std_io_error)?,
-            )?);
+        let mut m = match mode {
+            EntryMode::FILE => MetadataBuilder::file(meta.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        m.last_modified(Timestamp::try_from(
+            meta.modified().map_err(new_std_io_error)?,
+        )?);
 
         // Read user metadata from xattr on Unix systems
         #[cfg(unix)]
         {
             let user_metadata = Self::get_user_metadata(&p)?;
             if !user_metadata.is_empty() {
-                m = m.with_user_metadata(user_metadata);
+                m.user_metadata(user_metadata);
             }
         }
 
-        Ok(m)
+        Ok(m.build())
     }
 
-    pub async fn fs_read(&self, path: &str, args: &OpRead) -> Result<tokio::fs::File> {
-        let p = self.root.join(path.trim_end_matches('/'));
+    pub async fn fs_open(&self, path: &str) -> Result<File> {
+        let p = self.root_join(path)?;
 
-        let mut f = tokio::fs::OpenOptions::new()
+        let f = tokio::fs::OpenOptions::new()
             .read(true)
             .open(&p)
             .await
-            .map_err(new_std_io_error)?;
-
-        if args.range().offset() != 0 {
-            use tokio::io::AsyncSeekExt;
-            f.seek(SeekFrom::Start(args.range().offset()))
-                .await
-                .map_err(new_std_io_error)?;
-        }
+            .map_err(new_std_io_error)?
+            .into_std()
+            .await;
 
         Ok(f)
     }
@@ -133,7 +136,10 @@ impl FsCore {
             open_options.truncate(true);
         }
 
-        let f = open_options.open(path).await.map_err(parse_error)?;
+        let f = open_options
+            .open(path)
+            .await
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("OpenForWrite")), err))?;
 
         Ok(f)
     }
@@ -163,13 +169,18 @@ impl FsCore {
         open_options.write(true);
         open_options.truncate(true);
 
-        let f = open_options.open(&tmp_path).await.map_err(parse_error)?;
+        let f = open_options.open(&tmp_path).await.map_err(|err| {
+            parse_error(
+                ErrorContext::new(ServiceOperation("OpenTemporaryFile")),
+                err,
+            )
+        })?;
 
         Ok((f, Some(tmp_path)))
     }
 
     pub async fn fs_list(&self, path: &str) -> Result<Option<tokio::fs::ReadDir>> {
-        let p = self.root.join(path.trim_end_matches('/'));
+        let p = self.root_join(path)?;
 
         match tokio::fs::read_dir(&p).await {
             Ok(rd) => Ok(Some(rd)),
@@ -190,8 +201,8 @@ impl FsCore {
         }
     }
 
-    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<()> {
-        let from = self.root.join(from.trim_end_matches('/'));
+    pub async fn fs_copy(&self, from: &str, to: &str) -> Result<u64> {
+        let from = self.root_join(from)?;
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
@@ -199,12 +210,25 @@ impl FsCore {
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
 
-        tokio::fs::copy(from, to).await.map_err(new_std_io_error)?;
-        Ok(())
+        let size = tokio::fs::copy(&from, &to)
+            .await
+            .map_err(new_std_io_error)?;
+
+        // only *nix supports `write_with_user_metadata`
+        #[cfg(unix)]
+        {
+            if let Ok(user_meta) = Self::get_user_metadata(&from)
+                && !user_meta.is_empty()
+            {
+                Self::set_user_metadata(&to, &user_meta)?;
+            }
+        }
+
+        Ok(size)
     }
 
     pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {
-        let from = self.root.join(from.trim_end_matches('/'));
+        let from = self.root_join(from)?;
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
         let to = self
@@ -247,12 +271,11 @@ impl FsCore {
         for attr in attrs {
             let attr_name = attr.to_string_lossy();
             // Only read xattr in the "user." namespace and strip the prefix
-            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX) {
-                if let Ok(Some(value)) = xattr::get(path, &attr) {
-                    if let Ok(v) = String::from_utf8(value) {
-                        user_metadata.insert(key.to_string(), v);
-                    }
-                }
+            if let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX)
+                && let Ok(Some(value)) = xattr::get(path, &attr)
+                && let Ok(v) = String::from_utf8(value)
+            {
+                user_metadata.insert(key.to_string(), v);
             }
         }
 
@@ -277,3 +300,231 @@ impl FsCore {
 /// Using "user." as the standard namespace for user-defined attributes.
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error using its service operation context.
+pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
+    let err = match err.kind() {
+        std::io::ErrorKind::AlreadyExists => Error::new(
+            ErrorKind::ConditionNotMatch,
+            "The file already exists in the filesystem",
+        )
+        .set_source(err),
+        _ => new_std_io_error(err),
+    };
+
+    err.with_context("service_operation", ctx.service_operation.0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_fs_backend_copy_preserves_user_metadata() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let src = "src_meta.txt";
+        let dst = "dst_meta.txt";
+
+        let src_path = root.join(src);
+        let dst_path = root.join(dst);
+
+        std::fs::File::create(&src_path).unwrap();
+
+        let mut meta = HashMap::new();
+        meta.insert("key".to_string(), "preserved123".to_string());
+        FsCore::set_user_metadata(&src_path, &meta).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.copy(src, dst).await.unwrap();
+
+        let got = FsCore::get_user_metadata(&dst_path).unwrap();
+        assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_iter_normalizes_absolute_path_under_root() {
+        use opendal_core::Operator;
+
+        let root_dir = tempfile::TempDir::new().unwrap();
+        let outside_dir = tempfile::TempDir::new().unwrap();
+
+        let outside = outside_dir.path().join("outside.txt");
+        std::fs::write(&outside, b"content").unwrap();
+
+        let inside = root_dir.path().join(outside.strip_prefix("/").unwrap());
+        std::fs::create_dir_all(inside.parent().unwrap()).unwrap();
+        std::fs::write(&inside, b"content").unwrap();
+
+        let op =
+            Operator::new(crate::Fs::default().root(root_dir.path().to_str().unwrap())).unwrap();
+
+        op.delete_iter([outside.to_str().unwrap().to_string()])
+            .await
+            .unwrap();
+        assert!(!inside.exists());
+        assert_eq!(std::fs::read(&outside).unwrap(), b"content");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_includes_dangling_symlink() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        std::fs::write(root.join("real"), b"data").unwrap();
+        std::os::unix::fs::symlink("/nonexistent-target", root.join("linky")).unwrap();
+        std::os::unix::fs::symlink(root.join("real"), root.join("valid-link")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let entries = op.list("/").await.unwrap();
+        let modes: std::collections::HashMap<String, EntryMode> = entries
+            .iter()
+            .map(|e| (e.path().to_string(), e.metadata().mode()))
+            .collect();
+
+        assert_eq!(
+            modes.get("linky"),
+            Some(&EntryMode::Unknown),
+            "dangling symlink must be listed as Unknown: {modes:?}"
+        );
+        assert_eq!(modes.get("real"), Some(&EntryMode::FILE));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_dangling_symlink() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::os::unix::fs::symlink("nope.txt", root.join("dangle.txt")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        op.delete("dangle.txt/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+
+        op.delete("dangle.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_symlink_to_dir_and_keeps_target() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("realdir")).unwrap();
+        std::fs::write(root.join("realdir").join("keep"), b"data").unwrap();
+        let dir_link = root.join("linkdir");
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        for (path, recursive) in [("linkdir", false), ("linkdir/", false), ("linkdir/", true)] {
+            std::os::unix::fs::symlink("realdir", &dir_link).unwrap();
+            op.delete_with(path).recursive(recursive).await.unwrap();
+            assert_eq!(
+                std::fs::symlink_metadata(&dir_link).unwrap_err().kind(),
+                std::io::ErrorKind::NotFound
+            );
+            assert_eq!(std::fs::read(root.join("realdir/keep")).unwrap(), b"data");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_file_symlink_requires_file_path() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let target = root.join("real.txt");
+        let link = root.join("link.txt");
+        std::fs::write(&target, b"data").unwrap();
+        std::os::unix::fs::symlink("real.txt", &link).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let err = op.delete("link.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+
+        op.delete("link.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(&link).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_symlink_to_dir_as_dir() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        std::fs::create_dir(root.join("real")).unwrap();
+        std::os::unix::fs::symlink("real", root.join("link")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let entries = op.list("/").await.unwrap();
+        let modes: std::collections::HashMap<String, EntryMode> = entries
+            .iter()
+            .map(|e| (e.path().to_string(), e.metadata().mode()))
+            .collect();
+
+        assert_eq!(
+            modes.get("link/"),
+            Some(&EntryMode::DIR),
+            "symlink to a directory must be listed as a directory: {modes:?}"
+        );
+        assert_eq!(modes.get("real/"), Some(&EntryMode::DIR));
+    }
+
+    #[tokio::test]
+    async fn test_delete_iter_rejects_parent_path_outside_root() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        std::fs::create_dir(&root).unwrap();
+
+        let outside = temp_dir.path().join("outside.txt");
+        std::fs::write(&outside, b"content").unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let err = op.delete_iter(["../outside.txt"]).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert_eq!(std::fs::read(&outside).unwrap(), b"content");
+    }
+}

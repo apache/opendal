@@ -49,7 +49,7 @@ use crate::*;
 /// async fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Build an `blocking::Operator` with blocking layer to start operating the storage.
 ///     let _: blocking::Operator = blocking::Operator::new(op)?;
@@ -79,7 +79,7 @@ use crate::*;
 /// fn blocking_fn() -> Result<blocking::Operator> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     let handle = tokio::runtime::Handle::try_current().unwrap();
 ///     let _guard = handle.enter();
@@ -113,7 +113,7 @@ use crate::*;
 /// fn main() -> Result<()> {
 ///     // Create fs backend builder.
 ///     let builder = services::Memory::default();
-///     let op = Operator::new(builder)?.finish();
+///     let op = Operator::new(builder)?;
 ///
 ///     // Fetch the `EnterGuard` from global runtime.
 ///     let _guard = RUNTIME.enter();
@@ -193,11 +193,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_stat(path, expire))
     }
 
+    /// Create a presigned request for stat with additional options.
+    pub fn presign_stat_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::StatOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_stat_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for read.
     ///
     /// See [`Operator::presign_read`] for more details.
     pub fn presign_read(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_read(path, expire))
+    }
+
+    /// Create a presigned request for read with additional options.
+    pub fn presign_read_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::ReadOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_read_options(&path, expire, opts).await })?
     }
 
     /// Create a presigned request for write.
@@ -207,11 +231,35 @@ impl Operator {
         self.handle.block_on(self.op.presign_write(path, expire))
     }
 
+    /// Create a presigned request for write with additional options.
+    pub fn presign_write_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::WriteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_write_options(&path, expire, opts).await })?
+    }
+
     /// Create a presigned request for delete.
     ///
     /// See [`Operator::presign_delete`] for more details.
     pub fn presign_delete(&self, path: &str, expire: Duration) -> Result<PresignedRequest> {
         self.handle.block_on(self.op.presign_delete(path, expire))
+    }
+
+    /// Create a presigned request for delete with additional options.
+    pub fn presign_delete_options(
+        &self,
+        path: &str,
+        expire: Duration,
+        opts: options::DeleteOptions,
+    ) -> Result<PresignedRequest> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.presign_delete_options(&path, expire, opts).await })?
     }
 
     /// Get given path's metadata.
@@ -234,7 +282,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -286,7 +335,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -376,10 +426,10 @@ impl Operator {
         self.read_options(path, options::ReadOptions::default())
     }
 
-    /// Read the whole path into a bytes with extra options.
+    /// Read the selected bytes from a file with extra options.
     ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`blocking::Operator::reader`]
+    /// See [`options::ReadOptions::limit`] to cap the returned bytes and accept EOF
+    /// after a valid starting byte. Use [`blocking::Operator::reader`] to read lazily.
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -515,11 +565,42 @@ impl Operator {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn copy(&self, from: &str, to: &str) -> Result<()> {
+    pub fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        self.copy_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Copy a file from `from` to `to` with additional options.
+    pub fn copy_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<Metadata> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.copy(&from, &to).await })?
+        self.spawn_block(async move { op.copy_options(&from, &to, opts).await })?
+    }
+
+    /// Create a copier from `from` to `to`.
+    ///
+    /// This function creates a new [`blocking::Copier`] that implements
+    /// `Iterator<Item = Result<usize>>`.
+    pub fn copier(&self, from: &str, to: &str) -> Result<blocking::Copier> {
+        self.copier_options(from, to, options::CopyOptions::default())
+    }
+
+    /// Create a copier from `from` to `to` with additional options.
+    pub fn copier_options(
+        &self,
+        from: &str,
+        to: &str,
+        opts: options::CopyOptions,
+    ) -> Result<blocking::Copier> {
+        let copier = self
+            .handle
+            .block_on(self.op.copier_options(from, to, opts))?;
+        Ok(blocking::Copier::new(self.handle.clone(), copier))
     }
 
     /// Rename a file from `from` to `to`.
@@ -528,7 +609,7 @@ impl Operator {
     ///
     /// - `from` and `to` must be a file.
     /// - `to` will be overwritten if it exists.
-    /// - If `from` and `to` are the same, a `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same, an `IsSameFile` error will occur.
     ///
     /// # Examples
     ///
@@ -543,10 +624,46 @@ impl Operator {
     /// # }
     /// ```
     pub fn rename(&self, from: &str, to: &str) -> Result<()> {
+        self.rename_options(from, to, options::RenameOptions::default())
+    }
+
+    /// Rename a file from `from` to `to` with additional options.
+    ///
+    /// # Options
+    ///
+    /// Visit [`options::RenameOptions`] for all available options.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use opendal_core::blocking;
+    /// use opendal_core::options::RenameOptions;
+    /// use opendal_core::Result;
+    ///
+    /// fn rename_with_options(op: blocking::Operator) -> Result<()> {
+    ///     let mut opts = RenameOptions::default();
+    ///     opts.if_not_exists = true;
+    ///     op.rename_options("path/to/file", "path/to/file2", opts)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn rename_options(&self, from: &str, to: &str, opts: options::RenameOptions) -> Result<()> {
         let op = self.op.clone();
         let from = from.to_string();
         let to = to.to_string();
-        self.spawn_block(async move { op.rename(&from, &to).await })?
+        self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
+    }
+
+    /// Restore the given path from its latest deleted state.
+    pub fn restore(&self, path: &str) -> Result<()> {
+        self.restore_options(path, options::RestoreOptions::default())
+    }
+
+    /// Restore the given path with additional options.
+    pub fn restore_options(&self, path: &str, opts: options::RestoreOptions) -> Result<()> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.restore_options(&path, opts).await })?
     }
 
     /// Delete given path.
@@ -554,6 +671,8 @@ impl Operator {
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
+    /// - See [`crate::Operator::delete`] for the `fs` service's symbolic link
+    ///   behavior.
     ///
     /// # Examples
     ///
@@ -571,11 +690,15 @@ impl Operator {
         self.delete_options(path, options::DeleteOptions::default())
     }
 
-    /// Delete given path with options.
+    /// Delete the given path with additional options.
     ///
     /// # Notes
     ///
-    /// - Delete not existing error won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -608,11 +731,13 @@ impl Operator {
         self.handle.block_on(self.op.delete_try_iter(try_iter))
     }
 
-    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    /// Create a [`blocking::Deleter`] to continuously remove content from
+    /// storage.
     ///
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
-    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    /// Use [`blocking::Deleter`] directly for more control over the deletion
+    /// process.
     pub fn deleter(&self) -> Result<blocking::Deleter> {
         blocking::Deleter::create(
             self.handle.clone(),
@@ -620,7 +745,10 @@ impl Operator {
         )
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Deprecated
     ///
@@ -631,13 +759,13 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// ```
     ///
     /// Use:
     /// ```ignore
     /// use opendal_core::options::DeleteOptions;
-    /// op.delete_options("path/to/dir", DeleteOptions {
+    /// op.delete_options("a/", DeleteOptions {
     ///     recursive: true,
     ///     ..Default::default()
     /// })?;
@@ -656,7 +784,7 @@ impl Operator {
     /// use opendal_core::blocking;
     /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -736,7 +864,8 @@ impl Operator {
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
+    /// This function creates a new [`blocking::Lister`]; dropping it stops
+    /// listing.
     ///
     /// # Semantics
     ///

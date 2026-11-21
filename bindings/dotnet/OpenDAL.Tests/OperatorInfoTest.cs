@@ -35,8 +35,24 @@ public class OperatorInfoTest
         var info = op.Info;
 
         Assert.Equal("memory", info.Scheme);
-        Assert.True(info.FullCapability.Read);
-        Assert.True(info.FullCapability.Write);
+        Assert.True(info.Capability.Read);
+        Assert.True(info.Capability.Write);
+    }
+
+    [Fact]
+    public void OperatorInfo_MemoryConfig_AbsentSizeLimitsAreNull()
+    {
+        using var op = new Operator(new MemoryServiceConfig());
+        var capability = op.Info.Capability;
+
+        // The memory service declares none of the size limits. They must
+        // surface as null, not as a sentinel leaking through the FFI layer.
+        Assert.Null(capability.WriteMultiMaxSize);
+        Assert.Null(capability.WriteMultiMinSize);
+        Assert.Null(capability.WriteTotalMaxSize);
+        Assert.Null(capability.DeleteMaxSize);
+        Assert.Null(capability.CopyMultiMaxSize);
+        Assert.Null(capability.CopyMultiMinSize);
     }
 
     [Fact]
@@ -56,8 +72,8 @@ public class OperatorInfoTest
             var info = op.Info;
 
             Assert.Equal("fs", info.Scheme);
-            Assert.True(info.FullCapability.Read);
-            Assert.True(info.FullCapability.Write);
+            Assert.True(info.Capability.Read);
+            Assert.True(info.Capability.Write);
         }
         finally
         {

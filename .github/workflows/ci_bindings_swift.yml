@@ -19,23 +19,22 @@ name: Bindings Swift CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
-      - "bindings/swift/**"
       - "bindings/c/**"
-      - "core/**"
+      - "bindings/swift/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_swift.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-swift-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -48,7 +47,7 @@ jobs:
       matrix:
         os: [ ubuntu-latest ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
@@ -61,3 +60,7 @@ jobs:
       - name: Build and run tests
         working-directory: "bindings/swift"
         run: make test
+
+      - name: Run getting-started example
+        working-directory: "bindings/swift/OpenDAL"
+        run: swift run GettingStarted

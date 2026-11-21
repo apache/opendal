@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -9,31 +9,131 @@ This service can be used to:
 - [x] delete
 - [x] list
 - [x] copy
+- [x] restore
 - [ ] rename
 - [x] presign
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
+## Object restoration
+
+S3 restoration requires bucket versioning. [`opendal_core::Operator::restore`]
+removes the current delete marker. Calling it on an already-live object succeeds.
+It does not scan or remove older marker versions. If no live object or current
+delete marker exists, it returns [`opendal_core::ErrorKind::NotFound`].
+
+Use [`opendal_core::Operator::restore_with`] to promote a specific version:
+
+```rust,no_run
+# use opendal_core::Operator;
+# use opendal_core::Result;
+# async fn restore(op: Operator, version: &str) -> Result<()> {
+op.restore_with("path/to/file")
+    .version(version)
+    .await?;
+# Ok(())
+# }
+```
+
+Add `.if_not_exists(true)` when a selected version must not overwrite an
+object recreated by another writer. This condition requires an explicit
+version.
+
 ## Configuration
 
-- `root`: Set the work dir for backend.
-- `bucket`: Set the container name for backend.
-- `endpoint`: Set the endpoint for backend.
-- `region`: Set the region for backend.
-- `access_key_id`: Set the access_key_id for backend.
-- `secret_access_key`: Set the secret_access_key for backend.
-- `session_token`: Set the session_token for backend.
-- `default_storage_class`: Set the default storage_class for backend.
-- `server_side_encryption`: Set the server_side_encryption for backend.
-- `server_side_encryption_aws_kms_key_id`: Set the server_side_encryption_aws_kms_key_id for backend.
-- `server_side_encryption_customer_algorithm`: Set the server_side_encryption_customer_algorithm for backend.
-- `server_side_encryption_customer_key`: Set the server_side_encryption_customer_key for backend.
-- `server_side_encryption_customer_key_md5`: Set the server_side_encryption_customer_key_md5 for backend.
-- `disable_config_load`: Disable aws config load from env.
-- `enable_virtual_host_style`: Enable virtual host style.
-- `disable_write_with_if_match`: Disable write with if match.
-- `enable_request_payer`: Enable the request payer for backend.
-- `default_acl`: Define the default access control list (ACL) when creating a new object. Note that some s3 services like minio do not support this option.
+Use [`crate::S3Config`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
-Refer to [`S3Builder`]'s public API docs for more information.
+## AWS container credentials
+
+The default AWS credential chain already reads ambient container credential
+settings. The container credential options expose the same provider settings
+through typed builder methods, serialized configuration, and URI options. Setting
+any of these options replaces the ECS slot in the default chain without changing
+that slot's position.
+
+Endpoint selection follows this order:
+
+1. `container_credentials_endpoint`
+2. `container_credentials_relative_uri`
+3. `AWS_CONTAINER_CREDENTIALS_FULL_URI`
+4. `AWS_CONTAINER_CREDENTIALS_RELATIVE_URI`
+
+`container_metadata_uri_override` changes the base URI for relative endpoints
+only and does not select an endpoint by itself. Authorization token selection
+follows this order:
+
+1. `container_authorization_token`
+2. `container_authorization_token_file`
+3. `AWS_CONTAINER_AUTHORIZATION_TOKEN`
+4. `AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE`
+
+These options configure the existing ECS slot; they do not force it ahead of
+environment, profile, SSO, web identity, or external process providers.
+Configured static credentials retain their higher priority. [`crate::S3::role_arn`]
+continues to use the assembled provider as the source for role assumption, and
+[`crate::S3::credential_provider_chain`] continues to replace the assembled
+chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading
+and the environment/profile credential slots. Region environment lookup and
+other credential providers, including container credentials, remain enabled.
+
+## S3 Express One Zone
+
+OpenDAL recognizes valid AWS directory bucket names on AWS endpoints and
+automatically uses the bucket's virtual-hosted zonal endpoint. Set the bucket
+name and Region to connect with your configured AWS credentials.
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_s3::S3;
+
+fn build_operator() -> Result<Operator> {
+    Operator::new(
+        S3::default()
+            .bucket("example--usw2-az1--x-s3")
+            .region("us-west-2"),
+    )
+}
+```
+
+This automatic behavior applies only to AWS endpoints. S3-compatible services
+retain the existing IAM authentication behavior.
+
+In the standard AWS partition, the zonal endpoint has the form
+`https://<bucket>.s3express-<zone-id>.<region>.amazonaws.com`. You can omit the
+endpoint or supply a matching AWS regional or zonal endpoint. OpenDAL also
+accepts `s3.amazonaws.com` in the standard AWS partition. OpenDAL rejects
+mismatched or unsupported AWS endpoints, including dual-stack endpoints, with
+[`opendal_core::ErrorKind::ConfigInvalid`].
+
+Grant `s3express:CreateSession` on the bucket and allow `ReadWrite` sessions.
+OpenDAL uses the configured AWS credentials to call `CreateSession` and refreshes
+sessions automatically. It signs `CopyObject`, `UploadPartCopy`, and presigned
+requests with the underlying IAM credentials.
+[See the AWS `CreateSession` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateSession.html).
+
+### Directory bucket behavior
+
+- **Listing.** By default, OpenDAL uses `ListObjectsV2` with `/` as the delimiter.
+  AWS accepts only `/` as a delimiter and requires nonempty request prefixes to
+  end in `/`.
+  OpenDAL's default operator filters directory listings for partial prefixes and
+  walks directories for recursive listings, which can require additional requests.
+  Leave `disable_list_objects_v2` unset. Directory buckets do not support
+  `start_after` or guarantee lexicographical order.
+  [See the AWS `ListObjectsV2` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html).
+- **Versioning and restore.** AWS directory buckets do not support S3 Versioning.
+  OpenDAL disables version-specific stat, read, delete, and copy-source options,
+  listing versions or delete markers, and `restore`.
+  [See the AWS `PutBucketVersioning` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketVersioning.html).
+- **Writes.** OpenDAL supports conditional writes with `If-Match` and
+  `If-None-Match: *`, as well as appending to objects in the `EXPRESS_ONEZONE`
+  storage class. The service does not advertise `write_with_content_encoding`
+  for directory buckets.
+  [See the AWS `PutObject` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html).
 
 ## Temporary security credentials
 
@@ -113,7 +213,7 @@ async fn main() -> Result<()> {
       .access_key_id("access_key_id")
       .secret_access_key("secret_access_key");
 
-    let op: Operator = Operator::new(builder)?.finish();
+    let op: Operator = Operator::new(builder)?;
 
     Ok(())
 }
@@ -140,7 +240,7 @@ async fn main() -> Result<()> {
       // Enable SSE-C
       .server_side_encryption_with_customer_key("AES256", "customer_key".as_bytes());
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -170,7 +270,7 @@ async fn main() -> Result<()> {
       // Enable SSE-KMS with aws managed kms key
       .server_side_encryption_with_aws_managed_kms_key();
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -200,7 +300,7 @@ async fn main() -> Result<()> {
       // Enable SSE-KMS with customer managed kms key
       .server_side_encryption_with_customer_managed_kms_key("aws_kms_key_id");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -230,7 +330,7 @@ async fn main() -> Result<()> {
       // Enable SSE-S3
       .server_side_encryption_with_s3_key();
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // Writing your testing code here.
@@ -260,7 +360,7 @@ async fn main() -> Result<()> {
       // Enable public-read ACL
       .default_acl("public-read");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
     info!("operator: {:?}", op);
 
     // New objects will be created with public-read ACL

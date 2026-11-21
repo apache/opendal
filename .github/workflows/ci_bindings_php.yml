@@ -19,8 +19,6 @@ name: Bindings PHP CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
@@ -28,12 +26,14 @@ on:
       - main
     paths:
       - "bindings/php/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_php.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-php-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -49,7 +49,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -62,10 +62,24 @@ jobs:
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
 
+      - name: Use matching Clang and libclang for bindgen
+        run: |
+          # The runner ships multiple LLVM versions. Bindgen discovers Clang and libclang separately.
+          clang_path="$(realpath -e /usr/bin/clang)"
+          llvm_dir="$(dirname "$(dirname "$clang_path")")"
+          {
+            echo "CLANG_PATH=$clang_path"
+            echo "LIBCLANG_PATH=$llvm_dir/lib"
+          } >> "$GITHUB_ENV"
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/php"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/php"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
 
       - name: Build opendal-php extension
         working-directory: "bindings/php"
@@ -85,6 +99,10 @@ jobs:
 
       - name: Check PHP Extensions
         run: php -m
+
+      - name: Run getting-started example
+        working-directory: "bindings/php"
+        run: php examples/getting-started.php
 
       - name: Install Composer dependencies
         working-directory: "bindings/php"

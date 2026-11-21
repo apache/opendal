@@ -18,8 +18,8 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::pool::{ManageObject, ObjectStatus, bounded};
 use bytes::Bytes;
-use fastpool::{ManageObject, ObjectStatus, bounded};
 use redis::AsyncCommands;
 use redis::Client;
 use redis::Cmd;
@@ -175,6 +175,21 @@ impl RedisCore {
         Ok(result.map(Buffer::from))
     }
 
+    pub async fn len(&self, key: &str) -> Result<Option<usize>> {
+        let mut conn = self.conn().await?;
+        let exists: bool = conn.exists(key).await.map_err(format_redis_error)?;
+        if !exists {
+            return Ok(None);
+        }
+
+        let len: usize = redis::cmd("STRLEN")
+            .arg(key)
+            .query_async(&mut *conn)
+            .await
+            .map_err(format_redis_error)?;
+        Ok(Some(len))
+    }
+
     pub async fn get_range(&self, key: &str, start: isize, end: isize) -> Result<Option<Buffer>> {
         let mut conn = self.conn().await?;
         let result: Option<Bytes> = conn
@@ -184,7 +199,37 @@ impl RedisCore {
         Ok(result.map(Buffer::from))
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
+        if let Some(expires) = expires {
+            let milliseconds = u64::try_from(expires.as_nanos().div_ceil(1_000_000))
+                .ok()
+                .filter(|ttl| (1..=i64::MAX as u64).contains(ttl))
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "expires must be positive and fit in Redis milliseconds",
+                    )
+                })?;
+            let mut conn = self.conn().await?;
+            let options =
+                redis::SetOptions::default().with_expiration(redis::SetExpiry::PX(milliseconds));
+            let _: () = conn
+                .set_options(key, value.to_vec(), options)
+                .await
+                .map_err(|err| {
+                    // Redis also checks whether adding the TTL to its clock overflows.
+                    if err.detail() == Some("invalid expire time in 'set' command") {
+                        return Error::new(
+                            ErrorKind::ConfigInvalid,
+                            "expires is too large for Redis",
+                        )
+                        .set_source(err);
+                    }
+                    format_redis_error(err)
+                })?;
+            return Ok(());
+        }
+
         let mut conn = self.conn().await?;
         let value = value.to_vec();
         if let Some(dur) = self.default_ttl {

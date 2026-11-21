@@ -15,36 +15,41 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use jni::JNIEnv;
+use jni::Env;
+use jni::EnvUnowned;
 use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::blocking;
 
 use crate::convert::jstring_to_string;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_constructWriter(
-    mut env: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_constructWriter<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     op: *mut blocking::Operator,
-    path: JString,
-    options: JObject,
+    path: JString<'local>,
+    options: JObject<'local>,
 ) -> jlong {
-    let op_ref = unsafe { &mut *op };
-    intern_construct_write(&mut env, op_ref, path, options).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        0
+    env.with_env(|env| {
+        let op_ref = unsafe { &mut *op };
+        intern_construct_write(env, op_ref, path, options)
     })
+    .resolve::<ThrowException>()
 }
 
 fn intern_construct_write(
-    env: &mut JNIEnv,
+    env: &mut Env,
     op: &mut blocking::Operator,
     path: JString,
     options: JObject,
@@ -61,15 +66,16 @@ fn intern_construct_write(
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_disposeWriter(
-    mut env: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_disposeWriter<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     writer: *mut blocking::Writer,
 ) {
-    let mut writer = unsafe { Box::from_raw(writer) };
-    intern_dispose_write(&mut writer).unwrap_or_else(|e| {
-        e.throw(&mut env);
+    env.with_env(|_env| {
+        let mut writer = unsafe { Box::from_raw(writer) };
+        intern_dispose_write(&mut writer)
     })
+    .resolve::<ThrowException>()
 }
 
 fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
@@ -79,26 +85,29 @@ fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
 
 /// # Safety
 ///
-/// This function should not be called before the Operator is ready.
+/// `writer` must point to a live writer with exclusive access, and `offset` and
+/// `length` must describe a valid range of `content`.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeBytes(
-    mut env: JNIEnv,
-    _: JClass,
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeByteRange<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
     writer: *mut blocking::Writer,
-    content: JByteArray,
+    content: JByteArray<'local>,
+    offset: jint,
+    length: jint,
 ) {
-    let writer_ref = unsafe { &mut *writer };
-    intern_write_bytes(&mut env, writer_ref, content).unwrap_or_else(|e| {
-        e.throw(&mut env);
+    env.with_env(|env| -> crate::Result<()> {
+        let mut owned = vec![0u8; length as usize];
+        // SAFETY: i8 and u8 have the same size, alignment, and valid bit patterns.
+        let bytes =
+            unsafe { std::slice::from_raw_parts_mut(owned.as_mut_ptr().cast(), owned.len()) };
+        // Copy into Rust-owned storage before the writer can retain the buffer.
+        content.get_region(env, offset, bytes)?;
+        let writer = unsafe { &mut *writer };
+        writer.write(owned)?;
+        Ok(())
     })
-}
-
-fn intern_write_bytes(
-    env: &mut JNIEnv,
-    writer: &mut blocking::Writer,
-    content: JByteArray,
-) -> crate::Result<()> {
-    let content = env.convert_byte_array(content)?;
-    writer.write(content)?;
-    Ok(())
+    .resolve::<ThrowException>()
 }

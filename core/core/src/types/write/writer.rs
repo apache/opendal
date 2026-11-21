@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -94,27 +95,40 @@ use crate::*;
 /// Possible Errors:
 ///
 /// - Some services store normal file and appendable file in different way. Trying to append
-///   on non-appendable file could return [`ErrorKind::ConditionNotMatch`] error.
+///   on non-appendable file could return [`ErrorKind::Conflict`] error.
 /// - Services that doesn't support append will return [`ErrorKind::Unsupported`] error when
 ///   creating writer with `append` enabled.
 pub struct Writer {
     /// Keep a reference to write context in writer.
-    _ctx: Arc<WriteContext>,
+    ctx: Arc<WriteContext>,
     inner: WriteGenerator<oio::Writer>,
+}
+
+impl fmt::Debug for Writer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+            .field("chunk", &self.ctx.options().chunk())
+            .field("append", &self.ctx.args().append())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
-    pub(crate) async fn new(ctx: WriteContext) -> Result<Self> {
+    pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
         let ctx = Arc::new(ctx);
-        let inner = WriteGenerator::create(ctx.clone()).await?;
+        let inner = WriteGenerator::create(ctx.clone())?;
 
-        Ok(Self { _ctx: ctx, inner })
+        Ok(Self { ctx, inner })
     }
 
     /// Write [`Buffer`] into writer.
     ///
     /// This operation will write all data in given buffer into writer.
+    ///
+    /// When a single call spans multiple chunks, a failure after the underlying
+    /// writer accepts part of the input returns a persistent error. Call
+    /// [`Writer::abort`] and start a new writer if you need to retry that write.
     ///
     /// ## Examples
     ///
@@ -137,13 +151,7 @@ impl Writer {
     /// }
     /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-
-        Ok(())
+        self.inner.write_all(bs.into()).await
     }
 
     /// Write [`bytes::Buf`] into inner writer.
@@ -182,6 +190,48 @@ impl Writer {
         self.write(Buffer::from(chunks)).await
     }
 
+    /// Copy a range of an existing object into this writer.
+    ///
+    /// The source path is resolved by the same [`Operator`] that created this
+    /// writer. Calls to `write` and `copy_from` may be interleaved, and their
+    /// call order defines the destination bytes. OpenDAL uses a native
+    /// writer-side copy when the composed service supports it and otherwise
+    /// streams the range through the client. Check
+    /// [`Capability::write_can_copy_from`] to determine whether eligible
+    /// non-append writes use the native path.
+    ///
+    /// Each call accepts at most 5 GiB. Applications must split larger source
+    /// ranges into multiple ordered calls.
+    pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
+        self.copy_from_options(
+            path,
+            options::ReadOptions {
+                range: range.into(),
+                ..Default::default()
+            },
+        )
+        .await
+    }
+
+    /// Copy an existing object range with read conditions and execution options.
+    pub async fn copy_from_options(
+        &mut self,
+        path: &str,
+        options: options::ReadOptions,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "copy source path is a directory")
+                    .with_operation("Writer::copy_from")
+                    .with_context("service", self.ctx.service().info().scheme())
+                    .with_context("path", &path),
+            );
+        }
+        let (range, args, options) = options.into();
+        self.inner.copy_from(&path, args, options, range).await
+    }
+
     /// Abort the writer and clean up all written data.
     ///
     /// ## Notes
@@ -202,7 +252,8 @@ impl Writer {
         self.inner.close().await
     }
 
-    /// Convert writer into [`BufferSink`] which implements [`Sink<Buffer>`].
+    /// Convert this writer into a [`BufferSink`] that implements
+    /// [`Sink<Buffer>`][futures::Sink].
     ///
     /// # Notes
     ///
@@ -380,17 +431,15 @@ impl Writer {
 #[cfg(test)]
 mod tests {
     use bytes::{Buf, Bytes};
-    use rand::Rng;
-    use rand::RngCore;
-    use rand::rngs::ThreadRng;
+    use rand::{Rng, RngExt};
 
     use crate::Operator;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::rng();
         // Generate size between 1B..16MB.
-        let size = rng.gen_range(1..16 * 1024 * 1024);
+        let size = rng.random_range(1..16 * 1024 * 1024);
         let mut content = vec![0; size];
         rng.fill_bytes(&mut content);
         content
@@ -398,7 +447,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -415,8 +464,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_writer_write_with_chunk_zero() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let path = "test_file";
+
+        let content = vec![b'x'; 4096];
+        op.write_with(path, content.clone())
+            .chunk(0)
+            .await
+            .expect("write with chunk 0 must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
     async fn test_writer_write_from() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -434,7 +499,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_write_from_chain() {
-        let op = Operator::new(services::Memory::default()).unwrap().finish();
+        let op = Operator::new(services::Memory::default()).unwrap();
         let path = "test_file";
 
         let part1 = Bytes::from(gen_random_bytes());

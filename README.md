@@ -1,219 +1,167 @@
 # Apache OpenDAL™: *One Layer, All Storage.*
 
-[![](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
-[![](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
-[![](https://deepwiki.com/badge.svg)](https://deepwiki.com/apache/opendal)
+[![GitHub Discussions](https://img.shields.io/github/discussions/apache/opendal)](https://github.com/apache/opendal/discussions)
+[![Discord](https://img.shields.io/discord/1081052318650339399?logo=discord&label=discord)](https://opendal.apache.org/discord)
+[![DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/apache/opendal)
 
-OpenDAL (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that enables seamless interaction with diverse storage services.
+**Apache OpenDAL™** (`/ˈoʊ.pən.dæl/`, pronounced "OH-puhn-dal") is an Open Data Access Layer that keeps application storage code clean, from simple file reads and writes to streaming, byte-range reads, and concurrent uploads.
 
-OpenDAL's development is guided by its vision of **One Layer, All Storage** and its core principles: **Open Community**, **Solid Foundation**, **Fast Access**, **Object Storage First**, and **Extensible Architecture**. Read the explained vision at [OpenDAL Vision](https://opendal.apache.org/vision).
+Use OpenDAL when your application talks to a single S3 bucket or local directory and you want one API for everyday operations, large transfers, and retries. Keep the same operator model when you test in memory, develop on local disk, or connect to [50+ storage services][Services Docs] from Rust, Python, Node.js, Java, Go, and more.
 
-<img src="https://opendal.apache.org/img/architectural.png" alt="OpenDAL Architectural" width="61.8%" />
+## Why OpenDAL
 
-## For *ANY* languages
+- **Clean code for a single backend**: read, write, stat, list, copy, and delete through one `Operator`. Paths, metadata, and error kinds follow one model across operations.
+- **Built for demanding I/O**: stream large objects, read only the byte ranges you need, and upload parts concurrently on services with multipart or block writes. Add retries, timeouts, observability, and concurrency limits as layers.
+- **Portable across environments and backends**: use `memory` in tests, `fs` in local development, and object storage, file systems, databases, or key-value services in production. Capability checks show where services differ.
+- **Proven in data-intensive systems**: projects such as Dify, RAGFlow, LlamaIndex, Databend, RisingWave, GreptimeDB, and Lance build on OpenDAL. Read how [ScopeDB accesses object storage with OpenDAL][ScopeDB Case Study].
 
-> **Note**: Each binding has its own independent version number, which may differ from the Rust core version. When checking for updates or compatibility, always refer to the specific binding's version rather than the core version.
+Bindings share the service model and follow their own language conventions, so available options and layers vary by binding. Each language guide lists what its binding supports.
 
-| Name              | Release                                          | Docs                                                                              | Used By |
-| ----------------- | ------------------------------------------------ | --------------------------------------------------------------------------------- | ----------------------------------- |
-| [Rust Core]       | [![Rust Core Image]][Rust Core Link]             | [![Docs Release]][Rust Core Release Docs] [![Docs Dev]][Rust Core Dev Docs]       | [![Rust Core Users Image]][Rust Core Users]            |
-| [C Binding]       | -                                                | [![Docs Dev]][C Binding Dev Docs]                                                 | [![C Binding Users Image]][C Binding Users]            |
-| [Cpp Binding]     | -                                                | [![Docs Dev]][Cpp Binding Dev Docs]                                               | - |
-| [D Binding]       | -                                                | -                                                                                 | - |
-| [Dart Binding]    | -                                                | -                                                                                 | - |
-| [Dotnet Binding]  | -                                                | -                                                                                 | - |
-| [Go Binding]      | [![Go Binding Image]][Go Binding Link]           | [![Docs Release]][Go Release Docs]                                                | - |
-| [Haskell Binding] | -                                                | -                                                                                 | - |
-| [Java Binding]    | [![Java Binding Image]][Java Binding Link]       | [![Docs Release]][Java Binding Release Docs] [![Docs Dev]][Java Binding Dev Docs] | [![Java Binding Users Image]][Java Binding Users]   |
-| [Lua Binding]     | -                                                | -                                                                                 | - |
-| [Node.js Binding] | [![Node.js Binding Image]][Node.js Binding Link] | [![Docs Dev]][Node.js Binding Dev Docs]                                           | - |
-| [OCaml Binding]   | -                                                | -                                                                                 | - |
-| [PHP Binding]     | -                                                | -                                                                                 | - |
-| [Python Binding]  | [![Python Binding Image]][Python Binding Link]   | [![Docs Dev]][Python Binding Dev Docs]                                            | [![Python Binding Users Image]][Python Binding Users] |
-| [Ruby Binding]    | -                                                | -                                                                                 | - |
-| [Swift Binding]   | -                                                | -                                                                                 | - |
-| [Zig Binding]     | -                                                | -                                                                                 | - |
+## Quickstart
 
-[Docs Release]: https://img.shields.io/badge/docs-release-blue
-[Docs Dev]: https://img.shields.io/badge/docs-dev-blue
-[Rust Core]: core/README.md
-[Rust Core Image]: https://img.shields.io/crates/v/opendal.svg
-[Rust Core Link]: https://crates.io/crates/opendal
-[Rust Core Release Docs]: https://docs.rs/opendal
-[Rust Core Dev Docs]: https://opendal.apache.org/docs/rust/opendal/
-[Rust Core Users Image]: https://github.com/user-attachments/assets/2726c336-8509-491d-92d8-1be2040d5136
-[Rust Core Users]: core/users.md
+Each quickstart uses the in-memory service, so it runs without credentials. The second snippet in each language shows the same API against S3.
 
-[C Binding]: bindings/c/README.md
-[C Binding Dev Docs]: https://opendal.apache.org/docs/c/
-[C Binding Users Image]: https://github.com/user-attachments/assets/b1cf4d79-8478-4eac-ae04-0bbe0d6a993d
-[C Binding Users]: bindings/c/users.md
-[Cpp Binding]: bindings/cpp/README.md
-[Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
-[D Binding]: bindings/d/README.md
-[Dart Binding]: bindings/dart/README.md
-[Dotnet Binding]: bindings/dotnet/README.md
-[Go Binding]: bindings/go/README.md
-[Go Binding Image]: https://badge.fury.io/go/github.com%2Fapache%2Fopendal%2Fbindings%2Fgo.svg
-[Go Binding Link]: https://pkg.go.dev/github.com/apache/opendal/bindings/go
-[Go Release Docs]: https://pkg.go.dev/github.com/apache/opendal/bindings/go
-[Haskell Binding]: bindings/haskell/README.md
-[Java Binding]: bindings/java/README.md
-[Java Binding Image]: https://img.shields.io/maven-central/v/org.apache.opendal/opendal-java
-[Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
-[Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
-[Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
-[Java Binding Users Image]: https://github.com/user-attachments/assets/f20a59a9-8f23-4919-a165-980ed4e6e0d0
-[Java Binding Users]: bindings/java/users.md
-[Lua Binding]: bindings/lua/README.md
-[Node.js Binding]: bindings/nodejs/README.md
-[Node.js Binding Image]: https://img.shields.io/npm/v/opendal
-[Node.js Binding Link]: https://www.npmjs.com/package/opendal
-[Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
-[OCaml Binding]: bindings/ocaml/README.md
-[PHP Binding]: bindings/php/README.md
-[Python Binding]: bindings/python/README.md
-[Python Binding Image]: https://img.shields.io/pypi/v/opendal
-[Python Binding Link]: https://pypi.org/project/opendal/
-[Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
-[Python Binding Users Image]: https://github.com/user-attachments/assets/6bba7e5b-cada-4cf2-81e3-09d4e4535dcb 
-[Python Binding Users]: bindings/python/users.md
-[Ruby Binding]: bindings/ruby/README.md
-[Swift Binding]: bindings/swift/README.md
-[Zig Binding]: bindings/zig/README.md
+### Python
 
-## For *ANY* methods
+```shell
+pip install opendal
+```
 
-| Name  | Description                                                        | Release                   |
-| ----- | ------------------------------------------------------------------ | ------------------------- |
-| [oli] | Access data via Command Line (alternative to s3cmd, s3cli, azcopy) | [![oli image]][oli crate] |
-| [ofs] | Access data via POSIX file system API (alternative to s3fs)        | [![ofs image]][ofs crate] |
+```python
+import opendal
 
-[oli]: https://github.com/apache/opendal-oli
-[oli image]: https://img.shields.io/crates/v/oli.svg
-[oli crate]: https://crates.io/crates/oli
-[ofs]: https://github.com/apache/opendal-ofs
-[ofs image]: https://img.shields.io/crates/v/ofs.svg
-[ofs crate]: https://crates.io/crates/ofs
+op = opendal.Operator("memory")
 
-## For *ANY* integrations
+op.write("hello.txt", b"Hello, World!")
+print(op.read("hello.txt").decode())
+print(f"size = {op.stat('hello.txt').content_length} bytes")
+op.delete("hello.txt")
+```
 
-| Name                   | Description                                                                   | Release                                     | Docs                                                                              |
-| ---------------------- | ----------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
-| [dav-server-opendalfs] | a [dav-server-rs] implementation using opendal.                               | [![dav-server image]][dav-server crate]     | [![Docs Release]][dav-server release docs] [![Docs Dev]][dav-server dev docs]     |
-| [object_store_opendal] | an [object_store] implementation using opendal.                               | [![object_store image]][object_store crate] | [![Docs Release]][object_store release docs] [![Docs Dev]][object_store dev docs] |
-| [unftp-sbe-opendal]    | an [unftp] storage backend implementation using opendal.                      | [![unftp-sbe image]][unftp-sbe crate]       | [![Docs Release]][unftp-sbe release docs] [![Docs Dev]][unftp-sbe dev docs]       |
-| [parquet_opendal]      | Provides [`parquet`](https://crates.io/crates/parquet) efficient IO utilities | [![parquet image]][parquet crate]           | [![Docs Release]][parquet release docs] [![Docs Dev]][parquet dev docs]           |
+Point the operator at S3, add retries, and read only what you need:
 
-[dav-server-opendalfs]: integrations/dav-server/README.md
-[dav-server-rs]: https://github.com/messense/dav-server-rs
-[dav-server image]: https://img.shields.io/crates/v/dav-server-opendalfs.svg
-[dav-server crate]: https://crates.io/crates/dav-server-opendalfs
-[dav-server release docs]: https://docs.rs/dav-server-opendalfs/
-[dav-server dev docs]: https://opendal.apache.org/docs/dav-server-opendalfs/dav_server_opendalfs/
+```python
+import opendal
+from opendal.layers import RetryLayer
 
-[object_store_opendal]: integrations/object_store/README.md
-[object_store]: https://docs.rs/object_store
-[object_store image]: https://img.shields.io/crates/v/object_store_opendal.svg
-[object_store crate]: https://crates.io/crates/object_store_opendal
-[object_store release docs]: https://docs.rs/object_store_opendal/
-[object_store dev docs]: https://opendal.apache.org/docs/object-store-opendal/object_store_opendal/
+op = opendal.Operator("s3", bucket="my-bucket", region="us-east-1").layer(
+    RetryLayer(max_times=3)
+)
 
+# Read only the first 64 KiB of an object.
+header = op.read("data/events.parquet", offset=0, size=64 * 1024)
 
-[unftp-sbe-opendal]: integrations/unftp-sbe/README.md
-[unftp]: https://crates.io/crates/unftp
-[unftp-sbe image]: https://img.shields.io/crates/v/unftp-sbe-opendal.svg
-[unftp-sbe crate]: https://crates.io/crates/unftp-sbe-opendal
-[unftp-sbe release docs]: https://docs.rs/unftp-sbe-opendal/
-[unftp-sbe dev docs]: https://opendal.apache.org/docs/unftp-sbe-opendal/unftp_sbe_opendal/
+# Stream a large object instead of loading it into memory.
+total = 0
+with op.open("data/events.parquet", "rb") as f:
+    while chunk := f.read(1024 * 1024):
+        total += len(chunk)
+```
 
-[parquet_opendal]: integrations/parquet/README.md
-[parquet image]: https://img.shields.io/crates/v/parquet-opendal.svg
-[parquet crate]: https://crates.io/crates/parquet-opendal
-[parquet release docs]: https://docs.rs/parquet-opendal/
-[parquet dev docs]: https://opendal.apache.org/docs/parquet-opendal/parquet_opendal/
+See the [Python guide][Python Guide] for async APIs, error handling, and production setup.
 
-## For *ANY* services
+### Rust
 
-| Type                           | Services                                                                                                                  |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| Standard Storage Protocols     | ftp http [sftp] [webdav]                                                                                                  |
-| Object Storage Services        | [azblob] [cos] [gcs] [obs] [oss] [s3] <br> [b2] [openstack_swift] [upyun] [vercel-blob]                                   |
-| File Storage Services          | fs [alluxio] [azdls] [azfile] [compfs] <br> [dbfs] [gridfs] [hdfs] [hdfs-native] [ipfs] [webhdfs]                         |
-| Consumer Cloud Storage Service | [aliyun-drive] [gdrive] [onedrive] [dropbox] [koofr] <br> [pcloud] [seafile] [yandex-disk]                                |
-| Key-Value Storage Services     | [cacache] [cloudflare-kv] [dashmap] memory [etcd] <br> [foundationdb] [persy] [redis] [rocksdb] [sled] <br> [redb] [tikv] |
-| Database Storage Services      | [d1] [mongodb] [mysql] [postgresql] [sqlite] [surrealdb]                                                                  |
-| Cache Storage Services         | [ghac] [memcached] [mini-moka] [moka] [vercel-artifacts]                                                                  |
-| Git Based Storage Services     | [huggingface]                                                                                                             |
+```shell
+cargo add opendal
+cargo add tokio --features full
+```
 
-[sftp]: https://datatracker.ietf.org/doc/html/draft-ietf-secsh-filexfer-02
-[webdav]: https://datatracker.ietf.org/doc/html/rfc4918
+```rust
+use opendal::services;
+use opendal::Operator;
+use opendal::Result;
 
-[azblob]: https://azure.microsoft.com/en-us/services/storage/blobs/
-[cos]: https://www.tencentcloud.com/products/cos
-[gcs]: https://cloud.google.com/storage
-[obs]: https://www.huaweicloud.com/intl/en-us/product/obs.html
-[oss]: https://www.aliyun.com/product/oss
-[s3]: https://aws.amazon.com/s3/
-[b2]: https://www.backblaze.com/
-[openstack_swift]: https://docs.openstack.org/swift/latest/
-[upyun]: https://www.upyun.com/
-[vercel-blob]: https://vercel.com/docs/storage/vercel-blob
+#[tokio::main]
+async fn main() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?;
 
-[alluxio]: https://docs.alluxio.io/os/user/stable/en/api/REST-API.html
-[azdls]: https://azure.microsoft.com/en-us/products/storage/data-lake-storage/
-[azfile]: https://learn.microsoft.com/en-us/rest/api/storageservices/file-service-rest-api
-[compfs]: https://github.com/compio-rs/compio/
-[dbfs]: https://docs.databricks.com/en/dbfs/index.html
-[gridfs]: https://www.mongodb.com/docs/manual/core/gridfs/
-[hdfs]: https://hadoop.apache.org/docs/r3.3.4/hadoop-project-dist/hadoop-hdfs/HdfsDesign.html
-[hdfs-native]: https://github.com/Kimahriman/hdfs-native
-[ipfs]: https://ipfs.tech/
-[webhdfs]: https://hadoop.apache.org/docs/stable/hadoop-project-dist/hadoop-hdfs/WebHDFS.html
+    op.write("hello.txt", "Hello, World!").await?;
+    let bytes = op.read("hello.txt").await?;
+    let meta = op.stat("hello.txt").await?;
+    op.delete("hello.txt").await?;
 
-[aliyun-drive]: https://www.aliyundrive.com/
-[gdrive]: https://www.google.com/drive/
-[onedrive]: https://www.microsoft.com/en-us/microsoft-365/onedrive/online-cloud-storage
-[dropbox]: https://www.dropbox.com/
-[koofr]: https://koofr.eu/
-[pcloud]: https://www.pcloud.com/
-[seafile]: https://www.seafile.com/
-[yandex-disk]: https://360.yandex.com/disk/
+    println!("read {} bytes, stat reports {} bytes", bytes.len(), meta.content_length());
+    Ok(())
+}
+```
 
-[cacache]: https://crates.io/crates/cacache
-[cloudflare-kv]: https://developers.cloudflare.com/kv/
-[dashmap]: https://github.com/xacrimon/dashmap
-[etcd]: https://etcd.io/
-[foundationdb]: https://www.foundationdb.org/
-[persy]: https://crates.io/crates/persy
-[redis]: https://redis.io/
-[rocksdb]: http://rocksdb.org/
-[sled]: https://crates.io/crates/sled
-[redb]: https://crates.io/crates/redb
-[tikv]: https://tikv.org/
+Enable a service with its feature, for example `cargo add opendal --features services-s3`. This fragment reads a byte range and uploads a large object in concurrent parts:
 
-[d1]: https://developers.cloudflare.com/d1/
-[mongodb]: https://www.mongodb.com/
-[mysql]: https://www.mysql.com/
-[postgresql]: https://www.postgresql.org/
-[sqlite]: https://www.sqlite.org/
-[surrealdb]: https://surrealdb.com/
+```rust
+use opendal::layers::RetryLayer;
+use opendal::services::S3;
+use opendal::Operator;
 
-[ghac]: https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows
-[memcached]: https://memcached.org/
-[mini-moka]: https://github.com/moka-rs/mini-moka
-[moka]: https://github.com/moka-rs/moka
-[vercel-artifacts]: https://vercel.com/docs/concepts/monorepos/remote-caching
+let op = Operator::new(S3::default().bucket("my-bucket").region("us-east-1"))?
+    .layer(RetryLayer::new().with_jitter());
 
-[huggingface]: https://huggingface.co/
+// Read only the first 64 KiB of an object.
+let header = op.read_with("data/events.parquet").range(0..64 * 1024).await?;
 
-## Examples
+// Keep up to 4 part uploads in flight. `close` waits for them and commits the object.
+let mut writer = op
+    .writer_with("archive/big.bin")
+    .chunk(8 * 1024 * 1024)
+    .concurrent(4)
+    .await?;
+writer.write(first_part).await?;
+writer.write(second_part).await?;
+writer.close().await?;
+```
 
-The examples are available at [here](./examples/).
+See the [Rust core guide][Rust Core Guide] and the [API reference][Rust Core Release Docs] for streaming readers, conditional operations, and layers.
+
+Configure credentials and other options as described in each service's documentation, for example [S3][S3 Service Docs].
+
+## Choose Your Language
+
+Each binding has its own independent version number, which may differ from the Rust core version. Check the binding's own version when you look for updates or compatibility information.
+
+| Language | Package | Guide | API reference |
+| --- | --- | --- | --- |
+| Rust | [opendal][Rust Core Link] | [Guide][Rust Core Guide] | [docs.rs][Rust Core Release Docs] · [dev][Rust Core Dev Docs] |
+| Python | [opendal][Python Binding Link] | [Guide][Python Guide] | [dev][Python Binding Dev Docs] |
+| Node.js | [opendal][Node.js Binding Link] | [Guide][Node.js Guide] | [dev][Node.js Binding Dev Docs] |
+| Java | [opendal-java][Java Binding Link] | [Guide][Java Guide] | [javadoc.io][Java Binding Release Docs] · [dev][Java Binding Dev Docs] |
+| Go | [bindings/go][Go Binding Link] | [Guide][Go Guide] | [pkg.go.dev][Go Binding Link] |
+| Ruby | [opendal][Ruby Binding Link] | [Guide][Ruby Guide] | [dev][Ruby Binding Docs] |
+| C | [Source][C Binding] | [Guide][C Guide] | [dev][C Binding Dev Docs] |
+| C++ | [Source][Cpp Binding] | [Guide][Cpp Guide] | [dev][Cpp Binding Dev Docs] |
+
+More bindings: [.NET][Dotnet Binding], [D][D Binding], [Dart][Dart Binding], [Haskell][Haskell Binding], [Lua][Lua Binding], [OCaml][OCaml Binding], [PHP][PHP Binding], [Swift][Swift Binding], and [Zig][Zig Binding].
+
+## Services and Layers
+
+OpenDAL connects to 50+ services through one `Operator`. A selection by category:
+
+| Category | Services |
+| --- | --- |
+| Object storage | s3, gcs, azblob, oss, cos, obs, tos, b2, swift, vercel-blob, … |
+| File storage | fs, hdfs, hdfs-native, webhdfs, azdls, azfile, alluxio, lakefs, ipfs, dbfs, … |
+| Cloud SaaS | gdrive, dropbox, onedrive, hf, github, aliyun-drive, koofr, pcloud, … |
+| Standard protocols | http, ftp, webdav, sftp, git |
+| Databases | sqlite, mysql, postgresql, mongodb, surrealdb, d1, … |
+| Key-value and embedded | redis, etcd, tikv, rocksdb, foundationdb, memcached, moka, foyer, … |
+
+See the [services documentation][Services Docs] for every service and its configuration keys.
+
+Layers wrap an operator to add cross-cutting behavior: [RetryLayer], [TimeoutLayer], [ConcurrentLimitLayer], [ThrottleLayer], [LoggingLayer], [TracingLayer], [MetricsLayer], [PrometheusLayer], [OtelMetricsLayer], [MimeGuessLayer], [RouteLayer], [FoyerLayer], and [more][Layers Docs]. These links point to the Rust core; each binding guide lists the layers it exposes.
+
+<img src="./website/static/img/architectural.png" alt="OpenDAL Architecture" width="61.8%" />
+
+## Production Stories and Examples
+
+- [ScopeDB on OpenDAL][ScopeDB Case Study]: sparse range reads, concurrent multipart writes, cloud authentication, and separate timeout and retry policies for reads and writes.
+- [Who uses OpenDAL](core/users.md): projects and companies that build on OpenDAL.
+- Examples: [Rust](core/examples/), [Python](bindings/python/examples/), [Node.js](bindings/nodejs/examples/), and [more](examples/).
 
 ## Documentation
 
-The documentation is available at <https://opendal.apache.org>.
+- Website: <https://opendal.apache.org>
+- Vision: <https://opendal.apache.org/vision>
+- Rust release docs: <https://docs.rs/opendal>
+- Rust dev docs: <https://opendal.apache.org/docs/rust/opendal/>
 
 ## Contribute
 
@@ -236,3 +184,62 @@ For more details, see the [Apache Product Name Usage Guide](https://www.apache.o
 Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.
+
+<!-- Link references -->
+
+[ScopeDB Case Study]: https://opendal.apache.org/blog/2026/11/11/scopedb-on-opendal/
+[Services Docs]: https://opendal.apache.org/services/
+[S3 Service Docs]: https://opendal.apache.org/services/s3/
+
+<!-- Binding references -->
+
+[Rust Core Link]: https://crates.io/crates/opendal
+[Rust Core Guide]: https://opendal.apache.org/docs/core/
+[Rust Core Release Docs]: https://docs.rs/opendal
+[Rust Core Dev Docs]: https://opendal.apache.org/docs/rust/opendal/
+[Python Binding Link]: https://pypi.org/project/opendal/
+[Python Guide]: https://opendal.apache.org/docs/bindings/python/
+[Python Binding Dev Docs]: https://opendal.apache.org/docs/python/
+[Node.js Binding Link]: https://www.npmjs.com/package/opendal
+[Node.js Guide]: https://opendal.apache.org/docs/bindings/nodejs/
+[Node.js Binding Dev Docs]: https://opendal.apache.org/docs/nodejs/
+[Java Binding Link]: https://central.sonatype.com/artifact/org.apache.opendal/opendal-java
+[Java Guide]: https://opendal.apache.org/docs/bindings/java/
+[Java Binding Release Docs]: https://javadoc.io/doc/org.apache.opendal/opendal-java
+[Java Binding Dev Docs]: https://opendal.apache.org/docs/java/
+[Go Binding Link]: https://pkg.go.dev/github.com/apache/opendal/bindings/go
+[Go Guide]: https://opendal.apache.org/docs/bindings/go/
+[Ruby Binding Link]: https://rubygems.org/gems/opendal
+[Ruby Guide]: https://opendal.apache.org/docs/bindings/ruby/
+[Ruby Binding Docs]: https://opendal.apache.org/docs/ruby/
+[C Binding]: bindings/c/README.md
+[C Guide]: https://opendal.apache.org/docs/bindings/c/
+[C Binding Dev Docs]: https://opendal.apache.org/docs/c/
+[Cpp Binding]: bindings/cpp/README.md
+[Cpp Guide]: https://opendal.apache.org/docs/bindings/cpp/
+[Cpp Binding Dev Docs]: https://opendal.apache.org/docs/cpp/
+[D Binding]: bindings/d/README.md
+[Dart Binding]: bindings/dart/README.md
+[Dotnet Binding]: bindings/dotnet/README.md
+[Haskell Binding]: bindings/haskell/README.md
+[Lua Binding]: bindings/lua/README.md
+[OCaml Binding]: bindings/ocaml/README.md
+[PHP Binding]: bindings/php/README.md
+[Swift Binding]: bindings/swift/README.md
+[Zig Binding]: bindings/zig/README.md
+
+<!-- Layer references -->
+
+[Layers Docs]: https://opendal.apache.org/docs/rust/opendal/layers/
+[RetryLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.RetryLayer.html
+[TimeoutLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.TimeoutLayer.html
+[LoggingLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.LoggingLayer.html
+[TracingLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.TracingLayer.html
+[MetricsLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.MetricsLayer.html
+[PrometheusLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.PrometheusLayer.html
+[OtelMetricsLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.OtelMetricsLayer.html
+[ThrottleLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.ThrottleLayer.html
+[ConcurrentLimitLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.ConcurrentLimitLayer.html
+[MimeGuessLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.MimeGuessLayer.html
+[RouteLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.RouteLayer.html
+[FoyerLayer]: https://opendal.apache.org/docs/rust/opendal/layers/struct.FoyerLayer.html

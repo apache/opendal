@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::io;
 use std::pin::Pin;
 use std::task::Context;
@@ -37,6 +38,12 @@ pub struct FuturesAsyncWriter {
     buf: oio::FlexBuf,
 }
 
+impl fmt::Debug for FuturesAsyncWriter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FuturesAsyncWriter").finish_non_exhaustive()
+    }
+}
+
 impl FuturesAsyncWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
@@ -55,6 +62,10 @@ impl AsyncWrite for FuturesAsyncWriter {
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
+
+        if buf.is_empty() {
+            return Poll::Ready(Ok(0));
+        }
 
         loop {
             let n = this.buf.put(buf);
@@ -113,6 +124,8 @@ impl AsyncWrite for FuturesAsyncWriter {
 mod tests {
     use std::sync::Arc;
 
+    use futures::AsyncWriteExt;
+
     use super::*;
     use crate::raw::MaybeSend;
 
@@ -120,17 +133,62 @@ mod tests {
     async fn test_trait() {
         let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
 
-        let acc = op.into_inner();
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
         let ctx = Arc::new(WriteContext::new(
-            acc,
+            ctx,
+            srv,
             "test".to_string(),
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+        let write_gen = WriteGenerator::create(ctx).unwrap();
 
         let v = FuturesAsyncWriter::new(write_gen);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
+
+    #[tokio::test]
+    async fn test_writer_debug_omits_path_and_payload() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let path = "private/object";
+        let writer = op.writer_with(path).chunk(8).await.unwrap();
+
+        let output = format!("{writer:?}");
+        assert!(output.starts_with("Writer {"), "{output}");
+        assert!(output.contains("chunk: Some(8)"), "{output}");
+        assert!(output.contains("append: false"), "{output}");
+        assert!(!output.contains(path), "{output}");
+
+        let payload = "private payload";
+        let mut writer = writer.into_futures_async_write();
+        writer.write_all(payload.as_bytes()).await.unwrap();
+        let output = format!("{writer:?}");
+        assert!(output.starts_with("FuturesAsyncWriter {"), "{output}");
+        assert!(!output.contains(path), "{output}");
+        assert!(!output.contains(payload), "{output}");
+        writer.close().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_empty_write() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+
+        let mut w = op
+            .writer("test_empty_write")
+            .await
+            .unwrap()
+            .into_futures_async_write();
+
+        assert_eq!(w.write(b"").await.unwrap(), 0);
+        w.write_all(b"hello").await.unwrap();
+        assert_eq!(w.write(b"").await.unwrap(), 0);
+        w.close().await.unwrap();
+
+        assert_eq!(
+            op.read("test_empty_write").await.unwrap().to_vec(),
+            b"hello"
+        );
     }
 }

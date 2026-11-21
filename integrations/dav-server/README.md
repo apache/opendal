@@ -14,6 +14,8 @@
 
 This crate can help you to access ANY storage services with the same webdav API.
 
+This crate re-exports `dav_server` so downstream code can use the same version as the integration.
+
 ## Useful Links
 
 - Documentation: [release](https://docs.rs/dav-server-opendalfs/) | [dev](https://opendal.apache.org/docs/dav-server-opendalfs/dav_server_opendalfs/)
@@ -22,14 +24,15 @@ This crate can help you to access ANY storage services with the same webdav API.
 
 ```
 use anyhow::Result;
-use dav_server::davpath::DavPath;
+use dav_server_opendalfs::dav_server::davpath::DavPath;
+use dav_server_opendalfs::dav_server::fs::DavFileSystem;
 use dav_server_opendalfs::OpendalFs;
 use opendal::services::Memory;
 use opendal::Operator;
 
 #[tokio::test]
 async fn test() -> Result<()> {
- let op = Operator::new(Memory::default())?.finish();
+ let op = Operator::new(Memory::default())?;
 
  let webdavfs = OpendalFs::new(op);
 

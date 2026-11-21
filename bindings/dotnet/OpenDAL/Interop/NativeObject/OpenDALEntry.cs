@@ -26,5 +26,5 @@ internal struct OpenDALEntry
 {
     public IntPtr Path;
 
-    public IntPtr Metadata;
+    public OpenDALMetadata Metadata;
 }

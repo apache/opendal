@@ -35,7 +35,7 @@ impl MiniMokaDeleter {
 
 impl oio::OneShotDelete for MiniMokaDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.root, &path);
+        let p = build_absolute_path(&self.root, &path);
         self.core.cache.invalidate(&p);
         Ok(())
     }

@@ -21,15 +21,26 @@ description: 'Behavior test for hdfs native cluster'
 runs:
   using: "composite"
   steps:
+    - name: Pull HDFS Native cluster images
+      shell: bash
+      working-directory: fixtures/hdfs
+      run: |
+        for delay in 5 10; do
+          if docker compose --file docker-compose-hdfs-cluster.yml pull --quiet --policy missing; then
+            exit 0
+          fi
+          echo "Docker Compose pull failed, retrying in ${delay}s" >&2
+          sleep "$delay"
+        done
+        docker compose --file docker-compose-hdfs-cluster.yml pull --quiet --policy missing
     - name: Setup HDFS Native cluster
       shell: bash
       working-directory: fixtures/hdfs
-      run: docker compose -f docker-compose-hdfs-cluster.yml up -d --wait
+      run: docker compose --file docker-compose-hdfs-cluster.yml up --pull never --detach --wait
     - name: Setup opendal env
       shell: bash
       run: |
         cat << EOF >> $GITHUB_ENV
         OPENDAL_HDFS_NATIVE_ROOT=/tmp/opendal/
         OPENDAL_HDFS_NATIVE_NAME_NODE=hdfs://localhost:8020
-        OPENDAL_HDFS_NATIVE_ENABLE_APPEND=true
         EOF

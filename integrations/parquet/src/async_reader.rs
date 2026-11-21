@@ -52,7 +52,7 @@ const PREFETCH_FOOTER_SIZE: usize = 512 * 1024;
 ///     cfg.bucket = "my_bucket".to_string();
 ///
 ///     // Create a new operator
-///     let operator = Operator::from_config(cfg).unwrap().finish();
+///     let operator = Operator::from_config(cfg).unwrap();
 ///     let path = "/path/to/file.parquet";
 ///
 ///     // Create an async writer
@@ -171,7 +171,7 @@ impl AsyncFileReader for AsyncReader {
 mod tests {
     use futures::StreamExt;
     use opendal::{Operator, services};
-    use rand::{Rng, distributions::Alphanumeric};
+    use rand::{RngExt, distr::Alphanumeric};
 
     use crate::{AsyncReader, AsyncWriter, async_reader::PREFETCH_FOOTER_SIZE};
     use std::sync::Arc;
@@ -185,7 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_reader_with_prefetch_footer_size() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = Operator::new(services::Memory::default()).unwrap();
         let path = "/path/to/file.parquet";
 
         let reader = AsyncReader::new(operator.reader(path).await.unwrap(), 1024);
@@ -208,7 +208,7 @@ mod tests {
     }
 
     fn gen_fixed_string(size: usize) -> String {
-        rand::thread_rng()
+        rand::rng()
             .sample_iter(&Alphanumeric)
             .take(size)
             .map(char::from)
@@ -217,7 +217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_async_reader() {
-        let operator = Operator::new(services::Memory::default()).unwrap().finish();
+        let operator = Operator::new(services::Memory::default()).unwrap();
         let path = "/path/to/file.parquet";
         let writer = AsyncWriter::new(
             operator
@@ -271,7 +271,7 @@ mod tests {
                 prefetch: Some(4),
             },
         ] {
-            let operator = Operator::new(services::Memory::default()).unwrap().finish();
+            let operator = Operator::new(services::Memory::default()).unwrap();
             let path = "/path/to/file.parquet";
             let writer = AsyncWriter::new(
                 operator

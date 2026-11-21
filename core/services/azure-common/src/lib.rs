@@ -15,13 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-//! Azure Storage helpers.
-//!
-//! This module provides utilities and shared abstractions for services built
-//! on Azure Storage, such as Azure Blob Storage (`services-azblob`) or
-//! Azure Data Lake Storage (`services-azdls`).
 
 use std::collections::HashMap;
 

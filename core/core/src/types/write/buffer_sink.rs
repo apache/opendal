@@ -31,6 +31,7 @@ use crate::*;
 pub struct BufferSink {
     state: State,
     buf: Buffer,
+    position: u64,
 }
 
 enum State {
@@ -51,7 +52,16 @@ impl BufferSink {
         BufferSink {
             state: State::Idle(Some(w)),
             buf: Buffer::new(),
+            position: 0,
         }
+    }
+
+    /// Return the number of bytes accepted by the underlying writer.
+    ///
+    /// This includes bytes buffered by the writer and any prefix it accepted
+    /// before returning an error. Bytes still pending in the sink do not count.
+    pub fn position(&self) -> u64 {
+        self.position
     }
 }
 
@@ -94,6 +104,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     match res {
                         Ok(n) => {
                             this.buf.advance(n);
+                            this.position += n as u64;
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
@@ -141,6 +152,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     match res {
                         Ok(n) => {
                             this.buf.advance(n);
+                            this.position += n as u64;
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
@@ -172,14 +184,16 @@ mod tests {
     async fn test_trait() {
         let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
 
-        let acc = op.into_inner();
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
         let ctx = Arc::new(WriteContext::new(
-            acc,
+            ctx,
+            srv,
             "test".to_string(),
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).await.unwrap();
+        let write_gen = WriteGenerator::create(ctx).unwrap();
 
         let v = BufferSink::new(write_gen);
 

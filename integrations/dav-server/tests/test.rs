@@ -17,21 +17,33 @@
 
 use anyhow::Result;
 use bytes::Bytes;
-use dav_server::davpath::DavPath;
-use dav_server::fs::OpenOptions;
-use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use dav_server_opendalfs::OpendalFs;
-use futures::StreamExt;
-use opendal::Operator;
-use opendal::services::Fs;
+use dav_server_opendalfs::dav_server::DavHandler;
+use dav_server_opendalfs::dav_server::body::Body;
+use dav_server_opendalfs::dav_server::davpath::DavPath;
+use dav_server_opendalfs::dav_server::fs::{DavFile, FsError, OpenOptions};
+use dav_server_opendalfs::dav_server::fs::{DavFileSystem, ReadDirMeta};
+use futures::{StreamExt, TryStreamExt};
+use http::{HeaderValue, Method, Request, Response, StatusCode, header::ETAG};
+use opendal::services::{Fs, Http};
+use opendal::{HttpBody, HttpTransport, HttpTransporter, Operator};
+use opendal_core::raw::{
+    OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite, RpCreateDir,
+    RpPresign, RpRename, RpStat, Service, ServiceInfo, oio,
+};
+use opendal_core::{
+    Buffer, Capability, Error, ErrorKind, Metadata, MetadataBuilder, OperationContext,
+};
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[tokio::test]
 async fn test() -> Result<()> {
     let builder = Fs::default().root("/tmp");
 
-    let op = Operator::new(builder)?.finish();
+    let op = Operator::new(builder)?;
 
     let webdavfs = OpendalFs::new(op);
 
@@ -47,7 +59,7 @@ async fn test() -> Result<()> {
 #[tokio::test]
 async fn test_create_dir_nested() {
     let builder = opendal::services::Memory::default();
-    let op = Operator::new(builder).unwrap().finish();
+    let op = Operator::new(builder).unwrap();
     let webdavfs = OpendalFs::new(op.clone());
 
     webdavfs
@@ -63,10 +75,120 @@ async fn test_create_dir_nested() {
     assert!(op.exists("/a/b/").await.unwrap());
 }
 
+#[tokio::test]
+async fn test_symlink_metadata() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.create_dir("dir/").await?;
+    op.write("file", "test").await?;
+    let webdavfs = OpendalFs::new(op);
+
+    for (path, is_dir, len) in [("/", true, 0), ("/dir/", true, 0), ("/file", false, 4)] {
+        let path = DavPath::new(path)?;
+        let metadata = webdavfs.symlink_metadata(&path).await?;
+        assert_eq!(metadata.is_dir(), is_dir);
+        assert_eq!(metadata.is_file(), !is_dir);
+        assert_eq!(metadata.len(), len);
+        assert!(!metadata.is_symlink());
+    }
+
+    assert!(matches!(
+        webdavfs.symlink_metadata(&DavPath::new("/missing")?).await,
+        Err(FsError::NotFound)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_file_etag() -> Result<()> {
+    const CONTENT: &[u8] = b"hello";
+    struct EtagTransport(&'static str);
+
+    impl HttpTransport for EtagTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+            let body = match *req.method() {
+                Method::HEAD => HttpBody::new(futures::stream::empty(), Some(0)),
+                Method::GET => HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(CONTENT))]),
+                    Some(CONTENT.len() as u64),
+                ),
+                ref method => panic!("unexpected storage request: {method}"),
+            };
+            Ok(Response::builder()
+                .header(ETAG, self.0)
+                .header("content-length", CONTENT.len())
+                .body(body)
+                .unwrap())
+        }
+    }
+
+    for (etag, expected_tag) in [
+        (r#""abc""#, Some("abc")),
+        ("abc", Some("abc")),
+        ("\"\"", Some("")),
+        ("W/abc", Some("W/abc")),
+        (r#""W/abc""#, Some("W/abc")),
+        (r#"W/"abc""#, None),
+        ("\"abc", None),
+        ("abc\"", None),
+        (r#""a"b""#, None),
+    ] {
+        let expected_header = expected_tag.map(|tag| format!("\"{tag}\""));
+        let ctx =
+            OperationContext::new().with_http_transport(HttpTransporter::new(EtagTransport(etag)));
+        let op = Operator::new(Http::default().endpoint("http://example.test"))?.with_context(ctx);
+        let dav = DavHandler::builder()
+            .filesystem(OpendalFs::new(op))
+            .build_handler();
+        for (method, contents) in [(Method::GET, CONTENT), (Method::HEAD, &[][..])] {
+            let req = Request::builder()
+                .method(method)
+                .uri("/file")
+                .body(Body::empty())?;
+            let resp = dav.handle(req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers()
+                    .get(ETAG)
+                    .map(HeaderValue::to_str)
+                    .transpose()?,
+                expected_header.as_deref()
+            );
+            let body = resp
+                .into_body()
+                .map_ok(|chunk| chunk.to_vec())
+                .try_concat()
+                .await?;
+            assert_eq!(body, contents);
+        }
+
+        let req = Request::builder()
+            .method("PROPFIND")
+            .uri("/file")
+            .header("Depth", "0")
+            .body(Body::empty())?;
+        let resp = dav.handle(req).await;
+        assert_eq!(resp.status(), StatusCode::MULTI_STATUS);
+        let body = resp
+            .into_body()
+            .map_ok(|chunk| chunk.to_vec())
+            .try_concat()
+            .await?;
+        let xml = String::from_utf8(body)?;
+        match expected_header {
+            Some(value) => assert!(
+                xml.contains(&format!("<D:getetag>{value}</D:getetag>")),
+                "{xml}"
+            ),
+            None => assert!(!xml.contains("getetag"), "{xml}"),
+        }
+    }
+    Ok(())
+}
+
 fn setup_temp(path: &str) -> Box<OpendalFs> {
     let _ = fs::remove_dir_all(path);
     let builder = Fs::default().root(path);
-    let op = Operator::new(builder).unwrap().finish();
+    let op = Operator::new(builder).unwrap();
     OpendalFs::new(op)
 }
 
@@ -212,4 +334,186 @@ async fn test_read_dir() {
     assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));
 
     fs::remove_dir_all(TMP_PATH).unwrap();
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Failure {
+    Write,
+    Close,
+}
+
+#[derive(Debug)]
+struct AbortTrackingService {
+    failure: Failure,
+    aborted: Arc<AtomicBool>,
+}
+
+impl Service for AbortTrackingService {
+    type Reader = ();
+    type Writer = AbortTrackingWriter;
+    type Lister = ();
+    type Deleter = ();
+    type Copier = ();
+    type Composer = ();
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::with_scheme("abort-tracking")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability {
+            write: true,
+            ..Default::default()
+        }
+    }
+
+    fn write(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpWrite,
+    ) -> opendal_core::Result<Self::Writer> {
+        Ok(AbortTrackingWriter {
+            failure: self.failure,
+            aborted: self.aborted.clone(),
+        })
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> opendal_core::Result<RpCreateDir> {
+        ().create_dir(ctx, path, args).await
+    }
+
+    async fn stat(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> opendal_core::Result<RpStat> {
+        ().stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> opendal_core::Result<()> {
+        ().read(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> opendal_core::Result<()> {
+        ().delete(ctx)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> opendal_core::Result<()> {
+        ().list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> opendal_core::Result<()> {
+        ().copy(ctx, from, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> opendal_core::Result<RpRename> {
+        ().rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> opendal_core::Result<RpPresign> {
+        ().presign(ctx, path, args).await
+    }
+}
+
+struct AbortTrackingWriter {
+    failure: Failure,
+    aborted: Arc<AtomicBool>,
+}
+
+impl oio::Write for AbortTrackingWriter {
+    async fn write(&mut self, _: Buffer) -> opendal_core::Result<()> {
+        if matches!(self.failure, Failure::Write) {
+            return Err(Error::new(ErrorKind::Unexpected, "injected write failure"));
+        }
+        Ok(())
+    }
+
+    async fn close(&mut self) -> opendal_core::Result<Metadata> {
+        if matches!(self.failure, Failure::Close) {
+            return Err(Error::new(ErrorKind::Unexpected, "injected close failure"));
+        }
+        Ok(MetadataBuilder::unknown().build())
+    }
+
+    async fn abort(&mut self) -> opendal_core::Result<()> {
+        self.aborted.store(true, Ordering::Relaxed);
+        Ok(())
+    }
+}
+
+async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<AtomicBool>) {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let service = AbortTrackingService {
+        failure,
+        aborted: aborted.clone(),
+    };
+    let op = Operator::from_parts(OperationContext::default(), Arc::new(service));
+    let file = OpendalFs::new(op)
+        .open(
+            &DavPath::new("/failed-upload").unwrap(),
+            OpenOptions {
+                write: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await
+        .unwrap();
+    (file, aborted)
+}
+
+#[tokio::test]
+async fn test_failed_write_aborts_before_returning() {
+    for write_buf in [false, true] {
+        let (mut file, aborted) = open_file_with_failure(Failure::Write).await;
+        // Exercise the backend write even if the adapter buffers incoming bytes.
+        let body = Bytes::from(vec![1; 1024 * 1024]);
+        let result = if write_buf {
+            file.write_buf(Box::new(body)).await
+        } else {
+            file.write_bytes(body).await
+        };
+
+        assert!(matches!(result, Err(FsError::GeneralFailure)));
+        assert!(
+            aborted.load(Ordering::Relaxed),
+            "write failure must abort the writer"
+        );
+        assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+    }
+}
+
+#[tokio::test]
+async fn test_failed_close_aborts_before_returning() {
+    let (mut file, aborted) = open_file_with_failure(Failure::Close).await;
+    file.write_bytes(Bytes::from_static(b"body")).await.unwrap();
+
+    assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+    assert!(
+        aborted.load(Ordering::Relaxed),
+        "close failure must abort the writer"
+    );
 }

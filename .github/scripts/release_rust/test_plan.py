@@ -73,9 +73,21 @@ class ReleaseRustPlanTest(unittest.TestCase):
                 [dependencies]
                 opendal-core = { path = "core", version = "0.1.0" }
                 opendal-layer-retry = { path = "layers/retry", version = "0.1.0" }
+                opendal-testkit = { path = "testkit", version = "0.1.0", optional = true }
 
                 [target.'cfg(unix)'.build-dependencies]
                 opendal-service-fs = { path = "services/fs", version = "0.1.0" }
+                """,
+            )
+            write_manifest(
+                root / "core" / "testkit" / "Cargo.toml",
+                """
+                [package]
+                name = "opendal-testkit"
+                version = "0.1.0"
+
+                [dependencies]
+                opendal-core = { path = "../core", version = "0.1.0" }
                 """,
             )
             write_manifest(
@@ -106,6 +118,7 @@ class ReleaseRustPlanTest(unittest.TestCase):
                     "core/core",
                     "core/layers/retry",
                     "core/services/fs",
+                    "core/testkit",
                     "core",
                     "integrations/object_store",
                 ],
@@ -115,17 +128,18 @@ class ReleaseRustPlanTest(unittest.TestCase):
         result = plan()
 
         self.assertIn("core/core", result)
+        self.assertIn("core/testkit", result)
         self.assertIn("core", result)
         self.assertIn("integrations/object_store", result)
 
         self.assertNotIn("bindings/python", result)
-        self.assertNotIn("core/testkit", result)
         self.assertNotIn("core/examples/basic", result)
 
     def test_repository_plan_orders_core_before_root_and_integrations(self):
         result = plan()
 
         self.assertLess(result.index("core/core"), result.index("core"))
+        self.assertLess(result.index("core/testkit"), result.index("core"))
         self.assertLess(result.index("core"), result.index("integrations/object_store"))
         self.assertLess(result.index("core"), result.index("integrations/parquet"))
         self.assertLess(result.index("core"), result.index("integrations/unftp-sbe"))

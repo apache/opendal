@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::Arc;
+
 use crate::raw::*;
 use crate::*;
 
@@ -54,45 +56,44 @@ use crate::*;
 /// Especially, for storage services that can't return dirs first, ToFlatLister
 /// may output parent dirs' files before nested dirs, this is expected because files
 /// always output directly while listing.
-pub struct FlatLister<A: Access, L> {
-    acc: A,
+pub struct FlatLister<S: Service> {
+    service: Arc<S>,
+    ctx: OperationContext,
 
     next_dir: Option<oio::Entry>,
-    active_lister: Vec<(Option<oio::Entry>, L)>,
+    active_lister: Vec<(Option<oio::Entry>, S::Lister)>,
 }
 
 /// # Safety
 ///
 /// wasm32 is a special target that we only have one event-loop for this FlatLister.
-unsafe impl<A: Access, L> Send for FlatLister<A, L> {}
+unsafe impl<S: Service> Send for FlatLister<S> {}
 /// # Safety
 ///
 /// We will only take `&mut Self` reference for FsLister.
-unsafe impl<A: Access, L> Sync for FlatLister<A, L> {}
+unsafe impl<S: Service> Sync for FlatLister<S> {}
 
-impl<A, L> FlatLister<A, L>
-where
-    A: Access,
-{
+impl<S: Service> FlatLister<S> {
     /// Create a new flat lister
-    pub fn new(acc: A, path: &str) -> FlatLister<A, L> {
+    pub fn new(service: Arc<S>, ctx: OperationContext, path: &str) -> FlatLister<S> {
         FlatLister {
-            acc,
-            next_dir: Some(oio::Entry::new(path, Metadata::new(EntryMode::DIR))),
+            service,
+            ctx,
+            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }
 }
 
-impl<A, L> oio::List for FlatLister<A, L>
-where
-    A: Access<Lister = L>,
-    L: oio::List,
-{
+impl<S: Service> oio::List for FlatLister<S> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let (_, mut l) = match self.acc.list(de.path(), OpList::new()).await {
+                let mut l = match self
+                    .service
+                    .as_ref()
+                    .list(&self.ctx, de.path(), OpList::new())
+                {
                     Ok(v) => v,
                     Err(e) if e.kind() == ErrorKind::PermissionDenied => {
                         // Skip directories that we don't have permission to access
@@ -111,7 +112,15 @@ where
                         );
                         continue;
                     }
-                    Err(e) => return Err(e),
+                    Err(e) => {
+                        // `de` was taken out of `next_dir` above and is not in
+                        // `active_lister` yet, so dropping it here would lose
+                        // the directory: a caller that retries this `next()`
+                        // would resume from the parent and return `Ok` with
+                        // the directory's entries missing.
+                        self.next_dir = Some(de);
+                        return Err(e);
+                    }
                 };
                 let first = loop {
                     match l.next().await {
@@ -124,7 +133,14 @@ where
                             );
                             continue;
                         }
-                        Err(e) => return Err(e),
+                        Err(e) => {
+                            // Same here, and this is the path a temporary
+                            // error takes: nothing has been yielded from `l`
+                            // yet, so the directory can be listed again from
+                            // the start.
+                            self.next_dir = Some(de);
+                            return Err(e);
+                        }
                     }
                 };
                 if let Some(v) = first {

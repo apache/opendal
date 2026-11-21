@@ -39,7 +39,7 @@
 //!     .region("my_region");
 //!
 //!     // Create a new operator
-//!     let operator = Operator::new(builder).unwrap().finish();
+//!     let operator = Operator::new(builder).unwrap();
 //!
 //!     // Create a new object store
 //!     let object_store = Arc::new(OpendalStore::new(operator));
@@ -60,11 +60,24 @@
 //!     assert_eq!(content, bytes);
 //! }
 //! ```
+//!
+//! Use the re-exported future helper when an integration needs the same OpenDAL
+//! future wrapper used by this crate:
+//!
+//! ```no_run
+//! use object_store_opendal::IntoSendFuture;
+//! use opendal::Operator;
+//!
+//! async fn rename(op: Operator) -> opendal::Result<()> {
+//!     op.rename("from", "to").into_send().await
+//! }
+//! ```
 
 mod store;
 pub use store::OpendalStore;
 
 mod utils;
+pub use utils::IntoSendFuture;
 
 #[cfg(feature = "services-s3")]
 mod amazon_s3;
@@ -84,9 +97,7 @@ mod assert_send {
 
     #[allow(dead_code)]
     fn assertion() {
-        let op = Operator::new(opendal::services::Memory::default())
-            .unwrap()
-            .finish();
+        let op = Operator::new(opendal::services::Memory::default()).unwrap();
         let store = super::OpendalStore::new(op);
         assert_send(store.put(&"test".into(), PutPayload::new()));
         assert_send(store.get(&"test".into()));

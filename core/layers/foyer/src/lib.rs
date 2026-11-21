@@ -15,42 +15,106 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
+mod copier;
 mod deleter;
 mod error;
 mod full;
 mod writer;
 
 use std::{
-    future::Future,
+    collections::HashSet,
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
-use foyer::{Code, CodeError, HybridCache};
+use foyer::{Code, HybridCache, Result as FoyerResult};
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use copier::FoyerCopier;
 pub use deleter::Deleter;
 pub use writer::Writer;
 
-/// [`FoyerKey`] is a key for the foyer cache. It's encoded via bincode, which is
-/// backed by foyer's "serde" feature.
+/// [`FoyerKey`] is a key for the foyer cache. It implements foyer's [`Code`] trait
+/// directly, so the layer does not depend on foyer's `serde` feature (and its bincode
+/// dependency).
 ///
 /// It's possible to specify a version in the [`OpRead`] args:
 ///
 /// - If a version is given, the object is cached under that versioned key.
 /// - If version is not supplied, the object is cached exactly as returned by the backend,
 ///   We do NOT interpret `None` as "latest" and we do not promote it to any other version.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FoyerKey {
+    /// Object path used as the cache key.
     pub path: String,
+    /// Object version, when the read targets a specific version.
     pub version: Option<String>,
 }
 
-/// [`FoyerValue`] is a wrapper around `Buffer` that implements the `Code` trait.
+impl Code for FoyerKey {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
+        write_bytes(writer, self.path.as_bytes())?;
+        match &self.version {
+            None => writer.write_all(&[0u8])?,
+            Some(version) => {
+                writer.write_all(&[1u8])?;
+                write_bytes(writer, version.as_bytes())?;
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self> {
+        let path = read_string(reader)?;
+        let mut tag = [0u8; 1];
+        reader.read_exact(&mut tag)?;
+        let version = match tag[0] {
+            0 => None,
+            1 => Some(read_string(reader)?),
+            other => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("invalid FoyerKey version tag: {other}"),
+                )
+                .into());
+            }
+        };
+        Ok(FoyerKey { path, version })
+    }
+
+    fn estimated_size(&self) -> usize {
+        8 + self.path.len() + 1 + self.version.as_ref().map_or(0, |v| 8 + v.len())
+    }
+}
+
+fn write_bytes(writer: &mut impl std::io::Write, bytes: &[u8]) -> FoyerResult<()> {
+    writer.write_all(&(bytes.len() as u64).to_le_bytes())?;
+    writer.write_all(bytes)?;
+    Ok(())
+}
+
+fn read_string(reader: &mut impl std::io::Read) -> FoyerResult<String> {
+    let mut len = [0u8; 8];
+    reader.read_exact(&mut len)?;
+    let len = u64::from_le_bytes(len) as usize;
+    let mut buf = vec![0u8; len];
+    reader.read_exact(&mut buf)?;
+    String::from_utf8(buf)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e).into())
+}
+
+/// [`FoyerValue`] stores buffered object data in Foyer.
 #[derive(Debug)]
-pub struct FoyerValue(pub Buffer);
+pub struct FoyerValue(
+    /// Buffered object data.
+    pub Buffer,
+);
 
 impl Deref for FoyerValue {
     type Target = Buffer;
@@ -61,14 +125,14 @@ impl Deref for FoyerValue {
 }
 
 impl Code for FoyerValue {
-    fn encode(&self, writer: &mut impl std::io::Write) -> std::result::Result<(), CodeError> {
+    fn encode(&self, writer: &mut impl std::io::Write) -> FoyerResult<()> {
         let len = self.0.len() as u64;
         writer.write_all(&len.to_le_bytes())?;
         std::io::copy(&mut self.0.clone(), writer)?;
         Ok(())
     }
 
-    fn decode(reader: &mut impl std::io::Read) -> std::result::Result<Self, CodeError>
+    fn decode(reader: &mut impl std::io::Read) -> FoyerResult<Self>
     where
         Self: Sized,
     {
@@ -85,43 +149,68 @@ impl Code for FoyerValue {
     }
 }
 
-/// Hybrid cache layer for OpenDAL that uses [foyer](https://github.com/foyer-rs/foyer) for caching.
+/// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-/// - `write`: [`FoyerLayer`] will write to the foyer hybrid cache after the service's write operation is completed.
-/// - `read`: [`FoyerLayer`] will first check the foyer hybrid cache for the data. If the data is not found, it will perform the read operation on the service and cache the result.
-/// - `delete`: [`FoyerLayer`] will remove the data from the foyer hybrid cache regardless of whether the service's delete operation is successful.
-/// - Other operations: [`FoyerLayer`] will not cache the results of other operations, such as `list`, `copy`, `rename`, etc. They will be passed through to the underlying accessor without caching.
+/// - `write`: [`FoyerLayer`] caches data after the service completes the write.
+/// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
+///   and caches the entire object if its size is within the configured
+///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
+/// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
+///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
+///   deleter is closed, so the data remains invalidated if closing the deleter fails.
+/// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
+///   cache entry for the destination.
+/// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
+///   cache entries for both the source and the destination.
+///
+/// Reads of paths invalidated by copy or rename bypass the cache until a
+/// write through the layer repopulates the corresponding entry.
+///
+/// # Range Reads
+///
+/// [`FoyerLayer`] caches entire objects, not individual byte ranges. For example,
+/// `operator.read_with("some/path").range(0..1024)` returns only the first 1024
+/// bytes, but on a cache miss the layer fetches and buffers the entire object
+/// before returning that range if the object is eligible for caching. On a cache
+/// hit, the layer returns the requested range from the cached object.
+///
+/// Reading a small range from a large object can therefore transfer and buffer
+/// much more data than requested, increasing read latency and memory usage.
+/// Use [`FoyerLayer::with_size_limit`] to exclude large objects from caching.
+/// On a cache miss, objects outside the configured size range are read directly
+/// from the service using the requested byte range.
 ///
 /// # Examples
 ///
 /// ```no_run
 /// use opendal_core::{Operator, services::Memory};
 /// use opendal_layer_foyer::FoyerLayer;
-/// use foyer::{HybridCacheBuilder, Engine};
+/// use foyer::HybridCacheBuilder;
 ///
 /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
 /// let cache = HybridCacheBuilder::new()
 ///     .memory(64 * 1024 * 1024) // 64MB memory cache
 ///     .with_shards(4)
-///     .storage(Engine::Large(Default::default()))
+///     .storage()
 ///     .build()
 ///     .await?;
 ///
 /// let op = Operator::new(Memory::default())?
-///     .layer(FoyerLayer::new(cache))
-///     .finish();
+///     .layer(FoyerLayer::new(cache));
 /// # Ok(())
 /// # }
 /// ```
 ///
 /// # Note
 ///
-/// If the object version is enabled, the foyer cache layer will treat the objects with same path but different versions as different objects.
+/// When object versioning is enabled, `FoyerLayer` treats objects with the same
+/// path but different versions as different objects.
 #[derive(Debug)]
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
+    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
 }
 
 impl FoyerLayer {
@@ -130,12 +219,15 @@ impl FoyerLayer {
         FoyerLayer {
             cache,
             size_limit: 0..usize::MAX,
+            deleted_keys: Arc::default(),
         }
     }
 
-    /// Sets the size limit for caching.
+    /// Set the object-size range eligible for caching.
     ///
-    /// It is recommended to set a size limit to avoid caching large files that may not be suitable for caching.
+    /// The layer reads through or writes through objects outside this range
+    /// without retaining them in Foyer. The default range accepts every
+    /// representable object size below `usize::MAX`.
     pub fn with_size_limit<R: RangeBounds<usize>>(mut self, size_limit: R) -> Self {
         let start = match size_limit.start_bound() {
             Bound::Included(v) => *v,
@@ -152,92 +244,205 @@ impl FoyerLayer {
     }
 }
 
-impl<A: Access> Layer<A> for FoyerLayer {
-    type LayeredAccess = FoyerAccessor<A>;
+impl Layer for FoyerLayer {
+    fn apply_service(&self, inner: Servicer) -> Servicer {
+        Arc::new(self.layer(inner))
+    }
+}
 
-    fn layer(&self, accessor: A) -> Self::LayeredAccess {
-        let cache = self.cache.clone();
-        FoyerAccessor {
-            inner: Arc::new(Inner {
-                accessor,
-                cache,
-                size_limit: self.size_limit.clone(),
-            }),
+impl FoyerLayer {
+    fn layer(&self, inner: Servicer) -> FoyerService {
+        FoyerService {
+            inner,
+            cache: self.cache.clone(),
+            size_limit: self.size_limit.clone(),
+            deleted_keys: self.deleted_keys.clone(),
         }
     }
 }
 
 #[derive(Debug)]
-pub(crate) struct Inner<A: Access> {
-    pub(crate) accessor: A,
+pub(crate) struct Inner {
+    pub(crate) srv: Servicer,
+    pub(crate) ctx: OperationContext,
     pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
-    pub(crate) size_limit: Range<usize>,
+    pub(crate) deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
+}
+
+impl Inner {
+    fn invalidate_unversioned(&self, path: String) {
+        let key = FoyerKey {
+            path,
+            version: None,
+        };
+        let mut deleted_keys = self
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned");
+        self.cache.remove(&key);
+        deleted_keys.insert(key);
+    }
 }
 
 #[derive(Debug)]
-pub struct FoyerAccessor<A: Access> {
-    inner: Arc<Inner<A>>,
+#[doc(hidden)]
+pub struct FoyerService {
+    inner: Servicer,
+    cache: HybridCache<FoyerKey, FoyerValue>,
+    size_limit: Range<usize>,
+    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
 }
 
-impl<A: Access> LayeredAccess for FoyerAccessor<A> {
-    type Inner = A;
-    type Reader = Buffer;
-    type Writer = Writer<A>;
-    type Lister = A::Lister;
-    type Deleter = Deleter<A>;
+impl FoyerService {
+    fn operation_inner(&self, ctx: &OperationContext) -> Arc<Inner> {
+        Arc::new(Inner {
+            srv: self.inner.clone(),
+            ctx: ctx.clone(),
+            cache: self.cache.clone(),
+            deleted_keys: self.deleted_keys.clone(),
+        })
+    }
+}
 
-    fn inner(&self) -> &Self::Inner {
-        &self.inner.accessor
+impl Service for FoyerService {
+    type Reader = full::FullReader;
+    type Writer = Writer<oio::Writer>;
+    type Lister = oio::Lister;
+    type Deleter = Deleter<oio::Deleter>;
+    type Copier = oio::Copier;
+    type Composer = ();
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
     }
 
-    fn info(&self) -> Arc<AccessorInfo> {
-        self.inner.accessor.info()
+    fn capability(&self) -> Capability {
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability.compose = false;
+        capability.compose_with_content_type = false;
+        capability.compose_with_content_disposition = false;
+        capability.compose_with_content_encoding = false;
+        capability.compose_with_cache_control = false;
+        capability.compose_with_user_metadata = false;
+        capability.compose_with_if_match = false;
+        capability.compose_with_if_none_match = false;
+        capability.compose_with_if_version_match = false;
+        capability.compose_with_if_version_not_match = false;
+        capability.compose_with_if_not_exists = false;
+        capability.compose_with_source_version = false;
+        capability.compose_with_source_if_match = false;
+        capability.restore = false;
+        capability.restore_with_version = false;
+        capability.restore_with_if_not_exists = false;
+        capability
     }
 
-    async fn read(&self, path: &str, args: OpRead) -> Result<(RpRead, Self::Reader)> {
-        full::FullReader::new(self.inner.clone(), self.inner.size_limit.clone())
-            .read(path, args)
-            .await
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        Ok(full::FullReader::new(
+            self.operation_inner(ctx),
+            self.size_limit.clone(),
+            path.to_string(),
+            args,
+        ))
     }
 
-    fn write(
-        &self,
-        path: &str,
-        args: OpWrite,
-    ) -> impl Future<Output = Result<(RpWrite, Self::Writer)>> + MaybeSend {
-        let inner = self.inner.clone();
-        let size_limit = self.inner.size_limit.clone();
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let inner = self.operation_inner(ctx);
+        let size_limit = self.size_limit.clone();
         let path = path.to_string();
-        async move {
-            let (rp, w) = inner.accessor.write(&path, args).await?;
-            Ok((rp, Writer::new(w, path, inner, size_limit)))
-        }
+        let w = inner.srv.write(&inner.ctx, &path, args)?;
+        Ok(Writer::new(w, path, inner, size_limit))
     }
 
-    fn delete(&self) -> impl Future<Output = Result<(RpDelete, Self::Deleter)>> + MaybeSend {
-        let inner = self.inner.clone();
-        async move {
-            let (rp, d) = inner.accessor.delete().await?;
-            Ok((rp, Deleter::new(d, inner)))
-        }
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let inner = self.operation_inner(ctx);
+        let d = inner.srv.delete(&inner.ctx)?;
+        Ok(Deleter::new(d, inner))
     }
 
-    async fn list(&self, path: &str, args: OpList) -> Result<(RpList, Self::Lister)> {
-        self.inner.accessor.list(path, args).await
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(Box::new(FoyerCopier::new(
+            copier,
+            to.to_string(),
+            self.operation_inner(ctx),
+        )))
     }
 
-    // TODO(MrCroxx): Implement copy, rename with foyer cache.
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        let rp = self.inner.rename(ctx, from, to, args).await?;
+        let inner = self.operation_inner(ctx);
+        inner.invalidate_unversioned(from.to_string());
+        inner.invalidate_unversioned(to.to_string());
+        Ok(rp)
+    }
+
+    async fn restore(
+        &self,
+        _ctx: &OperationContext,
+        _path: &str,
+        _args: OpRestore,
+    ) -> Result<RpRestore> {
+        Err(
+            Error::new(ErrorKind::Unsupported, "operation is not supported")
+                .with_operation(Operation::Restore),
+        )
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use foyer::{
-        DirectFsDeviceOptions, Engine, Error as FoyerError, HybridCacheBuilder, LargeEngineOptions,
-        RecoverMode,
+        BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
+        FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
-    use opendal_core::{Operator, services::Memory};
+    use opendal_core::raw::oio::Copy as _;
+    use opendal_core::raw::oio::Read as _;
+    use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::{Buffer, Operator, services::Memory};
     use size::consts::MiB;
     use std::io::Cursor;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
     use crate::error::extract_err;
@@ -251,6 +456,391 @@ mod tests {
         vec![i; 63 * 1024]
     }
 
+    async fn memory_cache() -> HybridCache<FoyerKey, FoyerValue> {
+        HybridCacheBuilder::new()
+            .memory(1024 * 1024)
+            .with_shards(1)
+            .storage()
+            .with_recover_mode(RecoverMode::None)
+            .build()
+            .await
+            .unwrap()
+    }
+
+    #[derive(Debug)]
+    struct MockReadState {
+        data: Buffer,
+        stat_calls: AtomicUsize,
+        open_calls: AtomicUsize,
+        read_calls: AtomicUsize,
+        last_stat_args: Mutex<Option<OpStat>>,
+        last_read_args: Mutex<Option<OpRead>>,
+    }
+
+    impl MockReadState {
+        fn new(data: Buffer) -> Self {
+            Self {
+                data,
+                stat_calls: AtomicUsize::new(0),
+                open_calls: AtomicUsize::new(0),
+                read_calls: AtomicUsize::new(0),
+                last_stat_args: Mutex::new(None),
+                last_read_args: Mutex::new(None),
+            }
+        }
+
+        fn metadata(&self) -> Metadata {
+            {
+                let metadata = MetadataBuilder::file(self.data.len() as _);
+                metadata.build()
+            }
+        }
+
+        fn rp_read(&self) -> RpRead {
+            RpRead::new(self.metadata())
+        }
+
+        fn read_range(&self, range: BytesRange) -> Buffer {
+            self.data.slice(range.to_range_as_usize())
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockReadService {
+        state: Arc<MockReadState>,
+    }
+
+    impl MockReadService {
+        fn new(data: impl Into<Buffer>) -> Self {
+            Self {
+                state: Arc::new(MockReadState::new(data.into())),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockReadReader {
+        state: Arc<MockReadState>,
+    }
+
+    impl oio::Read for MockReadReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.state.open_calls.fetch_add(1, Ordering::Relaxed);
+            let buffer = self.state.read_range(range);
+            Ok((
+                self.state.rp_read(),
+                Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.state.read_calls.fetch_add(1, Ordering::Relaxed);
+            if range.size().is_none() {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "mock reader requires a bounded read range",
+                ));
+            }
+
+            Ok((self.state.rp_read(), self.state.read_range(range)))
+        }
+    }
+
+    impl Service for MockReadService {
+        type Reader = MockReadReader;
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                read: true,
+                stat: true,
+                restore: true,
+                restore_with_version: true,
+                restore_with_if_not_exists: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+            self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
+            *self.state.last_stat_args.lock().unwrap() = Some(args);
+            Ok(RpStat::new(self.state.metadata()))
+        }
+
+        fn read(&self, _ctx: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
+            *self.state.last_read_args.lock().unwrap() = Some(args);
+            Ok(MockReadReader {
+                state: self.state.clone(),
+            })
+        }
+
+        fn write(&self, _ctx: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+    }
+
+    fn service_context(_: &Servicer) -> OperationContext {
+        OperationContext::new()
+    }
+
+    struct ChunkedCopier {
+        chunks: std::array::IntoIter<usize, 2>,
+    }
+
+    impl oio::Copy for ChunkedCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.chunks.next())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(MetadataBuilder::file(8).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_copy_invalidation_waits_for_completion() {
+        let cache = memory_cache().await;
+        let layer = FoyerLayer::new(cache.clone());
+        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let ctx = OperationContext::new();
+        let current = FoyerKey {
+            path: "destination".to_string(),
+            version: None,
+        };
+        let versioned = FoyerKey {
+            path: current.path.clone(),
+            version: Some("previous".to_string()),
+        };
+        cache.insert(current.clone(), FoyerValue("current".into()));
+        cache.insert(versioned.clone(), FoyerValue("previous".into()));
+        let mut copier = FoyerCopier::new(
+            ChunkedCopier {
+                chunks: [3, 5].into_iter(),
+            },
+            current.path.clone(),
+            service.operation_inner(&ctx),
+        );
+
+        assert_eq!(copier.next().await.unwrap(), Some(3));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), Some(5));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert!(!cache.contains(&current));
+        assert!(cache.contains(&versioned));
+    }
+
+    #[tokio::test]
+    async fn test_restore_is_not_supported() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        assert!(source.capability().restore);
+
+        let service = FoyerLayer::new(cache).apply_service(source);
+        let capability = service.capability();
+        assert!(!capability.restore);
+        assert!(!capability.restore_with_version);
+        assert!(!capability.restore_with_if_not_exists);
+
+        let err = service
+            .restore(&OperationContext::new(), "test", OpRestore::new())
+            .await
+            .expect_err("FoyerLayer must reject restore operations");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_open_fallback_preserves_stream() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..1)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"0123456789");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_full_reader_open_fills_cache() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let range = BytesRange::from(4_u64..12);
+        let (_, mut stream) = reader.open(range).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+
+        assert_eq!(buffer.to_vec(), b"456789");
+        assert_eq!(
+            reader.read(range).await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn test_cache_fill_preserves_read_args() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let (_, args, _) = options::ReadOptions {
+            version: Some("v1".to_owned()),
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
+        let reader = service.read(&ctx, "test", args).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        stream.read_all().await.unwrap();
+
+        let stat_args = state.last_stat_args.lock().unwrap().clone().unwrap();
+        assert_eq!(stat_args.version(), Some("v1"));
+        assert_eq!(stat_args.if_match(), Some("etag-1"));
+
+        let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
+        assert_eq!(read_args.version(), Some("v1"));
+        assert_eq!(read_args.if_match(), Some("etag-1"));
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_bypasses_full_object_cache() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        // Fill the cache with an unconditional read.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+
+        // A conditional read must not be served from the cache: the cached
+        // entry carries no condition, so only the origin can observe it.
+        let (_, args, _) = options::ReadOptions {
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
+        let reader = service.read(&ctx, "test", args).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
+
+        // Unconditional reads still hit the cache.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
+    }
+
     #[tokio::test]
     async fn test() {
         let dir = tempfile::tempdir().unwrap();
@@ -258,11 +848,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(10)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -271,8 +865,7 @@ mod tests {
 
         let op = Operator::new(Memory::default())
             .unwrap()
-            .layer(FoyerLayer::new(cache.clone()))
-            .finish();
+            .layer(FoyerLayer::new(cache.clone()));
 
         assert!(op.list("/").await.unwrap().is_empty());
 
@@ -313,11 +906,15 @@ mod tests {
         let cache = HybridCacheBuilder::new()
             .memory(1024 * 1024)
             .with_shards(1)
-            .storage(Engine::Large(LargeEngineOptions::new()))
-            .with_device_options(
-                DirectFsDeviceOptions::new(dir.path())
-                    .with_capacity(16 * MiB as usize)
-                    .with_file_size(MiB as usize),
+            .storage()
+            .with_engine_config(
+                BlockEngineConfig::new(
+                    FsDeviceBuilder::new(dir.path())
+                        .with_capacity(16 * MiB as usize)
+                        .build()
+                        .unwrap(),
+                )
+                .with_block_size(MiB as usize),
             )
             .with_recover_mode(RecoverMode::None)
             .build()
@@ -327,8 +924,7 @@ mod tests {
         // Set size limit: only cache files between 1KB and 10KB
         let op = Operator::new(Memory::default())
             .unwrap()
-            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..10 * 1024))
-            .finish();
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(1024..10 * 1024));
 
         let small_data = vec![1u8; 5 * 1024]; // 5KB - should be cached
         let large_data = vec![2u8; 20 * 1024]; // 20KB - should NOT be cached
@@ -372,7 +968,7 @@ mod tests {
     #[test]
     fn test_error() {
         let e = Error::new(ErrorKind::NotFound, "not found");
-        let fe = FoyerError::other(e);
+        let fe = FoyerError::new(FoyerErrorKind::External, "external error").with_source(e);
         let oe = extract_err(fe);
         assert_eq!(oe.kind(), ErrorKind::NotFound);
     }

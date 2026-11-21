@@ -19,8 +19,6 @@ name: Bindings Lua CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
@@ -28,34 +26,49 @@ on:
       - main
     paths:
       - "bindings/lua/**"
-      - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_lua.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-lua-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Ubuntu 26.04's lua-busted installs Lua 5.1, which opendal-lua doesn't support.
+    runs-on: ubuntu-24.04
+
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Setup lua toolchain
         run: |
           sudo apt-get update
           sudo apt-get install -y lua-busted luarocks liblua5.2-dev
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
+
+      # Useful for debugging
+      - name: Print Clippy version
+        working-directory: "bindings/lua"
+        run: cargo clippy --version
+
       - name: Clippy Check
         working-directory: "bindings/lua"
-        run: |
-          cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
+
       - name: Build & Test
         working-directory: "bindings/lua"
         run: |
           sudo "PATH=$PATH" luarocks make
           busted test/opendal_test.lua
+
+      - name: Run getting-started example
+        working-directory: "bindings/lua"
+        run: |
+          LUA_CPATH="$(luarocks path --lr-cpath)" lua5.2 example/getting-started.lua

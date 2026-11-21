@@ -20,8 +20,9 @@
 //! This crate exposes `extern "C"` APIs consumed by C# via P/Invoke and keeps
 //! interop memory ownership explicit through dedicated release functions.
 
-mod byte_buffer;
+mod buffer;
 mod capability;
+mod chunk;
 mod entry;
 mod error;
 mod executor;

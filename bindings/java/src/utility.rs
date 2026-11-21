@@ -17,30 +17,31 @@
 
 use std::collections::HashSet;
 
-use jni::JNIEnv;
+use jni::Env;
+use jni::EnvUnowned;
+use jni::jni_str;
 use jni::objects::JClass;
 use jni::objects::JObject;
-use jni::sys::jobjectArray;
+use jni::objects::JObjectArray;
 use jni::sys::jsize;
 
 use crate::Result;
 use crate::convert::string_to_jstring;
+use crate::error::ThrowException;
 
 /// # Safety
 ///
 /// This function should not be called before the Operator is ready.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledServices(
-    mut env: JNIEnv,
-    _: JClass,
-) -> jobjectArray {
-    intern_load_enabled_services(&mut env).unwrap_or_else(|e| {
-        e.throw(&mut env);
-        JObject::default().into_raw()
-    })
+pub unsafe extern "system" fn Java_org_apache_opendal_OpenDAL_loadEnabledServices<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+) -> JObjectArray<'local> {
+    env.with_env(|env| intern_load_enabled_services(env))
+        .resolve::<ThrowException>()
 }
 
-fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
+fn intern_load_enabled_services<'local>(env: &mut Env<'local>) -> Result<JObjectArray<'local>> {
     let services = HashSet::from([
         opendal::services::ALIYUN_DRIVE_SCHEME,
         opendal::services::ALLUXIO_SCHEME,
@@ -84,6 +85,7 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
         opendal::services::SQLITE_SCHEME,
         opendal::services::SWIFT_SCHEME,
         opendal::services::TIKV_SCHEME,
+        opendal::services::TOS_SCHEME,
         opendal::services::UPYUN_SCHEME,
         opendal::services::VERCEL_ARTIFACTS_SCHEME,
         opendal::services::WEBDAV_SCHEME,
@@ -91,12 +93,16 @@ fn intern_load_enabled_services(env: &mut JNIEnv) -> Result<jobjectArray> {
         opendal::services::YANDEX_DISK_SCHEME,
     ]);
 
-    let res = env.new_object_array(services.len() as jsize, "java/lang/String", JObject::null())?;
+    let res = env.new_object_array(
+        services.len() as jsize,
+        jni_str!("java/lang/String"),
+        JObject::null(),
+    )?;
 
     for (idx, service) in services.into_iter().enumerate() {
         let srv = string_to_jstring(env, Some(service))?;
-        env.set_object_array_element(&res, idx as jsize, srv)?;
+        res.set_element(env, idx, &srv)?;
     }
 
-    Ok(res.into_raw())
+    Ok(res)
 }

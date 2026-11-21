@@ -25,13 +25,20 @@ namespace OpenDAL;
 /// <summary>
 /// Managed wrapper over an OpenDAL native executor handle.
 /// </summary>
+/// <remarks>
+/// An operator binds an executor at construction and owns a reference to its
+/// runtime from then on, so disposing this handle never affects operators
+/// that already use it. Constructing a new operator with a disposed executor
+/// throws <see cref="ObjectDisposedException"/>.
+/// </remarks>
 public sealed class Executor : SafeHandle
 {
     /// <summary>
     /// Creates an executor with the given number of worker threads.
     /// </summary>
     /// <remarks>
-    /// This executor can be passed to operator APIs to control the runtime that executes the underlying native tasks.
+    /// Pass the executor to an <see cref="Operator"/> constructor to control the runtime that
+    /// executes that operator's native tasks.
     /// </remarks>
     /// <param name="threads">Number of Tokio worker threads. Must be greater than zero.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="threads"/> is less than or equal to zero.</exception>

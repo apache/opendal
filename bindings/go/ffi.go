@@ -1,39 +1,28 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 package opendal
 
 import (
 	"context"
-	"errors"
-	"unsafe"
+	"sync"
 
-	"github.com/jupiterrider/ffi"
+	"github.com/ebitengine/purego"
 )
-
-type ffiOpts struct {
-	sym    contextKey
-	rType  *ffi.Type
-	aTypes []*ffi.Type
-}
-
-type ffiCall func(rValue unsafe.Pointer, aValues ...unsafe.Pointer)
 
 type contextKey string
 
@@ -43,49 +32,69 @@ func (c contextKey) String() string {
 
 type contextWithFFI func(ctx context.Context, lib uintptr) (context.Context, error)
 
-type FFI[T any] struct {
-	opts     ffiOpts
-	withFunc func(ctx context.Context, ffiCall ffiCall) T
+type FFI[T any, CFunc any] struct {
+	sym      contextKey
+	withFunc func(ctx context.Context, cFunc CFunc) T
 }
 
-func newFFI[T any](opts ffiOpts, withFunc func(ctx context.Context, ffiCall ffiCall) T) *FFI[T] {
-	ffi := &FFI[T]{
-		opts:     opts,
+func newFFI[T any, CFunc any](
+	sym contextKey,
+	withFunc func(ctx context.Context, cFunc CFunc) T,
+) *FFI[T, CFunc] {
+	ffi := &FFI[T, CFunc]{
+		sym:      sym,
 		withFunc: withFunc,
 	}
 	withFFIs = append(withFFIs, ffi.withFFI)
 	return ffi
 }
 
-func (f *FFI[T]) symbol(ctx context.Context) T {
-	return ctx.Value(f.opts.sym).(T)
+func newDirectFFI[CFunc any](sym contextKey) *FFI[CFunc, CFunc] {
+	return newFFI(sym, func(_ context.Context, cFunc CFunc) CFunc {
+		return cFunc
+	})
 }
 
-func (f *FFI[T]) withFFI(ctx context.Context, lib uintptr) (context.Context, error) {
-	var cif ffi.Cif
-	if status := ffi.PrepCif(
-		&cif,
-		ffi.DefaultAbi,
-		uint32(len(f.opts.aTypes)),
-		f.opts.rType,
-		f.opts.aTypes...,
-	); status != ffi.OK {
-		return nil, errors.New(status.String())
-	}
-	fn, err := GetProcAddress(lib, f.opts.sym.String())
+func (f *FFI[T, CFunc]) symbol(ctx context.Context) T {
+	return ctx.Value(f.sym).(T)
+}
+
+func (f *FFI[T, CFunc]) withFFI(ctx context.Context, lib uintptr) (context.Context, error) {
+	fn, err := GetProcAddress(lib, f.sym.String())
 	if err != nil {
 		return nil, err
 	}
-	val := f.withFunc(ctx, func(rValue unsafe.Pointer, aValues ...unsafe.Pointer) {
-		ffi.Call(&cif, fn, rValue, aValues...)
-	})
-	return context.WithValue(ctx, f.opts.sym, val), nil
+	var cFunc CFunc
+	purego.RegisterFunc(&cFunc, fn)
+	val := f.withFunc(ctx, cFunc)
+	return context.WithValue(ctx, f.sym, val), nil
 }
 
 var withFFIs []contextWithFFI
 
-func newContext(path string) (ctx context.Context, cancel context.CancelFunc, err error) {
+var (
+	libraryMu sync.Mutex
+	libraries = map[string]uintptr{}
+)
+
+func loadSharedLibrary(path string) (uintptr, error) {
+	libraryMu.Lock()
+	defer libraryMu.Unlock()
+
+	if lib, ok := libraries[path]; ok {
+		return lib, nil
+	}
+
 	lib, err := LoadLibrary(path)
+	if err != nil {
+		return 0, err
+	}
+	libraries[path] = lib
+	return lib, nil
+}
+
+func newContext(path string) (ctx context.Context, cancel context.CancelFunc, err error) {
+	lib, err := loadSharedLibrary(path)
 	if err != nil {
 		return
 	}
@@ -96,9 +105,10 @@ func newContext(path string) (ctx context.Context, cancel context.CancelFunc, er
 			return
 		}
 	}
-	cancel = func() {
-		_ = FreeLibrary(lib)
-	}
+	// Keep the library loaded for the process lifetime. The context stores purego
+	// call targets into this library, so unloading it during operator cleanup can
+	// leave Go frames returning into unmapped code.
+	cancel = func() {}
 
 	return
 }

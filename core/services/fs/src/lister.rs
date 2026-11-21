@@ -16,101 +16,312 @@
 // under the License.
 
 use std::path::Path;
-use std::path::PathBuf;
+use std::sync::Arc;
+use std::vec::IntoIter;
 
 use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use opendal_core::ErrorKind;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
+use tokio::fs::ReadDir;
 
-pub struct FsLister<P> {
-    root: PathBuf,
+use super::core::FsCore;
 
-    current_path: Option<String>,
-
-    rd: P,
+pub struct FsLister {
+    core: Arc<FsCore>,
+    prefix: String,
+    recursive: bool,
+    start_after: Option<String>,
+    next_dir: Option<oio::Entry>,
+    active: Vec<DirectoryEntries>,
 }
 
-impl<P> FsLister<P> {
-    pub fn new(root: &Path, path: &str, rd: P) -> Self {
+enum DirectoryEntries {
+    Streaming {
+        reader: ReadDir,
+        after_children: Option<oio::Entry>,
+    },
+    Sorted(IntoIter<oio::Entry>),
+}
+
+impl FsLister {
+    pub(super) fn new(core: Arc<FsCore>, path: &str, args: OpList) -> Self {
+        let directory = if path.ends_with('/') {
+            path
+        } else {
+            get_parent(path)
+        };
+        let prefix = if path == "/" { "" } else { path };
         Self {
-            root: root.to_owned(),
-            current_path: Some(path.to_string()),
-            rd,
+            core,
+            prefix: prefix.to_string(),
+            recursive: args.recursive(),
+            start_after: args.start_after().map(str::to_owned),
+            next_dir: Some(oio::Entry::new(directory, MetadataBuilder::dir().build())),
+            active: Vec::new(),
         }
     }
 }
 
-/// # Safety
-///
-/// We will only take `&mut Self` reference for FsLister.
-unsafe impl<P> Sync for FsLister<P> {}
-
-impl oio::List for FsLister<tokio::fs::ReadDir> {
+impl oio::List for FsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            // since list should return path itself, we return it first
-            if let Some(path) = self.current_path.take() {
-                let e = oio::Entry::new(path.as_str(), Metadata::new(EntryMode::DIR));
-                return Ok(Some(e));
+            if let Some(dir) = &self.next_dir {
+                // A discovered child always has an active parent directory.
+                let discovered_child = !self.active.is_empty();
+                let mut reader = match self.core.fs_list(dir.path()).await {
+                    Ok(Some(reader)) => reader,
+                    Ok(None) => {
+                        if discovered_child {
+                            log::warn!(
+                                "FS recursive listing skipped missing directory: {}",
+                                dir.path()
+                            );
+                        }
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err)
+                        if discovered_child
+                            && matches!(
+                                err.kind(),
+                                ErrorKind::PermissionDenied | ErrorKind::NotFound
+                            ) =>
+                    {
+                        log::warn!(
+                            "FS recursive listing skipped directory {}: {err}",
+                            dir.path()
+                        );
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
+                };
+                let include_dir = dir.path().starts_with(&self.prefix)
+                    && self
+                        .start_after
+                        .as_deref()
+                        .is_none_or(|marker| dir.path() > marker);
+
+                if let Some(marker) = &self.start_after {
+                    // Keep next_dir until the buffer is complete, so an error or
+                    // cancelled read leaves the entire directory available to retry.
+                    let mut entries = Vec::new();
+                    while let Some(entry) = next_entry(
+                        &mut reader,
+                        &self.core.root,
+                        &self.prefix,
+                        Some(marker),
+                        self.recursive,
+                    )
+                    .await?
+                    {
+                        entries.push(entry);
+                    }
+                    let mut dir = self.next_dir.take().filter(|_| include_dir);
+                    // Unlike other directory paths, "/" is not a prefix of its
+                    // children. It can sort between entries in the root.
+                    if dir.as_ref().is_some_and(|entry| entry.path() == "/") {
+                        entries.extend(dir.take());
+                    }
+                    entries.sort_unstable_by(|a, b| a.path().cmp(b.path()));
+                    self.active
+                        .push(DirectoryEntries::Sorted(entries.into_iter()));
+                    // A non-root directory sorts before all its descendants.
+                    if dir.is_some() {
+                        return Ok(dir);
+                    }
+                } else {
+                    let mut dir = self.next_dir.take().filter(|_| include_dir);
+                    // Keep bottom-up ordering for ordinary recursive listings.
+                    let after_children = if self.recursive { dir.take() } else { None };
+                    self.active.push(DirectoryEntries::Streaming {
+                        reader,
+                        after_children,
+                    });
+                    if dir.is_some() {
+                        return Ok(dir);
+                    }
+                }
             }
 
-            let de = match self.rd.next_entry().await {
-                Ok(Some(de)) => de,
-                Ok(None) => return Ok(None),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // Directory can be removed during listing; stop gracefully.
-                    return Ok(None);
-                }
-                Err(e) => return Err(new_std_io_error(e)),
+            let Some(directory) = self.active.last_mut() else {
+                return Ok(None);
             };
-
-            let entry_path = de.path();
-            let rel_path = normalize_path(
-                &entry_path
-                    .strip_prefix(&self.root)
-                    .expect("cannot fail because the prefix is iterated")
-                    .to_string_lossy()
-                    .replace('\\', "/"),
-            );
-
-            let ft = match de.file_type().await {
-                Ok(ft) => ft,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // Entry can be deleted between readdir and stat calls.
-                    continue;
+            let entry = match directory {
+                DirectoryEntries::Streaming { reader, .. } => {
+                    next_entry(reader, &self.core.root, &self.prefix, None, self.recursive).await?
                 }
-                Err(e) => return Err(new_std_io_error(e)),
+                DirectoryEntries::Sorted(entries) => entries.next(),
             };
-            let (path, mode) = if ft.is_dir() {
-                // Make sure we are returning the correct path.
-                (&format!("{rel_path}/"), EntryMode::DIR)
-            } else if ft.is_file() {
-                (&rel_path, EntryMode::FILE)
+            let Some(entry) = entry else {
+                if let Some(DirectoryEntries::Streaming {
+                    after_children: Some(dir),
+                    ..
+                }) = self.active.pop()
+                {
+                    return Ok(Some(dir));
+                }
+                continue;
+            };
+            if self.recursive && entry.mode().is_dir() && entry.path() != "/" {
+                self.next_dir = Some(entry);
             } else {
-                (&rel_path, EntryMode::Unknown)
-            };
-
-            let de_metadata = match de.metadata().await {
-                Ok(de_metadata) => de_metadata,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    // Entry can be deleted between readdir and metadata calls.
-                    continue;
-                }
-                Err(e) => return Err(new_std_io_error(e)),
-            };
-            let last_modified = match de_metadata.modified() {
-                Ok(v) => v,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    continue;
-                }
-                Err(e) => return Err(new_std_io_error(e)),
-            };
-            let metadata = Metadata::new(mode)
-                .with_content_length(de_metadata.len())
-                .with_last_modified(Timestamp::try_from(last_modified)?);
-
-            return Ok(Some(oio::Entry::new(path, metadata)));
+                return Ok(Some(entry));
+            }
         }
+    }
+}
+
+async fn next_entry(
+    reader: &mut ReadDir,
+    root: &Path,
+    prefix: &str,
+    start_after: Option<&str>,
+    recursive: bool,
+) -> Result<Option<oio::Entry>> {
+    loop {
+        let de = match reader.next_entry().await {
+            Ok(Some(de)) => de,
+            Ok(None) => return Ok(None),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Directory can be removed during listing; stop gracefully.
+                return Ok(None);
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+
+        let entry_path = de.path();
+        let raw = entry_path
+            .strip_prefix(root)
+            .expect("cannot fail because the prefix is iterated")
+            .to_string_lossy();
+        #[cfg(windows)]
+        let raw = raw.replace('\\', "/");
+        let rel_path = normalize_path(&raw);
+
+        let ft = match de.file_type().await {
+            Ok(ft) => ft,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Entry can be deleted between readdir and stat calls.
+                continue;
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+        let (path, mode) = if ft.is_dir() {
+            // Make sure we are returning the correct path.
+            (&format!("{rel_path}/"), EntryMode::DIR)
+        } else if ft.is_file() {
+            (&rel_path, EntryMode::FILE)
+        } else {
+            (&rel_path, EntryMode::Unknown)
+        };
+
+        if !path.starts_with(prefix) {
+            continue;
+        }
+        // A directory containing the marker can still have later children.
+        if let Some(marker) = start_after
+            && path.as_str() <= marker
+            && !(recursive && mode.is_dir() && marker.starts_with(path))
+        {
+            continue;
+        }
+
+        let de_metadata = match de.metadata().await {
+            Ok(de_metadata) => de_metadata,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Entry can be deleted between readdir and metadata calls.
+                continue;
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+        let last_modified = match de_metadata.modified() {
+            Ok(v) => v,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                continue;
+            }
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+        let mut metadata = match mode {
+            EntryMode::FILE => MetadataBuilder::file(de_metadata.len()),
+            EntryMode::DIR => MetadataBuilder::dir(),
+            EntryMode::Unknown => MetadataBuilder::unknown(),
+        };
+        metadata.last_modified(Timestamp::try_from(last_modified)?);
+
+        return Ok(Some(oio::Entry::new(path, metadata.build())));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
+    use opendal_core::EntryMode;
+    use opendal_core::ErrorKind;
+    use opendal_core::Operator;
+
+    use crate::Fs;
+
+    #[tokio::test]
+    async fn list_file_with_backslash_in_name() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(root.path().join("has\\slash"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+
+        let entries = op.list("/").await.unwrap();
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+        assert_eq!(entries[1].metadata().mode(), EntryMode::FILE);
+        assert!(
+            !entries[1].path().ends_with('/'),
+            "file path must not end with /: {}",
+            entries[1].path()
+        );
+    }
+
+    #[tokio::test]
+    async fn list_recursively_skips_unreadable_child() {
+        let root = tempfile::tempdir().unwrap();
+        let locked = root.path().join("locked");
+        fs::create_dir(&locked).unwrap();
+        fs::write(root.path().join("z.txt"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        let permissions = fs::metadata(&locked).unwrap().permissions();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged processes can read the directory even with mode 000.
+        match fs::read_dir(&locked) {
+            Ok(_) => {
+                fs::set_permissions(&locked, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let recursive = op.list_with("/").recursive(true).await;
+        let resumed = op.list_with("/").recursive(true).start_after("a").await;
+        let direct = op.list_with("locked/").recursive(true).await;
+        let direct_resumed = op
+            .list_with("locked/")
+            .recursive(true)
+            .start_after("a")
+            .await;
+        fs::set_permissions(&locked, permissions).unwrap();
+
+        let recursive = recursive.unwrap();
+        let paths: Vec<_> = recursive.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt", "/"]);
+        let resumed = resumed.unwrap();
+        let paths: Vec<_> = resumed.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt"]);
+        assert_eq!(direct.unwrap_err().kind(), ErrorKind::PermissionDenied);
+        assert_eq!(
+            direct_resumed.unwrap_err().kind(),
+            ErrorKind::PermissionDenied
+        );
     }
 }

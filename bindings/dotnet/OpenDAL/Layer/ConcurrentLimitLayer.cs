@@ -32,16 +32,36 @@ public sealed class ConcurrentLimitLayer : ILayer
     public nuint Permits { get; }
 
     /// <summary>
+    /// Gets maximum concurrent HTTP requests, or null when the HTTP limit is unset.
+    /// </summary>
+    /// <remarks>
+    /// This limit is independent of <see cref="Permits"/>: a single operation may issue
+    /// several HTTP requests, so limiting operations does not bound HTTP concurrency.
+    /// </remarks>
+    public nuint? HttpPermits { get; }
+
+    /// <summary>
     /// Creates a concurrent-limit layer.
     /// </summary>
     /// <param name="permits">Maximum number of concurrent permits. Must be greater than zero.</param>
-    public ConcurrentLimitLayer(nuint permits)
+    /// <param name="httpPermits">
+    /// Maximum number of concurrent HTTP requests, or null to leave the HTTP limit unset.
+    /// Must be greater than zero when specified.
+    /// </param>
+    public ConcurrentLimitLayer(nuint permits, nuint? httpPermits = null)
     {
         if (permits == 0)
         {
             throw new ArgumentOutOfRangeException(nameof(permits), "Permits must be greater than zero.");
         }
+
+        if (httpPermits == 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(httpPermits), "HttpPermits must be greater than zero when specified.");
+        }
+
         Permits = permits;
+        HttpPermits = httpPermits;
     }
 
     /// <summary>
@@ -54,7 +74,11 @@ public sealed class ConcurrentLimitLayer : ILayer
         ArgumentNullException.ThrowIfNull(op);
         ObjectDisposedException.ThrowIf(op.IsInvalid, op);
 
-        var result = NativeMethods.operator_layer_concurrent_limit(op, Permits);
+        var result = NativeMethods.operator_layer_concurrent_limit(
+            op,
+            Permits,
+            HttpPermits ?? 0,
+            HttpPermits.HasValue);
         return op.ApplyLayerResult(result);
     }
 }

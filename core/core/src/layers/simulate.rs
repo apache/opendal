@@ -205,44 +205,44 @@ impl SimulateService {
     ) -> Result<SimulateLister> {
         let cap = self.srv.capability();
 
-        let recursive = args.recursive();
-        let forward = args;
-
         let lister = match (
-            recursive,
+            args.recursive(),
             cap.list_with_recursive,
             self.config.list_recursive,
         ) {
             // Backend supports recursive list, forward directly.
             (_, true, _) => {
-                let p = self.srv.list(ctx, path, forward)?;
+                let p = self.srv.list(ctx, path, args)?;
                 SimulateLister::One(p)
             }
             // Simulate recursive via flat list when enabled.
             (true, false, true) => {
-                if path.ends_with('/') {
-                    let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), path);
-                    SimulateLister::Two(p)
+                let directory = if path.ends_with('/') {
+                    path
                 } else {
-                    let parent = get_parent(path);
-                    let p = ServicerFlatLister::new(ctx.clone(), self.srv.clone(), parent);
-                    let p = PrefixLister::new(p, path);
-                    SimulateLister::Four(p)
+                    get_parent(path)
+                };
+                let lister =
+                    ServicerFlatLister::new(ctx.clone(), self.srv.clone(), directory, args);
+                if directory == path {
+                    SimulateLister::Two(lister)
+                } else {
+                    SimulateLister::Four(PrefixLister::new(lister, path))
                 }
             }
             // Recursive requested but simulation disabled; rely on backend and propagate errors.
             (true, false, false) => {
-                let p = self.srv.list(ctx, path, forward)?;
+                let p = self.srv.list(ctx, path, args)?;
                 SimulateLister::One(p)
             }
             // Non-recursive list: keep existing prefix handling semantics.
             (false, false, _) => {
                 if path.ends_with('/') {
-                    let p = self.srv.list(ctx, path, forward)?;
+                    let p = self.srv.list(ctx, path, args)?;
                     SimulateLister::One(p)
                 } else {
                     let parent = get_parent(path);
-                    let p = self.srv.list(ctx, parent, forward)?;
+                    let p = self.srv.list(ctx, parent, args)?;
                     let p = PrefixLister::new(p, path);
                     SimulateLister::Three(p)
                 }
@@ -482,26 +482,36 @@ impl oio::Read for SimulateReader {
 pub struct ServicerFlatLister {
     ctx: OperationContext,
     srv: Servicer,
+    directory_args: OpList,
+    start_after: Option<String>,
     next_dir: Option<oio::Entry>,
     active_lister: Vec<(Option<oio::Entry>, oio::Lister)>,
 }
 
 impl ServicerFlatLister {
-    fn new(ctx: OperationContext, srv: Servicer, path: &str) -> Self {
+    fn new(ctx: OperationContext, srv: Servicer, path: &str, args: OpList) -> Self {
         Self {
             ctx,
             srv,
+            directory_args: options::ListOptions {
+                versions: args.versions(),
+                deleted: args.deleted(),
+                ..Default::default()
+            }
+            .into(),
+            start_after: args.start_after().map(str::to_owned),
             next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
             active_lister: vec![],
         }
     }
-}
 
-impl oio::List for ServicerFlatLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+    async fn next_entry(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(de) = self.next_dir.take() {
-                let mut l = match self.srv.list(&self.ctx, de.path(), OpList::new()) {
+                let mut l = match self
+                    .srv
+                    .list(&self.ctx, de.path(), self.directory_args.clone())
+                {
                     Ok(v) => v,
                     Err(e) if e.kind() == ErrorKind::PermissionDenied => {
                         log::warn!(
@@ -602,6 +612,22 @@ impl oio::List for ServicerFlatLister {
                 },
             }
         }
+    }
+}
+
+impl oio::List for ServicerFlatLister {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        // Directories at or before the marker can still contain later entries.
+        while let Some(entry) = self.next_entry().await? {
+            if self
+                .start_after
+                .as_deref()
+                .is_none_or(|start_after| entry.path() > start_after)
+            {
+                return Ok(Some(entry));
+            }
+        }
+        Ok(None)
     }
 }
 
@@ -951,6 +977,43 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn simulate_recursive_list_with_start_after() -> Result<()> {
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                list_with_start_after: true,
+                ..Default::default()
+            },
+            tree: Some(Arc::new(TreeState {
+                tree: HashMap::from([
+                    ("/".into(), vec![("a/".into(), true), ("b".into(), false)]),
+                    (
+                        "a/".into(),
+                        vec![
+                            ("a/z".into(), false),
+                            ("a/a".into(), false),
+                            ("a/m".into(), false),
+                        ],
+                    ),
+                ]),
+                ..Default::default()
+            })),
+        });
+        let op = Operator::from_parts(OperationContext::default(), srv)
+            .layer(SimulateLayer::default())
+            .layer(crate::layers::CorrectnessCheckLayer);
+
+        let entries = op.list_with("/").recursive(true).start_after("a/m").await?;
+        let paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        assert_eq!(paths, ["a/z", "b"]);
+
+        let entries = op.list_with("a").recursive(true).start_after("a/m").await?;
+        let paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        assert_eq!(paths, ["a/z"]);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn simulate_reader_uses_content_length_hint_for_suffix() -> Result<()> {
         let observed_range = Arc::new(Mutex::new(None));
         let (_, args, _) = options::ReadOptions {
@@ -995,7 +1058,7 @@ mod tests {
             tree: Some(state.clone()),
         }) as Servicer;
 
-        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/");
+        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/", OpList::new());
 
         // Drain it the way RetryLayer does: a temporary error is retried by
         // calling `next()` again on the same lister.
@@ -1150,7 +1213,7 @@ mod tests {
             tree: Some(state.clone()),
         }) as Servicer;
 
-        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/");
+        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/", OpList::new());
 
         // Walk until the fault, then stop: a caller that does not retry must
         // see the error instead of a short, successful listing.

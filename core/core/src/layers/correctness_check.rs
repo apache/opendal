@@ -163,26 +163,6 @@ impl CorrectnessService {
 
         Ok(())
     }
-
-    fn check_list_args(&self, args: &OpList) -> Result<()> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.start_after().is_some() && !capability.list_with_start_after {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::List,
-                "start_after",
-            ));
-        }
-        if args.versions() && !capability.list_with_versions {
-            return Err(new_unsupported_error(scheme, Operation::List, "versions"));
-        }
-        if args.deleted() && !capability.list_with_deleted {
-            return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
-        }
-
-        Ok(())
-    }
 }
 
 impl Service for CorrectnessService {
@@ -442,7 +422,21 @@ impl Service for CorrectnessService {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        self.check_list_args(&args)?;
+        let capability = self.capability();
+        let scheme = self.info().scheme();
+        if args.start_after().is_some() && !capability.list_with_start_after {
+            return Err(new_unsupported_error(
+                scheme,
+                Operation::List,
+                "start_after",
+            ));
+        }
+        if args.versions() && !capability.list_with_versions {
+            return Err(new_unsupported_error(scheme, Operation::List, "versions"));
+        }
+        if args.deleted() && !capability.list_with_deleted {
+            return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
+        }
         self.inner.list(ctx, path, args)
     }
 
@@ -896,12 +890,29 @@ mod tests {
             list: true,
             ..Default::default()
         });
-        let res = op.list_with("path/").start_after("path/key").await;
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-        let res = op.list_with("path/").versions(true).await;
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-        let res = op.list_with("path/").deleted(true).await;
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+        for recursive in [false, true] {
+            let err = op
+                .list_with("path/")
+                .recursive(recursive)
+                .start_after("path/key")
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+            assert!(err.message().contains("start_after"));
+        }
+        let err = op.list_with("path/").versions(true).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("versions"));
+        let err = op.list_with("path/").deleted(true).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("deleted"));
+        assert!(
+            op.list_with("path/")
+                .versions(false)
+                .deleted(false)
+                .await
+                .is_ok()
+        );
 
         let op = new_test_operator(Capability {
             list: true,

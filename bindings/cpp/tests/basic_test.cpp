@@ -24,6 +24,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include <gmock/gmock.h>
+
 #include "framework/test_framework.hpp"
 
 namespace opendal::test {
@@ -260,42 +262,58 @@ TEST(OpenDALOptionsTest, ListOptions) {
   opendal::Operator op("memory");
   op.CreateDir("list_options/");
   op.CreateDir("list_options/nested/");
-  op.Write("list_options/nested/file", "hello");
+  op.Write("list_options/nested/marker", "hello");
+  op.Write("list_options/nested/result", "hello");
 
   opendal::ListOptions options;
   options.recursive = true;
   options.limit = 16;
+  options.start_after = "list_options/nested/marker";
 
   auto entries = op.List("list_options/", options);
   std::unordered_set<std::string> paths;
   for (const auto &entry : entries) {
     paths.insert(entry.path);
   }
-  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+  EXPECT_THAT(paths,
+              ::testing::UnorderedElementsAre("list_options/nested/result"));
 
   auto lister = op.GetLister("list_options/", options);
   paths.clear();
   for (const auto &entry : lister) {
     paths.insert(entry.path);
   }
-  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+  EXPECT_THAT(paths,
+              ::testing::UnorderedElementsAre("list_options/nested/result"));
 }
 
 TEST(OpenDALOptionsTest, ListOptionsUnsupportedByService) {
-  opendal::Operator op("memory");
+  using ::testing::HasSubstr;
+  using ::testing::ThrowsMessage;
+
+  opendal::Operator op("dashmap");
   op.Write("list_unsupported/file", "hello");
 
-  opendal::ListOptions start_after;
-  start_after.start_after = "list_unsupported/file";
-  EXPECT_THROW(op.List("list_unsupported/", start_after), std::exception);
+  for (bool recursive : {false, true}) {
+    opendal::ListOptions start_after;
+    start_after.start_after = "list_unsupported/file";
+    start_after.recursive = recursive;
+    EXPECT_THAT([&] { op.List("list_unsupported/", start_after); },
+                ThrowsMessage<std::exception>(
+                    HasSubstr("list with the arguments start_after")));
+  }
 
   opendal::ListOptions versions;
   versions.versions = true;
-  EXPECT_THROW(op.List("list_unsupported/", versions), std::exception);
+  EXPECT_THAT([&] { op.List("list_unsupported/", versions); },
+              ThrowsMessage<std::exception>(
+                  HasSubstr("list with the arguments versions")));
 
   opendal::ListOptions deleted;
   deleted.deleted = true;
-  EXPECT_THROW(op.List("list_unsupported/", deleted), std::exception);
+  EXPECT_THAT([&] { op.List("list_unsupported/", deleted); },
+              ThrowsMessage<std::exception>(
+                  HasSubstr("list with the arguments deleted")));
 }
 
 TEST(OpenDALOptionsTest, DeleteOptions) {

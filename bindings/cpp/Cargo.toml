@@ -45,4 +45,4 @@ cxx-build = { version = "1.0.186" }
 
 [features]
 async = ["cxx-async", "cxx/c++20"]
-testing = ["dep:bytes"]
+testing = ["dep:bytes", "opendal/services-dashmap"]

@@ -126,16 +126,18 @@ pub struct DeleteOptions {
 /// # Groups
 /// - Traversal: `recursive`.
 /// - Pagination: `limit`, `start_after`.
-/// - Versioning: `versions`, `deleted` (effective on version-aware backends).
-
+/// - Versioning: `versions`, `deleted`.
+///
+/// The operation fails with [`crate::ErrorKind::Unsupported`] if `start_after`
+/// is set, `versions` is `true`, or `deleted` is `true` without its corresponding
+/// capability.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
     /// Maximum results per request (backend hint) to control memory and throttling.
     pub limit: Option<usize>,
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
     ///
-    /// Requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).
+    /// Setting this requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
     pub recursive: bool,

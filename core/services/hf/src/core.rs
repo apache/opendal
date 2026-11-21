@@ -1835,6 +1835,18 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let (parts, _) = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Resolve")), parts);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_other_precondition_failed_is_not_temporary() {
         let (parts, _) = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1894,6 +1906,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, mut parts: http::response::Parts) -
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED if branch_updated_conflict => (ErrorKind::Conflict, true),
         StatusCode::PRECONDITION_FAILED => (ErrorKind::Unexpected, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY

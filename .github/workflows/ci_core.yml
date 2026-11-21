@@ -300,6 +300,7 @@ jobs:
         working-directory: core
         run: |
           FEATURES=(
+            executors-tokio
             services-azblob
             services-gdrive
             services-opfs

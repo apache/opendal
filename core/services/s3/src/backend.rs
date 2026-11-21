@@ -41,6 +41,7 @@ use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
+use reqsign_core::ProvideCredentialDyn;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
@@ -1065,7 +1066,7 @@ impl S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = {
+        let mut default_provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -1109,7 +1110,7 @@ impl S3Builder {
                 builder = builder.ecs(ecs);
             }
 
-            ProvideCredentialChain::new().push(builder.build())
+            builder.build()
         };
 
         // Insert static key if user provided.
@@ -1119,17 +1120,20 @@ impl S3Builder {
             } else {
                 StaticCredentialProvider::new(ak, sk)
             };
-            provider = provider.push_front(static_provider);
+            default_provider = default_provider.push_front(static_provider);
         }
 
-        // Insert assume role provider if user provided.
-        if let Some(role_arn) = &config.role_arn {
+        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
+            credential_providers
+        {
+            Arc::new(chain)
+        } else if let Some(role_arn) = &config.role_arn {
             // The assume-role provider owns its STS signer, so give it a
             // concrete HTTP sender instead of relying on a future operation
             // context.
             let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+            let sts_signer = Signer::new(sts_ctx, default_provider, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
                     .with_region(region.clone())
@@ -1149,18 +1153,13 @@ impl S3Builder {
                 assume_role_provider = assume_role_provider
                     .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
             }
-            provider = ProvideCredentialChain::new().push(assume_role_provider);
-        }
-
-        // Replace provider if user provide their own.
-        let provider = if let Some(credential_providers) = credential_providers {
-            credential_providers
+            // Use AssumeRole directly so its STS error reaches the signer.
+            Arc::new(assume_role_provider)
         } else {
-            provider
+            Arc::new(default_provider)
         };
 
         let signers = if is_s3_express {
-            let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
                 provider.clone(),
@@ -2465,6 +2464,179 @@ mod tests {
         assert!(!err.is_temporary());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert!(transport.requests().is_empty());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug)]
+    struct ExpiredSsoSession;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::FileRead for ExpiredSsoSession {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-west-2\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "expired-token",
+                    "expiresAt": "2000-01-01T00:00:00Z",
+                    "refreshToken": "test-refresh-token",
+                    "clientId": "test-client-id",
+                    "clientSecret": "test-client-secret",
+                    "registrationExpiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::HttpSend for ExpiredSsoSession {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            assert_eq!(request.method(), Method::POST);
+            assert_eq!(request.uri(), "https://oidc.us-west-2.amazonaws.com/token");
+            Ok(Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .body(Bytes::new())
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_default_credentials_preserve_retryable_sso_refresh_error() {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .endpoint("https://s3.us-west-2.amazonaws.com")
+            .profile("sso-test")
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                ..Default::default()
+            })
+            .with_file_read(ExpiredSsoSession)
+            .with_http_send(ExpiredSsoSession);
+        let (mut parts, ()) = Request::get("https://example.s3.us-west-2.amazonaws.com/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        let err = backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable(), "{err:?}");
+        assert!(err.to_string().contains("SSO token refresh returned 503"));
+    }
+
+    struct StsErrorResponse {
+        status: StatusCode,
+        body: &'static str,
+    }
+
+    impl HttpTransport for StsErrorResponse {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(request.uri().host(), Some("sts.us-west-2.amazonaws.com"));
+            assert!(request.uri().query().unwrap().contains("Action=AssumeRole"));
+            let body = Buffer::from(self.body);
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assume_role_preserves_sts_error() {
+        for (status, code, body, temporary) in [
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ServiceUnavailable",
+                "<ErrorResponse><Error><Code>ServiceUnavailable</Code>\
+                 <Message>Try again</Message></Error></ErrorResponse>",
+                true,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                "AccessDenied",
+                "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                 <Message>Forbidden</Message></Error></ErrorResponse>",
+                false,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key")
+                    .role_arn("arn:aws:iam::000000000000:role/example"),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(StsErrorResponse { status, body })),
+            );
+
+            let err = op.stat("test").await.unwrap_err();
+            assert_eq!(err.is_temporary(), temporary, "{err:?}");
+            let source = std::error::Error::source(&err).unwrap();
+            assert!(source.to_string().contains(code), "{err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_chain_overrides_assume_role_and_static_keys() {
+        let chain = ProvideCredentialChain::new().push(StaticCredentialProvider::new(
+            "custom-access-key",
+            "custom-secret-key",
+        ));
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .role_arn("arn:aws:iam::000000000000:role/example")
+                .credential_provider_chain(chain),
+        )
+        .unwrap();
+
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        let url = Url::parse(&request.uri().to_string()).unwrap();
+        let credential = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "X-Amz-Credential").then_some(value))
+            .unwrap();
+        assert_eq!(credential.split('/').next(), Some("custom-access-key"));
     }
 
     #[test]

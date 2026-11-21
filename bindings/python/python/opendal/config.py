@@ -842,25 +842,6 @@ class SeafileConfig(TypedDict):
     """username of this backend."""
 
 
-class SftpConfig(TypedDict):
-    """Configuration for the `sftp` service."""
-
-    scheme: Required[Literal["sftp"]]
-    """The service scheme; fixed to `"sftp"`."""
-    enable_copy: NotRequired[bool]
-    """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
-    endpoint: NotRequired[str]
-    """endpoint of this backend"""
-    key: NotRequired[str]
-    """key of this backend"""
-    known_hosts_strategy: NotRequired[str]
-    """known_hosts_strategy of this backend"""
-    root: NotRequired[str | os.PathLike[str]]
-    """root of this backend"""
-    user: NotRequired[str]
-    """user of this backend"""
-
-
 class SledConfig(TypedDict):
     """Configuration for the `sled` service."""
 
@@ -1064,7 +1045,6 @@ ServiceConfig = (
     | RedisConfig
     | S3Config
     | SeafileConfig
-    | SftpConfig
     | SledConfig
     | SqliteConfig
     | SwiftConfig
@@ -1118,7 +1098,6 @@ __all__ = [
     "RedisConfig",
     "S3Config",
     "SeafileConfig",
-    "SftpConfig",
     "SledConfig",
     "SqliteConfig",
     "SwiftConfig",

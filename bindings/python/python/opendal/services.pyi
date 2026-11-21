@@ -58,7 +58,6 @@ class Scheme:
     Redis: Final[Scheme]
     S3: Final[Scheme]
     Seafile: Final[Scheme]
-    Sftp: Final[Scheme]
     Sled: Final[Scheme]
     Sqlite: Final[Scheme]
     Swift: Final[Scheme]

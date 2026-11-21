@@ -47,10 +47,9 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: this is the feature we used to build pypi wheels.
-# Platform-conditional services are NOT listed here; the release workflow
-# appends the platform aggregate (e.g. `service-unix`) on top of `services-all`
-# for each build target. See the `Platform feature sets` comment below.
+# NOTE: this is the feature we used to build pypi wheels, and the feature
+# dev/src/generate/python.rs resolves via `cargo metadata` to derive the
+# generated scheme set.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -167,7 +166,6 @@ services-rocksdb = [
 ] # FIXME EXCLUDED: how to support rocksdb services in bindings?
 services-s3 = ["opendal/services-s3"]
 services-seafile = ["opendal/services-seafile"]
-services-sftp = ["opendal/services-sftp"]
 services-sled = ["opendal/services-sled"]
 services-sqlite = ["opendal/services-sqlite"]
 services-surrealdb = [
@@ -189,35 +187,6 @@ services-yandex-disk = ["opendal/services-yandex-disk"]
 
 # we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
 abi3 = ["pyo3/abi3-py311"]
-
-# The union of services enabled on any target platform. Consumed by
-# dev/src/generate/python.rs via `cargo metadata` to derive the generated
-# scheme set, so it must stay in sync with the platform feature sets below.
-services-generator = ["services-all", "service-unix"]
-
-# Platform feature sets.
-#
-# Design requirements:
-#
-# - Cargo cannot conditionally activate this crate's own features per build
-#   target (rust-lang/cargo#1197). `[target.'cfg(...)'.features]` is not a
-#   real manifest key: cargo silently ignores it with an "unused manifest key"
-#   warning. Never use it to gate features on a platform.
-# - A service that cannot build on every platform must never be listed bare in
-#   `default` or `services-all`. Such services are only reachable through the
-#   aggregate feature of a platform, e.g. `services-sftp` lives only inside
-#   `service-unix`.
-# - The caller selects the platform set, not the manifest. Unix builds pass
-#   `--features service-unix` (see `.github/workflows/release_python.yml`);
-#   windows builds pass none. The manifest itself stays platform-blind, so
-#   tooling can resolve a platform's service set statically via
-#   `cargo metadata --features service-unix`, without `--filter-platform`.
-# - Combining with the wheel feature set looks like:
-#   `maturin build --features pyo3/extension-module,services-all,service-unix`.
-#
-# `service-unix`: services that depend on unix-only crates.
-# `services-sftp` requires `tokio-pipe`, which is unavailable on windows.
-service-unix = ["services-sftp"]
 
 [lib]
 crate-type = ["cdylib"]

@@ -1,6 +1,34 @@
 # Unreleased
 
+## Path normalization
+
+Operation paths preserve leading and trailing whitespace, including paths made
+entirely of whitespace. If your application previously relied on OpenDAL to
+trim user input, call `trim()` before passing the input to OpenDAL.
+
+Operation paths and service roots remove components equal to `.`. For example,
+`./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
+to mark directories.
+
+## Shared semaphores for `ConcurrentLimitLayer`
+
+`ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.
+
+## Moka and MiniMoka configuration durations
+
+`MokaConfig` and `MiniMokaConfig` now use `Option<jiff::SignedDuration>` for
+`time_to_live` and `time_to_idle`, instead of `Option<String>`. Set these fields
+with `SignedDuration::from_secs(5)` or parse a duration string. The builder
+setters still accept `std::time::Duration`, and string/map configuration still
+accepts duration strings such as `"5s"`.
+
 ## Raw API
+
+### Path helper names
+
+Use `build_absolute_path`, `build_rooted_absolute_path`, and
+`build_relative_path` in place of `build_abs_path`, `build_rooted_abs_path`,
+and `build_rel_path`, respectively. The old names are deprecated aliases.
 
 ### Submit tasks through `ConcurrentTasks::execute`
 

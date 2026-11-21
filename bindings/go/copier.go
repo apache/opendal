@@ -20,9 +20,6 @@ package opendal
 import (
 	"context"
 	"runtime"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // Copier drives a long-running copy operation from a source to a destination.
@@ -137,105 +134,77 @@ func (c *Copier) Close() error {
 	return nil
 }
 
-var ffiOperatorCopier = newFFI(ffiOpts{
-	sym:    "opendal_operator_copier",
-	rType:  &typeResultOperatorCopier,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
-	return func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
-		byteSrc, err := BytePtrFromString(src)
-		if err != nil {
-			return nil, err
+var ffiOperatorCopier = newFFI(
+	"opendal_operator_copier",
+	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, copier **opendalCopier) *opendalError) func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
+		return func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
+			byteSrc, err := BytePtrFromString(src)
+			if err != nil {
+				return nil, err
+			}
+			byteDest, err := BytePtrFromString(dest)
+			if err != nil {
+				return nil, err
+			}
+			var copier *opendalCopier
+			e := cFunc(op, byteSrc, byteDest, &copier)
+			runtime.KeepAlive(byteSrc)
+			runtime.KeepAlive(byteDest)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return copier, nil
 		}
-		byteDest, err := BytePtrFromString(dest)
-		if err != nil {
-			return nil, err
-		}
-		var result resultOperatorCopier
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&byteSrc),
-			unsafe.Pointer(&byteDest),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.copier, nil
-	}
-})
+	},
+)
 
-var ffiOperatorCopierWith = newFFI(ffiOpts{
-	sym:    "opendal_operator_copier_with",
-	rType:  &typeResultOperatorCopier,
-	aTypes: []*ffi.Type{&ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
-	return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
-		byteSrc, err := BytePtrFromString(src)
-		if err != nil {
-			return nil, err
+var ffiOperatorCopierWith = newFFI(
+	"opendal_operator_copier_with",
+	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, opts *opendalCopyOptions, copier **opendalCopier) *opendalError) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
+		return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
+			byteSrc, err := BytePtrFromString(src)
+			if err != nil {
+				return nil, err
+			}
+			byteDest, err := BytePtrFromString(dest)
+			if err != nil {
+				return nil, err
+			}
+			var copier *opendalCopier
+			e := cFunc(op, byteSrc, byteDest, opts, &copier)
+			runtime.KeepAlive(byteSrc)
+			runtime.KeepAlive(byteDest)
+			if e != nil {
+				return nil, parseError(ctx, e)
+			}
+			return copier, nil
 		}
-		byteDest, err := BytePtrFromString(dest)
-		if err != nil {
-			return nil, err
-		}
-		var result resultOperatorCopier
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&op),
-			unsafe.Pointer(&byteSrc),
-			unsafe.Pointer(&byteDest),
-			unsafe.Pointer(&opts),
-		)
-		if result.error != nil {
-			return nil, parseError(ctx, result.error)
-		}
-		return result.copier, nil
-	}
-})
+	},
+)
 
-var ffiCopierNext = newFFI(ffiOpts{
-	sym:    "opendal_copier_next",
-	rType:  &typeResultCopierNext,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(c *opendalCopier) (uint, bool, error) {
-	return func(c *opendalCopier) (uint, bool, error) {
-		var result resultCopierNext
-		ffiCall(
-			unsafe.Pointer(&result),
-			unsafe.Pointer(&c),
-		)
-		if result.error != nil {
-			return 0, false, parseError(ctx, result.error)
+var ffiCopierNext = newFFI(
+	"opendal_copier_next",
+	func(ctx context.Context, cFunc func(c *opendalCopier, size *uint, hasNext *bool) *opendalError) func(c *opendalCopier) (uint, bool, error) {
+		return func(c *opendalCopier) (uint, bool, error) {
+			var size uint
+			var hasNext bool
+			e := cFunc(c, &size, &hasNext)
+			if e != nil {
+				return 0, false, parseError(ctx, e)
+			}
+			return size, hasNext, nil
 		}
-		return result.size, result.has_next == 1, nil
-	}
-})
+	},
+)
 
-var ffiCopierAbort = newFFI(ffiOpts{
-	sym:    "opendal_copier_abort",
-	rType:  &ffi.TypePointer,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(ctx context.Context, ffiCall ffiCall) func(c *opendalCopier) error {
-	return func(c *opendalCopier) error {
-		var e *opendalError
-		ffiCall(
-			unsafe.Pointer(&e),
-			unsafe.Pointer(&c),
-		)
-		return parseError(ctx, e)
-	}
-})
+var ffiCopierAbort = newFFI(
+	"opendal_copier_abort",
+	func(ctx context.Context, cFunc func(c *opendalCopier) *opendalError) func(c *opendalCopier) error {
+		return func(c *opendalCopier) error {
+			e := cFunc(c)
+			return parseError(ctx, e)
+		}
+	},
+)
 
-var ffiCopierFree = newFFI(ffiOpts{
-	sym:    "opendal_copier_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(c *opendalCopier) {
-	return func(c *opendalCopier) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&c),
-		)
-	}
-})
+var ffiCopierFree = newDirectFFI[func(c *opendalCopier)]("opendal_copier_free")

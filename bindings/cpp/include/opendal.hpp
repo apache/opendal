@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -293,7 +294,7 @@ class ReaderStream : public std::istream {
         if (gptr() < egptr()) {
           std::streamsize available_bytes = egptr() - gptr();
           std::streamsize to_copy =
-              std::min(available_bytes, count - total_read);
+              (std::min)(available_bytes, count - total_read);
           std::memcpy(s + total_read, gptr(), to_copy);
           gbump(to_copy);
           total_read += to_copy;

@@ -43,7 +43,7 @@ impl Debug for HdfsNativeCore {
 
 impl HdfsNativeCore {
     pub async fn hdfs_create_dir(&self, path: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client
             .mkdirs(&p, 0o777, true)
@@ -54,7 +54,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_stat(&self, path: &str) -> Result<Metadata> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let status: hdfs_native::client::FileStatus = self
             .client
@@ -81,7 +81,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_open(&self, path: &str) -> Result<hdfs_native::file::FileReader> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client.read(&p).await.map_err(parse_hdfs_error)
     }
@@ -91,7 +91,7 @@ impl HdfsNativeCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<(hdfs_native::file::FileWriter, u64)> {
-        let target_path = build_rooted_abs_path(&self.root, path);
+        let target_path = build_rooted_absolute_path(&self.root, path);
         let mut initial_size = 0;
 
         let target_exists = match self.client.get_file_info(&target_path).await {
@@ -130,7 +130,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_delete(&self, path: &str) -> Result<()> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         self.client
             .delete(&p, true)
@@ -141,7 +141,7 @@ impl HdfsNativeCore {
     }
 
     pub async fn hdfs_list(&self, path: &str) -> Result<Option<(String, Option<String>)>> {
-        let p: String = build_rooted_abs_path(&self.root, path);
+        let p: String = build_rooted_absolute_path(&self.root, path);
 
         let isdir = match self.client.get_file_info(&p).await {
             Ok(status) => status.isdir,
@@ -166,32 +166,63 @@ impl HdfsNativeCore {
         Ok(Some((p, current_path)))
     }
 
-    pub async fn hdfs_rename(&self, from: &str, to: &str) -> Result<()> {
-        let from_path = build_rooted_abs_path(&self.root, from);
-        let to_path = build_rooted_abs_path(&self.root, to);
+    pub async fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
+        let from_path = build_rooted_absolute_path(&self.root, from);
+        let to_path = build_rooted_absolute_path(&self.root, to);
 
-        match self.client.get_file_info(&to_path).await {
+        let target_exists = match self.client.get_file_info(&to_path).await {
             Ok(status) => {
                 if status.isdir {
                     return Err(Error::new(ErrorKind::IsADirectory, "path should be a file")
                         .with_context("input", &to_path));
-                } else {
-                    self.client
-                        .delete(&to_path, true)
-                        .await
-                        .map_err(parse_hdfs_error)?;
                 }
+                true
             }
             Err(err) => match &err {
-                HdfsError::FileNotFound(_) => {
-                    self.client
-                        .create(&to_path, WriteOptions::default().create_parent(true))
-                        .await
-                        .map_err(parse_hdfs_error)?;
-                }
+                HdfsError::FileNotFound(_) => false,
                 _ => return Err(parse_hdfs_error(err)),
             },
         };
+
+        if args.if_not_exists() {
+            if let Some((parent, _)) = to_path
+                .rsplit_once('/')
+                .filter(|(parent, _)| !target_exists && !parent.is_empty())
+            {
+                self.client
+                    .mkdirs(parent, 0o777, true)
+                    .await
+                    .map_err(parse_hdfs_error)?;
+            }
+            return self
+                .client
+                .rename(&from_path, &to_path, false)
+                .await
+                .map_err(|err| {
+                    if matches!(&err, HdfsError::AlreadyExists(_)) {
+                        Error::new(
+                            ErrorKind::ConditionNotMatch,
+                            "target path already exists while if_not_exists is set",
+                        )
+                        .with_context("input", &to_path)
+                        .set_source(err)
+                    } else {
+                        parse_hdfs_error(err)
+                    }
+                });
+        }
+
+        if target_exists {
+            self.client
+                .delete(&to_path, true)
+                .await
+                .map_err(parse_hdfs_error)?;
+        } else {
+            self.client
+                .create(&to_path, WriteOptions::default().create_parent(true))
+                .await
+                .map_err(parse_hdfs_error)?;
+        }
 
         self.client
             .rename(&from_path, &to_path, true)

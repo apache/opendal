@@ -20,29 +20,19 @@ use std::future::Future;
 use crate::raw::*;
 use crate::*;
 
-/// AppendWrite is used to implement [`oio::Write`] based on append
-/// object. By implementing AppendWrite, services don't need to
-/// care about the details of buffering and uploading parts.
+/// Defines the storage operations that [`AppendWriter`] needs to append to an object.
 ///
-/// The layout after adopting [`AppendWrite`]:
-///
-/// - Services impl `AppendWrite`
-/// - `AppendWriter` impl `Write`
-/// - Expose `AppendWriter` as `Service::Writer`
-///
-/// ## Requirements
-///
-/// Services that implement `AppendWrite` must fulfill the following requirements:
-///
-/// - Must be a http service that could accept `AsyncBody`.
-/// - Provide a way to get the current offset of the append object.
+/// Services using HTTP or any other protocol can implement this trait by
+/// retrieving the current end of the object and appending a [`Buffer`] there.
 pub trait AppendWrite: Send + Sync + Unpin + 'static {
-    /// Get the current offset of the append object.
+    /// Return the current end of the object as a byte offset.
     ///
-    /// Returns `0` if the object is not exist.
+    /// Return `0` if the object does not exist.
     fn offset(&self) -> impl Future<Output = Result<u64>> + MaybeSend;
 
-    /// Append the data to the end of this object.
+    /// Append `size` bytes from `body` to the end of the object and return its metadata.
+    ///
+    /// `offset` is the expected byte offset at the end of the object.
     fn append(
         &self,
         offset: u64,
@@ -51,11 +41,15 @@ pub trait AppendWrite: Send + Sync + Unpin + 'static {
     ) -> impl Future<Output = Result<Metadata>> + MaybeSend;
 }
 
-/// AppendWriter will implements [`oio::Write`] based on append object.
+/// Implements [`oio::Write`] for a service that implements [`AppendWrite`].
 ///
-/// ## TODO
+/// On the first write, the writer calls [`AppendWrite::offset`] to find the end
+/// of the object. It calls [`AppendWrite::append`] with the current offset, the
+/// buffer's byte length, and the buffer. The writer advances the offset after
+/// each successful append.
 ///
-/// - Allow users to switch to un-buffered mode if users write 16MiB every time.
+/// A service can use this writer as its [`Service::Writer`] or wrap it with
+/// other writers to support multiple write modes.
 pub struct AppendWriter<W: AppendWrite> {
     inner: W,
 

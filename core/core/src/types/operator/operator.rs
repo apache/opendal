@@ -1817,6 +1817,9 @@ impl Operator {
     ///
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first.
+    /// - With `recursive(true)`, include the trailing slash in directory paths
+    ///   (for example, `"a/"`). On prefix-based services, `"a"` can also match
+    ///   entries under `"ab/"`.
     ///
     /// # Options
     ///
@@ -1833,6 +1836,16 @@ impl Operator {
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Recursively delete the `a/` directory:
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete_with("a/").recursive(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1855,6 +1868,9 @@ impl Operator {
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first. Visit
     ///   [`options::DeleteOptions`] for the conditional delete contract.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Examples
     ///
@@ -1974,7 +1990,10 @@ impl Operator {
         Deleter::create(self.context().clone(), self.service().clone())
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Deprecated
     ///
@@ -1985,12 +2004,12 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// ```
     ///
     /// Use:
     /// ```ignore
-    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// op.delete_with("a/").recursive(true).await?;
     /// ```
     ///
     /// # Notes
@@ -2006,7 +2025,7 @@ impl Operator {
     /// # use opendal_core::Operator;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// # Ok(())
     /// # }
     /// ```

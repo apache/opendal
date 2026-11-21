@@ -21,6 +21,12 @@ Use [`crate::RedisConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+## Per-write expiration
+
+A write with `expires` overrides `default_ttl` for that key. Redis applies
+the expiration in the same command that stores the value, rounding positive
+durations up to a whole millisecond.
+
 ## Example
 
 ### Via Builder

@@ -49,9 +49,25 @@ op.write("hello.txt", b"Hello from S3!")
 print(op.read("hello.txt"))
 ```
 
-The wheel bundles every service, so there is nothing extra to install. The next
-page, [Connecting to your storage](./03-connecting.md), covers configuration and
-credentials in depth; [Services](/services) lists every backend and its keys.
+[Connecting to your storage](./03-connecting.md) covers configuration and
+credentials. [Services](/services) lists the backends and their configuration keys.
+
+## Build with additional services
+
+PyPI wheels enable the `services-all` group in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
+Other services listed in `Cargo.toml`, such as D1 and Foyer, are separate
+opt-in features.
+
+To add D1 to the wheel's service set, run this from `bindings/python` in
+an active virtual environment with Maturin installed:
+
+```shell
+maturin develop --release --features services-all,services-d1
+```
+
+The [Python layers](./05-production.md#layers) are built in. Exposing a new Rust
+layer requires Python binding code.
 
 ## Async usage {#blocking-vs-async}
 

@@ -212,6 +212,64 @@ public class OperatorInputOutputStreamTest {
     }
 
     @ParameterizedTest
+    @ValueSource(ints = {16383, 16384, 16385, 1048575, 1048576, 1048577})
+    void testBulkWriteBoundariesWithReusedSlice(int length) throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final WriteOptions options =
+                WriteOptions.builder().chunk(4 * 1024 * 1024).build();
+        final byte[] source = new byte[length + 17];
+        final byte[] small = {3, 5, 7};
+        final Random random = new Random(8244);
+        final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+        final String path = "bulk-slice-" + length;
+        try (final Operator op = Operator.of(fs)) {
+            try (final OperatorOutputStream out = op.createOutputStream(path, options)) {
+                out.write(255);
+                expected.write(255);
+                out.write(small);
+                expected.write(small);
+
+                random.nextBytes(source);
+                out.write(source, 5, length);
+                expected.write(source, 5, length);
+                out.flush();
+                random.nextBytes(source);
+                out.write(source, 11, length);
+                expected.write(source, 11, length);
+                Arrays.fill(source, (byte) 0);
+
+                out.flush();
+                out.flush();
+                out.write(small);
+                expected.write(small);
+                out.write(127);
+                expected.write(127);
+            }
+            assertThat(op.read(path)).isEqualTo(expected.toByteArray());
+        }
+    }
+
+    @Test
+    void testOutputStreamAfterClose() throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final String path = "closed-output";
+        try (final Operator op = Operator.of(fs);
+                final OperatorOutputStream out = op.createOutputStream(path)) {
+            out.write(42);
+            out.close();
+            out.close();
+
+            assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> out.write(new byte[16384], 0, 16384)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(() -> out.write(new byte[0])).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(out::flush).isInstanceOf(IllegalStateException.class);
+            assertThat(op.read(path)).isEqualTo(new byte[] {42});
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(ints = {0, -1})
     void testInvalidOutputBufferSize(int bufferSize) {
         final ServiceConfig.Fs fs =

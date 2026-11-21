@@ -94,7 +94,7 @@ impl GcsGrpcLister {
             if object.name == self.start_after {
                 continue;
             }
-            let path = build_rel_path(&self.core.root, &object.name);
+            let path = build_relative_path(&self.core.root, &object.name);
             self.entries
                 .push_back(oio::Entry::with(path, parse_object(&object)));
         }
@@ -102,7 +102,7 @@ impl GcsGrpcLister {
             if prefix == self.start_after {
                 continue;
             }
-            let path = build_rel_path(&self.core.root, &prefix);
+            let path = build_relative_path(&self.core.root, &prefix);
             self.entries
                 .push_back(oio::Entry::with(path, MetadataBuilder::dir().build()));
         }

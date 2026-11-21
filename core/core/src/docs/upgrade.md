@@ -1,5 +1,29 @@
 # Unreleased
 
+## Path normalization
+
+Operation paths preserve leading and trailing whitespace, including paths made
+entirely of whitespace. If your application previously relied on OpenDAL to
+trim user input, call `trim()` before passing the input to OpenDAL.
+
+Operation paths and service roots remove components equal to `.`. For example,
+`./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
+to mark directories.
+
+## Per-write expiration
+
+`WriteOptions` and `Capability` now have `expires` and `write_with_expires`
+fields, respectively. For exhaustive struct literals, add `expires: None` or
+`write_with_expires: false` to preserve the previous behavior, or use
+`..Default::default()` to pick up the new defaults.
+
+## `ReadOptions` gains `limit`
+
+Use `..Default::default()` in `ReadOptions` struct literals, or set
+`limit: None` to keep requiring the complete length of a bounded range.
+Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
+and accept EOF after a valid starting byte.
+
 ## Shared semaphores for `ConcurrentLimitLayer`
 
 `ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.
@@ -13,6 +37,18 @@ setters still accept `std::time::Duration`, and string/map configuration still
 accepts duration strings such as `"5s"`.
 
 ## Raw API
+
+### Path helper names
+
+Use `build_absolute_path`, `build_rooted_absolute_path`, and
+`build_relative_path` in place of `build_abs_path`, `build_rooted_abs_path`,
+and `build_rel_path`, respectively. The old names are deprecated aliases.
+
+### Open range streams that can end at EOF
+
+`oio::Read::open` accepts EOF after a valid starting byte in a bounded
+forward range. `BytesRange::to_content_range` now clamps such a range to the
+available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 ### Submit tasks through `ConcurrentTasks::execute`
 

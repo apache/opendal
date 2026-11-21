@@ -17,7 +17,7 @@
 
 use std::sync::Arc;
 
-use opendal_core::raw::oio;
+use opendal_core::raw::{Duration, oio};
 use opendal_core::*;
 
 use super::core::*;
@@ -25,14 +25,16 @@ use super::core::*;
 pub struct MemcachedWriter {
     core: Arc<MemcachedCore>,
     path: String,
+    expires: Option<Duration>,
     buffer: oio::QueueBuf,
 }
 
 impl MemcachedWriter {
-    pub fn new(core: Arc<MemcachedCore>, path: String) -> Self {
+    pub fn new(core: Arc<MemcachedCore>, path: String, expires: Option<Duration>) -> Self {
         Self {
             core,
             path,
+            expires,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -47,7 +49,7 @@ impl oio::Write for MemcachedWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
         let length = buf.len() as u64;
-        self.core.set(&self.path, buf).await?;
+        self.core.set(&self.path, buf, self.expires).await?;
 
         let metadata = if self.path.ends_with('/') {
             MetadataBuilder::dir()

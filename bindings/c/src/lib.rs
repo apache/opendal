@@ -83,3 +83,6 @@ pub use writer::opendal_writer;
 
 mod copier;
 pub use copier::opendal_copier;
+
+mod deleter;
+pub use deleter::opendal_deleter;

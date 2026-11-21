@@ -57,7 +57,7 @@ impl oio::List for RedbLister {
             return Ok(None);
         }
 
-        let mut path = build_rel_path(&self.root, key);
+        let mut path = build_relative_path(&self.root, key);
         if path.is_empty() {
             path = "/".to_string();
         }

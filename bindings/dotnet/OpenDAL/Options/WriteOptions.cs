@@ -66,6 +66,12 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
     public IReadOnlyDictionary<string, string>? UserMetadata { get; init; }
 
     /// <summary>
+    /// Sets how long the new file lives after the write commits.
+    /// </summary>
+    /// <seealso cref="Capability.WriteWithExpires"/>
+    public TimeSpan? Expires { get; init; }
+
+    /// <summary>
     /// Write only when the file at the write path has this exact ETag.
     /// </summary>
     /// <seealso cref="Capability.WriteWithIfMatch"/>
@@ -114,6 +120,7 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
 
     void IOptions<OpenDALWriteOptions>.Validate()
     {
+        OptionValidators.RequireNullableGreaterThanZero(Expires?.Ticks, nameof(Expires));
         OptionValidators.RequireGreaterThanZero(Concurrent, nameof(Concurrent));
         OptionValidators.RequireNullableGreaterThanZero(Chunk, nameof(Chunk));
     }
@@ -127,6 +134,11 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
         native.ContentDisposition = writer.String(ContentDisposition);
         native.ContentEncoding = writer.String(ContentEncoding);
         (native.UserMetadataHasValue, native.UserMetadataKeys, native.UserMetadataValues, native.UserMetadataLen) = writer.Pairs(UserMetadata);
+        if (Expires is { } expires)
+        {
+            native.ExpiresHasValue = 1;
+            native.ExpiresTicks = expires.Ticks;
+        }
         native.IfMatch = writer.String(IfMatch);
         native.IfNoneMatch = writer.String(IfNoneMatch);
         native.IfVersionMatch = writer.String(IfVersionMatch);
@@ -159,6 +171,8 @@ internal struct OpenDALWriteOptions
     public IntPtr UserMetadataKeys;
     public IntPtr UserMetadataValues;
     public nuint UserMetadataLen;
+    public byte ExpiresHasValue;
+    public long ExpiresTicks;
     public IntPtr IfMatch;
     public IntPtr IfNoneMatch;
     public IntPtr IfVersionMatch;

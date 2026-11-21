@@ -138,7 +138,18 @@ impl Reader {
     /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
     pub async fn read(&self, range: impl Into<BytesRange>) -> Result<Buffer> {
-        let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;
+        self.read_with_limit(range.into(), None).await
+    }
+
+    pub(crate) async fn read_with_limit(
+        &self,
+        range: BytesRange,
+        limit: Option<u64>,
+    ) -> Result<Buffer> {
+        let bufs: Vec<_> = BufferStream::create(self.ctx.clone(), range, limit)
+            .await?
+            .try_collect()
+            .await?;
         Ok(bufs.into_iter().flatten().collect())
     }
 
@@ -407,7 +418,7 @@ impl Reader {
     /// }
     /// ```
     pub async fn into_stream(self, range: impl Into<BytesRange>) -> Result<BufferStream> {
-        BufferStream::create(self.ctx, range).await
+        BufferStream::create(self.ctx, range, None).await
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],

@@ -46,6 +46,11 @@ public sealed class ReadOptions : IOptions<OpenDALReadOptions>
     public long? SuffixLength { get; init; }
 
     /// <summary>
+    /// Return at most this many bytes from the start of the selected range, accepting EOF after a valid starting byte.
+    /// </summary>
+    public long? Limit { get; init; }
+
+    /// <summary>
     /// Read the given version of the file instead of the current one.
     /// </summary>
     /// <seealso cref="Capability.ReadWithVersion"/>
@@ -128,6 +133,7 @@ public sealed class ReadOptions : IOptions<OpenDALReadOptions>
         OptionValidators.RequireNullableGreaterThanOrEqualZero(Length, nameof(Length));
         OptionValidators.RequireNullableGreaterThanOrEqualZero(SuffixLength, nameof(SuffixLength));
         OptionValidators.RequireSuffixExclusive(Offset, Length, SuffixLength);
+        OptionValidators.RequireNullableGreaterThanOrEqualZero(Limit, nameof(Limit));
         OptionValidators.RequireNullableGreaterThanOrEqualZero(ContentLengthHint, nameof(ContentLengthHint));
         OptionValidators.RequireGreaterThanZero(Concurrent, nameof(Concurrent));
         OptionValidators.RequireNullableGreaterThanZero(Chunk, nameof(Chunk));
@@ -147,6 +153,11 @@ public sealed class ReadOptions : IOptions<OpenDALReadOptions>
         {
             native.SuffixLengthHasValue = 1;
             native.SuffixLength = (ulong)suffixLength;
+        }
+        if (Limit is { } limit)
+        {
+            native.LimitHasValue = 1;
+            native.Limit = (ulong)limit;
         }
         native.Version = writer.String(Version);
         native.IfMatch = writer.String(IfMatch);
@@ -198,6 +209,8 @@ internal struct OpenDALReadOptions
     public ulong Length;
     public byte SuffixLengthHasValue;
     public ulong SuffixLength;
+    public byte LimitHasValue;
+    public ulong Limit;
     public IntPtr Version;
     public IntPtr IfMatch;
     public IntPtr IfNoneMatch;

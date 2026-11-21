@@ -38,7 +38,7 @@ impl OpfsDeleter {
 
 impl oio::OneShotDelete for OpfsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
-        let p = build_abs_path(&self.core.root, &path);
+        let p = build_absolute_path(&self.core.root, &path);
         let (dir, name) = get_parent_dir_and_name(&p, false).await?;
 
         let opt = FileSystemRemoveOptions::new();

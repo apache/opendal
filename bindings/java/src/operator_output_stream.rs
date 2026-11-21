@@ -21,6 +21,7 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::blocking;
 
@@ -84,27 +85,29 @@ fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
 
 /// # Safety
 ///
-/// This function should not be called before the Operator is ready.
+/// `writer` must point to a live writer with exclusive access, and `offset` and
+/// `length` must describe a valid range of `content`.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeBytes<'local>(
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeByteRange<
+    'local,
+>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     writer: *mut blocking::Writer,
     content: JByteArray<'local>,
+    offset: jint,
+    length: jint,
 ) {
-    env.with_env(|env| {
-        let writer_ref = unsafe { &mut *writer };
-        intern_write_bytes(env, writer_ref, content)
+    env.with_env(|env| -> crate::Result<()> {
+        let mut owned = vec![0u8; length as usize];
+        // SAFETY: i8 and u8 have the same size, alignment, and valid bit patterns.
+        let bytes =
+            unsafe { std::slice::from_raw_parts_mut(owned.as_mut_ptr().cast(), owned.len()) };
+        // Copy into Rust-owned storage before the writer can retain the buffer.
+        content.get_region(env, offset, bytes)?;
+        let writer = unsafe { &mut *writer };
+        writer.write(owned)?;
+        Ok(())
     })
     .resolve::<ThrowException>()
-}
-
-fn intern_write_bytes(
-    env: &mut Env,
-    writer: &mut blocking::Writer,
-    content: JByteArray,
-) -> crate::Result<()> {
-    let content = env.convert_byte_array(content)?;
-    writer.write(content)?;
-    Ok(())
 }

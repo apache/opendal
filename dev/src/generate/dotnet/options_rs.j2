@@ -21,6 +21,7 @@
 #![allow(clippy::field_reassign_with_default)]
 
 use std::os::raw::c_char;
+use std::time::Duration;
 
 use opendal::BytesRange;
 
@@ -184,6 +185,16 @@ mod tests {
     }
 
     #[test]
+    fn read_options_keeps_explicit_zero_limit() {
+        let native = OpendalReadOptions {
+            limit_has_value: 1,
+            limit: 0,
+            ..Default::default()
+        };
+        assert_eq!(read_options(&native).unwrap().limit, Some(0));
+    }
+
+    #[test]
     fn read_options_copies_borrowed_values() {
         let etag = CString::new("\"e\"").unwrap();
         let native = OpendalReadOptions {
@@ -311,6 +322,26 @@ mod tests {
         let err = read_path_options(items.as_ptr(), items.len(), "targets")
             .expect_err("a null path must fail");
         assert!(message(&err).contains("targets path"));
+    }
+
+    #[test]
+    fn write_options_convert_expiration_ticks() {
+        let native = OpendalWriteOptions {
+            expires_has_value: 1,
+            expires_ticks: 10_000_001,
+            ..Default::default()
+        };
+        assert_eq!(read_options(&native).unwrap().expires, Some(Duration::new(1, 100)));
+        assert_eq!(read_options(&OpendalWriteOptions::default()).unwrap().expires, None);
+
+        for ticks in [0, -1] {
+            let native = OpendalWriteOptions {
+                expires_ticks: ticks,
+                ..native
+            };
+            let err = read_options(&native).expect_err("nonpositive duration must fail");
+            assert!(message(&err).contains("expires"));
+        }
     }
 
     #[test]

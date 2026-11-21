@@ -676,10 +676,15 @@ mod tests {
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
 
         let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
-        let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
+        let range = BytesRange::from(4_u64..12);
+        let (_, mut stream) = reader.open(range).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
-        assert_eq!(buffer.to_vec(), b"456");
+        assert_eq!(buffer.to_vec(), b"456789");
+        assert_eq!(
+            reader.read(range).await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
         assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
@@ -712,6 +717,45 @@ mod tests {
         let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
         assert_eq!(read_args.version(), Some("v1"));
         assert_eq!(read_args.if_match(), Some("etag-1"));
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_bypasses_full_object_cache() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        // Fill the cache with an unconditional read.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+
+        // A conditional read must not be served from the cache: the cached
+        // entry carries no condition, so only the origin can observe it.
+        let (_, args, _) = options::ReadOptions {
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
+        let reader = service.read(&ctx, "test", args).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
+
+        // Unconditional reads still hit the cache.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
     }
 
     #[tokio::test]

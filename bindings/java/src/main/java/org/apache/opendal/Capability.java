@@ -80,6 +80,31 @@ public class Capability {
     public final boolean readWithIfNoneMatch;
 
     /**
+     * If operator supports reads with stored version selection.
+     */
+    public final boolean readWithVersion;
+
+    /**
+     * If operator supports reads with a version match condition.
+     */
+    public final boolean readWithIfVersionMatch;
+
+    /**
+     * If operator supports reads with a version non-match condition.
+     */
+    public final boolean readWithIfVersionNotMatch;
+
+    /**
+     * If operator supports reads with an If-Modified-Since condition.
+     */
+    public final boolean readWithIfModifiedSince;
+
+    /**
+     * If operator supports reads with an If-Unmodified-Since condition.
+     */
+    public final boolean readWithIfUnmodifiedSince;
+
+    /**
      * If operator supports read with override cache control.
      */
     public final boolean readWithOverrideCacheControl;
@@ -232,6 +257,9 @@ public class Capability {
      */
     public final boolean shared;
 
+    /**
+     * Creates capabilities with the read version and timestamp flags set to false.
+     */
     public Capability(
             boolean stat,
             boolean statWithIfMatch,
@@ -274,6 +302,102 @@ public class Capability {
             boolean presignStat,
             boolean presignWrite,
             boolean shared) {
+        this(
+                stat,
+                statWithIfMatch,
+                statWithIfNoneMatch,
+                statWithIfVersionMatch,
+                statWithIfVersionNotMatch,
+                statWithIfModifiedSince,
+                statWithIfUnmodifiedSince,
+                statWithVersion,
+                read,
+                readWithIfMatch,
+                readWithIfNoneMatch,
+                readWithOverrideCacheControl,
+                readWithOverrideContentDisposition,
+                readWithOverrideContentType,
+                write,
+                writeCanMulti,
+                writeCanAppend,
+                writeWithContentType,
+                writeWithContentDisposition,
+                writeWithCacheControl,
+                writeWithIfMatch,
+                writeWithIfNoneMatch,
+                writeWithIfNotExists,
+                writeWithUserMetadata,
+                writeMultiMaxSize,
+                writeMultiMinSize,
+                createDir,
+                delete,
+                copy,
+                rename,
+                list,
+                listWithLimit,
+                listWithStartAfter,
+                listWithRecursive,
+                listWithVersions,
+                listWithDeleted,
+                presign,
+                presignRead,
+                presignStat,
+                presignWrite,
+                shared,
+                false,
+                false,
+                false,
+                false,
+                false);
+    }
+
+    public Capability(
+            boolean stat,
+            boolean statWithIfMatch,
+            boolean statWithIfNoneMatch,
+            boolean statWithIfVersionMatch,
+            boolean statWithIfVersionNotMatch,
+            boolean statWithIfModifiedSince,
+            boolean statWithIfUnmodifiedSince,
+            boolean statWithVersion,
+            boolean read,
+            boolean readWithIfMatch,
+            boolean readWithIfNoneMatch,
+            boolean readWithOverrideCacheControl,
+            boolean readWithOverrideContentDisposition,
+            boolean readWithOverrideContentType,
+            boolean write,
+            boolean writeCanMulti,
+            boolean writeCanAppend,
+            boolean writeWithContentType,
+            boolean writeWithContentDisposition,
+            boolean writeWithCacheControl,
+            boolean writeWithIfMatch,
+            boolean writeWithIfNoneMatch,
+            boolean writeWithIfNotExists,
+            boolean writeWithUserMetadata,
+            long writeMultiMaxSize,
+            long writeMultiMinSize,
+            boolean createDir,
+            boolean delete,
+            boolean copy,
+            boolean rename,
+            boolean list,
+            boolean listWithLimit,
+            boolean listWithStartAfter,
+            boolean listWithRecursive,
+            boolean listWithVersions,
+            boolean listWithDeleted,
+            boolean presign,
+            boolean presignRead,
+            boolean presignStat,
+            boolean presignWrite,
+            boolean shared,
+            boolean readWithVersion,
+            boolean readWithIfVersionMatch,
+            boolean readWithIfVersionNotMatch,
+            boolean readWithIfModifiedSince,
+            boolean readWithIfUnmodifiedSince) {
         this.stat = stat;
         this.statWithIfMatch = statWithIfMatch;
         this.statWithIfNoneMatch = statWithIfNoneMatch;
@@ -315,5 +439,10 @@ public class Capability {
         this.presignStat = presignStat;
         this.presignWrite = presignWrite;
         this.shared = shared;
+        this.readWithVersion = readWithVersion;
+        this.readWithIfVersionMatch = readWithIfVersionMatch;
+        this.readWithIfVersionNotMatch = readWithIfVersionNotMatch;
+        this.readWithIfModifiedSince = readWithIfModifiedSince;
+        this.readWithIfUnmodifiedSince = readWithIfUnmodifiedSince;
     }
 }

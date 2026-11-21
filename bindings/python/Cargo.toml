@@ -49,8 +49,8 @@ default = [
   "services-webhdfs",
 ]
 
-# Common service set for all PyPI wheels. The release matrix adds platform-specific features.
-# Keep the generated service list in dev/src/generate/python.rs in sync.
+# Common service set for all PyPI wheels. Every wheel also enables one of the
+# `services-platform-*` feature sets below.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -87,6 +87,16 @@ services-all = [
   'services-vercel-artifacts',
   'services-yandex-disk',
 ]
+
+# Service sets of the PyPI wheel platforms. The release workflow enables exactly
+# one of these per wheel, see .github/workflows/release_python.yml.
+# dev/src/generate/python.rs unions all of them via `cargo metadata` to derive
+# the generated service list, so it does not need to know which platform a
+# wheel is built for.
+services-platform-linux = ['services-all', 'services-foyer', 'services-sftp']
+services-platform-linux-armv7 = ['services-all']
+services-platform-macos = ['services-all', 'services-foyer', 'services-sftp']
+services-platform-windows = ['services-all', 'services-foyer']
 
 # List of feature-flags for all services provided by opendal.
 services-aliyun-drive = ["opendal/services-aliyun-drive"]

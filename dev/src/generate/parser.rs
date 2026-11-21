@@ -36,7 +36,7 @@ pub fn service_feature(service: &str) -> String {
     format!("services-{}", service.replace('_', "-"))
 }
 
-pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
+pub fn sorted_services(services: Services, test: impl Fn(&str) -> bool) -> Services {
     let mut srvs = Services::new();
     for (k, srv) in services.into_iter() {
         if !test(k.as_str()) {

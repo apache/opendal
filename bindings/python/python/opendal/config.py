@@ -184,23 +184,6 @@ class CacacheConfig(TypedDict):
     """That path to the cacache data directory."""
 
 
-class CloudflareKvConfig(TypedDict):
-    """Configuration for the `cloudflare-kv` service."""
-
-    scheme: Required[Literal["cloudflare-kv"]]
-    """The service scheme; fixed to `"cloudflare-kv"`."""
-    account_id: NotRequired[str]
-    """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
-    api_token: NotRequired[str]
-    """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str | timedelta]
-    """The default ttl for write operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
-    namespace_id: NotRequired[str]
-    """The namespace ID. Used as URI path parameter."""
-    root: NotRequired[str | os.PathLike[str]]
-    """Root within this backend."""
-
-
 class CosConfig(TypedDict):
     """Configuration for the `cos` service."""
 
@@ -1053,17 +1036,6 @@ class VercelArtifactsConfig(TypedDict):
     """The Vercel team slug. When set, the `slug` query parameter is appended to all API requests."""
 
 
-class VercelBlobConfig(TypedDict):
-    """Configuration for the `vercel-blob` service."""
-
-    scheme: Required[Literal["vercel-blob"]]
-    """The service scheme; fixed to `"vercel-blob"`."""
-    root: NotRequired[str | os.PathLike[str]]
-    """root of this backend.  All operations will happen under this root."""
-    token: NotRequired[str]
-    """vercel blob token."""
-
-
 class WebdavConfig(TypedDict):
     """Configuration for the `webdav` service."""
 
@@ -1131,7 +1103,6 @@ ServiceConfig = (
     | AzfileConfig
     | B2Config
     | CacacheConfig
-    | CloudflareKvConfig
     | CosConfig
     | DashmapConfig
     | DropboxConfig
@@ -1174,7 +1145,6 @@ ServiceConfig = (
     | TosConfig
     | UpyunConfig
     | VercelArtifactsConfig
-    | VercelBlobConfig
     | WebdavConfig
     | WebhdfsConfig
     | YandexDiskConfig
@@ -1190,7 +1160,6 @@ __all__ = [
     "AzfileConfig",
     "B2Config",
     "CacacheConfig",
-    "CloudflareKvConfig",
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
@@ -1233,7 +1202,6 @@ __all__ = [
     "TosConfig",
     "UpyunConfig",
     "VercelArtifactsConfig",
-    "VercelBlobConfig",
     "WebdavConfig",
     "WebhdfsConfig",
     "YandexDiskConfig",

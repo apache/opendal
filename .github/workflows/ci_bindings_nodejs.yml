@@ -27,24 +27,22 @@ env:
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
-    paths: &paths
+  pull_request:
+    branches:
+      - main
+    paths:
       - "bindings/nodejs/**"
       - "core/**"
       - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_nodejs.yml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-nodejs-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:

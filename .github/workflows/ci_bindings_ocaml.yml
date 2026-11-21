@@ -19,24 +19,22 @@ name: Bindings OCaml CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
-    paths: &paths
+  pull_request:
+    branches:
+      - main
+    paths:
       - "bindings/ocaml/**"
       - "core/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/ci_bindings_ocaml.yml"
-  pull_request:
-    branches:
-      - main
-    paths: *paths
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-ocaml-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:

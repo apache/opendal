@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(windows)]
+use std::os::windows::fs::FileTypeExt;
 use std::sync::Arc;
 
 use super::core::*;
@@ -35,44 +37,49 @@ impl oio::OneShotDelete for FsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let p = self.core.root_join(&path)?;
 
-        let recursive = args.recursive();
+        let file_type = match tokio::fs::symlink_metadata(&p).await {
+            Ok(meta) => meta.file_type(),
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(new_std_io_error(err)),
+        };
+        let is_dir = file_type.is_dir();
 
-        // symlink_metadata looks at the link itself. metadata follows it, so a
-        // dangling link read as NotFound and survived a delete that reported
-        // Ok, and a link to a directory read as a directory and failed in
-        // remove_dir with "not a directory". Like rm, delete removes the link
-        // and leaves the target alone.
-        let meta = tokio::fs::symlink_metadata(&p).await;
-
-        match meta {
-            Ok(meta) => {
-                if meta.file_type().is_symlink() {
-                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
-                } else if meta.is_dir() {
-                    if recursive {
-                        tokio::fs::remove_dir_all(&p)
-                            .await
-                            .map_err(new_std_io_error)?;
-                    } else {
-                        tokio::fs::remove_dir(&p).await.map_err(new_std_io_error)?;
-                    }
-                } else {
-                    // A path ending with `/` denotes a directory. Never remove
-                    // a file through a directory path: `confined_join` strips
-                    // the trailing slash, so without this check deleting
-                    // `f.txt/` would remove the file `f.txt`.
-                    if path.ends_with('/') {
-                        return Err(Error::new(
-                            ErrorKind::NotADirectory,
-                            "delete path is a directory path, but the target is a file",
-                        ));
-                    }
-                    tokio::fs::remove_file(&p).await.map_err(new_std_io_error)?;
+        // confined_join strips the trailing slash. Check the directory path
+        // against the target, then remove the entry identified by symlink_metadata.
+        if path.ends_with('/') && !is_dir {
+            let target_is_dir = if file_type.is_symlink() {
+                match tokio::fs::metadata(&p).await {
+                    Ok(target) => target.is_dir(),
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                    Err(err) => return Err(new_std_io_error(err)),
                 }
-                Ok(())
+            } else {
+                false
+            };
+
+            if !target_is_dir {
+                return Err(Error::new(
+                    ErrorKind::NotADirectory,
+                    "delete path is a directory path, but the target is a file",
+                ));
             }
+        }
+
+        #[cfg(windows)]
+        let remove_as_dir = is_dir || file_type.is_symlink_dir();
+        #[cfg(not(windows))]
+        let remove_as_dir = is_dir;
+
+        let result = if is_dir && args.recursive() {
+            tokio::fs::remove_dir_all(&p).await
+        } else if remove_as_dir {
+            tokio::fs::remove_dir(&p).await
+        } else {
+            tokio::fs::remove_file(&p).await
+        };
+        match result {
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(new_std_io_error(err)),
+            result => result.map_err(new_std_io_error),
         }
     }
 }
@@ -80,6 +87,16 @@ impl oio::OneShotDelete for FsDeleter {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn test_delete_missing_entry_is_a_no_op() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op =
+            Operator::new(crate::Fs::default().root(temp_dir.path().to_str().unwrap())).unwrap();
+
+        op.delete("missing").await.unwrap();
+        op.delete("missing/").await.unwrap();
+    }
 
     #[tokio::test]
     async fn test_delete_file_through_directory_path_is_rejected() {

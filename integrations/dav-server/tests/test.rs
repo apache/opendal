@@ -17,13 +17,16 @@
 
 use anyhow::Result;
 use bytes::Bytes;
-use dav_server::davpath::DavPath;
-use dav_server::fs::{DavFile, FsError, OpenOptions};
-use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use dav_server_opendalfs::OpendalFs;
-use futures::StreamExt;
-use opendal::Operator;
-use opendal::services::Fs;
+use dav_server_opendalfs::dav_server::DavHandler;
+use dav_server_opendalfs::dav_server::body::Body;
+use dav_server_opendalfs::dav_server::davpath::DavPath;
+use dav_server_opendalfs::dav_server::fs::{DavFile, FsError, OpenOptions};
+use dav_server_opendalfs::dav_server::fs::{DavFileSystem, ReadDirMeta};
+use futures::{StreamExt, TryStreamExt};
+use http::{HeaderValue, Method, Request, Response, StatusCode, header::ETAG};
+use opendal::services::{Fs, Http};
+use opendal::{HttpBody, HttpTransport, HttpTransporter, Operator};
 use opendal_core::raw::{
     OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite, RpCreateDir,
     RpPresign, RpRename, RpStat, Service, ServiceInfo, oio,
@@ -70,6 +73,116 @@ async fn test_create_dir_nested() {
 
     assert!(op.exists("/a/").await.unwrap());
     assert!(op.exists("/a/b/").await.unwrap());
+}
+
+#[tokio::test]
+async fn test_symlink_metadata() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.create_dir("dir/").await?;
+    op.write("file", "test").await?;
+    let webdavfs = OpendalFs::new(op);
+
+    for (path, is_dir, len) in [("/", true, 0), ("/dir/", true, 0), ("/file", false, 4)] {
+        let path = DavPath::new(path)?;
+        let metadata = webdavfs.symlink_metadata(&path).await?;
+        assert_eq!(metadata.is_dir(), is_dir);
+        assert_eq!(metadata.is_file(), !is_dir);
+        assert_eq!(metadata.len(), len);
+        assert!(!metadata.is_symlink());
+    }
+
+    assert!(matches!(
+        webdavfs.symlink_metadata(&DavPath::new("/missing")?).await,
+        Err(FsError::NotFound)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_file_etag() -> Result<()> {
+    const CONTENT: &[u8] = b"hello";
+    struct EtagTransport(&'static str);
+
+    impl HttpTransport for EtagTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> opendal::Result<Response<HttpBody>> {
+            let body = match *req.method() {
+                Method::HEAD => HttpBody::new(futures::stream::empty(), Some(0)),
+                Method::GET => HttpBody::new(
+                    futures::stream::iter([Ok(Buffer::from(CONTENT))]),
+                    Some(CONTENT.len() as u64),
+                ),
+                ref method => panic!("unexpected storage request: {method}"),
+            };
+            Ok(Response::builder()
+                .header(ETAG, self.0)
+                .header("content-length", CONTENT.len())
+                .body(body)
+                .unwrap())
+        }
+    }
+
+    for (etag, expected_tag) in [
+        (r#""abc""#, Some("abc")),
+        ("abc", Some("abc")),
+        ("\"\"", Some("")),
+        ("W/abc", Some("W/abc")),
+        (r#""W/abc""#, Some("W/abc")),
+        (r#"W/"abc""#, None),
+        ("\"abc", None),
+        ("abc\"", None),
+        (r#""a"b""#, None),
+    ] {
+        let expected_header = expected_tag.map(|tag| format!("\"{tag}\""));
+        let ctx =
+            OperationContext::new().with_http_transport(HttpTransporter::new(EtagTransport(etag)));
+        let op = Operator::new(Http::default().endpoint("http://example.test"))?.with_context(ctx);
+        let dav = DavHandler::builder()
+            .filesystem(OpendalFs::new(op))
+            .build_handler();
+        for (method, contents) in [(Method::GET, CONTENT), (Method::HEAD, &[][..])] {
+            let req = Request::builder()
+                .method(method)
+                .uri("/file")
+                .body(Body::empty())?;
+            let resp = dav.handle(req).await;
+            assert_eq!(resp.status(), StatusCode::OK);
+            assert_eq!(
+                resp.headers()
+                    .get(ETAG)
+                    .map(HeaderValue::to_str)
+                    .transpose()?,
+                expected_header.as_deref()
+            );
+            let body = resp
+                .into_body()
+                .map_ok(|chunk| chunk.to_vec())
+                .try_concat()
+                .await?;
+            assert_eq!(body, contents);
+        }
+
+        let req = Request::builder()
+            .method("PROPFIND")
+            .uri("/file")
+            .header("Depth", "0")
+            .body(Body::empty())?;
+        let resp = dav.handle(req).await;
+        assert_eq!(resp.status(), StatusCode::MULTI_STATUS);
+        let body = resp
+            .into_body()
+            .map_ok(|chunk| chunk.to_vec())
+            .try_concat()
+            .await?;
+        let xml = String::from_utf8(body)?;
+        match expected_header {
+            Some(value) => assert!(
+                xml.contains(&format!("<D:getetag>{value}</D:getetag>")),
+                "{xml}"
+            ),
+            None => assert!(!xml.contains("getetag"), "{xml}"),
+        }
+    }
+    Ok(())
 }
 
 fn setup_temp(path: &str) -> Box<OpendalFs> {

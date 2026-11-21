@@ -61,6 +61,10 @@ jobs:
         working-directory: "bindings/python"
         run: just lint
 
+      - name: Check Python stable ABI
+        working-directory: "bindings/python"
+        run: cargo check --features abi3
+
   stubs:
     runs-on: ubuntu-latest
     steps:

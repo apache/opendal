@@ -41,6 +41,7 @@ use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
+use reqsign_core::ProvideCredentialDyn;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
@@ -1065,7 +1066,7 @@ impl S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = {
+        let mut default_chain = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -1119,17 +1120,20 @@ impl S3Builder {
             } else {
                 StaticCredentialProvider::new(ak, sk)
             };
-            provider = provider.push_front(static_provider);
+            default_chain = default_chain.push_front(static_provider);
         }
 
-        // Insert assume role provider if user provided.
-        if let Some(role_arn) = &config.role_arn {
+        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
+            credential_providers
+        {
+            Arc::new(chain)
+        } else if let Some(role_arn) = &config.role_arn {
             // The assume-role provider owns its STS signer, so give it a
             // concrete HTTP sender instead of relying on a future operation
             // context.
             let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+            let sts_signer = Signer::new(sts_ctx, default_chain, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
                     .with_region(region.clone())
@@ -1149,18 +1153,13 @@ impl S3Builder {
                 assume_role_provider = assume_role_provider
                     .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
             }
-            provider = ProvideCredentialChain::new().push(assume_role_provider);
-        }
-
-        // Replace provider if user provide their own.
-        let provider = if let Some(credential_providers) = credential_providers {
-            credential_providers
+            // Use AssumeRole directly so its STS error reaches the signer.
+            Arc::new(assume_role_provider)
         } else {
-            provider
+            Arc::new(default_chain)
         };
 
         let signers = if is_s3_express {
-            let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
                 provider.clone(),
@@ -2465,6 +2464,96 @@ mod tests {
         assert!(!err.is_temporary());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert!(transport.requests().is_empty());
+    }
+
+    struct StsErrorResponse {
+        status: StatusCode,
+        body: &'static str,
+    }
+
+    impl HttpTransport for StsErrorResponse {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(request.uri().host(), Some("sts.us-west-2.amazonaws.com"));
+            assert!(request.uri().query().unwrap().contains("Action=AssumeRole"));
+            let body = Buffer::from(self.body);
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assume_role_preserves_sts_error() {
+        for (status, code, body, temporary) in [
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ServiceUnavailable",
+                "<ErrorResponse><Error><Code>ServiceUnavailable</Code>\
+                 <Message>Try again</Message></Error></ErrorResponse>",
+                true,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                "AccessDenied",
+                "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                 <Message>Forbidden</Message></Error></ErrorResponse>",
+                false,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key")
+                    .role_arn("arn:aws:iam::000000000000:role/example"),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(StsErrorResponse { status, body })),
+            );
+
+            let err = op.stat("test").await.unwrap_err();
+            assert_eq!(err.is_temporary(), temporary, "{err:?}");
+            let source = std::error::Error::source(&err).unwrap();
+            assert!(source.to_string().contains(code), "{err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_chain_overrides_assume_role_and_static_keys() {
+        let chain = ProvideCredentialChain::new().push(StaticCredentialProvider::new(
+            "custom-access-key",
+            "custom-secret-key",
+        ));
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .role_arn("arn:aws:iam::000000000000:role/example")
+                .credential_provider_chain(chain),
+        )
+        .unwrap();
+
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        let url = Url::parse(&request.uri().to_string()).unwrap();
+        let credential = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "X-Amz-Credential").then_some(value))
+            .unwrap();
+        assert_eq!(credential.split('/').next(), Some("custom-access-key"));
     }
 
     #[test]

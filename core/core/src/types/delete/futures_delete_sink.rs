@@ -32,7 +32,7 @@ pub struct FuturesDeleteSink<T: IntoDeleteInput> {
     _phantom: PhantomData<T>,
 }
 
-// Deleter embeds Capability, which grows with every capability flag.
+// Deleter embeds Capability and is kept inline rather than boxed per sink.
 #[allow(clippy::large_enum_variant)]
 enum State {
     Idle(Option<Deleter>),

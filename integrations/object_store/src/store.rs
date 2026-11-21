@@ -716,8 +716,9 @@ impl ObjectStore for OpendalStore {
 
         let fut = async move {
             let info = this.inner.info();
-            // FS compares raw names. Filtering on the object_store Path keeps
-            // percent-encoded names in the same order as their offsets.
+            // object_store::path::Path compares percent-encoded strings, so
+            // a%7Eb sorts before a-b. FS compares filenames as stored, where
+            // a~b sorts after a-b. Keep FS offsets in object_store path order.
             let use_native_offset =
                 info.capability().list_with_start_after && info.scheme() != "fs";
             let mut fut = this.inner.lister_with(&path).recursive(true);

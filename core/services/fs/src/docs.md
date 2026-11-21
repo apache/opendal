@@ -17,14 +17,16 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 
 ## List
 
-For both non-recursive and recursive listings, `start_after` returns entries
-whose paths sort strictly after the marker, in lexicographic order. Pass a
-path relative to the operator root, including the trailing `/` for a directory
-entry. Pass an empty marker to start a sorted listing from the beginning.
+When set, `start_after` returns entries in lexicographic order and excludes
+paths at or before the marker in both non-recursive and recursive listings.
+Pass a path relative to the operator root, including the trailing `/` for a
+directory entry. Pass an empty marker to start a sorted listing from the
+beginning.
 
 With `start_after`, the service reads and sorts each visited directory before
 yielding its entries. This can increase latency and memory usage for large
-directories.
+directories. With `start_after` unset, the traversal follows the order of
+entries from the filesystem.
 
 ## Delete
 

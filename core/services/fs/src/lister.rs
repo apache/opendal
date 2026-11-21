@@ -20,6 +20,7 @@ use std::sync::Arc;
 use std::vec::IntoIter;
 
 use opendal_core::EntryMode;
+use opendal_core::ErrorKind;
 use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::*;
@@ -67,9 +68,35 @@ impl oio::List for FsLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
             if let Some(dir) = &self.next_dir {
-                let Some(mut reader) = self.core.fs_list(dir.path()).await? else {
-                    self.next_dir = None;
-                    continue;
+                // A discovered child always has an active parent directory.
+                let discovered_child = !self.active.is_empty();
+                let mut reader = match self.core.fs_list(dir.path()).await {
+                    Ok(Some(reader)) => reader,
+                    Ok(None) => {
+                        if discovered_child {
+                            log::warn!(
+                                "FS recursive listing skipped missing directory: {}",
+                                dir.path()
+                            );
+                        }
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err)
+                        if discovered_child
+                            && matches!(
+                                err.kind(),
+                                ErrorKind::PermissionDenied | ErrorKind::NotFound
+                            ) =>
+                    {
+                        log::warn!(
+                            "FS recursive listing skipped directory {}: {err}",
+                            dir.path()
+                        );
+                        self.next_dir = None;
+                        continue;
+                    }
+                    Err(err) => return Err(err),
                 };
                 let include_dir = dir.path().starts_with(&self.prefix)
                     && self
@@ -230,7 +257,11 @@ async fn next_entry(
 
 #[cfg(all(test, unix))]
 mod tests {
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+
     use opendal_core::EntryMode;
+    use opendal_core::ErrorKind;
     use opendal_core::Operator;
 
     use crate::Fs;
@@ -249,6 +280,48 @@ mod tests {
             !entries[1].path().ends_with('/'),
             "file path must not end with /: {}",
             entries[1].path()
+        );
+    }
+
+    #[tokio::test]
+    async fn list_recursively_skips_unreadable_child() {
+        let root = tempfile::tempdir().unwrap();
+        let locked = root.path().join("locked");
+        fs::create_dir(&locked).unwrap();
+        fs::write(root.path().join("z.txt"), b"data").unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        let permissions = fs::metadata(&locked).unwrap().permissions();
+        fs::set_permissions(&locked, fs::Permissions::from_mode(0o000)).unwrap();
+
+        // Privileged processes can read the directory even with mode 000.
+        match fs::read_dir(&locked) {
+            Ok(_) => {
+                fs::set_permissions(&locked, permissions).unwrap();
+                return;
+            }
+            Err(err) => assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied),
+        }
+
+        let recursive = op.list_with("/").recursive(true).await;
+        let resumed = op.list_with("/").recursive(true).start_after("a").await;
+        let direct = op.list_with("locked/").recursive(true).await;
+        let direct_resumed = op
+            .list_with("locked/")
+            .recursive(true)
+            .start_after("a")
+            .await;
+        fs::set_permissions(&locked, permissions).unwrap();
+
+        let recursive = recursive.unwrap();
+        let paths: Vec<_> = recursive.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt", "/"]);
+        let resumed = resumed.unwrap();
+        let paths: Vec<_> = resumed.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["z.txt"]);
+        assert_eq!(direct.unwrap_err().kind(), ErrorKind::PermissionDenied);
+        assert_eq!(
+            direct_resumed.unwrap_err().kind(),
+            ErrorKind::PermissionDenied
         );
     }
 }

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -106,6 +107,16 @@ struct FetchReadOutput {
     size: u64,
     rp: RpRead,
     buffer: Buffer,
+}
+
+impl fmt::Debug for Reader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let options = self.ctx.options();
+        f.debug_struct("Reader")
+            .field("chunk", &options.chunk())
+            .field("concurrent", &options.concurrent())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Reader {

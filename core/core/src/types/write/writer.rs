@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -101,6 +102,15 @@ pub struct Writer {
     /// Keep a reference to write context in writer.
     ctx: Arc<WriteContext>,
     inner: WriteGenerator<oio::Writer>,
+}
+
+impl fmt::Debug for Writer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+            .field("chunk", &self.ctx.options().chunk())
+            .field("append", &self.ctx.args().append())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Writer {

@@ -845,8 +845,7 @@ mod tests {
             .writer_with("path")
             .expires(expires)
             .await
-            .err()
-            .expect("writer with expiration must fail");
+            .expect_err("writer with expiration must fail");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(!op.exists("path").await.unwrap());
     }

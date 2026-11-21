@@ -44,6 +44,7 @@ accepts it, so a single signature type-checks every service.
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 from typing import TYPE_CHECKING, Literal, TypedDict
 
 if TYPE_CHECKING:
@@ -192,8 +193,8 @@ class CloudflareKvConfig(TypedDict):
     """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
     api_token: NotRequired[str]
     """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str]
-    """The default ttl for write operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for write operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     namespace_id: NotRequired[str]
     """The namespace ID. Used as URI path parameter."""
     root: NotRequired[str | os.PathLike[str]]
@@ -373,6 +374,21 @@ class GhacConfig(TypedDict):
     """The version that used by cache."""
 
 
+class GithubConfig(TypedDict):
+    """Configuration for the `github` service."""
+
+    scheme: Required[Literal["github"]]
+    """The service scheme; fixed to `"github"`."""
+    owner: Required[str]
+    """GitHub repo owner.  required."""
+    repo: Required[str]
+    """GitHub repo name.  required."""
+    root: NotRequired[str | os.PathLike[str]]
+    """root of this backend.  All operations will happen under this root."""
+    token: NotRequired[str]
+    """GitHub access_token.  optional. If not provided, the backend will only support read operations for public repositories. And rate limit will be limited to 60 requests per hour."""
+
+
 class GridfsConfig(TypedDict):
     """Configuration for the `gridfs` service."""
 
@@ -491,8 +507,8 @@ class MemcachedConfig(TypedDict):
     """The service scheme; fixed to `"memcached"`."""
     connection_pool_max_size: NotRequired[int]
     """The maximum number of connections allowed.  default is 10"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     enable_tls: NotRequired[bool]
     """Enable TLS for TCP connections. Defaults to false.  The server certificate must match the endpoint host and a native trust root."""
     endpoint: NotRequired[str]
@@ -523,10 +539,10 @@ class MiniMokaConfig(TypedDict):
     """Sets the max capacity of the cache.  Refer to [`mini-moka::sync::CacheBuilder::max_capacity`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.max_capacity)"""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_idle`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`mini-moka::sync::CacheBuilder::time_to_live`](https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MokaConfig(TypedDict):
@@ -540,10 +556,10 @@ class MokaConfig(TypedDict):
     """Name for this cache instance."""
     root: NotRequired[str | os.PathLike[str]]
     """root path of this backend"""
-    time_to_idle: NotRequired[str]
-    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle)"""
-    time_to_live: NotRequired[str]
-    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live)"""
+    time_to_idle: NotRequired[str | timedelta]
+    """Sets the time to idle of the cache.  Refer to [`moka::future::CacheBuilder::time_to_idle`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    time_to_live: NotRequired[str | timedelta]
+    """Sets the time to live of the cache.  Refer to [`moka::future::CacheBuilder::time_to_live`](https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live) A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
 
 
 class MongodbConfig(TypedDict):
@@ -725,8 +741,8 @@ class RedisConfig(TypedDict):
     """The maximum number of connections allowed.  default is 10"""
     db: Required[int]
     """the number of DBs redis can take is unlimited  default is db 0"""
-    default_ttl: NotRequired[str]
-    """The default ttl for put operations. A human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    default_ttl: NotRequired[str | timedelta]
+    """The default ttl for put operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     endpoint: NotRequired[str]
     """network address of the Redis service. Can be "tcp://127.0.0.1:6379", e.g.  default is "tcp://127.0.0.1:6379\""""
     password: NotRequired[str]
@@ -1054,6 +1070,7 @@ ServiceConfig = (
     | GcsGrpcConfig
     | GdriveConfig
     | GhacConfig
+    | GithubConfig
     | GridfsConfig
     | HdfsNativeConfig
     | HfConfig
@@ -1109,6 +1126,7 @@ __all__ = [
     "GcsGrpcConfig",
     "GdriveConfig",
     "GhacConfig",
+    "GithubConfig",
     "GridfsConfig",
     "HdfsNativeConfig",
     "HfConfig",

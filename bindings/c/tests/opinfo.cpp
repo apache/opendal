@@ -38,10 +38,11 @@ protected:
         opendal_operator_options* options = opendal_operator_options_new();
         opendal_operator_options_set(options, "root", this->root.c_str());
 
-        opendal_result_operator_new result = opendal_operator_new(this->scheme.c_str(), options);
-        EXPECT_TRUE(result.error == nullptr);
+        opendal_operator* op = nullptr;
+        opendal_error* error = opendal_operator_new(this->scheme.c_str(), options, &op);
+        EXPECT_EQ(error, nullptr);
 
-        this->p = result.op;
+        this->p = op;
         EXPECT_TRUE(this->p);
 
         this->info = opendal_operator_info_new(this->p);
@@ -60,7 +61,8 @@ protected:
 // We test the capability set by **memory** service.
 TEST_F(OpendalOperatorInfoTest, CapabilityTest)
 {
-    opendal_capability cap = opendal_operator_info_get_capability(this->info);
+    opendal_capability cap = {};
+    opendal_operator_info_get_capability(this->info, &cap);
 
     EXPECT_TRUE(cap.read);
     EXPECT_TRUE(cap.stat);

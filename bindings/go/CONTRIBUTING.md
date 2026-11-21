@@ -210,7 +210,6 @@ To develop the Go binding, you need to have the following dependencies installed
 - zstd
 - Rust toolchain
 - Go
-- (Required for Windows) libffi-8.dll in the root of the workspace directory
 
 We use `go workspace` to manage and build the dependencies. To set up the workspace, run the following commands:
 

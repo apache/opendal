@@ -20,9 +20,6 @@ package opendal
 import (
 	"context"
 	"fmt"
-	"unsafe"
-
-	"github.com/jupiterrider/ffi"
 )
 
 // ErrorCode is all kinds of ErrorCode of opendal
@@ -90,15 +87,4 @@ func (e *Error) Message() string {
 	return e.message
 }
 
-var ffiErrorFree = newFFI(ffiOpts{
-	sym:    "opendal_error_free",
-	rType:  &ffi.TypeVoid,
-	aTypes: []*ffi.Type{&ffi.TypePointer},
-}, func(_ context.Context, ffiCall ffiCall) func(e *opendalError) {
-	return func(e *opendalError) {
-		ffiCall(
-			nil,
-			unsafe.Pointer(&e),
-		)
-	}
-})
+var ffiErrorFree = newDirectFFI[func(e *opendalError)]("opendal_error_free")

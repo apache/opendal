@@ -192,4 +192,144 @@ public sealed class DeleteBehaviorTest : BehaviorTestBase
         var stat = await Op.StatAsync(path, cancellationToken: CT);
         Assert.Equal(etag, stat.ETag);
     }
+
+    [Fact]
+    public async Task DeleteBehavior_IfNotChanged_RejectsStaleMetadataAsync()
+    {
+        if (!Supports(c => c.Write && c.Stat && (c.DeleteWithIfMatch || c.DeleteWithIfVersionMatch)))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-if-not-changed");
+        await Op.WriteAsync(path, RandomBytes(16), cancellationToken: CT);
+        var stale = await Op.StatAsync(path, cancellationToken: CT);
+        await Op.WriteAsync(path, RandomBytes(32), cancellationToken: CT);
+
+        var ex = await Assert.ThrowsAsync<OpenDALException>(
+            () => Op.DeleteAsync(path, new DeleteOptions { IfNotChanged = stale }, CT));
+        Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+
+        var current = await Op.StatAsync(path, cancellationToken: CT);
+        await Op.DeleteAsync(path, new DeleteOptions { IfNotChanged = current }, CT);
+
+        var missing = await Assert.ThrowsAsync<OpenDALException>(() => Op.StatAsync(path, cancellationToken: CT));
+        Assert.True(IsMissingError(missing));
+    }
+
+    [Fact]
+    public void DeleteBehavior_DeleteMany_RemovesEveryPath()
+    {
+        if (!Supports(c => c.Delete && c.Write && c.Stat))
+        {
+            return;
+        }
+
+        var first = NewPath("delete-many-a");
+        var second = NewPath("delete-many-b");
+        Op.Write(first, RandomBytes(8));
+        Op.Write(second, RandomBytes(8));
+
+        Op.DeleteMany([first, second, NewPath("delete-many-missing")]);
+
+        Assert.False(Op.Exists(first));
+        Assert.False(Op.Exists(second));
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_DeleteManyAsync_DeletesListedEntriesAsync()
+    {
+        if (!Supports(c => c.Delete && c.Write && c.List && c.CreateDir))
+        {
+            return;
+        }
+
+        // More targets than the stack buffer holds, converted from listed entries.
+        var dir = NewPath("delete-many-listed") + "/";
+        await Op.CreateDirAsync(dir, CT);
+        for (var i = 0; i < 300; i++)
+        {
+            await Op.WriteAsync($"{dir}file-{i:D3}", RandomBytes(1), cancellationToken: CT);
+        }
+
+        var files = Op.List(dir)
+            .Where(e => e.Metadata.IsFile)
+            .Select(e => (DeleteInput)e);
+        await Op.DeleteManyAsync(files, CT);
+
+        Assert.DoesNotContain(Op.List(dir), e => e.Metadata.IsFile);
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_DeleteManyAsync_AppliesPerTargetOptionsAsync()
+    {
+        if (!Supports(c => c.DeleteWithVersion && c.StatWithVersion && c.Write))
+        {
+            return;
+        }
+
+        var path = NewPath("delete-many-version");
+        await Op.WriteAsync(path, RandomBytes(16), cancellationToken: CT);
+        var version = (await Op.StatAsync(path, cancellationToken: CT)).Version;
+        Assert.NotNull(version);
+        await Op.WriteAsync(path, RandomBytes(32), cancellationToken: CT);
+
+        await Op.DeleteManyAsync([new DeleteInput(path, new DeleteOptions { Version = version })], CT);
+
+        var gone = await Assert.ThrowsAsync<OpenDALException>(
+            () => Op.StatAsync(path, new StatOptions { Version = version }, CT));
+        Assert.Equal(ErrorCode.NotFound, gone.Code);
+        Assert.Equal(32UL, (await Op.StatAsync(path, cancellationToken: CT)).ContentLength);
+    }
+
+    [Fact]
+    public void DeleteBehavior_DeleteMany_RejectsNullTarget()
+    {
+        if (!IsEnabled)
+        {
+            return;
+        }
+
+        Assert.Throws<ArgumentException>(() => Op.DeleteMany([NewPath("delete-many-null"), null!]));
+    }
+
+    [Fact]
+    public async Task DeleteBehavior_ConcurrentDeleteMany_DeletesOnlyEachCallsTargetsAsync()
+    {
+        // The race this guards against is in the binding, not the service, and
+        // it needs many concurrent calls to show, so only memory runs it.
+        if (!IsService("memory") || !Supports(c => c.Delete && c.Write && c.List && c.ListWithRecursive))
+        {
+            return;
+        }
+
+        const int calls = 128;
+        const int filesPerCall = 4;
+        // Missing paths are cheap to delete and fill each call with several
+        // full native batches plus a partial one, so calls serialize both
+        // batches that outgrow a thread's reused buffer and batches that fit.
+        const int targetsPerCall = 1000;
+        var dir = NewPath("delete-many-concurrent") + "/";
+        string FilePath(int call, int file) => $"{dir}call-{call:D3}/file-{file:D3}";
+
+        // The last call's files are never targeted and must survive.
+        for (var call = 0; call <= calls; call++)
+        {
+            for (var file = 0; file < filesPerCall; file++)
+            {
+                await Op.WriteAsync(FilePath(call, file), RandomBytes(1), cancellationToken: CT);
+            }
+        }
+
+        var deletions = Enumerable.Range(0, calls).Select(call => Task.Run(() => Op.DeleteManyAsync(
+            Enumerable.Range(0, targetsPerCall).Select(file => new DeleteInput(FilePath(call, file))), CT), CT));
+        await Task.WhenAll(deletions);
+
+        var remaining = Op.List(dir, new ListOptions { Recursive = true })
+            .Where(e => e.Metadata.IsFile)
+            .Select(e => e.Path)
+            .ToList();
+        Assert.Equal(filesPerCall, remaining.Count);
+        Assert.All(remaining, path => Assert.Contains($"call-{calls:D3}/", path));
+    }
 }

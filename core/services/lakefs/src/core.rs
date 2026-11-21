@@ -55,7 +55,7 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -87,7 +87,7 @@ impl LakefsCore {
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -124,7 +124,7 @@ impl LakefsCore {
         amount: &Option<usize>,
         after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
@@ -167,7 +167,7 @@ impl LakefsCore {
         _args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -198,7 +198,7 @@ impl LakefsCore {
         path: &str,
         _args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -229,10 +229,10 @@ impl LakefsCore {
         path: &str,
         dest: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
-        let d = build_abs_path(&self.root, dest)
+        let d = build_absolute_path(&self.root, dest)
             .trim_end_matches('/')
             .to_string();
 

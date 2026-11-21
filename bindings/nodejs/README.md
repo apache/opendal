@@ -6,7 +6,7 @@
 
 ![OpenDAL Architecture](https://opendal.apache.org/img/architectural.png)
 
-A native Node.js binding for Apache OpenDAL: access S3, GCS, Azure Blob, HDFS, the local filesystem, and 50+ more services through one API.
+A native Node.js binding for Apache OpenDAL: access S3, GCS, Azure Blob, the local filesystem, and other storage services through one API.
 
 We release the OpenDAL Node.js binding independently of the
 [`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
@@ -25,6 +25,26 @@ crate version.
 ```shell
 npm install opendal
 ```
+
+## Build with additional services
+
+The npm native packages enable `services-all` on Linux and macOS and
+`default` on Windows. Both groups are listed in the binding's
+[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/nodejs/Cargo.toml).
+
+To add FTP to the Linux or macOS release service set, run these commands
+from `bindings/nodejs` in a POSIX shell:
+
+```shell
+pnpm install --frozen-lockfile
+NAPI_FEATURES=services-all,services-ftp pnpm build
+```
+
+On Windows, set `$env:NAPI_FEATURES = "services-ftp"` in PowerShell before
+running `pnpm build` to add FTP to the default services.
+
+Layers such as `RetryLayer` and `ThrottleLayer` are built in. Exposing a
+new Rust layer requires Node.js binding code.
 
 ## Quickstart
 

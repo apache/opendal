@@ -42,7 +42,7 @@ is always available; enable any other service — including `fs` — with its
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", features = ["services-s3"] }
+opendal = { version = "0.59", features = ["services-s3"] }
 ```
 
 ## Useful Links

@@ -70,12 +70,14 @@ pub struct UpyunCore {
 
 /// Build the folder key for a directory path, without its trailing slash.
 ///
-/// `build_abs_path` returns an empty string for the root of a service whose root is `/`, so
+/// `build_absolute_path` returns an empty string for the root of a service whose root is `/`, so
 /// slicing off the last byte underflows there. `Operator::create_dir` only checks that the path
 /// ends with `/`, and `/` does, so the root reaches this code and a library call panics instead of
 /// returning an error. `trim_end_matches` is what the sibling services use and is total.
 fn folder_path(root: &str, path: &str) -> String {
-    build_abs_path(root, path).trim_end_matches('/').to_string()
+    build_absolute_path(root, path)
+        .trim_end_matches('/')
+        .to_string()
 }
 
 impl Debug for UpyunCore {
@@ -120,7 +122,7 @@ impl UpyunCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -143,7 +145,7 @@ impl UpyunCore {
     }
 
     pub async fn info(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -171,7 +173,7 @@ impl UpyunCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -210,7 +212,7 @@ impl UpyunCore {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -237,8 +239,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -272,8 +274,8 @@ impl UpyunCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = format!("/{}/{}", self.bucket, build_abs_path(&self.root, from));
-        let to = build_abs_path(&self.root, to);
+        let from = format!("/{}/{}", self.bucket, build_absolute_path(&self.root, from));
+        let to = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -333,7 +335,7 @@ impl UpyunCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -378,7 +380,7 @@ impl UpyunCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -414,7 +416,7 @@ impl UpyunCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -446,7 +448,7 @@ impl UpyunCore {
         iter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://v0.api.upyun.com/{}/{}",
@@ -679,7 +681,7 @@ mod tests {
 
     #[test]
     fn folder_path_handles_the_service_root() {
-        // build_abs_path yields "" here; the previous `path[..path.len() - 1]` underflowed.
+        // build_absolute_path yields "" here; the previous `path[..path.len() - 1]` underflowed.
         assert_eq!(folder_path("/", "/"), "");
     }
 

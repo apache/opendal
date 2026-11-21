@@ -79,6 +79,7 @@ impl MemoryBackend {
             stat: true,
             list: true,
             list_with_recursive: true,
+            list_with_start_after: true,
             ..Default::default()
         };
 
@@ -126,9 +127,9 @@ impl Service for MemoryBackend {
     }
 
     async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p)? {
@@ -150,7 +151,7 @@ impl Service for MemoryBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
@@ -162,8 +163,23 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let p = build_abs_path(&self.root, path);
-        let keys = self.core.scan(&p)?;
+        let p = build_absolute_path(&self.root, path);
+        let start_after = args
+            .start_after()
+            .map(|v| build_absolute_path(&self.root, v));
+        let mut keys = self.core.scan(&p, start_after.as_deref())?;
+
+        // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
+        // `d/y` would still yield `d/`, which sorts at or before the marker, so drop all of `d/`.
+        if !args.recursive()
+            && let Some(marker) = start_after.as_deref()
+            && let Some(rest) = marker.strip_prefix(p.as_str())
+            && let Some(idx) = rest.find('/')
+        {
+            let dir = &marker[..p.len() + idx + 1];
+            keys.retain(|key| !key.starts_with(dir));
+        }
+
         let lister = MemoryLister::new(&self.root, keys);
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
@@ -217,7 +233,7 @@ impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let value = match backend.core.get(&p)? {
             Some(value) => value,
@@ -239,5 +255,49 @@ impl oio::StreamRead for MemoryReader {
             RpRead::new(metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[tokio::test]
+    async fn test_list_with_start_after() {
+        // (name, path, recursive, start_after, expected)
+        let cases: &[(&str, &str, bool, &str, &[&str])] = &[
+            ("before prefix", "a/d/", true, "0", &["a/d/x", "a/d/y"]),
+            ("at key", "a/", true, "a/2", &["a/d/x", "a/d/y", "a/z"]),
+            ("between keys", "a/d/", true, "a/d/w", &["a/d/x", "a/d/y"]),
+            ("key in folder", "a/", true, "a/d/x", &["a/d/y", "a/z"]),
+            ("after prefix", "a/", true, "a0", &[]),
+            ("folds folders", "a/", false, "a/1", &["a/2", "a/d/", "a/z"]),
+            ("before folder", "a/", false, "a/c", &["a/d/", "a/z"]),
+            ("at folder skips it", "a/", false, "a/d/", &["a/z"]),
+            ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
+            ("prefix without slash", "a/d", false, "a/d/x", &[]),
+            ("list root", "/", false, "a/2", &["a0", "b/"]),
+            ("list root recursively", "/", true, "a0", &["b/1"]),
+        ];
+
+        for root in ["/", "/root/"] {
+            let op = Operator::new(services::Memory::default().root(root)).unwrap();
+            for path in ["a/1", "a/2", "a/d/x", "a/d/y", "a/z", "a0", "b/1"] {
+                op.write(path, "x").await.unwrap();
+            }
+
+            for &(name, path, recursive, start_after, expected) in cases {
+                let actual: Vec<String> = op
+                    .list_with(path)
+                    .recursive(recursive)
+                    .start_after(start_after)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|e| e.path().to_string())
+                    .collect();
+                assert_eq!(actual, expected, "{name} (root {root})");
+            }
+        }
     }
 }

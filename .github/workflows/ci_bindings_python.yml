@@ -61,6 +61,10 @@ jobs:
         working-directory: "bindings/python"
         run: just lint
 
+      - name: Check Python stable ABI
+        working-directory: "bindings/python"
+        run: cargo check --features abi3
+
   stubs:
     runs-on: ubuntu-latest
     steps:
@@ -109,12 +113,14 @@ jobs:
         with:
           working-directory: bindings/python
 
+      - uses: taiki-e/install-action@just
+
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
         run: |
           uv venv --python=python3.11
-          uv sync --all-extras
+          uv sync --locked --all-extras --group cookbook
           uv run -- maturin develop
 
       # Examples back the snippets shown in the website guide. Running them keeps
@@ -123,3 +129,7 @@ jobs:
         shell: bash
         working-directory: "bindings/python"
         run: uv run -- python examples/getting_started.py
+
+      - name: Run cookbook notebooks
+        working-directory: bindings/python
+        run: just test-notebooks

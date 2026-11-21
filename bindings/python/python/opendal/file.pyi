@@ -36,7 +36,7 @@ class AsyncFile:
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
-    ) -> None: ...
+    ) -> collections.abc.Awaitable[None]: ...
     def close(self, /) -> collections.abc.Awaitable[None]:
         """
         Close this file.
@@ -128,10 +128,18 @@ class AsyncFile:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         coroutine
             An awaitable that returns the current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> collections.abc.Awaitable[bool]:
         """
@@ -312,10 +320,18 @@ class File:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         int
             The current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> bool:
         """

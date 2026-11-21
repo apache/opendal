@@ -46,7 +46,7 @@ impl SwiftLister {
         // Swift listing names are absolute (root-prefixed) and the lister pages
         // by `marker`, so the start-after must be made absolute as well.
         let abs_start_after =
-            start_after.map(|start_after| build_abs_path(&core.root, &start_after));
+            start_after.map(|start_after| build_absolute_path(&core.root, &start_after));
         Self {
             core,
             ctx,
@@ -97,7 +97,7 @@ impl oio::PageList for SwiftLister {
         for status in decoded_response {
             let entry: oio::Entry = match status {
                 ListOpResponse::Subdir { subdir } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), subdir.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), subdir.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }
@@ -111,7 +111,7 @@ impl oio::PageList for SwiftLister {
                     content_type,
                     mut last_modified,
                 } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), name.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), name.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }

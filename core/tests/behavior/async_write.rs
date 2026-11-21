@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -66,6 +67,14 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_write_with_if_match,
             test_writer_write_with_version_conditions
         ))
+    }
+
+    if cap.read && cap.write_with_expires && cap.stat {
+        tests.extend(async_trials!(
+            op,
+            test_write_with_expires,
+            test_write_with_zero_expires
+        ));
     }
 
     if cap.read && cap.write && cap.write_can_append && cap.stat {
@@ -255,6 +264,55 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
             .collect::<HashMap<_, _>>(),
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+/// Both write entry points set expiration on the committed file.
+pub async fn test_write_with_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let writer_path = TEST_FIXTURE.new_file_path();
+    let short_path = TEST_FIXTURE.new_file_path();
+    let expires = Duration::from_secs(2);
+
+    let mut writer = op.writer_with(&writer_path).expires(expires).await?;
+    writer.write("streamed").await?;
+    writer.close().await?;
+    assert_eq!(op.read(&writer_path).await?.to_vec(), b"streamed");
+
+    op.write_with(&path, "written").expires(expires).await?;
+    assert_eq!(op.read(&path).await?.to_vec(), b"written");
+
+    op.write_with(&short_path, "short")
+        .expires(Duration::from_millis(500))
+        .await?;
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while op.exists(&path).await?
+            || op.exists(&writer_path).await?
+            || op.exists(&short_path).await?
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Ok::<_, opendal::Error>(())
+    })
+    .await
+    .expect("writes must expire")?;
+
+    Ok(())
+}
+
+/// Zero cannot create a file with an unlimited lifetime.
+pub async fn test_write_with_zero_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .write_with(&path, "rejected")
+        .expires(Duration::ZERO)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    assert!(!err.is_temporary());
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }

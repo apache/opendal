@@ -112,7 +112,31 @@ jobs:
 
       - name: Check
         working-directory: core
-        run: cargo +${OPENDAL_MSRV} clippy -- -D warnings
+        run: cargo +${OPENDAL_MSRV} clippy --locked --features services-fs -- -D warnings
+
+  check_tls_features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check that GCS with rustls and no default provider excludes aws-lc-rs
+        shell: bash
+        working-directory: core
+        run: |
+          tree=$(cargo tree --locked -p opendal \
+            --no-default-features \
+            --features services-gcs,http-transport-reqwest-rustls-no-provider \
+            --edges normal,build \
+            --prefix none)
+          if grep -E '^aws-lc-rs( |$)' <<< "$tree"; then
+            echo "::error::aws-lc-rs is in the dependency tree for services-gcs with http-transport-reqwest-rustls-no-provider"
+            exit 1
+          fi
 
   build_default_features:
     runs-on: ${{ matrix.os }}

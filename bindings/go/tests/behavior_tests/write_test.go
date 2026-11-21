@@ -1,21 +1,19 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 package opendal_test
 
@@ -71,7 +69,8 @@ func testWriterReadFrom(assert *require.Assertions, op *opendal.Operator, fixtur
 	if !op.Info().GetCapability().WriteCanMulti() {
 		return
 	}
-	content := genFixedBytes(contentMaxSize(op.Info().GetCapability()))
+	size := min(uint(2*copyBufferSize+17), contentMaxSize(op.Info().GetCapability()))
+	content := genFixedBytes(size)
 	file, err := os.CreateTemp("", "opendal-upload-*")
 	assert.Nil(err)
 	defer func() { _ = os.Remove(file.Name()) }()
@@ -225,19 +224,21 @@ func testWriterReadFromResults(assert *require.Assertions, op *opendal.Operator,
 }
 
 func testWriterReadFromBufferOwnership(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
-	if !op.Info().GetCapability().WriteCanMulti() {
+	const size = copyBufferSize*3 + 19
+	tail := []byte("caller owned tail")
+	cap := op.Info().GetCapability()
+	if !cap.WriteCanMulti() || contentMaxSize(cap) < uint(size+len(tail)) {
 		return
 	}
 	path := fixture.NewFilePath()
 	w, err := op.Writer(path, opendal.WriteWithChunk(copyBufferSize*4))
 	assert.Nil(err)
 	// Use different data in each buffer to detect a writer that keeps the input slice.
-	data := make([]byte, copyBufferSize*3+19)
+	data := make([]byte, size)
 	for i := range data {
 		data[i] = byte(i/copyBufferSize + 1)
 	}
 	n, copyErr := w.ReadFrom(bytes.NewReader(data))
-	tail := []byte("caller owned tail")
 	_, writeErr := w.Write(tail)
 	want := append(append([]byte(nil), data...), tail...)
 	clear(tail)

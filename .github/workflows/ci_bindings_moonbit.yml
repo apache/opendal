@@ -19,30 +19,27 @@ name: Bindings MoonBit CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
-    paths: &paths
-      - "core/**"
-      - "bindings/moonbit/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_moonbit.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/moonbit/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_moonbit.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-moonbit-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
-  MOONBIT_VERSION: 0.10.6+80dc50f24
+  MOONBIT_VERSION: 0.10.14+7d59c7ec9
 
 jobs:
   test:

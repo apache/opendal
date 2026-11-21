@@ -26,10 +26,23 @@ on:
       cases:
         required: true
         type: string
+      enable_secrets:
+        required: false
+        type: boolean
+        default: false
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
 
 concurrency:
-  group: binding_go-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-binding_go-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Prevent parallel cache building in `test` job by building cache in a separate job
@@ -72,6 +85,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
+        if: inputs.enable_secrets
         shell: bash
         run: |
           echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
@@ -90,7 +104,7 @@ jobs:
         run: sudo apt install zstd
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
-        run: brew install zstd libffi
+        run: brew install zstd
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
@@ -102,6 +116,16 @@ jobs:
           go work use ./opendal/bindings/go
           go work use ./opendal/bindings/go/tests/behavior_tests
       - name: Test Core
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        uses: ./.github/actions/test_behavior_binding_go
+        with:
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
+
+      - name: Retry Test Core
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
         uses: ./.github/actions/test_behavior_binding_go
         with:
           setup: ${{ matrix.cases.setup }}

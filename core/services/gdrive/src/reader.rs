@@ -48,7 +48,7 @@ impl oio::StreamRead for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.core.root, path);
+        let abs_path = build_absolute_path(&backend.core.root, path);
         let resp = match backend.core.gdrive_get(&self.ctx, path, range).await {
             Ok(resp) => resp,
             Err(err) if err.kind() == ErrorKind::NotFound => {

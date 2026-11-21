@@ -48,6 +48,16 @@ impl MemcachedBuilder {
         self
     }
 
+    /// Enable TLS for TCP connections.
+    ///
+    /// Defaults to false. The service loads native trust roots when it is built
+    /// and verifies the server certificate against the endpoint host or IP address.
+    /// Enabling TLS for a Unix socket returns ConfigInvalid when building the service.
+    pub fn enable_tls(mut self, enable: bool) -> Self {
+        self.config.enable_tls = enable;
+        self
+    }
+
     /// set the working directory, all operations will be performed under it.
     ///
     /// default: "/"
@@ -148,11 +158,23 @@ impl Builder for MemcachedBuilder {
                         .with_context("service", MEMCACHED_SCHEME)
                         .with_context("endpoint", &endpoint_raw)
                 })?;
-                Endpoint::Tcp(format!("{host}:{port}"))
+                let address = format!("{host}:{port}");
+                if self.config.enable_tls {
+                    Endpoint::tls(address, host)?
+                } else {
+                    Endpoint::Tcp(address)
+                }
             }
 
             #[cfg(unix)]
             "unix" => {
+                if self.config.enable_tls {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "TLS is only supported for TCP endpoints",
+                    )
+                    .with_context("service", MEMCACHED_SCHEME));
+                }
                 let path = parsed.path();
                 if path.is_empty() {
                     return Err(Error::new(
@@ -216,6 +238,7 @@ impl MemcachedBackend {
             stat: true,
             write: true,
             write_can_empty: true,
+            write_with_expires: true,
             delete: true,
             shared: true,
             ..Default::default()
@@ -265,9 +288,9 @@ impl Service for MemcachedBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p).await?;
@@ -292,13 +315,13 @@ impl Service for MemcachedBackend {
         Ok(output)
     }
 
-    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        let output: MemcachedWriter = {
-            let p = build_abs_path(&self.root, path);
-            Ok(MemcachedWriter::new(self.core.clone(), p))
-        }?;
-
-        Ok(output)
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let path = build_absolute_path(&self.root, path);
+        Ok(MemcachedWriter::new(
+            self.core.clone(),
+            path,
+            args.expires(),
+        ))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -363,6 +386,17 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn build_rejects_tls_for_unix_socket() {
+        let err = MemcachedBuilder::default()
+            .endpoint("unix:///tmp/opendal-memcached.sock")
+            .enable_tls(true)
+            .build()
+            .expect_err("TLS must reject Unix endpoints");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
 
     /// memcached reads an expiration over 30 days as an absolute unix timestamp,
     /// so a longer offset would store the entry already expired. Refuse it at

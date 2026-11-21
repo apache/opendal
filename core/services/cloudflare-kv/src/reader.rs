@@ -52,7 +52,7 @@ impl oio::StreamRead for CloudflareKvReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let args = self.args.clone();
-        let path = build_abs_path(&backend.core.info.root(), path);
+        let path = build_absolute_path(&backend.core.info.root(), path);
         let resp = backend.core.get(&self.ctx, &path).await?;
 
         let status = resp.status();

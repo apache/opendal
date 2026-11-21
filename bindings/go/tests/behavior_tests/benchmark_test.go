@@ -1,21 +1,19 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 package opendal_test
 
@@ -51,49 +49,27 @@ func BenchmarkOpenDALCopy(b *testing.B) {
 				_ = op.Delete(source)
 				_ = op.Delete(destination)
 			})
-			data := make([]byte, objectSize)
-			if _, err := op.Write(source, data); err != nil {
+			if _, err := op.Write(source, make([]byte, objectSize)); err != nil {
 				b.Fatal(err)
 			}
-			for _, native := range []bool{true, false} {
-				name := "native"
-				if !native {
-					name = "buffered"
+			b.SetBytes(int64(objectSize))
+			b.ReportAllocs()
+			for b.Loop() {
+				r, err := op.Reader(source)
+				if err != nil {
+					b.Fatal(err)
 				}
-				b.Run(name, func(b *testing.B) {
-					b.SetBytes(int64(len(data)))
-					b.ReportAllocs()
-					var copyTime, closeTime time.Duration
-					b.ResetTimer()
-					for i := 0; i < b.N; i++ {
-						r, err := op.Reader(source)
-						if err != nil {
-							b.Fatal(err)
-						}
-						w, err := op.Writer(destination)
-						if err != nil {
-							_ = r.Close()
-							b.Fatal(err)
-						}
-						var n int64
-						copyStart := time.Now()
-						if native {
-							n, err = io.Copy(w, r)
-						} else {
-							n, err = w.ReadFrom(struct{ io.Reader }{r})
-						}
-						copyTime += time.Since(copyStart)
-						closeStart := time.Now()
-						readCloseErr := r.Close()
-						_, writeCloseErr := w.Close()
-						closeTime += time.Since(closeStart)
-						if err != nil || readCloseErr != nil || writeCloseErr != nil || n != int64(len(data)) {
-							b.Fatalf("copy = (%d, %v), close = (%v, %v)", n, err, readCloseErr, writeCloseErr)
-						}
-					}
-					b.ReportMetric(float64(copyTime.Nanoseconds())/float64(b.N), "copy-ns/op")
-					b.ReportMetric(float64(closeTime.Nanoseconds())/float64(b.N), "close-ns/op")
-				})
+				w, err := op.Writer(destination)
+				if err != nil {
+					_ = r.Close()
+					b.Fatal(err)
+				}
+				n, err := io.Copy(w, r)
+				readCloseErr := r.Close()
+				_, writeCloseErr := w.Close()
+				if err != nil || readCloseErr != nil || writeCloseErr != nil || n != int64(objectSize) {
+					b.Fatalf("copy = (%d, %v), close = (%v, %v)", n, err, readCloseErr, writeCloseErr)
+				}
 			}
 		})
 	}
@@ -182,7 +158,7 @@ func BenchmarkReaderWriteTo(b *testing.B) {
 			if _, err := op.Write(path, data); err != nil {
 				b.Fatal(err)
 			}
-			for _, size := range []int{0, 256 << 10} {
+			for _, size := range []int{0, 32 << 10} {
 				name := "io.Copy"
 				if size != 0 {
 					name = fmt.Sprint(size)

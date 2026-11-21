@@ -43,7 +43,12 @@ Use `opendal.ReadWithRangeFrom(offset)` to read from `offset` to the end.
 ## Stream a large file
 
 Don't load gigabytes into memory — use a `Reader`, which implements
-`io.ReadSeekCloser`, and read in chunks:
+`io.ReadSeekCloser`, and read in chunks.
+
+`Reader.Read` returns after one read from the storage library.
+It can return fewer bytes than the buffer can hold, even before EOF.
+Process `buf[:n]` before you check the returned error.
+Use `io.ReadFull(r, buf)` if you need to fill the buffer.
 
 ```go
 r, err := op.Reader("big.bin")
@@ -99,20 +104,16 @@ if _, err := w.Close(); err != nil {
 Use `io.Copy(w, src)` to upload from an `io.Reader`, such as an open local file.
 Use `io.Copy(dst, r)` to download to an `io.Writer`.
 
-The copy uses native buffers between an OpenDAL `Reader` and `Writer`.
-Both must use the same native library. They can belong to different operators.
-The copy reads up to one buffer ahead of the current write.
-After a write error, the reader can have consumed more bytes than the copy reports.
-The byte count excludes partial writes from a failed buffer.
+When Go selects OpenDAL's `Writer.ReadFrom` or `Reader.WriteTo`, the method
+allocates one 256 KiB buffer and reuses it until EOF or an error. It returns the
+number of bytes written, including any bytes written before an error.
 
-For other readers and writers, `ReadFrom` and `WriteTo` use one 256 KiB Go buffer
-per call. Each call reuses its buffer until the copy stops.
+Both methods leave the streams open. Call `w.Close()` to complete the write and
+get the object's metadata. Check both the copy and close errors. Close the
+reader after use.
 
-The copy leaves both streams open. Call `w.Close()` to complete the write.
-Check both the copy and close errors. Close the reader after use.
-
-`io.CopyBuffer` also calls `ReadFrom` or `WriteTo` when available.
-These methods do not use the buffer supplied to `io.CopyBuffer`.
+`io.CopyBuffer` also uses the method's own buffer when it selects either
+OpenDAL copy method.
 
 ## Upload concurrently
 
@@ -170,11 +171,84 @@ The iteration is identical; only the option changes.
 ## Delete a file or a whole tree
 
 ```go
-err := op.Delete("path/to/file")                              // single path
-err = op.Delete("dir/", opendal.DeleteWithRecursive(true))    // path and everything under it
+err := op.Delete("path/to/file")
+err = op.Delete("a/", opendal.DeleteWithRecursive(true))
 ```
 
 `Delete` succeeds even if the path does not exist.
+
+Pass a trailing slash to limit recursive deletion to the directory. On
+prefix-based services, `"a"` can also match entries under `"ab/"`.
+
+## Delete many paths
+
+```go
+err := op.Remove([]string{"a.txt", "b.txt", "c.txt"})
+```
+
+`Remove` uses batch deletion where the service supports it. It submits the whole
+slice to the C library in one call. Submission stops at the first error, and
+earlier paths may already have been deleted.
+
+Use `WithDeleter` to submit paths as you discover them or to set per-path options.
+It flushes pending deletions when your function returns nil and releases the
+handle on every exit, including a panic.
+
+```go
+err := op.WithDeleter(func(d *opendal.Deleter) error {
+	for _, path := range paths {
+		if err := d.Delete(path); err != nil {
+			return err
+		}
+	}
+	return nil
+})
+```
+
+If the function returns an error or panics, `WithDeleter` releases the handle
+without flushing. `Delete` can complete deletions immediately or flush a full
+batch, so some paths may already be gone.
+
+`Remove` uses default options for every path. On a service that supports
+versioned deletion, specify a version with `Deleter.Delete`.
+
+```go
+err := op.WithDeleter(func(d *opendal.Deleter) error {
+	return d.Delete("a.txt", opendal.DeleteWithVersion("v1"))
+})
+```
+
+Use `Deleter` directly when you need to retry a failed batch. `Flush` leaves the
+handle open for retries. Always release the handle with `Close` or `Discard`.
+
+```go
+func deleteAsDiscovered(op *opendal.Operator, paths []string) error {
+	deleter, err := op.Deleter()
+	if err != nil {
+		return err
+	}
+	// Release the handle if a submission or flush fails.
+	defer deleter.Discard()
+
+	for _, path := range paths {
+		if err := deleter.Delete(path); err != nil {
+			return err
+		}
+	}
+	// A failed batch flush keeps pending paths queued for retry.
+	var flushErr error
+	for range 3 {
+		if flushErr = deleter.Flush(); flushErr == nil {
+			break
+		}
+	}
+	if flushErr != nil {
+		return flushErr
+	}
+	// Close flushes pending entries and releases the handle.
+	return deleter.Close()
+}
+```
 
 ## Create a directory
 

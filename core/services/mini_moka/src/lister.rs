@@ -47,7 +47,7 @@ impl oio::List for MiniMokaLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self.entries.next() {
             Some((key, metadata)) => {
-                let rel_path = build_rel_path(&self.root, &key);
+                let rel_path = build_relative_path(&self.root, &key);
 
                 Ok(Some(oio::Entry::new(&rel_path, metadata)))
             }

@@ -107,6 +107,8 @@ def test_sync_reader_read_sizes(operator):
         reader.seek(2)
         assert reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        reader.tell()
     operator.delete(filename)
 
 
@@ -244,6 +246,8 @@ async def test_async_reader_read_sizes(async_operator):
         await reader.seek(2)
         assert await reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        await reader.tell()
     await async_operator.delete(filename)
 
 

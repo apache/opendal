@@ -24,6 +24,14 @@ encoded size, including indexes, must not exceed `u16::MAX` bytes. Construction
 panics when a block exceeds this bound. Services and callers should enforce
 their own smaller protocol limits before reaching this representation boundary.
 
+## Content language
+
+Content-Language is standard system metadata describing the intended audience's
+languages as a language tag or a comma-separated list of tags. A service that
+supports setting Content-Language on write stores the value on the object and
+returns it on subsequent stat operations. It may also return it on reads when
+the response includes it.
+
 ## Content length
 
 Every file `Metadata` contains the complete object length by construction.

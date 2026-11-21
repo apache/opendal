@@ -28,6 +28,7 @@ on:
       - "bindings/**"
       - "integrations/**"
       - "website/**"
+      - ".asf.yaml"
       - ".github/actions/setup/**"
       - ".github/actions/setup-ocaml/**"
       - ".github/workflows/docs.yml"

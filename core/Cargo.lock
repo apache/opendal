@@ -7134,6 +7134,7 @@ dependencies = [
  "opendal-layer-fastmetrics",
  "opendal-layer-fastrace",
  "opendal-layer-foyer",
+ "opendal-layer-hedge",
  "opendal-layer-hotpath",
  "opendal-layer-immutable-index",
  "opendal-layer-logging",
@@ -7424,6 +7425,17 @@ dependencies = [
  "opendal-service-fs",
  "size",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-hedge"
+version = "0.59.5"
+dependencies = [
+ "futures",
+ "opendal-core",
+ "opendal-layer-retry",
+ "opendal-layer-timeout",
  "tokio",
 ]
 

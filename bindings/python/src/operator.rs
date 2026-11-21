@@ -23,7 +23,6 @@ use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
-use pyo3::types::PyDeltaAccess;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
@@ -107,9 +106,18 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
     } else if let Ok(delta) = value.cast::<PyDelta>() {
-        let micros = i128::from(delta.get_days()) * 86_400_000_000
-            + i128::from(delta.get_seconds()) * 1_000_000
-            + i128::from(delta.get_microseconds());
+        // Use the base descriptors so the stable ABI reads the stored components
+        // even if a timedelta subclass overrides the attributes.
+        let delta_type = value.py().get_type::<PyDelta>();
+        let component = |name: &str| -> PyResult<i128> {
+            delta_type
+                .getattr(name)?
+                .call_method1("__get__", (delta,))?
+                .extract()
+        };
+        let micros = component("days")? * 86_400_000_000
+            + component("seconds")? * 1_000_000
+            + component("microseconds")?;
         Ok(format!("{micros}us"))
     } else if value.cast::<PyDict>().is_ok() {
         Err(Unsupported::new_err(

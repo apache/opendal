@@ -84,6 +84,14 @@ def catalog():
         "description": "Contains an explicit incompatible API or behavior change.",
         "color": "d93f0b",
     }
+    labels["ci/nightly"] = {
+        "description": "Automated nightly CI regression or health report.",
+        "color": "b60205",
+    }
+    labels["ci/live-service"] = {
+        "description": "Live external cloud service CI failure.",
+        "color": "fbca04",
+    }
     return labels
 
 

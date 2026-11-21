@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -101,6 +102,15 @@ pub struct Writer {
     /// Keep a reference to write context in writer.
     ctx: Arc<WriteContext>,
     inner: WriteGenerator<oio::Writer>,
+}
+
+impl fmt::Debug for Writer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+            .field("chunk", &self.ctx.options().chunk())
+            .field("append", &self.ctx.args().append())
+            .finish_non_exhaustive()
+    }
 }
 
 impl Writer {
@@ -447,6 +457,22 @@ mod tests {
             .await
             .expect("write must succeed");
         writer.close().await.expect("close must succeed");
+
+        let buf = op.read(path).await.expect("read to end mut succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_with_chunk_zero() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let path = "test_file";
+
+        let content = vec![b'x'; 4096];
+        op.write_with(path, content.clone())
+            .chunk(0)
+            .await
+            .expect("write with chunk 0 must succeed");
 
         let buf = op.read(path).await.expect("read to end mut succeed");
 

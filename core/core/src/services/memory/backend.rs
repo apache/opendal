@@ -74,6 +74,7 @@ impl MemoryBackend {
             write_with_content_type: true,
             write_with_content_disposition: true,
             write_with_content_encoding: true,
+            write_with_content_language: true,
             write_with_if_not_exists: true,
             delete: true,
             stat: true,
@@ -245,14 +246,11 @@ impl oio::StreamRead for MemoryReader {
             }
         };
 
-        let total_size = value.content.len() as u64;
         let content = value
             .content
             .slice(range.to_content_range(value.content.len())?);
-        let metadata = MetadataBuilder::file(total_size);
-        let metadata = metadata.build();
         Ok((
-            RpRead::new(metadata),
+            RpRead::new(value.metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
@@ -261,6 +259,19 @@ impl oio::StreamRead for MemoryReader {
 #[cfg(test)]
 mod tests {
     use crate::*;
+
+    #[tokio::test]
+    async fn test_write_content_language_overwrite() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let written = op.write_with(path, "hello").content_language("en").await?;
+        assert_eq!(written.content_language(), Some("en"));
+        assert_eq!(op.stat(path).await?.content_language(), Some("en"));
+
+        op.write(path, "bonjour").await?;
+        assert_eq!(op.stat(path).await?.content_language(), None);
+        Ok(())
+    }
 
     #[tokio::test]
     async fn test_list_with_start_after() {

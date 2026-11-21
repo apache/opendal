@@ -34,7 +34,8 @@ license-files = [
 ]
 name = "opendal"
 readme = "README.md"
-requires-python = ">=3.10"
+# Retire each Python version in the first OpenDAL Python release line after its upstream end of life.
+requires-python = ">=3.11"
 
 dynamic = ['version']
 

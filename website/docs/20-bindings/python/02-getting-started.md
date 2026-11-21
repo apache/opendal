@@ -12,7 +12,7 @@ This program builds an operator, writes a file, reads it back, inspects its
 metadata, and deletes it. It runs against the in-memory service with no
 credentials, so you can run it right after installing.
 
-Install from PyPI:
+Use Python 3.11 or later and install from PyPI:
 
 ```shell
 pip install opendal
@@ -54,12 +54,13 @@ credentials. [Services](/services) lists the backends and their configuration ke
 
 ## Build with additional services
 
-PyPI wheels enable the `services-all` group in the binding's
-[Cargo.toml](https://github.com/apache/opendal/blob/main/bindings/python/Cargo.toml).
-Other services listed in `Cargo.toml`, such as D1 and Foyer, are separate
-opt-in features.
+PyPI wheels ship the largest verified service set for each target. Every wheel
+includes the common `services-all` group. The 64-bit Linux, macOS, and Windows
+wheels also include Foyer. The 64-bit Linux and macOS wheels include SFTP. See the
+[wheel service matrix](https://github.com/apache/opendal/blob/main/bindings/python/README.md#services-in-pypi-wheels)
+for target architectures.
 
-To add D1 to the wheel's service set, run this from `bindings/python` in
+To add D1 to the common service set, run this from `bindings/python` in
 an active virtual environment with Maturin installed:
 
 ```shell

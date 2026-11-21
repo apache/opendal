@@ -27,6 +27,24 @@ mkdir -p "${azurite_data_dir}"
 
 npm install -g "azurite@${azurite_version}" --no-audit --no-fund --loglevel=error
 
+# Azure rejects a ranged GET starting at EOF. Keep full GETs of empty blobs valid.
+# Remove this patch once https://github.com/Azure/Azurite/issues/318 is fixed in the pinned release.
+if [[ "${azurite_version}" == 3.38.0 ]]; then
+  azurite_handler="$(npm root -g)/azurite/dist/src/blob/handlers/BlobHandler.js"
+  patch --batch --forward --fuzz=0 "${azurite_handler}" <<'PATCH'
+--- BlobHandler.js
++++ BlobHandler.js
+@@ -704,6 +704,5 @@
+         const rangeStart = rangesParts ? rangesParts[0] : 0;
+         let rangeEnd = rangesParts ? rangesParts[1] : Infinity;
+-        // Start Range is bigger than blob length
+-        if (rangeStart > blob.properties.contentLength) {
++        if (rangesParts && rangeStart >= blob.properties.contentLength) {
+             throw StorageErrorFactory_1.default.getInvalidPageRange2(context.contextId, `bytes */${blob.properties.contentLength}`);
+         }
+PATCH
+fi
+
 nohup azurite-blob \
   --location "${azurite_data_dir}" \
   --blobHost 0.0.0.0 \

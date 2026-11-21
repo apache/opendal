@@ -92,12 +92,20 @@ def test_from_config_cache_durations(service_name, scheme, duration):
     assert args[1]["time_to_idle"] == expected
 
 
+class TimedeltaSubclass(timedelta):
+    microseconds = 0
+
+
 @pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
 @pytest.mark.parametrize(
     ("duration", "expected"),
     [
+        (timedelta(0), "0us"),
         (timedelta(microseconds=-1), "-1us"),
+        (timedelta(days=2, seconds=3, microseconds=4), "172803000004us"),
+        (timedelta.min, "-86399999913600000000us"),
         (timedelta.max, "86399999999999999999us"),
+        (TimedeltaSubclass(microseconds=1), "1us"),
     ],
 )
 def test_from_config_timedelta_precision(operator_type, duration, expected):

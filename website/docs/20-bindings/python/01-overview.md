@@ -36,6 +36,10 @@ Released and stable, published to [PyPI](https://pypi.org/project/opendal/),
 
 ## Installation
 
+The OpenDAL Python binding requires Python 3.11 or later. We retire each Python
+version in the first binding release line after that Python version reaches
+[upstream end of life](https://devguide.python.org/versions/).
+
 Install from PyPI:
 
 ```shell

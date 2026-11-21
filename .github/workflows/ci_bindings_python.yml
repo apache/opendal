@@ -18,23 +18,27 @@
 name: Bindings Python CI
 
 on:
-  push:
-    branches:
-      - main
-    paths: &paths
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_python.yml"
-      - "bindings/python/**"
-      - "core/**"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
+      - "core/layers/mime-guess/**"
+      - "bindings/python/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_python.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-python-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -60,6 +64,10 @@ jobs:
       - name: Run Lints
         working-directory: "bindings/python"
         run: just lint
+
+      - name: Check Python stable ABI
+        working-directory: "bindings/python"
+        run: cargo check --features abi3
 
   stubs:
     runs-on: ubuntu-latest

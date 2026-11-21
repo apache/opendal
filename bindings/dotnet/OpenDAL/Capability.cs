@@ -66,6 +66,7 @@ public struct Capability
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
+        WriteWithContentLanguage = native.writeWithContentLanguage != 0;
         WriteWithCacheControl = native.writeWithCacheControl != 0;
         WriteWithIfMatch = native.writeWithIfMatch != 0;
         WriteWithIfNoneMatch = native.writeWithIfNoneMatch != 0;
@@ -282,6 +283,11 @@ public struct Capability
     /// Indicates if Content-Encoding can be specified during write operations.
     /// </summary>
     public bool WriteWithContentEncoding { get; private set; }
+
+    /// <summary>
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    /// </summary>
+    public bool WriteWithContentLanguage { get; private set; }
 
     /// <summary>
     /// Indicates if Cache-Control can be specified during write operations.

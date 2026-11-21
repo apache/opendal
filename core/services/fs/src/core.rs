@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(unix)]
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
@@ -407,6 +408,107 @@ mod tests {
             "dangling symlink must be listed as Unknown: {modes:?}"
         );
         assert_eq!(modes.get("real"), Some(&EntryMode::FILE));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_dangling_symlink() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::os::unix::fs::symlink("nope.txt", root.join("dangle.txt")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        op.delete("dangle.txt/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+
+        op.delete("dangle.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_symlink_to_dir_and_keeps_target() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("realdir")).unwrap();
+        std::fs::write(root.join("realdir").join("keep"), b"data").unwrap();
+        let dir_link = root.join("linkdir");
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        for (path, recursive) in [("linkdir", false), ("linkdir/", false), ("linkdir/", true)] {
+            std::os::unix::fs::symlink("realdir", &dir_link).unwrap();
+            op.delete_with(path).recursive(recursive).await.unwrap();
+            assert_eq!(
+                std::fs::symlink_metadata(&dir_link).unwrap_err().kind(),
+                std::io::ErrorKind::NotFound
+            );
+            assert_eq!(std::fs::read(root.join("realdir/keep")).unwrap(), b"data");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_file_symlink_requires_file_path() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let target = root.join("real.txt");
+        let link = root.join("link.txt");
+        std::fs::write(&target, b"data").unwrap();
+        std::os::unix::fs::symlink("real.txt", &link).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let err = op.delete("link.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+
+        op.delete("link.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(&link).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_symlink_to_dir_as_dir() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        std::fs::create_dir(root.join("real")).unwrap();
+        std::os::unix::fs::symlink("real", root.join("link")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let entries = op.list("/").await.unwrap();
+        let modes: std::collections::HashMap<String, EntryMode> = entries
+            .iter()
+            .map(|e| (e.path().to_string(), e.metadata().mode()))
+            .collect();
+
+        assert_eq!(
+            modes.get("link/"),
+            Some(&EntryMode::DIR),
+            "symlink to a directory must be listed as a directory: {modes:?}"
+        );
+        assert_eq!(modes.get("real/"), Some(&EntryMode::DIR));
     }
 
     #[tokio::test]

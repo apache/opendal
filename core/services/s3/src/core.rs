@@ -32,6 +32,7 @@ use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -418,6 +419,10 @@ impl S3Core {
 
         if let Some(encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, encoding);
+        }
+
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
         }
 
         if let Some(cache_control) = args.cache_control() {
@@ -1003,6 +1008,10 @@ impl S3Core {
 
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
+        if let Some(content_language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, content_language);
         }
 
         // Set storage class header
@@ -2213,7 +2222,9 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
-        403 => (ErrorKind::PermissionDenied, false),
+        // Some S3-compatible services answer a missing or invalid credential
+        // with 401 instead of 403; both mean the request was not authorized.
+        401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
         // Service like R2 could return 499 error with a message like:
@@ -2338,5 +2349,18 @@ mod error_tests {
             parse_s3_error_code(no_condition, "PreconditionFailed"),
             None
         );
+    }
+
+    #[test]
+    fn unauthorized_and_forbidden_are_permission_denied() {
+        for status in [401, 403] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
     }
 }

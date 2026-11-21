@@ -1815,6 +1815,9 @@ impl Operator {
     /// # Notes
     ///
     /// - Deleting a file that does not exist is a successful no-op.
+    /// - On the `fs` service, deleting a symbolic link removes the link and
+    ///   leaves its target intact. Use a path without a trailing `/` to delete
+    ///   a dangling link.
     ///
     /// # Examples
     ///

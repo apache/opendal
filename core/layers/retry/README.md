@@ -1,6 +1,8 @@
 # Apache OpenDAL™ Retry Layer
 
 `opendal-layer-retry` retries temporarily failed operations and stateful I/O bodies.
+Use `RetryLayer::with_budget` with a custom `RetryBudget` to limit retries when
+multiple operations share a backend.
 
 ## Use through `opendal`
 

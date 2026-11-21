@@ -31,6 +31,7 @@ use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
+use object_store::Attribute;
 use object_store::Attributes;
 use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
@@ -63,10 +64,13 @@ const DEFAULT_GET_RANGES_GAP: usize = object_store::OBJECT_STORE_COALESCE_DEFAUL
 
 fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
     let mut attributes = Attributes::new();
+    if let Some(language) = meta.content_language() {
+        attributes.insert(Attribute::ContentLanguage, language.to_owned().into());
+    }
     if let Some(user_meta) = meta.user_metadata() {
         for (key, value) in user_meta {
             attributes.insert(
-                object_store::Attribute::Metadata(key.to_string().into()),
+                Attribute::Metadata(key.to_string().into()),
                 value.to_string().into(),
             );
         }
@@ -513,6 +517,9 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
+        if let Some(language) = opts.attributes.get(&Attribute::ContentLanguage) {
+            future_write = future_write.content_language(language.as_ref());
+        }
         let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
                 object_store::Error::Precondition { path, source }
@@ -551,23 +558,22 @@ impl ObjectStore for OpendalStore {
         // Handle attributes if provided
         for (key, value) in opts.attributes.iter() {
             match key {
-                object_store::Attribute::CacheControl => {
+                Attribute::CacheControl => {
                     options.cache_control = Some(value.to_string());
                 }
-                object_store::Attribute::ContentDisposition => {
+                Attribute::ContentDisposition => {
                     options.content_disposition = Some(value.to_string());
                 }
-                object_store::Attribute::ContentEncoding => {
+                Attribute::ContentEncoding => {
                     options.content_encoding = Some(value.to_string());
                 }
-                object_store::Attribute::ContentLanguage => {
-                    // no support
-                    continue;
+                Attribute::ContentLanguage => {
+                    options.content_language = Some(value.to_string());
                 }
-                object_store::Attribute::ContentType => {
+                Attribute::ContentType => {
                     options.content_type = Some(value.to_string());
                 }
-                object_store::Attribute::Metadata(k) => {
+                Attribute::Metadata(k) => {
                     user_metadata.insert(k.to_string(), value.to_string());
                 }
                 _ => {}
@@ -967,6 +973,60 @@ mod tests {
                 .unwrap(),
             bytes
         );
+    }
+
+    #[tokio::test]
+    async fn test_content_language_round_trip() -> object_store::Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let store = OpendalStore::new(op);
+        let language = "fr-CA, en";
+        let attributes = Attributes::from_iter([(Attribute::ContentLanguage, language)]);
+        let single = Path::from("single.txt");
+        let multipart = Path::from("multipart.txt");
+        let body = Bytes::from_static(b"hello");
+
+        store
+            .put_opts(
+                &single,
+                body.clone().into(),
+                PutOptions {
+                    attributes: attributes.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let mut upload = store
+            .put_multipart_opts(
+                &multipart,
+                PutMultipartOptions {
+                    attributes,
+                    ..Default::default()
+                },
+            )
+            .await?;
+        upload.put_part(body.clone().into()).await?;
+        upload.complete().await?;
+
+        for path in [single, multipart] {
+            let head = store
+                .get_opts(&path, GetOptions::new().with_head(true))
+                .await?;
+            assert_eq!(
+                head.attributes
+                    .get(&Attribute::ContentLanguage)
+                    .map(AsRef::as_ref),
+                Some(language)
+            );
+            let get = store.get(&path).await?;
+            assert_eq!(
+                get.attributes
+                    .get(&Attribute::ContentLanguage)
+                    .map(AsRef::as_ref),
+                Some(language)
+            );
+            assert_eq!(get.bytes().await?, body);
+        }
+        Ok(())
     }
 
     #[tokio::test]

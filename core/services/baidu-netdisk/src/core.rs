@@ -42,17 +42,22 @@ impl BaiduNetdiskCore {
     }
     pub async fn send(&self, ctx: &OperationContext, req: Request<Buffer>) -> Result<Value> {
         let (parts, body) = req.into_parts();
+        let uri = parts.uri.clone();
+        let method = uri.query().and_then(|query| {
+            query
+                .split('&')
+                .find_map(|pair| pair.strip_prefix("method="))
+        });
         let token = self.signer.token(ctx).await?;
         let request = auth::sign(Request::from_parts(parts.clone(), body.clone()), &token)?;
         let response = ctx.http_transport().send(request).await?;
         let status = response.status();
-        let value: Value = serde_json::from_reader(response.into_body().reader())
-            .map_err(new_json_deserialize_error)?;
+        let value = response_json(response, method)?;
         // Retry once only when the API explicitly rejected an expired access token.
         // filemanager errno=111 instead means that another async task is running.
         if value["error_code"].as_i64() == Some(111) && self.signer.invalidate(&token).await {
             let request = self.sign(ctx, Request::from_parts(parts, body)).await?;
-            return parse_response(ctx.http_transport().send(request).await?);
+            return parse_response(ctx.http_transport().send(request).await?, method);
         }
         check_response(status, value)
     }
@@ -208,11 +213,23 @@ pub fn api_error(code: i64) -> Error {
     }
 }
 
-pub fn parse_response(response: Response<Buffer>) -> Result<Value> {
+fn response_json(response: Response<Buffer>, method: Option<&str>) -> Result<Value> {
     let status = response.status();
-    let value: Value = serde_json::from_reader(response.into_body().reader())
-        .map_err(new_json_deserialize_error)?;
-    check_response(status, value)
+    serde_json::from_reader(response.into_body().reader()).map_err(|source| {
+        let mut error = if status.is_success() {
+            new_json_deserialize_error(source).with_context("status", status.as_str())
+        } else {
+            http_error(status).set_source(source)
+        };
+        if let Some(method) = method {
+            error = error.with_context("baidu_method", method);
+        }
+        error
+    })
+}
+
+pub fn parse_response(response: Response<Buffer>, method: Option<&str>) -> Result<Value> {
+    check_response(response.status(), response_json(response, method)?)
 }
 
 fn check_response(status: StatusCode, value: Value) -> Result<Value> {
@@ -249,21 +266,23 @@ fn check_response(status: StatusCode, value: Value) -> Result<Value> {
         return Err(api_error(code));
     }
     if !status.is_success() {
-        let kind = match status {
-            StatusCode::NOT_FOUND => ErrorKind::NotFound,
-            StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED => ErrorKind::PermissionDenied,
-            StatusCode::TOO_MANY_REQUESTS => ErrorKind::RateLimited,
-            _ => ErrorKind::Unexpected,
-        };
-        let error = Error::new(kind, "Baidu Netdisk HTTP request failed")
-            .with_context("status", status.as_str());
-        return Err(
-            if status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS {
-                error.set_temporary()
-            } else {
-                error
-            },
-        );
+        return Err(http_error(status));
     }
     Ok(value)
+}
+
+fn http_error(status: StatusCode) -> Error {
+    let kind = match status {
+        StatusCode::NOT_FOUND => ErrorKind::NotFound,
+        StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED => ErrorKind::PermissionDenied,
+        StatusCode::TOO_MANY_REQUESTS => ErrorKind::RateLimited,
+        _ => ErrorKind::Unexpected,
+    };
+    let error = Error::new(kind, "Baidu Netdisk HTTP request failed")
+        .with_context("status", status.as_str());
+    if status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS {
+        error.set_temporary()
+    } else {
+        error
+    }
 }

@@ -205,7 +205,14 @@ impl oio::Write for BaiduNetdiskWriter {
         let response = self.core.send(&self.ctx, req).await?;
         let file: FileMetadata =
             serde_json::from_value(response).map_err(new_json_deserialize_error)?;
-        let metadata = file.metadata()?;
+        if file.isdir != 0 || file.size != data.len() as u64 {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Baidu Netdisk returned an unexpected upload result",
+            ));
+        }
+        // The create response's mtime can differ from the server_mtime returned by stat.
+        let metadata = MetadataBuilder::file(file.size).build();
         self.buffer = None;
         Ok(metadata)
     }

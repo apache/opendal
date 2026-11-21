@@ -18,7 +18,8 @@ The service supports stat, list, ranged reads, create directory, write, copy
 and delete. Baidu requires all block hashes before it opens an upload. Each
 writer accepts one payload of up to 16 MiB, retains it until close or abort,
 and uploads it in 4 MiB blocks. Larger writes and a second write to the same
-writer return `Unsupported`. Account membership affects download speed.
+writer return `Unsupported`. A successful write returns the stored size. Use
+stat to obtain the server modification time. Account membership affects download speed.
 
 Baidu accepts ordinary Chinese and accented Latin names. The metadata lookup
 before upload rejects the tested emoji and supplementary character `𠮷` with

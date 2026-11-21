@@ -95,7 +95,10 @@ impl oio::StreamRead for BaiduNetdiskReader {
             }
             _ => {
                 let (parts, mut body) = response.into_parts();
-                parse_response(Response::from_parts(parts, body.to_buffer().await?))?;
+                parse_response(
+                    Response::from_parts(parts, body.to_buffer().await?),
+                    Some("download"),
+                )?;
                 Err(Error::new(
                     ErrorKind::Unexpected,
                     "unexpected Baidu Netdisk download response",

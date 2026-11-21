@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,14 +12,14 @@ This service can be used to:
 - [ ] ~~rename~~
 - [ ] ~~presign~~
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
 
-- `access_token`: set the access_token for Rest API
-- `endpoint`: set the API endpoint (default: `https://api.vercel.com`)
-- `team_id`: optional Vercel team ID, appended as `teamId` query parameter
-- `team_slug`: optional Vercel team slug, appended as `slug` query parameter
-
-You can refer to [`VercelArtifactsBuilder`]'s docs for more information
+Use [`crate::VercelArtifactsConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

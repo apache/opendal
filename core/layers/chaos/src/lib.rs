@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Chaos layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 use std::sync::Mutex;
 
@@ -28,14 +27,14 @@ use opendal_core::*;
 use rand::prelude::*;
 use rand::rngs::StdRng;
 
-/// Inject chaos into underlying services for robustness test.
+/// `ChaosLayer` injects errors into services to test robustness.
 ///
 /// # Chaos
 ///
-/// Chaos tests is a part of stress test. By generating errors at specified
-/// error ratio, we can reproduce underlying services error more reliable.
+/// Chaos testing complements stress testing. A specified error ratio reproduces
+/// service errors consistently.
 ///
-/// Running tests under ChaosLayer will make your application more robust.
+/// Tests that use `ChaosLayer` can expose error-handling weaknesses.
 ///
 /// For example: If we specify an error rate of 0.5, there is a 50% chance
 /// of an EOF error for every read operation.
@@ -113,13 +112,20 @@ impl Service for ChaosService {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -151,9 +157,8 @@ impl Service for ChaosService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -172,6 +177,15 @@ impl Service for ChaosService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn presign(

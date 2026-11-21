@@ -44,7 +44,10 @@ impl oio::BatchDelete for SwiftDeleter {
         match status {
             StatusCode::NO_CONTENT | StatusCode::OK => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 
@@ -53,7 +56,10 @@ impl oio::BatchDelete for SwiftDeleter {
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BulkDelete")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body().to_bytes();
@@ -72,7 +78,7 @@ impl oio::BatchDelete for SwiftDeleter {
             // Check if this path appears in the errors list.
             // The error paths from Swift include the container prefix, so we need
             // to reconstruct the full path for comparison.
-            let abs = build_abs_path(&self.core.root, &path);
+            let abs = build_absolute_path(&self.core.root, &path);
             let full_path = format!("{}/{}", self.core.container, abs);
 
             if let Some(error_entry) = result.errors.iter().find(|e| {

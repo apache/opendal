@@ -24,6 +24,7 @@ use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
+use serde::Deserialize;
 use serde_json::json;
 
 use opendal_core::raw::*;
@@ -57,12 +58,12 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
         let req_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
         });
         let body = Buffer::from(Bytes::from(req_body.to_string()));
 
@@ -86,12 +87,12 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
         let request_body = &json!({
-            "path": percent_encode_path(&p),
+            "path": p,
             // TODO: support recursive toggle, should we add a new field in OpDelete?
             "recursive": true,
         });
@@ -113,8 +114,8 @@ impl DbfsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_rooted_abs_path(&self.root, from);
-        let target = build_rooted_abs_path(&self.root, to);
+        let source = build_rooted_absolute_path(&self.root, from);
+        let target = build_rooted_absolute_path(&self.root, to);
 
         let url = format!("{}/api/2.0/dbfs/move", self.endpoint);
         let mut req = Request::post(&url);
@@ -123,8 +124,8 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "source_path": percent_encode_path(&source),
-            "destination_path": percent_encode_path(&target),
+            "source_path": source,
+            "destination_path": target,
         });
 
         let body = Buffer::from(Bytes::from(req_body.to_string()));
@@ -139,7 +140,7 @@ impl DbfsCore {
     }
 
     pub async fn dbfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -172,7 +173,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "path": path,
+            "path": build_rooted_absolute_path(&self.root, path),
             "contents": contents,
             "overwrite": true,
         });
@@ -190,7 +191,7 @@ impl DbfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -222,71 +223,75 @@ impl DbfsCore {
             StatusCode::NOT_FOUND => {
                 self.dbfs_create_dir(ctx, path).await?;
             }
-            _ => return Err(parse_error(resp)),
+            _ => {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetStatus")),
+                    resp,
+                ));
+            }
         }
         Ok(())
     }
 }
 
-mod error {
-    use std::fmt::Debug;
+/// DbfsError is the error returned by DBFS service.
+#[derive(Default, Deserialize)]
+struct DbfsError {
+    error_code: String,
+    message: String,
+}
 
-    use http::Response;
-    use http::StatusCode;
-    use serde::Deserialize;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    /// DbfsError is the error returned by DBFS service.
-    #[derive(Default, Deserialize)]
-    struct DbfsError {
-        error_code: String,
-        message: String,
-    }
-
-    impl Debug for DbfsError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("DbfsError")
-                .field("error_code", &self.error_code)
-                // replace `\n` to ` ` for better reading.
-                .field("message", &self.message.replace('\n', " "))
-                .finish()
-        }
-    }
-
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                (ErrorKind::PermissionDenied, false)
-            }
-            StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match serde_json::from_slice::<DbfsError>(&bs) {
-            Ok(dbfs_error) => format!("{:?}", dbfs_error.message),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+impl Debug for DbfsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DbfsError")
+            .field("error_code", &self.error_code)
+            // replace `\n` to ` ` for better reading.
+            .field("message", &self.message.replace('\n', " "))
+            .finish()
     }
 }
 
-pub(super) use error::*;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = match serde_json::from_slice::<DbfsError>(&bs) {
+        Ok(dbfs_error) => format!("{:?}", dbfs_error.message),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}

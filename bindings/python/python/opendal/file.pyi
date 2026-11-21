@@ -17,9 +17,8 @@
 
 import collections.abc
 import types
+import typing
 from typing import Any, final
-
-import typing_extensions
 
 @final
 class AsyncFile:
@@ -29,14 +28,14 @@ class AsyncFile:
     Created by the `open` method of the `AsyncOperator` class.
     """
 
-    def __aenter__(self, /) -> collections.abc.Awaitable[typing_extensions.Self]: ...
+    def __aenter__(self, /) -> collections.abc.Awaitable[typing.Self]: ...
     def __aexit__(
         self,
         /,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
-    ) -> None: ...
+    ) -> collections.abc.Awaitable[None]: ...
     def close(self, /) -> collections.abc.Awaitable[None]:
         """
         Close this file.
@@ -99,6 +98,13 @@ class AsyncFile:
             The reference point for the offset.
             0: start of file (default); 1: current position; 2: end of file.
 
+        Notes
+        -----
+        Unbounded readable files allow non-negative positions beyond EOF. Reads
+        from those positions return empty bytes when the backing service reports
+        an unsatisfied unbounded range. Other service errors propagate. Explicit
+        bounded views reject positions beyond their range.
+
         Returns
         -------
         coroutine
@@ -121,10 +127,18 @@ class AsyncFile:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         coroutine
             An awaitable that returns the current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> collections.abc.Awaitable[bool]:
         """
@@ -156,6 +170,9 @@ class File:
     A file-like object for reading and writing data.
 
     Created by the `open` method of the `Operator` class.
+
+    Storage I/O releases the Python GIL while waiting. Concurrent operations on
+    the same file are rejected; use separate files for I/O from multiple threads.
     """
 
     def __enter__(self, /) -> File: ...
@@ -192,6 +209,8 @@ class File:
 
         Notes
         -----
+        Passes pending input to the core writer. Storage chunks can remain
+        buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
         """
     def read(self, /, size: int | None = None) -> bytes:
@@ -271,6 +290,13 @@ class File:
             The reference point for the offset.
             0: start of file (default); 1: current position; 2: end of file.
 
+        Notes
+        -----
+        Unbounded readable files allow non-negative positions beyond EOF. Reads
+        from those positions return empty bytes when the backing service reports
+        an unsatisfied unbounded range. Other service errors propagate. Explicit
+        bounded views reject positions beyond their range.
+
         Returns
         -------
         int
@@ -293,10 +319,18 @@ class File:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         int
             The current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> bool:
         """

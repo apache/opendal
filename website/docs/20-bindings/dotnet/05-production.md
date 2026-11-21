@@ -46,6 +46,8 @@ The .NET binding exposes these layers in `OpenDAL.Layer`:
 | `RetryLayer` | Retries transient failures with exponential backoff (`MaxTimes`, `MinDelay`, `MaxDelay`, `Factor`, `Jitter`). |
 | `TimeoutLayer` | Bounds slow calls with a total `Timeout` and a per-I/O `IoTimeout`. |
 | `ConcurrentLimitLayer` | Caps the number of concurrent operations (constructor takes the permit count). |
+| `ThrottleLayer` | Rate-limits read and write byte flow (constructor takes bytes per second and the burst size). |
+| `MimeGuessLayer` | Fills in `Content-Type` from the file extension when the caller did not set one. |
 | `CapabilityOverrideLayer` | Overrides reported capabilities. |
 
 See [Concepts](../../03-concepts.mdx#layer) for the model.
@@ -96,14 +98,18 @@ requirement for safety. `Info` also exposes the operator's `Scheme`, `Root`, and
 The binding wraps native handles, so deterministic disposal matters:
 
 - Prefer `using` for `Operator`, `Executor`, and stream instances.
-- Keep an `Executor` alive for the full lifetime of the operations using it.
-- Disposing an `Executor` or `Operator` too early throws
-  `ObjectDisposedException`. For async calls, ensure disposal happens **after**
-  the awaited operations complete.
-- If you do not pass an `Executor`, OpenDAL uses a shared default executor.
+- An operator binds its executor at construction and keeps the runtime alive on
+  the native side. Disposing an `Executor` never affects operators already
+  bound to it — it only makes constructing new operators with it throw
+  `ObjectDisposedException`.
+- Dispose an `Operator` only after its awaited operations complete; disposal
+  while work is in flight is not supported.
+- If you do not bind an `Executor`, OpenDAL uses a shared default executor.
+- Layered operators (`WithLayer`) and `Duplicate()` handles inherit the base
+  operator's executor.
 
 See [Getting started — Executors](./02-getting-started.md#executors) for how to
-create and pass an executor.
+create and bind one.
 
 ## Path conventions
 

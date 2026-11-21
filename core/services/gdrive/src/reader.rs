@@ -16,7 +16,7 @@
 // under the License.
 
 use super::backend::*;
-use super::core::parse_error;
+use super::core::{ErrorContext, parse_error};
 use http::Response;
 use http::StatusCode;
 use opendal_core::raw::*;
@@ -48,7 +48,7 @@ impl oio::StreamRead for GdriveReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.core.root, path);
+        let abs_path = build_absolute_path(&backend.core.root, path);
         let resp = match backend.core.gdrive_get(&self.ctx, path, range).await {
             Ok(resp) => resp,
             Err(err) if err.kind() == ErrorKind::NotFound => {
@@ -76,14 +76,20 @@ impl oio::StreamRead for GdriveReader {
                     _ => {
                         let (part, mut body) = resp.into_parts();
                         let buf = body.to_buffer().await?;
-                        return Err(parse_error(Response::from_parts(part, buf)));
+                        return Err(parse_error(
+                            ErrorContext::new(ServiceOperation("DownloadFile")),
+                            Response::from_parts(part, buf),
+                        ));
                     }
                 }
             }
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
-                return Err(parse_error(Response::from_parts(part, buf)));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("DownloadFile")),
+                    Response::from_parts(part, buf),
+                ));
             }
         };
 

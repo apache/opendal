@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Tracing layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -35,7 +34,8 @@ use tracing::Level;
 use tracing::Span;
 use tracing::span;
 
-/// Add [tracing](https://docs.rs/tracing/) for every operation.
+/// `TracingLayer` traces every operation with
+/// [tracing](https://docs.rs/tracing/).
 ///
 /// # Examples
 ///
@@ -224,6 +224,7 @@ impl Service for TracingService {
     type Lister = TracingWrapper<oio::Lister>;
     type Deleter = TracingWrapper<oio::Deleter>;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -231,6 +232,10 @@ impl Service for TracingService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -266,11 +271,10 @@ impl Service for TracingService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        let span = span!(Level::DEBUG, "copy", from, to, ?args, ?opts);
+        let span = span!(Level::DEBUG, "copy", from, to, ?args);
         let _guard = span.enter();
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     async fn rename(
@@ -285,6 +289,16 @@ impl Service for TracingService {
             .rename(ctx, from, to, args)
             .instrument(span)
             .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let span = span!(Level::DEBUG, "restore", path, ?args);
+        self.inner.restore(ctx, path, args).instrument(span).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -352,6 +366,13 @@ impl<R: oio::Read> oio::Read for TracingWrapper<R> {
 impl<R: oio::Write> oio::Write for TracingWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).instrument(self.span.clone()).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .instrument(self.span.clone())
+            .await
     }
 
     async fn abort(&mut self) -> Result<()> {

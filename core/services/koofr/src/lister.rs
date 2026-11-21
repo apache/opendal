@@ -19,11 +19,10 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
-use super::core::KoofrCore;
 use super::core::ListResponse;
 use super::core::parse_error;
-use opendal_core::EntryMode;
-use opendal_core::Metadata;
+use super::core::{ErrorContext, KoofrCore};
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
@@ -58,7 +57,10 @@ impl oio::PageList for KoofrLister {
         match resp.status() {
             http::StatusCode::OK => {}
             _ => {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("FilesList")),
+                    resp,
+                ));
             }
         }
 
@@ -68,17 +70,16 @@ impl oio::PageList for KoofrLister {
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         for file in response.files {
-            let path = build_abs_path(&normalize_root(&self.path), &file.name);
+            let path = build_absolute_path(&normalize_root(&self.path), &file.name);
 
             let entry = if file.ty == "dir" {
                 let path = format!("{path}/");
-                Entry::new(&path, Metadata::new(EntryMode::DIR))
+                Entry::new(&path, MetadataBuilder::dir().build())
             } else {
-                let m = Metadata::new(EntryMode::FILE)
-                    .with_content_length(file.size)
-                    .with_content_type(file.content_type)
-                    .with_last_modified(Timestamp::from_millisecond(file.modified)?);
-                Entry::new(&path, m)
+                let mut m = MetadataBuilder::file(file.size);
+                m.content_type(file.content_type)
+                    .last_modified(Timestamp::from_millisecond(file.modified)?);
+                Entry::new(&path, m.build())
             };
 
             ctx.entries.push_back(entry);

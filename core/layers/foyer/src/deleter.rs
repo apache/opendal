@@ -24,6 +24,7 @@ use opendal_core::raw::oio;
 use crate::FoyerKey;
 use crate::Inner;
 
+#[doc(hidden)]
 pub struct Deleter<D> {
     pub(crate) deleter: D,
     pub(crate) keys: Vec<FoyerKey>,

@@ -15,23 +15,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Await tree layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use await_tree::InstrumentAwait;
 use std::sync::Arc;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an Instrument await-tree for actor-based applications to the underlying services.
+/// `AwaitTreeLayer` instruments service operations for actor-based applications.
 ///
 /// # AwaitTree
 ///
-/// await-tree allows developers to dump this execution tree at runtime,
-/// with the span of each Future annotated by instrument_await.
+/// `await-tree` lets developers dump the execution tree at runtime and annotates
+/// each future's span with `instrument_await`.
 /// Read more about [await-tree](https://docs.rs/await-tree/latest/await_tree/)
 ///
 /// # Examples
@@ -83,6 +82,7 @@ impl Service for AwaitTreeAccessor {
     type Lister = AwaitTreeWrapper<oio::Lister>;
     type Deleter = AwaitTreeWrapper<oio::Deleter>;
     type Copier = AwaitTreeWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -90,6 +90,10 @@ impl Service for AwaitTreeAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -118,10 +122,9 @@ impl Service for AwaitTreeAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(AwaitTreeWrapper::new)
     }
 
@@ -135,6 +138,18 @@ impl Service for AwaitTreeAccessor {
         self.inner
             .rename(ctx, from, to, args)
             .instrument_await(format!("opendal::{}", Operation::Rename))
+            .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner
+            .restore(ctx, path, args)
+            .instrument_await(format!("opendal::{}", Operation::Restore))
             .await
     }
 
@@ -211,6 +226,13 @@ impl<R: oio::Write> oio::Write for AwaitTreeWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner
             .write(bs)
+            .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
+            .await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
             .instrument_await(format!("opendal::{}", Operation::Write.into_static()))
             .await
     }

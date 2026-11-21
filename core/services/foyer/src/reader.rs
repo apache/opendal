@@ -38,7 +38,7 @@ impl oio::StreamRead for FoyerReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let buffer = match backend.core.get(&p).await? {
             Some(bs) => bs,
@@ -48,7 +48,10 @@ impl oio::StreamRead for FoyerReader {
 
         let buffer = buffer.slice(range.to_content_range(buffer.len())?);
 
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(content_length);
+        let metadata = {
+            let metadata = MetadataBuilder::file(content_length);
+            metadata.build()
+        };
         Ok((
             RpRead::new(metadata),
             Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,

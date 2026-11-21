@@ -146,6 +146,7 @@ impl Service for SledBackend {
     type Lister = oio::HierarchyLister<SledLister>;
     type Deleter = oio::OneShotDeleter<SledDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -168,16 +169,17 @@ impl Service for SledBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
-            Ok(RpStat::new(Metadata::new(EntryMode::DIR)))
+        if p == build_absolute_path(&self.root, "") {
+            Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64),
-                )),
+                Some(bs) => Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(bs.len() as u64);
+                    metadata.build()
+                })),
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in sled")),
             }
         }
@@ -196,7 +198,7 @@ impl Service for SledBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: SledWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let writer = SledWriter::new(self.core.clone(), p);
             Ok(writer)
         }?;
@@ -215,7 +217,7 @@ impl Service for SledBackend {
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::HierarchyLister<SledLister> = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             let lister = SledLister::new(self.core.clone(), self.root.clone(), p)?;
             Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
         }?;
@@ -229,7 +231,6 @@ impl Service for SledBackend {
         _from: &str,
         _to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,

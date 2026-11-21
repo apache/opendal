@@ -37,7 +37,7 @@ impl GdriveDeleter {
 
 impl oio::OneShotDelete for GdriveDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let path = build_abs_path(&self.core.root, &path);
+        let path = build_absolute_path(&self.core.root, &path);
         let mut file_id = match self.core.resolve_path(&self.ctx, &path).await? {
             Some(id) => id,
             None => match self
@@ -70,7 +70,10 @@ impl oio::OneShotDelete for GdriveDeleter {
                 return Ok(());
             }
             if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetFile")),
+                    resp,
+                ));
             }
 
             let bs = resp.into_body().to_bytes();
@@ -99,7 +102,10 @@ impl oio::OneShotDelete for GdriveDeleter {
             return Ok(());
         }
         if resp.status() != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("TrashFile")),
+                resp,
+            ));
         }
 
         if is_dir {

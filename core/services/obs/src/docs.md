@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,16 +12,14 @@ This service can be used to:
 - [ ] rename
 - [x] presign
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
 
-- `root`: Set the work directory for backend
-- `bucket`: Set the container name for backend
-- `endpoint`: Customizable endpoint setting
-- `access_key_id`: Set the access_key_id for backend.
-- `secret_access_key`: Set the secret_access_key for backend.
-- `enable_versioning`: Deprecated. OBS versioning capability is not controlled by this option and this option is no longer needed.
-
-You can refer to [`ObsBuilder`]'s docs for more information
+Use [`crate::ObsConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

@@ -24,6 +24,7 @@ use openssh::KnownHosts;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
+use super::core::Manager;
 use super::core::SftpCore;
 use super::core::is_sftp_protocol_error;
 use super::core::parse_sftp_error;
@@ -46,9 +47,31 @@ use opendal_core::*;
 #[derive(Debug, Default)]
 pub struct SftpBuilder {
     pub(super) config: SftpConfig,
+    pub(super) acquire_timeout: Option<Duration>,
+    pub(super) connect_timeout: Option<Duration>,
 }
 
 impl SftpBuilder {
+    /// Sets the time limit for waiting for a connection pool slot.
+    ///
+    /// Once a slot is available, [`Self::connect_timeout`] applies to connection setup
+    /// and pooled connection health checks. Defaults to 10 seconds. A zero duration
+    /// disables the pool wait limit.
+    pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
+        self.acquire_timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the time limit for each connection setup stage and each pooled connection health check.
+    ///
+    /// The limit applies separately to SSH connection and authentication, SFTP subsystem
+    /// initialization, and root directory initialization. Defaults to 10 seconds.
+    /// A zero duration disables these limits.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = Some(timeout);
+        self
+    }
+
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
     pub fn endpoint(mut self, endpoint: &str) -> Self {
@@ -158,6 +181,29 @@ impl Builder for SftpBuilder {
             None => KnownHosts::Strict,
         };
 
+        const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+        let resolve_timeout = |override_value, configured: Option<SignedDuration>, key| {
+            let timeout = match override_value {
+                Some(timeout) => timeout,
+                None => configured
+                    .map(signed_duration_to_duration)
+                    .transpose()
+                    .map_err(|err| err.with_context("config", key))?
+                    .unwrap_or(DEFAULT_TIMEOUT),
+            };
+            Ok::<_, Error>((!timeout.is_zero()).then_some(timeout))
+        };
+        let acquire_timeout = resolve_timeout(
+            self.acquire_timeout,
+            self.config.acquire_timeout,
+            "acquire_timeout",
+        )?;
+        let connect_timeout = resolve_timeout(
+            self.connect_timeout,
+            self.config.connect_timeout,
+            "connect_timeout",
+        )?;
+
         let info = ServiceInfo::new(SFTP_SCHEME, root.as_str(), "");
         let capability = Capability {
             stat: true,
@@ -185,11 +231,15 @@ impl Builder for SftpBuilder {
         let core = Arc::new(SftpCore::new(
             info,
             capability,
-            endpoint,
-            root,
-            user,
-            self.config.key.clone(),
-            known_hosts_strategy,
+            Manager {
+                endpoint,
+                root,
+                user,
+                key: self.config.key.clone(),
+                known_hosts_strategy,
+                connect_timeout,
+            },
+            acquire_timeout,
         ));
 
         debug!("sftp backend finished: {:?}", self);
@@ -208,6 +258,7 @@ impl Service for SftpBackend {
     type Lister = SftpLazyLister;
     type Deleter = oio::OneShotDeleter<SftpDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -250,7 +301,7 @@ impl Service for SftpBackend {
         let mut fs = client.fs();
         fs.set_cwd(&self.core.root);
 
-        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?);
+        let meta: Metadata = to_metadata(fs.metadata(path).await.map_err(parse_sftp_error)?)?;
 
         Ok(RpStat::new(meta))
     }
@@ -289,36 +340,49 @@ impl Service for SftpBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
         let backend = self.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
-            let client = backend.core.connect().await?;
-
-            let mut fs = client.fs();
-            fs.set_cwd(&backend.core.root);
-
             if let Some((dir, _)) = to.rsplit_once('/') {
                 backend
                     .create_dir(&ctx, dir, OpCreateDir::default())
                     .await?;
             }
 
+            let client = backend.core.connect().await?;
+            let mut fs = client.fs();
+            fs.set_cwd(&backend.core.root);
+
             let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
             let dst = fs.canonicalize(&to).await.map_err(parse_sftp_error)?;
             let mut src_file = client.open(&src).await.map_err(parse_sftp_error)?;
             let mut dst_file = client.create(dst).await.map_err(parse_sftp_error)?;
+
+            let source_size = match args.source_content_length_hint() {
+                Some(size) => size,
+                None => src_file
+                    .metadata()
+                    .await
+                    .map_err(parse_sftp_error)?
+                    .len()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "sftp source metadata does not contain file length",
+                        )
+                    })?,
+            };
 
             src_file
                 .copy_all_to(&mut dst_file)
                 .await
                 .map_err(parse_sftp_error)?;
 
-            Ok(Metadata::default())
+            Ok(MetadataBuilder::file(source_size).build())
         }))
     }
 

@@ -19,13 +19,13 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
+use asyncband::mutex::Mutex;
 use bytes::Buf;
 use bytes::Bytes;
 use http::Request;
 use http::Response;
 use http::StatusCode;
 use http::header;
-use mea::mutex::Mutex;
 use serde::Deserialize;
 use serde_json::json;
 
@@ -38,6 +38,8 @@ pub struct GdriveCore {
     pub capability: Capability,
 
     pub root: String,
+    /// The shared drive to operate on, or `None` for the user's My Drive.
+    pub drive_id: Option<String>,
 
     pub signer: Arc<Mutex<GdriveSigner>>,
 
@@ -54,6 +56,7 @@ impl Debug for GdriveCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GdriveCore")
             .field("root", &self.root)
+            .field("drive_id", &self.drive_id)
             .finish()
     }
 }
@@ -123,7 +126,10 @@ impl GdriveCore {
                 return Ok(());
             }
             if resp.status() != StatusCode::OK {
-                return Err(parse_error(resp));
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("TrashFile")),
+                    resp,
+                ));
             }
 
             self.invalidate_file_id(path).await;
@@ -241,7 +247,7 @@ impl GdriveCore {
         // The file metadata in the Google Drive API is very complex.
         // For now, we only need the file id, name, mime type and modified time.
         let mut req = Request::get(format!(
-            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime"
+            "https://www.googleapis.com/drive/v3/files/{file_id}?fields=id,name,mimeType,size,modifiedTime&supportsAllDrives=true"
         ))
         .extension(Operation::Stat)
         .extension(ServiceOperation("GetFile"))
@@ -258,7 +264,7 @@ impl GdriveCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
         match self.recent_entry_for_path(&path).await {
             GdriveRecentPathState::Deleted => {
                 return Err(Error::new(
@@ -281,7 +287,9 @@ impl GdriveCore {
             },
         };
 
-        let url: String = format!("https://www.googleapis.com/drive/v3/files/{path_id}?alt=media");
+        let url: String = format!(
+            "https://www.googleapis.com/drive/v3/files/{path_id}?alt=media&supportsAllDrives=true"
+        );
 
         let mut req = Request::get(&url)
             .extension(Operation::Read)
@@ -313,6 +321,12 @@ impl GdriveCore {
         if !next_page_token.is_empty() {
             url = url.push("pageToken", next_page_token);
         };
+        url = url.push("supportsAllDrives", "true");
+        url = url.push("includeItemsFromAllDrives", "true");
+        if let Some(drive_id) = &self.drive_id {
+            url = url.push("corpora", "drive");
+            url = url.push("driveId", &percent_encode_path(drive_id));
+        }
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
@@ -361,6 +375,12 @@ impl GdriveCore {
         if !next_page_token.is_empty() {
             url = url.push("pageToken", next_page_token);
         };
+        url = url.push("supportsAllDrives", "true");
+        url = url.push("includeItemsFromAllDrives", "true");
+        if let Some(drive_id) = &self.drive_id {
+            url = url.push("corpora", "drive");
+            url = url.push("driveId", &percent_encode_path(drive_id));
+        }
 
         let mut req = Request::get(url.finish())
             .extension(Operation::List)
@@ -407,7 +427,9 @@ impl GdriveCore {
             "addParents": [target_parent_id],
         });
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{source_file_id}");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{source_file_id}?fields=id,name,mimeType,size,modifiedTime,parents&supportsAllDrives=true"
+        );
         let mut req = Request::patch(url)
             .extension(Operation::Rename)
             .extension(ServiceOperation("MoveFile"))
@@ -424,7 +446,8 @@ impl GdriveCore {
         ctx: &OperationContext,
         file_id: &str,
     ) -> Result<Response<Buffer>> {
-        let url = format!("https://www.googleapis.com/drive/v3/files/{file_id}");
+        let url =
+            format!("https://www.googleapis.com/drive/v3/files/{file_id}?supportsAllDrives=true");
 
         let body = serde_json::to_vec(&json!({
             "trashed": true
@@ -452,7 +475,7 @@ impl GdriveCore {
     ) -> Result<Response<Buffer>> {
         let parent = self.ensure_dir(ctx, get_parent(path)).await?;
 
-        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart";
+        let url = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true";
 
         let file_name = get_basename(path);
 
@@ -504,8 +527,9 @@ impl GdriveCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let url =
-            format!("https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media");
+        let url = format!(
+            "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media&supportsAllDrives=true"
+        );
 
         let mut req = Request::patch(url)
             .header(header::CONTENT_TYPE, "application/octet-stream")
@@ -521,6 +545,102 @@ impl GdriveCore {
         ctx.http_transport().send(req).await
     }
 
+    pub async fn gdrive_initiate_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        file_id: Option<&str>,
+    ) -> Result<Response<Buffer>> {
+        let (builder, metadata) = if let Some(file_id) = file_id {
+            (
+                Request::patch(format!(
+                    "https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=resumable&supportsAllDrives=true"
+                )),
+                json!({}),
+            )
+        } else {
+            let parent = self.ensure_dir(ctx, get_parent(path)).await?;
+            (
+                Request::post(
+                    "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true",
+                ),
+                json!({"name": get_basename(path), "parents": [parent]}),
+            )
+        };
+        let body = serde_json::to_vec(&metadata).map_err(new_json_serialize_error)?;
+        let mut req = builder
+            .header(header::CONTENT_TYPE, "application/json; charset=UTF-8")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header("X-Upload-Content-Type", "application/octet-stream")
+            .extension(Operation::Write)
+            .extension(ServiceOperation("InitiateResumableUpload"))
+            .body(Buffer::from(body))
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_upload_resumable_chunk(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        offset: u64,
+        body: Buffer,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let mut range =
+            BytesContentRange::default().with_range(offset, offset + body.len() as u64 - 1);
+        if let Some(total) = total {
+            range = range.with_size(total);
+        }
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header(header::CONTENT_LENGTH, body.len())
+            .header(header::CONTENT_RANGE, range.to_header())
+            .extension(Operation::Write)
+            .extension(ServiceOperation("UploadResumableChunk"))
+            .body(body)
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_query_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+        total: Option<u64>,
+    ) -> Result<Response<Buffer>> {
+        let range = match total {
+            Some(total) => format!("bytes */{total}"),
+            None => "bytes */*".to_string(),
+        };
+        let mut req = Request::put(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .header(header::CONTENT_RANGE, range)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("QueryResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
+    pub async fn gdrive_cancel_resumable_upload(
+        &self,
+        ctx: &OperationContext,
+        session_uri: &str,
+    ) -> Result<Response<Buffer>> {
+        let mut req = Request::delete(session_uri)
+            .header(header::CONTENT_LENGTH, 0)
+            .extension(Operation::Write)
+            .extension(ServiceOperation("CancelResumableUpload"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)?;
+        self.sign(ctx, &mut req).await?;
+        ctx.http_transport().send(req).await
+    }
+
     pub async fn sign<T>(&self, ctx: &OperationContext, req: &mut Request<T>) -> Result<()> {
         let mut signer = self.signer.lock().await;
         signer.sign(ctx, req).await
@@ -532,7 +652,7 @@ impl GdriveCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
+        let from = build_absolute_path(&self.root, from);
 
         let from_file_id = match self.resolve_path(ctx, &from).await? {
             Some(id) => id,
@@ -548,12 +668,14 @@ impl GdriveCore {
         };
 
         let to_name = get_basename(to);
-        let to_path = build_abs_path(&self.root, to);
+        let to_path = build_absolute_path(&self.root, to);
         let to_parent_id = self.ensure_dir(ctx, get_parent(&to_path)).await?;
 
         self.trash_path_if_exists(ctx, &to_path).await?;
 
-        let url = format!("https://www.googleapis.com/drive/v3/files/{from_file_id}/copy");
+        let url = format!(
+            "https://www.googleapis.com/drive/v3/files/{from_file_id}/copy?fields=id,name,mimeType,size,modifiedTime,parents&supportsAllDrives=true"
+        );
 
         let request_body = &json!({
             "name": to_name,
@@ -646,7 +768,7 @@ fn revive_recent_parent_dirs(entries: &mut GdriveRecentState, path: &str, expire
                 &parent,
                 EntryMode::DIR,
                 GdriveRecentEntry {
-                    metadata: Some(Metadata::new(EntryMode::DIR)),
+                    metadata: Some(MetadataBuilder::dir().build()),
                     expires_at,
                 },
             );
@@ -763,7 +885,10 @@ impl GdriveSigner {
                         - Duration::from_secs(120);
                 }
                 _ => {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("RefreshAccessToken")),
+                        resp,
+                    ));
                 }
             }
         }
@@ -778,17 +903,22 @@ impl GdriveSigner {
 
 pub struct GdrivePathQuery {
     pub signer: Arc<Mutex<GdriveSigner>>,
+    pub drive_id: Option<String>,
 }
 
 impl GdrivePathQuery {
-    pub fn new(signer: Arc<Mutex<GdriveSigner>>) -> Self {
-        GdrivePathQuery { signer }
+    pub fn new(signer: Arc<Mutex<GdriveSigner>>, drive_id: Option<String>) -> Self {
+        GdrivePathQuery { signer, drive_id }
     }
 }
 
 impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
     async fn root(&self, _: &OperationContext) -> Result<String> {
-        Ok("root".to_string())
+        // The id of a shared drive is also the id of its root folder.
+        match &self.drive_id {
+            Some(drive_id) => Ok(drive_id.clone()),
+            None => Ok("root".to_string()),
+        }
     }
 
     async fn query(
@@ -814,11 +944,15 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
         let query = queries.join(" and ");
         let order_by = "modifiedTime desc,createdTime desc";
 
-        let url = format!(
-            "https://www.googleapis.com/drive/v3/files?q={}&orderBy={}&pageSize=1",
+        let mut url = format!(
+            "https://www.googleapis.com/drive/v3/files?q={}&orderBy={}&pageSize=1&supportsAllDrives=true&includeItemsFromAllDrives=true",
             percent_encode_path(query.as_str()),
             percent_encode_path(order_by)
         );
+        if let Some(drive_id) = &self.drive_id {
+            url.push_str("&corpora=drive&driveId=");
+            url.push_str(&percent_encode_path(drive_id));
+        }
 
         let mut req = Request::get(&url)
             .extension(Operation::Stat)
@@ -843,7 +977,10 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
                     Ok(None)
                 }
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListFiles")),
+                resp,
+            )),
         }
     }
 
@@ -853,7 +990,7 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
         parent_id: &str,
         name: &str,
     ) -> Result<String> {
-        let url = "https://www.googleapis.com/drive/v3/files";
+        let url = "https://www.googleapis.com/drive/v3/files?supportsAllDrives=true";
 
         let content = serde_json::to_vec(&json!({
             "name": name.trim_end_matches('/'),
@@ -874,7 +1011,10 @@ impl crate::path_index::GdrivePathQueryer for GdrivePathQuery {
 
         let resp = ctx.http_transport().send(req).await?;
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CreateFolder")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();
@@ -924,6 +1064,19 @@ pub(crate) struct GdriveFileList {
 mod tests {
     use super::*;
 
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(
+                r#"{"error":{"message":"Request range not satisfiable"}}"#,
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("DownloadFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
     fn mock_gdrive_core() -> GdriveCore {
         let info = ServiceInfo::new("gdrive", "", "");
         let signer = Arc::new(Mutex::new(GdriveSigner::new()));
@@ -932,8 +1085,9 @@ mod tests {
             info: info.clone(),
             capability: Capability::default(),
             root: "/".to_string(),
+            drive_id: None,
             signer: signer.clone(),
-            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer)),
+            path_index: GdrivePathIndex::new(GdrivePathQuery::new(signer, None)),
             recent_entries: Mutex::new(GdriveRecentState::default()),
         }
     }
@@ -942,14 +1096,14 @@ mod tests {
     async fn test_recent_entries_for_direct_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(5),
-        )
+        core.record_recent_upsert("parent/file.txt", {
+            let metadata = MetadataBuilder::file(5);
+            metadata.build()
+        })
         .await;
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
             .await;
         core.record_recent_delete("parent/deleted.txt", EntryMode::FILE)
             .await;
@@ -970,13 +1124,13 @@ mod tests {
     async fn test_recent_entries_for_recursive_prefix_list() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/file.txt", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("parent/nested/file.txt", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("parent/nested/file.txt", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("prefix", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("prefix", MetadataBuilder::file(0).build())
             .await;
-        core.record_recent_upsert("prefix-child", Metadata::new(EntryMode::FILE))
+        core.record_recent_upsert("prefix-child", MetadataBuilder::file(0).build())
             .await;
 
         let parent_entries = core.recent_entries_for_list("parent/", true).await;
@@ -1007,7 +1161,7 @@ mod tests {
     async fn test_recent_entry_for_dir_alias() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert("parent/dir/", Metadata::new(EntryMode::DIR))
+        core.record_recent_upsert("parent/dir/", MetadataBuilder::dir().build())
             .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1020,10 +1174,10 @@ mod tests {
     async fn test_recent_tombstone_hides_descendants_until_recreated() {
         let core = mock_gdrive_core();
 
-        core.record_recent_upsert(
-            "parent/dir/stale.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/stale.txt", {
+            let metadata = MetadataBuilder::file(1);
+            metadata.build()
+        })
         .await;
         core.record_recent_delete("parent/dir/", EntryMode::DIR)
             .await;
@@ -1043,10 +1197,10 @@ mod tests {
             other => panic!("unexpected state for stale child: {other:?}"),
         }
 
-        core.record_recent_upsert(
-            "parent/dir/file.txt",
-            Metadata::new(EntryMode::FILE).with_content_length(1),
-        )
+        core.record_recent_upsert("parent/dir/file.txt", {
+            let metadata = MetadataBuilder::file(1);
+            metadata.build()
+        })
         .await;
 
         match core.recent_entry_for_path("parent/dir").await {
@@ -1077,32 +1231,37 @@ mod tests {
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
-    use serde::Deserialize;
+#[derive(Default, Debug, Deserialize)]
+struct GdriveError {
+    error: GdriveInnerError,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+#[derive(Default, Debug, Deserialize)]
+struct GdriveInnerError {
+    message: String,
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    struct GdriveError {
-        error: GdriveInnerError,
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
+}
 
-    #[derive(Default, Debug, Deserialize)]
-    struct GdriveInnerError {
-        message: String,
-    }
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (mut kind, mut retryable) = match parts.status {
+    let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -1112,35 +1271,33 @@ mod error {
         _ => (ErrorKind::Unexpected, false),
     };
 
-        let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
-            .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
-            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+    let (message, gdrive_err) = serde_json::from_slice::<GdriveError>(bs.as_ref())
+        .map(|gdrive_err| (format!("{gdrive_err:?}"), Some(gdrive_err)))
+        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-        if let Some(gdrive_err) = gdrive_err {
-            (kind, retryable) = parse_gdrive_error_code(gdrive_err.error.message.as_str())
-                .unwrap_or((kind, retryable));
-        }
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+    if let Some(gdrive_err) = gdrive_err {
+        (kind, retryable) =
+            parse_gdrive_error_code(gdrive_err.error.message.as_str()).unwrap_or((kind, retryable));
     }
 
-    pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
-        match message {
-            // > Please reduce your request rate.
-            //
-            // It's Ok to retry since later on the request rate may get reduced.
-            "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
-            _ => None,
-        }
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
     }
+
+    err
 }
 
-pub(super) use error::*;
+pub fn parse_gdrive_error_code(message: &str) -> Option<(ErrorKind, bool)> {
+    match message {
+        // > Please reduce your request rate.
+        //
+        // It's Ok to retry since later on the request rate may get reduced.
+        "User rate limit exceeded." => Some((ErrorKind::RateLimited, true)),
+        _ => None,
+    }
+}

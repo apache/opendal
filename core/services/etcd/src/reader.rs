@@ -38,13 +38,16 @@ impl oio::StreamRead for EtcdReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let abs_path = build_abs_path(&backend.info.root(), path);
+        let abs_path = build_absolute_path(&backend.info.root(), path);
 
         match backend.core.get(&abs_path).await? {
             Some(buffer) => {
                 let total_size = buffer.len() as u64;
                 let sliced_buffer = buffer.slice(range.to_content_range(buffer.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                let metadata = {
+                    let metadata = MetadataBuilder::file(total_size);
+                    metadata.build()
+                };
 
                 Ok((
                     RpRead::new(metadata),

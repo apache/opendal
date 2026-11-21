@@ -35,10 +35,11 @@ impl OperatorRegistry {
     pub fn get() -> &'static Self {
         /// The global registry used by [`Operator::from_uri`].
         ///
-        /// `memory` is always registered here since it's used pervasively in unit tests
-        /// and as a zero-dependency backend.
+        /// OpenDAL always registers the `memory` service because OpenDAL uses it
+        /// extensively in unit tests and it has no dependencies.
         ///
-        /// Other optional service registrations are handled by the facade crate `opendal`.
+        /// The `opendal` facade crate registers other optional services. See
+        /// `core/src/lib.rs` in the facade crate for details.
         static OPERATOR_REGISTRY: LazyLock<OperatorRegistry> = LazyLock::new(|| {
             let factories = Mutex::new(HashMap::default());
             let registry = OperatorRegistry { factories };

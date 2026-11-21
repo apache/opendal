@@ -60,17 +60,45 @@ Most users depend on the `opendal` facade crate:
 ```toml
 [dependencies]
 # Default: reqwest transport with rustls.
-opendal = { version = "0.57" }
+opendal = { version = "0.58" }
 ```
 
 To select one transport TLS feature explicitly, disable default features:
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", default-features = false, features = [
+opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls",
 ] }
 ```
+
+## Use with `opendal-core`
+
+Applications that use the split crates can attach reqwest to an operator
+without installing a process-wide default transport:
+
+```shell
+cargo add opendal-core opendal-http-transport-reqwest
+```
+
+```rust
+use opendal_core::Builder;
+use opendal_core::HttpTransporter;
+use opendal_core::OperationContext;
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_http_transport_reqwest::ReqwestTransport;
+
+fn build_operator<B: Builder>(builder: B) -> Result<Operator> {
+    let transport = HttpTransporter::new(ReqwestTransport::default());
+    let context = OperationContext::new().with_http_transport(transport);
+
+    Ok(Operator::new(builder)?.with_context(context))
+}
+```
+
+Pass a configured service builder to `build_operator`. The resulting operator
+uses this reqwest transport for HTTP-backed services.
 
 ## Build different TLS backends
 
@@ -80,7 +108,7 @@ Use reqwest's Rustls backend explicitly when you build the client:
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", default-features = false, features = [
+opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls",
 ] }
 reqwest = { version = "0.13.4", default-features = false, features = [
@@ -89,7 +117,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 ] }
 ```
 
-```rust
+```rust,ignore
 use std::time::Duration;
 
 use opendal::HttpTransporter;
@@ -111,7 +139,7 @@ Use `native-tls` when you want reqwest to delegate TLS to the platform stack:
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", default-features = false, features = [
+opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-native-tls",
 ] }
 reqwest = { version = "0.13.4", default-features = false, features = [
@@ -120,7 +148,7 @@ reqwest = { version = "0.13.4", default-features = false, features = [
 ] }
 ```
 
-```rust
+```rust,ignore
 use opendal::HttpTransporter;
 use opendal::ReqwestTransport;
 
@@ -144,7 +172,7 @@ startup.
 
 ```toml
 [dependencies]
-opendal = { version = "0.57", default-features = false, features = [
+opendal = { version = "0.58", default-features = false, features = [
     "http-transport-reqwest-rustls-no-provider",
 ] }
 reqwest = { version = "0.13.4", default-features = false, features = [
@@ -155,7 +183,7 @@ rustls = { version = "0.23", default-features = false, features = ["std"] }
 webpki-roots = "1"
 ```
 
-```rust
+```rust,ignore
 use opendal::HttpTransporter;
 use opendal::ReqwestTransport;
 
@@ -191,6 +219,6 @@ for the target-specific limitations.
 
 ## License and Trademarks
 
-Licensed under the Apache License, Version 2.0: http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the Apache License, Version 2.0: <http://www.apache.org/licenses/LICENSE-2.0>
 
 Apache OpenDAL, OpenDAL, and Apache are either registered trademarks or trademarks of the Apache Software Foundation.

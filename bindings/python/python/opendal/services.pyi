@@ -26,16 +26,17 @@ class Scheme:
     Azfile: Final[Scheme]
     B2: Final[Scheme]
     Cacache: Final[Scheme]
-    CloudflareKv: Final[Scheme]
     Cos: Final[Scheme]
     Dashmap: Final[Scheme]
     Dropbox: Final[Scheme]
+    Foyer: Final[Scheme]
     Fs: Final[Scheme]
     Ftp: Final[Scheme]
     Gcs: Final[Scheme]
+    GcsGrpc: Final[Scheme]
     Gdrive: Final[Scheme]
     Ghac: Final[Scheme]
-    Goosefs: Final[Scheme]
+    Github: Final[Scheme]
     Gridfs: Final[Scheme]
     HdfsNative: Final[Scheme]
     Hf: Final[Scheme]
@@ -65,14 +66,13 @@ class Scheme:
     Tos: Final[Scheme]
     Upyun: Final[Scheme]
     VercelArtifacts: Final[Scheme]
-    VercelBlob: Final[Scheme]
     Webdav: Final[Scheme]
     Webhdfs: Final[Scheme]
     YandexDisk: Final[Scheme]
-    def __eq__(self, /, other: object) -> bool: ...
+    def __eq__(self, value: object, /) -> bool: ...
     def __hash__(self, /) -> int: ...
     def __int__(self, /) -> int: ...
-    def __ne__(self, /, other: object) -> bool: ...
+    def __ne__(self, value: object, /) -> bool: ...
     @property
     def name(self, /) -> str: ...
     @property

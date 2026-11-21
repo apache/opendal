@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] create_dir
 - [x] stat
@@ -12,15 +12,44 @@ This service can be used to:
 - [x] rename
 - [ ] presign
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Behavior Notes
 
 Google Drive allows duplicate file or directory names under the same parent.
 When multiple entries match the same path, OpenDAL resolves the most recently
 modified match, falling back to the newer creation time if needed.
 
-# Configuration
+Concurrent directory creation through an operator and its clones reuses work for shared ancestors and allows independent paths to progress concurrently.
 
-- `root`: Set the work directory for backend
+### Resumable uploads and retries
+
+Uploads up to 4 MiB use one request. Larger uploads use sequential resumable
+uploads with 4 MiB chunks.
+
+To retry temporary upload errors, enable `layers-retry` and add
+[`RetryLayer`](https://docs.rs/opendal-layer-retry/latest/opendal_layer_retry/struct.RetryLayer.html)
+before creating the writer:
+
+```rust,ignore
+use opendal::layers::RetryLayer;
+
+let op = op.layer(RetryLayer::new());
+let mut writer = op.writer("video.mp4").await?;
+writer.write(chunk).await?; // Repeat for each input chunk.
+writer.close().await?;
+```
+
+Retries reuse the session for resumable uploads and resend single-request uploads
+in full. Sessions cannot be recovered after the writer is dropped or the process
+exits; expired sessions return an error.
+
+## Configuration
+
+Use [`crate::GdriveConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ### Credentials related
 
@@ -48,7 +77,19 @@ And your OAuth scope contains `https://www.googleapis.com/auth/drive`.
 Please refer to [GoogleDrive OAuth2 Flow](https://developers.google.com/identity/protocols/oauth2/)
 for more information.
 
-You can refer to [`GdriveBuilder`]'s docs for more information
+### Shared drives
+
+- `drive_id`: set the id of a shared drive (formerly Team Drive)
+
+By default, OpenDAL resolves `root` inside the user's My Drive. When `drive_id`
+is set, OpenDAL resolves `root` inside that shared drive instead and scopes
+every lookup and listing to it. The id appears at the end of the shared drive
+URL, for example `https://drive.google.com/drive/folders/<drive_id>`.
+
+The authorized user must be a member of the shared drive. Write and create_dir
+require the Contributor role or higher. Delete, rename, and copy onto an
+existing path move items or send them to the trash, which requires the Content
+manager role or higher.
 
 ## Example
 
@@ -62,6 +103,25 @@ use opendal_service_gdrive::Gdrive;
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut builder = Gdrive::default()
+        .root("/test")
+        .access_token("<token>");
+
+    let op: Operator = Operator::new(builder)?;
+    Ok(())
+}
+```
+
+### Via Builder with a shared drive
+
+```rust,no_run
+use opendal_core::Operator;
+use opendal_core::Result;
+use opendal_service_gdrive::Gdrive;
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let mut builder = Gdrive::default()
+        .drive_id("<drive_id>")
         .root("/test")
         .access_token("<token>");
 

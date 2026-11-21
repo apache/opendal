@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Immutable index layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::vec::IntoIter;
@@ -27,7 +26,7 @@ use std::vec::IntoIter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an immutable in-memory index for underlying storage services.
+/// `ImmutableIndexLayer` adds an immutable in-memory index to a storage service.
 ///
 /// Especially useful for services without list capability like HTTP.
 ///
@@ -156,6 +155,7 @@ impl Service for ImmutableIndexService {
     type Lister = ImmutableDir;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -166,6 +166,10 @@ impl Service for ImmutableIndexService {
         capability.list = true;
         capability.list_with_recursive = true;
         capability
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -195,9 +199,8 @@ impl Service for ImmutableIndexService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -229,6 +232,15 @@ impl Service for ImmutableIndexService {
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn presign(
         &self,
         ctx: &OperationContext,
@@ -253,13 +265,12 @@ impl ImmutableDir {
 
     fn inner_next(&mut self) -> Option<oio::Entry> {
         self.idx.next().map(|v| {
-            let mode = if v.ends_with('/') {
-                EntryMode::DIR
+            let metadata = if v.ends_with('/') {
+                MetadataBuilder::dir()
             } else {
-                EntryMode::FILE
+                MetadataBuilder::unknown()
             };
-            let meta = Metadata::new(mode);
-            oio::Entry::with(v, meta)
+            oio::Entry::with(v, metadata.build())
         })
     }
 }
@@ -291,6 +302,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -351,14 +363,7 @@ mod tests {
             ))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -423,7 +428,7 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
         assert_eq!(map["dir_without_prefix/"], EntryMode::DIR);
         Ok(())
@@ -455,9 +460,9 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["file"], EntryMode::FILE);
+        assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
-        assert_eq!(map["dir_without_prefix/file"], EntryMode::FILE);
+        assert_eq!(map["dir_without_prefix/file"], EntryMode::Unknown);
         Ok(())
     }
 
@@ -505,9 +510,18 @@ mod tests {
             map.insert(entry.path().to_string(), entry.metadata().mode());
         }
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
         Ok(())
     }
 
@@ -541,9 +555,18 @@ mod tests {
 
         debug!("current files: {map:?}");
 
-        assert_eq!(map["dataset/stateful/ontime_2007_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2008_200.csv"], EntryMode::FILE);
-        assert_eq!(map["dataset/stateful/ontime_2009_200.csv"], EntryMode::FILE);
+        assert_eq!(
+            map["dataset/stateful/ontime_2007_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2008_200.csv"],
+            EntryMode::Unknown
+        );
+        assert_eq!(
+            map["dataset/stateful/ontime_2009_200.csv"],
+            EntryMode::Unknown
+        );
         Ok(())
     }
 }

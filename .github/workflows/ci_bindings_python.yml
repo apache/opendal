@@ -18,21 +18,27 @@
 name: Bindings Python CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
-      - ".github/workflows/ci_bindings_python.yml"
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/src/**"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "!core/core/src/docs/**"
+      - "core/http-transports/**"
+      - "core/layers/mime-guess/**"
       - "bindings/python/**"
-      - "core/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_python.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-python-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   lint:
@@ -44,7 +50,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           working-directory: "bindings/python"
 
@@ -59,6 +65,10 @@ jobs:
         working-directory: "bindings/python"
         run: just lint
 
+      - name: Check Python stable ABI
+        working-directory: "bindings/python"
+        run: cargo check --features abi3
+
   stubs:
     runs-on: ubuntu-latest
     steps:
@@ -68,7 +78,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Install uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           working-directory: "bindings/python"
 
@@ -79,8 +89,10 @@ jobs:
         with:
           tool: taplo-cli
 
-      - name: Setup hawkeye
-        run: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/korandoru/hawkeye/releases/download/v6.5.1/hawkeye-installer.sh | sh
+      - name: Install Hawkeye
+        uses: taiki-e/install-action@v2
+        with:
+          tool: hawkeye@7.2.0
 
       - name: Regenerate stubs
         working-directory: "bindings/python"
@@ -101,16 +113,18 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           working-directory: bindings/python
+
+      - uses: taiki-e/install-action@just
 
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
         run: |
           uv venv --python=python3.11
-          uv sync --all-extras
+          uv sync --locked --all-extras --group cookbook
           uv run -- maturin develop
 
       # Examples back the snippets shown in the website guide. Running them keeps
@@ -119,3 +133,7 @@ jobs:
         shell: bash
         working-directory: "bindings/python"
         run: uv run -- python examples/getting_started.py
+
+      - name: Run cookbook notebooks
+        working-directory: bindings/python
+        run: just test-notebooks

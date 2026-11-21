@@ -89,9 +89,10 @@ Gem::Specification.new do |spec|
 
   spec.require_paths = ["lib"]
 
-  native_extension = Dir.glob(File.join(__dir__, "lib", "opendal_ruby.*")).any? do |path|
-    File.file?(path) && File.extname(path) != ".rb"
-  end
+  # A development build writes an unversioned library into lib/. The native
+  # packaging task adds versioned libraries to the platform gem instead.
+  spec.files -= %w[lib/opendal_ruby.so lib/opendal_ruby.bundle]
+  native_extension = spec.files.any? { |path| path.match?(%r{\Alib/opendal_ruby/\d+\.\d+/opendal_ruby\.(so|bundle)\z}) }
   spec.extensions = native_extension ? [] : ["./Cargo.toml"]
 
   # Exclude non-Ruby files from RDoc to prevent parsing errors
@@ -101,9 +102,7 @@ Gem::Specification.new do |spec|
   # use a Ruby version which:
   # - supports Rubygems with the ability of compilation of Rust gem
   # - not end of life
-  #
-  # keep in sync with `Rakefile`.
-  spec.required_ruby_version = ">= 3.2"
+  spec.required_ruby_version = ">= 3.3"
 
   # intentionally skipping rb_sys gem because newer Rubygems will be present
 end

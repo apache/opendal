@@ -25,7 +25,8 @@ homepage = "https://opendal.apache.org/"
 license = "Apache-2.0"
 repository = "https://github.com/apache/opendal"
 rust-version = "1.91"
-version = "0.47.3"
+# Release candidate builds derive prerelease versions from tags in release_python.yml.
+version = "0.47.12"
 
 [features]
 default = [
@@ -35,6 +36,7 @@ default = [
   "services-fs",
   "services-gcs",
   "services-ghac",
+  "services-github",
   "services-http",
   "services-ipmfs",
   "services-memory",
@@ -45,9 +47,8 @@ default = [
   "services-webhdfs",
 ]
 
-# NOTE: this is the feature we used to build pypi wheels.
-# When enable or disable some features,
-# Also, you need to update the `enabled_service` function in dev/src/generate/python.rs to match it.
+# Common service set for all PyPI wheels. Every wheel also enables one of the
+# `services-platform-*` feature sets below.
 services-all = [
   'default',
   'services-aliyun-drive',
@@ -58,8 +59,8 @@ services-all = [
   'services-dashmap',
   'services-dropbox',
   'services-ftp',
+  'services-gcs-grpc',
   'services-gdrive',
-  'services-goosefs',
   'services-gridfs',
   'services-hdfs-native',
   'services-hf',
@@ -84,6 +85,16 @@ services-all = [
   'services-vercel-artifacts',
   'services-yandex-disk',
 ]
+
+# Service sets of the PyPI wheel platforms. The release workflow enables exactly
+# one of these per wheel, see .github/workflows/release_python.yml.
+# dev/src/generate/python.rs unions all of them via `cargo metadata` to derive
+# the generated service list, so it does not need to know which platform a
+# wheel is built for.
+services-platform-linux = ['services-all', 'services-foyer', 'services-sftp']
+services-platform-linux-armv7 = ['services-all']
+services-platform-macos = ['services-all', 'services-foyer', 'services-sftp']
+services-platform-windows = ['services-all', 'services-foyer']
 
 # List of feature-flags for all services provided by opendal.
 services-aliyun-drive = ["opendal/services-aliyun-drive"]
@@ -116,12 +127,13 @@ services-foyer = ["opendal/services-foyer"]
 services-fs = ["opendal/services-fs"]
 services-ftp = ["opendal/services-ftp"]
 services-gcs = ["opendal/services-gcs"]
+services-gcs-grpc = ["opendal/services-gcs-grpc"]
 services-gdrive = ["opendal/services-gdrive"]
 services-ghac = ["opendal/services-ghac"]
-services-github = [
-  "opendal/services-github",
-] # FIXME EXCLUDED: Needs tests/ maintenance
-services-goosefs = ["opendal/services-goosefs"]
+services-github = ["opendal/services-github"]
+services-goosefs = [
+  "opendal/services-goosefs",
+] # FIXME EXCLUDED: armhf build failure because of tokiofs dependency
 services-gridfs = ["opendal/services-gridfs"]
 services-hdfs = [
   "opendal/services-hdfs",
@@ -183,12 +195,8 @@ services-webdav = ["opendal/services-webdav"]
 services-webhdfs = ["opendal/services-webhdfs"]
 services-yandex-disk = ["opendal/services-yandex-disk"]
 
-# we build cp311-abi3 and cp310 wheels now, move this to pyo3 after we drop cp310
+# Enable the stable ABI for standard CPython wheels. Build free-threaded wheels without it.
 abi3 = ["pyo3/abi3-py311"]
-
-# Conditionally include sftp only on non-windows targets
-[target.'cfg(not(windows))'.features]
-services-all = ["services-sftp"]
 
 [lib]
 crate-type = ["cdylib"]
@@ -196,16 +204,16 @@ doc = false
 name = "_opendal"
 
 [dependencies]
-bytes = "1.5.0"
+asyncband = { version = "0.8.0", features = ["mutex"] }
+bytes = "1.10.1"
 futures = "0.3.28"
 jiff = { version = "0.2.15" }
-mea = "0.6"
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "layers-mime-guess",
 ] }
-pyo3 = { version = "0.29.0", features = [
+pyo3 = { version = "0.29.1", features = [
   "experimental-inspect",
   "generate-import-lib",
   "jiff-02",

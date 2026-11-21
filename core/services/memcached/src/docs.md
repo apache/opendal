@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -12,15 +12,28 @@ This service can be used to:
 - [ ] rename
 - [ ] ~~presign~~
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
 ## Configuration
 
-- `root`: Set the working directory of `OpenDAL`
-- `username`: Set the username for authentication.
-- `password`: Set the password for authentication.
-- `endpoint`: Set the network address of memcached server
-- `default_ttl`: Set the ttl for memcached service.
+Use [`crate::MemcachedConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
-You can refer to [`MemcachedBuilder`]'s docs for more information
+Set `enable_tls(true)` for a TCP endpoint that requires TLS. The service verifies
+the server certificate and endpoint hostname or IP address using native trust
+roots loaded when the service is built. Build a new operator to reload changes
+to those trust roots. TLS is disabled by default and is not supported for Unix
+socket endpoints.
+
+## Per-write expiration
+
+A write with `expires` overrides `default_ttl` for that key. Memcached uses
+whole seconds, so OpenDAL rounds positive durations up to that precision.
+If the rounded lifetime exceeds 30 days, OpenDAL uses its local clock to
+compute an absolute Unix time. The deadline must fit in a 32-bit unsigned
+Unix timestamp.
 
 ## Example
 

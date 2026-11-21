@@ -15,13 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-/// Primary scheme for the Hugging Face service.
+#![doc = include_str!("../README.md")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
+#![deny(missing_docs)]
+
+/// Primary URI scheme registered for the Hugging Face service.
 pub const HF_SCHEME: &str = "hf";
 
-/// Alias scheme for the Hugging Face service.
+/// Alias URI scheme registered for the Hugging Face service.
 pub const HUGGINGFACE_SCHEME: &str = "huggingface";
 
-/// Register this service into the given registry under both `hf` and `huggingface` schemes.
+/// Register this service's URI scheme or schemes with an operator registry.
+///
+/// Registration enables scheme-driven construction through
+/// [`opendal_core::Operator::from_uri`] and
+/// [`opendal_core::Operator::via_iter`]. Direct construction through
+/// [`opendal_core::Operator::new`] does not require registration.
 pub fn register_hf_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Hf>(HF_SCHEME);
     registry.register::<Hf>(HUGGINGFACE_SCHEME);

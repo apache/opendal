@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -45,6 +46,8 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_write_with_if_none_match,
             test_write_with_if_not_exists,
             test_write_with_if_match,
+            test_write_with_version_conditions,
+            test_write_if_not_changed,
             test_write_with_user_metadata,
             test_write_returns_metadata,
             test_writer_write,
@@ -57,8 +60,31 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_futures_copy,
             test_writer_futures_copy_with_concurrent,
             test_writer_return_metadata,
-            test_writer_write_non_contiguous_data
+            test_writer_copy_from_interleaved,
+            test_writer_write_non_contiguous_data,
+            test_writer_write_with_if_not_exists,
+            test_writer_write_with_if_none_match,
+            test_writer_write_with_if_match,
+            test_writer_write_with_version_conditions
         ))
+    }
+
+    if cap.write && cap.write_with_content_language && cap.stat {
+        tests.extend(async_trials!(op, test_write_with_content_language));
+        if cap.write_can_multi {
+            tests.extend(async_trials!(
+                op,
+                test_write_with_content_language_multipart
+            ));
+        }
+    }
+
+    if cap.read && cap.write_with_expires && cap.stat {
+        tests.extend(async_trials!(
+            op,
+            test_write_with_expires,
+            test_write_with_zero_expires
+        ));
     }
 
     if cap.read && cap.write && cap.write_can_append && cap.stat {
@@ -119,7 +145,7 @@ pub async fn test_write_with_special_chars(op: Operator) -> Result<()> {
         return Ok(());
     }
 
-    let path = format!("{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
+    let path = format!("nested/{} !@#$%^&()_+-=;',.txt", uuid::Uuid::new_v4());
     let (path, content, size) = TEST_FIXTURE.new_file_with_path(op.clone(), &path);
 
     op.write(&path, content).await?;
@@ -226,6 +252,37 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write Content-Language and read it back with stat.
+pub async fn test_write_with_content_language(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let language = "fr-CA, en";
+    op.write_with(&path, "bonjour")
+        .content_language(language)
+        .await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
+    Ok(())
+}
+
+/// Store Content-Language when a writer splits an upload into parts.
+pub async fn test_write_with_content_language_multipart(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let chunk = op.info().capability().write_multi_min_size.unwrap_or(1024);
+    let language = "es-MX";
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .content_language(language)
+        .await?;
+    writer.write(vec![0; chunk]).await?;
+    writer.write(vec![1; chunk]).await?;
+    writer.write(vec![2]).await?;
+    writer.close().await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
+    Ok(())
+}
+
 /// write a single file with user defined metadata should succeed.
 pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     if !op.info().capability().write_with_user_metadata {
@@ -242,9 +299,61 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     let resp_meta = meta.user_metadata().expect("meta data must exist");
 
     assert_eq!(
-        *resp_meta,
+        resp_meta
+            .into_iter()
+            .map(|(key, value)| (key.to_owned(), value.to_owned()))
+            .collect::<HashMap<_, _>>(),
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+/// Both write entry points set expiration on the committed file.
+pub async fn test_write_with_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let writer_path = TEST_FIXTURE.new_file_path();
+    let short_path = TEST_FIXTURE.new_file_path();
+    let expires = Duration::from_secs(2);
+
+    let mut writer = op.writer_with(&writer_path).expires(expires).await?;
+    writer.write("streamed").await?;
+    writer.close().await?;
+    assert_eq!(op.read(&writer_path).await?.to_vec(), b"streamed");
+
+    op.write_with(&path, "written").expires(expires).await?;
+    assert_eq!(op.read(&path).await?.to_vec(), b"written");
+
+    op.write_with(&short_path, "short")
+        .expires(Duration::from_millis(500))
+        .await?;
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while op.exists(&path).await?
+            || op.exists(&writer_path).await?
+            || op.exists(&short_path).await?
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Ok::<_, opendal::Error>(())
+    })
+    .await
+    .expect("writes must expire")?;
+
+    Ok(())
+}
+
+/// Zero cannot create a file with an unlimited lifetime.
+pub async fn test_write_with_zero_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .write_with(&path, "rejected")
+        .expires(Duration::ZERO)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    assert!(!err.is_temporary());
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -346,6 +455,59 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
         "read content b"
     );
 
+    Ok(())
+}
+
+/// Assemble a destination from local bytes and source ranges in call order.
+pub async fn test_writer_copy_from_interleaved(op: Operator) -> Result<()> {
+    if !op.info().capability().write_can_multi {
+        return Ok(());
+    }
+
+    let source_path = TEST_FIXTURE.new_file_path();
+    let target_path = TEST_FIXTURE.new_file_path();
+    let source = gen_fixed_bytes(18 * 1024 * 1024);
+    op.write(&source_path, source.clone()).await?;
+    let source_meta = op.stat(&source_path).await?;
+    let source_if_match =
+        if op.info().capability().read_with_if_match && op.info().capability().stat_with_if_match {
+            source_meta.etag().map(str::to_string)
+        } else {
+            None
+        };
+
+    let mut writer = op.writer(&target_path).await?;
+    writer.write("header").await?;
+    writer.copy_from(&source_path, 1024_u64..2048).await?;
+    writer
+        .copy_from_options(
+            &source_path,
+            options::ReadOptions {
+                range: (2048_u64..14 * 1024 * 1024).into(),
+                if_match: source_if_match.clone(),
+                ..Default::default()
+            },
+        )
+        .await?;
+    writer.write("footer").await?;
+    writer
+        .copy_from_options(
+            &source_path,
+            options::ReadOptions {
+                range: (15 * 1024 * 1024_u64..).into(),
+                if_match: source_if_match,
+                ..Default::default()
+            },
+        )
+        .await?;
+    writer.close().await?;
+
+    let mut expected = Vec::new();
+    expected.extend_from_slice(b"header");
+    expected.extend_from_slice(&source[1024..14 * 1024 * 1024]);
+    expected.extend_from_slice(b"footer");
+    expected.extend_from_slice(&source[15 * 1024 * 1024..]);
+    assert_eq!(op.read(&target_path).await?.to_bytes(), expected);
     Ok(())
 }
 
@@ -806,6 +968,271 @@ pub async fn test_write_with_if_match(op: Operator) -> Result<()> {
         .await;
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Version preconditions should compare against the current live object version.
+pub async fn test_write_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_version_match || !cap.write_with_if_version_not_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (initial, _) = gen_bytes(cap);
+    let (replacement, _) = gen_bytes(cap);
+    assert_ne!(initial, replacement);
+
+    op.write(&path, initial).await?;
+    let first_version = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    op.write_with(&path, replacement.clone())
+        .if_version_match(&first_version)
+        .await?;
+
+    let current_version = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    let err = op
+        .write_with(&path, replacement.clone())
+        .if_version_match(&first_version)
+        .await
+        .expect_err("stale version match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let err = op
+        .write_with(&path, replacement.clone())
+        .if_version_not_match(&current_version)
+        .await
+        .expect_err("equal version non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    op.write_with(&path, replacement)
+        .if_version_not_match(&first_version)
+        .await?;
+
+    let missing = TEST_FIXTURE.new_file_path();
+    for result in [
+        op.write_with(&missing, Vec::<u8>::new())
+            .if_version_match(&current_version)
+            .await,
+        op.write_with(&missing, Vec::<u8>::new())
+            .if_version_not_match(&current_version)
+            .await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing target must fail").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+    }
+
+    Ok(())
+}
+
+/// `if_not_changed` should accept the observed state once and reject it after replacement.
+pub async fn test_write_if_not_changed(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_version_match && !cap.write_with_if_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (initial, _) = gen_bytes(cap);
+    let (replacement, _) = gen_bytes(cap);
+    assert_ne!(initial, replacement);
+
+    op.write(&path, initial).await?;
+    let expected = op.stat(&path).await?;
+
+    let mut conflicting = options::WriteOptions {
+        if_not_changed: Some(expected.clone()),
+        ..Default::default()
+    };
+    let mut matching = conflicting.clone();
+    if cap.write_with_if_version_match {
+        let version = expected.version().expect("version must exist");
+        conflicting.if_version_match = Some(format!("different-{version}"));
+        matching.if_version_match = Some(version.to_string());
+    } else {
+        let etag = expected.etag().expect("etag must exist");
+        conflicting.if_match = Some(format!("different-{etag}"));
+        matching.if_match = Some(etag.to_string());
+    }
+
+    let err = op
+        .write_options(&path, replacement.clone(), conflicting)
+        .await
+        .expect_err("conflicting explicit condition must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.write_options(&path, replacement.clone(), matching)
+        .await?;
+    let err = op
+        .write_with(&path, replacement)
+        .if_not_changed(&expected)
+        .await
+        .expect_err("stale metadata must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an existing file through a chunked writer with if_not_exists should get a
+/// ConditionNotMatch error.
+pub async fn test_writer_write_with_if_not_exists(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_not_exists || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    // Some services reject the precondition when the writer is created or on an early
+    // write rather than at commit time
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_not_exists(true).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write an existing file through a chunked writer with its own etag as if_none_match
+/// should get a ConditionNotMatch error.
+pub async fn test_writer_write_with_if_none_match(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_none_match || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let content = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+
+    op.write(&path, content.clone())
+        .await
+        .expect("write must succeed");
+
+    let meta = op.stat(&path).await?;
+    let etag = meta.etag().expect("etag must exist");
+
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path).if_none_match(etag).await?;
+        w.write(content.clone()).await?;
+        w.write(content.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Write a file through a chunked writer with if_match should succeed with the file's own
+/// etag and get a ConditionNotMatch error with a stale one.
+pub async fn test_writer_write_with_if_match(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_with_if_match || !cap.write_can_multi {
+        return Ok(());
+    }
+
+    let path_a = TEST_FIXTURE.new_file_path();
+    let content_a = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+    let (path_b, content_b, _) = TEST_FIXTURE.new_file(op.clone());
+
+    op.write(&path_a, content_a.clone()).await?;
+    op.write(&path_b, content_b.clone()).await?;
+
+    let etag_a = op
+        .stat(&path_a)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+    let etag_b = op
+        .stat(&path_b)
+        .await?
+        .etag()
+        .expect("etag must exist")
+        .to_string();
+
+    let mut w = op.writer_with(&path_a).if_match(&etag_a).await?;
+    w.write(content_a.clone()).await?;
+    w.write(content_a.clone()).await?;
+    w.close().await.expect("close with own etag must succeed");
+
+    // Should fail: writing to path_a with path_b's etag.
+    let res: opendal::Result<()> = async {
+        let mut w = op.writer_with(&path_a).if_match(&etag_b).await?;
+        w.write(content_a.clone()).await?;
+        w.write(content_a.clone()).await?;
+        w.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
+
+    Ok(())
+}
+
+/// Chunked writers should preserve version preconditions through final commit.
+pub async fn test_writer_write_with_version_conditions(op: Operator) -> Result<()> {
+    let cap = op.info().capability();
+    if !cap.write_can_multi
+        || !cap.write_with_if_version_match
+        || !cap.write_with_if_version_not_match
+    {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let body = gen_fixed_bytes(cap.write_multi_min_size.unwrap_or(1));
+    op.write(&path, body.clone()).await?;
+    let expected = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let mut writer = op.writer_with(&path).if_version_match(&expected).await?;
+    writer.write(body.clone()).await?;
+    writer.write(body.clone()).await?;
+    writer.close().await?;
+
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    let result: opendal::Result<()> = async {
+        let mut writer = op.writer_with(&path).if_version_not_match(&current).await?;
+        writer.write(body.clone()).await?;
+        writer.write(body).await?;
+        writer.close().await?;
+        Ok(())
+    }
+    .await;
+    assert_eq!(result.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
     Ok(())
 }

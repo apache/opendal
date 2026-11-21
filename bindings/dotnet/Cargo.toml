@@ -32,6 +32,9 @@ doc = false
 
 [dependencies]
 # this crate won't be published, we always use the local version
+asyncband = { version = "0.8.0", features = ["mutex"] }
+bytes = "1.12.1"
+futures = "0.3"
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
   "http-transport-reqwest",
@@ -40,7 +43,9 @@ opendal = { version = ">=0", path = "../../core", features = [
   # enabled layers
   "layers-concurrent-limit",
   "layers-logging",
+  "layers-mime-guess",
   "layers-retry",
+  "layers-throttle",
   "layers-timeout",
 
   # enabled services
@@ -49,6 +54,7 @@ opendal = { version = ">=0", path = "../../core", features = [
   "services-cos",
   "services-fs",
   "services-gcs",
+  "services-gcs-grpc",
   "services-ghac",
   "services-http",
   "services-ipmfs",
@@ -113,3 +119,9 @@ features = [
   "services-sftp",
 ]
 path = "../../core"
+
+[profile.release]
+codegen-units = 1
+lto = "fat"
+panic = "abort"
+strip = true

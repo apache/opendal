@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [ ] create_dir
 - [x] stat
@@ -8,17 +8,21 @@ This service can be used to:
 - [x] write
 - [x] delete
 - [ ] list
-- [ ] copy
-- [ ] rename
+- [x] copy
+- [x] rename
 - [ ] ~~presign~~
+
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
+Copy and rename operate on files and replace an existing destination. Rename
+removes the source and writes the destination in a single transaction.
 
 ## Configuration
 
-- `root`: Set the working directory of `OpenDAL`
-- `connection_string`: Set the connection string of postgres server
-- `table`: Set the table of postgresql
-- `key_field`: Set the key field of postgresql
-- `value_field`: Set the value field of postgresql
+Use [`crate::PostgresqlConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 

@@ -19,23 +19,22 @@ name: Bindings D CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "*"
   pull_request:
     branches:
       - main
     paths:
-      - "core/**"
       - "bindings/c/**"
       - "bindings/d/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_d.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-d-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

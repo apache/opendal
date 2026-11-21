@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Tail cut layer (that automatically cancels long-tail requests) implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -227,13 +226,12 @@ struct TailCutConfig {
     max_deadline: Duration,
 }
 
-/// Layer that automatically cancels long-tail requests.
+/// `TailCutLayer` monitors request latency and cancels requests that run
+/// significantly slower than the historical baseline (for example, slower than
+/// P95).
 ///
-/// This layer monitors request latency distribution and cancels requests that are
-/// significantly slower than the historical baseline (e.g., slower than P95).
-///
-/// This layer should be created via [`TailCutLayer::builder()`] and can be
-/// cloned to share statistics across multiple operators.
+/// Create this layer with [`TailCutLayer::builder()`]. Clone it to share
+/// statistics across multiple operators.
 ///
 /// # Examples
 ///
@@ -373,6 +371,7 @@ impl Service for TailCutService {
     type Lister = TailCutWrapper<oio::Lister>;
     type Deleter = TailCutWrapper<oio::Deleter>;
     type Copier = TailCutWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -380,6 +379,10 @@ impl Service for TailCutService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -414,10 +417,9 @@ impl Service for TailCutService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
     }
 
@@ -434,6 +436,15 @@ impl Service for TailCutService {
             self.inner.rename(ctx, from, to, args),
         )
         .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -613,6 +624,19 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
             self.size,
             Operation::Write,
             self.inner.write(bs),
+        )
+        .await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Write);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Write,
+            self.inner.copy_from(path, args, range),
         )
         .await
     }

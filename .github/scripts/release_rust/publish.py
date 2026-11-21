@@ -24,11 +24,14 @@ import subprocess
 import time
 import tomllib
 from collections.abc import Iterable
+from contextlib import nullcontext
 from dataclasses import dataclass
 from datetime import datetime
 from datetime import timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+
+from trusted_publishing import temporary_trusted_publishing_token
 
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -215,20 +218,31 @@ def publish_package(project_dir: Path, package: str, dry_run: bool) -> None:
             if patch is not None:
                 cmd.append("--allow-dirty")
 
-            proc = subprocess.run(
-                cmd,
-                cwd=package_dir,
-                check=False,
-                env=os.environ,
-                text=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+            token_context = (
+                nullcontext(None) if dry_run else temporary_trusted_publishing_token()
             )
+            with token_context as token:
+                env = os.environ.copy()
+                if token is None:
+                    env.pop("CARGO_REGISTRY_TOKEN", None)
+                else:
+                    env["CARGO_REGISTRY_TOKEN"] = token
+
+                proc = subprocess.run(
+                    cmd,
+                    cwd=package_dir,
+                    check=False,
+                    env=env,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                )
+
+                output = proc.stdout or ""
+                print(output, end="", flush=True)
         finally:
             restore(patch)
 
-        output = proc.stdout or ""
-        print(output, end="", flush=True)
         if proc.returncode == 0:
             return
         if already_published(output):

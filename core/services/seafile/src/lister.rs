@@ -47,26 +47,29 @@ impl oio::PageList for SeafileLister {
                 // add path itself
                 ctx.entries.push_back(Entry::new(
                     self.path.as_str(),
-                    Metadata::new(EntryMode::DIR),
+                    MetadataBuilder::dir().build(),
                 ));
 
                 for info in infos {
                     if !info.name.is_empty() {
-                        let rel_path = build_rel_path(
+                        let rel_path = build_relative_path(
                             &self.core.root,
                             &format!("{}{}", list_response.rooted_abs_path, info.name),
                         );
 
                         let entry = if info.type_field == "file" {
-                            let mut meta = Metadata::new(EntryMode::FILE)
-                                .with_last_modified(Timestamp::from_second(info.mtime)?);
-                            if let Some(size) = info.size {
-                                meta.set_content_length(size);
-                            }
-                            Entry::new(&rel_path, meta)
+                            let size = info.size.ok_or_else(|| {
+                                Error::new(
+                                    ErrorKind::Unexpected,
+                                    "seafile list response does not contain file size",
+                                )
+                            })?;
+                            let mut meta = MetadataBuilder::file(size);
+                            meta.last_modified(Timestamp::from_second(info.mtime)?);
+                            Entry::new(&rel_path, meta.build())
                         } else {
                             let path = format!("{rel_path}/");
-                            Entry::new(&path, Metadata::new(EntryMode::DIR))
+                            Entry::new(&path, MetadataBuilder::dir().build())
                         };
 
                         ctx.entries.push_back(entry);

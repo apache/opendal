@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Hotpath layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -33,6 +32,7 @@ use opendal_core::*;
 const LABEL_CREATE_DIR: &str = "opendal.create_dir";
 const LABEL_READ: &str = "opendal.read";
 const LABEL_RENAME: &str = "opendal.rename";
+const LABEL_RESTORE: &str = "opendal.restore";
 const LABEL_STAT: &str = "opendal.stat";
 const LABEL_PRESIGN: &str = "opendal.presign";
 
@@ -49,7 +49,8 @@ const LABEL_COPIER_ABORT: &str = "opendal.copier.abort";
 const LABEL_HTTP_FETCH: &str = "opendal.http.fetch";
 const LABEL_HTTP_BODY_POLL: &str = "opendal.http.body.poll";
 
-/// Add [hotpath](https://docs.rs/hotpath/) profiling for every operation.
+/// `HotpathLayer` profiles every operation with
+/// [hotpath](https://docs.rs/hotpath/).
 ///
 /// # Notes
 ///
@@ -116,6 +117,7 @@ impl Service for HotpathAccessor {
     type Lister = HotpathWrapper<oio::Lister>;
     type Deleter = HotpathWrapper<oio::Deleter>;
     type Copier = HotpathWrapper<oio::Copier>;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -123,6 +125,10 @@ impl Service for HotpathAccessor {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -148,10 +154,9 @@ impl Service for HotpathAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
             .map(HotpathWrapper::new)
     }
 
@@ -163,6 +168,15 @@ impl Service for HotpathAccessor {
         args: OpRename,
     ) -> Result<RpRename> {
         hotpath::measure_async(LABEL_RENAME, self.inner.rename(ctx, from, to, args)).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        hotpath::measure_async(LABEL_RESTORE, self.inner.restore(ctx, path, args)).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -221,6 +235,10 @@ impl<R: oio::Read> oio::Read for HotpathWrapper<R> {
 impl<R: oio::Write> oio::Write for HotpathWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.write(bs)).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        hotpath::measure_async(LABEL_WRITER_WRITE, self.inner.copy_from(path, args, range)).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {

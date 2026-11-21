@@ -86,6 +86,7 @@ mod _opendal {
         #[pymodule_export]
         use crate::{
             CapabilityOverrideLayer, ConcurrentLimitLayer, Layer, MimeGuessLayer, RetryLayer,
+            TimeoutLayer,
         };
     }
 
@@ -104,9 +105,9 @@ mod _opendal {
             use pyo3::prelude::*;
 
             use crate::{
-                AlreadyExists, ConditionNotMatch, ConfigInvalid, Error, IsADirectory, IsSameFile,
-                NotADirectory, NotFound, PermissionDenied, RangeNotSatisfied, RateLimited,
-                Unexpected, Unsupported, add_exceptions,
+                AlreadyExists, ConditionNotMatch, ConfigInvalid, Conflict, Error, IsADirectory,
+                IsSameFile, NotADirectory, NotFound, PermissionDenied, RangeNotSatisfied,
+                RateLimited, Unexpected, Unsupported, add_exceptions,
             };
 
             add_exceptions!(
@@ -125,6 +126,7 @@ mod _opendal {
                     ConditionNotMatch,
                     RateLimited,
                     RangeNotSatisfied,
+                    Conflict,
                 ]
             )
         }

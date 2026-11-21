@@ -19,22 +19,25 @@ name: Bindings Ruby CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
+      - "core/layers/concurrent-limit/**"
+      - "core/layers/retry/**"
+      - "core/layers/throttle/**"
+      - "core/layers/timeout/**"
       - "bindings/ruby/**"
-      - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_ruby.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-ruby-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

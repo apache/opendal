@@ -22,32 +22,59 @@ package org.apache.opendal;
 import java.io.InputStream;
 import java.util.Objects;
 
+/**
+ * Reads a byte range sequentially through an {@link OperatorReader}.
+ * Each stream owns its native iterator and must be closed independently of its source reader.
+ * A bulk read returns as soon as it fills the requested portion of the destination array.
+ * Reading a closed stream throws {@link IllegalStateException}.
+ */
 public class OperatorInputStream extends InputStream {
-    private static class Reader extends NativeObject {
-        private Reader(long nativeHandle) {
+    private static class NativeIterator extends NativeObject {
+        private NativeIterator(long nativeHandle) {
             super(nativeHandle);
         }
 
         @Override
         protected void disposeInternal(long handle) {
-            disposeReader(handle);
+            disposeIterator(handle);
         }
     }
 
-    private final Reader reader;
+    private final NativeIterator iterator;
 
     private int offset = 0;
     private byte[] bytes = new byte[0];
 
+    OperatorInputStream(long nativeHandle) {
+        this.iterator = new NativeIterator(nativeHandle);
+    }
+
     public OperatorInputStream(Operator operator, String path, ReadOptions options) {
-        final long op = operator.nativeHandle;
-        this.reader = new Reader(constructReader(op, path, options));
+        Objects.requireNonNull(options, "options");
+        ReaderOptions readerOptions = ReaderOptions.builder()
+                .version(options.version)
+                .ifMatch(options.ifMatch)
+                .ifNoneMatch(options.ifNoneMatch)
+                .ifVersionMatch(options.ifVersionMatch)
+                .ifVersionNotMatch(options.ifVersionNotMatch)
+                .ifModifiedSince(options.ifModifiedSince)
+                .ifUnmodifiedSince(options.ifUnmodifiedSince)
+                .concurrent(options.concurrent)
+                .chunk(options.chunk)
+                .contentLengthHint(options.contentLengthHint)
+                .build();
+        try (OperatorReader source = operator.createReader(path, readerOptions)) {
+            this.iterator = new NativeIterator(source.createBytesIterator(options.offset, options.length));
+        }
     }
 
     @Override
-    public int read() {
+    public synchronized int read() {
+        if (iterator.isDisposed()) {
+            throw new IllegalStateException("OperatorInputStream is closed");
+        }
         if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(reader.nativeHandle);
+            bytes = readNextBytes(iterator.nativeHandle);
             offset = 0;
         }
 
@@ -59,18 +86,20 @@ public class OperatorInputStream extends InputStream {
     }
 
     @Override
-    public int read(byte[] b, int off, int len) {
+    public synchronized int read(byte[] b, int off, int len) {
         Objects.requireNonNull(b);
         if ((b.length | off | len) < 0 || len > b.length - off) {
             // Objects.checkFromIndexSize has only been available since Java 9
             throw new IndexOutOfBoundsException(
                     String.format("Range [%s, %<s + %s) out of bounds for length %s", off, len, b.length));
         }
-
+        if (iterator.isDisposed()) {
+            throw new IllegalStateException("OperatorInputStream is closed");
+        }
         int read = 0;
         while (len > 0) {
             if (bytes != null && offset >= bytes.length) {
-                bytes = readNextBytes(reader.nativeHandle);
+                bytes = readNextBytes(iterator.nativeHandle);
                 offset = 0;
             }
 
@@ -86,22 +115,15 @@ public class OperatorInputStream extends InputStream {
             len -= n;
         }
 
-        if (bytes != null && offset >= bytes.length) {
-            bytes = readNextBytes(reader.nativeHandle);
-            offset = 0;
-        }
-
-        return bytes != null ? read : (read != 0 ? read : -1);
+        return read;
     }
 
     @Override
-    public void close() {
-        reader.close();
+    public synchronized void close() {
+        iterator.close();
     }
 
-    private static native long constructReader(long op, String path, ReadOptions options);
+    private static native void disposeIterator(long nativeHandle);
 
-    private static native void disposeReader(long reader);
-
-    private static native byte[] readNextBytes(long reader);
+    private static native byte[] readNextBytes(long nativeHandle);
 }

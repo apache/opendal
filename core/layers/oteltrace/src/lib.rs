@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! OpenTelemetry trace layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 
 use opendal_core::raw::*;
@@ -32,7 +31,17 @@ use opentelemetry::trace::Span;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 
-/// Add [opentelemetry::trace](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html) for every operation.
+/// `OtelTraceLayer` traces OpenDAL operations with
+/// [OpenTelemetry](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
+///
+/// The layer obtains the `opendal` tracer from OpenTelemetry's global tracer
+/// provider. Applications must install and configure that provider before
+/// issuing operations.
+///
+/// The layer creates spans for service metadata, create, read, write, copy,
+/// rename, stat, list, and presign calls. It carries read, write, and list
+/// contexts into their stateful I/O bodies. Delete calls currently pass through
+/// without creating a span.
 ///
 /// # Examples
 ///
@@ -85,6 +94,7 @@ impl Service for OtelTraceService {
     type Lister = OtelTraceWrapper<oio::Lister>;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         let tracer = global::tracer("opendal");
@@ -93,6 +103,10 @@ impl Service for OtelTraceService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -140,7 +154,6 @@ impl Service for OtelTraceService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let tracer = global::tracer("opendal");
         let mut span = tracer.start("copy");
@@ -149,7 +162,7 @@ impl Service for OtelTraceService {
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = TraceContext::current_with_span(span);
         let _guard = cx.attach();
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
     }
 
     async fn rename(
@@ -169,6 +182,20 @@ impl Service for OtelTraceService {
             .rename(ctx, from, to, args)
             .with_context(cx)
             .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let tracer = global::tracer("opendal");
+        let mut span = tracer.start("restore");
+        span.set_attribute(KeyValue::new("path", path.to_string()));
+        span.set_attribute(KeyValue::new("args", format!("{args:?}")));
+        let cx = TraceContext::current_with_span(span);
+        self.inner.restore(ctx, path, args).with_context(cx).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -254,6 +281,13 @@ impl<R: oio::Read> oio::Read for OtelTraceWrapper<R> {
 impl<R: oio::Write> oio::Write for OtelTraceWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         self.inner.write(bs).with_context(self.cx.clone()).await
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.inner
+            .copy_from(path, args, range)
+            .with_context(self.cx.clone())
+            .await
     }
 
     async fn abort(&mut self) -> Result<()> {

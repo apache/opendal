@@ -26,10 +26,23 @@ on:
       cases:
         required: true
         type: string
+      enable_secrets:
+        required: false
+        type: boolean
+        default: false
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-binding_python-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Prevent parallel cache building in `test` job by building cache in a separate job
@@ -37,7 +50,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     steps:
       - uses: actions/checkout@v7
-    
+
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
         with:
@@ -47,7 +60,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # params must be in sync with `test` job
           working-directory: bindings/python
@@ -71,6 +84,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
+        if: inputs.enable_secrets
         shell: bash
         run: |
           echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
@@ -79,20 +93,37 @@ jobs:
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           # params must be in sync with `python-cache` job
           working-directory: bindings/python
+
+      - name: Setup Java for HDFS build
+        if: matrix.cases.feature == 'services-hdfs'
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: 11
 
       - name: Build with maturin
         shell: bash
         working-directory: "bindings/python"
         run: |
-          uv venv --python=python3.10
+          uv venv --python=python3.11
           uv sync --all-groups --all-extras
           uv run -- maturin develop -F ${{ matrix.cases.feature }}
 
       - name: Test Core
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        uses: ./.github/actions/test_behavior_binding_python
+        with:
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
+
+      - name: Retry Test Core
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
         uses: ./.github/actions/test_behavior_binding_python
         with:
           setup: ${{ matrix.cases.setup }}

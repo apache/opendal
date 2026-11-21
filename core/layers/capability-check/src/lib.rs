@@ -15,31 +15,23 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Capability check layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::sync::Arc;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add an extra capability check layer for every operation
+/// `CapabilityCheckLayer` validates optional operation arguments against service capabilities.
 ///
-/// Similar to `CorrectnessChecker`, Before performing any operations, this layer will first verify
-/// its arguments against the capability of the underlying service. If the arguments is not supported,
-/// an error will be returned directly.
+/// This opt-in layer rejects selected unsupported write, copy, and compose options, such as
+/// `write_with_content_type`. For list operations, it removes the `limit` hint when the service
+/// does not support it.
 ///
-/// Notes
-///
-/// There are two main differences between this checker with the `CorrectnessChecker`:
-/// 1. This checker provides additional checks for capabilities like write_with_content_type and
-///    list_with_versions, among others. These capabilities do not affect data integrity, even if
-///    the underlying storage services do not support them.
-///
-/// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to
-///    enforce stricter requirements.
+/// The default correctness checks validate `start_after`, `versions(true)`, and `deleted(true)`
+/// independently of this layer.
 ///
 /// # Examples
 ///
@@ -101,6 +93,7 @@ impl Service for CapabilityCheckService {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -151,6 +144,13 @@ impl Service for CapabilityCheckService {
                 "content_disposition",
             ));
         }
+        if !capability.write_with_content_language && args.content_language().is_some() {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Write,
+                "content_language",
+            ));
+        }
 
         self.inner.write(ctx, path, args)
     }
@@ -161,7 +161,6 @@ impl Service for CapabilityCheckService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let capability = self.capability();
         let info = self.info();
@@ -183,7 +182,76 @@ impl Service for CapabilityCheckService {
             ));
         }
 
-        self.inner.copy(ctx, from, to, args, opts)
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        let capability = self.capability();
+        let info = self.info();
+        let checks = [
+            (
+                args.content_type().is_some(),
+                capability.compose_with_content_type,
+                "content_type",
+            ),
+            (
+                args.content_disposition().is_some(),
+                capability.compose_with_content_disposition,
+                "content_disposition",
+            ),
+            (
+                args.content_encoding().is_some(),
+                capability.compose_with_content_encoding,
+                "content_encoding",
+            ),
+            (
+                args.cache_control().is_some(),
+                capability.compose_with_cache_control,
+                "cache_control",
+            ),
+            (
+                args.user_metadata().is_some(),
+                capability.compose_with_user_metadata,
+                "user_metadata",
+            ),
+            (
+                args.if_match().is_some(),
+                capability.compose_with_if_match,
+                "if_match",
+            ),
+            (
+                args.if_none_match().is_some(),
+                capability.compose_with_if_none_match,
+                "if_none_match",
+            ),
+            (
+                args.if_version_match().is_some(),
+                capability.compose_with_if_version_match,
+                "if_version_match",
+            ),
+            (
+                args.if_version_not_match().is_some(),
+                capability.compose_with_if_version_not_match,
+                "if_version_not_match",
+            ),
+            (
+                args.if_not_exists(),
+                capability.compose_with_if_not_exists,
+                "if_not_exists",
+            ),
+        ];
+
+        if !capability.compose {
+            return Err(new_unsupported_error(&info, Operation::Compose, ""));
+        }
+        if let Some((_, _, name)) = checks
+            .iter()
+            .find(|(used, supported, _)| *used && !supported)
+        {
+            return Err(new_unsupported_error(&info, Operation::Compose, name));
+        }
+
+        self.inner.compose(ctx, to, args)
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -191,19 +259,11 @@ impl Service for CapabilityCheckService {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let capability = self.capability();
-        if !capability.list_with_versions && args.versions() {
-            let info = self.info();
-            return Err(new_unsupported_error(&info, Operation::List, "version"));
-        }
-        if !capability.list_with_glob && args.glob().is_some() {
-            return Err(new_unsupported_error(
-                self.info.as_ref(),
-                Operation::List,
-                "glob",
-            ));
-        }
-
+        let args = if args.limit().is_some() && !self.capability().list_with_limit {
+            args.without_limit()
+        } else {
+            args
+        };
         self.inner.list(ctx, path, args)
     }
 
@@ -215,6 +275,31 @@ impl Service for CapabilityCheckService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let capability = self.capability();
+        let info = self.info();
+        if !capability.restore {
+            return Err(new_unsupported_error(&info, Operation::Restore, ""));
+        }
+        if args.version().is_some() && !capability.restore_with_version {
+            return Err(new_unsupported_error(&info, Operation::Restore, "version"));
+        }
+        if args.if_not_exists() && !capability.restore_with_if_not_exists {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Restore,
+                "if_not_exists",
+            ));
+        }
+
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn presign(
@@ -242,6 +327,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -281,7 +367,10 @@ mod tests {
             Ok(())
         }
 
-        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        fn list(&self, _ctx: &OperationContext, _: &str, args: OpList) -> Result<Self::Lister> {
+            assert_eq!(args.limit(), self.capability.list_with_limit.then_some(16));
+            assert_eq!(args.start_after(), Some("path/marker"));
+            assert!(args.recursive());
             Ok(())
         }
 
@@ -292,14 +381,7 @@ mod tests {
             ))
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Err(Error::new(
                 ErrorKind::Unsupported,
                 "operation is not supported",
@@ -352,11 +434,19 @@ mod tests {
             .await;
         assert!(res.is_err());
 
+        let err = op
+            .writer_with("path")
+            .content_language("en")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
         let op = new_test_operator(Capability {
             write: true,
             write_with_content_type: true,
             write_with_cache_control: true,
             write_with_content_disposition: true,
+            write_with_content_language: true,
             ..Default::default()
         });
         let res = op.writer_with("path").content_type("type").await;
@@ -370,43 +460,27 @@ mod tests {
             .content_disposition("disposition")
             .await;
         assert!(res.is_ok());
+
+        let res = op.writer_with("path").content_language("en").await;
+        assert!(res.is_ok());
     }
 
     #[tokio::test]
-    async fn test_list_with() {
-        let op = new_test_operator(Capability {
-            list: true,
-            ..Default::default()
-        });
-        let res = op.list_with("path/").versions(true).await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let op = new_test_operator(Capability {
-            list: true,
-            list_with_versions: true,
-            ..Default::default()
-        });
-        let res = op.lister_with("path/").versions(true).await;
-        assert!(res.is_ok())
-    }
-
-    #[tokio::test]
-    async fn test_list_with_glob() {
-        let op = new_test_operator(Capability {
-            list: true,
-            ..Default::default()
-        });
-        let res = op.list_with("path/").glob("*.jpg").await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let op = new_test_operator(Capability {
-            list: true,
-            list_with_glob: true,
-            ..Default::default()
-        });
-        let res = op.lister_with("path/").glob("*.jpg").await;
-        assert!(res.is_ok())
+    async fn test_list_limit() -> Result<()> {
+        for list_with_limit in [false, true] {
+            let op = new_test_operator(Capability {
+                list: true,
+                list_with_limit,
+                list_with_start_after: true,
+                list_with_recursive: true,
+                ..Default::default()
+            });
+            op.list_with("path/")
+                .limit(16)
+                .start_after("path/marker")
+                .recursive(true)
+                .await?;
+        }
+        Ok(())
     }
 }

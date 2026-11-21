@@ -282,7 +282,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -334,7 +335,8 @@ impl Operator {
     /// | stat file with `/`     | `abc/def_file/` | Error `NotFound`                           |
     /// | stat not existing path | `xyz`           | Error `NotFound`                           |
     ///
-    /// Refer to [RFC: List Prefix][crate::docs::rfcs::rfc_3243_list_prefix] for more details.
+    /// Refer to [RFC: List Prefix](https://github.com/apache/opendal/blob/main/core/core/src/docs/rfcs/3243_list_prefix.md)
+    /// for more details.
     ///
     /// ## Services that not support `create_dir`
     ///
@@ -424,10 +426,10 @@ impl Operator {
         self.read_options(path, options::ReadOptions::default())
     }
 
-    /// Read the whole path into a bytes with extra options.
+    /// Read the selected bytes from a file with extra options.
     ///
-    /// This function will allocate a new bytes internally. For more precise memory control or
-    /// reading data lazily, please use [`blocking::Operator::reader`]
+    /// See [`options::ReadOptions::limit`] to cap the returned bytes and accept EOF
+    /// after a valid starting byte. Use [`blocking::Operator::reader`] to read lazily.
     pub fn read_options(&self, path: &str, opts: options::ReadOptions) -> Result<Buffer> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -652,11 +654,25 @@ impl Operator {
         self.spawn_block(async move { op.rename_options(&from, &to, opts).await })?
     }
 
+    /// Restore the given path from its latest deleted state.
+    pub fn restore(&self, path: &str) -> Result<()> {
+        self.restore_options(path, options::RestoreOptions::default())
+    }
+
+    /// Restore the given path with additional options.
+    pub fn restore_options(&self, path: &str, opts: options::RestoreOptions) -> Result<()> {
+        let op = self.op.clone();
+        let path = path.to_string();
+        self.spawn_block(async move { op.restore_options(&path, opts).await })?
+    }
+
     /// Delete given path.
     ///
     /// # Notes
     ///
     /// - Delete not existing error won't return errors.
+    /// - See [`crate::Operator::delete`] for the `fs` service's symbolic link
+    ///   behavior.
     ///
     /// # Examples
     ///
@@ -674,11 +690,15 @@ impl Operator {
         self.delete_options(path, options::DeleteOptions::default())
     }
 
-    /// Delete given path with options.
+    /// Delete the given path with additional options.
     ///
     /// # Notes
     ///
-    /// - Delete not existing error won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     pub fn delete_options(&self, path: &str, opts: options::DeleteOptions) -> Result<()> {
         let op = self.op.clone();
         let path = path.to_string();
@@ -711,11 +731,13 @@ impl Operator {
         self.handle.block_on(self.op.delete_try_iter(try_iter))
     }
 
-    /// Create a [`BlockingDeleter`] to continuously remove content from storage.
+    /// Create a [`blocking::Deleter`] to continuously remove content from
+    /// storage.
     ///
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
-    /// Users can have more control over the deletion process by using [`BlockingDeleter`] directly.
+    /// Use [`blocking::Deleter`] directly for more control over the deletion
+    /// process.
     pub fn deleter(&self) -> Result<blocking::Deleter> {
         blocking::Deleter::create(
             self.handle.clone(),
@@ -723,7 +745,10 @@ impl Operator {
         )
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Deprecated
     ///
@@ -734,13 +759,13 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// ```
     ///
     /// Use:
     /// ```ignore
     /// use opendal_core::options::DeleteOptions;
-    /// op.delete_options("path/to/dir", DeleteOptions {
+    /// op.delete_options("a/", DeleteOptions {
     ///     recursive: true,
     ///     ..Default::default()
     /// })?;
@@ -759,7 +784,7 @@ impl Operator {
     /// use opendal_core::blocking;
     /// # use opendal_core::blocking::Operator;
     /// # fn test(op: blocking::Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir")?;
+    /// op.remove_all("a/")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -839,7 +864,8 @@ impl Operator {
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
     ///
-    /// This function creates a new [`BlockingLister`]; dropping it stops listing.
+    /// This function creates a new [`blocking::Lister`]; dropping it stops
+    /// listing.
     ///
     /// # Semantics
     ///

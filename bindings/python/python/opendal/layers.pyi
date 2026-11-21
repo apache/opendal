@@ -63,7 +63,17 @@ class ConcurrentLimitLayer(Layer):
         """
 
 class Layer:
-    """Layers are used to intercept the operations on the underlying storage."""
+    """
+    Base class for all layers.
+
+    A layer wraps an operator to intercept operations on the underlying
+    storage, adding behavior such as retries, timeouts, concurrency limits,
+    or content-type detection.
+
+    This class is not meant to be instantiated directly. Use a concrete
+    subclass such as `RetryLayer` or `TimeoutLayer` and apply it with
+    `Operator.layer` or `AsyncOperator.layer`.
+    """
 
 @final
 class MimeGuessLayer(Layer):
@@ -145,4 +155,49 @@ class RetryLayer(Layer):
         ------
         ConfigInvalid
             If ``factor``, ``max_delay``, or ``min_delay`` is out of range.
+        """
+
+@final
+class TimeoutLayer(Layer):
+    """
+    A layer that adds timeouts to operations.
+
+    Timeouts prevent slow or stalled work from hanging indefinitely, for
+    example when a TCP connection stops emitting IO events. Control
+    operations (such as `stat` and `delete`) and IO operations (such as
+    `read` and `write`) are bounded by separate timeouts.
+
+    Notes
+    -----
+    A small amount of overhead is added to IO operations to implement the
+    timeout correctly.
+    """
+
+    def __new__(
+        cls, /, timeout: float | None = None, io_timeout: float | None = None
+    ) -> TimeoutLayer:
+        """
+        Create a new TimeoutLayer.
+
+        Parameters
+        ----------
+        timeout : Optional[float]
+            Timeout (in seconds) for control operations like ``stat`` and
+            ``delete``. Must be a positive, finite number. A value of ``0``
+            is rejected because it would make every operation time out
+            immediately. Defaults to ``60.0``.
+        io_timeout : Optional[float]
+            Timeout (in seconds) for IO operations like ``read`` and
+            ``write``. Must be a positive, finite number. A value of ``0``
+            is rejected because it would make every operation time out
+            immediately. Defaults to ``10.0``.
+
+        Returns
+        -------
+        TimeoutLayer
+
+        Raises
+        ------
+        ConfigInvalid
+            If ``timeout`` or ``io_timeout`` is out of range.
         """

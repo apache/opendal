@@ -17,8 +17,8 @@
 
 use std::sync::Arc;
 
+use asyncband::once::OnceCell;
 use futures::Future;
-use mea::once::OnceCell;
 
 use crate::raw::*;
 use crate::*;
@@ -140,6 +140,7 @@ struct PositionReadStream<R: PositionRead> {
     handle: Arc<OnceCell<R::Handle>>,
     offset: u64,
     remaining: Option<u64>,
+    read_any: bool,
     max_buf_size: usize,
     done: bool,
 }
@@ -156,6 +157,7 @@ impl<R: PositionRead> PositionReadStream<R> {
             handle,
             offset: range.offset(),
             remaining: range.size(),
+            read_any: false,
             max_buf_size,
             done: false,
         }
@@ -178,7 +180,9 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
         check_position_read_size(read_size, buf.len())?;
         if buf.is_empty() {
             self.done = true;
-            if let Some(remaining) = self.remaining {
+            if !self.read_any
+                && let Some(remaining) = self.remaining
+            {
                 return Err(Error::new(
                     ErrorKind::RangeNotSatisfied,
                     "range exceeds content length",
@@ -189,6 +193,7 @@ impl<R: PositionRead> oio::ReadStream for PositionReadStream<R> {
             return Ok(Buffer::new());
         }
 
+        self.read_any = true;
         let n = buf.len() as u64;
         self.offset += n;
         if let Some(remaining) = &mut self.remaining {
@@ -297,11 +302,22 @@ mod tests {
     async fn test_position_reader_open_stops_at_eof() -> Result<()> {
         let reader =
             PositionReader::new(TestPositionRead::new(b"0123456789", 2)).with_max_buf_size(4);
-        let (_, mut stream) = reader.open(BytesRange::from(8..)).await?;
 
-        let buf = stream.read_all().await?;
+        for range in [BytesRange::from(8..), BytesRange::from(8..12)] {
+            let (_, mut stream) = reader.open(range).await?;
+            assert_eq!(stream.read_all().await?.to_vec(), b"89");
+        }
+        Ok(())
+    }
 
-        assert_eq!(buf.to_vec(), b"89");
+    #[tokio::test]
+    async fn test_position_reader_open_rejects_bounded_start_at_eof() -> Result<()> {
+        let reader = PositionReader::new(TestPositionRead::new(b"0123456789", 2));
+        let (_, mut stream) = reader.open(BytesRange::from(10..12)).await?;
+        assert_eq!(
+            stream.read().await.unwrap_err().kind(),
+            ErrorKind::RangeNotSatisfied
+        );
         Ok(())
     }
 }

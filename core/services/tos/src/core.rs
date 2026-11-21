@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::time::Duration;
 
 use http::Request;
 use http::Response;
@@ -97,6 +98,27 @@ impl TosCore {
                 .with_http_send(ctx.http_transport().clone())
                 .with_env(OsEnv),
         )
+    }
+
+    pub async fn sign_query<T>(
+        &self,
+        ctx: &OperationContext,
+        req: Request<T>,
+        duration: Duration,
+    ) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
+        let (mut parts, body) = req.into_parts();
+        self.signer(ctx)
+            .sign(&mut parts, Some(duration))
+            .await
+            .map_err(|e| new_request_sign_error(e.into()))?;
+
+        parts.headers.remove(HOST);
+
+        Ok(Request::from_parts(parts, body))
     }
 
     pub async fn send(
@@ -210,7 +232,7 @@ impl TosCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -307,7 +329,7 @@ impl TosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}",
@@ -330,7 +352,7 @@ impl TosCore {
     }
 
     pub fn tos_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -413,13 +435,12 @@ impl TosCore {
         self.send(ctx, req).await
     }
 
-    pub async fn tos_delete_object(
+    pub fn tos_delete_object_request(
         &self,
-        ctx: &OperationContext,
         path: &str,
         args: &OpDelete,
-    ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+    ) -> Result<Request<Buffer>> {
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -444,11 +465,19 @@ impl TosCore {
 
         let req = Request::delete(&url);
 
-        let req = req
-            .extension(Operation::Delete)
+        req.extension(Operation::Delete)
             .extension(ServiceOperation("DeleteObject"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
+
+    pub async fn tos_delete_object(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: &OpDelete,
+    ) -> Result<Response<Buffer>> {
+        let req = self.tos_delete_object_request(path, args)?;
 
         self.send(ctx, req).await
     }
@@ -466,7 +495,7 @@ impl TosCore {
             objects: paths
                 .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, path),
+                    key: build_absolute_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -496,8 +525,8 @@ impl TosCore {
         to: &str,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://{}.{}/{}",
@@ -529,7 +558,7 @@ impl TosCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploads",
@@ -560,8 +589,8 @@ impl TosCore {
         &self,
         input: TosUploadPartCopyRequest<'_>,
     ) -> Result<Request<Buffer>> {
-        let source = build_abs_path(&self.root, input.from);
-        let target = build_abs_path(&self.root, input.to);
+        let source = build_absolute_path(&self.root, input.from);
+        let target = build_absolute_path(&self.root, input.to);
 
         let url = format!(
             "https://{}.{}/{}?partNumber={}&uploadId={}",
@@ -592,7 +621,7 @@ impl TosCore {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -628,7 +657,7 @@ impl TosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -656,7 +685,7 @@ impl TosCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url =
             QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
@@ -674,7 +703,7 @@ impl TosCore {
         if let Some(start_after) = start_after
             && (path.is_empty() || path == "/" || start_after.starts_with(path))
         {
-            let start_after = build_abs_path(&self.root, &start_after);
+            let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("start-after", &percent_encode_query(&start_after));
         }
         if !continuation_token.is_empty() {
@@ -702,7 +731,7 @@ impl TosCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url =
             QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
@@ -742,7 +771,7 @@ impl TosCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploads",
@@ -799,7 +828,7 @@ impl TosCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?partNumber={}&uploadId={}",
@@ -828,7 +857,7 @@ impl TosCore {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -867,7 +896,7 @@ impl TosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -1052,99 +1081,115 @@ pub struct CopyObjectOutput {
     pub etag: String,
 }
 
-mod error {
-    use bytes::Buf;
-    use http::{Response, StatusCode};
-    use quick_xml::de;
-    use serde::Deserialize;
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
+/// TosError is the error returned by TOS service.
+#[derive(Default, Debug, Deserialize, PartialEq, Eq)]
+#[serde(default, rename_all = "PascalCase")]
+pub(crate) struct TosError {
+    pub code: String,
+    pub message: String,
+    pub resource: String,
+    pub request_id: String,
+}
 
-    /// TosError is the error returned by TOS service.
-    #[derive(Default, Debug, Deserialize, PartialEq, Eq)]
-    #[serde(default, rename_all = "PascalCase")]
-    pub(crate) struct TosError {
-        pub code: String,
-        pub message: String,
-        pub resource: String,
-        pub request_id: String,
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
+}
 
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
 
-        let (mut kind, mut retryable) = match parts.status {
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            code if code.is_server_error() => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let (message, tos_err) = parse_tos_error(&bs)
-            .map(|tos_err| (format!("{tos_err:?}"), Some(tos_err)))
-            .unwrap_or_else(|| (String::from_utf8_lossy(&bs).into_owned(), None));
-
-        if let Some(tos_err) = tos_err {
-            (kind, retryable) =
-                parse_tos_error_code(tos_err.code.as_str()).unwrap_or((kind, retryable));
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+            (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        code if code.is_server_error() => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
 
-        let mut err = Error::new(kind, message);
+    let (message, tos_err) = parse_tos_error(&bs)
+        .map(|tos_err| (format!("{tos_err:?}"), Some(tos_err)))
+        .unwrap_or_else(|| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+    if let Some(tos_err) = tos_err {
+        (kind, retryable) =
+            parse_tos_error_code(tos_err.code.as_str()).unwrap_or((kind, retryable));
     }
 
-    fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
-        de::from_reader::<_, TosError>(bs.chunk().reader())
-            .or_else(|_| serde_json::from_slice::<TosError>(bs))
-            .ok()
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
     }
 
-    /// Returns the `Error kind` of this code and whether the error is retryable.
-    /// TOS error codes: https://www.volcengine.com/docs/6349/74874
-    pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
-        match code {
-            "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
-            "NoSuchKey" => Some((ErrorKind::NotFound, false)),
-            "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
-            "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
-            "InternalError" => Some((ErrorKind::Unexpected, true)),
-            "OperationAborted" => Some((ErrorKind::Unexpected, true)),
-            "SlowDown" => Some((ErrorKind::RateLimited, true)),
-            "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
-            "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
-            "ExceedAccountQPSLimit" | "ExceedAccountRateLimit" => {
-                Some((ErrorKind::RateLimited, true))
-            }
-            "ExceedBucketQPSLimit" | "ExceedBucketRateLimit" => {
-                Some((ErrorKind::RateLimited, true))
-            }
-            _ => None,
-        }
+    err
+}
+
+fn parse_tos_error(bs: &bytes::Bytes) -> Option<TosError> {
+    de::from_reader::<_, TosError>(bs.chunk().reader())
+        .or_else(|_| serde_json::from_slice::<TosError>(bs))
+        .ok()
+}
+
+/// Returns the `Error kind` of this code and whether the error is retryable.
+/// TOS error codes: https://www.volcengine.com/docs/6349/74874
+pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
+    match code {
+        "NoSuchBucket" => Some((ErrorKind::ConfigInvalid, false)),
+        "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+        "DuplicateObject" => Some((ErrorKind::ConditionNotMatch, false)),
+        "RequestTimeout" => Some((ErrorKind::Unexpected, true)),
+        "InternalError" => Some((ErrorKind::Unexpected, true)),
+        "OperationAborted" => Some((ErrorKind::Unexpected, true)),
+        "SlowDown" => Some((ErrorKind::RateLimited, true)),
+        "ServiceUnavailable" => Some((ErrorKind::Unexpected, true)),
+        "TooManyRequests" => Some((ErrorKind::RateLimited, true)),
+        "ExceedAccountQPSLimit" | "ExceedAccountRateLimit" => Some((ErrorKind::RateLimited, true)),
+        "ExceedBucketQPSLimit" | "ExceedBucketRateLimit" => Some((ErrorKind::RateLimited, true)),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(r#"{"Code":"Requested Range Not Satisfiable","Message":"The requested range is not satisfiable"}"#))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
 <?xml version="1.0" encoding="UTF-8"?>
 <Error>
   <Code>NoSuchKey</Code>
@@ -1153,34 +1198,34 @@ mod error {
   <RequestId>4442587FB7D0A2F9</RequestId>
 </Error>
 "#,
-            );
+        );
 
-            let out: TosError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
+        let out: TosError = de::from_reader(bs.reader()).expect("must success");
+        println!("{out:?}");
 
-            assert_eq!(out.code, "NoSuchKey");
-            assert_eq!(out.message, "The resource you requested does not exist");
-            assert_eq!(out.resource, "/mybucket/myfoto.jpg");
-            assert_eq!(out.request_id, "4442587FB7D0A2F9");
-        }
+        assert_eq!(out.code, "NoSuchKey");
+        assert_eq!(out.message, "The resource you requested does not exist");
+        assert_eq!(out.resource, "/mybucket/myfoto.jpg");
+        assert_eq!(out.request_id, "4442587FB7D0A2F9");
+    }
 
-        #[test]
-        fn test_parse_json_error() {
-            let bs = bytes::Bytes::from(
-                r#"{"Code":"DuplicateObject","RequestId":"request-id","Message":"The object already exists."}"#,
-            );
+    #[test]
+    fn test_parse_json_error() {
+        let bs = bytes::Bytes::from(
+            r#"{"Code":"DuplicateObject","RequestId":"request-id","Message":"The object already exists."}"#,
+        );
 
-            let out = parse_tos_error(&bs).expect("must success");
+        let out = parse_tos_error(&bs).expect("must success");
 
-            assert_eq!(out.code, "DuplicateObject");
-            assert_eq!(out.message, "The object already exists.");
-            assert_eq!(out.request_id, "request-id");
-        }
+        assert_eq!(out.code, "DuplicateObject");
+        assert_eq!(out.message, "The object already exists.");
+        assert_eq!(out.request_id, "request-id");
+    }
 
-        #[test]
-        fn test_parse_error_from_unrelated_input() {
-            let bs = bytes::Bytes::from(
-                r#"
+    #[test]
+    fn test_parse_error_from_unrelated_input() {
+        let bs = bytes::Bytes::from(
+            r#"
 <?xml version="1.0" encoding="UTF-8"?>
 <CompleteMultipartUploadResult xmlns="http://tos.apache.org/doc/2024-01-01/">
   <Bucket>example-bucket</Bucket>
@@ -1188,15 +1233,12 @@ mod error {
   <UploadId>VXBsb2FkIElEIGZvciA2aWWpbmcncyBteS1tb3ZpZS5tMnRzIHVwbG9hZA</UploadId>
 </CompleteMultipartUploadResult>
 "#,
-            );
+        );
 
-            let out: TosError = de::from_reader(bs.reader()).expect("must success");
-            assert_eq!(out, TosError::default());
-        }
+        let out: TosError = de::from_reader(bs.reader()).expect("must success");
+        assert_eq!(out, TosError::default());
     }
 }
-
-pub(super) use error::*;
 
 mod utils {
     use http::HeaderMap;
@@ -1216,13 +1258,13 @@ mod utils {
         path: &str,
         headers: &HeaderMap,
     ) -> opendal_core::Result<Metadata> {
-        let mut metadata = parse_into_metadata(path, headers)?;
+        let mut metadata = parse_into_metadata(path, headers)?.into_builder();
 
         if let Some(etag) = tos_parse_etag(headers)? {
-            metadata.set_etag(etag);
+            metadata.etag(etag);
         }
 
-        Ok(metadata)
+        Ok(metadata.build())
     }
 }
 

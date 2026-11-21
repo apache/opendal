@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Route layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::sync::Arc;
@@ -30,7 +29,34 @@ use globset::GlobSetBuilder;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Route operations to different operators by matching paths with glob patterns.
+/// `RouteLayer` routes operations to different operators by matching paths
+/// against glob patterns.
+///
+/// Routes are evaluated in insertion order, and the first matching route wins.
+/// An unmatched path uses the operator wrapped by this layer. Copy and rename
+/// operations select a route from the source path, so this layer does not move
+/// data between two routed services. A batched delete routes each path
+/// independently.
+///
+/// [`OperatorInfo::capability`] continues to describe the wrapped operator; it
+/// does not aggregate the capabilities of route targets.
+///
+/// # Example
+///
+/// ```no_run
+/// use opendal_core::services::Memory;
+/// use opendal_core::{Operator, Result};
+/// use opendal_layer_route::RouteLayer;
+///
+/// fn build_operator() -> Result<Operator> {
+///     let archive = Operator::new(Memory::default())?;
+///     let routes = RouteLayer::builder()
+///         .route("archive/**", archive)
+///         .build()?;
+///
+///     Ok(Operator::new(Memory::default())?.layer(routes))
+/// }
+/// ```
 #[derive(Clone, Debug)]
 pub struct RouteLayer {
     router: Arc<RouteRouter>,
@@ -50,7 +76,10 @@ pub struct RouteLayerBuilder {
 }
 
 impl RouteLayerBuilder {
-    /// Add a route with a glob pattern.
+    /// Add a route for paths that match `pattern`.
+    ///
+    /// If multiple patterns match, the route added first wins. The target
+    /// operator contributes both its service and its operation context.
     pub fn route(mut self, pattern: impl AsRef<str>, op: Operator) -> Self {
         let (ctx, srv) = op.into_parts();
         self.routes.push(RouteEntry {
@@ -60,9 +89,10 @@ impl RouteLayerBuilder {
         self
     }
 
-    /// Build the `RouteLayer`.
+    /// Build the route layer.
     ///
-    /// Returns an error if any glob pattern fails to compile.
+    /// This method returns [`ErrorKind::ConfigInvalid`] if a glob pattern is
+    /// invalid.
     pub fn build(self) -> Result<RouteLayer> {
         let mut builder = GlobSetBuilder::new();
         let mut targets = Vec::with_capacity(self.routes.len());
@@ -142,7 +172,7 @@ impl RouteLayer {
     }
 }
 
-/// Service that routes operations to different targets based on path.
+#[doc(hidden)]
 pub struct RouteAccessor {
     inner: Servicer,
     router: Arc<RouteRouter>,
@@ -166,13 +196,29 @@ impl Service for RouteAccessor {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
     }
 
     fn capability(&self) -> Capability {
-        self.inner.capability()
+        let mut capability = self.inner.capability();
+        capability.write_can_copy_from = false;
+        capability.compose = false;
+        capability.compose_with_content_type = false;
+        capability.compose_with_content_disposition = false;
+        capability.compose_with_content_encoding = false;
+        capability.compose_with_cache_control = false;
+        capability.compose_with_user_metadata = false;
+        capability.compose_with_if_match = false;
+        capability.compose_with_if_none_match = false;
+        capability.compose_with_if_version_match = false;
+        capability.compose_with_if_version_not_match = false;
+        capability.compose_with_if_not_exists = false;
+        capability.compose_with_source_version = false;
+        capability.compose_with_source_if_match = false;
+        capability
     }
 
     async fn create_dir(
@@ -207,11 +253,10 @@ impl Service for RouteAccessor {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<oio::Copier> {
         match self.select(from) {
-            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args, opts),
-            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args, opts),
+            RouteSelected::Default(srv) => srv.copy(ctx, from, to, args),
+            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args),
         }
     }
 
@@ -225,6 +270,18 @@ impl Service for RouteAccessor {
         match self.select(from) {
             RouteSelected::Default(srv) => srv.rename(ctx, from, to, args).await,
             RouteSelected::Target(target) => target.srv.rename(&target.ctx, from, to, args).await,
+        }
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        match self.select(path) {
+            RouteSelected::Default(srv) => srv.restore(ctx, path, args).await,
+            RouteSelected::Target(target) => target.srv.restore(&target.ctx, path, args).await,
         }
     }
 
@@ -263,7 +320,7 @@ impl Service for RouteAccessor {
     }
 }
 
-/// Deleter that batches deletions per routed service.
+#[doc(hidden)]
 pub struct RouteDeleter {
     default: Servicer,
     router: Arc<RouteRouter>,
@@ -437,6 +494,7 @@ mod tests {
         type Lister = ();
         type Deleter = ();
         type Copier = ();
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             self.info.clone()
@@ -466,7 +524,7 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
             if self.paths.lock().unwrap().contains(path) {
-                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+                Ok(RpStat::new(MetadataBuilder::file(0).build()))
             } else {
                 Err(Error::new(ErrorKind::NotFound, "path not found"))
             }
@@ -506,7 +564,6 @@ mod tests {
             from: &str,
             to: &str,
             _: OpCopy,
-            _: OpCopier,
         ) -> Result<Self::Copier> {
             if !self.paths.lock().unwrap().contains(from) {
                 return Err(Error::new(ErrorKind::NotFound, "source not found"));
@@ -550,7 +607,7 @@ mod tests {
 
         async fn close(&mut self) -> Result<Metadata> {
             self.paths.lock().unwrap().insert(self.path.clone());
-            Ok(Metadata::new(EntryMode::FILE))
+            Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort(&mut self) -> Result<()> {

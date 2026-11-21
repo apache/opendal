@@ -25,6 +25,7 @@ use super::FS_SCHEME;
 use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
+use super::lister::FsLister;
 use super::reader::*;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -152,6 +153,8 @@ impl Builder for FsBuilder {
                     delete_with_recursive: true,
 
                     list: true,
+                    list_with_recursive: true,
+                    list_with_start_after: true,
 
                     copy: true,
                     rename: true,
@@ -177,9 +180,10 @@ pub struct FsBackend {
 impl Service for FsBackend {
     type Reader = oio::PositionReader<FsReader>;
     type Writer = FsLazyWriter;
-    type Lister = FsLazyLister;
+    type Lister = FsLister;
     type Deleter = oio::OneShotDeleter<FsDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -224,8 +228,8 @@ impl Service for FsBackend {
         Ok(oio::OneShotDeleter::new(FsDeleter::new(self.core.clone())))
     }
 
-    fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
-        Ok(FsLazyLister::new(self.core.clone(), path))
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        Ok(FsLister::new(self.core.clone(), path, args))
     }
 
     fn copy(
@@ -234,14 +238,14 @@ impl Service for FsBackend {
         from: &str,
         to: &str,
         _args: OpCopy,
-        _opts: OpCopier,
     ) -> Result<Self::Copier> {
         let core = self.core.clone();
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
-            core.fs_copy(&from, &to).await?;
-            Ok(Metadata::default())
+            let size = core.fs_copy(&from, &to).await?;
+            let metadata = MetadataBuilder::file(size);
+            Ok(metadata.build())
         }))
     }
 

@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Metrics layer (using the [prometheus-client](https://docs.rs/prometheus-client) crate) implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
@@ -35,7 +34,8 @@ use prometheus_client::registry::Metric;
 use prometheus_client::registry::Registry;
 use prometheus_client::registry::Unit;
 
-/// Add [prometheus-client](https://docs.rs/prometheus-client) metrics for OpenDAL operations and HTTP fetches.
+/// `PrometheusClientLayer` records OpenDAL operation and HTTP fetch metrics with
+/// [prometheus-client](https://docs.rs/prometheus-client).
 ///
 /// # Prometheus Metrics
 ///

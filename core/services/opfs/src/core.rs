@@ -43,6 +43,7 @@ impl OpfsCore {
             write_can_multi: true,
 
             delete: true,
+            delete_with_recursive: true,
 
             shared: true,
 
@@ -57,46 +58,42 @@ impl OpfsCore {
     }
 }
 
-mod error {
-    use wasm_bindgen::JsCast;
-    use wasm_bindgen::JsValue;
-    use web_sys::DomException;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::JsValue;
+use web_sys::DomException;
 
-    use opendal_core::Error;
-    use opendal_core::ErrorKind;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 
-    pub(crate) fn parse_js_error(value: JsValue) -> Error {
-        if let Some(exc) = value.dyn_ref::<DomException>() {
-            let kind = match exc.name().as_str() {
-                "NotFoundError" => ErrorKind::NotFound,
-                "TypeMismatchError" => ErrorKind::NotFound,
-                "NotAllowedError" => ErrorKind::PermissionDenied,
-                "QuotaExceededError" => ErrorKind::Unexpected,
-                e => {
-                    console_debug!("Got unhandled DOM exception {e:?}");
-                    ErrorKind::Unexpected
-                }
-            };
-            return Error::new(kind, exc.message());
-        }
-
-        // FIXME: how to map `TypeError`` from `getDirectoryHandle`:
-        // "name specified is not a valid string or contains characters that
-        // would interfere with the native file system"
-        if let Some(err) = value.dyn_ref::<js_sys::Error>() {
-            return Error::new(ErrorKind::Unexpected, String::from(err.message()));
-        }
-
-        Error::new(
-            ErrorKind::Unexpected,
-            value
-                .as_string()
-                .unwrap_or_else(|| "unknown JS error".to_string()),
-        )
+pub(crate) fn parse_js_error(value: JsValue) -> Error {
+    if let Some(exc) = value.dyn_ref::<DomException>() {
+        let kind = match exc.name().as_str() {
+            "NotFoundError" => ErrorKind::NotFound,
+            "TypeMismatchError" => ErrorKind::NotFound,
+            "NotAllowedError" => ErrorKind::PermissionDenied,
+            "QuotaExceededError" => ErrorKind::Unexpected,
+            e => {
+                console_debug!("Got unhandled DOM exception {e:?}");
+                ErrorKind::Unexpected
+            }
+        };
+        return Error::new(kind, exc.message());
     }
-}
 
-pub(super) use error::*;
+    // FIXME: how to map `TypeError`` from `getDirectoryHandle`:
+    // "name specified is not a valid string or contains characters that
+    // would interfere with the native file system"
+    if let Some(err) = value.dyn_ref::<js_sys::Error>() {
+        return Error::new(ErrorKind::Unexpected, String::from(err.message()));
+    }
+
+    Error::new(
+        ErrorKind::Unexpected,
+        value
+            .as_string()
+            .unwrap_or_else(|| "unknown JS error".to_string()),
+    )
+}
 
 mod utils {
     use opendal_core::Result;
@@ -106,14 +103,34 @@ mod utils {
     use web_sys::FileSystemFileHandle;
     use web_sys::FileSystemGetDirectoryOptions;
     use web_sys::FileSystemGetFileOptions;
-    use web_sys::window;
+    use web_sys::StorageManager;
+    use web_sys::Window;
+    use web_sys::WorkerGlobalScope;
 
     use crate::core::*;
 
+    /// Get the storage manager from the current global scope.
+    ///
+    /// OPFS is available both on the main thread (`Window`) and in workers
+    /// (`WorkerGlobalScope`), so `web_sys::window()` cannot be used: it is
+    /// `None` inside a worker.
+    fn storage_manager() -> Result<StorageManager> {
+        let global = js_sys::global();
+        if let Some(window) = global.dyn_ref::<Window>() {
+            Ok(window.navigator().storage())
+        } else if let Some(worker) = global.dyn_ref::<WorkerGlobalScope>() {
+            Ok(worker.navigator().storage())
+        } else {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "OPFS requires a window or worker global scope",
+            ))
+        }
+    }
+
     /// Get the OPFS root directory handle.
     pub(crate) async fn get_root_directory_handle() -> Result<FileSystemDirectoryHandle> {
-        let navigator = window().unwrap().navigator();
-        let storage_manager = navigator.storage();
+        let storage_manager = storage_manager()?;
         // This may fail if not secure (not: HTTPS or localhost)
         JsFuture::from(storage_manager.get_directory())
             .await
@@ -149,10 +166,10 @@ mod utils {
     /// Split a file path into its parent directory handle and filename.
     ///
     /// When `create` is true, intermediate directories are created as needed.
-    pub(crate) async fn get_parent_dir_and_name<'a>(
-        path: &'a str,
+    pub(crate) async fn get_parent_dir_and_name(
+        path: &str,
         create: bool,
-    ) -> Result<(FileSystemDirectoryHandle, &'a str)> {
+    ) -> Result<(FileSystemDirectoryHandle, &str)> {
         let trimmed = path.trim_matches('/');
         match trimmed.rsplit_once('/') {
             Some((parent, name)) => {

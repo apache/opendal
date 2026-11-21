@@ -1,6 +1,6 @@
 ## Capabilities
 
-This service can be used to:
+Depending on its configuration and the backing system, this service can expose:
 
 - [x] create_dir
 - [x] stat
@@ -12,14 +12,22 @@ This service can be used to:
 - [ ] rename
 - [ ] presign
 
+Inspect the effective capability set with [`opendal_core::Operator::info`] and
+[`opendal_core::OperatorInfo::capability`] after building an operator.
+
+Conditional delete with `if_match` sends the blob SHA from
+`Metadata::etag` as the Contents API `sha`. A mismatched SHA returns
+`ErrorKind::ConditionNotMatch` and leaves the file in place. Unconditional
+delete still looks up the current SHA first.
+
+For a directory path, `if_match` refers to the directory's `.gitkeep` blob SHA.
+Directory metadata does not expose that SHA.
+
 ## Configuration
 
-- `root`: Set the work directory for backend
-- `token`: Github access token
-- `owner`: Github owner
-- `repo`: Github repository
-
-You can refer to [`GithubBuilder`]'s docs for more information
+Use [`crate::GithubConfig`] for serializable configuration and this builder's
+methods for direct construction. The field and method documentation defines
+accepted values, defaults, and environment interaction.
 
 ## Example
 
@@ -42,7 +50,6 @@ async fn main() -> Result<()> {
         .owner("your_owner")
         // set the repository for Github
         .repo("your_repo");
-
 
     let op: Operator = Operator::new(builder)?;
 

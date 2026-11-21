@@ -15,11 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-//! Timeout layer implementation for Apache OpenDAL.
-
+#![doc = include_str!("../README.md")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,11 +26,11 @@ use std::time::Duration;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Add timeouts to operations to avoid slow or unexpectedly hanging work.
+/// `TimeoutLayer` adds deadlines to operations so slow or stalled work cannot
+/// hang indefinitely.
 ///
-/// For example, a dead connection could hang a database SQL query. `TimeoutLayer`
-/// will break this connection and return an error so users can handle it by
-/// retrying or reporting it.
+/// For example, a dead connection could stall a database query. `TimeoutLayer`
+/// interrupts the operation and returns an error that users can retry or report.
 ///
 /// # Notes
 ///
@@ -114,9 +113,9 @@ use opendal_core::*;
 ///
 /// For example, a user's TCP connection could enter the
 /// [Busy ESTAB](https://blog.cloudflare.com/when-tcp-sockets-refuse-to-die)
-/// state. In this state, no IO event will be emitted, so the runtime will never
-/// poll the future again. From the application side, this future hangs until the
-/// connection is closed after reaching the Linux
+/// state. In this state, the connection emits no IO events, so the runtime never
+/// polls the future again. The future hangs until Linux closes the connection
+/// after it reaches the
 /// [net.ipv4.tcp_retries2](https://man7.org/linux/man-pages/man7/tcp.7.html)
 /// limit.
 #[derive(Clone, Debug)]
@@ -207,6 +206,7 @@ impl Service for TimeoutService {
     type Lister = TimeoutWrapper<oio::Lister>;
     type Deleter = TimeoutWrapper<oio::Deleter>;
     type Copier = TimeoutWrapper<oio::Copier>;
+    type Composer = TimeoutWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -244,10 +244,15 @@ impl Service for TimeoutService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
+            .copy(ctx, from, to, args)
+            .map(|c| TimeoutWrapper::new(c, self.io_timeout))
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner
+            .compose(ctx, to, args)
             .map(|c| TimeoutWrapper::new(c, self.io_timeout))
     }
 
@@ -259,6 +264,16 @@ impl Service for TimeoutService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.timeout(Operation::Rename, self.inner.rename(ctx, from, to, args))
+            .await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.timeout(Operation::Restore, self.inner.restore(ctx, path, args))
             .await
     }
 
@@ -375,6 +390,11 @@ impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
         Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let fut = self.inner.copy_from(path, args, range);
+        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
         Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
@@ -422,6 +442,18 @@ impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
     }
 }
 
+impl<C: oio::Compose> oio::Compose for TimeoutWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        let fut = self.inner.compose(path, args);
+        Self::io_timeout(self.timeout, Operation::Compose.into_static(), fut).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let fut = self.inner.close();
+        Self::io_timeout(self.timeout, Operation::Compose.into_static(), fut).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::future::pending;
@@ -440,6 +472,7 @@ mod tests {
         type Lister = MockLister;
         type Deleter = MockDeleter;
         type Copier = MockCopier;
+        type Composer = ();
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -495,14 +528,7 @@ mod tests {
             Ok(MockLister)
         }
 
-        fn copy(
-            &self,
-            _: &OperationContext,
-            _: &str,
-            _: &str,
-            _: OpCopy,
-            _: OpCopier,
-        ) -> Result<Self::Copier> {
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Ok(MockCopier)
         }
 
@@ -652,9 +678,7 @@ mod tests {
             .with_io_timeout(Duration::from_millis(100))
             .apply_service(Arc::new(MockService));
         let ctx = OperationContext::new();
-        let mut copier = service
-            .copy(&ctx, "f", "t", OpCopy::default(), OpCopier::default())
-            .unwrap();
+        let mut copier = service.copy(&ctx, "f", "t", OpCopy::default()).unwrap();
 
         let err = copier.next().await.unwrap_err();
         assert!(err.to_string().contains("timeout"));

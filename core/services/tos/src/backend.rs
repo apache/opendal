@@ -33,7 +33,7 @@ use crate::writer::TosWriter;
 use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
-use opendal_core::{Builder, Capability, EntryMode, Error, ErrorKind, Result};
+use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
 use reqsign_core::{Context, OsEnv, ProvideCredentialChain, Signer};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_volcengine_tos::{EnvCredentialProvider, RequestSigner, StaticCredentialProvider};
@@ -215,6 +215,12 @@ impl Builder for TosBuilder {
             list_with_versions: true,
             list_with_deleted: true,
 
+            presign: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
+
             stat: true,
             stat_with_if_match: true,
             stat_with_if_none_match: true,
@@ -264,6 +270,7 @@ impl Service for TosBackend {
     type Lister = TosListers;
     type Deleter = oio::BatchDeleter<TosDeleter>;
     type Copier = TosCopiers;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -293,18 +300,18 @@ impl Service for TosBackend {
         match status {
             StatusCode::OK => {
                 let headers = resp.headers();
-                let mut meta = tos_parse_into_metadata(path, headers)?;
+                let mut meta = tos_parse_into_metadata(path, headers)?.into_builder();
 
                 let user_meta = parse_prefixed_headers(headers, X_TOS_META_PREFIX);
                 if !user_meta.is_empty() {
-                    meta = meta.with_user_metadata(user_meta);
+                    meta.user_metadata(user_meta);
                 }
 
                 if let Some(v) = parse_header_to_str(headers, X_TOS_VERSION_ID)? {
-                    meta.set_version(v);
+                    meta.version(v);
                 }
 
-                if let Some(is_dir) = parse_header_to_str(headers, X_TOS_DIRECTORY)?
+                if parse_header_to_str(headers, X_TOS_DIRECTORY)?
                     .map(|v| {
                         v.parse::<bool>().map_err(|e| {
                             Error::new(ErrorKind::Unexpected, "header value is not valid integer")
@@ -312,17 +319,17 @@ impl Service for TosBackend {
                         })
                     })
                     .transpose()?
+                    == Some(true)
                 {
-                    meta = meta.with_mode(if is_dir {
-                        EntryMode::DIR
-                    } else {
-                        EntryMode::FILE
-                    });
+                    meta.set_dir();
                 }
 
-                Ok(RpStat::new(meta))
+                Ok(RpStat::new(meta.build()))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("HeadObject")),
+                resp,
+            )),
         }
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -391,10 +398,9 @@ impl Service for TosBackend {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let output: TosCopiers = {
-            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args, opts)?;
+            let copier = new_tos_copier(self.core.clone(), ctx, from, to, args)?;
             Ok(copier)
         }?;
 
@@ -416,13 +422,31 @@ impl Service for TosBackend {
 
     async fn presign(
         &self,
-        _ctx: &OperationContext,
-        _path: &str,
-        _args: OpPresign,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
     ) -> Result<RpPresign> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let (expire, op) = args.into_parts();
+        let req = match op {
+            PresignOperation::Stat(v) => self.core.tos_head_object_request(path, v),
+            PresignOperation::Read(range, v) => self.core.tos_get_object_request(path, range, &v),
+            PresignOperation::Write(v) => {
+                self.core
+                    .tos_put_object_request(path, None, &v, Buffer::new())
+            }
+            PresignOperation::Delete(v) => self.core.tos_delete_object_request(path, &v),
+            _ => Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            )),
+        }?;
+        let req = self.core.sign_query(ctx, req, expire).await?;
+        let (parts, _) = req.into_parts();
+
+        Ok(RpPresign::new(PresignedRequest::new(
+            parts.method,
+            parts.uri,
+            parts.headers,
+        )))
     }
 }

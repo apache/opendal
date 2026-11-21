@@ -532,6 +532,7 @@ type Reader struct {
 }
 
 var _ io.ReadSeekCloser = (*Reader)(nil)
+var _ io.WriterTo = (*Reader)(nil)
 
 // Read reads up to len(buf) bytes into buf.
 // Read returns after one read from the storage library.
@@ -595,6 +596,19 @@ func (r *Reader) Read(buf []byte) (int, error) {
 // if the underlying storage system has restrictions on seeking.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
 	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
+}
+
+// WriteTo copies data from r's current position to dst using one 256 KiB buffer.
+// It returns the number of bytes written and any error. Reading to EOF succeeds.
+// WriteTo leaves both streams open. If dst is an OpenDAL [Writer], call
+// [Writer.Close] to complete the write and get its metadata.
+func (r *Reader) WriteTo(dst io.Writer) (int64, error) {
+	buf := make([]byte, copyBufferSize)
+
+	// Hide WriteTo and ReadFrom to prevent io.CopyBuffer from dispatching to them.
+	reader := struct{ io.Reader }{Reader: r}
+	writer := struct{ io.Writer }{Writer: dst}
+	return io.CopyBuffer(writer, reader, buf)
 }
 
 // Close releases resources associated with the OperatorReader.

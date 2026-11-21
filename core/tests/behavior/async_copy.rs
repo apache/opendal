@@ -111,6 +111,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
     {
         tests.extend(async_trials!(op, test_copy_with_content_language_in_place))
     }
+
+    if cap.read
+        && cap.write
+        && cap.stat
+        && cap.copy_can_multi
+        && cap.copy_with_user_metadata
+        && cap.copy_with_content_language
+    {
+        tests.extend(async_trials!(op, test_copy_with_metadata_multipart))
+    }
 }
 
 fn copy_multi_chunk_size(cap: Capability) -> Option<(usize, usize)> {
@@ -945,5 +955,39 @@ pub async fn test_copy_with_content_language_in_place(op: Operator) -> Result<()
     assert_eq!(sha256_digest(current_content), sha256_digest(&content));
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// A multipart copy with metadata options should store exactly the given
+/// metadata on the destination.
+pub async fn test_copy_with_metadata_multipart(op: Operator) -> Result<()> {
+    let Some((chunk, source_size)) = copy_multi_chunk_size(op.info().capability()) else {
+        return Ok(());
+    };
+
+    let source_path = uuid::Uuid::new_v4().to_string();
+    op.write(&source_path, gen_fixed_bytes(source_size)).await?;
+
+    let target_path = uuid::Uuid::new_v4().to_string();
+    let new_metadata = HashMap::from([("mtime".to_string(), "1700000000".to_string())]);
+    op.copy_with(&source_path, &target_path)
+        .chunk(chunk)
+        .user_metadata(new_metadata.clone())
+        .content_language("es-MX")
+        .await?;
+
+    let meta = op.stat(&target_path).await.expect("stat must succeed");
+    assert_eq!(meta.content_length(), source_size as u64);
+    assert_eq!(meta.content_language(), Some("es-MX"));
+    let current = meta
+        .user_metadata()
+        .expect("user metadata must exist")
+        .into_iter()
+        .map(|(key, value)| (key.to_owned(), value.to_owned()))
+        .collect::<HashMap<_, _>>();
+    assert_eq!(current, new_metadata);
+
+    op.delete(&source_path).await.expect("delete must succeed");
+    op.delete(&target_path).await.expect("delete must succeed");
     Ok(())
 }

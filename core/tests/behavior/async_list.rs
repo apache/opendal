@@ -756,7 +756,8 @@ pub async fn test_list_with_versions_and_limit(op: Operator) -> Result<()> {
 }
 
 pub async fn test_list_with_versions_and_start_after(op: Operator) -> Result<()> {
-    if !op.info().capability().list_with_versions {
+    let capability = op.info().capability();
+    if !capability.list_with_versions || !capability.list_with_start_after {
         return Ok(());
     }
 

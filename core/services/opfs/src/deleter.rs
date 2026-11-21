@@ -17,12 +17,12 @@
 
 use std::sync::Arc;
 
+use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
+use web_sys::FileSystemDirectoryHandle;
 use web_sys::FileSystemRemoveOptions;
 
-use super::core::OpfsCore;
-use super::core::*;
-use super::core::*;
+use super::core::{OpfsCore, get_parent_dir_and_name, parse_js_error};
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -34,27 +34,53 @@ impl OpfsDeleter {
     pub fn new(core: Arc<OpfsCore>) -> Self {
         Self { core }
     }
+
+    async fn remove_entry(
+        dir: &FileSystemDirectoryHandle,
+        name: &str,
+        options: &FileSystemRemoveOptions,
+    ) -> Result<()> {
+        match JsFuture::from(dir.remove_entry_with_options(name, options))
+            .await
+            .map_err(parse_js_error)
+        {
+            Ok(_) => Ok(()),
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
 }
 
 impl oio::OneShotDelete for OpfsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let p = build_absolute_path(&self.core.root, &path);
-        let (dir, name) = get_parent_dir_and_name(&p, false).await?;
+        let (dir, name) = match get_parent_dir_and_name(&p, false).await {
+            Ok(entry) => entry,
+            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(err),
+        };
 
-        let opt = FileSystemRemoveOptions::new();
-        opt.set_recursive(args.recursive());
+        let options = FileSystemRemoveOptions::new();
+        options.set_recursive(args.recursive());
 
-        match JsFuture::from(dir.remove_entry_with_options(name, &opt)).await {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err = parse_js_error(e);
-                // Deleting a non-existent entry is not an error.
-                if err.kind() == ErrorKind::NotFound {
-                    Ok(())
-                } else {
-                    Err(err)
+        // The origin root has no parent entry. Remove its children in place.
+        if name.is_empty() && args.recursive() {
+            let keys = dir.keys();
+            loop {
+                let next = JsFuture::from(keys.next().map_err(parse_js_error)?)
+                    .await
+                    .map_err(parse_js_error)?;
+                let next: js_sys::IteratorNext = next.unchecked_into();
+                if next.done() {
+                    return Ok(());
                 }
+                let name = next.value().as_string().ok_or_else(|| {
+                    Error::new(ErrorKind::Unexpected, "OPFS directory key is not a string")
+                })?;
+                Self::remove_entry(&dir, &name, &options).await?;
             }
         }
+
+        Self::remove_entry(&dir, name, &options).await
     }
 }

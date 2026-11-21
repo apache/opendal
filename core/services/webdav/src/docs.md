@@ -26,6 +26,10 @@ modification times, so a stale ETag still matches after an overwrite within
 the same second and the delete removes content the caller never observed.
 Disable `delete_with_if_match` with `CapabilityOverrideLayer` for such servers.
 
+nginx's `ngx_http_dav_module` omits ETags from DAV `PUT` responses and ignores
+`If-Match` on `DELETE`, making deletes unconditional. Disable
+`delete_with_if_match` with `CapabilityOverrideLayer` for these deployments as well.
+
 ## Configuration
 
 Use [`crate::WebdavConfig`] for serializable configuration and this builder's

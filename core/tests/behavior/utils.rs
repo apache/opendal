@@ -77,11 +77,11 @@ pub fn gen_offset_length(size: usize) -> (u64, u64) {
 /// directory is the root.
 pub fn is_gist(_op: &Operator) -> bool {
     #[cfg(feature = "services-gist")]
-    if _op.info().scheme() == services::GIST_SCHEME {
-        return true;
-    }
+    let gist = _op.info().scheme() == services::GIST_SCHEME;
+    #[cfg(not(feature = "services-gist"))]
+    let gist = false;
 
-    false
+    gist
 }
 
 /// Build a new async trail as a test case.

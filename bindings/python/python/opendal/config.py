@@ -872,6 +872,10 @@ class SftpConfig(TypedDict):
 
     scheme: Required[Literal["sftp"]]
     """The service scheme; fixed to `"sftp"`."""
+    acquire_timeout: NotRequired[str | timedelta]
+    """Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    connect_timeout: NotRequired[str | timedelta]
+    """Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]

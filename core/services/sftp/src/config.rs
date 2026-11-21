@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::raw::SignedDuration;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -37,6 +38,10 @@ pub struct SftpConfig {
     pub key: Option<String>,
     /// known_hosts_strategy of this backend
     pub known_hosts_strategy: Option<String>,
+    /// Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.
+    pub acquire_timeout: Option<SignedDuration>,
+    /// Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.
+    pub connect_timeout: Option<SignedDuration>,
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -71,7 +76,10 @@ impl opendal_core::Configurator for SftpConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        SftpBuilder { config: self }
+        SftpBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }
 
@@ -92,6 +100,48 @@ mod tests {
         let cfg = SftpConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoint.as_deref(), Some("sftp.example.com"));
         assert_eq!(cfg.root.as_deref(), Some("home/alice"));
+    }
+
+    #[test]
+    fn from_uri_applies_timeout_overrides() {
+        let uri = OperatorUri::new(
+            "sftp://host",
+            [
+                ("acquire_timeout".to_string(), "0s".to_string()),
+                ("connect_timeout".to_string(), "500ms".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.acquire_timeout, Some(SignedDuration::ZERO));
+        assert_eq!(cfg.connect_timeout, Some(SignedDuration::from_millis(500)));
+    }
+
+    #[test]
+    fn config_rejects_malformed_timeouts() {
+        use opendal_core::ErrorKind;
+
+        for field in ["acquire_timeout", "connect_timeout"] {
+            let error = SftpConfig::from_iter([(field.to_string(), "invalid".to_string())])
+                .expect_err("malformed duration");
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn builder_rejects_negative_configured_timeouts() {
+        use opendal_core::{Builder, ErrorKind};
+
+        for field in ["acquire_timeout", "connect_timeout"] {
+            let pairs = [("endpoint", "host"), (field, "-1s")];
+            let config =
+                SftpConfig::from_iter(pairs.map(|(key, value)| (key.into(), value.into())))
+                    .unwrap();
+            let error = config.into_builder().build().expect_err("negative timeout");
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+            assert!(error.to_string().contains(field));
+        }
     }
 
     #[test]

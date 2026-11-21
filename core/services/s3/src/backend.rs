@@ -1066,7 +1066,7 @@ impl S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut default_chain = {
+        let mut default_provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -1110,7 +1110,7 @@ impl S3Builder {
                 builder = builder.ecs(ecs);
             }
 
-            ProvideCredentialChain::new().push(builder.build())
+            builder.build()
         };
 
         // Insert static key if user provided.
@@ -1120,7 +1120,7 @@ impl S3Builder {
             } else {
                 StaticCredentialProvider::new(ak, sk)
             };
-            default_chain = default_chain.push_front(static_provider);
+            default_provider = default_provider.push_front(static_provider);
         }
 
         let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
@@ -1133,7 +1133,7 @@ impl S3Builder {
             // context.
             let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, default_chain, sts_request_signer);
+            let sts_signer = Signer::new(sts_ctx, default_provider, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
                     .with_region(region.clone())
@@ -1156,7 +1156,7 @@ impl S3Builder {
             // Use AssumeRole directly so its STS error reaches the signer.
             Arc::new(assume_role_provider)
         } else {
-            Arc::new(default_chain)
+            Arc::new(default_provider)
         };
 
         let signers = if is_s3_express {
@@ -2464,6 +2464,89 @@ mod tests {
         assert!(!err.is_temporary());
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert!(transport.requests().is_empty());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug)]
+    struct ExpiredSsoSession;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::FileRead for ExpiredSsoSession {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-west-2\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "expired-token",
+                    "expiresAt": "2000-01-01T00:00:00Z",
+                    "refreshToken": "test-refresh-token",
+                    "clientId": "test-client-id",
+                    "clientSecret": "test-client-secret",
+                    "registrationExpiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::HttpSend for ExpiredSsoSession {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            assert_eq!(request.method(), Method::POST);
+            assert_eq!(request.uri(), "https://oidc.us-west-2.amazonaws.com/token");
+            Ok(Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .body(Bytes::new())
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_default_credentials_preserve_retryable_sso_refresh_error() {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .endpoint("https://s3.us-west-2.amazonaws.com")
+            .profile("sso-test")
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                ..Default::default()
+            })
+            .with_file_read(ExpiredSsoSession)
+            .with_http_send(ExpiredSsoSession);
+        let (mut parts, ()) = Request::get("https://example.s3.us-west-2.amazonaws.com/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        let err = backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable(), "{err:?}");
+        assert!(err.to_string().contains("SSO token refresh returned 503"));
     }
 
     struct StsErrorResponse {

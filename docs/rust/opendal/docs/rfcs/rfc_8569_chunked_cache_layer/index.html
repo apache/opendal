@@ -1,0 +1,317 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Chunked Cache Layer"><title>opendal::docs::rfcs::rfc_8569_chunked_cache_layer - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="opendal" data-themes="" data-resource-suffix="" data-rustdoc-version="1.100.0-nightly (1303417c4 2026-09-21)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js"><script src="../../../../static.files/storage-41dd4d93.js"></script><script defer="" src="../sidebar-items.js"></script><script defer="" src="../../../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-9f56287d.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module rfc_8569_chunked_cache_layer</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../../../opendal/index.html"><img src="/img/logo.svg" alt="logo"></a><h2><a href="../../../../opendal/index.html">opendal</a><span class="version">0.59.5</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module rfc_<wbr>8569_<wbr>chunked_<wbr>cache_<wbr>layer</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#summary" title="Summary">Summary</a></li><li><a href="#motivation" title="Motivation">Motivation</a></li><li><a href="#guide-level-explanation" title="Guide-level explanation">Guide-level explanation</a><ul><li><a href="#mental-model-and-ownership" title="Mental model and ownership">Mental model and ownership</a></li><li><a href="#basic-usage" title="Basic usage">Basic usage</a></li><li><a href="#per-path-admission-and-freshness" title="Per-path admission and freshness">Per-path admission and freshness</a></li><li><a href="#relationship-with-routelayer" title="Relationship with `RouteLayer`">Relationship with <code>RouteLayer</code></a></li><li><a href="#migrating-from-foyerlayer" title="Migrating from `FoyerLayer`">Migrating from <code>FoyerLayer</code></a></li></ul></li><li><a href="#reference-level-explanation" title="Reference-level explanation">Reference-level explanation</a><ul><li><a href="#crate-feature-and-public-api" title="Crate, feature, and public API">Crate, feature, and public API</a></li><li><a href="#cache-backend-contract-and-boundaries" title="Cache backend contract and boundaries">Cache backend contract and boundaries</a></li><li><a href="#key-layout-and-object-identity-v1-namespace" title="Key layout and object identity (`v1` namespace)">Key layout and object identity (<code>v1</code> namespace)</a></li><li><a href="#read-path-semantics" title="Read path semantics">Read path semantics</a></li><li><a href="#mutation-invalidation-and-concurrency-invariants" title="Mutation invalidation and concurrency invariants">Mutation invalidation and concurrency invariants</a></li><li><a href="#failure-semantics-and-guarantees" title="Failure semantics and guarantees">Failure semantics and guarantees</a></li><li><a href="#compatibility-and-migration" title="Compatibility and migration">Compatibility and migration</a></li><li><a href="#validation-criteria" title="Validation criteria">Validation criteria</a></li></ul></li><li><a href="#drawbacks" title="Drawbacks">Drawbacks</a></li><li><a href="#rationale-and-alternatives" title="Rationale and alternatives">Rationale and alternatives</a></li><li><a href="#prior-art" title="Prior art">Prior art</a></li><li><a href="#unresolved-questions" title="Unresolved questions">Unresolved questions</a></li><li><a href="#future-possibilities" title="Future possibilities">Future possibilities</a></li></ul></section><div id="rustdoc-modnav"><h2><a href="../index.html">In opendal::<wbr>docs::<wbr>rfcs</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../../../index.html">opendal</a>::<wbr><a href="../../index.html">docs</a>::<wbr><a href="../index.html">rfcs</a></div><h1>Module <span>rfc_<wbr>8569_<wbr>chunked_<wbr>cache_<wbr>layer</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><details class="toggle top-doc" open=""><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Chunked Cache Layer</p>
+<ul>
+<li>Proposal Name: <code>chunked_cache_layer</code></li>
+<li>Start Date: 2026-11-21</li>
+<li>RFC PR: <a href="https://github.com/apache/opendal/pull/8569">apache/opendal#8569</a></li>
+<li>Tracking Issue: <a href="https://github.com/apache/opendal/issues/7107">apache/opendal#7107</a></li>
+<li>Supersedes: <a href="6297_cache_layer.md">RFC-6297: Cache Layer</a></li>
+</ul>
+<blockquote>
+<p><strong>Status:</strong> Two defaults remain open for final confirmation before stabilization—default <code>chunk_size</code> (provisional <code>1 MiB</code>, pending benchmark) and default <code>ttl</code> (proposed <code>60s</code>). See <a href="#unresolved-questions">Unresolved questions</a>.</p>
+</blockquote>
+<h2 id="summary"><a class="doc-anchor" href="#summary">§</a>Summary</h2>
+<p>This RFC supersedes <a href="6297_cache_layer.md">RFC-6297</a> with a unified, chunked <code>CacheLayer</code> (<code>opendal-layer-cache</code>, feature <code>layers-cache</code>) backed by any OpenDAL <code>Operator</code> that supports <code>read</code>, <code>write</code>, and <code>delete</code> with capacity eviction (such as <code>services::Foyer</code>, <code>services::Moka</code>, or bounded <code>services::Redis</code>). Rather than delegating cache layout, key shaping, and per-operation invalidation hooks to user policy code, <code>CacheLayer</code> owns fixed-size chunk storage, identity-versioned keys, invalidation, concurrency guards, and in-process singleflight internally. Its public surface narrows to two scalar knobs (<code>with_chunk_size</code>, <code>with_ttl</code>) and a single-method <code>CachePolicy</code> trait (<code>on_read</code>) for per-path bypass and TTL overrides.</p>
+<p>Applications gain one-line read caching across both small and large objects without maintaining backend-specific cache layers, without cross-version read splicing, and without masking source capabilities. Existing <code>FoyerLayer</code> (<code>layers-foyer</code>) migrates to <code>CacheLayer</code> over <code>services::Foyer</code> (<code>services-foyer</code>), while <code>RouteLayer</code> (<code>layers-route</code>) keeps its narrower role of routing distinct path prefixes to separate physical stacks or cache backends.</p>
+<h2 id="motivation"><a class="doc-anchor" href="#motivation">§</a>Motivation</h2>
+<p>Three concrete gaps prevent implementing <a href="6297_cache_layer.md">RFC-6297</a> as written and motivate replacing <code>FoyerLayer</code> with a unified layer:</p>
+<ol>
+<li><strong>RFC-6297 diverges from OpenDAL’s current read architecture and splits ownership unsafely.</strong> After <a href="7660_move_read_range_to_reader.md">RFC-7660</a>, <code>Service::read(ctx, path, OpRead)</code> no longer receives <code>BytesRange</code>; ranges arrive later on <code>oio::Read::open</code> and <code>oio::Read::read</code>. RFC-6297’s four-hook <code>CachePolicy</code> (<code>on_read</code>, <code>on_stat</code>, <code>on_write</code>, <code>on_delete</code>) both lacks access to ranges at <code>Service::read</code> time and delegates layout and invalidation rules to callers, where mismatched layouts or omitted invalidation hooks silently serve stale or corrupted data.</li>
+<li><strong>Whole-object caching duplicates work across backends and penalizes cold reads.</strong> <code>FoyerLayer</code> caches whole objects into <code>foyer::HybridCache</code> and relies on <code>with_size_limit</code> (which requires a pre-read <code>stat</code> on cold reads) to avoid loading large files into memory. Extending <code>FoyerLayer</code> with chunked caching (as explored in <a href="https://github.com/apache/opendal/pull/7127">apache/opendal#7127</a>) would duplicate chunk assembly, versioned keys, and invalidation for one backend even though <code>services::Foyer</code> already exposes foyer as an OpenDAL <code>Service</code>.</li>
+<li><strong>Using <code>RouteLayer</code> for single-cache path selection misses cross-prefix renames and masks capabilities.</strong> In <code>core/layers/route/src/lib.rs</code>, <code>RouteAccessor::copy</code> and <code>RouteAccessor::rename</code> dispatch by the <code>from</code> path. An atomic commit such as <code>rename("tmp/part", "data/file.parquet")</code> routes through the <code>tmp</code> stack, so a <code>CacheLayer</code> mounted only under <code>data/**</code> never invalidates the overwritten destination. <code>RouteAccessor::capability</code> also clears <code>write_can_copy_from</code> and all <code>compose*</code> flags. Supporting per-path bypass and TTL overrides inside a single <code>CacheLayer</code> lets one layer observe every mutation on the operator without masking capabilities.</li>
+</ol>
+<h2 id="guide-level-explanation"><a class="doc-anchor" href="#guide-level-explanation">§</a>Guide-level explanation</h2><h3 id="mental-model-and-ownership"><a class="doc-anchor" href="#mental-model-and-ownership">§</a>Mental model and ownership</h3>
+<p><code>CacheLayer</code> splits caching responsibilities along three clean boundaries:</p>
+<ul>
+<li><strong><code>CacheLayer</code></strong> owns chunk layout, versioned key isolation, metadata pointer records, mutation invalidation, concurrency guards, and in-process singleflight.</li>
+<li><strong>The cache <code>Operator</code></strong> owns storage medium, capacity bounds, eviction, and its own operational layers (for example, <code>TimeoutLayer</code> and <code>MetricsLayer</code>).</li>
+<li><strong>Optional <code>CachePolicy</code></strong> owns only per-read admission and freshness overrides (<code>Bypass</code>, <code>Cache</code>, <code>CacheFor(Duration)</code>).</li>
+</ul>
+<h3 id="basic-usage"><a class="doc-anchor" href="#basic-usage">§</a>Basic usage</h3>
+<p>Most callers attach <code>CacheLayer</code> in one line:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>opendal::{layers::CacheLayer, services, Operator, <span class="prelude-ty">Result</span>};
+
+<span class="kw">async fn </span>build_operator() -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="kw">let </span>cache = Operator::new(services::Foyer::new().memory(<span class="number">64 </span>* <span class="number">1024 </span>* <span class="number">1024</span>))<span class="question-mark">?</span>;
+    <span class="kw">let </span>source = Operator::new(services::S3::default().bucket(<span class="string">"my-bucket"</span>))<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>op = source.layer(CacheLayer::new(cache)<span class="question-mark">?</span>);
+    <span class="prelude-val">Ok</span>(op)
+}</code></pre></div>
+<p>Workloads with known access patterns tune only chunk size and metadata TTL:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>opendal::{layers::CacheLayer, Operator, <span class="prelude-ty">Result</span>};
+
+<span class="kw">fn </span>tune_immutable_dataset(source: Operator, cache: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="prelude-val">Ok</span>(source.layer(
+        CacheLayer::new(cache)<span class="question-mark">?
+            </span>.with_chunk_size(<span class="number">4 </span>* <span class="number">1024 </span>* <span class="number">1024</span>)
+            .with_ttl(Duration::MAX),
+    ))
+}</code></pre></div><h3 id="per-path-admission-and-freshness"><a class="doc-anchor" href="#per-path-admission-and-freshness">§</a>Per-path admission and freshness</h3>
+<p>Callers with mixed workloads—such as lakehouses where data files are immutable while pointer files change frequently—attach a closure or custom <code>CachePolicy</code> to a single <code>CacheLayer</code>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>opendal::{
+    layers::{CacheDecision, CacheLayer, CacheReadRequest},
+    Operator, <span class="prelude-ty">Result</span>,
+};
+
+<span class="kw">fn </span>build_lakehouse_operator(source: Operator, cache: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;Operator&gt; {
+    <span class="prelude-val">Ok</span>(source.layer(
+        CacheLayer::new(cache)<span class="question-mark">?</span>.with_policy(|req: <span class="kw-2">&amp;</span>CacheReadRequest&lt;<span class="lifetime">'_</span>&gt;| {
+            <span class="kw">if </span>req.path().ends_with(<span class="string">".parquet"</span>) {
+                CacheDecision::CacheFor(Duration::MAX)
+            } <span class="kw">else if </span>req.path().ends_with(<span class="string">"metadata.json"</span>) {
+                CacheDecision::Bypass
+            } <span class="kw">else </span>{
+                CacheDecision::Cache
+            }
+        }),
+    ))
+}</code></pre></div><h3 id="relationship-with-routelayer"><a class="doc-anchor" href="#relationship-with-routelayer">§</a>Relationship with <code>RouteLayer</code></h3>
+<p><code>CacheLayer</code> no longer requires <code>RouteLayer</code> for per-path cache filtering or per-path TTLs. Keep <code>RouteLayer</code> only when distinct path prefixes require different physical stacks or cache backends (for example, routing <code>**/*.parquet</code> to a <code>services::Foyer</code> disk cache and <code>**/*.json</code> to a <code>services::Moka</code> memory cache, or attaching different <code>TimeoutLayer</code> / <code>ThrottleLayer</code> stacks). When combining <code>RouteLayer</code> with <code>CacheLayer</code>, remember that <code>RouteLayer</code> routes <code>copy</code> and <code>rename</code> by the <code>from</code> path; cross-route overwrites will not reach a <code>CacheLayer</code> mounted only on the destination route.</p>
+<h3 id="migrating-from-foyerlayer"><a class="doc-anchor" href="#migrating-from-foyerlayer">§</a>Migrating from <code>FoyerLayer</code></h3>
+<p>Replace <code>FoyerLayer</code> (<code>layers-foyer</code>) with <code>CacheLayer</code> (<code>layers-cache</code>) over <code>services::Foyer</code> (<code>services-foyer</code>):</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Before
+</span><span class="kw">let </span>op = source.layer(FoyerLayer::new(hybrid_cache));
+
+<span class="comment">// After
+</span><span class="kw">let </span>cache = Operator::new(services::Foyer::new().cache(hybrid_cache))<span class="question-mark">?</span>;
+<span class="kw">let </span>op = source.layer(CacheLayer::new(cache)<span class="question-mark">?</span>);</code></pre></div>
+<p>Chunked caching removes the need for <code>FoyerLayer::with_size_limit</code>, because large objects populate only the accessed chunks instead of buffering the full object into memory.</p>
+<h2 id="reference-level-explanation"><a class="doc-anchor" href="#reference-level-explanation">§</a>Reference-level explanation</h2><h3 id="crate-feature-and-public-api"><a class="doc-anchor" href="#crate-feature-and-public-api">§</a>Crate, feature, and public API</h3>
+<p><code>CacheLayer</code> lives in a new optional crate <code>core/layers/cache</code> (<code>opendal-layer-cache</code>), exposed through the <code>layers-cache</code> feature on <code>opendal</code> and re-exported under <code>opendal::layers</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>opendal_core::{raw::OpRead, Operator, <span class="prelude-ty">Result</span>};
+
+<span class="attr">#[non_exhaustive]
+</span><span class="kw">pub struct </span>CacheReadRequest&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="comment">// private fields
+</span>}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; CacheReadRequest&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="kw">pub fn </span>path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str;
+    <span class="kw">pub fn </span>args(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>OpRead;
+}
+
+<span class="attr">#[non_exhaustive]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+</span><span class="kw">pub enum </span>CacheDecision {
+    <span class="doccomment">/// Bypass the cache completely for this reader.
+    </span>Bypass,
+    <span class="doccomment">/// Use the cache with the layer's configured default TTL.
+    </span>Cache,
+    <span class="doccomment">/// Use the cache with an entry-specific TTL override.
+    /// `Duration::ZERO` revalidates before serving; `Duration::MAX` disables TTL revalidation.
+    </span>CacheFor(Duration),
+}
+
+<span class="kw">pub trait </span>CachePolicy: Send + Sync + <span class="lifetime">'static </span>{
+    <span class="doccomment">/// Called once inside `Service::read`, before any I/O.
+    </span><span class="kw">fn </span>on_read(<span class="kw-2">&amp;</span><span class="self">self</span>, req: <span class="kw-2">&amp;</span>CacheReadRequest&lt;<span class="lifetime">'_</span>&gt;) -&gt; CacheDecision;
+}
+
+<span class="kw">impl</span>&lt;F&gt; CachePolicy <span class="kw">for </span>F
+<span class="kw">where
+    </span>F: Fn(<span class="kw-2">&amp;</span>CacheReadRequest&lt;<span class="lifetime">'_</span>&gt;) -&gt; CacheDecision + Send + Sync + <span class="lifetime">'static</span>,
+{
+    <span class="kw">fn </span>on_read(<span class="kw-2">&amp;</span><span class="self">self</span>, req: <span class="kw-2">&amp;</span>CacheReadRequest&lt;<span class="lifetime">'_</span>&gt;) -&gt; CacheDecision {
+        <span class="self">self</span>(req)
+    }
+}
+
+<span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>CacheLayer {
+    <span class="comment">// private fields, storing policy as `Arc&lt;dyn CachePolicy&gt;`
+</span>}
+
+<span class="kw">impl </span>CacheLayer {
+    <span class="doccomment">/// Create a `CacheLayer` backed by `cache`.
+    ///
+    /// Returns `ErrorKind::ConfigInvalid` if `cache.info().full_capability()`
+    /// does not support `read`, `write`, and `delete`.
+    </span><span class="kw">pub fn </span>new(cache: Operator) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt;;
+
+    <span class="doccomment">/// Set the aligned chunk size in bytes.
+    ///
+    /// Values of `0` are clamped to `1`. When `cache` advertises
+    /// `write_total_max_size`, the effective chunk size is capped to that limit.
+    </span><span class="kw">pub fn </span>with_chunk_size(<span class="self">self</span>, size: usize) -&gt; <span class="self">Self</span>;
+
+    <span class="doccomment">/// Set the default metadata freshness window.
+    ///
+    /// `Duration::ZERO` revalidates on every `Reader`.
+    /// `Duration::MAX` disables periodic TTL revalidation.
+    </span><span class="kw">pub fn </span>with_ttl(<span class="self">self</span>, ttl: Duration) -&gt; <span class="self">Self</span>;
+
+    <span class="doccomment">/// Set a custom per-read admission and TTL policy.
+    ///
+    /// The default policy returns `CacheDecision::Cache` for all reads.
+    </span><span class="kw">pub fn </span>with_policy(<span class="self">self</span>, policy: <span class="kw">impl </span>CachePolicy) -&gt; <span class="self">Self</span>;
+}</code></pre></div>
+<p>Storing the policy as <code>Arc&lt;dyn CachePolicy&gt;</code> keeps <code>CacheLayer</code> non-generic, <code>Clone</code>, and <code>Debug</code> even when callers pass capturing closures, while adding one dynamic dispatch per <code>Service::read</code> (not per chunk).</p>
+<p><code>CacheLayer</code> implements <code>raw::Layer::apply_service</code> and returns <code>self.inner.capability()</code> unchanged from <code>Service::capability()</code>. It does not mask <code>write_can_copy_from</code>, <code>compose</code>, conditional operations, or recursive delete.</p>
+<h3 id="cache-backend-contract-and-boundaries"><a class="doc-anchor" href="#cache-backend-contract-and-boundaries">§</a>Cache backend contract and boundaries</h3>
+<ul>
+<li><strong>Minimum capabilities:</strong> <code>read</code>, <code>write</code>, and <code>delete</code>. <code>CacheLayer</code> does not require <code>stat</code>, <code>list</code>, <code>write_with_expires</code>, range reads, or conditional writes on the cache <code>Operator</code>. <code>services::Foyer</code>, <code>services::Moka</code>, <code>services::Redis</code>, <code>services::Memcached</code>, <code>services::Memory</code>, and <code>services::Fs</code> all satisfy this capability set (verified from current service definitions).</li>
+<li><strong>Eviction responsibility:</strong> Because updates and version changes leave old chunks unreachable under previous identity keys, the cache backend must enforce its own capacity limits and eviction policy (such as <code>services::Foyer</code>, <code>services::Moka</code>, or <code>services::Redis</code> configured with <code>maxmemory</code>). Unbounded backends such as <code>Memory</code> or <code>Fs</code> will retain orphaned chunks until cleared externally.</li>
+<li><strong>Operational layers:</strong> Users attach <code>TimeoutLayer</code>, <code>MetricsLayer</code>, and <code>TracingLayer</code> directly to the source and cache <code>Operator</code> stacks. Note that <code>LoggingLayer</code> logs <code>ErrorKind::NotFound</code> at <code>Warn</code> level (<code>core/layers/logging/src/lib.rs</code>), so attaching default <code>LoggingLayer</code> to the cache <code>Operator</code> emits warnings on normal cache misses unless filtered.</li>
+<li><strong>Tenant and credential isolation:</strong> <code>ServiceInfo</code> carries <code>(scheme, root, name)</code> without endpoints or credentials (<code>core/core/src/raw/service.rs</code>). Mixing <code>scheme</code>, <code>name</code>, and absolute path into cache keys prevents accidental cross-bucket collisions within one process, but operators using different tenants, endpoints, or credentials <strong>must</strong> use separate cache <code>root</code> prefixes or separate cache instances because cache hits within <code>ttl</code> do not re-authenticate against the source.</li>
+</ul>
+<h3 id="key-layout-and-object-identity-v1-namespace"><a class="doc-anchor" href="#key-layout-and-object-identity-v1-namespace">§</a>Key layout and object identity (<code>v1</code> namespace)</h3>
+<p>All cache entries live under a versioned <code>v1/</code> prefix using lowercase hexadecimal path segments (<code>[0-9a-f/]</code>), avoiding path escaping issues, case-insensitive filesystem collisions, and long-key rejections (each segment is at most 64 bytes; full chunk keys are ~140 bytes, well below Memcached’s 250-byte key limit and standard 255-byte filename limits):</p>
+<div class="example-wrap"><pre class="language-text"><code>v1/gen
+v1/meta/{gen}/{subject}
+v1/data/{gen}/{subject}/{ident}/{chunk_size}/{index}</code></pre></div>
+<ul>
+<li><code>gen</code>: 64-bit generation counter formatted in lowercase hex, persisted in <code>v1/gen</code> (missing <code>v1/gen</code> equals <code>0</code>). Bumped on recursive delete (<code>OpDelete::recursive()</code>) to logically invalidate both metadata pointers and data chunks in O(1).</li>
+<li><code>subject</code>: <code>sha256(len_prefixed(scheme, name, abs_path, version_selector))</code> (64 hex chars), where <code>version_selector</code> is <code>OpRead::version()</code>.</li>
+<li><code>v1/meta/{gen}/{subject}</code>: compact versioned binary record containing:
+<ul>
+<li>the observed complete object <code>Metadata</code> (storing only fields returned by the source—never synthesized placeholders),</li>
+<li>the derived identity tier and <code>ident</code> token (32 hex chars), and</li>
+<li><code>observed_at</code>, captured <strong>before</strong> the source request begins so in-flight latency cannot extend freshness past <code>ttl</code>.</li>
+</ul>
+</li>
+<li><code>v1/data/{gen}/{subject}/{ident}/{chunk_size}/{index}</code>: raw bytes for aligned chunk <code>index</code>, covering <code>[index * chunk_size, min((index + 1) * chunk_size, content_length))</code>, stored without an extra framing header.</li>
+</ul>
+<h4 id="automatic-identity-tiering-ident"><a class="doc-anchor" href="#automatic-identity-tiering-ident">§</a>Automatic identity tiering (<code>ident</code>)</h4>
+<p><code>CacheLayer</code> selects the strongest identity available in the source’s observed <code>Metadata</code> (contract derived from current <code>Metadata</code> and <code>conditional-operations.md</code>):</p>
+<ol>
+<li><strong>Version (+ strong ETag when present):</strong> <code>metadata.version()</code> (paired with non-weak <code>metadata.etag()</code> if both exist). When a read explicitly specifies <code>OpRead::version()</code>, the targeted version is immutable and skips periodic TTL revalidation.</li>
+<li><strong>Strong ETag:</strong> <code>metadata.etag()</code> excluding weak ETags (<code>W/"..."</code>), matching <code>core/core/src/docs/specs/conditional-operations.md</code> and RFC 9110 §13.1.1.</li>
+<li><strong>Weak validator:</strong> <code>(last_modified, content_length)</code> when neither <code>version</code> nor strong <code>etag</code> is available. This enables detecting external modifications on services like <code>Fs</code> (bounded by filesystem mtime precision).</li>
+<li><strong>Local nonce:</strong> random 128-bit nonce when the source exposes none of the above (for example, <code>services::Memory</code>, whose <code>RpRead</code> only reports <code>content_length</code>). Invalidated on local mutations and expired when <code>ttl</code> elapses.</li>
+</ol>
+<h3 id="read-path-semantics"><a class="doc-anchor" href="#read-path-semantics">§</a>Read path semantics</h3>
+<ol>
+<li><strong>Per-reader policy decision (<code>Service::read</code>):</strong> <code>CachePolicy::on_read</code> executes once before any I/O. If it returns <code>CacheDecision::Bypass</code>, <code>CacheLayer</code> returns <code>inner.read(ctx, path, args)</code> directly.</li>
+<li><strong>Pass-through conditions:</strong> Reads where <code>args.is_conditional()</code> is true or any <code>override_*</code> option is set (<code>override_content_type</code>, <code>override_cache_control</code>, <code>override_content_disposition</code>) bypass the cache and delegate directly to the source so preconditions and response overrides are evaluated natively. <code>OpRead::version()</code> is part of <code>subject</code>, not a precondition, and participates in caching.</li>
+<li><strong>Metadata resolution:</strong> On the reader’s first <code>open</code>/<code>read</code>, <code>CacheLayer</code> resolves <code>v1/meta/{gen}/{subject}</code>:
+<ul>
+<li><strong>Fresh pointer</strong> (<code>effective_ttl == Duration::MAX</code>, explicit <code>OpRead::version()</code>, or <code>now - observed_at &lt; effective_ttl</code>): reuse cached <code>Metadata</code> and <code>ident</code> with 0 source RTT.</li>
+<li><strong>Expired pointer</strong> (<code>effective_ttl == Duration::ZERO</code> or age <code>&gt;= effective_ttl</code>):
+<ul>
+<li>For verifiable tiers (1–3), issue <code>inner.stat</code> (1 RTT, no body transfer). If the derived <code>ident</code> matches, refresh <code>observed_at</code> and reuse cached chunks; otherwise update or delete the pointer.</li>
+<li>For Tier 4 (nonce), delete the pointer and proceed as a cold miss.</li>
+</ul>
+</li>
+<li><strong>Cold miss (no pointer):</strong>
+<ul>
+<li>For bounded forward ranges or unbounded <code>0..</code>, issue the aligned source read directly via <code>oio::Read::open</code> without a preceding <code>stat</code> (1 RTT on object stores such as S3, GCS, and Azblob that return complete <code>Metadata</code> in <code>RpRead</code>).</li>
+<li>Verified codebase reality: not all services populate complete <code>Metadata</code> in <code>RpRead</code>—<code>services::Memory</code> (<code>core/core/src/services/memory/backend.rs</code>) populates only <code>content_length</code>, while <code>Fs</code> and all <code>PositionReader</code>-backed services (<code>core/core/src/raw/oio/read/position_read.rs</code>) return <code>RpRead::default()</code> (<code>None</code>). When <code>RpRead</code> lacks total <code>content_length</code> or a validator needed to form a pointer, or on a cold <code>Suffix</code> read whose source lacks <code>Capability::read_with_suffix</code> or <code>RpRead</code> metadata, <code>CacheLayer</code> falls back to one <code>inner.stat</code> before writing <code>v1/meta/{gen}/{subject}</code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li><strong>Range normalization, alignment, and EOF handling:</strong>
+<ul>
+<li>Normalize <code>BytesRange</code> (<code>offset..</code>, <code>offset..end</code>, or <code>Suffix(n)</code>) against known <code>content_length</code>.</li>
+<li>Forward requests starting at or beyond <code>content_length</code> (including empty objects) to the source so backend boundary semantics (such as <code>ErrorKind::RangeNotSatisfied</code>) remain authoritative.</li>
+<li>Check cache for all chunks covering the normalized range. Treat any cached chunk whose byte length does not match the expected chunk length as a miss.</li>
+<li>Coalesce contiguous missing chunks into a single aligned source request using <code>oio::Read::open</code> (never <code>oio::Read::read</code>, because the final chunk of an object is naturally short while <code>StreamReader::read</code> and <code>PositionReader::read</code> fail short reads with <code>Unexpected</code> or <code>RangeNotSatisfied</code>).</li>
+<li>Return <code>RpRead::new(metadata)</code> carrying the real <code>Metadata</code> from the resolved pointer so <code>ReadContext::metadata()</code> observes genuine metadata.</li>
+</ul>
+</li>
+<li><strong>Single-version read invariant (no cross-version splicing):</strong>
+<ul>
+<li>Every chunk-fill request pins source identity whenever supported (<code>if_match</code> for strong ETag, <code>version</code> for versioned reads) and checks the response <code>RpRead</code> metadata (<code>version</code>, <code>etag</code>, <code>content_length</code>) against the resolved <code>ident</code>.</li>
+<li>If a mismatch occurs before any bytes are yielded to the caller, <code>CacheLayer</code> deletes the stale pointer and retries once against the new version.</li>
+<li>If bytes have already been yielded on the stream, <code>CacheLayer</code> fails the stream with a temporary error rather than splicing bytes from two versions. New-version bytes are never written under the old <code>ident</code> key.</li>
+</ul>
+</li>
+<li><strong>In-process singleflight:</strong>
+<ul>
+<li>Concurrent misses for the same chunk key coalesce inside an in-process singleflight table keyed by chunk key.</li>
+<li>Singleflight runs bounded aligned fill units independently of caller <code>ReadStream</code> polling so a slow consumer or dropped caller future cannot stall or cancel sibling waiters.</li>
+</ul>
+</li>
+</ol>
+<h3 id="mutation-invalidation-and-concurrency-invariants"><a class="doc-anchor" href="#mutation-invalidation-and-concurrency-invariants">§</a>Mutation invalidation and concurrency invariants</h3>
+<p><code>CacheLayer</code> invalidates affected <code>v1/meta/{gen}/{subject}</code> entries after every local mutation completes—<strong>regardless of whether the inner mutation returns <code>Ok</code> or <code>Err</code></strong>, because remote timeouts or ambiguous failures can still commit server-side:</p>
+<ul>
+<li><code>write</code> (including append, conditional writes, and <code>Writer::copy_from</code>), <code>copy</code>, and <code>compose</code>: invalidate the destination path after the stateful operation closes (or errors).</li>
+<li><code>rename</code>: invalidate both <code>from</code> and <code>to</code>.</li>
+<li><code>restore</code>: invalidate the target path.</li>
+<li><code>delete</code>: track each accepted path (and optional version) on the <code>Deleter</code> and invalidate after <code>Deleter::close()</code>. A versioned delete invalidates both the versioned subject and the unversioned current subject.</li>
+</ul>
+<p>Three additional internal invariants close concrete races verified against the current core codebase:</p>
+<ol>
+<li><strong>Sharded epoch guard against fill-vs-mutation resurrection:</strong> <code>CacheLayer</code> maintains a fixed-size sharded epoch table indexed by <code>hash(subject)</code>. Readers snapshot the shard epoch before issuing a source read or <code>stat</code>. Mutations increment the shard epoch before deleting <code>v1/meta/{gen}/{subject}</code> (and again after completion). Before writing a newly populated pointer back to cache, a reader verifies under the shard lock that the epoch has not advanced; if it has, the reader skips storing the pointer while still returning the fetched bytes. Residual cross-process races on shared caches are bounded by <code>ttl</code>.</li>
+<li><strong>O(1) recursive delete invalidation via <code>v1/gen</code>:</strong> <code>Operator::new</code> places <code>SimulateLayer</code> below user layers (<code>core/core/src/types/operator/builder.rs</code>), and backends such as <code>Fs</code>, <code>Hdfs</code>, <code>Azdls</code>, and <code>Gdrive</code> implement recursive delete natively. Consequently, <code>OpDelete::recursive()</code> reaches <code>CacheLayer</code> as a single directory path that cannot be prefix-matched against hashed keys without <code>list</code>. On <code>OpDelete::recursive()</code>, <code>CacheLayer</code> increments <code>v1/gen</code> in O(1), logically invalidating existing pointers and chunks without scanning the cache.</li>
+<li><strong>Aligning pass-through <code>stat</code> with cached <code>read</code>:</strong> <code>CacheLayer</code> passes <code>stat</code> through to the source in v1 (avoiding serving incomplete <code>RpRead</code> metadata as a <code>stat</code> result). Whenever a pass-through <code>stat</code> returns <code>NotFound</code> or metadata whose derived <code>ident</code> differs from the cached pointer, <code>CacheLayer</code> deletes the stale pointer. This prevents <code>ReadContext::content_length()</code> (which calls <code>stat</code> for chunked/concurrent unbounded reads) from planning reads using a new length while reading stale cached chunks.</li>
+</ol>
+<h3 id="failure-semantics-and-guarantees"><a class="doc-anchor" href="#failure-semantics-and-guarantees">§</a>Failure semantics and guarantees</h3>
+<p><strong>Guaranteed:</strong></p>
+<ul>
+<li>Every byte returned by a single <code>open</code> or <code>read</code> comes from one object identity matching its <code>RpRead</code> metadata (no cross-version splicing).</li>
+<li>Every <code>Reader</code> and <code>stat</code> observes source state no older than the effective <code>ttl</code> (within clock skew on shared caches).</li>
+<li>Cache backend errors never fail source operations: cache read errors degrade to misses, and cache write/delete errors are ignored (and remain observable through layers attached to the cache <code>Operator</code>).</li>
+</ul>
+<p><strong>Not guaranteed (explicit boundaries):</strong></p>
+<ul>
+<li>Strict read-your-own-writes across processes or after cache delete failures when <code>ttl &gt; 0</code> (bounded by <code>ttl</code>).</li>
+<li>Source re-authorization on hot cache hits within <code>ttl</code>.</li>
+<li>Caching <code>list</code> results.</li>
+<li>Snapshot isolation across separate <code>open</code>/<code>read</code> calls on the same <code>Reader</code> (matching uncached OpenDAL behavior).</li>
+</ul>
+<h3 id="compatibility-and-migration"><a class="doc-anchor" href="#compatibility-and-migration">§</a>Compatibility and migration</h3>
+<ul>
+<li><strong>RFC-6297 and PR #7127:</strong> This RFC supersedes <a href="6297_cache_layer.md">RFC-6297</a> before <code>core/layers/cache</code> has shipped, so there is no breaking change to <code>CacheLayer</code> itself. Chunked caching lands once in <code>CacheLayer</code>, superseding <a href="https://github.com/apache/opendal/pull/7127">apache/opendal#7127</a>.</li>
+<li><strong><code>FoyerLayer</code> (<code>layers-foyer</code>):</strong> Remains untouched while <code>CacheLayer</code> and <code>services::Foyer</code> hardening land and pass parity tests (including conditional read bypass and copy/rename/delete invalidation coverage). Once parity is verified, <code>FoyerLayer</code> will be deprecated and subsequently removed in a breaking release with migration notes pointing to <code>CacheLayer</code> + <code>services::Foyer</code>.</li>
+<li><strong><code>RouteLayer</code> (<code>layers-route</code>):</strong> Unchanged in API; documentation narrows its caching guidance to multi-backend routing and calls out <code>from</code>-path routing on <code>copy</code>/<code>rename</code>.</li>
+</ul>
+<h3 id="validation-criteria"><a class="doc-anchor" href="#validation-criteria">§</a>Validation criteria</h3>
+<p>Before stabilizing <code>CacheLayer</code> and deprecating <code>FoyerLayer</code>, implementation tests must verify:</p>
+<ul>
+<li>Single-version integrity under concurrent overwrites during multi-chunk reads (retry before first byte; temporary error rather than splicing after first byte).</li>
+<li>Invalidation across <code>write</code>, <code>append</code>, <code>Writer::copy_from</code>, <code>copy</code>, <code>rename</code>, <code>compose</code>, <code>restore</code>, batch <code>delete</code>, versioned <code>delete</code>, and <code>OpDelete::recursive()</code>, including when a mutation fails or times out.</li>
+<li>In-process epoch guard preventing an in-flight slow read from resurrecting a deleted pointer.</li>
+<li>Pass-through correctness for conditional reads (<code>if_match</code>, <code>if_none_match</code>, etc.) and <code>override_*</code> headers, plus cached immutable <code>OpRead::version()</code> reads.</li>
+<li>Cross-service behavior on services with full <code>RpRead</code> metadata (e.g., S3), length-only <code>RpRead</code> (<code>Memory</code>), and empty <code>RpRead</code> (<code>Fs</code>), including <code>Suffix</code>, unbounded, and out-of-bounds ranges.</li>
+<li>Degraded operation when the cache backend injects read/write/delete errors.</li>
+<li>Benchmark measurement of <code>chunk_size</code> (<code>1 MiB</code>–<code>4 MiB</code>) on S3 + <code>services::Foyer</code> to finalize the default.</li>
+</ul>
+<h2 id="drawbacks"><a class="doc-anchor" href="#drawbacks">§</a>Drawbacks</h2>
+<ul>
+<li><strong>Cold-read first-byte latency:</strong> Decoupling singleflight fill units from consumer streams means the first byte of a cold read waits for the first aligned chunk fill unit rather than streaming byte-by-byte immediately.</li>
+<li><strong>Coarse recursive-delete invalidation:</strong> Bumping <code>v1/gen</code> on <code>OpDelete::recursive()</code> invalidates the entire cache namespace rather than only the deleted subtree. This trades rare recursive-delete cache warmth for O(1) invalidation without requiring <code>list</code>.</li>
+<li><strong>Orphaned chunks require backend eviction:</strong> Because updates delete only <code>v1/meta/{gen}/{subject}</code>, cache backends without capacity eviction accumulate orphaned data chunks over time.</li>
+<li><strong>Periodic revalidation under finite default TTL:</strong> A finite default <code>ttl</code> (proposed <code>60s</code>) adds one <code>stat</code> RTT per object per TTL window on immutable workloads unless callers opt into <code>.with_ttl(Duration::MAX)</code>.</li>
+</ul>
+<h2 id="rationale-and-alternatives"><a class="doc-anchor" href="#rationale-and-alternatives">§</a>Rationale and alternatives</h2>
+<ul>
+<li><strong>Unified chunking vs. RFC-6297’s <code>WholeCachePolicy</code> / <code>ChunkedCachePolicy</code> split:</strong> Small objects occupy a single chunk with no extra amplification, while large objects cache only accessed ranges without needing <code>max_object_size</code> or pre-read <code>stat</code>. Keeping one internal layout eliminates layout-mismatch bugs and halves maintenance cost.</li>
+<li><strong>Minimal <code>CachePolicy</code> (<code>on_read</code> with 3 variants) vs. richer policy hooks (<code>ReadOnly</code>, <code>should_fill</code>, <code>max_object_size</code>, 4 lifecycle hooks):</strong> Removing <code>max_object_size</code>, <code>ReadOnly</code>, and <code>should_fill</code> eliminates three overlapping ways to skip filling and keeps every <code>Reader</code> consistent with a single pre-I/O decision matching post-RFC-7660 <code>Service::read</code>. If real workloads later require metadata-based fill filtering or read-without-fill, defaulted methods on <code>CachePolicy</code> and new variants on <code>#[non_exhaustive] CacheDecision</code> can be added without breaking changes.</li>
+<li><strong>No <code>CacheInterceptor</code>:</strong> Users already compose <code>MetricsLayer</code>, <code>LoggingLayer</code>, and <code>TracingLayer</code> on the source and cache <code>Operator</code>s. Adding a bespoke observability trait would duplicate existing layer abstractions.</li>
+<li><strong>General <code>CacheLayer</code> + <code>services::Foyer</code> vs. extending <code>FoyerLayer</code>:</strong> Implementing chunked caching once in <code>CacheLayer</code> benefits every eviction-capable OpenDAL cache service (<code>foyer</code>, <code>moka</code>, <code>redis</code>, <code>memcached</code>) and avoids maintaining two parallel caching stacks.</li>
+</ul>
+<h2 id="prior-art"><a class="doc-anchor" href="#prior-art">§</a>Prior art</h2>
+<ul>
+<li><strong>OpenDAL <code>FoyerLayer</code> (RFC-6370) and <code>RouteLayer</code> (RFC-7130):</strong> Established <code>foyer</code> integration, conditional-read bypass, and copy/rename invalidation lessons, and revealed the <code>RouteLayer</code> <code>from</code>-path rename gap and whole-object memory pressure.</li>
+<li><strong>Mountpoint for Amazon S3 data cache:</strong> Uses fixed-size block caching paired with a finite metadata TTL to keep hot reads 0-RTT while bounding staleness from external writers.</li>
+<li><strong>Client-side distributed filesystem caches (e.g., JuiceFS, Alluxio):</strong> Separate mutable path-to-metadata pointers from immutable version/content-addressed data blocks so updates invalidate metadata in O(1) while leaving block eviction to cache storage.</li>
+</ul>
+<h2 id="unresolved-questions"><a class="doc-anchor" href="#unresolved-questions">§</a>Unresolved questions</h2>
+<ol>
+<li><strong>Default <code>chunk_size</code> (provisional recommendation: <code>1 MiB</code>):</strong> <code>1 MiB</code> fits Memcached’s default item size limit and keeps singleflight chunk-fill latency low, at the cost of more cache entries for multi-gigabyte sequential scans compared to <code>2 MiB</code> or <code>4 MiB</code>. Final default will be chosen after benchmarking <code>1 MiB</code>, <code>2 MiB</code>, and <code>4 MiB</code> against S3 + <code>services::Foyer</code>.</li>
+<li><strong>Default <code>ttl</code> (proposed recommendation: <code>Duration::from_secs(60)</code>):</strong>
+<ul>
+<li><code>60s</code> keeps hot reads 0-RTT within the window while bounding staleness from external writers, persistent disk caches across restarts, failed cache deletes, and cross-process races; immutable datasets can disable revalidation with <code>.with_ttl(Duration::MAX)</code>.</li>
+<li><code>Duration::MAX</code> maximizes speed by default, but turns all residual staleness windows into permanent silent stale reads.</li>
+<li><code>Duration::ZERO</code> maximizes freshness, but adds a <code>stat</code> RTT to every hot small-object <code>Reader</code>, making caching appear ineffective out of the box.</li>
+</ul>
+</li>
+</ol>
+<h2 id="future-possibilities"><a class="doc-anchor" href="#future-possibilities">§</a>Future possibilities</h2>
+<ul>
+<li>Serving unconditional <code>stat</code> from fresh pointer records when the source guarantees complete <code>stat</code> metadata in cached pointers.</li>
+<li><code>If-None-Match</code> (<code>304 Not Modified</code>) revalidation on expired reads to avoid a separate <code>stat</code> RTT when the object has not changed.</li>
+<li>Additional defaulted methods on <code>CachePolicy</code> (for example, metadata-based fill admission) if concrete workloads need them.</li>
+<li>Asynchronous background fill via <code>OperationContext::executor()</code> or optional write-through caching.</li>
+</ul>
+</div></details></section></div></main></body></html>

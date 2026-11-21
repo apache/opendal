@@ -92,6 +92,8 @@ pub struct Capability {
     pub write_with_content_disposition: bool,
     /// Indicates if Content-Encoding can be specified during write operations.
     pub write_with_content_encoding: bool,
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    pub write_with_content_language: bool,
     /// Indicates if Cache-Control can be specified during write operations.
     pub write_with_cache_control: bool,
     /// Indicates if conditional write operations using If-Match are supported.
@@ -249,6 +251,7 @@ impl Capability {
             write_with_content_type: cap.write_with_content_type,
             write_with_content_disposition: cap.write_with_content_disposition,
             write_with_content_encoding: cap.write_with_content_encoding,
+            write_with_content_language: cap.write_with_content_language,
             write_with_cache_control: cap.write_with_cache_control,
             write_with_if_match: cap.write_with_if_match,
             write_with_if_none_match: cap.write_with_if_none_match,

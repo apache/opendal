@@ -247,6 +247,7 @@ pub struct OpendalWriteOptions {
     pub content_type: *const c_char,
     pub content_disposition: *const c_char,
     pub content_encoding: *const c_char,
+    pub content_language: *const c_char,
     pub user_metadata_has_value: u8,
     pub user_metadata_keys: *const *const c_char,
     pub user_metadata_values: *const *const c_char,
@@ -275,6 +276,7 @@ impl NativeOptions for OpendalWriteOptions {
         options.content_disposition =
             borrowed_string(self.content_disposition, "content_disposition")?;
         options.content_encoding = borrowed_string(self.content_encoding, "content_encoding")?;
+        options.content_language = borrowed_string(self.content_language, "content_language")?;
         options.user_metadata = borrowed_string_pairs(
             self.user_metadata_has_value,
             self.user_metadata_keys,
@@ -320,6 +322,7 @@ impl Default for OpendalWriteOptions {
             content_type: std::ptr::null(),
             content_disposition: std::ptr::null(),
             content_encoding: std::ptr::null(),
+            content_language: std::ptr::null(),
             user_metadata_has_value: 0,
             user_metadata_keys: std::ptr::null(),
             user_metadata_values: std::ptr::null(),

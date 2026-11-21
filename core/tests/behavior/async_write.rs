@@ -69,6 +69,16 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if cap.write && cap.write_with_content_language && cap.stat {
+        tests.extend(async_trials!(op, test_write_with_content_language));
+        if cap.write_can_multi {
+            tests.extend(async_trials!(
+                op,
+                test_write_with_content_language_multipart
+            ));
+        }
+    }
+
     if cap.read && cap.write_with_expires && cap.stat {
         tests.extend(async_trials!(
             op,
@@ -239,6 +249,37 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
             .expect("content encoding must exist"),
         target_content_encoding
     );
+    Ok(())
+}
+
+/// Write Content-Language and read it back with stat.
+pub async fn test_write_with_content_language(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let language = "fr-CA, en";
+    op.write_with(&path, "bonjour")
+        .content_language(language)
+        .await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
+    Ok(())
+}
+
+/// Store Content-Language when a writer splits an upload into parts.
+pub async fn test_write_with_content_language_multipart(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let chunk = op.info().capability().write_multi_min_size.unwrap_or(1024);
+    let language = "es-MX";
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .content_language(language)
+        .await?;
+    writer.write(vec![0; chunk]).await?;
+    writer.write(vec![1; chunk]).await?;
+    writer.write(vec![2]).await?;
+    writer.close().await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
     Ok(())
 }
 

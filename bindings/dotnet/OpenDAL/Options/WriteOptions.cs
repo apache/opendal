@@ -60,6 +60,12 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
     public string? ContentEncoding { get; init; }
 
     /// <summary>
+    /// Sets Content-Language system metadata on the object being written.
+    /// </summary>
+    /// <seealso cref="Capability.WriteWithContentLanguage"/>
+    public string? ContentLanguage { get; init; }
+
+    /// <summary>
     /// Sets user metadata for this write request.
     /// </summary>
     /// <seealso cref="Capability.WriteWithUserMetadata"/>
@@ -133,6 +139,7 @@ public sealed class WriteOptions : IOptions<OpenDALWriteOptions>
         native.ContentType = writer.String(ContentType);
         native.ContentDisposition = writer.String(ContentDisposition);
         native.ContentEncoding = writer.String(ContentEncoding);
+        native.ContentLanguage = writer.String(ContentLanguage);
         (native.UserMetadataHasValue, native.UserMetadataKeys, native.UserMetadataValues, native.UserMetadataLen) = writer.Pairs(UserMetadata);
         if (Expires is { } expires)
         {
@@ -167,6 +174,7 @@ internal struct OpenDALWriteOptions
     public IntPtr ContentType;
     public IntPtr ContentDisposition;
     public IntPtr ContentEncoding;
+    public IntPtr ContentLanguage;
     public byte UserMetadataHasValue;
     public IntPtr UserMetadataKeys;
     public IntPtr UserMetadataValues;

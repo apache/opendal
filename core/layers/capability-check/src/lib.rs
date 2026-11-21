@@ -151,6 +151,13 @@ impl Service for CapabilityCheckService {
                 "content_disposition",
             ));
         }
+        if !capability.write_with_content_language && args.content_language().is_some() {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Write,
+                "content_language",
+            ));
+        }
 
         self.inner.write(ctx, path, args)
     }
@@ -432,11 +439,19 @@ mod tests {
             .await;
         assert!(res.is_err());
 
+        let err = op
+            .writer_with("path")
+            .content_language("en")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
         let op = new_test_operator(Capability {
             write: true,
             write_with_content_type: true,
             write_with_cache_control: true,
             write_with_content_disposition: true,
+            write_with_content_language: true,
             ..Default::default()
         });
         let res = op.writer_with("path").content_type("type").await;
@@ -449,6 +464,9 @@ mod tests {
             .writer_with("path")
             .content_disposition("disposition")
             .await;
+        assert!(res.is_ok());
+
+        let res = op.writer_with("path").content_language("en").await;
         assert!(res.is_ok());
     }
 

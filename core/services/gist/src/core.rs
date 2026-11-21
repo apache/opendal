@@ -223,6 +223,9 @@ pub struct GistFile {
     /// that do not embed content.
     #[serde(default)]
     pub content: Option<String>,
+    /// Encoding of [`GistFile::content`], either `utf-8` or `base64`.
+    #[serde(default)]
+    pub encoding: Option<String>,
 }
 
 /// Change set sent to the Gist update endpoint.

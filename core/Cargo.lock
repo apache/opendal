@@ -7956,6 +7956,7 @@ dependencies = [
 name = "opendal-service-gist"
 version = "0.59.5"
 dependencies = [
+ "base64 0.23.0",
  "futures",
  "http 1.4.2",
  "log",

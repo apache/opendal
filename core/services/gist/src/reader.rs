@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 
+use base64::Engine;
 use http::Response;
 use http::StatusCode;
 
@@ -67,7 +68,22 @@ impl oio::StreamRead for GistReader {
         // The API embeds content up to 1 MiB per file. Larger files come back
         // truncated and must be read from `raw_url` instead.
         if let Some(content) = content {
-            let bs = Buffer::from(content);
+            let bs = match file.encoding.as_deref() {
+                // Binary files travel as base64 text, so the raw bytes exist
+                // only after decoding; ranges must operate on them.
+                Some("base64") => Buffer::from(
+                    base64::engine::general_purpose::STANDARD
+                        .decode(content.replace('\n', ""))
+                        .map_err(|err| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "the gist api returned invalid base64 content",
+                            )
+                            .set_source(err)
+                        })?,
+                ),
+                _ => Buffer::from(content),
+            };
 
             if range.is_full() {
                 return Ok((

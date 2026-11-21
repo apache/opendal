@@ -348,6 +348,48 @@ async fn read_slices_inline_content_for_ranges() {
 }
 
 #[tokio::test]
+async fn read_decodes_base64_content() {
+    // GitHub embeds binary files as base64 text under `encoding: "base64"`,
+    // so read must decode the content before serving it.
+    let gist = format!(
+        r#"{{"files":{{"img.png":{{"filename":"img.png","type":"image/png","size":8,"raw_url":"{RAW_URL}","truncated":false,"encoding":"base64","content":"iVBORw0KGgo="}}}}}}"#
+    );
+    let transport =
+        FakeTransport::new(vec![(StatusCode::OK, gist.clone()), (StatusCode::OK, gist)]);
+    let (service, ctx) = build(&transport);
+
+    let reader = service
+        .read(&ctx, "img.png", OpRead::default())
+        .expect("reader must be created");
+    let (rp, mut stream) = oio::Read::open(&reader, BytesRange::default())
+        .await
+        .expect("open must succeed");
+
+    assert_eq!(
+        rp.metadata()
+            .expect("read must return metadata")
+            .content_length(),
+        8
+    );
+    assert_eq!(
+        stream.read_all().await.expect("read must succeed").to_vec(),
+        b"\x89PNG\r\n\x1a\n"
+    );
+
+    // Ranges must operate on the decoded bytes, not on the encoded text.
+    let reader = service
+        .read(&ctx, "img.png", OpRead::default())
+        .expect("reader must be created");
+    let (_, mut stream) = oio::Read::open(&reader, BytesRange::new(1, Some(4)))
+        .await
+        .expect("open must succeed");
+    assert_eq!(
+        stream.read_all().await.expect("read must succeed").to_vec(),
+        b"PNG\r"
+    );
+}
+
+#[tokio::test]
 async fn read_truncated_file_falls_back_to_raw_url() {
     let truncated = format!(
         r#"{{"files":{{"hello.txt":{{"filename":"hello.txt","type":"text/plain","size":20,"raw_url":"{RAW_URL}","truncated":true,"content":"0123"}}}}}}"#

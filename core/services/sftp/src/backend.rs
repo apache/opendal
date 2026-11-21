@@ -54,7 +54,9 @@ pub struct SftpBuilder {
 impl SftpBuilder {
     /// Sets the time limit for waiting for a connection pool slot.
     ///
-    /// Defaults to 10 seconds. A zero duration disables this limit.
+    /// Once a slot is available, [`Self::connect_timeout`] applies to connection setup
+    /// and pooled connection health checks. Defaults to 10 seconds. A zero duration
+    /// disables the pool wait limit.
     pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
         self.acquire_timeout = Some(timeout);
         self

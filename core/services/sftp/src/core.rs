@@ -265,6 +265,7 @@ fn classify_sftp_error(error: &SftpClientError) -> (ErrorKind, bool) {
         SftpClientError::SftpError(SftpErrorKind::PermDenied, _) => {
             (ErrorKind::PermissionDenied, false)
         }
+        SftpClientError::SftpError(SftpErrorKind::Failure, _) => (ErrorKind::Unexpected, true),
         SftpClientError::IOError(err) => classify_io_error(err),
         SftpClientError::BackgroundTaskFailure(_) => (ErrorKind::Unexpected, true),
         SftpClientError::RemoteChildSpawnError(err) => classify_ssh_error(err),
@@ -302,6 +303,10 @@ fn classify_ssh_error(error: &SshError) -> (ErrorKind, bool) {
                 return (ErrorKind::PermissionDenied, false);
             }
             let temporary = diagnostic.lines().any(|line| {
+                let line = line
+                    .strip_prefix("kex_exchange_identification: ")
+                    .unwrap_or(line);
+                let line = line.strip_prefix("read: ").unwrap_or(line);
                 line == "Connection timed out during banner exchange"
                     || line.ends_with(" Connection timed out")
                     || line.ends_with(" Operation timed out")
@@ -445,16 +450,73 @@ mod tests {
             (
                 SshError::Connect(io::Error::new(
                     io::ErrorKind::ConnectionAborted,
-                    "Host key verification failed.",
+                    "kex_exchange_identification: Connection closed by remote host",
+                )),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                SshError::Connect(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "kex_exchange_identification: read: Connection reset by peer",
+                )),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                SshError::Connect(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "Host key verification failed.\nConnection closed by remote host",
+                )),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                SshError::Connect(io::Error::new(
+                    io::ErrorKind::ConnectionAborted,
+                    "user@host: Permission denied (publickey).\nConnection closed by remote host",
                 )),
                 ErrorKind::PermissionDenied,
                 false,
             ),
         ] {
             let error = parse_ssh_error(source);
-            assert_eq!(error.kind(), expected_kind);
-            assert_eq!(error.is_temporary(), temporary);
+            assert_eq!(error.kind(), expected_kind, "{error:?}");
+            assert_eq!(error.is_temporary(), temporary, "{error:?}");
             assert!(error.source().unwrap().is::<SshError>());
+        }
+    }
+
+    #[test]
+    fn sftp_status_classification_preserves_original_error() {
+        use openssh_sftp_client::error::SftpErrMsg;
+        use serde::Deserialize;
+        use serde::de::value::{
+            BorrowedStrDeserializer, Error as DeserializeError, SeqDeserializer,
+        };
+
+        let fields = ["server status", ""]
+            .into_iter()
+            .map(BorrowedStrDeserializer::<DeserializeError>::new);
+        let message = SftpErrMsg::deserialize(SeqDeserializer::new(std::iter::once(
+            SeqDeserializer::new(fields),
+        )))
+        .unwrap();
+
+        for (status, kind, temporary) in [
+            (SftpErrorKind::Failure, ErrorKind::Unexpected, true),
+            (
+                SftpErrorKind::PermDenied,
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (SftpErrorKind::NoSuchFile, ErrorKind::NotFound, false),
+            (SftpErrorKind::OpUnsupported, ErrorKind::Unsupported, false),
+        ] {
+            let error = parse_sftp_error(SftpClientError::SftpError(status, message.clone()));
+            assert_eq!(error.kind(), kind, "{error:?}");
+            assert_eq!(error.is_temporary(), temporary, "{error:?}");
+            assert!(error.source().unwrap().is::<SftpClientError>());
         }
     }
 }

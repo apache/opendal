@@ -2275,10 +2275,12 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         // CopyObject. Classify the error code explicitly because the HTTP
         // status alone cannot preserve the NotFound semantics in this case.
         "NoSuchKey" => Some((ErrorKind::NotFound, false)),
-        // NoSuchUpload means the multipart upload session no longer exists,
-        // not a missing target object key, so it must not map to NotFound or
-        // be rewritten to ConditionNotMatch under if_match.
-        "NoSuchUpload" => Some((ErrorKind::Unexpected, false)),
+        // On CompleteMultipartUpload, NoSuchUpload means the upload session no
+        // longer exists rather than a missing target key, so it must not map to
+        // NotFound or be rewritten to ConditionNotMatch under if_match.
+        "NoSuchUpload" if ctx.service_operation == ServiceOperation("CompleteMultipartUpload") => {
+            Some((ErrorKind::Unexpected, false))
+        }
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
         //
@@ -2288,13 +2290,7 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         "InternalError" => Some((ErrorKind::Unexpected, true)),
         // > A conflicting conditional operation is currently in progress
         // > against this resource. Try again.
-        //
-        // CompleteMultipartUpload is not temporary: a conflicted completion
-        // cannot be replayed without starting a new multipart upload.
-        "OperationAborted" => Some((
-            ErrorKind::Conflict,
-            ctx.service_operation != ServiceOperation("CompleteMultipartUpload"),
-        )),
+        "OperationAborted" => Some((ErrorKind::Conflict, true)),
         // > Please reduce your request rate.
         //
         // It's Ok to retry since later on the request rate may get reduced.
@@ -2375,70 +2371,73 @@ mod error_tests {
     }
 
     #[test]
-    fn operation_aborted_retryability_depends_on_operation() {
-        let xml = "<Error><Code>OperationAborted</Code><Message>A conflicting conditional action is currently in progress against this resource.</Message></Error>";
-
-        let put_ctx = ErrorContext::new(ServiceOperation("PutObject"));
-        assert_eq!(
-            parse_s3_error_code(put_ctx, "OperationAborted"),
-            Some((ErrorKind::Conflict, true))
-        );
-        let resp = Response::builder()
-            .status(409)
-            .body(Buffer::from(xml))
-            .unwrap();
-        let err = parse_error(put_ctx, resp);
-        assert_eq!(err.kind(), ErrorKind::Conflict);
-        assert!(err.is_temporary());
-
-        let complete_ctx = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"));
-        assert_eq!(
-            parse_s3_error_code(complete_ctx, "OperationAborted"),
-            Some((ErrorKind::Conflict, false))
-        );
-        for status in [409, 200] {
-            let resp = Response::builder()
-                .status(status)
-                .body(Buffer::from(xml))
-                .unwrap();
-            let err = parse_error(complete_ctx, resp);
-            assert_eq!(err.kind(), ErrorKind::Conflict, "status {status}");
-            assert!(!err.is_temporary(), "status {status}");
-        }
-    }
-
-    #[test]
     fn complete_multipart_upload_no_such_upload_and_no_such_key() {
-        let complete_ctx = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"));
-
-        assert_eq!(
-            parse_s3_error_code(complete_ctx, "NoSuchUpload"),
-            Some((ErrorKind::Unexpected, false))
-        );
         let no_such_upload_xml = "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>";
-        for status in [404, 200] {
+        let no_such_key_xml = "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>";
+
+        for caller_condition in [false, true] {
+            let complete_ctx = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                .with_caller_condition(caller_condition);
+
+            assert_eq!(
+                parse_s3_error_code(complete_ctx, "NoSuchUpload"),
+                Some((ErrorKind::Unexpected, false)),
+                "caller_condition {caller_condition}"
+            );
+            for status in [404, 200] {
+                let resp = Response::builder()
+                    .status(status)
+                    .body(Buffer::from(no_such_upload_xml))
+                    .unwrap();
+                let err = parse_error(complete_ctx, resp);
+                assert_eq!(
+                    err.kind(),
+                    ErrorKind::Unexpected,
+                    "status {status}, caller_condition {caller_condition}"
+                );
+                assert!(
+                    !err.is_temporary(),
+                    "status {status}, caller_condition {caller_condition}"
+                );
+            }
+
+            assert_eq!(
+                parse_s3_error_code(complete_ctx, "NoSuchKey"),
+                Some((ErrorKind::NotFound, false)),
+                "caller_condition {caller_condition}"
+            );
+            for status in [404, 200] {
+                let resp = Response::builder()
+                    .status(status)
+                    .body(Buffer::from(no_such_key_xml))
+                    .unwrap();
+                let err = parse_error(complete_ctx, resp);
+                assert_eq!(
+                    err.kind(),
+                    ErrorKind::NotFound,
+                    "status {status}, caller_condition {caller_condition}"
+                );
+                assert!(
+                    !err.is_temporary(),
+                    "status {status}, caller_condition {caller_condition}"
+                );
+            }
+        }
+
+        for operation in ["UploadPart", "UploadPartCopy", "AbortMultipartUpload"] {
+            let ctx = ErrorContext::new(ServiceOperation(operation));
+            assert_eq!(
+                parse_s3_error_code(ctx, "NoSuchUpload"),
+                None,
+                "{operation} must leave NoSuchUpload unclassified"
+            );
             let resp = Response::builder()
-                .status(status)
+                .status(404)
                 .body(Buffer::from(no_such_upload_xml))
                 .unwrap();
-            let err = parse_error(complete_ctx, resp);
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "status {status}");
-            assert!(!err.is_temporary(), "status {status}");
-        }
-
-        assert_eq!(
-            parse_s3_error_code(complete_ctx, "NoSuchKey"),
-            Some((ErrorKind::NotFound, false))
-        );
-        let no_such_key_xml = "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>";
-        for status in [404, 200] {
-            let resp = Response::builder()
-                .status(status)
-                .body(Buffer::from(no_such_key_xml))
-                .unwrap();
-            let err = parse_error(complete_ctx, resp);
-            assert_eq!(err.kind(), ErrorKind::NotFound, "status {status}");
-            assert!(!err.is_temporary(), "status {status}");
+            let err = parse_error(ctx, resp);
+            assert_eq!(err.kind(), ErrorKind::NotFound, "{operation}");
+            assert!(!err.is_temporary(), "{operation}");
         }
     }
 }

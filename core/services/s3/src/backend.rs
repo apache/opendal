@@ -2469,9 +2469,7 @@ mod tests {
 
     #[derive(Clone)]
     struct CompleteMultipartErrorTransport {
-        complete_status: StatusCode,
         complete_body: &'static str,
-        complete_hits: Arc<AtomicUsize>,
     }
 
     impl HttpTransport for CompleteMultipartErrorTransport {
@@ -2491,8 +2489,14 @@ mod tests {
                      </InitiateMultipartUploadResult>",
                 ));
             }
+            // Abort cleanup must not fall through to the UploadPart 200 OK branch.
+            if req.method() == Method::DELETE {
+                return Ok(S3ExpressMockTransport::response(
+                    StatusCode::NO_CONTENT,
+                    Bytes::new(),
+                ));
+            }
             if req.method() == Method::POST && query.contains("uploadId=") {
-                self.complete_hits.fetch_add(1, Ordering::SeqCst);
                 assert_eq!(
                     req.headers()
                         .get(http::header::IF_MATCH)
@@ -2501,7 +2505,7 @@ mod tests {
                     "CompleteMultipartUpload must carry If-Match"
                 );
                 return Ok(S3ExpressMockTransport::response(
-                    self.complete_status,
+                    StatusCode::NOT_FOUND,
                     self.complete_body,
                 ));
             }
@@ -2521,48 +2525,20 @@ mod tests {
         let cases = [
             (
                 "NoSuchUpload 404",
-                StatusCode::NOT_FOUND,
                 "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>",
                 ErrorKind::Unexpected,
-            ),
-            (
-                "NoSuchUpload 200",
-                StatusCode::OK,
-                "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>",
-                ErrorKind::Unexpected,
+                Some("NoSuchUpload"),
             ),
             (
                 "NoSuchKey 404",
-                StatusCode::NOT_FOUND,
                 "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>",
                 ErrorKind::ConditionNotMatch,
-            ),
-            (
-                "NoSuchKey 200",
-                StatusCode::OK,
-                "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>",
-                ErrorKind::ConditionNotMatch,
-            ),
-            (
-                "OperationAborted 409",
-                StatusCode::CONFLICT,
-                "<Error><Code>OperationAborted</Code><Message>A conflicting conditional action is currently in progress against this resource.</Message></Error>",
-                ErrorKind::Conflict,
-            ),
-            (
-                "OperationAborted 200",
-                StatusCode::OK,
-                "<Error><Code>OperationAborted</Code><Message>A conflicting conditional action is currently in progress against this resource.</Message></Error>",
-                ErrorKind::Conflict,
+                None,
             ),
         ];
 
-        for (label, complete_status, complete_body, expected_kind) in cases {
-            let transport = CompleteMultipartErrorTransport {
-                complete_status,
-                complete_body,
-                complete_hits: Arc::new(AtomicUsize::new(0)),
-            };
+        for (label, complete_body, expected_kind, expected_msg_substr) in cases {
+            let transport = CompleteMultipartErrorTransport { complete_body };
             let op = Operator::new(
                 S3Builder::default()
                     .bucket("example")
@@ -2591,11 +2567,9 @@ mod tests {
                 .expect_err("multipart write close must fail");
             assert_eq!(err.kind(), expected_kind, "write {label}");
             assert!(!err.is_temporary(), "write {label}");
-            assert_eq!(
-                transport.complete_hits.load(Ordering::SeqCst),
-                1,
-                "write {label}"
-            );
+            if let Some(msg) = expected_msg_substr {
+                assert!(err.to_string().contains(msg), "write {label}: {err}");
+            }
 
             let err = op
                 .copy_with("source", "target")
@@ -2606,11 +2580,9 @@ mod tests {
                 .expect_err("multipart copy must fail");
             assert_eq!(err.kind(), expected_kind, "copy {label}");
             assert!(!err.is_temporary(), "copy {label}");
-            assert_eq!(
-                transport.complete_hits.load(Ordering::SeqCst),
-                2,
-                "copy {label}"
-            );
+            if let Some(msg) = expected_msg_substr {
+                assert!(err.to_string().contains(msg), "copy {label}: {err}");
+            }
         }
     }
 

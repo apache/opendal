@@ -51,6 +51,8 @@ pub enum Scheme {
     Dashmap,
     #[cfg(feature = "services-dropbox")]
     Dropbox,
+    #[cfg(feature = "services-foyer")]
+    Foyer,
     #[cfg(feature = "services-fs")]
     Fs,
     #[cfg(feature = "services-ftp")]
@@ -195,6 +197,8 @@ impl_enum_to_str!(
         Dashmap => "dashmap",
         #[cfg(feature = "services-dropbox")]
         Dropbox => "dropbox",
+        #[cfg(feature = "services-foyer")]
+        Foyer => "foyer",
         #[cfg(feature = "services-fs")]
         Fs => "fs",
         #[cfg(feature = "services-ftp")]

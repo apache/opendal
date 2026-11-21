@@ -39,14 +39,14 @@ accepted values, defaults, and environment interaction.
 ### Streaming writes
 
 WebDAV uses a single ordinary PUT by default. Enable `enable_partial_put`
-with `WebdavBuilder::enable_partial_put(true)` or set the configuration field
+with `Webdav::enable_partial_put(true)` or set the configuration field
 to `true` to advertise `write_can_multi`. Empty and single-chunk uploads still
 use one ordinary PUT. Conditional writes return `Unsupported`.
 
 For a multi-chunk upload, OpenDAL creates a uniquely named temporary resource
 in the destination directory and writes subsequent chunks with `Content-Range`.
 Closing the writer publishes the completed resource with WebDAV MOVE and
-`Overwrite: T`. The server determines whether that replacement is atomic.
+`Overwrite: T`. The backing server controls whether the overwrite is atomic.
 Aborting deletes the temporary resource and preserves any existing destination.
 OpenDAL also attempts to delete the temporary resource if publishing fails.
 

@@ -488,7 +488,7 @@ async fn test_webdav_partial_put(op: Operator) -> Result<()> {
 
     op.write(&path, original).await?;
     let mut writer = op.writer(&path).await?;
-    writer.write("replacement").await?;
+    writer.write("new").await?;
     writer.write(" bytes").await?;
     assert_eq!(op.read(&path).await?.to_bytes(), original);
     let entries = op.list(&parent).await?;

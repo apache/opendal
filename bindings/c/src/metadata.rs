@@ -16,7 +16,6 @@
 // under the License.
 
 use ::opendal as core;
-use std::collections::HashMap;
 use std::ffi::{c_char, c_void, CString};
 use std::ptr;
 
@@ -38,18 +37,14 @@ struct opendal_metadata_user_metadata_inner {
 }
 
 impl opendal_metadata_user_metadata_inner {
-    fn new(user_metadata: &HashMap<String, String>) -> Self {
+    fn new(user_metadata: core::UserMetadata<'_>) -> Self {
         let mut keys = Vec::with_capacity(user_metadata.len());
         let mut values = Vec::with_capacity(user_metadata.len());
         let mut pairs = Vec::with_capacity(user_metadata.len());
 
         for (key, value) in user_metadata {
-            keys.push(
-                CString::new(key.as_str()).expect("user metadata key should not contain nul"),
-            );
-            values.push(
-                CString::new(value.as_str()).expect("user metadata value should not contain nul"),
-            );
+            keys.push(CString::new(key).expect("user metadata key should not contain nul"));
+            values.push(CString::new(value).expect("user metadata value should not contain nul"));
 
             pairs.push(opendal_metadata_user_metadata_pair {
                 key: keys.last().expect("key has just been pushed").as_ptr(),
@@ -250,10 +245,10 @@ impl opendal_metadata {
     /// # Example
     /// ```C
     /// // ... previously you wrote "Hello, World!" to path "/testpath"
-    /// opendal_result_stat s = opendal_operator_stat(op, "/testpath");
-    /// assert(s.error == NULL);
+    /// opendal_metadata *meta = NULL;
+    /// opendal_error *err = opendal_operator_stat(op, "/testpath", &meta);
+    /// assert(err == NULL);
     ///
-    /// opendal_metadata *meta = s.meta;
     /// assert(opendal_metadata_last_modified_ms(meta) != -1);
     /// ```
     #[no_mangle]

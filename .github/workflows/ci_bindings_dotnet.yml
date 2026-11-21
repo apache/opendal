@@ -19,22 +19,27 @@ name: Bindings Dotnet CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
   pull_request:
     branches:
       - main
     paths:
+      - "core/layers/concurrent-limit/**"
+      - "core/layers/logging/**"
+      - "core/layers/mime-guess/**"
+      - "core/layers/retry/**"
+      - "core/layers/throttle/**"
+      - "core/layers/timeout/**"
       - "bindings/dotnet/**"
-      - "core/**"
+      - ".github/actions/setup/**"
       - ".github/workflows/ci_bindings_dotnet.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-dotnet-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -68,6 +73,7 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
+          - ubuntu-24.04-arm
           - macos-latest
           - windows-latest
     steps:

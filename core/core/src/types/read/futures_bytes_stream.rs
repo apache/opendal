@@ -46,7 +46,7 @@ unsafe impl Sync for FuturesBytesStream {}
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
     pub(crate) async fn new(ctx: Arc<ReadContext>, range: impl Into<BytesRange>) -> Result<Self> {
-        let stream = BufferStream::create(ctx, range).await?;
+        let stream = BufferStream::create(ctx, range, None).await?;
 
         Ok(FuturesBytesStream {
             stream,

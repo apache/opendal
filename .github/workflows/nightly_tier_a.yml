@@ -1,0 +1,197 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Nightly Tier A
+
+on:
+  schedule:
+    # Daily 02:00 Asia/Shanghai (18:00 UTC).
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run reporter without creating, updating, or closing issues"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-tier-a-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_check.yml
+
+  core:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_core.yml
+
+  odev:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_odev.yml
+
+  edge_local:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/test_edge.yml
+
+  behavior_local:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/test_behavior.yml
+    with:
+      mode: nightly-local
+      retry_attempts: 1
+
+  integration_dav_server:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_integration_dav_server.yml
+
+  integration_object_store:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_integration_object_store.yml
+
+  integration_parquet:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_integration_parquet.yml
+
+  integration_spring:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_integration_spring.yml
+
+  integration_unftp_sbe:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_integration_unftp_sbe.yml
+
+  binding_c:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_c.yml
+
+  binding_cpp:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_cpp.yml
+
+  binding_dart:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_dart.yml
+
+  binding_dotnet:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_dotnet.yml
+
+  binding_go:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_go.yml
+
+  binding_haskell:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_haskell.yml
+
+  binding_java:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_java.yml
+
+  binding_lua:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_lua.yml
+
+  binding_moonbit:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_moonbit.yml
+
+  binding_nodejs:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_nodejs.yml
+
+  binding_ocaml:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_ocaml.yml
+
+  binding_php:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_php.yml
+
+  binding_python:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_python.yml
+
+  binding_ruby:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_ruby.yml
+
+  binding_zig:
+    if: github.event_name != 'schedule' || github.repository == 'apache/opendal'
+    uses: ./.github/workflows/ci_bindings_zig.yml
+
+  report:
+    name: Report Nightly Status
+    if: always() && (github.event_name != 'schedule' || github.repository == 'apache/opendal')
+    needs:
+      - check
+      - core
+      - odev
+      - edge_local
+      - behavior_local
+      - integration_dav_server
+      - integration_object_store
+      - integration_parquet
+      - integration_spring
+      - integration_unftp_sbe
+      - binding_c
+      - binding_cpp
+      - binding_dart
+      - binding_dotnet
+      - binding_go
+      - binding_haskell
+      - binding_java
+      - binding_lua
+      - binding_moonbit
+      - binding_nodejs
+      - binding_ocaml
+      - binding_php
+      - binding_python
+      - binding_ruby
+      - binding_zig
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Reconcile nightly issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(
+            --tier tier-a
+            --workflow-file nightly_tier_a.yml
+            --run-id "${{ github.run_id }}"
+            --head-sha "${{ github.sha }}"
+            --self-job-name "Report Nightly Status"
+          )
+          if [ "${{ github.repository }}" = "apache/opendal" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$DRY_RUN" != "true" ]; then
+            args+=(--apply)
+          fi
+          python3 .github/scripts/nightly/report.py "${args[@]}"

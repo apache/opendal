@@ -80,6 +80,11 @@ impl AsyncWriter {
     pub fn new(writer: Writer) -> Self {
         Self { inner: writer }
     }
+
+    /// Aborts the write and cleans up data written by the underlying [`Writer`].
+    pub async fn abort(&mut self) -> opendal::Result<()> {
+        self.inner.abort().await
+    }
 }
 
 impl AsyncFileWriter for AsyncWriter {
@@ -136,7 +141,7 @@ mod tests {
         writer.write(bytes).await.unwrap();
         let bytes = Bytes::from_static(b"hello, OpenDAL!");
         writer.write(bytes).await.unwrap();
-        drop(writer);
+        writer.abort().await.unwrap();
 
         let exist = op.exists(path).await.unwrap();
         assert!(!exist);

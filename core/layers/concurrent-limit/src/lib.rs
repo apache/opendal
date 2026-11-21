@@ -25,10 +25,10 @@ use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
 
+use asyncband::semaphore::OwnedSemaphorePermit;
+use asyncband::semaphore::Semaphore;
 use futures::Stream;
 use futures::StreamExt;
-use mea::semaphore::OwnedSemaphorePermit;
-use mea::semaphore::Semaphore;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -51,12 +51,16 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
     }
 }
 
-/// `ConcurrentLimitLayer` controls how many concurrent requests OpenDAL can send
-/// to a storage service.
+/// `ConcurrentLimitLayer` limits concurrent storage operations.
 ///
-/// Operators that reuse the same [`ConcurrentLimitLayer`] instance share a
-/// semaphore. This lets an application enforce one total concurrent-request
-/// limit across multiple operators.
+/// Each operation kind with a dedicated limit (`read`, `write`, or `list`)
+/// uses only its dedicated semaphore. Operations without a dedicated limit
+/// share the default semaphore. With dedicated limits, total concurrency
+/// across operations can exceed the default limit.
+///
+/// Operators that reuse the same [`ConcurrentLimitLayer`] instance share its
+/// semaphores. The HTTP request limit is independent of the storage operation
+/// limits.
 ///
 /// # Examples
 ///
@@ -71,6 +75,25 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 /// # fn main() -> Result<()> {
 /// let _ = Operator::new(services::Memory::default())?
 ///     .layer(ConcurrentLimitLayer::new(1024));
+/// # Ok(())
+/// # }
+/// ```
+///
+/// Configure limits of eight reads, four writes, and two lists, plus eight
+/// operations sharing the default semaphore. Up to 22 operations can run
+/// concurrently under these limits.
+///
+/// ```no_run
+/// # use opendal_core::services;
+/// # use opendal_core::Operator;
+/// # use opendal_core::Result;
+/// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
+/// # fn main() -> Result<()> {
+/// let limit = ConcurrentLimitLayer::new(8)
+///     .with_read_concurrent_limit(8)
+///     .with_write_concurrent_limit(4)
+///     .with_list_concurrent_limit(2);
+/// let _op = Operator::new(services::Memory::default())?.layer(limit);
 /// # Ok(())
 /// # }
 /// ```
@@ -96,24 +119,44 @@ impl ConcurrentLimitSemaphore for Arc<Semaphore> {
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer<S: ConcurrentLimitSemaphore = Arc<Semaphore>> {
     operation_semaphore: S,
+    read_semaphore: Option<S>,
+    write_semaphore: Option<S>,
+    list_semaphore: Option<S>,
     http_semaphore: Option<S>,
 }
 
 impl<S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitLayer<S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ConcurrentLimitLayer")
+            .field("has_read_limit", &self.read_semaphore.is_some())
+            .field("has_write_limit", &self.write_semaphore.is_some())
+            .field("has_list_limit", &self.list_semaphore.is_some())
             .field("has_http_limit", &self.http_semaphore.is_some())
             .finish_non_exhaustive()
     }
 }
 
 impl ConcurrentLimitLayer<Arc<Semaphore>> {
-    /// Create a new `ConcurrentLimitLayer` with the specified number of
-    /// permits.
+    /// Create a layer with the specified number of default operation permits.
     ///
-    /// These permits will be applied to all operations.
+    /// Operations without a dedicated semaphore share these permits.
     pub fn new(permits: usize) -> Self {
         Self::with_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+
+    /// Set a dedicated concurrency limit for reads.
+    pub fn with_read_concurrent_limit(self, permits: usize) -> Self {
+        self.with_read_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+
+    /// Set a dedicated concurrency limit for writes.
+    pub fn with_write_concurrent_limit(self, permits: usize) -> Self {
+        self.with_write_semaphore(Arc::new(Semaphore::new(permits)))
+    }
+
+    /// Set a dedicated concurrency limit for lists.
+    pub fn with_list_concurrent_limit(self, permits: usize) -> Self {
+        self.with_list_semaphore(Arc::new(Semaphore::new(permits)))
     }
 
     /// Set a concurrent limit for HTTP requests.
@@ -128,11 +171,13 @@ impl ConcurrentLimitLayer<Arc<Semaphore>> {
 }
 
 impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
-    /// Create a layer with any ConcurrentLimitSemaphore implementation.
+    /// Create a layer with a custom default operation semaphore.
+    ///
+    /// Operations without a dedicated semaphore share this semaphore.
     ///
     /// ```
     /// # use std::sync::Arc;
-    /// # use mea::semaphore::Semaphore;
+    /// # use asyncband::semaphore::Semaphore;
     /// # use opendal_layer_concurrent_limit::ConcurrentLimitLayer;
     /// let semaphore = Arc::new(Semaphore::new(1024));
     /// let _layer = ConcurrentLimitLayer::with_semaphore(semaphore);
@@ -140,8 +185,29 @@ impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S> {
     pub fn with_semaphore(operation_semaphore: S) -> Self {
         Self {
             operation_semaphore,
+            read_semaphore: None,
+            write_semaphore: None,
+            list_semaphore: None,
             http_semaphore: None,
         }
+    }
+
+    /// Set the dedicated semaphore for reads.
+    pub fn with_read_semaphore(mut self, semaphore: S) -> Self {
+        self.read_semaphore = Some(semaphore);
+        self
+    }
+
+    /// Set the dedicated semaphore for writes.
+    pub fn with_write_semaphore(mut self, semaphore: S) -> Self {
+        self.write_semaphore = Some(semaphore);
+        self
+    }
+
+    /// Set the dedicated semaphore for lists.
+    pub fn with_list_semaphore(mut self, semaphore: S) -> Self {
+        self.list_semaphore = Some(semaphore);
+        self
     }
 
     /// Provide a custom HTTP concurrency semaphore instance.
@@ -177,7 +243,10 @@ where
     fn layer(&self, inner: Servicer) -> ConcurrentLimitService<S> {
         ConcurrentLimitService {
             inner,
-            semaphore: self.operation_semaphore.clone(),
+            operation_semaphore: self.operation_semaphore.clone(),
+            read_semaphore: self.read_semaphore.clone(),
+            write_semaphore: self.write_semaphore.clone(),
+            list_semaphore: self.list_semaphore.clone(),
         }
     }
 }
@@ -235,7 +304,10 @@ where
 #[derive(Clone)]
 pub struct ConcurrentLimitService<S: ConcurrentLimitSemaphore> {
     inner: Servicer,
-    semaphore: S,
+    operation_semaphore: S,
+    read_semaphore: Option<S>,
+    write_semaphore: Option<S>,
+    list_semaphore: Option<S>,
 }
 
 impl<S: ConcurrentLimitSemaphore> std::fmt::Debug for ConcurrentLimitService<S> {
@@ -255,6 +327,7 @@ where
     type Lister = ConcurrentLimitWrapper<oio::Lister, S>;
     type Deleter = ConcurrentLimitWrapper<oio::Deleter, S>;
     type Copier = ConcurrentLimitWrapper<oio::Copier, S>;
+    type Composer = ConcurrentLimitWrapper<oio::Composer, S>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -270,20 +343,26 @@ where
         path: &str,
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let _permit = self.semaphore.acquire().await;
+        let _permit = self.operation_semaphore.acquire().await;
         self.inner.create_dir(ctx, path, args).await
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        self.inner
-            .read(ctx, path, args)
-            .map(|r| ConcurrentLimitReader::new(r, self.semaphore.clone()))
+        let inner = self.inner.read(ctx, path, args)?;
+        let semaphore = self
+            .read_semaphore
+            .as_ref()
+            .unwrap_or(&self.operation_semaphore);
+        Ok(ConcurrentLimitReader::new(inner, semaphore.clone()))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        self.inner
-            .write(ctx, path, args)
-            .map(|w| ConcurrentLimitWrapper::new(w, self.semaphore.clone()))
+        let inner = self.inner.write(ctx, path, args)?;
+        let semaphore = self
+            .write_semaphore
+            .as_ref()
+            .unwrap_or(&self.operation_semaphore);
+        Ok(ConcurrentLimitWrapper::new(inner, semaphore.clone()))
     }
 
     fn copy(
@@ -292,11 +371,16 @@ where
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         self.inner
-            .copy(ctx, from, to, args, opts)
-            .map(|c| ConcurrentLimitWrapper::new(c, self.semaphore.clone()))
+            .copy(ctx, from, to, args)
+            .map(|c| ConcurrentLimitWrapper::new(c, self.operation_semaphore.clone()))
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner
+            .compose(ctx, to, args)
+            .map(|c| ConcurrentLimitWrapper::new(c, self.operation_semaphore.clone()))
     }
 
     async fn rename(
@@ -306,25 +390,38 @@ where
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        let _permit = self.semaphore.acquire().await;
+        let _permit = self.operation_semaphore.acquire().await;
         self.inner.rename(ctx, from, to, args).await
     }
 
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        let _permit = self.operation_semaphore.acquire().await;
+        self.inner.restore(ctx, path, args).await
+    }
+
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let _permit = self.semaphore.acquire().await;
+        let _permit = self.operation_semaphore.acquire().await;
         self.inner.stat(ctx, path, args).await
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.inner
             .delete(ctx)
-            .map(|w| ConcurrentLimitWrapper::new(w, self.semaphore.clone()))
+            .map(|w| ConcurrentLimitWrapper::new(w, self.operation_semaphore.clone()))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        self.inner
-            .list(ctx, path, args)
-            .map(|s| ConcurrentLimitWrapper::new(s, self.semaphore.clone()))
+        let inner = self.inner.list(ctx, path, args)?;
+        let semaphore = self
+            .list_semaphore
+            .as_ref()
+            .unwrap_or(&self.operation_semaphore);
+        Ok(ConcurrentLimitWrapper::new(inner, semaphore.clone()))
     }
 
     async fn presign(
@@ -333,7 +430,7 @@ where
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
-        let _permit = self.semaphore.acquire().await;
+        let _permit = self.operation_semaphore.acquire().await;
         self.inner.presign(ctx, path, args).await
     }
 }
@@ -438,6 +535,11 @@ where
         self.inner.write(bs).await
     }
 
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.acquire().await;
+        self.inner.copy_from(path, args, range).await
+    }
+
     async fn close(&mut self) -> Result<Metadata> {
         self.acquire().await;
         self.inner.close().await
@@ -494,6 +596,21 @@ where
     }
 }
 
+impl<C: oio::Compose, S: ConcurrentLimitSemaphore> oio::Compose for ConcurrentLimitWrapper<C, S>
+where
+    S::Permit: Send + Sync + 'static + Unpin,
+{
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.acquire().await;
+        self.inner.compose(path, args).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.acquire().await;
+        self.inner.close().await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -505,8 +622,190 @@ mod tests {
     use std::time::Duration;
     use tokio::time::timeout;
 
+    use futures::FutureExt;
     use futures::stream;
     use http::Response;
+
+    #[tokio::test]
+    async fn dedicated_operation_limits_are_independent() {
+        let default_semaphore = Arc::new(Semaphore::new(1));
+        let list_semaphore = Arc::new(Semaphore::new(1));
+        let op = Operator::new(services::Memory::default()).unwrap().layer(
+            ConcurrentLimitLayer::with_semaphore(default_semaphore.clone())
+                .with_read_concurrent_limit(1)
+                .with_write_concurrent_limit(1)
+                .with_list_semaphore(list_semaphore.clone()),
+        );
+        op.write("source", "data").await.unwrap();
+        let default_permit = default_semaphore.try_acquire_owned(1).unwrap();
+
+        let service = op.service();
+        let ctx = op.context();
+        let reader = service.read(ctx, "source", OpRead::default()).unwrap();
+        let range = BytesRange::from(0..4);
+        let (_, data) = reader
+            .read_dyn(range)
+            .now_or_never()
+            .expect("buffered read should proceed while the default limit is exhausted")
+            .unwrap();
+        assert_eq!(data.to_bytes(), "data");
+        let (_, stream) = reader
+            .open_dyn(range)
+            .now_or_never()
+            .expect("opening a read stream should proceed while the default limit is exhausted")
+            .unwrap();
+
+        let mut writer = service.write(ctx, "target", OpWrite::default()).unwrap();
+        writer
+            .write_dyn(Buffer::from("data"))
+            .now_or_never()
+            .expect("write should proceed while the default limit is exhausted")
+            .unwrap();
+
+        let mut lister = service.list(ctx, "/", OpList::default()).unwrap();
+        assert_eq!(list_semaphore.available_permits(), 1);
+        let entry = lister
+            .next_dyn()
+            .now_or_never()
+            .expect("list should proceed while the default limit is exhausted")
+            .unwrap()
+            .unwrap();
+        assert_eq!(entry.path(), "source");
+        assert_eq!(list_semaphore.available_permits(), 0);
+
+        drop(default_permit);
+        // The three dedicated permits are held while the default permit is free.
+        assert!(op.stat("source").now_or_never().unwrap().is_ok());
+        assert!(reader.open_dyn(range).now_or_never().is_none());
+        assert!(reader.read_dyn(range).now_or_never().is_none());
+        assert!(op.write("other", "data").now_or_never().is_none());
+        assert!(op.list("/").now_or_never().is_none());
+
+        drop(stream);
+        drop(writer);
+        drop(lister);
+        assert!(op.read("source").now_or_never().unwrap().is_ok());
+        assert!(op.write("other", "data").now_or_never().unwrap().is_ok());
+        assert!(op.list("/").now_or_never().unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn unconfigured_operations_share_the_default_limit() {
+        let op = Operator::new(services::Memory::default())
+            .unwrap()
+            .layer(ConcurrentLimitLayer::new(1));
+        op.write("source", "data").await.unwrap();
+
+        let service = op.service();
+        let ctx = op.context();
+        let mut deleter = service.delete(ctx).unwrap();
+        assert!(op.stat("source").now_or_never().unwrap().is_ok());
+        deleter
+            .delete_dyn("absent", OpDelete::default())
+            .await
+            .unwrap();
+
+        assert!(op.stat("source").now_or_never().is_none());
+        assert!(op.create_dir("dir/").now_or_never().is_none());
+        assert!(op.read("source").now_or_never().is_none());
+        assert!(op.write("target", "data").now_or_never().is_none());
+        assert!(op.list("/").now_or_never().is_none());
+        assert!(op.delete("source").now_or_never().is_none());
+
+        drop(deleter);
+        assert!(op.stat("source").now_or_never().unwrap().is_ok());
+        assert!(op.create_dir("dir/").now_or_never().unwrap().is_ok());
+        assert!(op.delete("source").now_or_never().unwrap().is_ok());
+    }
+
+    #[tokio::test]
+    async fn read_and_write_errors_preserve_permit_lifetimes() {
+        let read_semaphore = Arc::new(Semaphore::new(1));
+        let write_semaphore = Arc::new(Semaphore::new(1));
+        let op = Operator::new(services::Memory::default()).unwrap().layer(
+            ConcurrentLimitLayer::new(1)
+                .with_read_semaphore(read_semaphore.clone())
+                .with_write_semaphore(write_semaphore.clone()),
+        );
+        op.write("existing", "data").await.unwrap();
+        let service = op.service();
+        let ctx = op.context();
+        let reader = service.read(ctx, "missing", OpRead::default()).unwrap();
+        let range = BytesRange::from(0..4);
+        let error = reader
+            .open_dyn(range)
+            .await
+            .err()
+            .expect("object is missing");
+        assert_eq!(error.kind(), ErrorKind::NotFound);
+        assert_eq!(read_semaphore.available_permits(), 1);
+        let error = reader.read_dyn(range).now_or_never().unwrap().unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::NotFound);
+        assert_eq!(read_semaphore.available_permits(), 1);
+
+        let options = options::WriteOptions {
+            if_not_exists: true,
+            ..Default::default()
+        };
+        let (args, _) = OpWrite::from_options(&service.capability(), options).unwrap();
+        let mut writer = service.write(ctx, "existing", args).unwrap();
+        assert_eq!(write_semaphore.available_permits(), 1);
+        let error = writer.close_dyn().await.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(write_semaphore.available_permits(), 0);
+        drop(writer);
+        assert_eq!(write_semaphore.available_permits(), 1);
+    }
+
+    #[tokio::test]
+    async fn read_stream_and_lister_errors_hold_permits_until_drop() {
+        struct FailingBody;
+
+        impl oio::ReadStream for FailingBody {
+            async fn read(&mut self) -> Result<Buffer> {
+                Err(Error::new(ErrorKind::Unexpected, "read failed"))
+            }
+        }
+
+        impl oio::StreamRead for FailingBody {
+            async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                Ok((
+                    RpRead::new(MetadataBuilder::file(4).build()),
+                    Box::new(FailingBody),
+                ))
+            }
+        }
+
+        impl oio::List for FailingBody {
+            async fn next(&mut self) -> Result<Option<oio::Entry>> {
+                Err(Error::new(ErrorKind::Unexpected, "list failed"))
+            }
+        }
+
+        let read_semaphore = Arc::new(Semaphore::new(1));
+        let reader =
+            ConcurrentLimitReader::new(oio::StreamReader::new(FailingBody), read_semaphore.clone());
+        let (_, mut stream) = oio::Read::open(&reader, BytesRange::default())
+            .await
+            .unwrap();
+        assert_eq!(
+            stream.read_dyn().await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
+        assert_eq!(read_semaphore.available_permits(), 0);
+        drop(stream);
+        assert_eq!(read_semaphore.available_permits(), 1);
+
+        let list_semaphore = Arc::new(Semaphore::new(1));
+        let mut lister = ConcurrentLimitWrapper::new(FailingBody, list_semaphore.clone());
+        assert_eq!(
+            oio::List::next(&mut lister).await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
+        assert_eq!(list_semaphore.available_permits(), 0);
+        drop(lister);
+        assert_eq!(list_semaphore.available_permits(), 1);
+    }
 
     #[tokio::test]
     async fn operation_semaphore_can_be_shared() {
@@ -548,6 +847,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = ();
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -610,7 +910,6 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Ok(())
             }
@@ -708,6 +1007,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = PendingCopier;
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -763,13 +1063,12 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Ok(PendingCopier)
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-                Ok(RpStat::new(Metadata::new(EntryMode::FILE)))
+                Ok(RpStat::new(MetadataBuilder::file(0).build()))
             }
 
             async fn rename(
@@ -889,7 +1188,10 @@ mod tests {
                 };
                 let req = http::Request::get("http://fake").body(data).unwrap();
                 let resp = self.ctx.http_transport().fetch(req).await?;
-                let rp = RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(0));
+                let rp = RpRead::new({
+                    let metadata = MetadataBuilder::file(backend.content.len() as u64);
+                    metadata.build()
+                });
                 let stream = resp.into_body();
 
                 Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
@@ -902,6 +1204,7 @@ mod tests {
             type Lister = ();
             type Deleter = ();
             type Copier = ();
+            type Composer = ();
 
             fn info(&self) -> ServiceInfo {
                 self.info.clone()
@@ -938,9 +1241,10 @@ mod tests {
             }
 
             async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-                Ok(RpStat::new(
-                    Metadata::new(EntryMode::FILE).with_content_length(self.content.len() as u64),
-                ))
+                Ok(RpStat::new({
+                    let metadata = MetadataBuilder::file(self.content.len() as u64);
+                    metadata.build()
+                }))
             }
 
             fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
@@ -970,7 +1274,6 @@ mod tests {
                 _: &str,
                 _: &str,
                 _: OpCopy,
-                _: OpCopier,
             ) -> Result<Self::Copier> {
                 Err(Error::new(
                     ErrorKind::Unsupported,

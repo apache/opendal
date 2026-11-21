@@ -30,7 +30,6 @@ use opendal_core::*;
 
 use super::core::OpfsCore;
 use super::core::*;
-use super::core::*;
 
 pub struct OpfsWriter {
     core: Arc<OpfsCore>,
@@ -54,7 +53,7 @@ impl OpfsWriter {
             return Ok(());
         }
 
-        let p = build_abs_path(&self.core.root, &self.path);
+        let p = build_absolute_path(&self.core.root, &self.path);
         let handle = get_file_handle(&p, true).await?;
         let stream: FileSystemWritableFileStream = JsFuture::from(handle.create_writable())
             .await
@@ -81,7 +80,7 @@ impl oio::Write for OpfsWriter {
             .expect("opfs writable stream must be initialized");
         JsFuture::from(
             stream
-                .write_with_write_params(&params.into())
+                .write_with_write_params(&params)
                 .map_err(parse_js_error)?,
         )
         .await
@@ -101,9 +100,7 @@ impl oio::Write for OpfsWriter {
         }
 
         // We cannot set LastModified here - stream does not have such metadata
-        let mut meta = Metadata::new(EntryMode::FILE);
-        meta.set_content_length(self.bytes_written);
-        Ok(meta)
+        Ok(MetadataBuilder::file(self.bytes_written).build())
     }
 
     async fn abort(&mut self) -> Result<()> {

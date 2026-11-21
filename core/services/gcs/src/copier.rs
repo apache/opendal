@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use bytes::Buf;
 
+use super::core::ErrorContext;
 use super::core::GcsCore;
 use super::core::RewriteResponse;
 use super::core::constants::GCS_REWRITE_MAX_CHUNK_SIZE;
@@ -48,9 +49,8 @@ impl GcsCopier {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Self {
-        let chunk = opts.chunk().map(|v| {
+        let chunk = args.chunk().map(|v| {
             let v = v.clamp(GCS_REWRITE_MIN_CHUNK_SIZE, GCS_REWRITE_MAX_CHUNK_SIZE);
             v / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE
         });
@@ -89,7 +89,11 @@ impl oio::Copy for GcsCopier {
             .await?;
 
         if !resp.status().is_success() {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("RewriteObject"))
+                    .with_caller_condition(self.args.is_conditional()),
+                resp,
+            ));
         }
 
         let result: RewriteResponse = serde_json::from_reader(resp.into_body().reader())
@@ -153,7 +157,13 @@ impl oio::Copy for GcsCopier {
             self.next().await?;
         }
 
-        Ok(self.metadata.clone().unwrap_or_default())
+        let metadata = self
+            .metadata
+            .clone()
+            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let mut builder = metadata.into_builder();
+        builder.set_file(self.total_bytes_rewritten);
+        Ok(builder.build())
     }
 
     async fn abort(&mut self) -> Result<()> {

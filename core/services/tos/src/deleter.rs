@@ -50,7 +50,10 @@ impl oio::BatchDelete for TosDeleter {
         match status {
             StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND => Ok(()),
-            _ => Err(crate::core::parse_error(resp)),
+            _ => Err(crate::core::parse_error(
+                crate::core::ErrorContext::new(ServiceOperation("DeleteObject")),
+                resp,
+            )),
         }
     }
 
@@ -59,7 +62,10 @@ impl oio::BatchDelete for TosDeleter {
 
         let status = resp.status();
         if status != StatusCode::OK {
-            return Err(crate::core::parse_error(resp));
+            return Err(crate::core::parse_error(
+                crate::core::ErrorContext::new(ServiceOperation("DeleteMultipleObjects")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -74,7 +80,7 @@ impl oio::BatchDelete for TosDeleter {
             failed: Vec::with_capacity(errors.len()),
         };
         for (path, op) in batch {
-            let abs_path = build_abs_path(&self.core.root, &path);
+            let abs_path = build_absolute_path(&self.core.root, &path);
             if let Some(idx) = errors
                 .iter()
                 .position(|e| e.key == abs_path && e.version_id.as_deref() == op.version())
@@ -90,7 +96,7 @@ impl oio::BatchDelete for TosDeleter {
                 let deleted = deleted.swap_remove(idx);
                 let op = if op.version().is_some() {
                     if let Some(version) = &deleted.version_id {
-                        op.with_version(version)
+                        op.into_version(version)
                     } else {
                         op
                     }

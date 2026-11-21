@@ -19,10 +19,11 @@ use std::sync::Arc;
 
 use opendal_core::Buffer;
 use opendal_core::BytesRange;
-use opendal_core::EntryMode;
 use opendal_core::Error;
-use opendal_core::Metadata;
+use opendal_core::ErrorKind;
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
+use opendal_core::options;
 use opendal_core::raw::OpRead;
 use opendal_core::raw::OpStat;
 use opendal_core::raw::RpRead;
@@ -66,11 +67,10 @@ impl FullReader {
     }
 
     fn full_object_rp(buffer: &Buffer) -> RpRead {
-        RpRead::new(Metadata::new(EntryMode::FILE).with_content_length(buffer.len() as _))
-    }
-
-    fn slice_full_object(buffer: &Buffer, range: BytesRange) -> Buffer {
-        buffer.slice(range.to_range_as_usize())
+        RpRead::new({
+            let metadata = MetadataBuilder::file(buffer.len() as _);
+            metadata.build()
+        })
     }
 
     fn is_deleted(&self, key: &FoyerKey) -> bool {
@@ -84,23 +84,17 @@ impl FullReader {
     /// Derive the `OpStat` used for cache fill from the reader's `OpRead`, so the
     /// stat observes the same conditions (version, if-match, ...) as the request.
     fn stat_args(&self) -> OpStat {
-        let mut op = OpStat::new();
-        if let Some(v) = self.args.version() {
-            op = op.with_version(v);
+        options::StatOptions {
+            version: self.args.version().map(str::to_owned),
+            if_match: self.args.if_match().map(str::to_owned),
+            if_none_match: self.args.if_none_match().map(str::to_owned),
+            if_version_match: self.args.if_version_match().map(str::to_owned),
+            if_version_not_match: self.args.if_version_not_match().map(str::to_owned),
+            if_modified_since: self.args.if_modified_since(),
+            if_unmodified_since: self.args.if_unmodified_since(),
+            ..Default::default()
         }
-        if let Some(v) = self.args.if_match() {
-            op = op.with_if_match(v);
-        }
-        if let Some(v) = self.args.if_none_match() {
-            op = op.with_if_none_match(v);
-        }
-        if let Some(v) = self.args.if_modified_since() {
-            op = op.with_if_modified_since(v);
-        }
-        if let Some(v) = self.args.if_unmodified_since() {
-            op = op.with_if_unmodified_since(v);
-        }
-        op
+        .into()
     }
 
     async fn fallback_open(
@@ -136,6 +130,25 @@ impl FullReader {
 
         if self.is_deleted(&key) {
             return Ok(None);
+        }
+
+        // A cached entry carries no precondition, so a conditional read must
+        // not be served from it: fall back to the origin, which observes the
+        // original args. On a miss the fill below still validates the
+        // condition at the origin, so only the hit path is skipped.
+        // `version` is not listed here because it is part of the cache key.
+        if self.args.if_match().is_some()
+            || self.args.if_none_match().is_some()
+            || self.args.if_version_match().is_some()
+            || self.args.if_version_not_match().is_some()
+            || self.args.if_modified_since().is_some()
+            || self.args.if_unmodified_since().is_some()
+        {
+            match self.inner.cache.get(&key).await {
+                Ok(Some(_)) => return Ok(None),
+                Ok(None) => {}
+                Err(e) => return Err(extract_err(e)),
+            }
         }
 
         let result = self
@@ -195,7 +208,18 @@ impl FullReader {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = buffer.slice(range.to_content_range(buffer.len())?);
+                if !range.is_suffix()
+                    && let Some(size) = range.size()
+                    && buffer.len() as u64 != size
+                {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "cached object is shorter than the requested range",
+                    )
+                    .with_context("expected", size)
+                    .with_context("actual", buffer.len()));
+                }
                 Ok((rp, buffer))
             }
             None => self.fallback_read(range).await,
@@ -208,7 +232,7 @@ impl oio::Read for FullReader {
         match self.read_full_object().await? {
             Some(buffer) => {
                 let rp = Self::full_object_rp(&buffer);
-                let buffer = Self::slice_full_object(&buffer, range);
+                let buffer = buffer.slice(range.to_content_range(buffer.len())?);
                 Ok((rp, Box::new(buffer) as Box<dyn oio::ReadStreamDyn>))
             }
             None => self.fallback_open(range).await,

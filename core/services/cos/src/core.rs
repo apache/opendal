@@ -132,7 +132,7 @@ impl CosCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -186,7 +186,7 @@ impl CosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -246,7 +246,7 @@ impl CosCore {
     }
 
     pub fn cos_head_object_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -287,7 +287,7 @@ impl CosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -323,7 +323,7 @@ impl CosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}?append&position={}",
             self.endpoint,
@@ -362,10 +362,14 @@ impl CosCore {
         to: &str,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
-        let source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        let mut source = format!("/{}/{}", self.bucket, percent_encode_path(&source));
+        if let Some(version) = args.source_version() {
+            source.push_str("?versionId=");
+            source.push_str(&percent_encode_path(version));
+        }
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::put(&url)
@@ -396,7 +400,7 @@ impl CosCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
@@ -410,7 +414,7 @@ impl CosCore {
             url = url.push("max-keys", &limit.to_string());
         }
         if !next_marker.is_empty() {
-            url = url.push("marker", next_marker);
+            url = url.push("marker", &percent_encode_path(next_marker));
         }
 
         let req = Request::get(url.finish())
@@ -430,7 +434,7 @@ impl CosCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -446,6 +450,16 @@ impl CosCore {
 
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
+        }
+
+        // COS evaluates x-cos-forbid-overwrite on both InitiateMultipartUpload and
+        // CompleteMultipartUpload, so a multipart if_not_exists write has to carry it
+        // on both requests. Setting it only on the simple PutObject path lets large
+        // uploads silently overwrite an existing object.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/7746
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
         }
 
         // Set user metadata headers.
@@ -474,7 +488,7 @@ impl CosCore {
         size: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -504,8 +518,9 @@ impl CosCore {
         path: &str,
         upload_id: &str,
         parts: Vec<CompleteMultipartUploadRequestPart>,
+        args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -514,14 +529,21 @@ impl CosCore {
             percent_encode_path(upload_id)
         );
 
-        let req = Request::post(&url);
+        let mut req = Request::post(&url);
 
         let content = quick_xml::se::to_string(&CompleteMultipartUploadRequest { part: parts })
             .map_err(new_xml_serialize_error)?;
         // Make sure content length has been set to avoid post with chunked encoding.
-        let req = req.header(CONTENT_LENGTH, content.len());
+        req = req.header(CONTENT_LENGTH, content.len());
         // Set content-type to `application/xml` to avoid mixed with form post.
-        let req = req.header(CONTENT_TYPE, "application/xml");
+        req = req.header(CONTENT_TYPE, "application/xml");
+        // CompleteMultipartUpload is the request that commits the object, so the
+        // if_not_exists guard has to be repeated here alongside InitiateMultipartUpload.
+        //
+        // ref: https://www.tencentcloud.com/document/product/436/7742
+        if args.if_not_exists() {
+            req = req.header("x-cos-forbid-overwrite", "true");
+        }
 
         let req = req
             .extension(Operation::Write)
@@ -543,7 +565,7 @@ impl CosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -570,7 +592,7 @@ impl CosCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("versions", "");
@@ -818,75 +840,11 @@ mod tests {
             ["hello", "world"],
         )
     }
-}
 
-mod error {
-    use bytes::Buf;
-    use http::Response;
-    use http::StatusCode;
-    use quick_xml::de;
-    use serde::Deserialize;
-
-    use opendal_core::Buffer;
-    use opendal_core::Error;
-    use opendal_core::ErrorKind;
-    use opendal_core::raw::*;
-
-    /// CosError is the error returned by cos service.
-    #[derive(Default, Debug, Deserialize)]
-    #[serde(default, rename_all = "PascalCase")]
-    struct CosError {
-        code: String,
-        message: String,
-        resource: String,
-        request_id: String,
-        host_id: String,
-    }
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED | StatusCode::CONFLICT => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            // COS could return `520 Origin Error` errors which should be retried.
-            v if v.as_u16() == 520 => (ErrorKind::Unexpected, true),
-
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match de::from_reader::<_, CosError>(bs.clone().reader()) {
-            Ok(cos_error) => format!("{cos_error:?}"),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-        err
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() {
-            let bs = bytes::Bytes::from(
-                r#"
+    #[test]
+    fn test_parse_error() {
+        let bs = bytes::Bytes::from(
+            r#"
 <?xml version="1.0" encoding="UTF-8"?>
 <Error>
 <Code>NoSuchKey</Code>
@@ -896,21 +854,197 @@ mod error {
 <HostId>RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD</HostId>
 </Error>
 "#,
-            );
+        );
 
-            let out: CosError = de::from_reader(bs.reader()).expect("must success");
-            println!("{out:?}");
+        let out: CosError = de::from_reader(bs.reader()).expect("must success");
+        println!("{out:?}");
 
-            assert_eq!(out.code, "NoSuchKey");
-            assert_eq!(out.message, "The resource you requested does not exist");
-            assert_eq!(out.resource, "/example-bucket/object");
-            assert_eq!(out.request_id, "001B21A61C6C0000013402C4616D5285");
-            assert_eq!(
-                out.host_id,
-                "RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD"
-            );
-        }
+        assert_eq!(out.code, "NoSuchKey");
+        assert_eq!(out.message, "The resource you requested does not exist");
+        assert_eq!(out.resource, "/example-bucket/object");
+        assert_eq!(out.request_id, "001B21A61C6C0000013402C4616D5285");
+        assert_eq!(
+            out.host_id,
+            "RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD"
+        );
     }
 }
 
-pub(super) use error::*;
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
+
+use opendal_core::Error;
+use opendal_core::ErrorKind;
+
+/// CosError is the error returned by cos service.
+#[derive(Default, Debug, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
+struct CosError {
+    code: String,
+    message: String,
+    resource: String,
+    request_id: String,
+    host_id: String,
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+    caller_condition: bool,
+    if_not_exists: bool,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self {
+            service_operation,
+            caller_condition: false,
+            if_not_exists: false,
+        }
+    }
+
+    pub(crate) const fn with_caller_condition(mut self, caller_condition: bool) -> Self {
+        self.caller_condition = caller_condition;
+        self
+    }
+
+    pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
+        self.caller_condition = self.caller_condition || if_not_exists;
+        self.if_not_exists = if_not_exists;
+        self
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let cos_error = de::from_reader::<_, CosError>(bs.clone().reader()).ok();
+
+    let (mut kind, mut retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        // COS could return `520 Origin Error` errors which should be retried.
+        v if v.as_u16() == 520 => (ErrorKind::Unexpected, true),
+
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    if let Some(cos_error) = &cos_error {
+        match cos_error.code.as_str() {
+            "PreconditionFailed" if ctx.caller_condition => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists" if ctx.if_not_exists => {
+                (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
+            }
+            "FileAlreadyExists"
+            | "PathConflict"
+            | "UploadConflict"
+            | "InvalidBucketState"
+            | "ObjectLocked"
+            | "InvalidObjectState"
+            | "RestoreAlreadyInProgress"
+            | "ObjectNotAppendable" => {
+                (kind, retryable) = (ErrorKind::Conflict, false);
+            }
+            _ if matches!(
+                parts.status,
+                StatusCode::CONFLICT | StatusCode::PRECONDITION_FAILED
+            ) =>
+            {
+                (kind, retryable) = (ErrorKind::Unexpected, false);
+            }
+            _ => {}
+        }
+    }
+
+    let message = match cos_error {
+        Some(cos_error) => format!("{cos_error:?}"),
+        None => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+    err
+}
+
+#[cfg(test)]
+mod error_tests {
+    use super::*;
+
+    fn parse_cos_error(ctx: ErrorContext, status: StatusCode, code: &str) -> Error {
+        let body = Buffer::from(format!(
+            "<Error><Code>{code}</Code><Message>test</Message></Error>"
+        ));
+        let resp = Response::builder()
+            .status(status)
+            .body(body)
+            .expect("response must build");
+        parse_error(ctx, resp)
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let err = parse_cos_error(
+            ErrorContext::new(ServiceOperation("GetObject")),
+            StatusCode::RANGE_NOT_SATISFIABLE,
+            "InvalidRange",
+        );
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn conflict_classification_uses_native_code_and_condition() {
+        let conditional = ErrorContext::new(ServiceOperation("PutObject")).with_if_not_exists(true);
+        assert_eq!(
+            parse_cos_error(conditional, StatusCode::CONFLICT, "FileAlreadyExists").kind(),
+            ErrorKind::ConditionNotMatch
+        );
+        assert_eq!(
+            parse_cos_error(
+                conditional,
+                StatusCode::PRECONDITION_FAILED,
+                "PreconditionFailed"
+            )
+            .kind(),
+            ErrorKind::ConditionNotMatch
+        );
+
+        let unconditional = ErrorContext::new(ServiceOperation("PutObject"));
+        for code in [
+            "PathConflict",
+            "UploadConflict",
+            "ObjectLocked",
+            "InvalidObjectState",
+        ] {
+            assert_eq!(
+                parse_cos_error(unconditional, StatusCode::CONFLICT, code).kind(),
+                ErrorKind::Conflict,
+                "native code {code}"
+            );
+        }
+        assert_eq!(
+            parse_cos_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
+            ErrorKind::Unexpected
+        );
+    }
+}

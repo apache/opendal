@@ -5,7 +5,7 @@
 
 OpenDAL's Ruby [gem](https://rubygems.org/gems/opendal): access S3, GCS, Azure Blob, the local filesystem, and 50+ more services through one API.
 
-![](https://github.com/apache/opendal/assets/5351546/87bbf6e5-f19e-449a-b368-3e283016c887)
+![OpenDAL Architecture](https://opendal.apache.org/img/architectural.png)
 
 We release the OpenDAL Ruby binding independently of the
 [`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
@@ -20,6 +20,10 @@ version.
 - [Rust core documentation](https://docs.rs/opendal/latest/opendal/index.html)
 
 ## Installation
+
+The Ruby binding requires Ruby 3.3 or later. Precompiled gems include native
+extensions for Ruby 3.3, 3.4, and 4.0. The source gem builds the native
+extension during installation and requires Rust 1.91 or later.
 
 ```shell
 gem install opendal

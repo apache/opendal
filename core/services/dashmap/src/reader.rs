@@ -38,7 +38,7 @@ impl oio::StreamRead for DashmapReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         match backend.core.get(&p)? {
             Some(value) => {
@@ -46,7 +46,10 @@ impl oio::StreamRead for DashmapReader {
                 let buffer = value
                     .content
                     .slice(range.to_content_range(value.content.len())?);
-                let metadata = Metadata::new(EntryMode::FILE).with_content_length(total_size);
+                let metadata = {
+                    let metadata = MetadataBuilder::file(total_size);
+                    metadata.build()
+                };
                 Ok((
                     RpRead::new(metadata),
                     Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,

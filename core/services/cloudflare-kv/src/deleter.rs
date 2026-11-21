@@ -40,7 +40,7 @@ impl CloudflareKvDeleter {
 
 impl oio::BatchDelete for CloudflareKvDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let path = build_abs_path(&self.core.info.root(), &path);
+        let path = build_absolute_path(&self.core.info.root(), &path);
         let resp = self
             .core
             .delete(&self.ctx, &[path.trim_end_matches('/').to_string()])
@@ -49,7 +49,10 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp.clone()));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BulkDelete")),
+                resp.clone(),
+            ));
         }
 
         let bs = resp.clone().into_body();
@@ -57,7 +60,10 @@ impl oio::BatchDelete for CloudflareKvDeleter {
             serde_json::from_reader(bs.reader()).map_err(new_json_deserialize_error)?;
 
         if !res.success {
-            return Err(parse_error(resp.clone()));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BulkDelete")),
+                resp.clone(),
+            ));
         }
 
         Ok(())
@@ -67,7 +73,7 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         let keys = batch
             .iter()
             .map(|path| {
-                let path = build_abs_path(&self.core.info.root(), &path.0);
+                let path = build_absolute_path(&self.core.info.root(), &path.0);
                 path.trim_end_matches('/').to_string()
             })
             .collect::<Vec<String>>();
@@ -77,7 +83,10 @@ impl oio::BatchDelete for CloudflareKvDeleter {
         let status = resp.status();
 
         if status != StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("BulkDelete")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();

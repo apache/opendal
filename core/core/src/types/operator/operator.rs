@@ -614,13 +614,10 @@ impl Operator {
             .await
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// Use [`FutureRead::limit`] to cap the result and accept EOF after a valid
+    /// starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Options
     ///
@@ -650,13 +647,10 @@ impl Operator {
         )
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// See [`options::ReadOptions::limit`] to cap the result and accept EOF after
+    /// a valid starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Examples
     ///
@@ -697,12 +691,38 @@ impl Operator {
             );
         }
 
-        let (range, args, opts) = opts.into();
+        let limit = opts.limit;
+        if limit.is_some() && (opts.chunk.is_some() || opts.concurrent > 1) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be combined with chunk or concurrent reads",
+            ));
+        }
+
+        let (mut range, args, opts) = opts.into();
+        // Creating a reader validates capabilities without opening the object.
         let reader = srv.read(&ctx, &path, args.clone())?;
+        if limit == Some(0) || range.size() == Some(0) {
+            return Ok(Buffer::new());
+        }
+
+        if let (Some(limit), BytesRange::Range { offset, size }) = (limit, range) {
+            // A length represented by u64 can never contain a byte at u64::MAX.
+            let available = u64::MAX - offset;
+            if available == 0 {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                )
+                .with_context("offset", offset));
+            }
+            let size = size.unwrap_or(limit).min(limit).min(available);
+            range = BytesRange::new(offset, Some(size));
+        }
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
-        let r = Reader::new(read_context);
-        let buf = r.read(range).await?;
-        Ok(buf)
+        Reader::new(read_context)
+            .read_with_limit(range, limit)
+            .await
     }
 
     /// Create a new reader of given path.
@@ -818,7 +838,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Extra Options
@@ -860,7 +880,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -916,7 +936,7 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// ## Streaming Write
@@ -983,10 +1003,7 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-
-        let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let mut w = Writer::new(write_context).await?;
+        let mut w = Self::writer_inner(ctx, srv, path, opts).await?;
         w.write(bs).await?;
         w.close().await
     }
@@ -1047,7 +1064,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1102,7 +1119,7 @@ impl Operator {
     /// [Capability](crate::types::Capability). However, you can override this by explicitly
     /// setting the `chunk` parameter.
     ///
-    /// Read the [concurrent write guide](https://github.com/apache/opendal/blob/main/core/core/src/docs/performance/concurrent_write.md)
+    /// Read the [concurrent write guide][crate::docs::performance::concurrent_write]
     /// for more details.
     ///
     /// # Examples
@@ -1137,6 +1154,8 @@ impl Operator {
         Self::writer_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn writer_inner(
         ctx: OperationContext,
@@ -1153,10 +1172,163 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
+        let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
-        let w = Writer::new(write_context).await?;
+        let w = Writer::new(write_context)?;
         Ok(w)
+    }
+
+    /// Compose complete source objects into `to` in iteration order.
+    ///
+    /// The input must be non-empty, and `to` must not be one of the inputs.
+    /// Composition preserves every source object. It does not read source bytes
+    /// through the client when the service supports native composition.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// let _metadata = op
+    ///     .compose(["parts/0", "parts/1", "parts/2"], "result")
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn compose<I, D>(&self, inputs: I, to: &str) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        self.compose_with(inputs, to).await
+    }
+
+    /// Compose complete source objects into `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn compose_with<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+    ) -> FutureCompose<impl Future<Output = Result<Metadata>>>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (options::ComposeOptions::default(), inputs),
+            Self::compose_inner,
+        )
+    }
+
+    /// Compose complete source objects into `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn compose_options<I, D>(
+        &self,
+        inputs: I,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Metadata>
+    where
+        I: IntoIterator<Item = D>,
+        D: IntoComposeInput,
+    {
+        let to = normalize_path(to);
+        let inputs = inputs
+            .into_iter()
+            .map(IntoComposeInput::into_compose_input)
+            .collect();
+        Self::compose_inner(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            (opts, inputs),
+        )
+        .await
+    }
+
+    async fn compose_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        (opts, inputs): (
+            options::ComposeOptions,
+            Vec<(String, options::ComposeSourceOptions)>,
+        ),
+    ) -> Result<Metadata> {
+        let mut composer = Self::composer_inner(ctx, srv, to, opts).await?;
+        for (path, options) in inputs {
+            composer.compose_options(&path, options).await?;
+        }
+        composer.close().await
+    }
+
+    /// Create a [`Composer`] that accepts ordered source objects for `to`.
+    pub async fn composer(&self, to: &str) -> Result<Composer> {
+        self.composer_with(to).await
+    }
+
+    /// Create a [`Composer`] for `to` with additional options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub fn composer_with(
+        &self,
+        to: &str,
+    ) -> FutureComposer<impl Future<Output = Result<Composer>>> {
+        let to = normalize_path(to);
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            to,
+            options::ComposeOptions::default(),
+            Self::composer_inner,
+        )
+    }
+
+    /// Create a [`Composer`] for `to` with explicit options.
+    ///
+    /// Visit [`options::ComposeOptions`] for all available options.
+    pub async fn composer_options(
+        &self,
+        to: &str,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        let to = normalize_path(to);
+        Self::composer_inner(self.context().clone(), self.service().clone(), to, opts).await
+    }
+
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
+    async fn composer_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        to: String,
+        opts: options::ComposeOptions,
+    ) -> Result<Composer> {
+        if !validate_path(&to, EntryMode::FILE) {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "destination path is a directory")
+                    .with_operation(Operation::Compose.into_static())
+                    .with_context("service", srv.info().scheme())
+                    .with_context("to", to),
+            );
+        }
+
+        let args = OpCompose::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Composer::create(ctx, srv, to, args)
     }
 
     /// Copy a file from `from` to `to`.
@@ -1365,6 +1537,8 @@ impl Operator {
         }
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     async fn copier_inner(
         ctx: OperationContext,
         srv: Servicer,
@@ -1399,8 +1573,9 @@ impl Operator {
             );
         }
 
-        let (args, opts) = opts.into();
-        std::future::ready(Copier::create(ctx, srv, &from, &to, args, opts)).await
+        let args = OpCopy::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        Copier::create(ctx, srv, &from, &to, args)
     }
 
     /// Rename a file from `from` to `to`.
@@ -1547,11 +1722,102 @@ impl Operator {
         Ok(())
     }
 
+    /// Restore the given path from its latest deleted state.
+    ///
+    /// Calling `restore` on an already-live path succeeds. Calling it when no
+    /// live object or recoverable deletion state exists returns
+    /// [`ErrorKind::NotFound`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.restore("path/to/file").await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn restore(&self, path: &str) -> Result<()> {
+        self.restore_with(path).await
+    }
+
+    /// Restore the given path with additional options.
+    ///
+    /// # Examples
+    ///
+    /// Restore a specific version only if the path has not been recreated:
+    ///
+    /// ```
+    /// # use opendal_core::Operator;
+    /// # use opendal_core::Result;
+    /// # async fn test(op: Operator, version: &str) -> Result<()> {
+    /// op.restore_with("path/to/file")
+    ///     .version(version)
+    ///     .if_not_exists(true)
+    ///     .await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn restore_with(&self, path: &str) -> FutureRestore<impl Future<Output = Result<()>>> {
+        let path = normalize_path(path);
+
+        OperatorFuture::new(
+            self.context().clone(),
+            self.service().clone(),
+            path,
+            options::RestoreOptions::default(),
+            Self::restore_inner,
+        )
+    }
+
+    /// Restore the given path with additional options.
+    pub async fn restore_options(
+        &self,
+        path: &str,
+        opts: impl Into<options::RestoreOptions>,
+    ) -> Result<()> {
+        let path = normalize_path(path);
+        let opts = opts.into();
+
+        Self::restore_inner(self.context().clone(), self.service().clone(), path, opts).await
+    }
+
+    async fn restore_inner(
+        ctx: OperationContext,
+        srv: Servicer,
+        path: String,
+        opts: options::RestoreOptions,
+    ) -> Result<()> {
+        if !validate_path(&path, EntryMode::FILE) {
+            return Err(Error::new(ErrorKind::IsADirectory, "path is a directory")
+                .with_operation(Operation::Restore)
+                .with_context("service", srv.info().scheme())
+                .with_context("path", path));
+        }
+
+        if opts.if_not_exists && opts.version.is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            )
+            .with_operation(Operation::Restore)
+            .with_context("service", srv.info().scheme())
+            .with_context("path", path));
+        }
+
+        srv.restore(&ctx, &path, opts.into()).await?;
+        Ok(())
+    }
+
     /// Delete the given path.
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op.
+    /// - On the `fs` service, deleting a symbolic link removes the link and
+    ///   leaves its target intact. Use a path without a trailing `/` to delete
+    ///   a dangling link.
     ///
     /// # Examples
     ///
@@ -1572,11 +1838,16 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first.
+    /// - With `recursive(true)`, include the trailing slash in directory paths
+    ///   (for example, `"a/"`). On prefix-based services, `"a"` can also match
+    ///   entries under `"ab/"`.
     ///
     /// # Options
     ///
-    /// Visit [`options::DeleteOptions`] for all available options.
+    /// Visit [`options::DeleteOptions`] for all available options and the
+    /// conditional delete contract.
     ///
     /// # Examples
     ///
@@ -1588,6 +1859,16 @@ impl Operator {
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Recursively delete the `a/` directory:
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete_with("a/").recursive(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1607,7 +1888,12 @@ impl Operator {
     ///
     /// # Notes
     ///
-    /// - Deleting a file that does not exist won't return errors.
+    /// - Deleting a file that does not exist is a successful no-op, unless a
+    ///   condition such as `if_match` fails first. Visit
+    ///   [`options::DeleteOptions`] for the conditional delete contract.
+    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
+    ///   slash in directory paths (for example, `"a/"`). On prefix-based
+    ///   services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Examples
     ///
@@ -1638,10 +1924,9 @@ impl Operator {
         path: String,
         opts: options::DeleteOptions,
     ) -> Result<()> {
-        let mut deleter = srv.delete(&ctx)?;
-        let args = opts.into();
-        deleter.delete_dyn(&path, args).await?;
-        deleter.close_dyn().await?;
+        let mut deleter = Deleter::create(ctx, srv)?;
+        deleter.delete((path, opts)).await?;
+        deleter.close().await?;
         Ok(())
     }
 
@@ -1722,15 +2007,16 @@ impl Operator {
     /// It leverages batch deletion capabilities provided by storage services for efficient removal.
     ///
     /// Users can have more control over the deletion process by using [`Deleter`] directly.
+    // Keep this async to preserve the public API.
+    #[allow(clippy::unused_async)]
     pub async fn deleter(&self) -> Result<Deleter> {
-        std::future::ready(Deleter::create(
-            self.context().clone(),
-            self.service().clone(),
-        ))
-        .await
+        Deleter::create(self.context().clone(), self.service().clone())
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
+    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
     ///
     /// # Deprecated
     ///
@@ -1741,12 +2027,12 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// ```
     ///
     /// Use:
     /// ```ignore
-    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// op.delete_with("a/").recursive(true).await?;
     /// ```
     ///
     /// # Notes
@@ -1762,7 +2048,7 @@ impl Operator {
     /// # use opendal_core::Operator;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2057,6 +2343,8 @@ impl Operator {
         Self::lister_inner(self.context().clone(), self.service().clone(), path, opts).await
     }
 
+    // Keep this async so it can be used as an `OperatorFuture` factory.
+    #[allow(clippy::unused_async)]
     #[inline]
     async fn lister_inner(
         ctx: OperationContext,
@@ -2065,7 +2353,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = opts.into();
-        std::future::ready(Lister::create(ctx, srv, &path, args)).await
+        Lister::create(ctx, srv, &path, args)
     }
 }
 
@@ -2315,6 +2603,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
+        if opts.limit.is_some() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be used with presigned reads",
+            ));
+        }
+
         let (range, op_read, _) = opts.into();
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2459,7 +2754,8 @@ impl Operator {
         path: String,
         (opts, expire): (options::WriteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let (op_write, _) = opts.into();
+        let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2572,8 +2868,146 @@ impl Operator {
         path: String,
         (opts, expire): (options::DeleteOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpDelete::from(opts), expire);
+        let op_delete = OpDelete::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_limit_rejects_chunk_and_concurrency() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let err = op.read_with("missing").limit(0).chunk(2).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        let err = op
+            .read_with("missing")
+            .concurrent(2)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        op.write("file", "data").await?;
+        let buf = op.read_with("file").limit(2).concurrent(1).await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_limited_read_validates_conditions() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        assert!(!op.info().capability().read_with_if_match);
+
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .limit(0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .range(1..1)
+            .limit(5)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        assert!(op.read_with("missing").limit(0).await?.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_read_at_max_offset() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let err = op
+            .read_with("file")
+            .range(u64::MAX..)
+            .limit(1)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(
+            op.read_with("file")
+                .range(u64::MAX..)
+                .limit(0)
+                .await?
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_suffix_of_empty_file() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("empty", Buffer::new()).await?;
+
+        let buf = op
+            .read_with("empty")
+            .range(BytesRange::suffix(4))
+            .limit(2)
+            .await?;
+        assert!(buf.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_rejects_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        for limit in [0, 2] {
+            let result = op
+                .presign_read_options(
+                    "file",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        limit: Some(limit),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bounded_read_requires_full_length() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let err = op.read_with("file").range(2..6).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "reader got too little data");
+        Ok(())
+    }
+
+    #[cfg(feature = "blocking")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blocking_read_options_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let op = blocking::Operator::new(op)?;
+        let buf = tokio::task::spawn_blocking(move || {
+            op.read_options(
+                "file",
+                options::ReadOptions {
+                    range: BytesRange::from(2..),
+                    limit: Some(u64::MAX),
+                    ..Default::default()
+                },
+            )
+        })
+        .await
+        .expect("blocking read task must complete")?;
+        assert_eq!(buf.to_bytes(), "ta");
+        Ok(())
     }
 }

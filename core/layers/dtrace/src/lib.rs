@@ -159,6 +159,7 @@ impl Service for DTraceService {
     type Lister = oio::Lister;
     type Deleter = oio::Deleter;
     type Copier = oio::Copier;
+    type Composer = oio::Composer;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -166,6 +167,10 @@ impl Service for DTraceService {
 
     fn capability(&self) -> Capability {
         self.inner.capability()
+    }
+
+    fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
     }
 
     async fn create_dir(
@@ -210,11 +215,10 @@ impl Service for DTraceService {
         from: &str,
         to: &str,
         args: OpCopy,
-        opts: OpCopier,
     ) -> Result<Self::Copier> {
         let c_from = CString::new(from).unwrap();
         probe_lazy!(opendal, copy_start, c_from.as_ptr());
-        let result = self.inner.copy(ctx, from, to, args, opts);
+        let result = self.inner.copy(ctx, from, to, args);
         probe_lazy!(opendal, copy_end, c_from.as_ptr());
         result
     }
@@ -227,6 +231,15 @@ impl Service for DTraceService {
         args: OpRename,
     ) -> Result<RpRename> {
         self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> Result<RpRestore> {
+        self.inner.restore(ctx, path, args).await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -403,6 +416,20 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
+            .await
+            .map(|_| {
+                probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                probe_lazy!(opendal, writer_write_error, c_path.as_ptr());
+            })
+    }
+
+    async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        let c_path = CString::new(self.path.clone()).unwrap();
+        probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
+        self.inner
+            .copy_from(path, args, range)
             .await
             .map(|_| {
                 probe_lazy!(opendal, writer_write_ok, c_path.as_ptr());

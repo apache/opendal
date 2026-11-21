@@ -24,13 +24,14 @@ use std::sync::Arc;
 use crate::datetime_to_timestamp;
 use crate::utils::*;
 use async_trait::async_trait;
+use asyncband::mutex::Mutex;
+use asyncband::oneshot;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::StreamExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
-use mea::mutex::Mutex;
-use mea::oneshot;
+use object_store::Attribute;
 use object_store::Attributes;
 use object_store::CopyMode as ObjectStoreCopyMode;
 use object_store::CopyOptions as ObjectStoreCopyOptions;
@@ -53,19 +54,24 @@ use opendal::Writer;
 use opendal::options::CopyOptions;
 use opendal::options::ReaderOptions;
 use opendal::options::StatOptions;
+use opendal::raw::normalize_path;
 use opendal::raw::percent_decode_path;
 use opendal::{Operator, OperatorInfo};
 use std::collections::HashMap;
 
 const DEFAULT_CONCURRENT: usize = 8;
+const DEFAULT_GET_RANGES_GAP: usize = object_store::OBJECT_STORE_COALESCE_DEFAULT as usize;
 
 fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
     let mut attributes = Attributes::new();
+    if let Some(language) = meta.content_language() {
+        attributes.insert(Attribute::ContentLanguage, language.to_owned().into());
+    }
     if let Some(user_meta) = meta.user_metadata() {
         for (key, value) in user_meta {
             attributes.insert(
-                object_store::Attribute::Metadata(key.clone().into()),
-                value.clone().into(),
+                Attribute::Metadata(key.to_string().into()),
+                value.to_string().into(),
             );
         }
     }
@@ -181,6 +187,9 @@ fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::E
 pub struct OpendalStore {
     info: Arc<OperatorInfo>,
     inner: Operator,
+    get_ranges_gap: usize,
+    multipart_chunk_size: Option<usize>,
+    multipart_concurrency: usize,
 }
 
 impl OpendalStore {
@@ -189,7 +198,70 @@ impl OpendalStore {
         Self {
             info: op.info().into(),
             inner: op,
+            get_ranges_gap: DEFAULT_GET_RANGES_GAP,
+            multipart_chunk_size: None,
+            multipart_concurrency: DEFAULT_CONCURRENT,
         }
+    }
+
+    /// Set the maximum gap that [`ObjectStore::get_ranges`] coalesces.
+    ///
+    /// The default is [`object_store::OBJECT_STORE_COALESCE_DEFAULT`] (1 MiB).
+    /// Set this value to `0` to avoid merging ranges separated by any bytes.
+    /// Overlapping or adjacent ranges are still merged without over-fetching.
+    pub fn with_get_ranges_gap(mut self, gap: usize) -> Self {
+        self.get_ranges_gap = gap;
+        self
+    }
+
+    /// Set the buffered chunk size, in bytes, for multipart uploads.
+    ///
+    /// By default, OpenDAL chooses the chunk size from the service's capabilities.
+    /// This setting applies to [`ObjectStore::put_multipart_opts`] and the
+    /// convenience multipart APIs, but not to [`ObjectStore::put_opts`].
+    /// OpenDAL clamps the size to the service's minimum and maximum multipart
+    /// sizes. The final chunk may be smaller. Upload concurrency is unchanged.
+    /// Larger chunks reduce write requests but increase buffering and the amount
+    /// of data retransmitted when a request fails.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `chunk_size` is zero.
+    ///
+    /// ```
+    /// # use object_store_opendal::OpendalStore;
+    /// # use opendal::{Operator, services::Memory};
+    /// # let operator = Operator::new(Memory::default()).unwrap();
+    /// let store = OpendalStore::new(operator)
+    ///     .with_multipart_chunk_size(16 * 1024 * 1024)
+    ///     .with_multipart_concurrency(4);
+    /// ```
+    pub fn with_multipart_chunk_size(mut self, chunk_size: usize) -> Self {
+        assert!(
+            chunk_size > 0,
+            "multipart chunk size must be greater than zero"
+        );
+        self.multipart_chunk_size = Some(chunk_size);
+        self
+    }
+
+    /// Set the maximum concurrent writes for each multipart upload.
+    ///
+    /// Defaults to 8. Set to 1 for sequential writes. Higher values can improve
+    /// throughput at the cost of more buffered memory. Services that do not
+    /// support concurrent writes continue to write sequentially.
+    /// This setting does not affect ordinary puts or reads.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `concurrency` is zero.
+    pub fn with_multipart_concurrency(mut self, concurrency: usize) -> Self {
+        assert!(
+            concurrency > 0,
+            "multipart concurrency must be greater than zero"
+        );
+        self.multipart_concurrency = concurrency;
+        self
     }
 
     /// Get the Operator info.
@@ -391,6 +463,7 @@ impl Debug for OpendalStore {
             .field("name", &self.info.name())
             .field("root", &self.info.root())
             .field("capability", &self.info.capability())
+            .field("get_ranges_gap", &self.get_ranges_gap)
             .finish()
     }
 }
@@ -444,6 +517,9 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
+        if let Some(language) = opts.attributes.get(&Attribute::ContentLanguage) {
+            future_write = future_write.content_language(language.as_ref());
+        }
         let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
                 object_store::Error::Precondition { path, source }
@@ -471,7 +547,8 @@ impl ObjectStore for OpendalStore {
         opts: PutMultipartOptions,
     ) -> object_store::Result<Box<dyn MultipartUpload>> {
         let mut options = opendal::options::WriteOptions {
-            concurrent: DEFAULT_CONCURRENT,
+            concurrent: self.multipart_concurrency,
+            chunk: self.multipart_chunk_size,
             ..Default::default()
         };
 
@@ -481,23 +558,22 @@ impl ObjectStore for OpendalStore {
         // Handle attributes if provided
         for (key, value) in opts.attributes.iter() {
             match key {
-                object_store::Attribute::CacheControl => {
+                Attribute::CacheControl => {
                     options.cache_control = Some(value.to_string());
                 }
-                object_store::Attribute::ContentDisposition => {
+                Attribute::ContentDisposition => {
                     options.content_disposition = Some(value.to_string());
                 }
-                object_store::Attribute::ContentEncoding => {
+                Attribute::ContentEncoding => {
                     options.content_encoding = Some(value.to_string());
                 }
-                object_store::Attribute::ContentLanguage => {
-                    // no support
-                    continue;
+                Attribute::ContentLanguage => {
+                    options.content_language = Some(value.to_string());
                 }
-                object_store::Attribute::ContentType => {
+                Attribute::ContentType => {
                     options.content_type = Some(value.to_string());
                 }
-                object_store::Attribute::Metadata(k) => {
+                Attribute::Metadata(k) => {
                     user_metadata.insert(k.to_string(), value.to_string());
                 }
                 _ => {}
@@ -555,28 +631,20 @@ impl ObjectStore for OpendalStore {
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
-            .reader(&raw_location)
+            .reader_with(&raw_location)
+            .concurrent(DEFAULT_CONCURRENT)
+            .gap(self.get_ranges_gap)
             .into_send()
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let location_ref: Arc<str> = Arc::from(location.as_ref());
-        futures::stream::iter(ranges.iter().cloned())
-            .map(|range| {
-                let reader = reader.clone();
-                let location_ref = location_ref.clone();
-                async move {
-                    reader
-                        .read(range)
-                        .into_send()
-                        .await
-                        .map(|buf| buf.to_bytes())
-                        .map_err(|err| format_object_store_error(err, &location_ref))
-                }
-            })
-            .buffered(DEFAULT_CONCURRENT)
-            .try_collect()
+        let buffers = reader
+            .fetch(ranges.to_vec())
+            .into_send()
             .await
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+
+        Ok(buffers.into_iter().map(|buf| buf.to_bytes()).collect())
     }
 
     fn delete_stream(
@@ -617,12 +685,15 @@ impl ObjectStore for OpendalStore {
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?;
 
-            let stream = stream.then(|res| async {
-                let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-                let meta = entry.metadata();
+            // object_store lists objects only, while OpenDAL also returns directories.
+            let stream = stream
+                .try_filter(|entry| futures::future::ready(!entry.metadata().is_dir()))
+                .then(|res| async {
+                    let entry = res.map_err(|err| format_object_store_error(err, ""))?;
+                    let meta = entry.metadata();
 
-                Ok(format_object_meta(entry.path(), meta))
-            });
+                    Ok(format_object_meta(entry.path(), meta))
+                });
             Ok::<_, object_store::Error>(stream)
         };
 
@@ -644,17 +715,23 @@ impl ObjectStore for OpendalStore {
         let this = self.clone();
 
         let fut = async move {
-            let list_with_start_after = this.inner.info().capability().list_with_start_after;
+            let info = this.inner.info();
+            // object_store::path::Path compares percent-encoded strings, so
+            // a%7Eb sorts before a-b. FS compares filenames as stored, where
+            // a~b sorts after a-b. Keep FS offsets in object_store path order.
+            let use_native_offset =
+                info.capability().list_with_start_after && info.scheme() != "fs";
             let mut fut = this.inner.lister_with(&path).recursive(true);
 
-            // Use native start_after support if possible.
-            if list_with_start_after {
+            if use_native_offset {
                 fut = fut.start_after(offset.as_ref());
             }
 
             let lister = fut
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?
+                // object_store lists objects only, while OpenDAL also returns directories.
+                .try_filter(|entry| futures::future::ready(!entry.metadata().is_dir()))
                 .then(move |entry| {
                     let path = path.clone();
                     let this = this.clone();
@@ -662,8 +739,8 @@ impl ObjectStore for OpendalStore {
                         let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
                         let (path, metadata) = entry.into_parts();
 
-                        // If it's a dir or last_modified is present, we can use it directly.
-                        if metadata.is_dir() || metadata.last_modified().is_some() {
+                        // If last_modified is present, we can use it directly.
+                        if metadata.last_modified().is_some() {
                             let object_meta = format_object_meta(&path, &metadata);
                             return Ok(object_meta);
                         }
@@ -680,7 +757,7 @@ impl ObjectStore for OpendalStore {
                 .into_send()
                 .boxed();
 
-            let stream = if list_with_start_after {
+            let stream = if use_native_offset {
                 lister
             } else {
                 lister
@@ -708,6 +785,11 @@ impl ObjectStore for OpendalStore {
             .map_err(|err| format_object_store_error(err, &path))?
             .into_send();
 
+        // OpenDAL also returns the listed path itself when it exists, such as a
+        // directory on fs or a directory marker on S3. object_store never
+        // reports a prefix as its own common prefix.
+        let listed_path = normalize_path(&path);
+
         let mut common_prefixes = Vec::new();
         let mut objects = Vec::new();
 
@@ -716,7 +798,9 @@ impl ObjectStore for OpendalStore {
             let meta = entry.metadata();
 
             if meta.is_dir() {
-                common_prefixes.push(entry.path().into());
+                if entry.path() != listed_path {
+                    common_prefixes.push(entry.path().into());
+                }
             } else if meta.last_modified().is_some() {
                 objects.push(format_object_meta(entry.path(), meta));
             } else {
@@ -896,6 +980,60 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_content_language_round_trip() -> object_store::Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let store = OpendalStore::new(op);
+        let language = "fr-CA, en";
+        let attributes = Attributes::from_iter([(Attribute::ContentLanguage, language)]);
+        let single = Path::from("single.txt");
+        let multipart = Path::from("multipart.txt");
+        let body = Bytes::from_static(b"hello");
+
+        store
+            .put_opts(
+                &single,
+                body.clone().into(),
+                PutOptions {
+                    attributes: attributes.clone(),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        let mut upload = store
+            .put_multipart_opts(
+                &multipart,
+                PutMultipartOptions {
+                    attributes,
+                    ..Default::default()
+                },
+            )
+            .await?;
+        upload.put_part(body.clone().into()).await?;
+        upload.complete().await?;
+
+        for path in [single, multipart] {
+            let head = store
+                .get_opts(&path, GetOptions::new().with_head(true))
+                .await?;
+            assert_eq!(
+                head.attributes
+                    .get(&Attribute::ContentLanguage)
+                    .map(AsRef::as_ref),
+                Some(language)
+            );
+            let get = store.get(&path).await?;
+            assert_eq!(
+                get.attributes
+                    .get(&Attribute::ContentLanguage)
+                    .map(AsRef::as_ref),
+                Some(language)
+            );
+            assert_eq!(get.bytes().await?, body);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_put_multipart() {
         let op = Operator::new(services::Memory::default()).unwrap();
         let object_store: Arc<dyn ObjectStore> = Arc::new(OpendalStore::new(op));
@@ -999,6 +1137,67 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_with_delimiter_skips_listed_prefix() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        // Make `data/` exist as a directory, so OpenDAL returns it when it is listed.
+        op.create_dir("data/").await.unwrap();
+        let object_store = OpendalStore::new(op);
+
+        let bytes = Bytes::from_static(b"hello, world!");
+        object_store
+            .put(&"data/test.txt".into(), bytes.clone().into())
+            .await
+            .unwrap();
+        object_store
+            .put(&"data/nested/test.txt".into(), bytes.into())
+            .await
+            .unwrap();
+
+        let path: Path = "data".into();
+        let result = object_store.list_with_delimiter(Some(&path)).await.unwrap();
+        assert_eq!(result.common_prefixes, vec![Path::from("data/nested")]);
+        assert_eq!(result.objects.len(), 1);
+        assert_eq!(result.objects[0].location.as_ref(), "data/test.txt");
+    }
+
+    #[tokio::test]
+    async fn test_list_skips_directories() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.create_dir("data/").await.unwrap();
+        op.create_dir("data/nested/").await.unwrap();
+        let object_store = OpendalStore::new(op);
+
+        let bytes = Bytes::from_static(b"hello, world!");
+        object_store
+            .put(&"data/test.txt".into(), bytes.clone().into())
+            .await
+            .unwrap();
+        object_store
+            .put(&"data/nested/test.txt".into(), bytes.into())
+            .await
+            .unwrap();
+
+        let path: Path = "data".into();
+        let mut locations = object_store
+            .list(Some(&path))
+            .map_ok(|meta| meta.location.to_string())
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        locations.sort();
+        assert_eq!(locations, vec!["data/nested/test.txt", "data/test.txt"]);
+
+        let offset: Path = "data/nested/test.txt".into();
+        let locations = object_store
+            .list_with_offset(Some(&path), &offset)
+            .map_ok(|meta| meta.location.to_string())
+            .try_collect::<Vec<_>>()
+            .await
+            .unwrap();
+        assert_eq!(locations, vec!["data/test.txt"]);
+    }
+
+    #[tokio::test]
     async fn test_list_with_offset() {
         let object_store = create_test_object_store().await;
         let path: Path = "data/".into();
@@ -1014,19 +1213,55 @@ mod tests {
         );
     }
 
-    /// Custom layer that counts stat operations for testing
+    #[tokio::test]
+    async fn test_list_with_offset_fs_uses_encoded_path_order() {
+        let root =
+            std::env::temp_dir().join(format!("opendal-object-store-{}", uuid::Uuid::new_v4()));
+        let op = Operator::new(services::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let store = OpendalStore::new(op);
+        for path in ["a~b", "a-b", "z"] {
+            store
+                .put(&Path::from(path), Bytes::from_static(b"data").into())
+                .await
+                .unwrap();
+        }
+
+        let offset = Path::from("a~b");
+        let result = store
+            .list_with_offset(None, &offset)
+            .map_ok(|meta| meta.location)
+            .try_collect::<Vec<_>>()
+            .await;
+        tokio::fs::remove_dir_all(root).await.unwrap();
+
+        let mut locations = result.unwrap();
+        locations.sort();
+        assert_eq!(locations, vec![Path::from("a-b"), Path::from("z")]);
+    }
+
+    /// Custom layer that counts stat operations and optionally records read ranges.
     mod stat_counter {
         use super::*;
+        use std::sync::Mutex as StdMutex;
         use std::sync::atomic::{AtomicUsize, Ordering};
 
         #[derive(Debug, Clone)]
         pub struct StatCounterLayer {
             count: Arc<AtomicUsize>,
+            read_ranges: Option<Arc<StdMutex<Vec<BytesRange>>>>,
         }
 
         impl StatCounterLayer {
             pub fn new(count: Arc<AtomicUsize>) -> Self {
-                Self { count }
+                Self {
+                    count,
+                    read_ranges: None,
+                }
+            }
+
+            pub fn with_read_ranges(mut self, read_ranges: Arc<StdMutex<Vec<BytesRange>>>) -> Self {
+                self.read_ranges = Some(read_ranges);
+                self
             }
         }
 
@@ -1035,6 +1270,7 @@ mod tests {
                 Arc::new(StatCounterService {
                     srv,
                     count: self.count.clone(),
+                    read_ranges: self.read_ranges.clone(),
                 })
             }
         }
@@ -1043,6 +1279,32 @@ mod tests {
         pub struct StatCounterService {
             srv: opendal::raw::Servicer,
             count: Arc<AtomicUsize>,
+            read_ranges: Option<Arc<StdMutex<Vec<BytesRange>>>>,
+        }
+
+        struct ReadCounter {
+            inner: opendal::raw::oio::Reader,
+            ranges: Arc<StdMutex<Vec<BytesRange>>>,
+        }
+
+        impl opendal::raw::oio::Read for ReadCounter {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> opendal::Result<(
+                opendal::raw::RpRead,
+                Box<dyn opendal::raw::oio::ReadStreamDyn>,
+            )> {
+                self.inner.open(range).await
+            }
+
+            async fn read(
+                &self,
+                range: BytesRange,
+            ) -> opendal::Result<(opendal::raw::RpRead, Buffer)> {
+                self.ranges.lock().unwrap().push(range);
+                self.inner.read(range).await
+            }
         }
 
         impl opendal::raw::Service for StatCounterService {
@@ -1051,6 +1313,7 @@ mod tests {
             type Lister = opendal::raw::oio::Lister;
             type Deleter = opendal::raw::oio::Deleter;
             type Copier = opendal::raw::oio::Copier;
+            type Composer = opendal::raw::oio::Composer;
 
             fn info(&self) -> opendal::raw::ServiceInfo {
                 self.srv.info()
@@ -1085,7 +1348,14 @@ mod tests {
                 path: &str,
                 args: opendal::raw::OpRead,
             ) -> opendal::Result<Self::Reader> {
-                self.srv.read(ctx, path, args)
+                let reader = self.srv.read(ctx, path, args)?;
+                match &self.read_ranges {
+                    Some(ranges) => Ok(Box::new(ReadCounter {
+                        inner: reader,
+                        ranges: ranges.clone(),
+                    })),
+                    None => Ok(reader),
+                }
             }
 
             fn write(
@@ -1116,9 +1386,8 @@ mod tests {
                 from: &str,
                 to: &str,
                 args: opendal::raw::OpCopy,
-                opts: opendal::raw::OpCopier,
             ) -> opendal::Result<Self::Copier> {
-                self.srv.copy(ctx, from, to, args, opts)
+                self.srv.copy(ctx, from, to, args)
             }
 
             async fn rename(
@@ -1140,6 +1409,72 @@ mod tests {
                 self.srv.presign(ctx, path, args).await
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_get_ranges_gap_configuration() {
+        use std::sync::Mutex as StdMutex;
+        use std::sync::atomic::AtomicUsize;
+
+        let read_ranges = Arc::new(StdMutex::new(Vec::new()));
+        let op = Operator::new(opendal::services::Memory::default())
+            .unwrap()
+            .layer(
+                stat_counter::StatCounterLayer::new(Arc::new(AtomicUsize::new(0)))
+                    .with_read_ranges(read_ranges.clone()),
+            );
+        let store = OpendalStore::new(op);
+        let location = "test_get_ranges_fetch.txt".into();
+        store
+            .put(&location, Bytes::from_static(b"0123456789abcdefgh").into())
+            .await
+            .unwrap();
+
+        let ranges = [15..17, 0..4, 8..10];
+        let result = store.get_ranges(&location, &ranges).await.unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Bytes::from_static(b"fg"),
+                Bytes::from_static(b"0123"),
+                Bytes::from_static(b"89"),
+            ]
+        );
+        assert_eq!(
+            read_ranges.lock().unwrap().as_slice(),
+            &[BytesRange::new(0, Some(17))]
+        );
+
+        read_ranges.lock().unwrap().clear();
+        store
+            .clone()
+            .with_get_ranges_gap(0)
+            .get_ranges(&location, &ranges)
+            .await
+            .unwrap();
+        let mut actual = read_ranges.lock().unwrap().clone();
+        actual.sort_unstable_by_key(BytesRange::offset);
+        assert_eq!(
+            actual,
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(8, Some(2)),
+                BytesRange::new(15, Some(2)),
+            ]
+        );
+
+        read_ranges.lock().unwrap().clear();
+        store
+            .with_get_ranges_gap(4)
+            .get_ranges(&location, &ranges)
+            .await
+            .unwrap();
+        let mut actual = read_ranges.lock().unwrap().clone();
+        actual.sort_unstable_by_key(BytesRange::offset);
+        assert_eq!(
+            actual,
+            vec![BytesRange::new(0, Some(10)), BytesRange::new(15, Some(2))]
+        );
     }
 
     #[tokio::test]

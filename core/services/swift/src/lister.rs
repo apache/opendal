@@ -46,7 +46,7 @@ impl SwiftLister {
         // Swift listing names are absolute (root-prefixed) and the lister pages
         // by `marker`, so the start-after must be made absolute as well.
         let abs_start_after =
-            start_after.map(|start_after| build_abs_path(&core.root, &start_after));
+            start_after.map(|start_after| build_absolute_path(&core.root, &start_after));
         Self {
             core,
             ctx,
@@ -75,7 +75,7 @@ impl oio::PageList for SwiftLister {
         let status_code = response.status();
 
         if !status_code.is_success() {
-            let error = parse_error(response);
+            let error = parse_error(ErrorContext::new(ServiceOperation("ListObjects")), response);
             return Err(error);
         }
 
@@ -97,11 +97,11 @@ impl oio::PageList for SwiftLister {
         for status in decoded_response {
             let entry: oio::Entry = match status {
                 ListOpResponse::Subdir { subdir } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), subdir.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), subdir.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let meta = Metadata::new(EntryMode::DIR);
+                    let meta = MetadataBuilder::dir().build();
                     oio::Entry::with(path, meta)
                 }
                 ListOpResponse::FileInfo {
@@ -111,13 +111,16 @@ impl oio::PageList for SwiftLister {
                     content_type,
                     mut last_modified,
                 } => {
-                    let mut path = build_rel_path(self.core.root.as_str(), name.as_str());
+                    let mut path = build_relative_path(self.core.root.as_str(), name.as_str());
                     if path.is_empty() {
                         path = "/".to_string();
                     }
-                    let mut meta = Metadata::new(EntryMode::from_path(path.as_str()));
-                    meta.set_content_length(bytes);
-                    meta.set_content_md5(hash.as_str());
+                    let mut meta = if path.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bytes)
+                    };
+                    meta.content_md5(hash.as_str());
 
                     // OpenStack Swift returns time without 'Z' at the end,
                     // which causes an error in parse_datetime_from_rfc3339.
@@ -125,13 +128,13 @@ impl oio::PageList for SwiftLister {
                     if !last_modified.ends_with('Z') {
                         last_modified.push('Z');
                     }
-                    meta.set_last_modified(last_modified.parse::<Timestamp>()?);
+                    meta.last_modified(last_modified.parse::<Timestamp>()?);
 
                     if let Some(content_type) = content_type {
-                        meta.set_content_type(content_type.as_str());
+                        meta.content_type(content_type.as_str());
                     }
 
-                    oio::Entry::with(path, meta)
+                    oio::Entry::with(path, meta.build())
                 }
             };
             ctx.entries.push_back(entry);

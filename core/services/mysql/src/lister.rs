@@ -18,10 +18,10 @@
 use std::sync::Arc;
 use std::vec::IntoIter;
 
+use opendal_core::MetadataBuilder;
 use opendal_core::Result;
 use opendal_core::raw::oio::{Entry, List};
-use opendal_core::raw::{build_abs_path, build_rel_path};
-use opendal_core::{EntryMode, Metadata};
+use opendal_core::raw::{build_absolute_path, build_relative_path};
 
 use super::core::MysqlCore;
 
@@ -32,7 +32,10 @@ pub struct MysqlLister {
 
 impl MysqlLister {
     pub async fn new(core: Arc<MysqlCore>, root: String, path: String) -> Result<Self> {
-        let entries = core.list(&build_abs_path(&root, &path)).await?.into_iter();
+        let entries = core
+            .list(&build_absolute_path(&root, &path))
+            .await?
+            .into_iter();
         Ok(Self { root, entries })
     }
 }
@@ -43,12 +46,16 @@ impl List for MysqlLister {
             return Ok(None);
         };
 
-        let mut path = build_rel_path(&self.root, &key);
+        let mut path = build_relative_path(&self.root, &key);
         if path.is_empty() {
             path = "/".to_string();
         }
-        let meta = Metadata::new(EntryMode::from_path(&path));
-        Ok(Some(Entry::new(&path, meta)))
+        let meta = if path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::unknown()
+        };
+        Ok(Some(Entry::new(&path, meta.build())))
     }
 }
 

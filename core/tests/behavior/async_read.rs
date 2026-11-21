@@ -34,6 +34,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_read_full,
             test_read_range,
+            test_read_limit,
             test_reader,
             test_buffer_stream_metadata,
             test_buffer_stream_metadata_with_concurrent,
@@ -46,6 +47,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_read_not_exist,
             test_read_with_if_match,
             test_read_with_if_none_match,
+            test_read_with_version_conditions,
             test_read_with_if_modified_since,
             test_read_with_if_unmodified_since,
             test_read_with_dir_path,
@@ -63,6 +65,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             op,
             test_read_suffix,
             test_read_suffix_larger_than_file,
+            test_read_suffix_with_limit,
             test_read_suffix_zero,
             test_reader_suffix_with_chunk
         ))
@@ -124,6 +127,77 @@ pub async fn test_read_range(op: Operator) -> anyhow::Result<()> {
         "read content"
     );
 
+    Ok(())
+}
+
+/// A limited read returns the prefix of the requested range, including short reads.
+pub async fn test_read_limit(op: Operator) -> anyhow::Result<()> {
+    let (path, missing) = (TEST_FIXTURE.new_file_path(), TEST_FIXTURE.new_file_path());
+    op.write(&path, "abcdef").await?;
+
+    for (range, limit, expected) in [
+        (BytesRange::default(), 8, "abcdef"),
+        (BytesRange::default(), 6, "abcdef"),
+        (BytesRange::default(), 2, "ab"),
+        ((4..).into(), 8, "ef"),
+        ((1..8).into(), 8, "bcdef"),
+        ((1..5).into(), 2, "bc"),
+        ((1..3).into(), 8, "bc"),
+        ((1..1).into(), 8, ""),
+    ] {
+        let value = op.read_with(&path).range(range).limit(limit).await?;
+        assert_eq!(value.to_bytes(), expected, "range={range}, limit={limit}");
+    }
+
+    for offset in [6, 7] {
+        let err = op
+            .read_with(&path)
+            .range(offset..)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "offset={offset}");
+    }
+
+    assert!(op.read_with(&missing).limit(0).await?.is_empty());
+    let err = op.read_with(&missing).limit(1).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let err = op.read_with(&path).range(4..8).await.unwrap_err();
+    assert!(matches!(
+        err.kind(),
+        ErrorKind::Unexpected | ErrorKind::RangeNotSatisfied
+    ));
+
+    if op.info().capability().write_can_empty {
+        let empty = TEST_FIXTURE.new_file_path();
+        op.write(&empty, Buffer::new()).await?;
+        let err = op.read_with(&empty).limit(1).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(op.read_with(&empty).limit(0).await?.is_empty());
+    }
+    Ok(())
+}
+
+/// A limited suffix read starts at the beginning of the suffix selection.
+pub async fn test_read_suffix_with_limit(op: Operator) -> anyhow::Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    op.write(&path, "abcdef").await?;
+
+    for (suffix, limit, expected) in [
+        (4, 2, "cd"),
+        (4, 8, "cdef"),
+        (8, 2, "ab"),
+        (4, 0, ""),
+        (0, 2, ""),
+    ] {
+        let value = op
+            .read_with(&path)
+            .limit(limit)
+            .range(BytesRange::suffix(suffix))
+            .await?;
+        assert_eq!(value.to_bytes(), expected, "suffix={suffix}, limit={limit}");
+    }
     Ok(())
 }
 
@@ -492,6 +566,14 @@ pub async fn test_read_with_if_match(op: Operator) -> anyhow::Result<()> {
         .to_bytes();
     assert_eq!(bs, content);
 
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .read_with(&missing)
+        .if_match(meta.etag().expect("etag must exist"))
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -554,6 +636,11 @@ pub async fn test_reader_with_if_modified_since(op: Operator) -> anyhow::Result<
     assert!(res.is_err());
     assert_eq!(res.unwrap_err().kind(), ErrorKind::ConditionNotMatch);
 
+    let missing = TEST_FIXTURE.new_file_path();
+    let reader = op.reader_with(&missing).if_modified_since(since).await?;
+    let err = reader.read(..).await.expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
     Ok(())
 }
 
@@ -582,6 +669,11 @@ pub async fn test_reader_with_if_unmodified_since(op: Operator) -> anyhow::Resul
     let reader = op.reader_with(&path).if_unmodified_since(since).await?;
     let bs = reader.read(..).await?.to_bytes();
     assert_eq!(bs, content);
+
+    let missing = TEST_FIXTURE.new_file_path();
+    let reader = op.reader_with(&missing).if_unmodified_since(since).await?;
+    let err = reader.read(..).await.expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
 
     Ok(())
 }
@@ -614,6 +706,73 @@ pub async fn test_read_with_if_none_match(op: Operator) -> anyhow::Result<()> {
         .expect("read must succeed")
         .to_bytes();
     assert_eq!(bs, content);
+
+    let missing = TEST_FIXTURE.new_file_path();
+    let err = op
+        .read_with(&missing)
+        .if_none_match(meta.etag().expect("etag must exist"))
+        .await
+        .expect_err("missing target must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    Ok(())
+}
+
+/// Version preconditions should compare against the current live object version.
+pub async fn test_read_with_version_conditions(op: Operator) -> anyhow::Result<()> {
+    let cap = op.info().capability();
+    if !cap.read_with_if_version_match || !cap.read_with_if_version_not_match {
+        return Ok(());
+    }
+
+    let path = TEST_FIXTURE.new_file_path();
+    let (first, _) = gen_bytes(cap);
+    let (second, _) = gen_bytes(cap);
+    assert_ne!(first, second);
+
+    op.write(&path, first).await?;
+    let stale = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+    op.write(&path, second.clone()).await?;
+    let current = op
+        .stat(&path)
+        .await?
+        .version()
+        .expect("version must exist")
+        .to_string();
+
+    let reader = op.reader_with(&path).if_version_match(&current).await?;
+    assert_eq!(reader.read(..).await?.to_bytes(), second);
+
+    let err = op
+        .read_with(&path)
+        .if_version_match(&stale)
+        .await
+        .expect_err("stale version match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    op.read_with(&path).if_version_not_match(&stale).await?;
+    let err = op
+        .read_with(&path)
+        .if_version_not_match(&current)
+        .await
+        .expect_err("equal version non-match must fail");
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    let missing = TEST_FIXTURE.new_file_path();
+    for result in [
+        op.read_with(&missing).if_version_match(&current).await,
+        op.read_with(&missing).if_version_not_match(&current).await,
+    ] {
+        assert_eq!(
+            result.expect_err("missing target must fail").kind(),
+            ErrorKind::NotFound
+        );
+    }
 
     Ok(())
 }

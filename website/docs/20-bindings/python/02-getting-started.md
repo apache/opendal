@@ -12,8 +12,22 @@ This program builds an operator, writes a file, reads it back, inspects its
 metadata, and deletes it. It runs against the in-memory service with no
 credentials, so you can run it right after installing.
 
+Use Python 3.11 or later and install from PyPI:
+
 ```shell
 pip install opendal
+```
+
+Or install from Anaconda main:
+
+```shell
+conda install opendal
+```
+
+Or install from conda-forge:
+
+```shell
+conda install conda-forge::opendal
 ```
 
 ```python file=bindings/python/examples/getting_started.py region=quickstart
@@ -35,9 +49,26 @@ op.write("hello.txt", b"Hello from S3!")
 print(op.read("hello.txt"))
 ```
 
-The wheel bundles every service, so there is nothing extra to install. The next
-page, [Connecting to your storage](./03-connecting.md), covers configuration and
-credentials in depth; [Services](/services) lists every backend and its keys.
+[Connecting to your storage](./03-connecting.md) covers configuration and
+credentials. [Services](/services) lists the backends and their configuration keys.
+
+## Build with additional services
+
+PyPI wheels ship the largest verified service set for each target. Every wheel
+includes the common `services-all` group. The 64-bit Linux, macOS, and Windows
+wheels also include Foyer. The 64-bit Linux and macOS wheels include SFTP. See the
+[wheel service matrix](https://github.com/apache/opendal/blob/main/bindings/python/README.md#services-in-pypi-wheels)
+for target architectures.
+
+To add D1 to the common service set, run this from `bindings/python` in
+an active virtual environment with Maturin installed:
+
+```shell
+maturin develop --release --features services-all,services-d1
+```
+
+The [Python layers](./05-production.md#layers) are built in. Exposing a new Rust
+layer requires Python binding code.
 
 ## Async usage {#blocking-vs-async}
 

@@ -29,7 +29,7 @@ use super::core::*;
 use super::deleter::WebdavDeleter;
 use super::lister::WebdavLister;
 use super::reader::*;
-use super::writer::WebdavWriter;
+use super::writer::{WebdavChunkedWriter, WebdavWriter};
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -119,6 +119,15 @@ impl WebdavBuilder {
         self
     }
 
+    /// Enable streaming writes using partial PUT. Disabled by default.
+    ///
+    /// Enable this only for endpoints that support `Content-Range` on PUT
+    /// and WebDAV MOVE with overwrite.
+    pub fn enable_partial_put(mut self, enable: bool) -> Self {
+        self.config.enable_partial_put = enable;
+        self
+    }
+
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -154,21 +163,12 @@ impl WebdavBuilder {
         self
     }
 
-    /// Enable conditional read support.
-    ///
-    /// When enabled (the default), OpenDAL forwards the RFC 7232 headers
-    /// `If-Match`, `If-None-Match`, `If-Modified-Since` and
-    /// `If-Unmodified-Since` to the server when callers provide them.
-    ///
-    /// Some WebDAV-compatible servers (e.g., nginx-dav) don't return ETags
-    /// in PROPFIND or don't honor these headers on GET. Setting this to
-    /// `false` drops the four `read_with_if_*` capabilities, so calls like
-    /// `reader_with(path).if_match(...)` return `ErrorKind::Unsupported`
-    /// locally instead of being silently ignored by the server.
-    ///
-    /// Default: true
-    pub fn enable_conditional_read(mut self, enable: bool) -> Self {
-        self.config.enable_conditional_read = enable;
+    /// Deprecated: WebDAV conditional read capabilities are enabled by default.
+    #[deprecated(
+        since = "0.60.0",
+        note = "WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."
+    )]
+    pub fn enable_conditional_read(self, _enable: bool) -> Self {
         self
     }
 }
@@ -211,8 +211,6 @@ impl Builder for WebdavBuilder {
             authorization = Some(format_authorization_by_bearer(token)?)
         }
 
-        let conditional_read = self.config.enable_conditional_read;
-
         let core = Arc::new(WebdavCore {
             info: ServiceInfo::new(WEBDAV_SCHEME, &root, ""),
             capability: Capability {
@@ -220,21 +218,24 @@ impl Builder for WebdavBuilder {
 
                 read: true,
                 read_with_suffix: true,
-                read_with_if_match: conditional_read,
-                read_with_if_none_match: conditional_read,
-                read_with_if_modified_since: conditional_read,
-                read_with_if_unmodified_since: conditional_read,
+                read_with_if_match: true,
+                read_with_if_none_match: true,
+                read_with_if_modified_since: true,
+                read_with_if_unmodified_since: true,
 
                 write: true,
+                write_can_multi: self.config.enable_partial_put,
                 write_can_empty: true,
                 write_with_user_metadata: true,
 
                 create_dir: true,
                 delete: true,
+                delete_with_if_match: true,
 
                 copy: true,
 
                 rename: true,
+                rename_with_if_not_exists: true,
 
                 list: true,
 
@@ -269,10 +270,11 @@ pub struct WebdavBackend {
 
 impl Service for WebdavBackend {
     type Reader = oio::StreamReader<WebdavReader>;
-    type Writer = oio::OneShotWriter<WebdavWriter>;
+    type Writer = TwoWays<oio::OneShotWriter<WebdavWriter>, WebdavChunkedWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
     type Copier = oio::OneShotCopier;
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -310,16 +312,19 @@ impl Service for WebdavBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: oio::OneShotWriter<WebdavWriter> = {
-            Ok(oio::OneShotWriter::new(WebdavWriter::new(
-                self.core.clone(),
-                ctx.clone(),
-                args,
-                path.to_string(),
-            )))
-        }?;
+        if args.is_conditional() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "WebDAV does not support conditional writes",
+            ));
+        }
 
-        Ok(output)
+        let writer = WebdavWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
+        if self.core.capability.write_can_multi {
+            Ok(TwoWays::Two(WebdavChunkedWriter::new(writer)))
+        } else {
+            Ok(TwoWays::One(oio::OneShotWriter::new(writer)))
+        }
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -351,27 +356,43 @@ impl Service for WebdavBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpCopy,
-        _opts: OpCopier,
+        args: OpCopy,
     ) -> Result<Self::Copier> {
+        let backend = self.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
+        let source_content_length_hint = args.source_content_length_hint();
 
         Ok(oio::OneShotCopier::new_with(move || {
+            let backend = backend.clone();
             let core = core.clone();
             let ctx = ctx.clone();
             let from = from.clone();
             let to = to.clone();
 
             async move {
+                let source_size = match source_content_length_hint {
+                    Some(size) => size,
+                    None => backend
+                        .stat(&ctx, &from, OpStat::default())
+                        .await?
+                        .into_metadata()
+                        .content_length(),
+                };
+
                 let resp = core.webdav_copy(&ctx, &from, &to).await?;
                 let status = resp.status();
 
                 match status {
-                    StatusCode::CREATED | StatusCode::NO_CONTENT => Ok(Metadata::default()),
-                    _ => Err(parse_error(resp)),
+                    StatusCode::CREATED | StatusCode::NO_CONTENT => {
+                        Ok(MetadataBuilder::file(source_size).build())
+                    }
+                    _ => Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Copy")),
+                        resp,
+                    )),
                 }
             }
         }))
@@ -382,16 +403,24 @@ impl Service for WebdavBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        let resp = self.core.webdav_move(ctx, from, to).await?;
+        self.core.webdav_stat(ctx, from).await?;
+        self.core.webdav_mkcol(ctx, get_parent(to)).await?;
+        let resp = self
+            .core
+            .webdav_move(ctx, from, to, args.if_not_exists(), Operation::Rename)
+            .await?;
 
         let status = resp.status();
         match status {
             StatusCode::CREATED | StatusCode::NO_CONTENT | StatusCode::OK => {
                 Ok(RpRename::default())
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("Move")),
+                resp,
+            )),
         }
     }
 

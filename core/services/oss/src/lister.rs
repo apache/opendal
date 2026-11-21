@@ -80,7 +80,10 @@ impl oio::PageList for OssLister {
             .await?;
 
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectsV2")),
+                resp,
+            ));
         }
 
         let bs = resp.into_body();
@@ -93,14 +96,14 @@ impl oio::PageList for OssLister {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::new(EntryMode::DIR),
+                &build_relative_path(&self.core.root, &prefix.prefix),
+                MetadataBuilder::dir().build(),
             );
             ctx.entries.push_back(de);
         }
 
         for object in output.contents {
-            let mut path = build_rel_path(&self.core.root, &object.key);
+            let mut path = build_relative_path(&self.core.root, &object.key);
             if path.is_empty() {
                 path = "/".to_string();
             }
@@ -108,14 +111,17 @@ impl oio::PageList for OssLister {
                 continue;
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
-            meta.set_is_current(true);
-            meta.set_etag(&object.etag);
-            meta.set_content_md5(object.etag.trim_matches('"'));
-            meta.set_content_length(object.size);
-            meta.set_last_modified(object.last_modified.parse::<Timestamp>()?);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(object.size)
+            };
+            meta.is_current(Some(true));
+            meta.etag(&object.etag);
+            meta.content_md5(object.etag.trim_matches('"'));
+            meta.last_modified(object.last_modified.parse::<Timestamp>()?);
 
-            let de = oio::Entry::with(path, meta);
+            let de = oio::Entry::with(path, meta.build());
             ctx.entries.push_back(de);
         }
 
@@ -140,7 +146,7 @@ impl OssObjectVersionsLister {
         let delimiter = if args.recursive() { "" } else { "/" };
         let abs_start_after = args
             .start_after()
-            .map(|start_after| build_abs_path(&core.root, start_after));
+            .map(|start_after| build_absolute_path(&core.root, start_after));
 
         Self {
             core,
@@ -176,7 +182,10 @@ impl oio::PageList for OssObjectVersionsLister {
             )
             .await?;
         if resp.status() != http::StatusCode::OK {
-            return Err(parse_error(resp));
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListObjectVersions")),
+                resp,
+            ));
         }
 
         let body = resp.into_body();
@@ -202,8 +211,8 @@ impl oio::PageList for OssObjectVersionsLister {
 
         for prefix in output.common_prefixes {
             let de = oio::Entry::new(
-                &build_rel_path(&self.core.root, &prefix.prefix),
-                Metadata::new(EntryMode::DIR),
+                &build_relative_path(&self.core.root, &prefix.prefix),
+                MetadataBuilder::dir().build(),
             );
             ctx.entries.push_back(de);
         }
@@ -217,39 +226,46 @@ impl oio::PageList for OssObjectVersionsLister {
                 continue;
             }
 
-            let mut path = build_rel_path(&self.core.root, &version_object.key);
+            let mut path = build_relative_path(&self.core.root, &version_object.key);
             if path.is_empty() {
                 path = "/".to_owned();
             }
 
-            let mut meta = Metadata::new(EntryMode::from_path(&path));
-            meta.set_version(&version_object.version_id);
-            meta.set_is_current(version_object.is_latest);
-            meta.set_content_length(version_object.size);
-            meta.set_last_modified(version_object.last_modified.parse::<Timestamp>()?);
+            let mut meta = if path.ends_with('/') {
+                MetadataBuilder::dir()
+            } else {
+                MetadataBuilder::file(version_object.size)
+            };
+            meta.version(&version_object.version_id);
+            meta.is_current(Some(version_object.is_latest));
+            meta.last_modified(version_object.last_modified.parse::<Timestamp>()?);
             if let Some(etag) = version_object.etag {
-                meta.set_etag(&etag);
-                meta.set_content_md5(etag.trim_matches('"'));
+                meta.etag(&etag);
+                meta.content_md5(etag.trim_matches('"'));
             }
 
-            let entry = oio::Entry::new(&path, meta);
+            let entry = oio::Entry::new(&path, meta.build());
             ctx.entries.push_back(entry);
         }
 
         if self.args.deleted() {
             for delete_marker in output.delete_marker {
-                let mut path = build_rel_path(&self.core.root, &delete_marker.key);
+                let mut path = build_relative_path(&self.core.root, &delete_marker.key);
                 if path.is_empty() {
                     path = "/".to_owned();
                 }
 
-                let mut meta = Metadata::new(EntryMode::FILE);
-                meta.set_version(&delete_marker.version_id);
-                meta.set_is_deleted(true);
-                meta.set_is_current(delete_marker.is_latest);
-                meta.set_last_modified(delete_marker.last_modified.parse::<Timestamp>()?);
+                let mut meta = if path.ends_with('/') {
+                    MetadataBuilder::dir()
+                } else {
+                    MetadataBuilder::file(0)
+                };
+                meta.version(&delete_marker.version_id);
+                meta.is_deleted(true);
+                meta.is_current(Some(delete_marker.is_latest));
+                meta.last_modified(delete_marker.last_modified.parse::<Timestamp>()?);
 
-                let entry = oio::Entry::new(&path, meta);
+                let entry = oio::Entry::new(&path, meta.build());
                 ctx.entries.push_back(entry);
             }
         }

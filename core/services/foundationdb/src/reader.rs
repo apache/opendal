@@ -38,7 +38,7 @@ impl oio::StreamRead for FoundationdbReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
         let bs = match backend.core.get(&p).await? {
             Some(bs) => bs,
             None => {
@@ -49,7 +49,10 @@ impl oio::StreamRead for FoundationdbReader {
             }
         };
         let content = bs.slice(range.to_content_range(bs.len())?);
-        let metadata = Metadata::new(EntryMode::FILE).with_content_length(bs.len() as u64);
+        let metadata = {
+            let metadata = MetadataBuilder::file(bs.len() as u64);
+            metadata.build()
+        };
         Ok((
             RpRead::new(metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,

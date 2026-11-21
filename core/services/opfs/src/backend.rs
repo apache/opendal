@@ -24,11 +24,9 @@ use web_sys::File;
 use super::config::OpfsConfig;
 use super::core::OpfsCore;
 use super::core::*;
-use super::core::*;
 use super::deleter::OpfsDeleter;
 use super::lister::OpfsLister;
-use super::reader::OpfsReadStream;
-use super::reader::*;
+use super::reader::OpfsReader;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -73,6 +71,7 @@ impl Service for OpfsBackend {
     type Lister = OpfsLister;
     type Deleter = oio::OneShotDeleter<OpfsDeleter>;
     type Copier = ();
+    type Composer = ();
 
     fn info(&self) -> ServiceInfo {
         self.core.info.clone()
@@ -83,11 +82,11 @@ impl Service for OpfsBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.core.root, path);
+        let p = build_absolute_path(&self.core.root, path);
 
         if p.ends_with('/') {
             get_directory_handle(&p, false).await?;
-            return Ok(RpStat::new(Metadata::new(EntryMode::DIR)));
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
         }
 
         // File: get metadata via getFile().
@@ -97,13 +96,12 @@ impl Service for OpfsBackend {
             .and_then(JsCast::dyn_into)
             .map_err(parse_js_error)?;
 
-        let mut meta = Metadata::new(EntryMode::FILE);
-        meta.set_content_length(file.size() as u64);
+        let mut meta = MetadataBuilder::file(file.size() as u64);
         if let Ok(t) = Timestamp::from_millisecond(file.last_modified() as i64) {
-            meta.set_last_modified(t);
+            meta.last_modified(t);
         }
 
-        Ok(RpStat::new(meta))
+        Ok(RpStat::new(meta.build()))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         let output: oio::StreamReader<OpfsReader> = {
@@ -130,7 +128,7 @@ impl Service for OpfsBackend {
         _: OpCreateDir,
     ) -> Result<RpCreateDir> {
         debug_assert!(path != "/", "root path should be handled upstream");
-        let p = build_abs_path(&self.core.root, path);
+        let p = build_absolute_path(&self.core.root, path);
         get_directory_handle(&p, true).await?;
 
         Ok(RpCreateDir::default())
@@ -152,14 +150,7 @@ impl Service for OpfsBackend {
         Ok(output)
     }
 
-    fn copy(
-        &self,
-        _: &OperationContext,
-        _: &str,
-        _: &str,
-        _: OpCopy,
-        _: OpCopier,
-    ) -> Result<Self::Copier> {
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
         Err(Error::new(
             ErrorKind::Unsupported,
             "operation is not supported",

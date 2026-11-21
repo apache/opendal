@@ -130,7 +130,7 @@ impl SwiftCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -176,7 +176,7 @@ impl SwiftCore {
         let body_str: String = paths
             .iter()
             .map(|(path, _)| {
-                let abs = build_abs_path(&self.root, path);
+                let abs = build_absolute_path(&self.root, path);
                 format!("{}/{}", self.container, percent_encode_path(&abs))
             })
             .collect::<Vec<_>>()
@@ -201,7 +201,7 @@ impl SwiftCore {
         limit: Option<usize>,
         marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // The delimiter is used to disable recursive listing.
         // Swift returns a 200 status code when there is no such pseudo directory in prefix.
@@ -214,7 +214,7 @@ impl SwiftCore {
             url = url.push("limit", &limit.to_string());
         }
         if !marker.is_empty() {
-            url = url.push("marker", marker);
+            url = url.push("marker", &percent_encode_path(marker));
         }
 
         let mut req = Request::get(url.finish());
@@ -238,7 +238,7 @@ impl SwiftCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -287,7 +287,7 @@ impl SwiftCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -339,10 +339,10 @@ impl SwiftCore {
         let src_p = format!(
             "/{}/{}",
             self.container,
-            build_abs_path(&self.root, src_p).trim_end_matches('/')
+            build_absolute_path(&self.root, src_p).trim_end_matches('/')
         );
 
-        let dst_p = build_abs_path(&self.root, dst_p)
+        let dst_p = build_absolute_path(&self.root, dst_p)
             .trim_end_matches('/')
             .to_string();
 
@@ -380,7 +380,7 @@ impl SwiftCore {
         path: &str,
         args: &OpStat,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -419,7 +419,7 @@ impl SwiftCore {
     ///
     /// Segments are stored as: `.segments/{object_path}/{upload_id}/{part_number:08}`
     pub fn slo_segment_path(&self, path: &str, upload_id: &str, part_number: usize) -> String {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         format!(
             ".segments/{}{}/{:08}",
             abs.trim_end_matches('/'),
@@ -474,7 +474,7 @@ impl SwiftCore {
         manifest: &[SloManifestEntry],
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}?multipart-manifest=put",
             self.endpoint,
@@ -520,7 +520,7 @@ impl SwiftCore {
         // List segments under the upload_id prefix and delete them individually.
         // We can't use multipart-manifest=delete because we haven't created
         // the manifest yet (abort happens before complete).
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
         let prefix = format!(".segments/{}{}/", abs.trim_end_matches('/'), upload_id);
 
         // List all segments with this prefix.
@@ -587,7 +587,7 @@ impl SwiftCore {
             ));
         }
 
-        let abs = build_abs_path(&self.root, path);
+        let abs = build_absolute_path(&self.root, path);
 
         // Extract the path portion from the endpoint URL for signing.
         // The endpoint is like "https://host:port/v1/AUTH_account".
@@ -693,6 +693,17 @@ pub struct SloManifestEntry {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from("The Range requested is not available."))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn parse_list_response_test() -> Result<()> {
@@ -851,72 +862,12 @@ mod tests {
         );
         assert!(TempUrlHashAlgorithm::from_str_opt("md5").is_err());
     }
-}
 
-mod error {
-    use bytes::Buf;
-    use bytes::Bytes;
-    use http::Response;
-    use http::StatusCode;
-    use quick_xml::de;
-    use serde::Deserialize;
-
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    #[allow(dead_code)]
-    #[derive(Debug, Deserialize)]
-    struct ErrorResponse {
-        h1: String,
-        p: String,
-    }
-
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                (ErrorKind::PermissionDenied, false)
-            }
-            StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
-                (ErrorKind::ConditionNotMatch, false)
-            }
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = parse_error_response(&bs);
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    fn parse_error_response(resp: &Bytes) -> String {
-        match de::from_reader::<_, ErrorResponse>(resp.clone().reader()) {
-            Ok(swift_err) => swift_err.p,
-            Err(_) => String::from_utf8_lossy(resp).into_owned(),
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn parse_error_response_test() -> Result<()> {
-            let resp = Bytes::from(
+    #[test]
+    fn html_body_is_used_as_message() {
+        let resp = Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Buffer::from(
                 r#"
 <html>
 <h1>Not Found</h1>
@@ -924,13 +875,70 @@ mod error {
 
 </html>
             "#,
-            );
+            ))
+            .unwrap();
 
-            let msg = parse_error_response(&resp);
-            assert_eq!(msg, "The resource could not be found.".to_string(),);
-            Ok(())
-        }
+        let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
+
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(err.to_string().contains("The resource could not be found."));
     }
 }
 
-pub(super) use error::*;
+use bytes::Buf;
+use http::StatusCode;
+use quick_xml::de;
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+struct ErrorResponse {
+    h1: String,
+    p: String,
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED => {
+            (ErrorKind::ConditionNotMatch, false)
+        }
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = de::from_reader::<_, ErrorResponse>(bs.clone().reader())
+        .map(|swift_err| swift_err.p)
+        .unwrap_or_else(|_| String::from_utf8_lossy(&bs).into_owned());
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}

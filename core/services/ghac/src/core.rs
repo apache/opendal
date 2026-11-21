@@ -99,7 +99,7 @@ impl Debug for GhacCore {
 
 impl GhacCore {
     async fn ghac_get_download_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -128,7 +128,10 @@ impl GhacCore {
                         .map_err(new_json_deserialize_error)?;
                     query_resp.archive_location
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("GetCacheEntry")),
+                        resp,
+                    ));
                 };
                 Ok(location)
             }
@@ -180,7 +183,10 @@ impl GhacCore {
                     }
                     query_resp.signed_download_url
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("GetCacheEntryDownloadUrl")),
+                        resp,
+                    ));
                 };
 
                 Ok(location)
@@ -224,7 +230,7 @@ impl GhacCore {
     }
 
     pub async fn ghac_get_upload_url(&self, ctx: &OperationContext, path: &str) -> Result<String> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -254,7 +260,11 @@ impl GhacCore {
                         .map_err(new_json_deserialize_error)?;
                     reserve_resp.cache_id
                 } else {
-                    return Err(parse_error(resp).with_operation("Backend::ghac_reserve"));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("ReserveCache")),
+                        resp,
+                    )
+                    .with_operation("Backend::ghac_reserve"));
                 };
 
                 let url = build_cache_url(
@@ -299,7 +309,10 @@ impl GhacCore {
                     }
                     query_resp.signed_upload_url
                 } else {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CreateCacheEntry")),
+                        resp,
+                    ));
                 };
                 Ok(location)
             }
@@ -341,7 +354,7 @@ impl GhacCore {
         url: &str,
         size: u64,
     ) -> Result<()> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         match self.service_version {
             GhacVersion::V1 => {
@@ -361,7 +374,10 @@ impl GhacCore {
                 if resp.status().is_success() {
                     Ok(())
                 } else {
-                    Err(parse_error(resp))
+                    Err(parse_error(
+                        ErrorContext::new(ServiceOperation("CommitCache")),
+                        resp,
+                    ))
                 }
             }
             GhacVersion::V2 => {
@@ -389,7 +405,10 @@ impl GhacCore {
                     .map_err(new_request_build_error)?;
                 let resp = ctx.http_transport().send(req).await?;
                 if resp.status() != StatusCode::OK {
-                    return Err(parse_error(resp));
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("FinalizeCacheEntryUpload")),
+                        resp,
+                    ));
                 };
                 Ok(())
             }
@@ -514,6 +533,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let response = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Download")), response);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_build_cache_url_handles_leading_slash() {
         assert_eq!(
             build_cache_url(
@@ -525,42 +555,46 @@ mod tests {
     }
 }
 
-mod error {
-    use http::Response;
-    use http::StatusCode;
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
 
-    use opendal_core::raw::*;
-    use opendal_core::*;
-
-    /// Parse error response into Error.
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
-            StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
-            StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
-            StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let bs = body.to_bytes();
-        let message = String::from_utf8_lossy(&bs);
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
     }
 }
 
-pub(super) use error::*;
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND | StatusCode::NO_CONTENT => (ErrorKind::NotFound, false),
+        StatusCode::CONFLICT => (ErrorKind::AlreadyExists, false),
+        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let bs = body.to_bytes();
+    let message = String::from_utf8_lossy(&bs);
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
+    }
+
+    err
+}

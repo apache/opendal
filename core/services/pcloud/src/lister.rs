@@ -75,7 +75,7 @@ impl oio::PageList for PcloudLister {
                             };
 
                             let md = parse_list_metadata(content)?;
-                            let path = build_rel_path(&self.core.root, &path);
+                            let path = build_relative_path(&self.core.root, &path);
 
                             ctx.entries.push_back(oio::Entry::new(&path, md))
                         }
@@ -90,7 +90,10 @@ impl oio::PageList for PcloudLister {
                     String::from_utf8_lossy(&bs.to_bytes()),
                 ))
             }
-            _ => Err(parse_error(resp)),
+            _ => Err(parse_error(
+                ErrorContext::new(ServiceOperation("ListFolder")),
+                resp,
+            )),
         }
     }
 }

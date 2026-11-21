@@ -38,9 +38,11 @@ pub unsafe extern "C" fn opendal_string_free(ptr: *mut c_char) {
 ///
 /// The opendal_bytes type is a C-compatible substitute for Vec type in Rust.
 /// For buffers returned by OpenDAL C APIs, call opendal_bytes_free() to free
-/// the heap memory and avoid memory leaks. For caller-owned input buffers
-/// passed to OpenDAL C APIs, the caller keeps ownership and must not call
-/// opendal_bytes_free() on them.
+/// the heap memory and avoid memory leaks. If you reuse an `opendal_bytes`
+/// output variable across multiple read calls, call `opendal_bytes_free()`
+/// on the previous result before passing it again as an output parameter.
+/// For caller-owned input buffers passed to OpenDAL C APIs, the caller keeps
+/// ownership and must not call opendal_bytes_free() on them.
 ///
 /// @see opendal_bytes_free
 #[repr(C)]
@@ -348,6 +350,16 @@ impl opendal_delete_options {
     }
 }
 
+impl From<&opendal_delete_options> for options::DeleteOptions {
+    fn from(value: &opendal_delete_options) -> Self {
+        Self {
+            version: unsafe { optional_cstr(value.version) },
+            recursive: value.recursive,
+            ..Default::default()
+        }
+    }
+}
+
 /// \brief A key-value pair for write user metadata.
 #[repr(C)]
 pub struct opendal_write_user_metadata_pair {
@@ -601,6 +613,7 @@ impl From<&opendal_write_options> for options::WriteOptions {
             if_not_exists: value.if_not_exists,
             concurrent: value.concurrent,
             chunk: value.has_chunk.then_some(value.chunk),
+            ..Default::default()
         }
     }
 }
@@ -777,6 +790,7 @@ impl From<&opendal_stat_options> for options::StatOptions {
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
+            ..Default::default()
         }
     }
 }
@@ -1078,6 +1092,7 @@ impl From<&opendal_read_options> for options::ReadOptions {
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
+            ..Default::default()
         }
     }
 }
@@ -1299,6 +1314,7 @@ impl From<&opendal_reader_options> for options::ReaderOptions {
             chunk: value.has_chunk.then_some(value.chunk),
             gap: value.has_gap.then_some(value.gap),
             prefetch: value.prefetch,
+            ..Default::default()
         }
     }
 }
@@ -1437,6 +1453,7 @@ impl From<&opendal_copy_options> for options::CopyOptions {
                 .then_some(value.source_content_length_hint),
             concurrent: value.concurrent,
             chunk: value.has_chunk.then_some(value.chunk),
+            ..Default::default()
         }
     }
 }

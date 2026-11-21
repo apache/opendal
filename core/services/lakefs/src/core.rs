@@ -55,7 +55,7 @@ impl LakefsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -87,7 +87,7 @@ impl LakefsCore {
         range: BytesRange,
         _args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -124,7 +124,7 @@ impl LakefsCore {
         amount: &Option<usize>,
         after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "{}/api/v1/repositories/{}/refs/{}/objects/ls?",
@@ -144,7 +144,7 @@ impl LakefsCore {
         }
 
         if let Some(after) = after {
-            url.push_str(&format!("&after={after}"));
+            url.push_str(&format!("&after={}", percent_encode_path(&after)));
         }
 
         let mut req = Request::get(&url);
@@ -167,7 +167,7 @@ impl LakefsCore {
         _args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -198,7 +198,7 @@ impl LakefsCore {
         path: &str,
         _args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -229,10 +229,10 @@ impl LakefsCore {
         path: &str,
         dest: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
-        let d = build_abs_path(&self.root, dest)
+        let d = build_absolute_path(&self.root, dest)
             .trim_end_matches('/')
             .to_string();
 
@@ -262,7 +262,7 @@ impl LakefsCore {
     }
 
     /// Parse LakefsStatus into Metadata
-    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Metadata {
+    pub fn parse_lakefs_status_into_metadata(status: &LakefsStatus) -> Result<Metadata> {
         // Determine entry mode based on path_type
         // "common_prefix" indicates a directory in list operations
         let mode = if status.path_type == "common_prefix" {
@@ -271,29 +271,33 @@ impl LakefsCore {
             EntryMode::FILE
         };
 
-        let mut meta = Metadata::new(mode);
+        let mut meta = if mode == EntryMode::FILE {
+            MetadataBuilder::file(status.size_bytes.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "lakefs response does not contain file size",
+                )
+            })?)
+        } else {
+            MetadataBuilder::dir()
+        };
 
         // Set checksum as etag
         if !status.checksum.is_empty() {
-            meta.set_etag(&status.checksum);
-        }
-
-        // Set content length
-        if let Some(size) = status.size_bytes {
-            meta.set_content_length(size);
+            meta.etag(&status.checksum);
         }
 
         // Set content type
         if let Some(ref content_type) = status.content_type {
-            meta.set_content_type(content_type);
+            meta.content_type(content_type);
         }
 
         // Set last modified time
         if let Ok(timestamp) = Timestamp::from_second(status.mtime) {
-            meta.set_last_modified(timestamp);
+            meta.last_modified(timestamp);
         }
 
-        meta
+        Ok(meta.build())
     }
 }
 
@@ -322,81 +326,83 @@ pub(super) struct Pagination {
     pub results: u64,
 }
 
-mod error {
-    use std::fmt::Debug;
+use http::StatusCode;
 
-    use http::Response;
-    use http::StatusCode;
-    use opendal_core::raw::*;
-    use opendal_core::*;
-    use serde::Deserialize;
+/// LakefsError is the error returned by Lakefs File System.
+#[derive(Default, Deserialize)]
+struct LakefsError {
+    error: String,
+}
 
-    /// LakefsError is the error returned by Lakefs File System.
-    #[derive(Default, Deserialize)]
-    struct LakefsError {
-        error: String,
+impl Debug for LakefsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LakefsError")
+            .field("message", &self.error.replace('\n', " "))
+            .finish()
+    }
+}
+
+/// Context needed to classify an error from this service.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ErrorContext {
+    service_operation: ServiceOperation,
+}
+
+impl ErrorContext {
+    pub(crate) const fn new(service_operation: ServiceOperation) -> Self {
+        Self { service_operation }
+    }
+}
+
+/// Parse an error response using its service request context.
+pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
+    let (parts, body) = resp.into_parts();
+    let bs = body.to_bytes();
+
+    let (kind, retryable) = match parts.status {
+        StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
+        StatusCode::INTERNAL_SERVER_ERROR
+        | StatusCode::BAD_GATEWAY
+        | StatusCode::SERVICE_UNAVAILABLE
+        | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let message = match serde_json::from_slice::<LakefsError>(&bs) {
+        Ok(hf_error) => format!("{:?}", hf_error.error),
+        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+    };
+
+    let mut err = Error::new(kind, message);
+
+    err = err.with_context("service_operation", ctx.service_operation.0);
+    err = with_error_response_context(err, parts);
+
+    if retryable {
+        err = err.set_temporary();
     }
 
-    impl Debug for LakefsError {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.debug_struct("LakefsError")
-                .field("message", &self.error.replace('\n', " "))
-                .finish()
-        }
-    }
+    err
+}
 
-    pub(crate) fn parse_error(resp: Response<Buffer>) -> Error {
-        let (parts, body) = resp.into_parts();
-        let bs = body.to_bytes();
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        let (kind, retryable) = match parts.status {
-            StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-                (ErrorKind::PermissionDenied, false)
-            }
-            StatusCode::PRECONDITION_FAILED => (ErrorKind::ConditionNotMatch, false),
-            StatusCode::INTERNAL_SERVER_ERROR
-            | StatusCode::BAD_GATEWAY
-            | StatusCode::SERVICE_UNAVAILABLE
-            | StatusCode::GATEWAY_TIMEOUT => (ErrorKind::Unexpected, true),
-            _ => (ErrorKind::Unexpected, false),
-        };
-
-        let message = match serde_json::from_slice::<LakefsError>(&bs) {
-            Ok(hf_error) => format!("{:?}", hf_error.error),
-            Err(_) => String::from_utf8_lossy(&bs).into_owned(),
-        };
-
-        let mut err = Error::new(kind, message);
-
-        err = with_error_response_context(err, parts);
-
-        if retryable {
-            err = err.set_temporary();
-        }
-
-        err
-    }
-
-    #[cfg(test)]
-    mod test {
-        use super::*;
-
-        #[test]
-        fn test_parse_error() -> Result<()> {
-            let resp = r#"
+    #[test]
+    fn test_parse_error() -> Result<()> {
+        let resp = r#"
             {
                 "error": "Invalid username or password."
             }
             "#;
-            let decoded_response = serde_json::from_slice::<LakefsError>(resp.as_bytes())
-                .map_err(new_json_deserialize_error)?;
+        let decoded_response = serde_json::from_slice::<LakefsError>(resp.as_bytes())
+            .map_err(new_json_deserialize_error)?;
 
-            assert_eq!(decoded_response.error, "Invalid username or password.");
+        assert_eq!(decoded_response.error, "Invalid username or password.");
 
-            Ok(())
-        }
+        Ok(())
     }
 }
-
-pub(super) use error::*;

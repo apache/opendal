@@ -17,25 +17,146 @@
 
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use serde::Deserialize;
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
+use toml_edit::{DocumentMut, Item};
 
-fn enabled_service(srv: &str) -> bool {
-    match srv {
-        // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "github" | "cloudflare_kv"
-        | "monoiofs" | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud"
-        | "vercel_blob" | "foyer" | "goosefs" => false,
-        _ => true,
+/// Naming of the service sets the PyPI wheels are built with per platform, for
+/// example `services-platform-linux`.
+const PLATFORM_FEATURE_PREFIX: &str = "services-platform-";
+
+/// Subset of the `cargo metadata --format-version 1` output consumed here.
+/// The schema is controlled by cargo, so only the fields this generator reads
+/// are declared; serde ignores everything else.
+#[derive(Deserialize)]
+struct CargoMetadata {
+    packages: Vec<MetadataPackage>,
+    resolve: MetadataResolve,
+}
+
+#[derive(Deserialize)]
+struct MetadataPackage {
+    name: String,
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolve {
+    nodes: Vec<MetadataResolveNode>,
+}
+
+#[derive(Deserialize)]
+struct MetadataResolveNode {
+    id: String,
+    features: Vec<String>,
+}
+
+fn cargo_metadata(workspace_dir: &Path, features: &[String]) -> Result<CargoMetadata> {
+    let mut command = Command::new("cargo");
+    command
+        .arg("metadata")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--manifest-path")
+        .arg(workspace_dir.join("bindings/python/Cargo.toml"));
+    if !features.is_empty() {
+        command.arg("--features").arg(features.join(","));
     }
+
+    let output = command
+        .output()
+        .context("failed to run `cargo metadata` for bindings/python")?;
+    if !output.status.success() {
+        bail!(
+            "`cargo metadata` failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    serde_json::from_slice(&output.stdout).context("failed to parse `cargo metadata` output")
+}
+
+/// Parse the `services-platform-*` feature names declared in the `[features]`
+/// table of `bindings/python/Cargo.toml`.
+fn platform_features(workspace_dir: &Path) -> Result<Vec<String>> {
+    let manifest_path = workspace_dir.join("bindings/python/Cargo.toml");
+    let manifest = fs::read_to_string(&manifest_path)
+        .with_context(|| format!("failed to read {}", manifest_path.display()))?;
+    let document = manifest
+        .parse::<DocumentMut>()
+        .with_context(|| format!("failed to parse {}", manifest_path.display()))?;
+    let features = document
+        .get("features")
+        .and_then(Item::as_table)
+        .with_context(|| format!("no [features] table in {}", manifest_path.display()))?;
+
+    let mut platforms: Vec<String> = features
+        .iter()
+        .map(|(name, _)| name.to_string())
+        .filter(|name| name.starts_with(PLATFORM_FEATURE_PREFIX))
+        .collect();
+    platforms.sort();
+    if platforms.is_empty() {
+        bail!(
+            "no `{PLATFORM_FEATURE_PREFIX}*` feature declared in {}",
+            manifest_path.display()
+        );
+    }
+
+    Ok(platforms)
+}
+
+/// Union the services enabled by every `services-platform-*` feature, i.e. the
+/// service sets the PyPI wheels are built with on their respective platforms.
+/// `cargo metadata` only resolves features and never compiles, so services that
+/// build on a subset of the wheel platforms, such as SFTP and Foyer, are still
+/// resolved on every host.
+///
+/// The enabled services are read from the resolve node of the `opendal` facade
+/// crate, whose `services-*` features are exactly one per service, instead of
+/// the binding's own feature namespace, which also carries aggregate sets such
+/// as `services-all` and `services-platform-*`.
+fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
+    let platforms = platform_features(workspace_dir)?;
+    let metadata = cargo_metadata(workspace_dir, &platforms)?;
+
+    let package = metadata
+        .packages
+        .iter()
+        .find(|package| package.name == "opendal")
+        .with_context(|| "package `opendal` not found in `cargo metadata` output")?;
+    let node = metadata
+        .resolve
+        .nodes
+        .iter()
+        .find(|node| node.id == package.id)
+        .with_context(|| "resolve node for `opendal` not found in `cargo metadata` output")?;
+
+    // Service keys are directory names under core/services, which mix `-` and
+    // `_` (e.g. `aliyun-drive` vs `mini_moka`), so normalize both sides.
+    let services: HashSet<String> = node
+        .features
+        .iter()
+        .filter_map(|name| name.strip_prefix("services-"))
+        .map(|service| service.replace('-', "_"))
+        .collect();
+    if services.is_empty() {
+        bail!("no `services-*` feature enabled by the `{PLATFORM_FEATURE_PREFIX}*` features");
+    }
+
+    Ok(services)
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let srvs = sorted_services(services, enabled_service);
+    let enabled = enabled_services(&workspace_dir)?;
+    let srvs = sorted_services(services, |srv| enabled.contains(&srv.replace('-', "_")));
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_template("python_config", include_str!("python_config.j2"))?;
@@ -264,9 +385,7 @@ fn is_path_like_field(name: &str) -> bool {
 fn make_config_field_type(field: ViaDeserialize<Config>) -> Result<String, minijinja::Error> {
     Ok(match field.value {
         ConfigType::Bool => "bool".to_string(),
-        // Duration is typed `str` (a humantime string, e.g. "5s"). See #7887:
-        // core cannot yet deserialize Duration config fields from strings.
-        ConfigType::Duration => "str".to_string(),
+        ConfigType::Duration => "str | timedelta".to_string(),
         ConfigType::Usize
         | ConfigType::U64
         | ConfigType::I64
@@ -310,7 +429,7 @@ fn make_config_field_doc(field: ViaDeserialize<Config>) -> Result<String, miniji
 
     match field.value {
         ConfigType::Duration => parts.push(
-            "A human readable duration string, e.g. \"5s\" (see \
+            "A datetime.timedelta or human readable duration string, e.g. \"5s\" (see \
              https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."
                 .to_string(),
         ),

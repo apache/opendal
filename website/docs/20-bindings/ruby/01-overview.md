@@ -12,7 +12,8 @@ filesystem, and [50+ more services](/services) through one API, with the
 performance of the Rust core underneath.
 
 New to the model behind the API? Read [Concepts](../../03-concepts.mdx) first —
-service, operator, layer, operation are the same four ideas in every language.
+the shared storage semantics and path and operation concepts every binding
+expresses through its own native API.
 
 :::note
 This binding has its own version number, independent of the Rust core. Check
@@ -35,6 +36,8 @@ Released and published to [RubyGems](https://rubygems.org/gems/opendal).
   and timeouts — see [Going to production](./05-production.md).
 
 ## Installation
+
+The Ruby binding requires Ruby 3.3 or later.
 
 ```shell
 gem install opendal

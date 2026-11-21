@@ -59,7 +59,7 @@ IMPORTS = {
         "from .types import Entry, PresignedRequest\n"
         "from typing_extensions import Unpack\n"
     ),
-    "file": "import collections.abc\nimport types\nimport typing_extensions\n",
+    "file": "import collections.abc\nimport types\nimport typing\n",
 }
 
 # Mirrors the `create_exception!` types in `src/errors.rs`; keep in sync.
@@ -77,6 +77,7 @@ class IsSameFile(Exception): ...
 class ConditionNotMatch(Exception): ...
 class RateLimited(Exception): ...
 class RangeNotSatisfied(Exception): ...
+class Conflict(Exception): ...
 """
 
 

@@ -17,25 +17,80 @@
 
 use crate::generate::options;
 use crate::generate::parser::{Config, ConfigType, Services, sorted_services};
-use anyhow::Result;
+use anyhow::{Context, Result, bail};
 use minijinja::value::ViaDeserialize;
 use minijinja::{Environment, context};
+use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Command;
 
-fn enabled_service(srv: &str) -> bool {
-    match srv {
-        // not enabled in bindings/python/Cargo.toml
-        "etcd" | "foundationdb" | "hdfs" | "rocksdb" | "tikv" | "cloudflare_kv" | "monoiofs"
-        | "dbfs" | "surrealdb" | "d1" | "opfs" | "compfs" | "lakefs" | "pcloud" | "vercel_blob"
-        | "foyer" | "goosefs" | "git" | "smb" => false,
-        _ => true,
+/// Load the services enabled by the Python binding's `services-all` feature
+/// via `cargo metadata`, so the generated code always matches the feature set
+/// the PyPI wheels are built with.
+fn enabled_services(workspace_dir: &Path) -> Result<HashSet<String>> {
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .arg("--format-version")
+        .arg("1")
+        .arg("--features")
+        .arg("services-all")
+        .arg("--manifest-path")
+        .arg(workspace_dir.join("bindings/python/Cargo.toml"))
+        .output()
+        .context("failed to run `cargo metadata` for bindings/python")?;
+    if !output.status.success() {
+        bail!(
+            "`cargo metadata --features services-all` failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
     }
+
+    let metadata: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .context("failed to parse `cargo metadata` output")?;
+    let pkg_id = metadata["packages"]
+        .as_array()
+        .and_then(|pkgs| {
+            pkgs.iter()
+                .find(|pkg| pkg["name"] == "opendal-python")
+                .map(|pkg| pkg["id"].clone())
+        })
+        .with_context(|| "package `opendal-python` not found in `cargo metadata` output")?;
+    let node = metadata["resolve"]["nodes"]
+        .as_array()
+        .and_then(|nodes| nodes.iter().find(|node| node["id"] == pkg_id))
+        .with_context(
+            || "resolve node for `opendal-python` not found in `cargo metadata` output",
+        )?;
+
+    let mut services = HashSet::new();
+    for feature in node["features"].as_array().into_iter().flatten() {
+        let Some(name) = feature.as_str() else {
+            continue;
+        };
+        let Some(srv) = name.strip_prefix("services-") else {
+            continue;
+        };
+        if name != "services-all" {
+            services.insert(srv.replace('-', "_"));
+        }
+    }
+    if services.is_empty() {
+        bail!("no `services-*` features enabled in `cargo metadata` output");
+    }
+
+    Ok(services)
 }
 
 pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
-    let srvs = sorted_services(services, enabled_service);
+    // Service keys are directory names under core/services, which mix `-` and
+    // `_` (e.g. `aliyun-drive` vs `mini_moka`), so normalize both sides.
+    let enabled = enabled_services(&workspace_dir)?;
+    let srvs = sorted_services(services, |srv| {
+        let srv = srv.replace('-', "_");
+        enabled.contains(srv.as_str())
+    });
     let mut env = Environment::new();
     env.add_template("python", include_str!("python.j2"))?;
     env.add_template("python_config", include_str!("python_config.j2"))?;

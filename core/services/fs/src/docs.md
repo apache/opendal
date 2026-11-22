@@ -22,6 +22,19 @@ the modification time reported by the opened file's metadata, including
 subsecond precision when available. When both conditions are set, both must
 match.
 
+## Write
+
+With `atomic_write_dir` configured, writes with `if_not_exists(true)` check
+for an existing destination when committing the staged file. If the destination
+exists, the write returns [`opendal_core::ErrorKind::ConditionNotMatch`] and
+preserves the existing file. This also applies when `append(true)` is set.
+
+Staged conditional writes require Linux and kernel and filesystem support for
+`RENAME_NOREPLACE`. OpenDAL returns [`opendal_core::ErrorKind::Unsupported`]
+when that support is unavailable. The staging directory and the destination
+must be on the same filesystem. Without `atomic_write_dir`, conditional writes
+use exclusive file creation on all supported platforms.
+
 ## List
 
 When set, `start_after` returns entries in lexicographic order and excludes

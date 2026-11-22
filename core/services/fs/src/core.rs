@@ -190,25 +190,9 @@ impl FsCore {
 
         #[cfg(target_os = "linux")]
         if if_not_exists {
-            use rustix::fs::{CWD, RenameFlags, renameat_with};
-            use rustix::io::Errno;
-
-            let result = tokio::task::spawn_blocking(move || {
-                renameat_with(CWD, &from, CWD, &to, RenameFlags::NOREPLACE)
-            })
-            .await
-            .map_err(new_task_join_error)?;
-
-            return result.map_err(|err| match err {
-                Errno::INVAL | Errno::NOSYS | Errno::OPNOTSUPP => Error::new(
-                    ErrorKind::Unsupported,
-                    "The kernel or filesystem does not support conditional rename",
-                )
-                .set_source(err),
-                _ => parse_conditional_rename_directory_error(err.into(), |err| {
-                    parse_error(ErrorContext::new(ServiceOperation("Rename")), err)
-                }),
-            });
+            return tokio::task::spawn_blocking(move || rename_noreplace(&from, &to))
+                .await
+                .map_err(new_task_join_error)?;
         }
 
         tokio::fs::rename(from, to)
@@ -276,6 +260,23 @@ impl FsCore {
 /// Using "user." as the standard namespace for user-defined attributes.
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
+
+#[cfg(target_os = "linux")]
+pub(super) fn rename_noreplace(from: &Path, to: &Path) -> Result<()> {
+    use rustix::fs::{CWD, RenameFlags, renameat_with};
+    use rustix::io::Errno;
+
+    renameat_with(CWD, from, CWD, to, RenameFlags::NOREPLACE).map_err(|err| match err {
+        Errno::INVAL | Errno::NOSYS | Errno::OPNOTSUPP => Error::new(
+            ErrorKind::Unsupported,
+            "The kernel or filesystem does not support conditional rename",
+        )
+        .set_source(err),
+        _ => parse_conditional_rename_directory_error(err.into(), |err| {
+            parse_error(ErrorContext::new(ServiceOperation("Rename")), err)
+        }),
+    })
+}
 
 #[cfg(target_os = "linux")]
 fn parse_conditional_rename_directory_error(

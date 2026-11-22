@@ -25,9 +25,15 @@ import "context"
 // including its storage scheme, root path, name, and capabilities.
 //
 // Returns:
-//   - *OperatorInfo: A pointer to an OperatorInfo struct containing the Operator's metadata.
+//   - *OperatorInfo: A pointer to an OperatorInfo struct containing the
+//     Operator's metadata, or nil once the Operator is closed.
 func (op *Operator) Info() *OperatorInfo {
-	inner := ffiOperatorInfoNew.symbol(op.ctx)(op.inner)
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil
+	}
+	defer release()
+	inner := ffiOperatorInfoNew.symbol(op.ctx)(opInner)
 	defer ffiOperatorInfoFree.symbol(op.ctx)(inner)
 
 	return &OperatorInfo{

@@ -59,8 +59,14 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		meta, err := ffiOperatorStat.symbol(op.ctx)(op.inner, path)
+		meta, err := ffiOperatorStat.symbol(op.ctx)(inner, path)
 		if err != nil {
 			return nil, err
 		}
@@ -73,7 +79,7 @@ func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
 		return nil, err
 	}
 	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	meta, err := ffiOperatorStatWith.symbol(op.ctx)(op.inner, path, cOpts)
+	meta, err := ffiOperatorStatWith.symbol(op.ctx)(inner, path, cOpts)
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -240,7 +246,12 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //		fmt.Println("The file does not exist")
 //	}
 func (op *Operator) IsExist(path string) (bool, error) {
-	return ffiOperatorIsExist.symbol(op.ctx)(op.inner, path)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return false, err
+	}
+	defer release()
+	return ffiOperatorIsExist.symbol(op.ctx)(inner, path)
 }
 
 var ffiOperatorStat = newFFI(

@@ -42,7 +42,7 @@ func TestReaderReturnsAvailablePrefix(t *testing.T) {
 					<-blocked
 					return 0, nil
 				}
-				r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read)}
+				r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read), inner: newTestReaderHandle()}
 				done := make(chan struct{})
 				buf := make([]byte, size)
 				var n int
@@ -84,7 +84,7 @@ func TestReaderCopyWritesAvailablePrefix(t *testing.T) {
 			<-blocked
 			return 0, nil
 		}
-		r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read)}
+		r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read), inner: newTestReaderHandle()}
 		var dst bytes.Buffer
 		go func() {
 			if n, err := io.Copy(struct{ io.Writer }{&dst}, r); n != 3 || err != nil {
@@ -122,7 +122,7 @@ func TestReaderReadResults(t *testing.T) {
 				calls++
 				return uint(copy(p, tc.data)), tc.err
 			}
-			r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read)}
+			r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read), inner: newTestReaderHandle()}
 			buf := make([]byte, tc.size)
 			n, err := r.Read(buf)
 			if n != tc.wantN || err != tc.wantErr || string(buf[:n]) != tc.data[:n] {
@@ -149,7 +149,7 @@ func TestReaderReturnsLaterErrorOnNextRead(t *testing.T) {
 		}
 		return 0, failure
 	}
-	r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read)}
+	r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read), inner: newTestReaderHandle()}
 	buf := make([]byte, 8)
 	if n, err := r.Read(buf); n != 3 || err != nil {
 		t.Fatalf("first Read = (%d, %v), want (3, nil)", n, err)
@@ -174,7 +174,7 @@ func TestReaderShortReadsWithReadFullSeekAndClose(t *testing.T) {
 	})
 	closed := 0
 	ctx = context.WithValue(ctx, ffiReaderFree.sym, func(_ *opendalReader) { closed++ })
-	r := &Reader{ctx: ctx}
+	r := &Reader{ctx: ctx, inner: newTestReaderHandle()}
 	buf := make([]byte, 8)
 	if n, err := r.Read(buf); n != 3 || err != nil {
 		t.Fatalf("Read = (%d, %v)", n, err)
@@ -217,7 +217,7 @@ func BenchmarkReaderProgressive(b *testing.B) {
 				pos += n
 				return uint(n), nil
 			}
-			r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read)}
+			r := &Reader{ctx: context.WithValue(context.Background(), ffiReaderRead.sym, read), inner: newTestReaderHandle()}
 			buf := make([]byte, size)
 			calls := 0
 			b.SetBytes(int64(len(data)))

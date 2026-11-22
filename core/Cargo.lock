@@ -7559,7 +7559,10 @@ dependencies = [
  "dotenvy",
  "fastrace",
  "fastrace-jaeger",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
+ "opendal-service-http",
  "tokio",
 ]
 

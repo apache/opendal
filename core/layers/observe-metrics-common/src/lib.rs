@@ -615,13 +615,14 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                 Err(err)
             }
             Ok(resp) => {
-                if resp.status().is_client_error() || resp.status().is_server_error() {
+                let is_status_error =
+                    resp.status().is_client_error() || resp.status().is_server_error();
+                if is_status_error {
                     self.interceptor.observe(
                         labels.clone().with_status_code(resp.status()),
                         MetricValue::HttpStatusErrorsTotal,
                     );
                 }
-                guard.defuse();
                 self.interceptor.observe(
                     labels.clone(),
                     MetricValue::HttpRequestBytes(req_size as u64),
@@ -644,8 +645,14 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                         size: 0,
                         start: Instant::now(),
                         succeeded: false,
+                        is_status_error,
+                        polled: false,
                     })
                 });
+                // Defuse only after the response body wrapper takes over the
+                // `http_executing` decrement, so a panic above can't leak the
+                // gauge or double-decrement it.
+                guard.defuse();
 
                 Ok(http::Response::from_parts(parts, body))
             }
@@ -661,6 +668,15 @@ struct MetricsStream<S, I: MetricsIntercept> {
     size: u64,
     start: Instant,
     succeeded: bool,
+    /// Whether the response carried a 4xx/5xx status code.
+    is_status_error: bool,
+    /// Whether the body stream was polled at least once.
+    ///
+    /// Services routinely drop error responses without reading the body, so an
+    /// unread 4xx/5xx body does not indicate a transport failure. Once the
+    /// body has been polled, an unfinished stream means the transfer was cut
+    /// short and counts as a connection error again.
+    polled: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -671,6 +687,7 @@ where
     type Item = Result<Buffer>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.polled = true;
         match ready!(self.inner.poll_next_unpin(cx)) {
             Some(Ok(bs)) => {
                 self.size += bs.len() as u64;
@@ -690,7 +707,10 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
         let resp_size = self.size;
         let resp_duration = self.start.elapsed();
 
-        if !self.succeeded {
+        // An unread error response body is normal control flow, not a
+        // connection failure; only a body that was started and never finished
+        // counts as one.
+        if !self.succeeded && (!self.is_status_error || self.polled) {
             self.interceptor
                 .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
         }
@@ -1603,8 +1623,10 @@ mod tests {
         );
         assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
 
+        // An unread error body is normal control flow, not a connection error.
         drop(resp);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
     }
 
     #[tokio::test]
@@ -1626,8 +1648,10 @@ mod tests {
         );
         assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
 
+        // An unread error body is normal control flow, not a connection error.
         drop(resp);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
     }
 
     #[tokio::test]
@@ -1699,9 +1723,9 @@ mod tests {
             ),
         );
 
-        // Dropping an unconsumed error body must still decrement
-        // `http_executing` and record the response metrics observed so far,
-        // matching the early-drop handling of successful responses.
+        // Services routinely drop error responses without reading the body.
+        // That must still decrement `http_executing` and record the response
+        // metrics observed so far, but it is not a connection error.
         let resp = fetcher.fetch(build_http_request()).await.unwrap();
         drop(resp);
 
@@ -1717,6 +1741,40 @@ mod tests {
             mock.get_duration_seconds("opendal_http_response_duration_seconds")
                 .is_some()
         );
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_body_failure_records_connection_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                vec![
+                    Ok(Buffer::from("partial")),
+                    Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+                ],
+            ),
+        );
+
+        // An error body that was started and then failed mid-read is a real
+        // transfer failure and counts as a connection error.
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        let (_, mut body) = resp.into_parts();
+        let res = body.to_buffer().await;
+        assert!(res.is_err());
+        drop(body);
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(7));
         assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
     }
@@ -1811,6 +1869,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while s.next().await.is_some() {}
@@ -1835,6 +1895,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         let _ = s.next().await;
@@ -1862,6 +1924,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while let Some(res) = s.next().await {

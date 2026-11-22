@@ -390,6 +390,10 @@ impl Operator {
 
     /// Retrieve the metadata for the specified path.
     ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
+    ///
     /// # Notes
     ///
     /// ## Extra Options
@@ -421,6 +425,10 @@ impl Operator {
     }
 
     /// Retrieve the metadata of the specified path with additional options.
+    ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
     /// # Options
     ///
@@ -467,6 +475,10 @@ impl Operator {
     }
 
     /// Retrieve the metadata of the specified path with additional options.
+    ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
     /// # Examples
     ///

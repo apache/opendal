@@ -266,11 +266,11 @@ impl Operator {
     ///
     /// # Behavior
     ///
-    /// ## Services that support `create_dir`
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    /// ## Services that support `create_dir`
     ///
     /// Here are the behavior list:
     ///
@@ -319,11 +319,11 @@ impl Operator {
     ///
     /// # Behavior
     ///
-    /// ## Services that support `create_dir`
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
-    /// `test` and `test/` may vary in some services such as S3. However, on a local file system,
-    /// they're identical. Therefore, the behavior of `stat("test")` and `stat("test/")` might differ
-    /// in certain edge cases. Always use `stat("test/")` when you need to access a directory if possible.
+    /// ## Services that support `create_dir`
     ///
     /// Here are the behavior list:
     ///

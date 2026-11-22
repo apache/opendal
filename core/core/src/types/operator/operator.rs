@@ -1866,9 +1866,10 @@ impl Operator {
     ///
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first.
-    /// - With `recursive(true)`, include the trailing slash in directory paths
-    ///   (for example, `"a/"`). On prefix-based services, `"a"` can also match
-    ///   entries under `"ab/"`.
+    /// - With `recursive(true)`, use a trailing slash (for example, `"a/"`) to
+    ///   scope deletion to a directory across services. Prefix matching for
+    ///   paths without a trailing slash is service-specific and can include
+    ///   siblings such as `"ab/"` when deleting `"a"`.
     ///
     /// # Options
     ///
@@ -1917,9 +1918,11 @@ impl Operator {
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first. Visit
     ///   [`options::DeleteOptions`] for the conditional delete contract.
-    /// - With [`options::DeleteOptions::recursive`] enabled, include the trailing
-    ///   slash in directory paths (for example, `"a/"`). On prefix-based
-    ///   services, `"a"` can also match entries under `"ab/"`.
+    /// - With [`options::DeleteOptions::recursive`] enabled, use a trailing
+    ///   slash (for example, `"a/"`) to scope deletion to a directory across
+    ///   services. Prefix matching for paths without a trailing slash is
+    ///   service-specific and can include siblings such as `"ab/"` when
+    ///   deleting `"a"`.
     ///
     /// # Examples
     ///
@@ -2041,8 +2044,11 @@ impl Operator {
 
     /// Recursively delete entries at the given path.
     ///
-    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
-    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
+    /// A path ending in `/`, such as `"a/"`, is the only portable way to
+    /// scope deletion to a directory and its descendants. Prefix matching for
+    /// paths without a trailing slash is service-specific. For example, `"a"`
+    /// can also match entries under `"ab/"` on prefix-based services such as
+    /// `memory`.
     ///
     /// # Deprecated
     ///

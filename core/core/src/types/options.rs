@@ -53,10 +53,11 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete the target recursively.
     ///
-    /// The default, `false`, deletes a single object. With `true`, pass a path
-    /// with a trailing slash, such as `"a/"`, to limit deletion to that directory.
-    /// On prefix-based services such as `memory`, `"a"` also matches entries
-    /// under `"ab/"`.
+    /// The default, `false`, deletes a single object. With `true`, a trailing
+    /// slash (for example, `"a/"`) scopes deletion to a directory and its
+    /// descendants across services. Prefix matching for paths without a
+    /// trailing slash is service-specific. On prefix-based services such as
+    /// `memory`, `"a"` also matches entries under `"ab/"`.
     pub recursive: bool,
     /// Delete only when the file at the delete path has this exact ETag.
     ///

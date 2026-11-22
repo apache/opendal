@@ -747,8 +747,11 @@ impl Operator {
 
     /// Recursively delete entries at the given path.
     ///
-    /// Pass a trailing slash, such as `"a/"`, to limit deletion to that directory.
-    /// On prefix-based services, `"a"` can also match entries under `"ab/"`.
+    /// A path ending in `/`, such as `"a/"`, is the only portable way to
+    /// scope deletion to a directory and its descendants. Prefix matching for
+    /// paths without a trailing slash is service-specific. For example, `"a"`
+    /// can also match entries under `"ab/"` on prefix-based services such as
+    /// `memory`.
     ///
     /// # Deprecated
     ///

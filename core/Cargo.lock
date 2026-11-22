@@ -7490,6 +7490,8 @@ name = "opendal-layer-async-backtrace"
 version = "0.59.5"
 dependencies = [
  "async-backtrace",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
 ]
 

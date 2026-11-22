@@ -406,10 +406,11 @@ impl WebhdfsCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        recursive: bool,
     ) -> Result<Response<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let mut url = format!(
-            "{}/webhdfs/v1/{}?op=DELETE&recursive=false",
+            "{}/webhdfs/v1/{}?op=DELETE&recursive={recursive}",
             self.endpoint,
             percent_encode_path(&p),
         );

@@ -20,6 +20,9 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+WebHDFS supports native recursive delete for directories. A recursive delete
+removes the directory and its descendants in a single WebHDFS request.
+
 ## Differences with HDFS
 
 The [HDFS service](https://docs.rs/opendal-service-hdfs) uses HDFS's native

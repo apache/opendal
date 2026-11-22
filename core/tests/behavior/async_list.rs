@@ -695,21 +695,21 @@ pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Res
 
 pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
-
-    let paths = ["y", "yy"];
-    for path in paths.iter() {
-        if path.ends_with('/') {
-            op.create_dir(&format!("{parent}/{path}")).await?;
-        } else {
-            op.write(&format!("{parent}/{path}"), "test_scan").await?;
-        }
+    for path in ["y", "yy", "other"] {
+        op.write(&format!("{parent}/{path}"), "test_scan").await?;
     }
-    let w = op
-        .lister_with(&format!("{parent}/y"))
+
+    let prefix = format!("{parent}/y");
+    if op.info().scheme() == "webdav" {
+        let entries = op.list(&prefix).await?;
+        let mut paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        paths.sort_unstable();
+        assert_eq!(paths, [prefix.clone(), format!("{parent}/yy")]);
+    }
+
+    let mut actual = op
+        .list_with(&prefix)
         .recursive(true)
-        .await?;
-    let mut actual = w
-        .try_collect::<Vec<_>>()
         .await?
         .into_iter()
         .map(|v| {

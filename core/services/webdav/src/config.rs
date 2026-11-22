@@ -54,6 +54,14 @@ pub struct WebdavConfig {
     ///
     /// Default: false
     pub disable_create_dir: bool,
+    /// Disable native recursive listing with WebDAV's `Depth: infinity`.
+    ///
+    /// Set this to `true` for servers that reject or ignore infinity depth.
+    /// With capability simulation enabled, OpenDAL walks the directory tree
+    /// using `Depth: 1` requests instead.
+    ///
+    /// The default is `false`.
+    pub disable_depth_infinity: bool,
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -94,6 +102,7 @@ impl Default for WebdavConfig {
             root: None,
             disable_copy: false,
             disable_create_dir: false,
+            disable_depth_infinity: false,
             enable_user_metadata: false,
             user_metadata_prefix: None,
             user_metadata_uri: None,
@@ -109,6 +118,7 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_create_dir", &self.disable_create_dir)
+            .field("disable_depth_infinity", &self.disable_depth_infinity)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()

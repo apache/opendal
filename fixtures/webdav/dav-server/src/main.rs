@@ -29,6 +29,7 @@ async fn main() -> io::Result<()> {
     let handler = DavHandler::builder()
         .filesystem(LocalFs::new(root, false, false, false))
         .locksystem(FakeLs::new())
+        .allow_infinity_depth(true)
         .build_handler();
 
     let listener = TcpListener::bind(("127.0.0.1", 0)).await?;

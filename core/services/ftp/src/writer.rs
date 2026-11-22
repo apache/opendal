@@ -25,19 +25,44 @@ use super::core::format_ftp_error;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Tracks how far `FtpWriter::close` progressed so that a retry after a
-/// temporary error never re-opens the data stream or re-commits a file that
-/// already holds the final content.
-#[derive(Debug, PartialEq, Eq)]
+/// How far `close` progressed on this writer.
+///
+/// Retry safety: `CompleteWriter` keeps the inner writer on error and
+/// `RetryLayer` may call `close` again after a temporary failure. FTP cannot
+/// tell apart partial and complete staging content afterwards, so every
+/// remote-mutating step must run at most once:
+///
+/// - `Transfer` is the only state that may open or consume the data stream.
+/// - Consuming the stream to finalize it leaves `Transfer` for good. If the
+///   transfer then fails or its outcome is unknown, the state becomes
+///   `Failed`, which fails `close` permanently instead of re-opening `APPE`
+///   or renaming a possibly partial staging file over the target.
+/// - `Rename` and `Report` no longer touch the data stream and are safe to
+///   retry: the staging file already holds the final content.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CloseState {
-    /// The data stream may still be written to; nothing was finalized yet.
-    Open,
-    /// The data stream was flushed and finalized; the staged tmp file may
-    /// still need the rename onto the target path.
-    Finalized,
-    /// The target path holds the final content; only metadata reporting
-    /// remains.
-    Committed,
+    /// The data stream may still be opened and written to.
+    Transfer,
+    /// The stream was consumed and finalized; a staged tmp file may still
+    /// need the rename onto the target path.
+    Rename,
+    /// The remote file is committed; only metadata reporting remains.
+    Report,
+    /// The transfer was consumed but its outcome failed or is unknown, so
+    /// the remote file may hold partial data. Terminal: `close` fails
+    /// permanently without mutating the remote file again.
+    Failed,
+    /// All steps completed; `close` returns the cached metadata.
+    Done,
+}
+
+impl CloseState {
+    /// The data stream may only be opened while the writer is still in
+    /// `Transfer`. Once the stream was consumed the remote content is out of
+    /// our control and the stream must never be re-opened.
+    fn may_open_data_stream(self) -> bool {
+        self == CloseState::Transfer
+    }
 }
 
 pub struct FtpWriter {
@@ -50,6 +75,8 @@ pub struct FtpWriter {
     ftp_stream: bounded::Object<Manager>,
     /// Bytes actually sent over the data stream.
     written: u64,
+    /// Metadata reported once the writer reached `CloseState::Done`.
+    result: Option<Metadata>,
     state: CloseState,
 }
 
@@ -73,16 +100,24 @@ impl FtpWriter {
             data_stream: None,
             ftp_stream,
             written: 0,
-            state: CloseState::Open,
+            result: None,
+            state: CloseState::Transfer,
         }
     }
 
-    /// Open the data stream on first use so that empty writes and appends still
-    /// create the remote file once the stream is finalized.
+    /// Open the data stream on first use so that empty writes and appends
+    /// still create the remote file once the stream is finalized.
     async fn data_stream(
         &mut self,
     ) -> Result<&mut Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>> {
         if self.data_stream.is_none() {
+            if !self.state.may_open_data_stream() {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "ftp data stream is already finalized",
+                )
+                .with_operation("FtpWriter::data_stream"));
+            }
             let path = self.tmp_path.as_ref().unwrap_or(&self.target_path);
             self.data_stream = Some(Box::new(
                 self.ftp_stream
@@ -101,8 +136,6 @@ impl FtpWriter {
 
 impl oio::Write for FtpWriter {
     async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        debug_assert_eq!(self.state, CloseState::Open);
-
         while bs.has_remaining() {
             let n = self
                 .data_stream()
@@ -120,13 +153,25 @@ impl oio::Write for FtpWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        // Each step runs at most once and only when the previous steps
-        // completed, so retrying close after a temporary error resumes
-        // where it left off instead of re-opening the transfer.
-        if self.state == CloseState::Open {
-            // Open the stream even when nothing was written so that empty
-            // writes and appends still create or touch the remote file.
+        // The transfer was already consumed and its outcome failed or is
+        // unknown; the remote file may hold partial data. Fail permanently
+        // so a retried close can never commit it.
+        if self.state == CloseState::Failed {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "ftp write transfer already failed; the remote file may hold partial data",
+            )
+            .with_operation("FtpWriter::close"));
+        }
+
+        if self.state == CloseState::Transfer {
+            // Opening the stream covers closing without any write. A failed
+            // open is the only step a retry may repeat, since the stream was
+            // never consumed at this point.
             self.data_stream().await?;
+            // Consuming the stream is the point of no return: whatever
+            // happens next, close must never re-open it.
+            self.state = CloseState::Rename;
             // Take the stream before flushing so a failed flush drops the
             // data connection instead of leaving it open.
             let mut data_stream = self
@@ -134,17 +179,19 @@ impl oio::Write for FtpWriter {
                 .take()
                 .expect("ftp data stream must be initialized");
             data_stream.flush().await.map_err(|err| {
+                self.state = CloseState::Failed;
                 Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
             })?;
-
             self.ftp_stream
                 .finalize_put_stream(data_stream)
                 .await
-                .map_err(format_ftp_error)?;
-            self.state = CloseState::Finalized;
+                .map_err(|err| {
+                    self.state = CloseState::Failed;
+                    format_ftp_error(err)
+                })?;
         }
 
-        if self.state == CloseState::Finalized {
+        if self.state == CloseState::Rename {
             if let Some(tmp_path) = &self.tmp_path {
                 self.ftp_stream
                     .rename(tmp_path, &self.target_path)
@@ -152,24 +199,33 @@ impl oio::Write for FtpWriter {
                     .map_err(format_ftp_error)?;
                 self.tmp_path = None;
             }
-            self.state = CloseState::Committed;
+            self.state = CloseState::Report;
         }
 
-        debug_assert_eq!(self.state, CloseState::Committed);
-
-        // An append's final size includes pre-existing content, so query it
-        // from the server; a regular write reports the bytes written through
-        // this stream, which also works on servers without RFC 3659 SIZE.
-        if self.append {
-            let size = self
-                .ftp_stream
-                .size(&self.target_path)
-                .await
-                .map_err(format_ftp_error)?;
-            Ok(MetadataBuilder::file(size as u64).build())
-        } else {
-            Ok(MetadataBuilder::file(self.written).build())
+        if self.state == CloseState::Report {
+            // An append's final size includes pre-existing content, so query
+            // it from the server; a regular write reports the bytes sent
+            // through this stream, which also works on servers without
+            // RFC 3659 SIZE.
+            let metadata = if self.append {
+                let size = self
+                    .ftp_stream
+                    .size(&self.target_path)
+                    .await
+                    .map_err(format_ftp_error)?;
+                MetadataBuilder::file(size as u64).build()
+            } else {
+                MetadataBuilder::file(self.written).build()
+            };
+            self.result = Some(metadata);
+            self.state = CloseState::Done;
         }
+
+        debug_assert_eq!(self.state, CloseState::Done);
+        Ok(self
+            .result
+            .clone()
+            .expect("ftp writer must have reported metadata"))
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -193,7 +249,7 @@ fn build_ftp_tmp_path(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::build_ftp_tmp_path;
+    use super::*;
 
     #[test]
     fn test_build_ftp_tmp_path() {
@@ -208,5 +264,17 @@ mod tests {
             assert_eq!(stem, path);
             assert!(!suffix.is_empty() && !suffix.contains('/'), "{tmp_path}");
         }
+    }
+
+    /// Once the data stream was consumed, the remote content is out of our
+    /// control: the stream must never be re-opened, and a failed or finished
+    /// close must not be able to mutate the remote file again.
+    #[test]
+    fn only_transfer_may_open_data_stream() {
+        assert!(CloseState::Transfer.may_open_data_stream());
+        assert!(!CloseState::Rename.may_open_data_stream());
+        assert!(!CloseState::Report.may_open_data_stream());
+        assert!(!CloseState::Failed.may_open_data_stream());
+        assert!(!CloseState::Done.may_open_data_stream());
     }
 }

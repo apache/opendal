@@ -135,4 +135,13 @@ public class OperatorInfoTest {
             }
         }
     }
+
+    @Test
+    public void testListWithGlobCapability() {
+        try (AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                AsyncOperator disabled = op.layer(new CapabilityOverrideLayer("list_with_glob=false"))) {
+            assertThat(op.info.capability.listWithGlob).isTrue();
+            assertThat(disabled.info.capability.listWithGlob).isFalse();
+        }
+    }
 }

@@ -96,7 +96,7 @@ fn make_operator_info<'a>(env: &mut Env<'a>, info: OperatorInfo) -> Result<JObje
 fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<JObject<'a>> {
     let capability = env.new_object(
         jni_str!("org/apache/opendal/Capability"),
-        jni_sig!("(ZZZZZZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZ)V"),
+        jni_sig!("(ZZZZZZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZZ)V"),
         &[
             JValue::Bool(cap.stat),
             JValue::Bool(cap.stat_with_if_match),
@@ -144,6 +144,7 @@ fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<JObject<'a>
             JValue::Bool(cap.read_with_if_version_not_match),
             JValue::Bool(cap.read_with_if_modified_since),
             JValue::Bool(cap.read_with_if_unmodified_since),
+            JValue::Bool(cap.list_with_glob),
         ],
     )?;
     Ok(capability)
@@ -296,10 +297,10 @@ fn make_list_options<'a>(
     Ok(opendal::options::ListOptions {
         limit: convert::read_jlong_field_to_usize(env, options, "limit")?,
         start_after: convert::read_string_field(env, options, "startAfter")?,
-        recursive: convert::read_bool_field(env, options, "recursive").unwrap_or_default(),
-        versions: convert::read_bool_field(env, options, "versions").unwrap_or_default(),
-        deleted: convert::read_bool_field(env, options, "deleted").unwrap_or_default(),
-        ..Default::default()
+        recursive: convert::read_bool_field(env, options, "recursive")?,
+        versions: convert::read_bool_field(env, options, "versions")?,
+        deleted: convert::read_bool_field(env, options, "deleted")?,
+        glob: convert::read_string_field(env, options, "glob")?,
     })
 }
 

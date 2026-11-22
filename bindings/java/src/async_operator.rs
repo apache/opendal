@@ -487,12 +487,13 @@ fn intern_list(
     path: JString,
     options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
-
     let path = jstring_to_string(env, &path)?;
     let list_opts = make_list_options(env, &options)?;
-    executor_or_default(env, executor)?.spawn(async move {
+    let op = unsafe { &*op }.clone();
+
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.list_options(&path, list_opts).await;
         complete_future(id, move |env| make_entries(env, result?));
     });

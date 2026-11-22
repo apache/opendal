@@ -171,6 +171,24 @@ for (Entry entry : op.list("dir/", options)) {
 }
 ```
 
+To filter entries by pattern, set `glob`. The pattern itself determines which
+directory depths can match, independently of `recursive` (`*` matches within a
+single path component, while `**` matches across subdirectories):
+
+```java
+ListOptions globOptions = ListOptions.builder().glob("**/*.jpg").build();
+for (Entry entry : op.list("dir/", globOptions)) {
+    System.out.println(entry.getPath());
+}
+```
+
+`operator.info.capability.listWithGlob` reports the operator's effective glob
+capability, which can be provided by `GlobLayer` even when the underlying
+service does not filter globs natively. `ListOptions` also supports `limit` (a
+per-request page size hint), `startAfter`, `versions`, and `deleted`. Setting an
+option that the operator does not support fails with `Unsupported`, and an empty
+or malformed glob pattern fails with `ConfigInvalid`.
+
 ## Delete a file or a whole tree
 
 ```java

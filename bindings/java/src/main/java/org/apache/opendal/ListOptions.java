@@ -21,6 +21,11 @@ package org.apache.opendal;
 
 import lombok.Builder;
 
+/**
+ * Options for listing entries under a path. An option that requires a capability the operator
+ * lacks fails with {@code Unsupported}. Empty or malformed glob patterns fail with
+ * {@code ConfigInvalid}. Optional reference fields default to null.
+ */
 @Builder
 public class ListOptions {
 
@@ -51,4 +56,14 @@ public class ListOptions {
      * The deleted is used to control whether the deleted objects should be returned.
      */
     public final boolean deleted;
+
+    /**
+     * Filters entries with a case-sensitive Unix shell-style glob pattern relative to the listed
+     * directory (or its parent directory when the list path has no trailing slash).
+     * The pattern determines which depths can match, independently of {@link #recursive}.
+     * Requires {@link Capability#listWithGlob}, which reflects the operator's effective capability
+     * and may be provided by {@code GlobLayer}. Empty or malformed patterns fail with
+     * {@code ConfigInvalid}.
+     */
+    public final String glob;
 }

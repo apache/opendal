@@ -22,8 +22,181 @@ import io
 import unittest
 import urllib.error
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
 
 import label
+
+REPOSITORY_ID = 101
+HEAD_REPOSITORY_ID = 202
+HEAD_BRANCH = "topic/feature+fix"
+HEAD_SHA = "f" * 40
+
+
+def workflow_run_event():
+    return {
+        "workflow_run": {
+            "conclusion": "success",
+            "event": "pull_request",
+            "path": ".github/workflows/label_pr_signal.yml",
+            "repository": {"id": REPOSITORY_ID},
+            "head_repository": {"id": HEAD_REPOSITORY_ID, "owner": {"login": "fork"}},
+            "head_branch": HEAD_BRANCH,
+            "head_sha": HEAD_SHA,
+            "pull_requests": [],
+        }
+    }
+
+
+def pull_request(number=1, base_ref="main"):
+    return {
+        "number": number,
+        "state": "open",
+        "base": {"repo": {"id": REPOSITORY_ID}, "ref": base_ref},
+        "head": {
+            "repo": {"id": HEAD_REPOSITORY_ID},
+            "ref": HEAD_BRANCH,
+            "sha": HEAD_SHA,
+        },
+    }
+
+
+class ResolveTests(unittest.TestCase):
+    def test_fork_lookup_paginates_and_deduplicates(self):
+        matching = pull_request(42)
+        earlier_page = [{**pull_request(), "state": "closed"}] * 100
+        with (
+            patch.dict("os.environ", {"GH_TOKEN": "test"}),
+            patch.object(
+                label, "request", side_effect=[earlier_page, [matching, matching]]
+            ) as request,
+        ):
+            github = label.GitHub("apache/opendal")
+            self.assertEqual(
+                label.resolve_pr(github, workflow_run_event(), REPOSITORY_ID), 42
+            )
+        urls = [urlsplit(call.args[0]) for call in request.call_args_list]
+        self.assertEqual(
+            [url.path for url in urls], ["/repos/apache/opendal/pulls"] * 2
+        )
+        self.assertEqual(
+            [parse_qs(url.query) for url in urls],
+            [
+                {
+                    "state": ["open"],
+                    "head": ["fork:topic/feature+fix"],
+                    "per_page": ["100"],
+                    "page": [page],
+                }
+                for page in ("1", "2")
+            ],
+        )
+
+    def test_attached_pr_is_validated_using_its_live_details(self):
+        event = workflow_run_event()
+        event["workflow_run"]["pull_requests"] = [{"number": 42}]
+        github = unittest.mock.Mock()
+        github.call.return_value = pull_request(42)
+        self.assertEqual(label.resolve_pr(github, event, REPOSITORY_ID), 42)
+        github.call.assert_called_once_with("/pulls/42")
+        github.pages.assert_not_called()
+
+    def test_closed_or_mismatched_prs_are_skipped(self):
+        for changed in (
+            {"state": "closed"},
+            {"base": {"repo": {"id": 999}}},
+            {"head": {**pull_request()["head"], "repo": {"id": 999}}},
+            {"head": {**pull_request()["head"], "repo": None}},
+            {"head": {**pull_request()["head"], "ref": "different"}},
+            {"head": {**pull_request()["head"], "sha": "a" * 40}},
+        ):
+            for attached in ([], [{"number": 1}]):
+                with (
+                    self.subTest(changed=changed, attached=attached),
+                    patch("builtins.print"),
+                ):
+                    event = workflow_run_event()
+                    event["workflow_run"]["pull_requests"] = attached
+                    github = unittest.mock.Mock()
+                    github.call.return_value = {**pull_request(), **changed}
+                    github.pages.return_value = [github.call.return_value]
+                    self.assertIsNone(label.resolve_pr(github, event, REPOSITORY_ID))
+
+    def test_ambiguous_fork_lookup_between_base_branches_is_skipped(self):
+        github = unittest.mock.Mock()
+        github.pages.return_value = [
+            pull_request(1),
+            pull_request(2, base_ref="release"),
+        ]
+        with patch("builtins.print") as log:
+            self.assertIsNone(
+                label.resolve_pr(github, workflow_run_event(), REPOSITORY_ID)
+            )
+        self.assertIn("Multiple open PRs", log.call_args.args[0])
+
+    def test_rejects_other_workflow_paths_repositories_events_and_conclusions(self):
+        for field, value in (
+            ("path", ".github/workflows/another_signal.yml"),
+            ("repository", {"id": 999}),
+            ("event", "push"),
+            ("conclusion", "failure"),
+        ):
+            with self.subTest(field=field):
+                event = workflow_run_event()
+                event["workflow_run"][field] = value
+                github = unittest.mock.Mock()
+                self.assertIsNone(label.resolve_pr(github, event, REPOSITORY_ID))
+                self.assertEqual(github.mock_calls, [])
+
+    def test_missing_head_repository_is_skipped(self):
+        for present in (False, True):
+            with self.subTest(present=present):
+                event = workflow_run_event()
+                event["workflow_run"]["pull_requests"] = [{"number": 1}]
+                del event["workflow_run"]["head_repository"]
+                if present:
+                    event["workflow_run"]["head_repository"] = None
+                github = unittest.mock.Mock()
+                self.assertIsNone(label.resolve_pr(github, event, REPOSITORY_ID))
+                self.assertEqual(github.mock_calls, [])
+
+    def test_resolve_cli_sets_output_only_for_a_positive_pr_number(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        for number, expected in (
+            (42, "pr_number=42\n"),
+            (0, ""),
+            ("42", ""),
+            (True, ""),
+        ):
+            with (
+                self.subTest(number=number),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                event = workflow_run_event()
+                event["workflow_run"]["pull_requests"] = [{"number": number}]
+                event_path = Path(directory) / "event.json"
+                event_path.write_text(json.dumps(event))
+                output_path = Path(directory) / "output"
+                output_path.touch()
+                with (
+                    patch("sys.argv", ["label.py", "resolve"]),
+                    patch.dict(
+                        "os.environ",
+                        {
+                            "GH_TOKEN": "test",
+                            "GITHUB_REPOSITORY": "apache/opendal",
+                            "GITHUB_REPOSITORY_ID": str(REPOSITORY_ID),
+                            "GITHUB_EVENT_PATH": str(event_path),
+                            "GITHUB_OUTPUT": str(output_path),
+                        },
+                    ),
+                    patch.object(label, "request", return_value=pull_request(42)),
+                    patch("builtins.print"),
+                ):
+                    label.main()
+                self.assertEqual(output_path.read_text(), expected)
 
 
 class LabelTests(unittest.TestCase):
@@ -92,8 +265,13 @@ class LabelTests(unittest.TestCase):
             item = self.item()
             github = FakeGitHub(item)
             with self.subTest(result=result), self.assertRaises(ValueError):
-                label.label_event(
-                    github, {"pull_request": item}, lambda _: result, apply=True
+                label.label_pr(
+                    github,
+                    workflow_run_event(),
+                    REPOSITORY_ID,
+                    1,
+                    lambda _, result=result: result,
+                    apply=True,
                 )
             self.assertEqual(github.writes, [])
 
@@ -101,9 +279,11 @@ class LabelTests(unittest.TestCase):
         item = self.item()
         github = FakeGitHub(item)
         with patch("builtins.print"):
-            label.label_event(
+            label.label_pr(
                 github,
-                {"pull_request": item},
+                workflow_run_event(),
+                REPOSITORY_ID,
+                1,
                 lambda _: {
                     "category": "fix",
                     "components": [
@@ -172,7 +352,7 @@ class LabelTests(unittest.TestCase):
             )
             self.assertIn("size:" + size, labels)
 
-    def test_event_applies_only_current_item_and_replaces_size(self):
+    def test_pr_applies_only_current_item_and_replaces_size(self):
         item = self.item()
         item["labels"] = [
             {"name": "lgtm"},
@@ -181,9 +361,11 @@ class LabelTests(unittest.TestCase):
         ]
         github = FakeGitHub(item)
         with patch("builtins.print"):
-            label.label_event(
+            label.label_pr(
                 github,
-                {"pull_request": item},
+                workflow_run_event(),
+                REPOSITORY_ID,
+                1,
                 lambda _: {
                     "category": "fix",
                     "components": ["services/goosefs"],
@@ -214,33 +396,104 @@ class LabelTests(unittest.TestCase):
             )
         self.assertEqual(github.writes, [])
 
-    def test_stale_head_or_body_cannot_apply_results(self):
-        for changed in ("body", "head"):
-            item = self.item()
-            github = FakeGitHub(item)
+    def test_open_issue_is_classified(self):
+        item = self.item(False)
+        github = FakeGitHub(item)
+        with patch("builtins.print"):
+            label.label_event(
+                github,
+                {"issue": item},
+                lambda _: {"category": "bug", "components": ["core"]},
+                apply=True,
+            )
+        self.assertEqual(
+            github.writes,
+            [("/issues/1/labels", "POST", {"labels": ["bug", "core"]})],
+        )
+
+    def test_pr_uses_live_title_body_and_files_after_resolution(self):
+        import json
+
+        github = FakeGitHub(self.item())
+        github.files = [
+            {"filename": "website/index.md", "additions": 10, "deletions": 0}
+        ]
+        event = workflow_run_event()
+        event["workflow_run"]["pull_requests"] = [{"number": 1}]
+        number = label.resolve_pr(github, event, REPOSITORY_ID)
+        self.assertEqual(number, 1)
+        github.item.update(title="docs: document writes", body="An edited description.")
+
+        def infer(request):
+            data = json.loads(request["messages"][1]["content"])
+            self.assertEqual(data["title"], "docs: document writes")
+            self.assertEqual(data["body"], "An edited description.")
+            self.assertEqual(data["files"], ["website/index.md"])
+            return {
+                "category": "docs",
+                "components": ["website"],
+                "breaking_change": False,
+            }
+
+        with patch("builtins.print"):
+            label.label_pr(github, event, REPOSITORY_ID, number, infer, apply=True)
+        self.assertEqual(
+            github.writes,
+            [
+                (
+                    "/issues/1/labels",
+                    "POST",
+                    {"labels": ["releases-note/docs", "size:S", "website"]},
+                )
+            ],
+        )
+
+    def test_pr_skips_a_head_change_between_resolution_and_classification(self):
+        github = FakeGitHub(self.item())
+        github.pull["head"]["sha"] = "b" * 40
+        with patch("builtins.print"):
+            label.label_pr(
+                github,
+                workflow_run_event(),
+                REPOSITORY_ID,
+                1,
+                lambda _: self.fail("unexpected inference"),
+                apply=True,
+            )
+        self.assertEqual(github.reads, ["/issues/1", "/pulls/1"])
+        self.assertEqual(github.writes, [])
+
+    def test_stale_head_title_or_body_cannot_apply_results(self):
+        for changed in ("title", "body", "head"):
+            github = FakeGitHub(self.item())
 
             def infer(_, changed=changed, github=github):
-                if changed == "body":
-                    github.item["body"] = "Updated purpose"
+                if changed == "head":
+                    github.pull["head"]["sha"] = "b" * 40
                 else:
-                    github.head = "new"
+                    github.item[changed] = "Updated purpose"
                 return {"category": "fix", "components": [], "breaking_change": False}
 
-            with patch("builtins.print"):
-                label.label_event(github, {"pull_request": item}, infer, apply=True)
-            self.assertEqual(github.writes, [])
+            with self.subTest(changed=changed), patch("builtins.print"):
+                label.label_pr(
+                    github, workflow_run_event(), REPOSITORY_ID, 1, infer, apply=True
+                )
+                self.assertEqual(github.writes, [])
 
-    def test_closed_item_is_skipped(self):
-        item = self.item()
-        item["state"] = "closed"
-        github = FakeGitHub(item)
-        label.label_event(
-            github,
-            {"pull_request": item},
-            lambda _: self.fail("unexpected inference"),
-            apply=True,
-        )
-        self.assertEqual(github.reads, [])
+    def test_pr_skips_closed_items_and_ordinary_issues(self):
+        for item in ({**self.item(), "state": "closed"}, self.item(False)):
+            with self.subTest(item=item):
+                github = FakeGitHub(item)
+                label.label_pr(
+                    github,
+                    workflow_run_event(),
+                    REPOSITORY_ID,
+                    1,
+                    lambda _: self.fail("unexpected inference"),
+                    apply=True,
+                )
+                self.assertEqual(github.reads, ["/issues/1"])
+                self.assertEqual(github.writes, [])
 
     def test_sync_only_creates_missing_labels(self):
         github = FakeGitHub(self.item())
@@ -321,7 +574,8 @@ class LabelTests(unittest.TestCase):
 class FakeGitHub:
     def __init__(self, item):
         self.item = copy.deepcopy(item)
-        self.head = "old"
+        self.pull = pull_request()
+        self.files = []
         self.reads = []
         self.writes = []
         self.labels = []
@@ -332,11 +586,16 @@ class FakeGitHub:
             return None
         self.reads.append(path)
         if path.startswith("/pulls/"):
-            return {"head": {"sha": self.head}}
+            return copy.deepcopy(self.pull)
         return copy.deepcopy(self.item)
 
     def pages(self, path):
-        return self.labels if path == "/labels" else []
+        self.reads.append(path)
+        if path == "/labels":
+            return self.labels
+        if path == "/pulls/1/files":
+            return self.files
+        raise AssertionError(f"Unexpected paginated path: {path}")
 
 
 if __name__ == "__main__":

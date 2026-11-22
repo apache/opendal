@@ -20,8 +20,9 @@ name: Label
 on:
   issues:
     types: [opened, edited, reopened]
-  pull_request_target:
-    types: [opened, edited, reopened, synchronize]
+  workflow_run:
+    workflows: [Label PR Signal]
+    types: [completed]
   push:
     branches: [main]
     paths:
@@ -31,16 +32,14 @@ on:
       - integrations/**
       - .github/workflows/label.yml
 
-permissions:
-  contents: read
-
-concurrency:
-  group: label-${{ github.event.pull_request.number || github.event.issue.number || 'catalog' }}
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
   catalog:
     if: github.event_name == 'push'
+    concurrency:
+      group: label-catalog
+      cancel-in-progress: false
     runs-on: ubuntu-slim
     timeout-minutes: 5
     permissions:
@@ -55,23 +54,63 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/label.py sync
 
+  resolve:
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.repository.id == github.repository_id &&
+      github.event.workflow_run.path == '.github/workflows/label_pr_signal.yml'
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+    steps:
+      # The receiver's SHA identifies the default-branch checkout.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Resolve the PR from the completed workflow run
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/label.py resolve
+
   classify:
-    if: github.event_name != 'push'
+    needs: resolve
+    if: >-
+      !cancelled() &&
+      (github.event_name == 'issues' ||
+      (github.event_name == 'workflow_run' && needs.resolve.result == 'success' &&
+      needs.resolve.outputs.pr_number > 0))
+    concurrency:
+      group: label-${{ needs.resolve.outputs.pr_number || github.event.issue.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-slim
     timeout-minutes: 5
     permissions:
       contents: read
       issues: write
+      # Labeling a pull request requires pull-requests: write.
       pull-requests: write
     steps:
-      # Never execute code from the PR being classified, including same-repo PRs.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.repository.default_branch }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Classify the current issue or PR
         env:
           GH_TOKEN: ${{ github.token }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: python3 scripts/label.py event --apply
+          PR_NUMBER: ${{ needs.resolve.outputs.pr_number }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ]; then
+            python3 scripts/label.py pr "$PR_NUMBER" --apply
+          else
+            python3 scripts/label.py event --apply
+          fi

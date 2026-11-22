@@ -753,7 +753,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     type Lister = MetricsWrapper<oio::Lister, I>;
     type Deleter = MetricsWrapper<oio::Deleter, I>;
     type Copier = MetricsWrapper<oio::Copier, I>;
-    type Composer = oio::Composer;
+    type Composer = MetricsWrapper<oio::Composer, I>;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -764,7 +764,34 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let labels = MetricLabels::new(self.info.clone(), Operation::Compose.into_static());
+
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        match self.inner.compose(ctx, to, args) {
+            Ok(composer) => {
+                guard.defuse();
+                Ok(MetricsWrapper::new(
+                    composer,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn create_dir(
@@ -1348,6 +1375,28 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
     }
 }
 
+impl<C: oio::Compose, I: MetricsIntercept> oio::Compose for MetricsWrapper<C, I> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner
+            .compose(path, args)
+            .await
+            .inspect(|_| {
+                self.size += 1;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let result = self
+            .inner
+            .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
+    }
+}
+
 impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
     async fn next(&mut self) -> Result<Option<usize>> {
         self.inner
@@ -1427,6 +1476,15 @@ mod tests {
                 .unwrap()
                 .iter()
                 .filter(|(l, v)| v.name() == name && l.status_code == Some(code))
+                .count()
+        }
+
+        fn count_errors_with_kind(&self, name: &str, kind: ErrorKind) -> usize {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(l, v)| v.name() == name && l.error == Some(kind))
                 .count()
         }
 
@@ -2093,6 +2151,317 @@ mod tests {
         assert!(mock.has_metric("opendal_operation_entries_rate"));
         assert_eq!(mock.get_value_u64("opendal_operation_bytes"), None);
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[derive(Debug)]
+    struct MockComposer {
+        compose_results: Mutex<VecDeque<Result<()>>>,
+        close_result: Mutex<Option<Result<Metadata>>>,
+    }
+
+    impl MockComposer {
+        fn ok() -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Ok(()), Ok(())])),
+                close_result: Mutex::new(Some(Ok(MetadataBuilder::file(0).build()))),
+            }
+        }
+
+        fn with_compose_error(kind: ErrorKind) -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Err(Error::new(
+                    kind,
+                    "mock compose error",
+                ))])),
+                close_result: Mutex::new(Some(Ok(MetadataBuilder::file(0).build()))),
+            }
+        }
+
+        fn with_close_error(kind: ErrorKind) -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Ok(())])),
+                close_result: Mutex::new(Some(Err(Error::new(kind, "mock close error")))),
+            }
+        }
+    }
+
+    impl oio::Compose for MockComposer {
+        async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            self.compose_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "compose not configured")))
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.close_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "close not configured")))
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockComposeService {
+        info: ServiceInfo,
+        composer: Mutex<Option<MockComposer>>,
+        compose_error: Mutex<Option<Error>>,
+    }
+
+    impl MockComposeService {
+        fn with_composer(composer: MockComposer) -> Self {
+            Self {
+                info: test_info(),
+                composer: Mutex::new(Some(composer)),
+                compose_error: Mutex::new(None),
+            }
+        }
+
+        fn with_compose_error(kind: ErrorKind) -> Self {
+            Self {
+                info: test_info(),
+                composer: Mutex::new(None),
+                compose_error: Mutex::new(Some(Error::new(kind, "mock compose init error"))),
+            }
+        }
+    }
+
+    impl Service for MockComposeService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = MockComposer;
+
+        fn info(&self) -> ServiceInfo {
+            self.info.clone()
+        }
+
+        fn capability(&self) -> Capability {
+            Capability::default()
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<MockComposer> {
+            if let Some(err) = self.compose_error.lock().unwrap().take() {
+                return Err(err);
+            }
+            self.composer
+                .lock()
+                .unwrap()
+                .take()
+                .ok_or_else(|| Error::new(ErrorKind::Unexpected, "composer already taken"))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+    }
+
+    fn build_compose_accessor(
+        mock: MockInterceptor,
+        service: MockComposeService,
+    ) -> MetricsAccessor<MockInterceptor> {
+        let inner: Servicer = Arc::new(service);
+        MetricsAccessor {
+            info: inner.info(),
+            inner,
+            interceptor: mock,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compose_success_records_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::ok()),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src1", OpRead::default())
+            .await
+            .unwrap();
+        oio::Compose::compose(&mut composer, "src2", OpRead::default())
+            .await
+            .unwrap();
+
+        oio::Compose::close(&mut composer).await.unwrap();
+        drop(composer);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_entries"), Some(2));
+        assert!(mock.has_metric("opendal_operation_entries_rate"));
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_source_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::with_compose_error(
+                ErrorKind::PermissionDenied,
+            )),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        let err = oio::Compose::compose(&mut composer, "src", OpRead::default())
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+        assert_eq!(
+            mock.count_errors_with_kind(
+                "opendal_operation_errors_total",
+                ErrorKind::PermissionDenied
+            ),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        drop(composer);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_close_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::with_close_error(
+                ErrorKind::ConditionNotMatch,
+            )),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src", OpRead::default())
+            .await
+            .unwrap();
+        let err = oio::Compose::close(&mut composer).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        assert_eq!(
+            mock.count_errors_with_kind(
+                "opendal_operation_errors_total",
+                ErrorKind::ConditionNotMatch
+            ),
+            1
+        );
+
+        drop(composer);
+        // `close` marks the wrapper completed, so the drop must not record a
+        // second error.
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 1);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
+    }
+
+    #[tokio::test]
+    async fn test_compose_init_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_compose_error(ErrorKind::NotFound),
+        );
+        let ctx = OperationContext::default();
+
+        let err = match Service::compose(&accessor, &ctx, "dst", OpCompose::default()) {
+            Ok(_) => panic!("compose init should fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        assert_eq!(
+            mock.count_errors_with_kind("opendal_operation_errors_total", ErrorKind::NotFound),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_dropped_without_close_decrements_executing() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::ok()),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src1", OpRead::default())
+            .await
+            .unwrap();
+
+        // Dropping an unfinished composer is an aborted operation: the gauge
+        // returns to zero and the aborted operation counts once as an
+        // unexpected error, matching the writer/deleter contract.
+        drop(composer);
+
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        assert_eq!(
+            mock.count_errors_with_kind("opendal_operation_errors_total", ErrorKind::Unexpected),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_operation_entries"), Some(1));
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
     }
 
     #[test]

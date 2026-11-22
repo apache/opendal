@@ -27,10 +27,11 @@ use percent_encoding::percent_decode_str;
 /// validate, resolve, or normalize the URI. Ordinary query values remain intact.
 /// Clones share both representations; formatting does not repeat redaction.
 ///
-/// Recognized query names include OAuth credentials, storage session tokens, and
-/// signed URL credentials such as `access_token`, `X-Amz-Security-Token`,
-/// `X-Goog-Signature`, and `sig`. Names are matched case-insensitively after
-/// percent-decoding. Arbitrary application parameters are not classified.
+/// Recognized query names include OAuth credentials, storage session tokens,
+/// and signed URL credential identifiers and signatures such as
+/// `X-Amz-Credential`, `X-Goog-Signature`, and `sig`. Names are matched
+/// case-insensitively after percent-decoding. Arbitrary application parameters
+/// are not classified.
 #[derive(Clone)]
 pub struct HttpUri {
     original: Arc<str>,
@@ -149,22 +150,38 @@ fn redact_uri(value: &str) -> String {
                 let name = percent_decode_str(key).decode_utf8_lossy();
                 match name.to_ascii_lowercase().as_str() {
                     "access_token"
+                    | "accesskeyid"
+                    | "authorization"
                     | "client_secret"
                     | "delegation"
+                    | "oidctoken"
+                    | "ossaccesskeyid"
+                    | "password"
                     | "policy"
+                    | "q-ak"
                     | "q-signature"
                     | "refresh_token"
                     | "security-token"
+                    | "securitytoken"
                     | "sig"
                     | "signature"
+                    | "skoid"
+                    | "sktid"
+                    | "temp_url_sig"
                     | "token"
+                    | "upload_id"
                     | "x-amz-s3session-token"
+                    | "x-amz-credential"
                     | "x-amz-security-token"
                     | "x-amz-signature"
                     | "x-cos-security-token"
+                    | "x-goog-credential"
                     | "x-goog-signature"
+                    | "x-oss-access-key-id"
+                    | "x-oss-credential"
                     | "x-oss-security-token"
                     | "x-oss-signature"
+                    | "x-tos-credential"
                     | "x-tos-security-token"
                     | "x-tos-signature" => format!("{key}=[REDACTED]"),
                     _ => pair.to_string(),
@@ -216,5 +233,47 @@ mod tests {
             );
             assert!(!format!("{uri:?}").contains("-value"));
         }
+    }
+
+    #[test]
+    fn redacts_signing_and_authentication_query_values() {
+        for key in [
+            "AccessKeyId",
+            "Authorization",
+            "OIDCToken",
+            "OSSAccessKeyId",
+            "password",
+            "q-ak",
+            "SecurityToken",
+            "skoid",
+            "sktid",
+            "upload_id",
+            "X-Amz-Credential",
+            "X-Goog-%43redential",
+            "x-oss-access-key-id",
+            "x-oss-credential",
+            "X-Tos-Credential",
+        ] {
+            let original = format!("https://example.com/object?{key}=fixture%2Fvalue&version=3");
+            let uri = HttpUri::new(original.clone());
+            assert_eq!(uri.original_uri(), original);
+            assert_eq!(
+                uri.redacted_uri(),
+                format!("https://example.com/object?{key}=[REDACTED]&version=3")
+            );
+            assert!(!format!("{uri:?}").contains("fixture%2Fvalue"));
+        }
+    }
+
+    #[test]
+    fn redacts_swift_temp_url_signature_and_preserves_scope() {
+        let original = "/container?temp_url_sig=sha256%3Afixture&temp_url_expires=1234567890&temp_url_prefix=images%2F";
+        let uri = HttpUri::new(original);
+        assert_eq!(uri.original_uri(), original);
+        assert_eq!(
+            uri.redacted_uri(),
+            "/container?temp_url_sig=[REDACTED]&temp_url_expires=1234567890&temp_url_prefix=images%2F"
+        );
+        assert!(!format!("{uri:?}").contains("sha256%3Afixture"));
     }
 }

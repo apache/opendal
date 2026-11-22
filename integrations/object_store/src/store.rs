@@ -141,6 +141,10 @@ fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
 ///
 /// This allows users to use opendal as an object store without extra cost.
 ///
+/// Paths are resolved against the operator's configured root; see
+/// [`OpendalStore::new`] for the path resolution convention and a runnable
+/// example.
+///
 /// Visit [`opendal::services`] for more information about supported services.
 ///
 /// ```no_run
@@ -195,6 +199,80 @@ pub struct OpendalStore {
 
 impl OpendalStore {
     /// Create OpendalStore by given Operator.
+    ///
+    /// # Path resolution
+    ///
+    /// `OpendalStore` forwards every incoming [`object_store::path::Path`] to
+    /// the operator, which resolves it against its configured `root`: a store
+    /// path `data/test.txt` reaches the service as `<root>/data/test.txt`.
+    /// `OpendalStore` never strips a leading prefix, because any prefix can be
+    /// a legitimate object key inside the root.
+    ///
+    /// This matters when the store is registered with a URL-based registry
+    /// such as DataFusion's `ObjectStoreRegistry`. The registry key contains
+    /// only the registered URL's scheme and authority, so the store receives
+    /// the full path of each queried URL. If the same prefix is configured in
+    /// both the operator `root` and the queried URLs, lookups fail with a
+    /// doubled prefix, as reported in [apache/opendal#7786]. Choose the
+    /// single place that owns the prefix:
+    ///
+    /// - Leave the operator `root` unset so queried URLs carry the full path
+    ///   to each object, as `s3://bucket/key` does.
+    /// - Set `root` to the shared prefix and register the store under a URL
+    ///   whose queried paths are relative to it. For services such as `hf://`
+    ///   whose authority does not encode the bucket or repository, configure
+    ///   the repository on the builder and register a dedicated authority
+    ///   (for example `hf://myrepo`) so that `hf://myrepo/file` hands the
+    ///   store a repository-relative `file`.
+    ///
+    /// The following example uses the memory service but applies to any
+    /// service. The memory scheme has no meaningful authority, so the
+    /// `memory://my-store` registration below only fixes the URL prefix used
+    /// for lookups; the operator `root` owns the `base/dir` prefix.
+    ///
+    /// [apache/opendal#7786]: https://github.com/apache/opendal/issues/7786
+    ///
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use bytes::Bytes;
+    /// use object_store::path::Path;
+    /// use object_store::{ObjectStore, ObjectStoreExt};
+    /// use object_store_opendal::OpendalStore;
+    /// use opendal::services::Memory;
+    /// use opendal::Operator;
+    ///
+    /// #[tokio::main]
+    /// async fn main() {
+    ///     // The operator owns the `base/dir` prefix through its root.
+    ///     let op = Operator::new(Memory::default().root("/base/dir")).unwrap();
+    ///     let store = OpendalStore::new(op.clone());
+    ///
+    ///     // Paths passed to the store are store-relative keys: the service
+    ///     // sees them resolved against `/base/dir`.
+    ///     let path = Path::from("data/test.txt");
+    ///     store
+    ///         .put(&path, Bytes::from_static(b"hello").into())
+    ///         .await
+    ///         .unwrap();
+    ///     assert_eq!(op.read("data/test.txt").await.unwrap().len(), 5);
+    ///
+    ///     // A URL-based registry hands the store the path that follows the
+    ///     // authority. Registering `memory://my-store` makes
+    ///     // `memory://my-store/data/test.txt` reach this store as the same
+    ///     // store-relative `data/test.txt`.
+    ///     let content = store.get(&path).await.unwrap().bytes().await.unwrap();
+    ///     assert_eq!(content, Bytes::from_static(b"hello"));
+    ///
+    ///     // Repeating the root in the queried URL path looks up
+    ///     // `/base/dir/base/dir/data/test.txt`: prefixes are never stripped.
+    ///     let doubled = Path::from("base/dir/data/test.txt");
+    ///     assert!(matches!(
+    ///         store.head(&doubled).await,
+    ///         Err(object_store::Error::NotFound { .. })
+    ///     ));
+    /// }
+    /// ```
     pub fn new(op: Operator) -> Self {
         Self {
             info: op.info().into(),

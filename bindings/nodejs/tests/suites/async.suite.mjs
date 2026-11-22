@@ -130,6 +130,46 @@ export function run(op) {
       expect(await reader.readChunk(1)).toBeNull()
     })
 
+    test('overlapping writer writes are serialized without losing data', async () => {
+      const memory = new Operator('memory')
+      const filename = `writer_concurrency_${randomUUID()}`
+      const chunks = Array.from({ length: 64 }, (_, i) =>
+        Buffer.from(`chunk-${i.toString().padStart(4, '0')}-${'x'.repeat(64)}`),
+      )
+      const writer = await memory.writer(filename)
+
+      await Promise.all(chunks.map((chunk) => writer.write(chunk)))
+      await writer.close()
+
+      const written = await memory.read(filename)
+      expect(written.length).toBe(chunks.length * chunks[0].length)
+      const actual = Array.from({ length: chunks.length }, (_, i) =>
+        written.subarray(i * chunks[0].length, (i + 1) * chunks[0].length).toString(),
+      )
+      expect(actual.sort()).toEqual(chunks.map((chunk) => chunk.toString()).sort())
+
+      await memory.delete(filename)
+    })
+
+    test('overlapping lister next calls return every entry exactly once', async () => {
+      const memory = new Operator('memory')
+      const dirname = `lister_concurrency_${randomUUID()}/`
+      await memory.createDir(dirname)
+
+      const names = Array.from({ length: 64 }, (_, i) => `file-${i.toString().padStart(4, '0')}`)
+      for (const name of names) {
+        await memory.write(`${dirname}${name}`, 'content')
+      }
+
+      const lister = await memory.lister(dirname)
+      const results = await Promise.all(Array.from({ length: names.length + 4 }, () => lister.next()))
+      const paths = results.filter((entry) => entry !== null).map((entry) => entry.path())
+      expect(paths.sort()).toEqual([dirname, ...names.map((name) => `${dirname}${name}`)].sort())
+      expect(results.filter((entry) => entry === null)).toHaveLength(3)
+
+      await memory.removeAll(dirname)
+    })
+
     test('read stream pauses at the high water mark and emits a short tail', async () => {
       const memory = new Operator('memory')
       await memory.write('object', Buffer.from('abcdefghijk'))

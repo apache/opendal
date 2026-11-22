@@ -174,8 +174,8 @@ class OpenKwargs(ReadKwargs, WriteKwargs, total=False):
     """Keyword arguments for `Operator.open` and `AsyncOperator.open`.
 
     The `content_type`, `cache_control`, and `content_disposition` options
-    apply to `"wb"` mode. Use the operator's `read()` method to supply response
-    header overrides.
+    apply when writing or appending. Use the operator's `read()` method to
+    supply response header overrides.
     """
 
 

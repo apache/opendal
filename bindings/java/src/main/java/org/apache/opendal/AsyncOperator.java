@@ -317,7 +317,21 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> delete(String path) {
-        final long requestId = delete(nativeHandle, executorHandle, path);
+        return delete(path, DeleteOptions.builder().build());
+    }
+
+    /**
+     * Deletes the given path with the supplied options. A missing file is a successful
+     * no-op when all conditions hold. For recursive directory deletion, include the
+     * trailing slash in the path.
+     *
+     * @param path the path to delete
+     * @param options the delete options
+     * @return a future that completes exceptionally with an {@link OpenDALException}
+     *     if an option is unsupported, a condition fails, or deletion fails
+     */
+    public CompletableFuture<Void> delete(String path, DeleteOptions options) {
+        final long requestId = delete(nativeHandle, executorHandle, path, options);
         return AsyncRegistry.take(requestId);
     }
 
@@ -365,7 +379,7 @@ public class AsyncOperator extends NativeObject {
 
     private static native long append(long nativeHandle, long executorHandle, String path, byte[] content);
 
-    private static native long delete(long nativeHandle, long executorHandle, String path);
+    private static native long delete(long nativeHandle, long executorHandle, String path, DeleteOptions options);
 
     private static native long stat(long nativeHandle, long executorHandle, String path, StatOptions options);
 

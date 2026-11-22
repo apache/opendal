@@ -15,7 +15,8 @@ Each condition checks one file:
 
 - `stat` and `read` check the file being observed.
 - `write` and `delete` check the file at the operation path.
-- `copy` and `rename` check the destination file.
+- `copy` and `rename` check the destination file. A copy onto its own path,
+  such as a metadata replacement, checks that same file.
 - `restore` checks the file currently stored at the restore path. The selected
   version remains the source of the restore.
 

@@ -30,6 +30,9 @@ pub struct FsConfig {
 
     /// tmp dir for atomic write
     pub atomic_write_dir: Option<String>,
+
+    /// Bypass the page cache for file reads and writes on Linux. Defaults to `false`.
+    pub direct_io: bool,
 }
 
 impl opendal_core::Configurator for FsConfig {

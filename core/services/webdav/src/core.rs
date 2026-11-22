@@ -250,6 +250,28 @@ impl WebdavCore {
             req = req.header(header::CONTENT_DISPOSITION, v)
         }
 
+        if let Some(etag) = args.if_match() {
+            if let Some(weak) = etag.strip_prefix("W/") {
+                // The DAV If header expects a single entity tag inside the list.
+                let opaque_tag = weak.strip_prefix('"').and_then(|tag| tag.strip_suffix('"'));
+                if !opaque_tag.is_some_and(|tag| {
+                    tag.bytes()
+                        .all(|byte| matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff))
+                }) {
+                    return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
+                }
+                req = req.header("If", format!("([{etag}])"));
+            } else {
+                req = req.header(header::IF_MATCH, etag);
+            }
+        }
+
+        if args.if_not_exists() {
+            req = req.header(header::IF_NONE_MATCH, "*");
+        } else if let Some(etag) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, etag);
+        }
+
         let req = req
             .extension(Operation::Write)
             .extension(ServiceOperation("Put"))

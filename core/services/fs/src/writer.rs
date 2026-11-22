@@ -17,35 +17,155 @@
 
 #[cfg(unix)]
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use bytes::Buf;
+#[cfg(target_os = "linux")]
+use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
-use super::core::FsCore;
+use super::core::{ErrorContext, FsCore, parse_error};
+#[cfg(target_os = "linux")]
+use super::direct_io::DirectIoAlignment;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-pub type FsWriters = TwoWays<FsWriter, oio::PositionWriter<FsWriter>>;
+type FsWriters = TwoWays<FsWriter, oio::PositionWriter<FsWriter>>;
+
+pub struct FsLazyWriter {
+    core: Arc<FsCore>,
+    executor: Executor,
+    path: String,
+    op: OpWrite,
+    inner: Option<FsWriters>,
+    #[cfg(target_os = "linux")]
+    direct_buffer: Option<DirectWriteBuffer>,
+}
+
+impl FsLazyWriter {
+    pub(super) fn new(core: Arc<FsCore>, executor: Executor, path: &str, op: OpWrite) -> Self {
+        Self {
+            core,
+            executor,
+            path: path.to_string(),
+            op,
+            inner: None,
+            #[cfg(target_os = "linux")]
+            direct_buffer: None,
+        }
+    }
+
+    async fn open(&mut self) -> Result<()> {
+        if self.inner.is_some() {
+            return Ok(());
+        }
+
+        let writer = FsWriter::create(&self.core, &self.path, &self.op).await?;
+        #[cfg(target_os = "linux")]
+        if let Some(alignment) = writer.direct_io {
+            self.direct_buffer = Some(DirectWriteBuffer {
+                offset_align: alignment.offset_align,
+                tail: Bytes::new(),
+            });
+        }
+
+        self.inner = Some(if self.op.append() {
+            FsWriters::One(writer)
+        } else {
+            FsWriters::Two(oio::PositionWriter::new(
+                self.executor.clone(),
+                writer,
+                self.op.concurrent(),
+            ))
+        });
+        Ok(())
+    }
+}
+
+impl oio::Write for FsLazyWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.open().await?;
+        let inner = self.inner.as_mut().expect("writer must be initialized");
+        #[cfg(target_os = "linux")]
+        if let Some(direct) = &mut self.direct_buffer {
+            return direct.write(inner, bs).await;
+        }
+        inner.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.open().await?;
+        let inner = self.inner.as_mut().expect("writer must be initialized");
+        #[cfg(target_os = "linux")]
+        if let Some(direct) = &mut self.direct_buffer
+            && !direct.tail.is_empty()
+        {
+            // PositionWriter drains earlier tasks before writing its final cached
+            // buffer. It counts the logical bytes, while write_all_at pads the tail.
+            inner.write(direct.tail.clone().into()).await?;
+            direct.tail = Bytes::new();
+        }
+        inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        if let Some(inner) = &mut self.inner {
+            inner.abort().await?;
+        }
+        #[cfg(target_os = "linux")]
+        if let Some(direct) = &mut self.direct_buffer {
+            direct.tail = Bytes::new();
+        }
+        Ok(())
+    }
+}
+
+#[cfg(target_os = "linux")]
+struct DirectWriteBuffer {
+    offset_align: usize,
+    tail: Bytes,
+}
+
+#[cfg(target_os = "linux")]
+impl DirectWriteBuffer {
+    async fn write(&mut self, writer: &mut FsWriters, bs: Buffer) -> Result<()> {
+        if bs.is_empty() {
+            return Ok(());
+        }
+        let mut pending: Buffer = if self.tail.is_empty() {
+            bs
+        } else {
+            std::iter::once(self.tail.clone()).chain(bs).collect()
+        };
+        let aligned_len = pending.len() / self.offset_align * self.offset_align;
+        if aligned_len > 0 {
+            oio::Write::write(writer, pending.split_to(aligned_len)).await?;
+        }
+        // Own the small tail without retaining the caller's larger allocations.
+        self.tail = pending.to_vec().into();
+        Ok(())
+    }
+}
 
 pub struct FsWriter {
     target_path: PathBuf,
     /// The temp_path is used to specify whether we should move to target_path after the file has been closed.
     temp_path: Option<PathBuf>,
     f: tokio::fs::File,
+    #[cfg(target_os = "linux")]
+    direct_io: Option<DirectIoAlignment>,
     /// User metadata to be written to xattr on Unix systems.
     #[cfg(unix)]
     user_metadata: Option<HashMap<String, String>>,
 }
 
 impl FsWriter {
-    pub async fn create(core: Arc<FsCore>, path: &str, op: OpWrite) -> Result<Self> {
+    async fn create(core: &FsCore, path: &str, op: &OpWrite) -> Result<Self> {
         let target_path = core.ensure_write_abs_path(&core.root, path).await?;
 
-        // Store user metadata for later use on Unix systems.
         #[cfg(unix)]
         let user_metadata = op.user_metadata().map(|metadata| {
             metadata
@@ -54,43 +174,77 @@ impl FsWriter {
                 .collect()
         });
 
-        // Quick path while atomic_write_dir is not set.
-        if core.atomic_write_dir.is_none() {
-            let target_file = core.fs_write(&target_path, &op).await?;
+        let mut temp_path = None;
+        if let Some(atomic_write_dir) = &core.atomic_write_dir {
+            let exists = tokio::fs::try_exists(&target_path)
+                .await
+                .map_err(new_std_io_error)?;
+            if op.if_not_exists() && exists {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "file already exists, doesn't match the condition if_not_exists",
+                ));
+            }
+            // Append to an existing file in place even with atomic writes enabled.
+            if !(op.append() && exists) {
+                temp_path = Some(
+                    core.ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
+                        .await?,
+                );
+            }
+        }
 
+        let mut options = OpenOptions::new();
+        options.write(true);
+        let operation = if temp_path.is_some() {
+            options.create_new(true);
+            ServiceOperation("OpenTemporaryFile")
+        } else {
+            options
+                .create_new(op.if_not_exists())
+                .create(!op.if_not_exists());
+            options.append(op.append());
+            ServiceOperation("OpenForWrite")
+        };
+        let open_path = temp_path.as_ref().unwrap_or(&target_path);
+
+        #[cfg(target_os = "linux")]
+        if core.direct_io {
+            let open_path = open_path.clone();
+            let temporary = temp_path.is_some();
+            let cleanup_on_error = temporary || op.if_not_exists();
+            let (f, alignment) = tokio::task::spawn_blocking(move || {
+                let (file, alignment) =
+                    DirectIoAlignment::open(&open_path, options, operation, cleanup_on_error)?;
+                // Validate O_DIRECT on the opened fd before truncating an overwrite.
+                if !temporary {
+                    file.set_len(0).map_err(new_std_io_error)?;
+                }
+                Ok::<_, Error>((file, alignment))
+            })
+            .await
+            .map_err(new_task_join_error)??;
             return Ok(Self {
                 target_path,
-                temp_path: None,
-                f: target_file,
+                temp_path,
+                f: tokio::fs::File::from_std(f),
+                direct_io: Some(alignment),
                 #[cfg(unix)]
                 user_metadata,
             });
         }
 
-        let is_append = op.append();
-        let is_exist = tokio::fs::try_exists(&target_path)
+        options.truncate(!op.append() || temp_path.is_some());
+        let f = tokio::fs::OpenOptions::from(options)
+            .open(open_path)
             .await
-            .map_err(new_std_io_error)?;
-        if op.if_not_exists() && is_exist {
-            return Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "file already exists, doesn't match the condition if_not_exists",
-            ));
-        }
-
-        // The only case we allow write in place is the file
-        // exists and users request for append writing.
-        let (f, temp_path) = if !(is_append && is_exist) {
-            core.fs_tempfile_write(path).await?
-        } else {
-            let f = core.fs_write(&target_path, &op).await?;
-            (f, None)
-        };
-
+            .map_err(|err| parse_error(ErrorContext::new(operation), err))?;
         Ok(Self {
             target_path,
             temp_path,
             f,
+            #[cfg(target_os = "linux")]
+            direct_io: None,
             #[cfg(unix)]
             user_metadata,
         })
@@ -160,7 +314,13 @@ impl oio::PositionWrite for FsWriter {
             .into_std()
             .await;
 
+        #[cfg(target_os = "linux")]
+        let direct_io = self.direct_io;
         tokio::task::spawn_blocking(move || {
+            #[cfg(target_os = "linux")]
+            if let Some(alignment) = direct_io {
+                return alignment.write_all_at(&f, offset, buf);
+            }
             let mut buf = buf;
             let mut offset = offset;
             while !buf.is_empty() {
@@ -179,6 +339,11 @@ impl oio::PositionWrite for FsWriter {
     }
 
     async fn close(&self, _size: u64) -> Result<Metadata> {
+        #[cfg(target_os = "linux")]
+        if self.direct_io.is_some() {
+            self.f.set_len(_size).await.map_err(new_std_io_error)?;
+        }
+
         let mut f = self
             .f
             .try_clone()

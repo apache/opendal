@@ -7894,6 +7894,7 @@ dependencies = [
  "bytes",
  "log",
  "opendal-core",
+ "rustix 1.1.4",
  "serde",
  "tempfile",
  "tokio",
@@ -8067,6 +8068,7 @@ dependencies = [
 name = "opendal-service-hdfs-native"
 version = "0.59.5"
 dependencies = [
+ "asyncband",
  "bytes",
  "futures",
  "hdfs-native",

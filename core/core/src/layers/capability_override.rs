@@ -291,9 +291,165 @@ fn parse_capability_value(value: &str) -> Result<Value> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
     use super::*;
     use crate::Operator;
     use crate::services;
+
+    /// Counts copy requests; copy metadata support is set by `metadata`.
+    #[derive(Debug, Default)]
+    struct CopyCounter {
+        metadata: bool,
+        copies: Arc<AtomicUsize>,
+    }
+
+    impl Builder for CopyCounter {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(self)
+        }
+    }
+
+    impl Service for CopyCounter {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = CopyDone;
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("copy-counter")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                copy: true,
+                copy_with_user_metadata: self.metadata,
+                copy_with_content_type: self.metadata,
+                copy_with_content_language: self.metadata,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            ().create_dir(ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            ().stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<()> {
+            ().read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<()> {
+            ().write(ctx, path, args)
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<()> {
+            ().delete(ctx)
+        }
+
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<()> {
+            ().list(ctx, path, args)
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<CopyDone> {
+            self.copies.fetch_add(1, Ordering::SeqCst);
+            Ok(CopyDone)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            ().rename(ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            ().presign(ctx, path, args).await
+        }
+    }
+
+    struct CopyDone;
+
+    impl oio::Copy for CopyDone {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(None)
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    async fn copy_with_metadata(op: &Operator) -> Vec<Result<Metadata>> {
+        vec![
+            op.copy_with("from", "to")
+                .user_metadata(HashMap::from([("mtime".to_owned(), "42".to_owned())]))
+                .await,
+            op.copy_with("from", "to").content_type("text/plain").await,
+            op.copy_with("from", "to").content_language("en").await,
+        ]
+    }
+
+    #[tokio::test]
+    async fn capability_override_gates_copy_metadata() -> Result<()> {
+        let copies = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(CopyCounter {
+            metadata: true,
+            copies: copies.clone(),
+        })?
+        .layer(CapabilityOverrideLayer::new(|mut cap| {
+            cap.copy_with_user_metadata = false;
+            cap.copy_with_content_type = false;
+            cap.copy_with_content_language = false;
+            cap
+        }));
+
+        for res in copy_with_metadata(&op).await {
+            assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
+        }
+        assert_eq!(copies.load(Ordering::SeqCst), 0);
+
+        let op = Operator::new(CopyCounter {
+            metadata: false,
+            copies: copies.clone(),
+        })?
+        .layer(CapabilityOverrideLayer::from_overrides(
+            "copy_with_user_metadata=true,copy_with_content_type=true,copy_with_content_language=true",
+        )?);
+
+        for res in copy_with_metadata(&op).await {
+            res?;
+        }
+        assert_eq!(copies.load(Ordering::SeqCst), 3);
+
+        Ok(())
+    }
 
     #[test]
     fn capability_override_updates_capability() -> Result<()> {

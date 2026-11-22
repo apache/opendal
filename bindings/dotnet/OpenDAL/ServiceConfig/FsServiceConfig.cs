@@ -33,6 +33,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AtomicWriteDir { get; init; }
         /// <summary>
+        /// Bypass the page cache for file reads and writes on Linux. Defaults to `false`.
+        /// </summary>
+        public bool? DirectIo { get; init; }
+        /// <summary>
         /// root dir for backend
         /// </summary>
         public string? Root { get; init; }
@@ -45,6 +49,10 @@ namespace OpenDAL.ServiceConfig
             if (AtomicWriteDir is not null)
             {
                 map["atomic_write_dir"] = Utilities.ToOptionString(AtomicWriteDir);
+            }
+            if (DirectIo is not null)
+            {
+                map["direct_io"] = Utilities.ToOptionString(DirectIo);
             }
             if (Root is not null)
             {

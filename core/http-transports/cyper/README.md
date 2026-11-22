@@ -4,7 +4,7 @@ Cyper-based HTTP transport for [Apache OpenDAL](https://opendal.apache.org).
 
 `CyperTransport` implements OpenDAL's `HttpTransport` trait with
 [Cyper](https://crates.io/crates/cyper), an HTTP client for Compio 0.19. The
-transport requires Rust 1.95 or later.
+crate and the `opendal` Cyper features require Rust 1.95 or later.
 
 ## Use Cyper with an operator
 

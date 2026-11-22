@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -53,6 +54,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_with_versions_and_start_after,
             test_list_files_with_deleted
         ))
+    }
+
+    if cap.write && cap.list && cap.delete {
+        tests.extend(async_trials!(op, test_list_non_ascii_prefix));
     }
 
     if cap.write && cap.list_with_glob && matches!(op.info().scheme(), "memory" | "fs") {
@@ -125,6 +130,38 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
     assert_eq!(obs[0].metadata().mode(), EntryMode::FILE);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// List entries under a directory whose prefix contains non-ASCII characters.
+pub async fn test_list_non_ascii_prefix(op: Operator) -> Result<()> {
+    let prefix = format!("测试编码文件-{}/", uuid::Uuid::new_v4());
+    let path = format!("{prefix}aaaaaa.jpg");
+    let listing = async {
+        op.write(&path, "data").await?;
+
+        // COS ListObjects can temporarily omit a newly written key. See apache/opendal#7502.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let mut entries = op.list(&prefix).await?;
+            entries.retain(|entry| entry.path() != prefix);
+            if !entries.is_empty() || tokio::time::Instant::now() >= deadline {
+                return Ok::<_, opendal::Error>(entries);
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    }
+    .await;
+
+    let delete_file = op.delete(&path).await;
+    let delete_dir = op.delete(&prefix).await;
+
+    let entries = listing?;
+    delete_file?;
+    delete_dir?;
+    assert_eq!(entries.len(), 1, "expected one file under {prefix:?}");
+    assert_eq!(entries[0].path(), path);
+    assert_eq!(entries[0].metadata().mode(), EntryMode::FILE);
     Ok(())
 }
 

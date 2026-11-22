@@ -346,10 +346,20 @@ impl Service for SwiftBackend {
         args: OpPresign,
     ) -> Result<RpPresign> {
         let (expire, op) = args.into_parts();
+        let mut headers = http::HeaderMap::new();
 
-        let method = match &op {
+        let method = match op {
             PresignOperation::Stat(_) => http::Method::HEAD,
-            PresignOperation::Read(_, _) => http::Method::GET,
+            PresignOperation::Read(range, _) => {
+                if !range.is_full() {
+                    let value = range
+                        .to_header()
+                        .parse()
+                        .expect("byte range must be a valid HTTP header value");
+                    headers.insert(http::header::RANGE, value);
+                }
+                http::Method::GET
+            }
             PresignOperation::Write(_) => http::Method::PUT,
             _ => {
                 return Err(Error::new(
@@ -364,11 +374,7 @@ impl Service for SwiftBackend {
             Error::new(ErrorKind::Unexpected, "failed to parse presigned URL").set_source(e)
         })?;
 
-        Ok(RpPresign::new(PresignedRequest::new(
-            method,
-            uri,
-            http::HeaderMap::new(),
-        )))
+        Ok(RpPresign::new(PresignedRequest::new(method, uri, headers)))
     }
 
     fn copy(

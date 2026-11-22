@@ -154,6 +154,8 @@ impl Builder for FsBuilder {
                     stat: true,
 
                     read: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
 
                     write: true,
                     write_can_empty: true,
@@ -226,10 +228,11 @@ impl Service for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         Ok(oio::PositionReader::new(FsReader::new(
             self.core.clone(),
             path,
+            args,
         )))
     }
 

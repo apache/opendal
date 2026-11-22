@@ -27,13 +27,17 @@ use std::sync::Arc;
 pub struct FsReader {
     core: Arc<FsCore>,
     path: String,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
 }
 
 impl FsReader {
-    pub(super) fn new(core: Arc<FsCore>, path: &str) -> Self {
+    pub(super) fn new(core: Arc<FsCore>, path: &str, args: OpRead) -> Self {
         Self {
             core,
             path: path.to_string(),
+            if_modified_since: args.if_modified_since(),
+            if_unmodified_since: args.if_unmodified_since(),
         }
     }
 }
@@ -50,33 +54,57 @@ impl oio::PositionRead for FsReader {
 
     async fn open(&self) -> Result<Self::Handle> {
         let path = self.core.root_join(&self.path)?;
-        #[cfg(target_os = "linux")]
-        if self.core.direct_io {
-            let (file, alignment) = tokio::task::spawn_blocking(move || {
+        let core = self.core.clone();
+        let if_modified_since = self.if_modified_since;
+        let if_unmodified_since = self.if_unmodified_since;
+
+        tokio::task::spawn_blocking(move || {
+            #[cfg(target_os = "linux")]
+            let (file, direct_io) = if core.direct_io {
                 let mut options = std::fs::OpenOptions::new();
                 options.read(true);
-                DirectIoAlignment::open(&path, options, ServiceOperation("OpenForRead"), false)
-            })
-            .await
-            .map_err(new_task_join_error)??;
-            return Ok(FsReaderHandle {
-                core: self.core.clone(),
-                file: file.into(),
-                direct_io: Some(alignment),
-            });
-        }
+                let (file, alignment) = DirectIoAlignment::open(
+                    &path,
+                    options,
+                    ServiceOperation("OpenForRead"),
+                    false,
+                )?;
+                (file, Some(alignment))
+            } else {
+                (File::open(path).map_err(new_std_io_error)?, None)
+            };
+            #[cfg(not(target_os = "linux"))]
+            let file = File::open(path).map_err(new_std_io_error)?;
 
-        let file = tokio::fs::File::open(path)
-            .await
-            .map_err(new_std_io_error)?
-            .into_std()
-            .await;
-        Ok(FsReaderHandle {
-            core: self.core.clone(),
-            file: file.into(),
-            #[cfg(target_os = "linux")]
-            direct_io: None,
+            if if_modified_since.is_some() || if_unmodified_since.is_some() {
+                let modified = file
+                    .metadata()
+                    .and_then(|metadata| metadata.modified())
+                    .map_err(new_std_io_error)?;
+                let modified = Timestamp::try_from(modified)?;
+                if if_modified_since.is_some_and(|since| modified <= since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file modification time is at or before if_modified_since",
+                    ));
+                }
+                if if_unmodified_since.is_some_and(|since| modified > since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file modification time is after if_unmodified_since",
+                    ));
+                }
+            }
+
+            Ok(FsReaderHandle {
+                core,
+                file: file.into(),
+                #[cfg(target_os = "linux")]
+                direct_io,
+            })
         })
+        .await
+        .map_err(new_task_join_error)?
     }
 
     async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {

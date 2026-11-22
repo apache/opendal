@@ -75,7 +75,7 @@ module OpenDAL
 where
 
 import Colog (LogAction, Message, Msg (Msg), (<&))
-import Control.Exception (finally, onException)
+import Control.Exception (finally, mask_, onException)
 import Control.Monad.Except (ExceptT, MonadError, MonadTrans, runExceptT, throwError)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, ask, liftIO, runReaderT)
 import Control.Monad.Trans (MonadTrans (lift))
@@ -422,7 +422,7 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
       withMany withCString (map snd keysAndValues) $ \cValues ->
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
-            alloca $ \ffiResultPtr -> do
+            alloca $ \ffiResultPtr -> mask_ $ do
               -- Once Rust registers the logger the callback is owned by the
               -- global Rust logger for the rest of the process. We
               -- deliberately never call freeHaskellFunPtr: if registration
@@ -456,7 +456,7 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
 readOpRaw :: Operator -> String -> IO (Either OpenDALError ByteString)
 readOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_read opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -472,7 +472,7 @@ writeOpRaw :: Operator -> String -> ByteString -> IO (Either OpenDALError ())
 writeOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
     BS.useAsCStringLen byte $ \(cByte, len) ->
-      alloca $ \ffiResultPtr -> do
+      alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_write opptr cPath cByte (fromIntegral len) ffiResultPtr
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
@@ -483,7 +483,7 @@ writeOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
 isExistOpRaw :: Operator -> String -> IO (Either OpenDALError Bool)
 isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_is_exist opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -497,7 +497,7 @@ isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 createDirOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 createDirOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_create_dir opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -509,7 +509,7 @@ copyOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
 copyOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
   withCString srcPath $ \cSrcPath ->
     withCString dstPath $ \cDstPath ->
-      alloca $ \ffiResultPtr -> do
+      alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_copy opptr cSrcPath cDstPath ffiResultPtr
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
@@ -521,7 +521,7 @@ renameOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
 renameOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
   withCString srcPath $ \cSrcPath ->
     withCString dstPath $ \cDstPath ->
-      alloca $ \ffiResultPtr -> do
+      alloca $ \ffiResultPtr -> mask_ $ do
         c_blocking_rename opptr cSrcPath cDstPath ffiResultPtr
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
@@ -532,7 +532,7 @@ renameOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
 deleteOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_delete opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -543,7 +543,7 @@ deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 statOpRaw :: Operator -> String -> IO (Either OpenDALError Metadata)
 statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_stat opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -560,7 +560,7 @@ statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 listOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_list opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -578,7 +578,7 @@ listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 scanOpRaw :: Operator -> String -> IO (Either OpenDALError Lister)
 scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_scan opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -593,7 +593,7 @@ scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
 -- | Get operator info (scheme).
 operatorInfoRaw :: Operator -> IO (Either OpenDALError String)
 operatorInfoRaw (Operator op) = withForeignPtr op $ \opptr ->
-  alloca $ \ffiResultPtr -> do
+  alloca $ \ffiResultPtr -> mask_ $ do
     c_operator_info opptr ffiResultPtr
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
@@ -603,7 +603,7 @@ operatorInfoRaw (Operator op) = withForeignPtr op $ \opptr ->
 -- | Get next entry path from `Lister`.
 nextLister :: Lister -> IO (Either OpenDALError (Maybe String))
 nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
-  alloca $ \ffiResultPtr -> do
+  alloca $ \ffiResultPtr -> mask_ $ do
     c_lister_next listerptr ffiResultPtr
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
@@ -615,7 +615,7 @@ nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
 writerWrite :: Writer -> ByteString -> IO (Either OpenDALError ())
 writerWrite (Writer writer) byte = withForeignPtr writer $ \writerptr ->
   BS.useAsCStringLen byte $ \(cByte, len) ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_writer_write writerptr cByte (fromIntegral len) ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
@@ -625,7 +625,7 @@ writerWrite (Writer writer) byte = withForeignPtr writer $ \writerptr ->
 -- | Closes given writer.
 writerClose :: Writer -> IO (Either OpenDALError Metadata)
 writerClose (Writer writer) = withForeignPtr writer $ \writerptr ->
-  alloca $ \ffiResultPtr -> do
+  alloca $ \ffiResultPtr -> mask_ $ do
     c_writer_close writerptr ffiResultPtr
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
@@ -640,7 +640,7 @@ writerClose (Writer writer) = withForeignPtr writer $ \writerptr ->
 writerOpRaw :: Operator -> String -> WriterOption -> IO (Either OpenDALError Writer)
 writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       if woAppend writerOption
         then c_blocking_writer_append opptr cPath ffiResultPtr
         else c_blocking_writer opptr cPath ffiResultPtr
@@ -660,7 +660,7 @@ writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
 removeAllOpRaw :: Operator -> String -> IO (Either OpenDALError ())
 removeAllOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
   withCString path $ \cPath ->
-    alloca $ \ffiResultPtr -> do
+    alloca $ \ffiResultPtr -> mask_ $ do
       c_blocking_remove_all opptr cPath ffiResultPtr
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0

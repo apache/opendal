@@ -35,10 +35,11 @@ impl ByteSlice {
     /// length matches the reported `len` exactly; `free_byteslice` relies on
     /// this to rebuild the same `Box<[u8]>`.
     pub fn from_vec(vec: Vec<u8>) -> Self {
-        let mut boxed = vec.into_boxed_slice();
-        let data = boxed.as_mut_ptr() as *mut c_char;
+        let boxed = vec.into_boxed_slice();
         let len = boxed.len();
-        std::mem::forget(boxed);
+        // Hand the whole allocation over: `into_raw` keeps the raw pointer's
+        // provenance where `as_mut_ptr` + `mem::forget` would not.
+        let data = Box::into_raw(boxed) as *mut u8 as *mut c_char;
 
         ByteSlice { data, len }
     }

@@ -100,16 +100,24 @@ pub unsafe extern "C" fn via_map_ffi(
             std::slice::from_raw_parts(values, len)
         };
 
-        let map = keys_vec
-            .iter()
-            .zip(values_vec.iter())
-            .map(|(&k, &v)| {
-                (
-                    c_str_arg(k).unwrap_or_default().to_string(),
-                    c_str_arg(v).unwrap_or_default().to_string(),
-                )
-            })
-            .collect::<HashMap<String, String>>();
+        let mut map = HashMap::with_capacity(len);
+        for (&k, &v) in keys_vec.iter().zip(values_vec.iter()) {
+            let key = match c_str_arg(k) {
+                Some(s) => s.to_string(),
+                None => {
+                    *result = FFIResult::err("Config key is not a valid string");
+                    return;
+                }
+            };
+            let value = match c_str_arg(v) {
+                Some(s) => s.to_string(),
+                None => {
+                    *result = FFIResult::err("Config value is not a valid string");
+                    return;
+                }
+            };
+            map.insert(key, value);
+        }
 
         if let Some(callback) = callback
             && let Err(e) = log::set_boxed_logger(Box::new(HsLogger { callback }))
@@ -883,7 +891,71 @@ mod tests {
 
     #[test]
     fn ffi_result_layout_matches_abi() {
-        assert_eq!(std::mem::size_of::<FFIResult<()>>(), 24);
+        // code (padded to usize) + data_ptr + error_message.
+        assert_eq!(
+            std::mem::size_of::<FFIResult<()>>(),
+            std::mem::size_of::<usize>() * 3
+        );
+    }
+
+    #[test]
+    fn via_map_ffi_rejects_null_config_entry() {
+        unsafe {
+            let scheme = c"memory";
+            let keys: [*const c_char; 1] = [ptr::null()];
+            let values: [*const c_char; 1] = [c"/".as_ptr()];
+
+            let mut result = FFIResult::<od::blocking::Operator>::default();
+            via_map_ffi(
+                scheme.as_ptr(),
+                keys.as_ptr(),
+                values.as_ptr(),
+                1,
+                None,
+                &mut result,
+            );
+            assert_eq!(result.code, result::FFIErrorCode::FFIError);
+            assert!(result.data_ptr.is_null());
+            assert!(!result.error_message.is_null());
+            free_string(result.error_message);
+        }
+    }
+
+    #[test]
+    fn via_map_ffi_rejects_null_config_arrays() {
+        unsafe {
+            let scheme = c"memory";
+            let mut result = FFIResult::<od::blocking::Operator>::default();
+            via_map_ffi(
+                scheme.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                2,
+                None,
+                &mut result,
+            );
+            assert_eq!(result.code, result::FFIErrorCode::FFIError);
+            free_string(result.error_message);
+        }
+    }
+
+    #[test]
+    fn via_map_ffi_builds_memory_operator() {
+        unsafe {
+            let scheme = c"memory";
+            let mut result = FFIResult::<od::blocking::Operator>::default();
+            via_map_ffi(
+                scheme.as_ptr(),
+                ptr::null(),
+                ptr::null(),
+                0,
+                None,
+                &mut result,
+            );
+            assert_eq!(result.code, result::FFIErrorCode::Ok);
+            assert!(!result.data_ptr.is_null());
+            free_operator(result.data_ptr);
+        }
     }
 
     #[test]

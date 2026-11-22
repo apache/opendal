@@ -92,8 +92,9 @@ impl<T> FFIResult<T> {
 
     /// Report success while handing `data_ptr` itself to the caller.
     ///
-    /// Used when the payload is already the owned resource: an opaque handle
-    /// (`Box<blocking::Lister>` / `Box<blocking::Writer>`) or a `CString`.
+    /// Used when the payload is already the owned resource: `CString`
+    /// results from `lister_next` and `operator_info`. Opaque handles are
+    /// passed through `ok`, which boxes them into `data_ptr` directly.
     pub fn ok_with_ptr(data_ptr: *mut T) -> Self {
         FFIResult {
             code: FFIErrorCode::Ok,

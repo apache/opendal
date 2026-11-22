@@ -27,8 +27,10 @@ parameter error `31023`. The create API can also reject names with error `-7`
 and identify the characters in `illegal_chars`. The service preserves the path
 and returns the API error.
 
-Copy accepts file sources and rejects existing directory destinations. Baidu's
-native move rejects an existing destination, so the service omits rename.
+Copy accepts file sources and rejects existing directory destinations. After
+a successful copy, the service looks up the destination metadata by path and
+checks its file ID against the copy response.
+Baidu's native move rejects an existing destination, so the service omits rename.
 
 Delete targets the exact file or directory. Ordinary deletion checks a directory
 for children and rejects a non-empty directory. Baidu only provides recursive

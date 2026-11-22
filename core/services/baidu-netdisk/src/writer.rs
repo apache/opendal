@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::core::{BaiduNetdiskCore, FILE_API, FileMetadata};
+use crate::core::{BaiduNetdiskCore, FILE_API, FileMetadata, MutationState};
 use http::{Request, header};
 use md5::{Digest, Md5};
 use opendal_core::{raw::*, *};
@@ -26,6 +26,7 @@ const BLOCK_SIZE: usize = 4 * 1024 * 1024;
 pub const MAX_WRITE_SIZE: usize = 4 * BLOCK_SIZE;
 
 pub struct BaiduNetdiskWriter {
+    pub mutation: MutationState,
     pub buffer: Option<Buffer>,
     pub core: Arc<BaiduNetdiskCore>,
     pub ctx: OperationContext,
@@ -74,6 +75,7 @@ impl oio::Write for BaiduNetdiskWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        self.mutation.ensure_idle()?;
         let data = self.buffer.clone().unwrap_or_default();
         match self.core.stat(&self.ctx, &self.path).await {
             Ok(file) if file.isdir == 1 => {
@@ -202,7 +204,7 @@ impl oio::Write for BaiduNetdiskWriter {
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(form))
             .map_err(new_request_build_error)?;
-        let response = self.core.send(&self.ctx, req).await?;
+        let response = self.mutation.send(&self.core, &self.ctx, req).await?;
         let file: FileMetadata =
             serde_json::from_value(response).map_err(new_json_deserialize_error)?;
         if file.isdir != 0 || file.size != data.len() as u64 {

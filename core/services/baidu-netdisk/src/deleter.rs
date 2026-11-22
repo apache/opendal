@@ -15,17 +15,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::core::{BaiduNetdiskCore, FILE_API, FileList};
+use crate::core::{BaiduNetdiskCore, FILE_API, FileList, MutationState};
 use http::Request;
 use opendal_core::{raw::*, *};
 use std::sync::Arc;
 
 pub struct BaiduNetdiskDeleter {
+    pub mutation: MutationState,
     pub core: Arc<BaiduNetdiskCore>,
     pub ctx: OperationContext,
 }
 impl oio::OneShotDelete for BaiduNetdiskDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        self.mutation.ensure_idle()?;
         let file = match self.core.stat(&self.ctx, &path).await {
             Ok(file) => file,
             Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
@@ -61,13 +63,14 @@ impl oio::OneShotDelete for BaiduNetdiskDeleter {
             .core
             .manage(
                 &self.ctx,
+                &self.mutation,
                 "delete",
                 serde_json::json!([self.core.absolute_path(&path)]),
             )
             .await
         {
             Err(e) if e.kind() == ErrorKind::NotFound => Ok(()),
-            result => result,
+            result => result.map(|_| ()),
         }
     }
 }

@@ -18,7 +18,7 @@
 use crate::{
     BAIDU_NETDISK_SCHEME,
     config::BaiduNetdiskConfig,
-    core::{BaiduNetdiskCore, MutationState},
+    core::BaiduNetdiskCore,
     deleter::BaiduNetdiskDeleter,
     lister::BaiduNetdiskLister,
     reader::BaiduNetdiskReader,
@@ -143,7 +143,6 @@ impl Service for BaiduNetdiskBackend {
     }
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         Ok(BaiduNetdiskWriter {
-            mutation: MutationState::default(),
             buffer: None,
             core: self.core.clone(),
             ctx: ctx.clone(),
@@ -160,7 +159,6 @@ impl Service for BaiduNetdiskBackend {
     }
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         Ok(oio::OneShotDeleter::new(BaiduNetdiskDeleter {
-            mutation: MutationState::default(),
             core: self.core.clone(),
             ctx: ctx.clone(),
         }))
@@ -176,17 +174,15 @@ impl Service for BaiduNetdiskBackend {
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
-        let state = Arc::new((MutationState::default(), OnceLock::new()));
+        let destination_id = Arc::new(OnceLock::new());
         // Rebuild the request so RetryLayer can retry filemanager's busy errors.
         Ok(oio::OneShotCopier::new_with(move || {
             let core = core.clone();
             let ctx = ctx.clone();
             let from = from.clone();
             let to = to.clone();
-            let state = state.clone();
+            let destination_id = destination_id.clone();
             async move {
-                let (mutation, destination_id) = &*state;
-                mutation.ensure_idle()?;
                 let id = match destination_id.get() {
                     Some(id) => *id,
                     None => {
@@ -200,7 +196,7 @@ impl Service for BaiduNetdiskBackend {
                         if from == to {
                             return source.metadata();
                         }
-                        let id = core.copy(&ctx, mutation, &from, &to).await?;
+                        let id = core.copy(&ctx, &from, &to).await?;
                         // A retry after this point must only repeat the metadata lookup.
                         *destination_id.get_or_init(|| id)
                     }

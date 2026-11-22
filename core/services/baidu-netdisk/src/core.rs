@@ -21,41 +21,8 @@ use http::{Request, Response, StatusCode, header};
 use opendal_core::{raw::*, *};
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::sync::atomic::{AtomicBool, Ordering};
 
 pub const FILE_API: &str = "https://pan.baidu.com/rest/2.0/xpan/file";
-
-/// Per-operation state shared by retries of the same handle.
-#[derive(Default)]
-pub struct MutationState {
-    pending: AtomicBool,
-}
-
-impl MutationState {
-    pub fn ensure_idle(&self) -> Result<()> {
-        if self.pending.load(Ordering::Relaxed) {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "Baidu Netdisk mutation was interrupted and its outcome is unknown",
-            ));
-        }
-        Ok(())
-    }
-
-    /// A timeout can drop the future before the transport returns an error.
-    /// Leave the flag set on cancellation so a retry cannot submit another mutation.
-    pub async fn send(
-        &self,
-        core: &BaiduNetdiskCore,
-        ctx: &OperationContext,
-        req: Request<Buffer>,
-    ) -> Result<Value> {
-        self.pending.store(true, Ordering::Relaxed);
-        let result = core.send(ctx, req).await;
-        self.pending.store(false, Ordering::Relaxed);
-        result
-    }
-}
 
 pub struct BaiduNetdiskCore {
     pub info: ServiceInfo,
@@ -142,7 +109,6 @@ impl BaiduNetdiskCore {
     pub async fn manage(
         &self,
         ctx: &OperationContext,
-        mutation: &MutationState,
         operation: &str,
         files: Value,
     ) -> Result<Value> {
@@ -155,7 +121,7 @@ impl BaiduNetdiskCore {
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Buffer::from(form))
             .map_err(new_request_build_error)?;
-        let result = mutation.send(self, ctx, req).await?;
+        let result = self.send(ctx, req).await?;
         if result.get("taskid").is_some() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -174,13 +140,7 @@ impl BaiduNetdiskCore {
         }
         Ok(item.clone())
     }
-    pub async fn copy(
-        &self,
-        ctx: &OperationContext,
-        mutation: &MutationState,
-        from: &str,
-        to: &str,
-    ) -> Result<u64> {
+    pub async fn copy(&self, ctx: &OperationContext, from: &str, to: &str) -> Result<u64> {
         match self.stat(ctx, to).await {
             Ok(file) if file.isdir == 1 => {
                 return Err(Error::new(
@@ -192,7 +152,7 @@ impl BaiduNetdiskCore {
             _ => {}
         }
         self.create_dir(ctx, get_parent(to)).await?;
-        let item = self.manage(ctx, mutation, "copy", json!([{"path":self.absolute_path(from),
+        let item = self.manage(ctx, "copy", json!([{"path":self.absolute_path(from),
             "dest":self.absolute_path(get_parent(to)), "newname":get_basename(to), "ondup":"overwrite"}])).await?;
         item["to_fs_id"]
             .as_u64()

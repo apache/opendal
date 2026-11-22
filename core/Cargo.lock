@@ -7538,6 +7538,8 @@ name = "opendal-layer-dtrace"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
  "probe",
  "tokio",

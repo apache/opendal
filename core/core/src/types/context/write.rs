@@ -150,7 +150,7 @@ impl WriteGenerator<oio::Writer> {
 
     /// Allow building from existing oio::Writer for easier testing.
     #[cfg(test)]
-    fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
+    pub(crate) fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
         Self {
             w,
             ctx: None,

@@ -99,6 +99,13 @@ object and deletes the source after a successful copy. The `Create` mode
 requires a conditional rename or conditional copy and returns `NotSupported`
 when the operator supports neither.
 
+### Listing with an offset
+
+`list_with_offset` returns objects whose encoded `object_store::path::Path`
+compares greater than the offset. `OpendalStore` streams the requested prefix
+from the backend and applies this comparison locally. With no prefix, the
+backend listing starts at the operator root.
+
 ### Tune vectored reads
 
 `OpendalStore` coalesces ranges separated by up to 1 MiB by default, matching

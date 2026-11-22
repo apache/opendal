@@ -17,6 +17,7 @@
 
 use futures::Stream;
 use object_store::ObjectMeta;
+use object_store::path::Path;
 use opendal::Metadata;
 use std::future::IntoFuture;
 
@@ -61,9 +62,9 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
 }
 
 /// Format `opendal::Metadata` to `object_store::ObjectMeta`.
-pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
+pub fn format_object_meta(location: impl Into<Path>, meta: &Metadata) -> ObjectMeta {
     ObjectMeta {
-        location: path.into(),
+        location: location.into(),
         last_modified: meta
             .last_modified()
             .and_then(timestamp_to_datetime)

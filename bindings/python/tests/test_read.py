@@ -114,6 +114,26 @@ def test_sync_reader_read_sizes(operator):
 
 
 @pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_rejects_negative_seek_set(operator):
+    filename = f"random_file_{str(uuid4())}"
+    operator.write(filename, b"0123456789")
+
+    try:
+        with operator.open(filename, "rb") as reader:
+            assert reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1, 0)
+            assert reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1)
+            assert reader.tell() == 3
+
+            assert reader.read() == b"3456789"
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
 def test_sync_reader_readline(service_name, operator, async_operator):
     size = randint(1, 1024)
     lines = randint(1, min(100, size))
@@ -250,6 +270,27 @@ async def test_async_reader_read_sizes(async_operator):
     with pytest.raises(ValueError, match="closed file"):
         await reader.tell()
     await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_rejects_negative_seek_set(async_operator):
+    filename = f"random_file_{str(uuid4())}"
+    await async_operator.write(filename, b"0123456789")
+
+    try:
+        async with await async_operator.open(filename, "rb") as reader:
+            assert await reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1, 0)
+            assert await reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1)
+            assert await reader.tell() == 3
+
+            assert await reader.read() == b"3456789"
+    finally:
+        await async_operator.delete(filename)
 
 
 @pytest.mark.asyncio

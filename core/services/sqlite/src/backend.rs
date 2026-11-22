@@ -188,6 +188,8 @@ impl SqliteBackend {
             stat: true,
             write_can_empty: true,
             list: false,
+            rename: true,
+            rename_with_if_not_exists: true,
             ..Default::default()
         };
 
@@ -333,14 +335,14 @@ impl Service for SqliteBackend {
     async fn rename(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
-        _args: OpRename,
+        from: &str,
+        to: &str,
+        args: OpRename,
     ) -> Result<RpRename> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
+        self.core.rename(&from, &to, args.if_not_exists()).await?;
+        Ok(RpRename::new())
     }
 
     async fn presign(
@@ -403,6 +405,65 @@ mod test {
 
         assert_eq!(backend.root, "/test/");
         assert_eq!(backend.info.root(), Arc::from("/test/"));
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_rename_missing_source_preserves_destination() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let op = Operator::from_parts(OperationContext::new(), Arc::new(backend));
+        op.write("target", "target value").await.unwrap();
+
+        for if_not_exists in [false, true] {
+            let err = op
+                .rename_with("missing", "target")
+                .if_not_exists(if_not_exists)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert_eq!(op.read("target").await.unwrap().to_vec(), b"target value");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_rename_preserves_rows_on_unrelated_unique_conflict() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE UNIQUE INDEX prefix_value ON test_table (substr(key, 1, 6), value)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let op = Operator::from_parts(OperationContext::new(), Arc::new(backend));
+        op.write("source", "source value").await.unwrap();
+        op.write("target-neighbor", "source value").await.unwrap();
+
+        let err = op
+            .rename_with("source", "target")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!op.exists("target").await.unwrap());
+
+        op.write("target", "target value").await.unwrap();
+        let err = op.rename("source", "target").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert_eq!(op.read("source").await.unwrap().to_vec(), b"source value");
+        assert_eq!(op.read("target").await.unwrap().to_vec(), b"target value");
+        assert_eq!(
+            op.read("target-neighbor").await.unwrap().to_vec(),
+            b"source value"
+        );
     }
 
     #[tokio::test]

@@ -1969,6 +1969,8 @@
         "create_dir": true,
         "delete": true,
         "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
         "stat": true,
         "write": true,
         "write_can_empty": true

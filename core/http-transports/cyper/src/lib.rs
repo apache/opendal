@@ -107,7 +107,7 @@ fn client_for_runtime(runtime: &Runtime) -> Result<cyper::Client> {
             .with_safe_default_protocol_versions()
             .and_then(BuilderVerifierExt::with_platform_verifier)
             .map_err(|err| {
-                Error::new(ErrorKind::ConfigInvalid, "configure Cyper Rustls client")
+                Error::new(ErrorKind::ConfigInvalid, "initialize Cyper Rustls client")
                     .with_operation("cyper::fetch")
                     .set_source(err)
             })?
@@ -116,7 +116,7 @@ fn client_for_runtime(runtime: &Runtime) -> Result<cyper::Client> {
             builder.use_rustls(Arc::new(config))
         };
         let client = builder.build().map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "configure Cyper client")
+            Error::new(ErrorKind::ConfigInvalid, "initialize Cyper client")
                 .with_operation("cyper::fetch")
                 .set_source(err)
         })?;
@@ -169,17 +169,19 @@ async fn drive_request(
     }
 
     let forward = async {
-        let mut stream = pin!(stream);
-        while let Some(item) = stream.next().await {
-            let failed = item.is_err();
-            if tx.send(Some(item)).await.is_err() {
-                return;
-            }
-            if failed {
-                break;
+        {
+            let mut stream = pin!(stream);
+            while let Some(item) = stream.next().await {
+                let failed = item.is_err();
+                if tx.send(Some(item)).await.is_err() {
+                    return;
+                }
+                if failed {
+                    break;
+                }
             }
         }
-        // An explicit end distinguishes EOF from an interrupted runtime.
+        // Send EOF after releasing the stream to distinguish completion from runtime shutdown.
         let _ = tx.send(None).await;
     };
     let _ = select(pin!(tx.closed()), pin!(forward)).await;

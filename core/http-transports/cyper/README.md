@@ -32,7 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 Keep the originating Compio runtime running while consuming a streamed response.
 If an operation schedules additional HTTP requests through an OpenDAL executor,
-configure that executor to start the tasks on Compio as well.
+use an executor that starts those tasks on Compio.
 
 With the `opendal` facade, enable `http-transport-cyper` and `services-http` and
 import `opendal::CyperTransport`, `opendal::HttpTransporter`,

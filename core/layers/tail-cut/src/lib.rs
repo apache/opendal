@@ -384,7 +384,7 @@ impl Service for TailCutService {
     type Lister = TailCutWrapper<oio::Lister>;
     type Deleter = TailCutWrapper<oio::Deleter>;
     type Copier = TailCutWrapper<oio::Copier>;
-    type Composer = oio::Composer;
+    type Composer = TailCutWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -395,7 +395,9 @@ impl Service for TailCutService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.inner
+            .compose(ctx, to, args)
+            .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
     }
 
     async fn create_dir(
@@ -457,7 +459,12 @@ impl Service for TailCutService {
         path: &str,
         args: OpRestore,
     ) -> Result<RpRestore> {
-        self.inner.restore(ctx, path, args).await
+        self.with_deadline(
+            Operation::Restore,
+            None,
+            self.inner.restore(ctx, path, args),
+        )
+        .await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -698,7 +705,16 @@ impl<R: oio::List> oio::List for TailCutWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        let deadline = self.calculate_deadline(Operation::Delete);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Delete,
+            self.inner.delete(path, args),
+        )
+        .await
     }
 
     async fn close(&mut self) -> Result<()> {
@@ -756,10 +772,38 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
     }
 }
 
+impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        let deadline = self.calculate_deadline(Operation::Compose);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Compose,
+            self.inner.compose(path, args),
+        )
+        .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let deadline = self.calculate_deadline(Operation::Compose);
+        Self::with_io_deadline(
+            deadline,
+            self.config.percentile,
+            &self.stats,
+            self.size,
+            Operation::Compose,
+            self.inner.close(),
+        )
+        .await
+    }
+}
+
 /// Statistics engine for tail cut layer.
 struct TailCutStats {
-    // Statistics for each operation type (7 operations)
-    operations: [Arc<OperationStats>; 7],
+    // Statistics for each operation type (8 operations)
+    operations: [Arc<OperationStats>; 8],
 }
 
 impl TailCutStats {
@@ -778,6 +822,7 @@ impl TailCutStats {
             Operation::Delete => 4,
             Operation::Copy => 5,
             Operation::Rename => 6,
+            Operation::Compose => 7,
             _ => 2, // fallback to Stat
         };
         &self.operations[idx]
@@ -993,6 +1038,7 @@ impl TimeSlice {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal_core::raw::oio::Delete;
 
     #[test]
     fn test_latency_to_bucket() {
@@ -1216,5 +1262,82 @@ mod tests {
         let cloned = layer.clone();
 
         assert!(Arc::ptr_eq(&layer.stats, &cloned.stats));
+    }
+
+    /// A deleter whose `delete()` either resolves immediately or stays
+    /// pending forever, for exercising the tail-cut deadline deterministically.
+    struct StubDeleter {
+        hang: bool,
+    }
+
+    impl oio::Delete for StubDeleter {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            if self.hang {
+                std::future::pending::<Result<()>>().await
+            } else {
+                Ok(())
+            }
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn test_deleter(
+        layer: &TailCutLayer,
+        inner: impl oio::Delete + 'static,
+    ) -> TailCutWrapper<oio::Deleter> {
+        TailCutWrapper::new(
+            Box::new(inner) as oio::Deleter,
+            None,
+            layer.config.clone(),
+            layer.stats.clone(),
+        )
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_delete_cancelled_by_io_deadline() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_secs(1))
+            .build();
+
+        // Warm up the Delete estimator with a fast sample so the deadline
+        // becomes active.
+        let mut warm = test_deleter(&layer, StubDeleter { hang: false });
+        warm.delete("warmup", OpDelete::new()).await.unwrap();
+
+        // A deleter whose `delete()` never resolves must be cut by the
+        // deadline instead of hanging.
+        let mut hung = test_deleter(&layer, StubDeleter { hang: true });
+        let err = hung
+            .delete("test", OpDelete::new())
+            .await
+            .expect_err("hung delete must be cancelled by tail cut");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(err.to_string().contains("io cancelled by tail cut"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_delete_records_latency_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_secs(1))
+            .build();
+        let mut deleter = test_deleter(&layer, StubDeleter { hang: false });
+
+        deleter.delete("test", OpDelete::new()).await.unwrap();
+
+        let samples = layer
+            .stats
+            .stats_for(Operation::Delete)
+            .total_samples(None, layer.config.window);
+        assert_eq!(samples, 1);
     }
 }

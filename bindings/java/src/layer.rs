@@ -30,15 +30,18 @@ use jni::objects::JString;
 use jni::sys::jboolean;
 use jni::sys::jdouble;
 use jni::sys::jfloat;
+use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::Operator;
 use opendal::layers::CapabilityCheckLayer;
 use opendal::layers::CapabilityOverrideLayer;
 use opendal::layers::ChaosLayer;
 use opendal::layers::ConcurrentLimitLayer;
+use opendal::layers::HedgeLayer;
 use opendal::layers::ImmutableIndexLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
+use opendal::layers::SanityCheckLayer;
 use opendal::layers::ThrottleLayer;
 use opendal::layers::TimeoutLayer;
 use opendal::{Error, ErrorKind};
@@ -134,6 +137,51 @@ pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLaye
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_HedgeLayer_doLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+    stat_delay_nanos: jlong,
+    read_delay_nanos: jlong,
+    max_hedges: jint,
+    hedge_stat: jboolean,
+    hedge_read: jboolean,
+) -> jlong {
+    env.with_env(|env| -> Result<jlong> {
+        let (Ok(stat_delay_nanos), Ok(read_delay_nanos)) = (
+            u64::try_from(stat_delay_nanos),
+            u64::try_from(read_delay_nanos),
+        ) else {
+            env.throw_new(
+                jni_str!("java/lang/IllegalArgumentException"),
+                jni_str!("statDelay and readDelay must be non-negative"),
+            )?;
+            return Ok(0);
+        };
+        let Ok(max_hedges) = usize::try_from(max_hedges) else {
+            env.throw_new(
+                jni_str!("java/lang/IllegalArgumentException"),
+                jni_str!("maxHedges must be non-negative"),
+            )?;
+            return Ok(0);
+        };
+        let mut layer = HedgeLayer::new()
+            .with_stat_delay(Duration::from_nanos(stat_delay_nanos))
+            .with_read_delay(Duration::from_nanos(read_delay_nanos))
+            .with_max_hedges(max_hedges);
+        if !hedge_stat {
+            layer = layer.without_stat_hedge();
+        }
+        if !hedge_read {
+            layer = layer.without_read_hedge();
+        }
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+    })
+    .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_ImmutableIndexLayer_doLayer<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
@@ -160,6 +208,20 @@ pub extern "system" fn Java_org_apache_opendal_layer_MimeGuessLayer_doLayer<'loc
 ) -> jlong {
     let op = unsafe { &*op };
     Box::into_raw(Box::new(op.clone().layer(MimeGuessLayer::new()))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_SanityCheckLayer_doLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+) -> jlong {
+    env.with_env(|_| -> Result<jlong> {
+        let op = unsafe { &*op };
+        let layer: SanityCheckLayer = Default::default();
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

@@ -26,7 +26,10 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Entry;
@@ -39,9 +42,11 @@ import org.apache.opendal.layer.CapabilityCheckLayer;
 import org.apache.opendal.layer.CapabilityOverrideLayer;
 import org.apache.opendal.layer.ChaosLayer;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.HedgeLayer;
 import org.apache.opendal.layer.ImmutableIndexLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.SanityCheckLayer;
 import org.apache.opendal.layer.ThrottleLayer;
 import org.apache.opendal.layer.TimeoutLayer;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
@@ -113,6 +118,86 @@ public class LayerTest {
         assertThatThrownBy(() -> new ChaosLayer(invalid))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageStartingWith("errorRatio ");
+    }
+
+    @Test
+    void testSanityCheckLayerListsMemoryEntries() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new SanityCheckLayer());
+
+        op.write("first.txt", "first").join();
+        op.write("second.txt", "second").join();
+        assertThat(layeredOp.list("").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("first.txt", "second.txt");
+    }
+
+    @Test
+    void testHedgeLayerCompletesStatWhileFirstRequestIsStalled() throws Exception {
+        final CountDownLatch releaseFirstResponse = new CountDownLatch(1);
+        final AtomicInteger requests = new AtomicInteger();
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        final ExecutorService handlers = Executors.newFixedThreadPool(2);
+        try {
+            server.setExecutor(handlers);
+            server.createContext("/file", exchange -> {
+                try {
+                    if (requests.incrementAndGet() == 1) {
+                        releaseFirstResponse.await();
+                        return;
+                    }
+                    exchange.getResponseHeaders().set("Content-Length", "7");
+                    exchange.sendResponseHeaders(200, -1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final HedgeLayer hedge = HedgeLayer.builder()
+                    .delay(Duration.ofNanos(Long.MAX_VALUE))
+                    .statDelay(Duration.ofMillis(25))
+                    .build();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(hedge);
+
+            assertThat(layeredOp.stat("file").get(5, TimeUnit.SECONDS).contentLength)
+                    .isEqualTo(7);
+            assertThat(requests.get()).isEqualTo(2);
+        } finally {
+            releaseFirstResponse.countDown();
+            server.stop(0);
+            handlers.shutdownNow();
+        }
+    }
+
+    @Test
+    void testHedgeLayerRejectsInvalidDurations() {
+        for (Duration invalid : Arrays.asList(
+                null, Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> HedgeLayer.builder().delay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("delay ");
+            assertThatThrownBy(() -> HedgeLayer.builder().statDelay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("statDelay ");
+            assertThatThrownBy(() -> HedgeLayer.builder().readDelay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("readDelay ");
+        }
+    }
+
+    @Test
+    void testHedgeLayerRejectsNegativeMaxHedges() {
+        assertThatThrownBy(() -> HedgeLayer.builder().maxHedges(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("maxHedges ");
     }
 
     @Test

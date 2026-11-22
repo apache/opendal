@@ -1481,6 +1481,8 @@ dependencies = [
 name = "opendal-layer-logging"
 version = "0.59.5"
 dependencies = [
+ "futures",
+ "http",
  "log",
  "opendal-core",
 ]

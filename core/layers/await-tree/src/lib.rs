@@ -19,13 +19,25 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-use await_tree::InstrumentAwait;
+
 use std::sync::Arc;
+use std::time::Duration;
+
+use await_tree::InstrumentAwait;
+use await_tree::Registry;
+use futures::StreamExt;
+use futures::stream;
+use http::Request;
+use http::Response;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// `AwaitTreeLayer` instruments service operations for actor-based applications.
+/// `AwaitTreeLayer` instruments service operations, HTTP requests and response bodies,
+/// and background tasks for actor-based applications.
+///
+/// When a registry is available at task submission, the layer gives the
+/// background task its own anonymous tree in that registry.
 ///
 /// # AwaitTree
 ///
@@ -62,7 +74,82 @@ impl Layer for AwaitTreeLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
         Arc::new(self.layer(inner))
     }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(AwaitTreeHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        let executor = Executor::with(AwaitTreeExecutor {
+            inner: inner.executor().clone().into_inner(),
+        });
+
+        inner.with_http_transport(transport).with_executor(executor)
+    }
 }
+
+struct AwaitTreeHttpTransport {
+    inner: HttpTransporter,
+}
+
+impl HttpTransport for AwaitTreeHttpTransport {
+    async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+        let response = self
+            .inner
+            .fetch(req)
+            .instrument_await("opendal::http::fetch")
+            .await?;
+
+        Ok(response.map(|body| {
+            body.map_inner(|stream| {
+                // Keep one span across polls of each pending stream item.
+                Box::new(Box::pin(
+                    stream::unfold(stream, |mut stream| async move {
+                        let item = stream.next().instrument_await("opendal::http::body").await;
+                        item.map(|item| (item, stream))
+                    })
+                    .fuse(),
+                ))
+            })
+        }))
+    }
+}
+
+struct AwaitTreeExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl AwaitTreeExecutor {
+    fn instrument_task(f: BoxedStaticFuture<()>) -> BoxedStaticFuture<()> {
+        match Registry::try_current() {
+            Some(registry) => {
+                let root = registry.register_anonymous("opendal::executor::task");
+                Box::pin(root.instrument(f))
+            }
+            None => f,
+        }
+    }
+}
+
+impl Execute for AwaitTreeExecutor {
+    fn execute(&self, f: BoxedStaticFuture<()>) {
+        self.inner.execute(Self::instrument_task(f));
+    }
+
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner.try_execute(Self::instrument_task(f))
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
 
 impl AwaitTreeLayer {
     fn layer(&self, inner: Servicer) -> AwaitTreeAccessor {

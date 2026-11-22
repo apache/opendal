@@ -16,14 +16,13 @@
 // under the License.
 
 use anyhow::Result;
-use asyncband::mutex::Mutex;
+use asyncband::mutex::Mutex as AsyncMutex;
 use cxx_async::CxxAsyncException;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
-use std::ops::Deref;
 use std::pin::Pin;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
@@ -32,41 +31,26 @@ mod ffi {
         value: String,
     }
 
-    // here we have to use raw pointers since:
-    // 1. cxx-async futures requires 'static lifetime (and it's hard to change for now)
-    // 2. cxx SharedPtr cannot accept Rust types as type parameters for now
-    pub struct OperatorPtr {
-        op: *const Operator,
-    }
-
-    pub struct ReaderPtr {
-        id: usize,
-    }
-
-    pub struct ListerPtr {
-        id: usize,
-    }
-
     extern "Rust" {
         type Operator;
 
         fn new_operator(scheme: &str, configs: Vec<HashMapValue>) -> Result<Box<Operator>>;
-        unsafe fn operator_read(op: OperatorPtr, path: String) -> RustFutureRead;
-        unsafe fn operator_write(op: OperatorPtr, path: String, bs: &[u8]) -> RustFutureWrite;
-        unsafe fn operator_list(op: OperatorPtr, path: String) -> RustFutureList;
-        unsafe fn operator_exists(op: OperatorPtr, path: String) -> RustFutureBool;
-        unsafe fn operator_create_dir(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_copy(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
-        unsafe fn operator_rename(op: OperatorPtr, from: String, to: String) -> RustFutureWrite;
-        unsafe fn operator_delete(op: OperatorPtr, path: String) -> RustFutureWrite;
-        unsafe fn operator_reader(op: OperatorPtr, path: String) -> RustFutureReaderId;
-        unsafe fn operator_lister(op: OperatorPtr, path: String) -> RustFutureListerId;
+        fn operator_read(op: &Operator, path: String) -> RustFutureRead;
+        fn operator_write(op: &Operator, path: String, bs: &[u8]) -> RustFutureWrite;
+        fn operator_list(op: &Operator, path: String) -> RustFutureList;
+        fn operator_exists(op: &Operator, path: String) -> RustFutureBool;
+        fn operator_create_dir(op: &Operator, path: String) -> RustFutureWrite;
+        fn operator_copy(op: &Operator, from: String, to: String) -> RustFutureWrite;
+        fn operator_rename(op: &Operator, from: String, to: String) -> RustFutureWrite;
+        fn operator_delete(op: &Operator, path: String) -> RustFutureWrite;
+        fn operator_reader(op: &Operator, path: String) -> RustFutureReaderId;
+        fn operator_lister(op: &Operator, path: String) -> RustFutureListerId;
 
-        unsafe fn reader_read(reader: ReaderPtr, start: u64, len: u64) -> RustFutureRead;
-        unsafe fn lister_next(lister: ListerPtr) -> RustFutureEntryOption;
+        fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead;
+        fn lister_next(lister: usize) -> RustFutureEntryOption;
 
-        fn delete_reader(reader: ReaderPtr);
-        fn delete_lister(lister: ListerPtr);
+        fn delete_reader(reader: usize);
+        fn delete_lister(lister: usize);
     }
 
     extern "C++" {
@@ -124,10 +108,14 @@ unsafe impl Future for RustFutureEntryOption {
 
 pub struct Operator(od::Operator);
 
-// Global storage for readers and listers to avoid Send issues with raw pointers
+// Global storage for readers and listers to avoid Send issues with raw pointers.
+// The outer tables are only locked briefly and never held across `.await`, so a
+// std mutex is enough; the inner lister mutex stays async because `lister_next`
+// holds it across `try_next().await`.
 static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();
 static READER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
-static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> = OnceLock::new();
+static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<AsyncMutex<od::Lister>>>>> =
+    OnceLock::new();
 static LISTER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
 
 fn get_reader_storage() -> &'static Mutex<HashMap<usize, Arc<od::Reader>>> {
@@ -138,12 +126,18 @@ fn get_reader_counter() -> &'static Mutex<usize> {
     READER_COUNTER.get_or_init(|| Mutex::new(0))
 }
 
-fn get_lister_storage() -> &'static Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>> {
+fn get_lister_storage() -> &'static Mutex<HashMap<usize, Arc<AsyncMutex<od::Lister>>>> {
     LISTER_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn get_lister_counter() -> &'static Mutex<usize> {
     LISTER_COUNTER.get_or_init(|| Mutex::new(0))
+}
+
+/// Locks a std mutex without propagating poisoning: a panic in a previous
+/// holder must not abort a C++ destructor or an FFI call.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
@@ -159,22 +153,14 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
     Ok(op)
 }
 
-impl Deref for ffi::OperatorPtr {
-    type Target = Operator;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.op }
-    }
-}
-
-unsafe impl Send for ffi::OperatorPtr {}
-unsafe impl Send for ffi::ReaderPtr {}
-unsafe impl Send for ffi::ListerPtr {}
-
-unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
+// The returned futures are polled lazily and must stay 'static: each one
+// captures an owned `od::Operator` clone (an `Arc`-backed handle, cheap to
+// clone) instead of borrowing `op`, so the future remains valid even if the
+// C++ operator is destroyed before the future is first polled.
+fn operator_read(op: &Operator, path: String) -> RustFutureRead {
+    let op = op.0.clone();
     RustFutureRead::fallible(async move {
         Ok(op
-            .0
             .read(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?
@@ -182,116 +168,125 @@ unsafe fn operator_read(op: ffi::OperatorPtr, path: String) -> RustFutureRead {
     })
 }
 
-unsafe fn operator_write(op: ffi::OperatorPtr, path: String, bs: &[u8]) -> RustFutureWrite {
+fn operator_write(op: &Operator, path: String, bs: &[u8]) -> RustFutureWrite {
+    let op = op.0.clone();
     // Copy before building the future, which outlives the borrowed slice.
     let bs = bs.to_vec();
     RustFutureWrite::fallible(async move {
-        op.0.write(&path, bs)
+        op.write(&path, bs)
             .await
             .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_list(op: ffi::OperatorPtr, path: String) -> RustFutureList {
+fn operator_list(op: &Operator, path: String) -> RustFutureList {
+    let op = op.0.clone();
     RustFutureList::fallible(async move {
-        let entries =
-            op.0.list(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let entries = op
+            .list(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(entries.into_iter().map(|e| e.path().to_string()).collect())
     })
 }
 
-unsafe fn operator_exists(op: ffi::OperatorPtr, path: String) -> RustFutureBool {
+fn operator_exists(op: &Operator, path: String) -> RustFutureBool {
+    let op = op.0.clone();
     RustFutureBool::fallible(async move {
-        op.0.exists(&path)
+        op.exists(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_create_dir(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+fn operator_create_dir(op: &Operator, path: String) -> RustFutureWrite {
+    let op = op.0.clone();
     RustFutureWrite::fallible(async move {
-        op.0.create_dir(&path)
+        op.create_dir(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_copy(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+fn operator_copy(op: &Operator, from: String, to: String) -> RustFutureWrite {
+    let op = op.0.clone();
     RustFutureWrite::fallible(async move {
-        op.0.copy(&from, &to)
+        op.copy(&from, &to)
             .await
             .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_rename(op: ffi::OperatorPtr, from: String, to: String) -> RustFutureWrite {
+fn operator_rename(op: &Operator, from: String, to: String) -> RustFutureWrite {
+    let op = op.0.clone();
     RustFutureWrite::fallible(async move {
-        op.0.rename(&from, &to)
+        op.rename(&from, &to)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_delete(op: ffi::OperatorPtr, path: String) -> RustFutureWrite {
+fn operator_delete(op: &Operator, path: String) -> RustFutureWrite {
+    let op = op.0.clone();
     RustFutureWrite::fallible(async move {
-        op.0.delete(&path)
+        op.delete(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
     })
 }
 
-unsafe fn operator_reader(op: ffi::OperatorPtr, path: String) -> RustFutureReaderId {
+fn operator_reader(op: &Operator, path: String) -> RustFutureReaderId {
+    let op = op.0.clone();
     RustFutureReaderId::fallible(async move {
-        let reader =
-            op.0.reader(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let reader = op
+            .reader(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the reader in global storage and return an ID
         let reader_arc = Arc::new(reader);
-        let mut counter = get_reader_counter().lock().await;
-        *counter += 1;
-        let id = *counter;
-
-        let mut storage = get_reader_storage().lock().await;
-        storage.insert(id, reader_arc);
+        let id = {
+            let mut counter = lock(get_reader_counter());
+            *counter += 1;
+            *counter
+        };
+        lock(get_reader_storage()).insert(id, reader_arc);
 
         Ok(id)
     })
 }
 
-unsafe fn operator_lister(op: ffi::OperatorPtr, path: String) -> RustFutureListerId {
+fn operator_lister(op: &Operator, path: String) -> RustFutureListerId {
+    let op = op.0.clone();
     RustFutureListerId::fallible(async move {
-        let lister =
-            op.0.lister(&path)
-                .await
-                .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
+        let lister = op
+            .lister(&path)
+            .await
+            .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the lister in global storage and return an ID
-        let lister_arc = Arc::new(Mutex::new(lister));
-        let mut counter = get_lister_counter().lock().await;
-        *counter += 1;
-        let id = *counter;
-
-        let mut storage = get_lister_storage().lock().await;
-        storage.insert(id, lister_arc);
+        let lister_arc = Arc::new(AsyncMutex::new(lister));
+        let id = {
+            let mut counter = lock(get_lister_counter());
+            *counter += 1;
+            *counter
+        };
+        lock(get_lister_storage()).insert(id, lister_arc);
 
         Ok(id)
     })
 }
 
-unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutureRead {
+fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
+    // The C++ `Reader` only passes its id. Resolve it eagerly so the returned
+    // future owns the reader handle and stays valid even if the C++ reader is
+    // destroyed before the future is polled.
+    let resolved_reader = lock(get_reader_storage()).get(&reader).cloned();
     RustFutureRead::fallible(async move {
-        let storage = get_reader_storage().lock().await;
-        let reader_arc = storage
-            .get(&reader.id)
-            .ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?
-            .clone();
-        drop(storage);
+        let reader_arc =
+            resolved_reader.ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?;
 
         let buffer = reader_arc
             .read(start..(start + len))
@@ -301,16 +296,15 @@ unsafe fn reader_read(reader: ffi::ReaderPtr, start: u64, len: u64) -> RustFutur
     })
 }
 
-unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
+fn lister_next(lister: usize) -> RustFutureEntryOption {
+    // Same ownership rule as `reader_read`: resolve the id eagerly so the
+    // future owns the lister handle.
+    let resolved_lister = lock(get_lister_storage()).get(&lister).cloned();
     RustFutureEntryOption::fallible(async move {
         use futures::TryStreamExt;
 
-        let storage = get_lister_storage().lock().await;
-        let lister_arc = storage
-            .get(&lister.id)
-            .ok_or_else(|| CxxAsyncException::new("Invalid lister ID".into()))?
-            .clone();
-        drop(storage);
+        let lister_arc =
+            resolved_lister.ok_or_else(|| CxxAsyncException::new("Invalid lister ID".into()))?;
 
         let mut lister_guard = lister_arc.lock().await;
         match lister_guard.try_next().await {
@@ -321,20 +315,16 @@ unsafe fn lister_next(lister: ffi::ListerPtr) -> RustFutureEntryOption {
     })
 }
 
-fn delete_reader(reader: ffi::ReaderPtr) {
-    // Use blocking lock since this is called from C++ destructors
-    if let Some(mut storage) = get_reader_storage().try_lock() {
-        storage.remove(&reader.id);
-    }
-    // If we can't get the lock immediately, we'll just skip cleanup
-    // This is better than panicking in a destructor
+fn delete_reader(reader: usize) {
+    // Called from C++ destructors: always evict the id, then drop the removed
+    // handle outside the lock.
+    let removed = lock(get_reader_storage()).remove(&reader);
+    drop(removed);
 }
 
-fn delete_lister(lister: ffi::ListerPtr) {
-    // Use blocking lock since this is called from C++ destructors
-    if let Some(mut storage) = get_lister_storage().try_lock() {
-        storage.remove(&lister.id);
-    }
-    // If we can't get the lock immediately, we'll just skip cleanup
-    // This is better than panicking in a destructor
+fn delete_lister(lister: usize) {
+    // Called from C++ destructors: always evict the id, then drop the removed
+    // handle outside the lock.
+    let removed = lock(get_lister_storage()).remove(&lister);
+    drop(removed);
 }

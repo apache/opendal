@@ -40,6 +40,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "executors-tokio",
 
   # enabled layers
+  "layers-cache",
   "layers-capability-check",
   "layers-chaos",
   "layers-concurrent-limit",

@@ -173,7 +173,7 @@ jobs:
         run: cargo run -p opendal-examples-getting-started
 
   build_all_platforms:
-    if: github.event_name == 'workflow_call'
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

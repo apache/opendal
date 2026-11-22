@@ -48,10 +48,17 @@ impl oio::OneShotDelete for MemoryDeleter {
 mod tests {
     use crate::*;
 
+    fn memory_with_directory_markers(builder: services::Memory) -> Result<Operator> {
+        let op = Operator::new(builder)?;
+        #[cfg(not(feature = "auto-simulate"))]
+        let op = op.layer(crate::layers::SimulateLayer::default());
+        Ok(op)
+    }
+
     #[tokio::test]
     async fn test_delete_non_empty_dir_keeps_entries() -> Result<()> {
         for explicit in [false, true] {
-            let op = Operator::new(services::Memory::default().root("/root/"))?;
+            let op = memory_with_directory_markers(services::Memory::default().root("/root/"))?;
             let mut expected = vec!["d/a.txt", "d/b.txt"];
             if explicit {
                 op.create_dir("d/").await?;
@@ -72,7 +79,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_empty_and_missing_dir() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?;
+        let op = memory_with_directory_markers(services::Memory::default())?;
         op.create_dir("d/").await?;
         op.delete("d/").await?;
         assert!(!op.exists("d/").await?);
@@ -82,7 +89,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_recursive_removes_markers_and_children() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?;
+        let op = memory_with_directory_markers(services::Memory::default())?;
         op.create_dir("d/").await?;
         op.create_dir("d/nested/").await?;
         op.write("d/nested/file.txt", "contents").await?;
@@ -100,7 +107,7 @@ mod tests {
     #[tokio::test]
     #[allow(deprecated)]
     async fn test_remove_all_uses_literal_prefix() -> Result<()> {
-        let op = Operator::new(services::Memory::default())?;
+        let op = memory_with_directory_markers(services::Memory::default())?;
         op.write("d", "file").await?;
         op.create_dir("d/").await?;
         op.write("d/a.txt", "child").await?;

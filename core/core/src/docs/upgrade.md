@@ -24,6 +24,15 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
 
+## Automatic capability simulation
+
+The `auto-simulate` feature in `opendal` and `opendal-core` now controls
+whether `Operator::new` installs `SimulateLayer` automatically. The feature
+is enabled by default. If you previously disabled default features and rely
+on automatic simulation, add `auto-simulate` to your dependency features.
+You can also apply `opendal::layers::SimulateLayer` to individual operators
+with `Operator::layer`.
+
 ## Glob listing
 
 `ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,

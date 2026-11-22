@@ -37,8 +37,11 @@ impl WebhdfsDeleter {
 }
 
 impl oio::OneShotDelete for WebhdfsDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        let resp = self.core.webhdfs_delete(&self.ctx, &path).await?;
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        let resp = self
+            .core
+            .webhdfs_delete(&self.ctx, &path, args.recursive())
+            .await?;
 
         match resp.status() {
             StatusCode::OK => Ok(()),

@@ -123,7 +123,10 @@ impl oio::BlockWrite for WebhdfsWriter {
             }
         }
         // delete the path file
-        let resp = self.core.webhdfs_delete(&self.ctx, &self.path).await?;
+        let resp = self
+            .core
+            .webhdfs_delete(&self.ctx, &self.path, false)
+            .await?;
 
         let status = resp.status();
         if status != StatusCode::OK {
@@ -159,7 +162,7 @@ impl oio::BlockWrite for WebhdfsWriter {
         for block_id in block_ids {
             let resp = self
                 .core
-                .webhdfs_delete(&self.ctx, &format!("{atomic_write_dir}{block_id}"))
+                .webhdfs_delete(&self.ctx, &format!("{atomic_write_dir}{block_id}"), false)
                 .await?;
             match resp.status() {
                 StatusCode::OK => {}

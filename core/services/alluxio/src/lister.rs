@@ -19,6 +19,7 @@ use std::sync::Arc;
 
 use super::core::AlluxioCore;
 use opendal_core::ErrorKind;
+use opendal_core::MetadataBuilder;
 use opendal_core::OperationContext;
 use opendal_core::Result;
 use opendal_core::raw::oio::Entry;
@@ -49,6 +50,16 @@ impl oio::PageList for AlluxioLister {
             Ok(file_infos) => {
                 ctx.done = true;
 
+                // Alluxio returns only the children, but the list
+                // contract requires the listed directory itself first.
+                let dir = if self.path.ends_with('/') {
+                    self.path.clone()
+                } else {
+                    format!("{}/", self.path)
+                };
+                ctx.entries
+                    .push_back(Entry::new(&dir, MetadataBuilder::dir().build()));
+
                 for file_info in file_infos {
                     let path: String = file_info.path.clone();
                     let path = if file_info.folder {
@@ -72,5 +83,56 @@ impl oio::PageList for AlluxioLister {
                 Err(e)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+
+    use super::super::core::test_utils::*;
+    use super::*;
+    use opendal_core::raw::oio::{PageContext, PageList};
+
+    #[tokio::test]
+    async fn test_list_emits_listed_directory_first() {
+        let (core, ctx) = test_core_with(MockTransport::new(vec![], 13));
+        let lister = AlluxioLister::new(Arc::new(core), ctx, "dir/");
+        let mut page = PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+        lister.next_page(&mut page).await.unwrap();
+        assert!(page.done);
+
+        let first = page.entries.pop_front().unwrap();
+        assert_eq!(first.path(), "dir/");
+        assert!(first.metadata().mode().is_dir());
+
+        // The children from list-status follow the directory itself.
+        assert_eq!(page.entries.len(), 2);
+        assert_eq!(page.entries[0].path(), "dir/a.txt");
+        assert_eq!(page.entries[1].path(), "dir/sub/");
+    }
+
+    #[tokio::test]
+    async fn test_list_empty_directory_returns_itself() {
+        let (core, ctx) = test_core_with(MockTransport::new(vec![], 13));
+        let lister = AlluxioLister::new(Arc::new(core), ctx, "empty/");
+        let mut page = PageContext {
+            done: false,
+            token: String::new(),
+            entries: VecDeque::new(),
+        };
+        lister.next_page(&mut page).await.unwrap();
+        assert!(page.done);
+
+        let first = page.entries.pop_front().unwrap();
+        assert_eq!(first.path(), "empty/");
+        assert!(first.metadata().mode().is_dir());
+        // An empty directory lists only itself.
+        assert!(page.entries.is_empty());
     }
 }

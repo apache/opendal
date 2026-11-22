@@ -92,6 +92,7 @@ impl AlluxioCore {
 
         let r = CreateFileRequest {
             recursive: Some(true),
+            overwrite: Some(true),
         };
 
         let body = serde_json::to_vec(&r).map_err(new_json_serialize_error)?;
@@ -413,6 +414,59 @@ pub(crate) mod test_utils {
                     ))
                     .unwrap());
             }
+            if uri.contains("/list-status") {
+                let infos = if uri.contains("/empty/") {
+                    serde_json::json!([])
+                } else {
+                    serde_json::json!([
+                        {
+                            "path": "/dir/a.txt",
+                            "lastModificationTimeMs": 0,
+                            "folder": false,
+                            "length": 3,
+                        },
+                        {
+                            "path": "/dir/sub",
+                            "lastModificationTimeMs": 0,
+                            "folder": true,
+                            "length": 0,
+                        },
+                    ])
+                };
+                let body = Buffer::from(bytes::Bytes::from(serde_json::to_vec(&infos).unwrap()));
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(
+                        futures::stream::iter(vec![Ok(body)]),
+                        Some(size),
+                    ))
+                    .unwrap());
+            }
+            if uri.contains("/create-file") {
+                let body = req.into_body().to_bytes();
+                let text = String::from_utf8_lossy(&body);
+                // Alluxio rejects overwriting a file unless the request
+                // carries the overwrite option.
+                if !text.contains("\"overwrite\":true") {
+                    let err = Buffer::from(bytes::Bytes::from_static(
+                        br#"{"statusCode":"ALREADY_EXISTS","message":"The resource you requested already exists. If you want to overwrite the file, you need to specify the overwrite option."}"#,
+                    ));
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .body(HttpBody::new(futures::stream::iter(vec![Ok(err)]), None))
+                        .unwrap());
+                }
+                let body = Buffer::from(bytes::Bytes::from_static(b"1"));
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(
+                        futures::stream::iter(vec![Ok(body)]),
+                        Some(size),
+                    ))
+                    .unwrap());
+            }
             if uri.contains("/open-file") {
                 let body = Buffer::from(bytes::Bytes::from_static(b"1"));
                 let size = body.len() as u64;
@@ -470,6 +524,13 @@ mod tests {
         let mut body = resp.into_body();
         let out = body.to_buffer().await.unwrap().to_vec();
         assert_eq!(out, data);
+    }
+
+    #[tokio::test]
+    async fn test_create_file_sends_overwrite() {
+        let (core, ctx) = test_core_with(MockTransport::new(vec![], 13));
+        let stream_id = core.create_file(&ctx, "file").await.unwrap();
+        assert_eq!(stream_id, 1);
     }
 
     #[test]
@@ -534,6 +595,8 @@ mod tests {
 struct CreateFileRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     recursive: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    overwrite: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]

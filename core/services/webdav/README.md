@@ -3,6 +3,19 @@
 `opendal-service-webdav` provides access to storage over WebDAV for applications built
 with Apache OpenDAL™.
 
+> **Warning:** Verify conditional writes and deletes against your endpoint before
+> relying on them. In the tested configurations, nginx’s `ngx_http_dav_module`
+> ignored PUT preconditions and `If-Match` on DELETE. Apache `mod_dav_fs` allowed
+> concurrent `If-None-Match: *` creates to succeed and allowed an overwrite with
+> a matching weak `If-None-Match`. Nextcloud and ownCloud could reuse an ETag
+> after a same-second overwrite, allowing a stale `If-Match` to overwrite or
+> delete newer content.
+>
+> Use `CapabilityOverrideLayer` to mark affected capabilities as disabled
+> and check `op.info().capability()` before issuing the operation. An explicit
+> conditional call can still reach the server
+> ([#8640](https://github.com/apache/opendal/issues/8640)).
+
 ## Use through `opendal`
 
 Applications should normally enable this service through the `opendal` facade with the

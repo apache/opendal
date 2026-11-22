@@ -820,66 +820,44 @@ impl ObjectStore for OpendalStore {
         });
         let offset = offset.clone();
 
-        // clone self for 'static lifetime
-        // clone self is cheap
         let this = self.clone();
 
         let fut = async move {
-            let info = this.inner.info();
-            // object_store::path::Path compares percent-encoded strings, so
-            // a%7Eb sorts before a-b. FS compares filenames as stored, where
-            // a~b sorts after a-b. Keep FS offsets in object_store path order.
-            let use_native_offset =
-                info.capability().list_with_start_after && info.scheme() != "fs";
-            let mut fut = this.inner.lister_with(&path).recursive(true);
-
-            if use_native_offset {
-                fut = fut.start_after(offset.as_ref());
-            }
-
-            let lister = fut
+            // A native cursor can skip keys whose encoded object_store path
+            // sorts after the offset. For example, a#b < a$b < a%23b.
+            let stream = this
+                .inner
+                .lister_with(&path)
+                .recursive(true)
                 .await
                 .map_err(|err| format_object_store_error(err, &path))?
-                // object_store lists objects only, while OpenDAL also returns directories.
-                .try_filter(|entry| futures::future::ready(!entry.metadata().is_dir()))
-                .then(move |entry| {
-                    let path = path.clone();
+                .map_err(move |err| format_object_store_error(err, &path))
+                .map_ok(|entry| {
+                    let (path, metadata) = entry.into_parts();
+                    (Path::from(path.as_str()), path, metadata)
+                })
+                .try_filter(move |(location, _, metadata)| {
+                    futures::future::ready(!metadata.is_dir() && *location > offset)
+                })
+                .and_then(move |(location, path, metadata)| {
                     let this = this.clone();
                     async move {
-                        let entry = entry.map_err(|err| format_object_store_error(err, &path))?;
-                        let (path, metadata) = entry.into_parts();
-
-                        // If last_modified is present, we can use it directly.
-                        if metadata.last_modified().is_some() {
-                            let object_meta = format_object_meta(&path, &metadata);
-                            return Ok(object_meta);
-                        }
-
-                        let metadata = this
-                            .inner
-                            .stat(&path)
-                            .await
-                            .map_err(|err| format_object_store_error(err, &path))?;
-                        let object_meta = format_object_meta(&path, &metadata);
-                        Ok::<_, object_store::Error>(object_meta)
+                        let metadata = if metadata.last_modified().is_some() {
+                            metadata
+                        } else {
+                            this.inner
+                                .stat(&path)
+                                .await
+                                .map_err(|err| format_object_store_error(err, &path))?
+                        };
+                        Ok(format_object_meta(location, &metadata))
                     }
-                })
-                .into_send()
-                .boxed();
-
-            let stream = if use_native_offset {
-                lister
-            } else {
-                lister
-                    .try_filter(move |entry| futures::future::ready(entry.location > offset))
-                    .into_send()
-                    .boxed()
-            };
+                });
 
             Ok::<_, object_store::Error>(stream)
         };
 
-        fut.into_stream().into_send().try_flatten().boxed()
+        fut.into_stream().try_flatten().into_send().boxed()
     }
 
     async fn list_with_delimiter(&self, prefix: Option<&Path>) -> object_store::Result<ListResult> {
@@ -1535,6 +1513,31 @@ mod tests {
         let mut locations = result.unwrap();
         locations.sort();
         assert_eq!(locations, vec![Path::from("a-b"), Path::from("z")]);
+    }
+
+    #[tokio::test]
+    async fn test_list_with_offset_memory_uses_encoded_path_order() {
+        let store = OpendalStore::new(Operator::new(services::Memory::default()).unwrap());
+        for path in ["a#b", "a$b", "a-b", "a~b"] {
+            store
+                .put(&Path::from(path), Bytes::from_static(b"data").into())
+                .await
+                .unwrap();
+        }
+
+        for (offset, expected) in [("a$b", vec!["a#b", "a~b", "a-b"]), ("a~b", vec!["a-b"])] {
+            let mut locations: Vec<_> = store
+                .list_with_offset(None, &Path::from(offset))
+                .map_ok(|meta| meta.location)
+                .try_collect()
+                .await
+                .unwrap();
+            locations.sort_unstable();
+            assert_eq!(
+                locations,
+                expected.into_iter().map(Path::from).collect::<Vec<_>>()
+            );
+        }
     }
 
     /// Custom layer that counts stat operations and optionally records read ranges.

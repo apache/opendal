@@ -26,6 +26,23 @@ use pyo3::types::PyBytes;
 
 use crate::ocore;
 
+/// Convert a timestamp from this binding's `jiff` version to OpenDAL's.
+///
+/// PyO3's `jiff-02` feature keeps the Python binding on jiff 0.2, while
+/// `opendal-core` uses jiff 1.0. Both versions cover the same timestamp range.
+pub fn timestamp_from_jiff(ts: jiff::Timestamp) -> ocore::raw::Timestamp {
+    let duration = ts.as_duration();
+    ocore::raw::Timestamp::new(duration.as_secs(), duration.subsec_nanos())
+        .expect("jiff timestamp is within OpenDAL timestamp range")
+}
+
+/// Convert an OpenDAL timestamp to this binding's `jiff` version.
+pub fn timestamp_to_jiff(ts: ocore::raw::Timestamp) -> jiff::Timestamp {
+    let duration = ts.into_inner().as_duration();
+    jiff::Timestamp::new(duration.as_secs(), duration.subsec_nanos())
+        .expect("OpenDAL timestamp is within jiff timestamp range")
+}
+
 /// Keep immutable Python bytes alive inside an OpenDAL buffer without copying.
 pub fn py_bytes_like_into_buffer(value: &Bound<PyAny>) -> PyResult<ocore::Buffer> {
     if let Ok(value) = value.cast::<PyBytes>() {
@@ -105,6 +122,30 @@ mod tests {
     use pyo3::types::PyBytesMethods;
 
     use super::*;
+
+    #[test]
+    fn test_timestamp_jiff_conversion_preserves_nanoseconds() {
+        let ts = jiff::Timestamp::new(1_646_122_354, 123_456_789).unwrap();
+        let opendal_ts = timestamp_from_jiff(ts);
+
+        assert_eq!(opendal_ts.into_inner().as_second(), 1_646_122_354);
+        assert_eq!(opendal_ts.into_inner().subsec_nanosecond(), 123_456_789);
+        assert_eq!(timestamp_to_jiff(opendal_ts), ts);
+    }
+
+    #[test]
+    fn test_timestamp_jiff_conversion_preserves_pre_epoch_nanoseconds() {
+        let ts = "1969-12-31T23:59:59.123456789Z"
+            .parse::<jiff::Timestamp>()
+            .unwrap();
+        let opendal_ts = timestamp_from_jiff(ts);
+
+        assert_eq!(
+            opendal_ts.into_inner().to_string(),
+            "1969-12-31T23:59:59.123456789Z"
+        );
+        assert_eq!(timestamp_to_jiff(opendal_ts), ts);
+    }
 
     #[test]
     fn test_buffer_into_py_bytes() {

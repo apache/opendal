@@ -194,8 +194,12 @@ impl From<ReadOptions> for ocore::options::ReadOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since.map(Into::into),
-            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
+            if_modified_since: opts
+                .if_modified_since
+                .map(crate::utils::timestamp_from_jiff),
+            if_unmodified_since: opts
+                .if_unmodified_since
+                .map(crate::utils::timestamp_from_jiff),
             content_length_hint: None,
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
@@ -214,8 +218,12 @@ impl From<ReadOptions> for ocore::options::ReaderOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since.map(Into::into),
-            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
+            if_modified_since: opts
+                .if_modified_since
+                .map(crate::utils::timestamp_from_jiff),
+            if_unmodified_since: opts
+                .if_unmodified_since
+                .map(crate::utils::timestamp_from_jiff),
             content_length_hint: None,
             concurrent: opts.concurrent.unwrap_or_default(),
             chunk: opts.chunk,
@@ -337,8 +345,12 @@ impl From<StatOptions> for ocore::options::StatOptions {
             version: opts.version,
             if_match: opts.if_match,
             if_none_match: opts.if_none_match,
-            if_modified_since: opts.if_modified_since.map(Into::into),
-            if_unmodified_since: opts.if_unmodified_since.map(Into::into),
+            if_modified_since: opts
+                .if_modified_since
+                .map(crate::utils::timestamp_from_jiff),
+            if_unmodified_since: opts
+                .if_unmodified_since
+                .map(crate::utils::timestamp_from_jiff),
             override_content_type: opts.content_type,
             override_cache_control: opts.cache_control,
             override_content_disposition: opts.content_disposition,

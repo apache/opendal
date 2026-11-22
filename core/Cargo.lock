@@ -7501,6 +7501,7 @@ version = "0.59.5"
 dependencies = [
  "await-tree",
  "futures",
+ "http 1.4.2",
  "opendal-core",
 ]
 

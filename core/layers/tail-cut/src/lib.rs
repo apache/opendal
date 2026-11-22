@@ -30,6 +30,8 @@ use opendal_core::*;
 ///
 /// Use this to configure the layer, then call `build()` to create a layer
 /// that can be cloned and shared across multiple operators.
+/// Set the deadline bounds in either order. The minimum deadline must be less
+/// than or equal to the maximum deadline when calling [`Self::build`].
 ///
 /// # Examples
 ///
@@ -174,6 +176,10 @@ impl TailCutLayerBuilder {
     ///
     /// The returned layer can be cloned to share statistics across operators.
     ///
+    /// # Panics
+    ///
+    /// Panics if `min_deadline` is greater than `max_deadline`.
+    ///
     /// # Examples
     ///
     /// ```no_run
@@ -201,6 +207,13 @@ impl TailCutLayerBuilder {
     /// # }
     /// ```
     pub fn build(self) -> TailCutLayer {
+        assert!(
+            self.min_deadline <= self.max_deadline,
+            "min_deadline ({:?}) must be <= max_deadline ({:?})",
+            self.min_deadline,
+            self.max_deadline
+        );
+
         TailCutLayer {
             config: Arc::new(TailCutConfig {
                 percentile: self.percentile,
@@ -1163,6 +1176,38 @@ mod tests {
         assert_eq!(layer.config.min_samples, 100);
         assert_eq!(layer.config.min_deadline, Duration::from_millis(200));
         assert_eq!(layer.config.max_deadline, Duration::from_secs(20));
+    }
+
+    #[test]
+    fn test_tail_cut_layer_build_sets_max_deadline_first() {
+        let layer = TailCutLayer::builder()
+            .max_deadline(Duration::from_millis(200))
+            .min_deadline(Duration::from_millis(50))
+            .build();
+
+        assert_eq!(layer.config.min_deadline, Duration::from_millis(50));
+        assert_eq!(layer.config.max_deadline, Duration::from_millis(200));
+    }
+
+    #[test]
+    #[should_panic(expected = "min_deadline")]
+    fn test_tail_cut_layer_build_rejects_inverted_deadlines() {
+        TailCutLayer::builder()
+            .min_deadline(Duration::from_secs(1))
+            .max_deadline(Duration::from_millis(500))
+            .build();
+    }
+
+    #[test]
+    fn test_tail_cut_layer_build_accepts_equal_deadlines() {
+        let deadline = Duration::from_secs(31);
+        let layer = TailCutLayer::builder()
+            .min_deadline(deadline)
+            .max_deadline(deadline)
+            .build();
+
+        assert_eq!(layer.config.min_deadline, deadline);
+        assert_eq!(layer.config.max_deadline, deadline);
     }
 
     #[tokio::test]

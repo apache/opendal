@@ -59,6 +59,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         tests.extend(async_trials!(op, test_list_with_glob));
     }
 
+    if cap.write && cap.list && op.info().scheme() == "redis" {
+        tests.extend(async_trials!(op, test_redis_list_literal_prefix));
+    }
+
     if cap.read && !cap.write && cap.list {
         tests.extend(async_trials!(op, test_list_only))
     }
@@ -164,6 +168,51 @@ pub async fn test_list_with_glob(op: Operator) -> Result<()> {
     );
 
     op.delete_with(&root).recursive(true).await?;
+    Ok(())
+}
+
+/// Listing uses literal prefixes and keeps the same paths across scan pages.
+pub async fn test_redis_list_literal_prefix(op: Operator) -> Result<()> {
+    let base = format!("{}/", uuid::Uuid::new_v4());
+    let prefix = format!("{base}literal[*]?\\/");
+    let paths = ["a.jpg", "empty", "nested/猫.jpg", "nested/other.jpg"];
+    for path in paths {
+        let value = if path == "empty" { "" } else { "data" };
+        op.write(&format!("{prefix}{path}"), value).await?;
+    }
+    let sibling = format!("{base}literal-other/a.jpg");
+    op.write(&sibling, "data").await?;
+
+    let entries = op.list_with(&prefix).limit(1).await?;
+    let mut actual: Vec<_> = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.path().strip_prefix(&prefix).unwrap(),
+                entry.metadata().mode(),
+                entry.metadata().content_length(),
+            )
+        })
+        .collect();
+    actual.sort_unstable_by_key(|entry| entry.0);
+    assert_eq!(
+        actual,
+        [
+            ("a.jpg", EntryMode::FILE, 4),
+            ("empty", EntryMode::FILE, 0),
+            ("nested/", EntryMode::DIR, 0),
+        ]
+    );
+
+    let entries = op.list_with(&prefix).limit(1).glob("**/?.jpg").await?;
+    let mut actual: Vec<_> = entries
+        .iter()
+        .map(|entry| entry.path().strip_prefix(&prefix).unwrap())
+        .collect();
+    actual.sort_unstable();
+    assert_eq!(actual, ["a.jpg", "nested/猫.jpg"]);
+
+    op.delete_with(&base).recursive(true).await?;
     Ok(())
 }
 

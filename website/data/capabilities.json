@@ -1783,6 +1783,9 @@
       "scheme": "redis",
       "native": {
         "delete": true,
+        "list": "When `cluster_endpoints` is not set",
+        "list_with_limit": "When `cluster_endpoints` is not set",
+        "list_with_recursive": "When `cluster_endpoints` is not set",
         "read": true,
         "shared": true,
         "stat": true,

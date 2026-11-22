@@ -71,6 +71,24 @@ public sealed class CopyOptions : IOptions<OpenDALCopyOptions>
     public string? SourceVersion { get; init; }
 
     /// <summary>
+    /// Replaces the destination's whole metadata set and stores exactly these user metadata entries; every field left unset takes the service default.
+    /// </summary>
+    /// <seealso cref="Capability.CopyWithUserMetadata"/>
+    public IReadOnlyDictionary<string, string>? UserMetadata { get; init; }
+
+    /// <summary>
+    /// Replaces the destination's whole metadata set and stores this Content-Type; omitted user metadata and other fields take the service default.
+    /// </summary>
+    /// <seealso cref="Capability.CopyWithContentType"/>
+    public string? ContentType { get; init; }
+
+    /// <summary>
+    /// Replaces the destination's whole metadata set and stores this Content-Language; omitted user metadata and other fields take the service default.
+    /// </summary>
+    /// <seealso cref="Capability.CopyWithContentLanguage"/>
+    public string? ContentLanguage { get; init; }
+
+    /// <summary>
     /// Asserted complete content length of the source object.
     /// </summary>
     public long? SourceContentLengthHint { get; init; }
@@ -105,6 +123,9 @@ public sealed class CopyOptions : IOptions<OpenDALCopyOptions>
         native.IfVersionNotMatch = writer.String(IfVersionNotMatch);
         native.IfNotChanged = writer.MetadataPointer(IfNotChanged);
         native.SourceVersion = writer.String(SourceVersion);
+        (native.UserMetadataHasValue, native.UserMetadataKeys, native.UserMetadataValues, native.UserMetadataLen) = writer.Pairs(UserMetadata);
+        native.ContentType = writer.String(ContentType);
+        native.ContentLanguage = writer.String(ContentLanguage);
         if (SourceContentLengthHint is { } sourceContentLengthHint)
         {
             native.SourceContentLengthHintHasValue = 1;
@@ -134,6 +155,12 @@ internal struct OpenDALCopyOptions
     public IntPtr IfVersionNotMatch;
     public IntPtr IfNotChanged;
     public IntPtr SourceVersion;
+    public byte UserMetadataHasValue;
+    public IntPtr UserMetadataKeys;
+    public IntPtr UserMetadataValues;
+    public nuint UserMetadataLen;
+    public IntPtr ContentType;
+    public IntPtr ContentLanguage;
     public byte SourceContentLengthHintHasValue;
     public ulong SourceContentLengthHint;
     public nuint Concurrent;

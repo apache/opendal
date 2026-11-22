@@ -94,6 +94,9 @@ public struct Capability
         CopyWithIfVersionMatch = native.copyWithIfVersionMatch != 0;
         CopyWithIfVersionNotMatch = native.copyWithIfVersionNotMatch != 0;
         CopyWithSourceVersion = native.copyWithSourceVersion != 0;
+        CopyWithUserMetadata = native.copyWithUserMetadata != 0;
+        CopyWithContentType = native.copyWithContentType != 0;
+        CopyWithContentLanguage = native.copyWithContentLanguage != 0;
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
@@ -423,6 +426,21 @@ public struct Capability
     /// Indicates if copy operations from a specific source version are supported.
     /// </summary>
     public bool CopyWithSourceVersion { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's user metadata.
+    /// </summary>
+    public bool CopyWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    /// </summary>
+    public bool CopyWithContentType { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    /// </summary>
+    public bool CopyWithContentLanguage { get; private set; }
 
     /// <summary>
     /// Indicates if copy operations can be split into multiple server-side tasks.

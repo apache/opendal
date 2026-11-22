@@ -1367,8 +1367,9 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same and `source_version` is not set,
-    ///   an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and none of `source_version`,
+    ///   `user_metadata`, `content_type` or `content_language` is set, an
+    ///   `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1430,8 +1431,9 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same and `source_version` is not set,
-    ///   an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and none of `source_version`,
+    ///   `user_metadata`, `content_type` or `content_language` is set, an
+    ///   `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1517,7 +1519,12 @@ impl Operator {
             );
         }
 
-        if from == to && opts.source_version.is_none() {
+        if from == to
+            && opts.source_version.is_none()
+            && opts.user_metadata.is_none()
+            && opts.content_type.is_none()
+            && opts.content_language.is_none()
+        {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copy")
@@ -1563,7 +1570,12 @@ impl Operator {
             );
         }
 
-        if from == to && opts.source_version.is_none() {
+        if from == to
+            && opts.source_version.is_none()
+            && opts.user_metadata.is_none()
+            && opts.content_type.is_none()
+            && opts.content_language.is_none()
+        {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copier")
@@ -1573,8 +1585,10 @@ impl Operator {
             );
         }
 
-        let args = OpCopy::from_options(&srv.capability(), opts)
+        let capability = srv.capability();
+        let args = OpCopy::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_copy_metadata_args(srv.info().scheme(), capability, &args)?;
         Copier::create(ctx, srv, &from, &to, args)
     }
 

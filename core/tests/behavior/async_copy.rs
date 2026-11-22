@@ -41,6 +41,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    #[cfg(feature = "services-baidu-netdisk")]
+    if op.info().scheme() == services::BAIDU_NETDISK_SCHEME {
+        tests.extend(async_trials!(op, test_baidu_netdisk_filename_copy));
+    }
+
     if cap.read && cap.write && cap.copy && cap.copy_can_multi {
         tests.extend(async_trials!(
             op,
@@ -217,6 +222,24 @@ pub async fn test_copy_file_with_non_ascii_name(op: Operator) -> Result<()> {
 
     op.delete(source_path).await.expect("delete must succeed");
     op.delete(target_path).await.expect("delete must succeed");
+    Ok(())
+}
+
+#[cfg(feature = "services-baidu-netdisk")]
+pub async fn test_baidu_netdisk_filename_copy(op: Operator) -> Result<()> {
+    for name in ["🐂🍺中文.docx", "😈🐅Français.docx"] {
+        let err = op.write(name, "filename probe").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(err.to_string().contains("errno: 31023"), "{err}");
+    }
+
+    let source = "中文.docx";
+    let target = "Français.docx";
+    op.write(source, "copy contents").await?;
+    op.copy(source, target).await?;
+    assert_eq!(op.read(target).await?.to_bytes().as_ref(), b"copy contents");
+    op.delete(source).await?;
+    op.delete(target).await?;
     Ok(())
 }
 

@@ -77,7 +77,7 @@ impl oio::PageList for BaiduNetdiskLister {
         let result: FileList = serde_json::from_value(value).map_err(new_json_deserialize_error)?;
         let count = result.list.len();
         for file in result.list {
-            let mut path = build_rel_path(&self.core.root, &file.path);
+            let mut path = build_relative_path(&self.core.root, &file.path);
             if file.isdir == 1 {
                 path.push('/');
             }

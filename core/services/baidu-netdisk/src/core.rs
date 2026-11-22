@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::auth::{self, BaiduNetdiskSigner};
+use crate::auth;
 use bytes::Buf;
 use http::{Request, Response, StatusCode, header};
 use opendal_core::{raw::*, *};
@@ -24,42 +24,49 @@ use serde_json::{Value, json};
 
 pub const FILE_API: &str = "https://pan.baidu.com/rest/2.0/xpan/file";
 
-#[derive(Debug)]
 pub struct BaiduNetdiskCore {
     pub info: ServiceInfo,
     pub root: String,
-    pub signer: BaiduNetdiskSigner,
+    pub access_token: String,
+}
+
+impl std::fmt::Debug for BaiduNetdiskCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BaiduNetdiskCore")
+            .field("root", &self.root)
+            .finish_non_exhaustive()
+    }
 }
 
 impl BaiduNetdiskCore {
     pub fn absolute_path(&self, path: &str) -> String {
-        build_rooted_abs_path(&self.root, path)
+        build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string()
     }
-    pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
-        auth::sign(req, &self.signer.token(ctx).await?)
+    pub fn sign<T>(&self, req: Request<T>) -> Result<Request<T>> {
+        auth::sign(req, &self.access_token)
     }
+
     pub async fn send(&self, ctx: &OperationContext, req: Request<Buffer>) -> Result<Value> {
-        let (parts, body) = req.into_parts();
-        let uri = parts.uri.clone();
+        let uri = req.uri().clone();
         let method = uri.query().and_then(|query| {
             query
                 .split('&')
                 .find_map(|pair| pair.strip_prefix("method="))
         });
-        let token = self.signer.token(ctx).await?;
-        let request = auth::sign(Request::from_parts(parts.clone(), body.clone()), &token)?;
-        let response = ctx.http_transport().send(request).await?;
-        let status = response.status();
-        let value = response_json(response, method)?;
-        // Retry once only when the API explicitly rejected an expired access token.
-        // filemanager errno=111 instead means that another async task is running.
-        if value["error_code"].as_i64() == Some(111) && self.signer.invalidate(&token).await {
-            let request = self.sign(ctx, Request::from_parts(parts, body)).await?;
-            return parse_response(ctx.http_transport().send(request).await?, method);
+        let req = self.sign(req)?;
+        let commit = matches!(method, Some("create" | "filemanager"));
+        let response = ctx
+            .http_transport()
+            .send(req)
+            .await
+            .map_err(|e| if commit { e.set_permanent() } else { e })?;
+        // A server error after a namespace mutation cannot establish whether it committed.
+        if commit && response.status().is_server_error() {
+            return Err(http_error(response.status()).set_permanent());
         }
-        check_response(status, value)
+        parse_response(response, method)
     }
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<FileMetadata> {
         let query = form_urlencoded::Serializer::new(String::new())
@@ -94,7 +101,7 @@ impl BaiduNetdiskCore {
         match self.send(ctx, req).await {
             Ok(_) => Ok(()),
             Err(e) if e.kind() == ErrorKind::AlreadyExists => {
-                if self.stat(ctx, path).await?.isdir == 1 {
+                if self.stat(ctx, path.trim_end_matches('/')).await?.isdir == 1 {
                     Ok(())
                 } else {
                     Err(Error::new(ErrorKind::NotADirectory, "path is a file"))

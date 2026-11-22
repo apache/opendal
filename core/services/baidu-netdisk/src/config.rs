@@ -27,14 +27,8 @@ use std::fmt;
 pub struct BaiduNetdiskConfig {
     /// Required absolute root inside `/apps/<application name>/`.
     pub root: Option<String>,
-    /// Access token. Applications using configuration alone manage renewal externally.
+    /// Required access token for the Baidu Netdisk Open Platform.
     pub access_token: Option<String>,
-    /// AppKey for automatic renewal with the Rust token persistence callback.
-    pub client_id: Option<String>,
-    /// SecretKey, required together with client_id and refresh_token.
-    pub client_secret: Option<String>,
-    /// Latest single-use refresh token returned by Baidu OAuth.
-    pub refresh_token: Option<String>,
 }
 
 impl fmt::Debug for BaiduNetdiskConfig {
@@ -55,9 +49,6 @@ impl Configurator for BaiduNetdiskConfig {
         Self::from_iter(map)
     }
     fn into_builder(self) -> Self::Builder {
-        BaiduNetdiskBuilder {
-            config: self,
-            on_refresh: None,
-        }
+        BaiduNetdiskBuilder { config: self }
     }
 }

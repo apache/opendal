@@ -32,7 +32,6 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-asyncband = { workspace = true, features = ["mutex"] }
 bytes = { workspace = true }
 form_urlencoded = "1"
 hex = "0.4"

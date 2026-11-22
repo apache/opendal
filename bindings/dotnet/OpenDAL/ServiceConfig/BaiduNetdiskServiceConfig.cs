@@ -29,21 +29,9 @@ namespace OpenDAL.ServiceConfig
     public sealed class BaiduNetdiskServiceConfig : IServiceConfig
     {
         /// <summary>
-        /// Access token. Applications using configuration alone manage renewal externally.
+        /// Required access token for the Baidu Netdisk Open Platform.
         /// </summary>
         public string? AccessToken { get; init; }
-        /// <summary>
-        /// AppKey for automatic renewal with the Rust token persistence callback.
-        /// </summary>
-        public string? ClientId { get; init; }
-        /// <summary>
-        /// SecretKey, required together with client_id and refresh_token.
-        /// </summary>
-        public string? ClientSecret { get; init; }
-        /// <summary>
-        /// Latest single-use refresh token returned by Baidu OAuth.
-        /// </summary>
-        public string? RefreshToken { get; init; }
         /// <summary>
         /// Required absolute root inside `/apps/&lt;application name&gt;/`.
         /// </summary>
@@ -57,18 +45,6 @@ namespace OpenDAL.ServiceConfig
             if (AccessToken is not null)
             {
                 map["access_token"] = Utilities.ToOptionString(AccessToken);
-            }
-            if (ClientId is not null)
-            {
-                map["client_id"] = Utilities.ToOptionString(ClientId);
-            }
-            if (ClientSecret is not null)
-            {
-                map["client_secret"] = Utilities.ToOptionString(ClientSecret);
-            }
-            if (RefreshToken is not null)
-            {
-                map["refresh_token"] = Utilities.ToOptionString(RefreshToken);
             }
             if (Root is not null)
             {

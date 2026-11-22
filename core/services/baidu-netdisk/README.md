@@ -30,26 +30,15 @@ and returns the API error.
 Copy accepts file sources and rejects existing directory destinations. Baidu's
 native move rejects an existing destination, so the service omits rename.
 
-Ordinary delete targets the exact path. If it is a directory, Baidu removes
-the entire directory and its contents, including children added before the
-service processes the request. A trailing slash selects a directory. The type
-check and deletion are separate requests, so callers must serialize replacements
-of the target at the same path when its type matters.
+Delete targets the exact file or directory. Ordinary deletion checks a directory
+for children and rejects a non-empty directory. Baidu only provides recursive
+directory deletion, so the emptiness check and deletion are separate requests.
+Callers must serialize writes into the directory and replacements of the target
+when using ordinary deletion. An explicit recursive delete removes the target
+directory and its contents. Similarly named siblings are preserved.
 
-Recursive deletion of a path without a trailing slash also removes sibling
-paths in the parent directory whose names start with that prefix.
-
-For automatic renewal in Rust, configure `client_id` (AppKey), `client_secret`
-(SecretKey), `refresh_token`, and `on_token_refresh` together. The callback
-must atomically persist the new access and refresh tokens before returning
-success. Clones of one operator serialize refresh and persistence. A failed
-callback blocks use of the new pair and subsequent requests retry persistence.
-Restart with the most recently persisted pair. Use one owner per grant across
-operators and processes. If a crash or interrupted request loses the response
-after Baidu consumes the refresh token, obtain a new authorization.
-
-For configuration via bindings or environment variables, supply an access token
-and manage renewal outside OpenDAL.
+The caller obtains and renews the access token and builds a new operator when
+the token changes. Baidu returns `PermissionDenied` for an expired token.
 
 Official documentation: <https://pan.baidu.com/union/doc/>.
 

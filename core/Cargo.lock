@@ -7907,7 +7907,6 @@ dependencies = [
 name = "opendal-service-baidu-netdisk"
 version = "0.59.5"
 dependencies = [
- "asyncband",
  "bytes",
  "form_urlencoded",
  "hex",

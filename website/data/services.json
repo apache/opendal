@@ -616,28 +616,7 @@
           "type": "string",
           "required": false,
           "group": "General",
-          "comments": "Access token. Applications using configuration alone manage renewal externally."
-        },
-        {
-          "name": "client_id",
-          "type": "string",
-          "required": false,
-          "group": "General",
-          "comments": "AppKey for automatic renewal with the Rust token persistence callback."
-        },
-        {
-          "name": "client_secret",
-          "type": "string",
-          "required": false,
-          "group": "General",
-          "comments": "SecretKey, required together with client_id and refresh_token."
-        },
-        {
-          "name": "refresh_token",
-          "type": "string",
-          "required": false,
-          "group": "General",
-          "comments": "Latest single-use refresh token returned by Baidu OAuth."
+          "comments": "Required access token for the Baidu Netdisk Open Platform."
         }
       ],
       "examples": [
@@ -645,25 +624,25 @@
           "binding": "rust",
           "language": "rust",
           "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"baidu-netdisk\", [\n])?;",
-          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"baidu-netdisk\", [\n    // Required absolute root inside `/apps/<application name>/`.\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // Access token. Applications using configuration alone manage renewal externally.\n    // (\"access_token\".to_string(), \"...\".to_string()),\n\n    // AppKey for automatic renewal with the Rust token persistence callback.\n    // (\"client_id\".to_string(), \"...\".to_string()),\n\n    // SecretKey, required together with client_id and refresh_token.\n    // (\"client_secret\".to_string(), \"...\".to_string()),\n\n    // Latest single-use refresh token returned by Baidu OAuth.\n    // (\"refresh_token\".to_string(), \"...\".to_string()),\n])?;"
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"baidu-netdisk\", [\n    // Required absolute root inside `/apps/<application name>/`.\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // Required access token for the Baidu Netdisk Open Platform.\n    // (\"access_token\".to_string(), \"...\".to_string()),\n])?;"
         },
         {
           "binding": "java",
           "language": "java",
           "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nOperator operator = Operator.of(\"baidu-netdisk\", config);",
-          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// Required absolute root inside `/apps/<application name>/`.\n// config.put(\"root\", \"...\");\n\n// Access token. Applications using configuration alone manage renewal externally.\n// config.put(\"access_token\", \"...\");\n\n// AppKey for automatic renewal with the Rust token persistence callback.\n// config.put(\"client_id\", \"...\");\n\n// SecretKey, required together with client_id and refresh_token.\n// config.put(\"client_secret\", \"...\");\n\n// Latest single-use refresh token returned by Baidu OAuth.\n// config.put(\"refresh_token\", \"...\");\nOperator operator = Operator.of(\"baidu-netdisk\", config);"
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// Required absolute root inside `/apps/<application name>/`.\n// config.put(\"root\", \"...\");\n\n// Required access token for the Baidu Netdisk Open Platform.\n// config.put(\"access_token\", \"...\");\nOperator operator = Operator.of(\"baidu-netdisk\", config);"
         },
         {
           "binding": "python",
           "language": "python",
           "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"baidu-netdisk\",\n)",
-          "full": "import opendal\n\noperator = opendal.Operator(\n    \"baidu-netdisk\",\n    # Required absolute root inside `/apps/<application name>/`.\n    # root=\"...\",\n\n    # Access token. Applications using configuration alone manage renewal externally.\n    # access_token=\"...\",\n\n    # AppKey for automatic renewal with the Rust token persistence callback.\n    # client_id=\"...\",\n\n    # SecretKey, required together with client_id and refresh_token.\n    # client_secret=\"...\",\n\n    # Latest single-use refresh token returned by Baidu OAuth.\n    # refresh_token=\"...\",\n)"
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"baidu-netdisk\",\n    # Required absolute root inside `/apps/<application name>/`.\n    # root=\"...\",\n\n    # Required access token for the Baidu Netdisk Open Platform.\n    # access_token=\"...\",\n)"
         },
         {
           "binding": "go",
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/baidu-netdisk\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(baidu-netdisk.Scheme, opendal.OperatorOptions{\n})",
-          "full": "import (\n\t\"github.com/apache/opendal-go-services/baidu-netdisk\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(baidu-netdisk.Scheme, opendal.OperatorOptions{\n\t// Required absolute root inside `/apps/<application name>/`.\n\t// \"root\": \"...\",\n\n\t// Access token. Applications using configuration alone manage renewal externally.\n\t// \"access_token\": \"...\",\n\n\t// AppKey for automatic renewal with the Rust token persistence callback.\n\t// \"client_id\": \"...\",\n\n\t// SecretKey, required together with client_id and refresh_token.\n\t// \"client_secret\": \"...\",\n\n\t// Latest single-use refresh token returned by Baidu OAuth.\n\t// \"refresh_token\": \"...\",\n})"
+          "full": "import (\n\t\"github.com/apache/opendal-go-services/baidu-netdisk\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(baidu-netdisk.Scheme, opendal.OperatorOptions{\n\t// Required absolute root inside `/apps/<application name>/`.\n\t// \"root\": \"...\",\n\n\t// Required access token for the Baidu Netdisk Open Platform.\n\t// \"access_token\": \"...\",\n})"
         }
       ]
     },

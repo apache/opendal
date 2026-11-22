@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use crate::auth::{BaiduNetdiskSigner, TokenRefreshCallback};
 use crate::{
     BAIDU_NETDISK_SCHEME,
     config::BaiduNetdiskConfig,
@@ -35,7 +34,6 @@ use std::sync::Arc;
 #[derive(Default)]
 pub struct BaiduNetdiskBuilder {
     pub(super) config: BaiduNetdiskConfig,
-    pub(super) on_refresh: Option<TokenRefreshCallback>,
 }
 
 impl std::fmt::Debug for BaiduNetdiskBuilder {
@@ -52,37 +50,9 @@ impl BaiduNetdiskBuilder {
         self.config.root = Some(root.into());
         self
     }
-    /// Set an initial access token. Without refresh credentials, the caller manages expiry.
+    /// Set the access token. The caller manages authorization and renewal.
     pub fn access_token(mut self, token: &str) -> Self {
         self.config.access_token = Some(token.into());
-        self
-    }
-    /// Set the application AppKey used for OAuth refresh.
-    pub fn client_id(mut self, value: &str) -> Self {
-        self.config.client_id = Some(value.into());
-        self
-    }
-    /// Set the application SecretKey used for OAuth refresh.
-    pub fn client_secret(mut self, value: &str) -> Self {
-        self.config.client_secret = Some(value.into());
-        self
-    }
-    /// Set the latest single-use OAuth refresh token.
-    pub fn refresh_token(mut self, value: &str) -> Self {
-        self.config.refresh_token = Some(value.into());
-        self
-    }
-    /// Persist rotated tokens after each successful OAuth refresh.
-    ///
-    /// The callback receives the new access token and refresh token. It runs under
-    /// the refresh lock and must not call this operator. If it fails, subsequent
-    /// requests retry the callback without consuming another refresh token.
-    /// Automatic renewal requires this callback to durably store each new pair.
-    pub fn on_token_refresh(
-        mut self,
-        callback: impl Fn(&str, &str) -> Result<()> + Send + Sync + 'static,
-    ) -> Self {
-        self.on_refresh = Some(Arc::new(callback));
         self
     }
 }
@@ -97,12 +67,16 @@ impl Builder for BaiduNetdiskBuilder {
                 "root must be inside /apps/<application name>/",
             ));
         }
-        let signer = BaiduNetdiskSigner::new(&self.config, self.on_refresh)?;
+        let access_token = self
+            .config
+            .access_token
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "access_token is required"))?;
         Ok(BaiduNetdiskBackend {
             core: Arc::new(BaiduNetdiskCore {
                 info: ServiceInfo::new(BAIDU_NETDISK_SCHEME, &root, ""),
                 root,
-                signer,
+                access_token,
             }),
         })
     }

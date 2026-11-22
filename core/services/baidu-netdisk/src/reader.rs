@@ -34,6 +34,20 @@ impl oio::StreamRead for BaiduNetdiskReader {
                 "cannot read a directory",
             ));
         }
+        if !range.is_full() {
+            if range.size() == Some(0) || (range.is_suffix() && file.size == 0) {
+                return Ok((RpRead::new(file.metadata()?), Box::new(Buffer::new())));
+            }
+            if !range.is_suffix() && range.offset() >= file.size {
+                if range.size().is_none() {
+                    return Ok((RpRead::new(file.metadata()?), Box::new(Buffer::new())));
+                }
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts beyond the file",
+                ));
+            }
+        }
         let query = form_urlencoded::Serializer::new(String::new())
             .append_pair("method", "filemetas")
             .append_pair("fsids", &format!("[{}]", file.fs_id))
@@ -61,17 +75,21 @@ impl oio::StreamRead for BaiduNetdiskReader {
         if !range.is_full() {
             builder = builder.header(header::RANGE, range.to_header());
         }
-        let req = self
-            .core
-            .sign(
-                &self.ctx,
-                builder
-                    .body(Buffer::new())
-                    .map_err(new_request_build_error)?,
-            )
-            .await?;
+        let req = self.core.sign(
+            builder
+                .body(Buffer::new())
+                .map_err(new_request_build_error)?,
+        )?;
         let mut response = self.ctx.http_transport().fetch(req).await?;
         match response.status() {
+            StatusCode::RANGE_NOT_SATISFIABLE => Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "Baidu Netdisk rejected the requested byte range",
+            )),
+            StatusCode::OK if !range.is_full() => Err(Error::new(
+                ErrorKind::Unexpected,
+                "Baidu Netdisk ignored the requested byte range",
+            )),
             StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
                 // Baidu sends raw UTF-8 filenames in Content-Disposition, which
                 // HeaderValue::to_str rejects because it only accepts visible ASCII.

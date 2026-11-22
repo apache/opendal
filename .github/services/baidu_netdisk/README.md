@@ -24,5 +24,6 @@ atomically save the new token pair before starting another run. If the exchange
 outcome is unknown or the latest refresh token was lost, authorize the account
 again. Each contributor can obtain a separate grant without sharing credentials.
 
-The non-ASCII copy case checks Baidu's rejection of the original emoji
-names, then copies and reads back a file with Chinese and accented Latin names.
+The shared emoji copy case skips Baidu. The Baidu-specific filename case
+checks that those emoji names are rejected, then copies a Chinese filename
+to an accented Latin filename and verifies the contents.

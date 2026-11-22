@@ -515,21 +515,9 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class BaiduNetdisk implements ServiceConfig {
         /**
-         * <p>Access token. Applications using configuration alone manage renewal externally.</p>
+         * <p>Required access token for the Baidu Netdisk Open Platform.</p>
          */
         public final String accessToken;
-        /**
-         * <p>AppKey for automatic renewal with the Rust token persistence callback.</p>
-         */
-        public final String clientId;
-        /**
-         * <p>SecretKey, required together with client_id and refresh_token.</p>
-         */
-        public final String clientSecret;
-        /**
-         * <p>Latest single-use refresh token returned by Baidu OAuth.</p>
-         */
-        public final String refreshToken;
         /**
          * <p>Required absolute root inside <code>/apps/&lt;application name&gt;/</code>.</p>
          */
@@ -545,15 +533,6 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (accessToken != null) {
                 map.put("access_token", accessToken);
-            }
-            if (clientId != null) {
-                map.put("client_id", clientId);
-            }
-            if (clientSecret != null) {
-                map.put("client_secret", clientSecret);
-            }
-            if (refreshToken != null) {
-                map.put("refresh_token", refreshToken);
             }
             if (root != null) {
                 map.put("root", root);

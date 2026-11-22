@@ -44,7 +44,8 @@ mod linux {
     use opendal_core::options::WriteOptions;
     use opendal_core::raw::oio::{Read, ReadStreamDyn};
     use opendal_core::raw::{OpRead, OpWrite, Service};
-    use opendal_core::{Buffer, Builder, BytesRange, OperationContext};
+    use opendal_core::{Buffer, Builder, BytesRange, Executor, OperationContext};
+    use opendal_executor_tokio::TokioExecutor;
     use rustix::fs::fstatfs;
 
     use super::*;
@@ -69,6 +70,10 @@ mod linux {
                 builder = builder.atomic_write_dir(staging.to_str().unwrap());
             }
             let op = Operator::new(builder).unwrap();
+            let context = op
+                .context()
+                .with_executor(Executor::with(TokioExecutor::default()));
+            let op = op.with_context(context);
             for size in [4096, 3, 0, pattern.len()] {
                 let data = pattern.slice(..size);
                 let segments: Buffer = data.chunks(4093).map(Bytes::copy_from_slice).collect();

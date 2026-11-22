@@ -7894,6 +7894,7 @@ dependencies = [
  "bytes",
  "log",
  "opendal-core",
+ "opendal-executor-tokio",
  "rustix 1.1.4",
  "serde",
  "tempfile",

@@ -43,10 +43,12 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "layers-capability-check",
   "layers-chaos",
   "layers-concurrent-limit",
+  "layers-hedge",
   "layers-immutable-index",
   "layers-logging",
   "layers-mime-guess",
   "layers-retry",
+  "layers-sanity-check",
   "layers-throttle",
   "layers-timeout",
 

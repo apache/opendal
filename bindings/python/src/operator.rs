@@ -1271,8 +1271,8 @@ impl AsyncOperator {
             } else if mode == "wb" {
                 let mut writer_opts = writer_opts;
                 // Keep small writes coalesced when neither the caller nor the
-                // service supplies a chunk size, as the AsyncWrite adapter did.
-                if writer_opts.chunk.is_none()
+                // service supplies a chunk size. The core treats zero as unset.
+                if matches!(writer_opts.chunk, None | Some(0))
                     && this.info().capability().write_multi_min_size.is_none()
                 {
                     writer_opts.chunk = Some(256 * 1024);

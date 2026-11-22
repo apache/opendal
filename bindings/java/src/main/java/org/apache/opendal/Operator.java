@@ -162,7 +162,20 @@ public class Operator extends NativeObject {
     }
 
     public void delete(String path) {
-        delete(nativeHandle, path);
+        delete(path, DeleteOptions.builder().build());
+    }
+
+    /**
+     * Deletes the given path with the supplied options. A missing file is a successful
+     * no-op when all conditions hold. For recursive directory deletion, include the
+     * trailing slash in the path.
+     *
+     * @param path the path to delete
+     * @param options the delete options
+     * @throws OpenDALException if an option is unsupported, a condition fails, or deletion fails
+     */
+    public void delete(String path, DeleteOptions options) {
+        delete(nativeHandle, path, options);
     }
 
     public Metadata stat(String path) {
@@ -206,7 +219,7 @@ public class Operator extends NativeObject {
 
     private static native byte[] read(long op, String path, ReadOptions options);
 
-    private static native void delete(long op, String path);
+    private static native void delete(long op, String path, DeleteOptions options);
 
     private static native Metadata stat(long op, String path, StatOptions options);
 

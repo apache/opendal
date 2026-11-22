@@ -27,6 +27,7 @@ use jni::sys::jlong;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::MetadataBuilder;
 use opendal::OperatorInfo;
 use opendal::raw::PresignedRequest;
 use opendal::{Capability, Error, ErrorKind};
@@ -249,6 +250,42 @@ fn make_write_options<'a>(
         concurrent,
         chunk: convert::read_jlong_field_to_usize(env, options, "chunk")?,
         ..Default::default()
+    })
+}
+
+fn make_delete_options(
+    env: &mut Env,
+    options: &JObject,
+) -> Result<opendal::options::DeleteOptions> {
+    let metadata = env
+        .get_field(
+            options,
+            jni_str!("ifNotChanged"),
+            jni_sig!("Lorg/apache/opendal/Metadata;"),
+        )?
+        .l()?;
+    let if_not_changed = if metadata.is_null() {
+        None
+    } else {
+        // Delete conditions use only the version and ETag from the snapshot.
+        let mut builder = MetadataBuilder::unknown();
+        if let Some(version) = convert::read_string_field(env, &metadata, "version")? {
+            builder.version(version);
+        }
+        if let Some(etag) = convert::read_string_field(env, &metadata, "etag")? {
+            builder.etag(etag);
+        }
+        Some(builder.build())
+    };
+
+    Ok(opendal::options::DeleteOptions {
+        version: convert::read_string_field(env, options, "version")?,
+        recursive: convert::read_bool_field(env, options, "recursive")?,
+        if_match: convert::read_string_field(env, options, "ifMatch")?,
+        if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_version_match: convert::read_string_field(env, options, "ifVersionMatch")?,
+        if_version_not_match: convert::read_string_field(env, options, "ifVersionNotMatch")?,
+        if_not_changed,
     })
 }
 

@@ -126,15 +126,59 @@ pub extern "system" fn Java_org_apache_opendal_layer_ChaosLayer_doLayer<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+pub extern "system" fn Java_org_apache_opendal_layer_ConcurrentLimitLayer_doLayerWithLimits<
+    'local,
+>(
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
     permits: jlong,
+    read_permits: jlong,
+    write_permits: jlong,
+    list_permits: jlong,
+    http_permits: jlong,
 ) -> jlong {
-    let op = unsafe { &*op };
-    let concurrent_limit = ConcurrentLimitLayer::new(permits as usize);
-    Box::into_raw(Box::new(op.clone().layer(concurrent_limit))) as jlong
+    env.with_env(|env| -> Result<jlong> {
+        let [
+            Ok(permits @ 1..),
+            Ok(read_permits),
+            Ok(write_permits),
+            Ok(list_permits),
+            Ok(http_permits),
+        ] = [
+            permits,
+            read_permits,
+            write_permits,
+            list_permits,
+            http_permits,
+        ]
+        .map(usize::try_from)
+        else {
+            env.throw_new(
+                jni_str!("java/lang/IllegalArgumentException"),
+                jni_str!("permits must be positive when set and fit in the native permit range"),
+            )?;
+            return Ok(0);
+        };
+
+        let mut layer = ConcurrentLimitLayer::new(permits);
+        if read_permits != 0 {
+            layer = layer.with_read_concurrent_limit(read_permits);
+        }
+        if write_permits != 0 {
+            layer = layer.with_write_concurrent_limit(write_permits);
+        }
+        if list_permits != 0 {
+            layer = layer.with_list_concurrent_limit(list_permits);
+        }
+        if http_permits != 0 {
+            layer = layer.with_http_concurrent_limit(http_permits);
+        }
+
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

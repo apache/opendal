@@ -81,6 +81,51 @@ public class LayerTest {
     }
 
     @Test
+    void testConcurrentLimitLayerWithDedicatedPermits() throws Exception {
+        final ConcurrentLimitLayer layer = ConcurrentLimitLayer.builder(1)
+                .readPermits(2)
+                .writePermits(3)
+                .listPermits(4)
+                .httpPermits(5)
+                .build();
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(layer);
+
+        final byte[] content = {1, 2, 3};
+        layeredOp.write("file.txt", content).get(5, TimeUnit.SECONDS);
+        assertThat(layeredOp.read("file.txt").get(5, TimeUnit.SECONDS)).containsExactly(content);
+        assertThat(layeredOp.list("").get(5, TimeUnit.SECONDS))
+                .extracting(Entry::getPath)
+                .containsExactly("file.txt");
+        assertThat(layeredOp.stat("file.txt").get(5, TimeUnit.SECONDS).contentLength)
+                .isEqualTo(content.length);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1, Long.MIN_VALUE})
+    void testConcurrentLimitLayerRejectsNonPositivePermits(long invalid) {
+        assertThatThrownBy(() -> new ConcurrentLimitLayer(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("permits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("permits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).readPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("readPermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).writePermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("writePermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).listPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("listPermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).httpPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("httpPermits ");
+    }
+
+    @Test
     void testCapabilityCheckLayerRejectsUnsupportedWriteContentType() {
         @Cleanup
         final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());

@@ -19,10 +19,13 @@
 
 import React, { useEffect, useState } from "react";
 import Layout from "@theme/Layout";
+import Heading from "@theme/Heading";
+import Link from "@docusaurus/Link";
 import CodeBlock from "@theme/CodeBlock";
 import { useLocation } from "@docusaurus/router";
 import Breadcrumb from "../ui/Breadcrumb";
 import Tabs from "../ui/Tabs";
+import { resolveCapabilityCell } from "./CapabilitiesPage";
 import styles from "./styles.module.css";
 
 const LANGUAGE_ALIASES = {
@@ -125,6 +128,80 @@ function ConfigTable({ rows }) {
   );
 }
 
+function CapabilityTable({ rows }) {
+  return (
+    <div className={styles.tableWrap}>
+      <table className={styles.table}>
+        <thead className={styles.tableHead}>
+          <tr className={styles.tableHeaderRow}>
+            <th className={styles.tableHeaderCell} scope="col">
+              Capability
+            </th>
+            <th className={styles.tableHeaderCell} scope="col">
+              Support
+            </th>
+            <th className={styles.tableHeaderCell} scope="col">
+              Description
+            </th>
+          </tr>
+        </thead>
+        <tbody className={styles.tableBody}>
+          {rows.map(({ field, cell }) => (
+            <tr key={field.name} className={styles.tableRow}>
+              <td
+                className={cx(styles.tableCell, styles.tableKeyCell)}
+                data-label="Capability"
+              >
+                <code className={styles.configKey}>{field.name}</code>
+              </td>
+              <td className={styles.tableCell} data-label="Support">
+                {cell.status === "native" && (
+                  <span className={styles.supportInline}>
+                    <span className={styles.capNative} aria-hidden="true">
+                      ✓
+                    </span>{" "}
+                    Native
+                  </span>
+                )}
+                {cell.status === "conditional" && (
+                  <div className={styles.supportCondWrap}>
+                    <span className={styles.capCondBadge}>Conditional</span>
+                    <div className={styles.supportCondNote}>
+                      {renderComment(cell.condition)}
+                    </div>
+                  </div>
+                )}
+                {cell.status === "limit" && (
+                  <div className={styles.supportCondWrap}>
+                    <code className={styles.capLimit}>{cell.display}</code>
+                    {cell.condition && (
+                      <div className={styles.supportCondNote}>
+                        {renderComment(cell.condition)}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {cell.status === "unset" && (
+                  <span className={styles.capUnsup}>Not declared</span>
+                )}
+                {cell.status === "unsupported" && (
+                  <span className={styles.capUnsup}>Unsupported</span>
+                )}
+              </td>
+              <td
+                className={cx(styles.tableCell, styles.desc)}
+                data-label="Description"
+              >
+                {renderComment(field.doc)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // The deep-link routes (`/services/<scheme>/<binding>`) share this component
 // with the bare service page; the trailing segment, when it names one of the
 // available bindings, selects the initial tab.
@@ -182,7 +259,13 @@ function bindingFromSearch(search, examples) {
 }
 
 export default function ServicePage({ data }) {
-  const { bindings, service } = data;
+  const {
+    bindings,
+    service,
+    capability,
+    capabilityGroups = [],
+    capabilityFields = [],
+  } = data;
   const location = useLocation();
 
   const labelOf = Object.fromEntries(bindings.map((b) => [b.id, b.label]));
@@ -193,12 +276,29 @@ export default function ServicePage({ data }) {
     available[0];
 
   const [active, setActive] = useState(initial);
+  const [showUnsupported, setShowUnsupported] = useState(false);
+
   useEffect(() => {
     setActive(initial);
     // Re-sync when navigating between deep-link pages or URL-selected tabs.
   }, [location.pathname, location.search]);
 
   const example = service.examples.find((e) => e.binding === active);
+
+  const visibleCapabilityGroups = capability
+    ? capabilityGroups
+        .map((group) => {
+          const rows = capabilityFields
+            .filter((field) => field.group === group.id)
+            .map((field) => ({
+              field,
+              cell: resolveCapabilityCell(capability, field),
+            }))
+            .filter(({ cell }) => showUnsupported || cell.supported);
+          return { group, rows };
+        })
+        .filter(({ rows }) => rows.length > 0)
+    : [];
 
   const title = `${service.scheme} | Services`;
   const description = `Configuration reference and copy-paste setup for the OpenDAL ${service.scheme} service.`;
@@ -292,6 +392,51 @@ export default function ServicePage({ data }) {
             )
           )}
         </section>
+
+        {capability && (
+          <section className={styles.section}>
+            <div className={styles.sectionHeaderRow}>
+              <Heading
+                as="h2"
+                id="capabilities"
+                className={styles.sectionHeading}
+              >
+                Capabilities
+              </Heading>
+              <Link
+                to="/services/capabilities"
+                className={styles.sectionActionLink}
+              >
+                Compare all services →
+              </Link>
+            </div>
+
+            <div className={styles.serviceCapControls}>
+              <label className={styles.layerToggle}>
+                <input
+                  type="checkbox"
+                  checked={showUnsupported}
+                  onChange={(e) => setShowUnsupported(e.target.checked)}
+                />
+                <span>Show unsupported capabilities and unset limits</span>
+              </label>
+            </div>
+
+            {visibleCapabilityGroups.length === 0 ? (
+              <p>No capabilities match the current filter.</p>
+            ) : (
+              visibleCapabilityGroups.map(({ group, rows }, i) => (
+                <details key={group.id} className={styles.group} open={i === 0}>
+                  <summary className={styles.groupSummary}>
+                    {group.label}
+                    <span className={styles.groupCount}>{rows.length}</span>
+                  </summary>
+                  <CapabilityTable rows={rows} />
+                </details>
+              ))
+            )}
+          </section>
+        )}
       </div>
     </Layout>
   );

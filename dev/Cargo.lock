@@ -613,6 +613,7 @@ dependencies = [
  "markdown",
  "minijinja",
  "pretty_assertions",
+ "proc-macro2",
  "prost",
  "prost-types",
  "regex",

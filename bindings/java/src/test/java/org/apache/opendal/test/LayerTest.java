@@ -47,6 +47,7 @@ import org.apache.opendal.layer.ImmutableIndexLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
 import org.apache.opendal.layer.SanityCheckLayer;
+import org.apache.opendal.layer.TailCutLayer;
 import org.apache.opendal.layer.ThrottleLayer;
 import org.apache.opendal.layer.TimeoutLayer;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
@@ -198,6 +199,94 @@ public class LayerTest {
         assertThatThrownBy(() -> HedgeLayer.builder().maxHedges(-1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageStartingWith("maxHedges ");
+    }
+
+    @Test
+    void testTailCutLayerCancelsSlowTailRequest() throws Exception {
+        final CountDownLatch releaseResponse = new CountDownLatch(1);
+        final AtomicInteger requests = new AtomicInteger();
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext("/file", exchange -> {
+                try {
+                    if (requests.incrementAndGet() == 6) {
+                        releaseResponse.await();
+                        return;
+                    }
+                    // Keep the HTTP client from reusing warm-up connections on JDK 11.
+                    exchange.getResponseHeaders().set("Connection", "close");
+                    exchange.getResponseHeaders().set("Content-Length", "7");
+                    exchange.sendResponseHeaders(200, -1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final TailCutLayer tailCut = TailCutLayer.builder()
+                    .percentile(95)
+                    .safetyFactor(1.0)
+                    .minSamples(5)
+                    .minDeadline(Duration.ofMillis(50))
+                    .maxDeadline(Duration.ofMillis(200))
+                    .build();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(tailCut);
+
+            for (int i = 0; i < 5; i++) {
+                assertThat(layeredOp.stat("file").get(5, TimeUnit.SECONDS).contentLength)
+                        .isEqualTo(7);
+            }
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("cancelled by tail cut");
+        } finally {
+            releaseResponse.countDown();
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void testTailCutLayerRejectsInvalidArguments() {
+        for (int invalid : new int[] {49, 100}) {
+            assertThatThrownBy(() -> TailCutLayer.builder().percentile(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("percentile ");
+        }
+        for (double invalid : new double[] {0.9, 5.1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            assertThatThrownBy(() -> TailCutLayer.builder().safetyFactor(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("safetyFactor ");
+        }
+        final Duration overflowing = Duration.ofNanos(Long.MAX_VALUE).plusNanos(1);
+        for (Duration invalid : Arrays.asList(
+                null, Duration.ofNanos(-1), Duration.ofSeconds(120).plusNanos(1), overflowing)) {
+            assertThatThrownBy(() -> TailCutLayer.builder().window(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("window ");
+        }
+        assertThatThrownBy(() -> TailCutLayer.builder().minSamples(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("minSamples ");
+        for (Duration invalid : Arrays.asList(null, Duration.ofNanos(-1), overflowing)) {
+            assertThatThrownBy(() -> TailCutLayer.builder().minDeadline(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("minDeadline ");
+            assertThatThrownBy(() -> TailCutLayer.builder().maxDeadline(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("maxDeadline ");
+        }
+        assertThatThrownBy(() -> TailCutLayer.builder()
+                        .minDeadline(Duration.ofSeconds(2))
+                        .maxDeadline(Duration.ofSeconds(1))
+                        .build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("minDeadline must be less than or equal to maxDeadline");
     }
 
     @Test

@@ -318,6 +318,7 @@ class AsyncOperator:
         Open an async file-like object for the given path.
 
         The returning async file-like object is a context manager.
+        In `"rb"` mode, use `read()` to supply response header overrides.
 
         Parameters
         ----------
@@ -517,7 +518,10 @@ class AsyncOperator:
         content_disposition: str | None = None,
     ) -> collections.abc.Awaitable[bytes]:
         """
-        Read the entire contents of a file at the given path.
+        Read all or a selected range of bytes from a file.
+
+        A positive `prefetch` cannot be combined with `content_type`,
+        `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
 
         Parameters
         ----------
@@ -534,23 +538,23 @@ class AsyncOperator:
         offset : int, optional
             The offset of the file.
         prefetch : int, optional
-            The number of bytes to prefetch.
+            The number of completed chunks to buffer during concurrent reads.
         size : int, optional
             The size of the file.
         if_match : str, optional
             The ETag of the file.
         if_none_match : str, optional
             The ETag of the file.
-        if_modified_since : str, optional
+        if_modified_since : datetime, optional
             The last modified time of the file.
-        if_unmodified_since : str, optional
+        if_unmodified_since : datetime, optional
             The last modified time of the file.
         content_type : str, optional
-            The content type of the file.
+            The Content-Type response header override, where supported.
         cache_control : str, optional
-            The cache control of the file.
+            The Cache-Control response header override, where supported.
         content_disposition : str, optional
-            The content disposition of the file.
+            The Content-Disposition response header override, where supported.
 
         Returns
         -------
@@ -994,6 +998,7 @@ class Operator:
         Open a file-like object for the given path.
 
         The returning file-like object is a context manager.
+        In `"rb"` mode, use `read()` to supply response header overrides.
 
         Parameters
         ----------
@@ -1030,7 +1035,10 @@ class Operator:
         content_disposition: str | None = None,
     ) -> bytes:
         """
-        Read the entire contents of a file at the given path.
+        Read all or a selected range of bytes from a file.
+
+        A positive `prefetch` cannot be combined with `content_type`,
+        `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
 
         Parameters
         ----------
@@ -1047,23 +1055,23 @@ class Operator:
         offset : int, optional
             The offset of the file.
         prefetch : int, optional
-            The number of bytes to prefetch.
+            The number of completed chunks to buffer during concurrent reads.
         size : int, optional
             The size of the file.
         if_match : str, optional
             The ETag of the file.
         if_none_match : str, optional
             The ETag of the file.
-        if_modified_since : str, optional
+        if_modified_since : datetime, optional
             The last modified time of the file.
-        if_unmodified_since : str, optional
+        if_unmodified_since : datetime, optional
             The last modified time of the file.
         content_type : str, optional
-            The content type of the file.
+            The Content-Type response header override, where supported.
         cache_control : str, optional
-            The cache control of the file.
+            The Cache-Control response header override, where supported.
         content_disposition : str, optional
-            The content disposition of the file.
+            The Content-Disposition response header override, where supported.
 
         Returns
         -------

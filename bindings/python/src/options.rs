@@ -23,6 +23,7 @@ use pyo3::PyErr;
 use pyo3::PyResult;
 use pyo3::conversion::FromPyObjectOwned;
 use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::PyValueError;
 use pyo3::pyclass;
 use pyo3::types::PyAnyMethods;
 use pyo3::types::PyDict;
@@ -43,7 +44,7 @@ pub struct ReadOptions {
     pub gap: Option<usize>,
     /// The offset of the file.
     pub offset: Option<usize>,
-    /// The number of bytes to prefetch.
+    /// The number of completed chunks to buffer during concurrent reads.
     pub prefetch: Option<usize>,
     /// The size of the file.
     pub size: Option<usize>,
@@ -55,11 +56,11 @@ pub struct ReadOptions {
     pub if_modified_since: Option<jiff::Timestamp>,
     /// The last modified time of the file.
     pub if_unmodified_since: Option<jiff::Timestamp>,
-    /// The content type of the file.
+    /// The Content-Type response header override, where supported.
     pub content_type: Option<String>,
-    /// The cache control of the file.
+    /// The Cache-Control response header override, where supported.
     pub cache_control: Option<String>,
-    /// The content disposition of the file.
+    /// The Content-Disposition response header override, where supported.
     pub content_disposition: Option<String>,
 }
 
@@ -118,6 +119,21 @@ impl ReadOptions {
         let size = self.size.map(|v| v as u64);
 
         BytesRange::new(offset, size)
+    }
+
+    /// Validate the options before selecting the reader path for prefetching.
+    pub fn use_prefetch_reader(&self) -> PyResult<bool> {
+        let enabled = self.prefetch.unwrap_or_default() > 0;
+        if enabled
+            && (self.content_type.is_some()
+                || self.cache_control.is_some()
+                || self.content_disposition.is_some())
+        {
+            return Err(PyValueError::new_err(
+                "prefetch cannot be combined with response header overrides",
+            ));
+        }
+        Ok(enabled)
     }
 }
 

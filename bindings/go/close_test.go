@@ -21,8 +21,10 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -96,6 +98,231 @@ func TestOperatorCloseFreesOnceAndBlocksLaterOperations(t *testing.T) {
 	}
 	if checks != 0 {
 		t.Fatalf("Check crossed into FFI %d times after Close, want 0", checks)
+	}
+}
+
+// TestOperatorMethodsFailCleanlyAfterClose covers every Operator method that
+// reads op.ctx or op.inner: on a closed, zero-value, or nil Operator each must
+// return ErrOperatorClosed (or nil for Info) without resolving a single FFI
+// symbol. The context carries no symbols, so any method that regresses and
+// touches the native library panics instead of passing silently.
+func TestOperatorMethodsFailCleanlyAfterClose(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ffiOperatorFree.sym, func(*opendalOperator) {})
+	closed := &Operator{ctx: ctx, inner: newTestOperatorHandle(), cancel: func() {}}
+	closed.Close()
+
+	operators := map[string]*Operator{
+		"closed":     closed,
+		"zero-value": {},
+		"nil":        nil,
+	}
+	for state, op := range operators {
+		t.Run(state, func(t *testing.T) {
+			checks := map[string]func(*Operator) error{
+				"Check":     func(op *Operator) error { return op.Check() },
+				"CreateDir": func(op *Operator) error { return op.CreateDir("dir/") },
+				"IsExist":   func(op *Operator) error { _, err := op.IsExist("file.txt"); return err },
+				"Rename":    func(op *Operator) error { return op.Rename("a.txt", "b.txt") },
+				"Remove":    func(op *Operator) error { return op.Remove([]string{"a.txt"}) },
+				"Read":      func(op *Operator) error { _, err := op.Read("file.txt"); return err },
+				"ReadWithOpts": func(op *Operator) error {
+					_, err := op.Read("file.txt", ReadWithRange(0, 1))
+					return err
+				},
+				"Write": func(op *Operator) error { _, err := op.Write("file.txt", []byte("x")); return err },
+				"WriteWithOpts": func(op *Operator) error {
+					_, err := op.Write("file.txt", []byte("x"), WriteWithContentType("text/plain"))
+					return err
+				},
+				"Stat":         func(op *Operator) error { _, err := op.Stat("file.txt"); return err },
+				"StatWithOpts": func(op *Operator) error { _, err := op.Stat("file.txt", StatWithVersion("v")); return err },
+				"Delete":       func(op *Operator) error { return op.Delete("file.txt") },
+				"DeleteWithOpts": func(op *Operator) error {
+					return op.Delete("file.txt", DeleteWithVersion("v"))
+				},
+				"Copy":         func(op *Operator) error { return op.Copy("a.txt", "b.txt") },
+				"CopyWithOpts": func(op *Operator) error { return op.Copy("a.txt", "b.txt", CopyWithIfNotExists(true)) },
+				"List":         func(op *Operator) error { _, err := op.List("dir/"); return err },
+				"ListWithOpts": func(op *Operator) error { _, err := op.List("dir/", ListWithRecursive(true)); return err },
+				"Reader":       func(op *Operator) error { _, err := op.Reader("file.txt"); return err },
+				"ReaderWithOpts": func(op *Operator) error {
+					_, err := op.Reader("file.txt", ReaderWithVersion("v"))
+					return err
+				},
+				"Writer": func(op *Operator) error { _, err := op.Writer("file.txt"); return err },
+				"WriterWithOpts": func(op *Operator) error {
+					_, err := op.Writer("file.txt", WriteWithContentType("text/plain"))
+					return err
+				},
+				"Copier":         func(op *Operator) error { _, err := op.Copier("a.txt", "b.txt"); return err },
+				"CopierWithOpts": func(op *Operator) error { _, err := op.Copier("a.txt", "b.txt", CopyWithChunk(1)); return err },
+				"Deleter":        func(op *Operator) error { _, err := op.Deleter(); return err },
+				"WithDeleter": func(op *Operator) error {
+					return op.WithDeleter(func(*Deleter) error { return nil })
+				},
+				"PresignRead": func(op *Operator) error { _, err := op.PresignRead("file.txt", time.Minute); return err },
+				"PresignReadWithOpts": func(op *Operator) error {
+					_, err := op.PresignRead("file.txt", time.Minute, ReadWithVersion("v"))
+					return err
+				},
+				"PresignWrite": func(op *Operator) error { _, err := op.PresignWrite("file.txt", time.Minute); return err },
+				"PresignWriteWithOpts": func(op *Operator) error {
+					_, err := op.PresignWrite("file.txt", time.Minute, WriteWithContentType("text/plain"))
+					return err
+				},
+				"PresignDelete": func(op *Operator) error { _, err := op.PresignDelete("file.txt", time.Minute); return err },
+				"PresignDeleteWithOpts": func(op *Operator) error {
+					_, err := op.PresignDelete("file.txt", time.Minute, DeleteWithVersion("v"))
+					return err
+				},
+				"PresignStat": func(op *Operator) error { _, err := op.PresignStat("file.txt", time.Minute); return err },
+				"PresignStatWithOpts": func(op *Operator) error {
+					_, err := op.PresignStat("file.txt", time.Minute, StatWithVersion("v"))
+					return err
+				},
+			}
+			for name, check := range checks {
+				if err := check(op); !errors.Is(err, ErrOperatorClosed) {
+					t.Errorf("%s = %v, want ErrOperatorClosed", name, err)
+				}
+			}
+			if info := op.Info(); info != nil {
+				t.Errorf("Info = %v, want nil", info)
+			}
+		})
+	}
+}
+
+func TestNilHandleReceivers(t *testing.T) {
+	var op *Operator
+	op.Close()
+	var r *Reader
+	if err := r.Close(); err != nil {
+		t.Fatalf("nil Reader Close = %v, want nil", err)
+	}
+	if _, err := r.Read(make([]byte, 4)); !errors.Is(err, ErrReaderClosed) {
+		t.Fatalf("nil Reader Read = %v, want ErrReaderClosed", err)
+	}
+	if _, err := r.Seek(0, io.SeekStart); !errors.Is(err, ErrReaderClosed) {
+		t.Fatalf("nil Reader Seek = %v, want ErrReaderClosed", err)
+	}
+	var l *Lister
+	if err := l.Close(); err != nil {
+		t.Fatalf("nil Lister Close = %v, want nil", err)
+	}
+	if l.Next() {
+		t.Fatal("nil Lister Next = true, want false")
+	}
+	if err := l.Error(); !errors.Is(err, ErrListerClosed) {
+		t.Fatalf("nil Lister Error = %v, want ErrListerClosed", err)
+	}
+	if entry := l.Entry(); entry != nil {
+		t.Fatalf("nil Lister Entry = %v, want nil", entry)
+	}
+	var w *Writer
+	if _, err := w.Close(); !errors.Is(err, ErrWriterClosed) {
+		t.Fatalf("nil Writer Close = %v, want ErrWriterClosed", err)
+	}
+	if _, err := w.Write([]byte("x")); !errors.Is(err, ErrWriterClosed) {
+		t.Fatalf("nil Writer Write = %v, want ErrWriterClosed", err)
+	}
+	if _, err := w.ReadFrom(strings.NewReader("x")); !errors.Is(err, ErrWriterClosed) {
+		t.Fatalf("nil Writer ReadFrom = %v, want ErrWriterClosed", err)
+	}
+	var d *Deleter
+	if err := d.Close(); err != nil {
+		t.Fatalf("nil Deleter Close = %v, want nil", err)
+	}
+	d.Discard()
+	if err := d.Delete("a.txt"); !errors.Is(err, ErrDeleterClosed) {
+		t.Fatalf("nil Deleter Delete = %v, want ErrDeleterClosed", err)
+	}
+	if err := d.Flush(); !errors.Is(err, ErrDeleterClosed) {
+		t.Fatalf("nil Deleter Flush = %v, want ErrDeleterClosed", err)
+	}
+	var c *Copier
+	if err := c.Close(); err != nil {
+		t.Fatalf("nil Copier Close = %v, want nil", err)
+	}
+	if _, ok, err := c.Next(); ok || err != nil {
+		t.Fatalf("nil Copier Next = (_, %v, %v), want (_, false, nil)", ok, err)
+	}
+	if err := c.Abort(); err != nil {
+		t.Fatalf("nil Copier Abort = %v, want nil", err)
+	}
+}
+
+func TestReaderReadAfterCloseRejectsEmptyBuffer(t *testing.T) {
+	ctx := context.WithValue(context.Background(), ffiReaderFree.sym, func(*opendalReader) {})
+
+	r := &Reader{inner: newTestReaderHandle(), ctx: ctx}
+	if err := r.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	// A zero-length read must report the closed state too, so it behaves like
+	// Writer.Write on a closed Writer.
+	if n, err := r.Read(nil); n != 0 || !errors.Is(err, ErrReaderClosed) {
+		t.Fatalf("Read(nil) after Close = (%d, %v), want (0, ErrReaderClosed)", n, err)
+	}
+}
+
+func TestWriterReadFromAfterCloseReadsNothing(t *testing.T) {
+	wInner := newTestWriterHandle()
+	freed := 0
+
+	ctx := context.WithValue(context.Background(), ffiWriterFree.sym, func(*opendalWriter) { freed++ })
+	ctx = context.WithValue(ctx, ffiErrorFree.sym, func(err *opendalError) {})
+	ctx = context.WithValue(ctx, ffiWriterCloseWithMetadata.sym, ffiWriterCloseWithMetadata.withFunc(ctx, func(w *opendalWriter, out **opendalMetadata) *opendalError {
+		return &opendalError{code: int32(CodeUnexpected)}
+	}))
+	ctx = context.WithValue(ctx, ffiWriterWrite.sym, func(w *opendalWriter, buf []byte) (int, error) {
+		t.Fatal("Write crossed into FFI on a closed writer")
+		return 0, nil
+	})
+
+	w := &Writer{inner: wInner, ctx: ctx}
+	if _, err := w.Close(); err == nil {
+		t.Fatal("Close succeeded, want the stubbed failure")
+	}
+	if freed != 1 {
+		t.Fatalf("writer freed %d times, want 1", freed)
+	}
+	if n, err := w.ReadFrom(strings.NewReader("data")); n != 0 || !errors.Is(err, ErrWriterClosed) {
+		t.Fatalf("ReadFrom after Close = (%d, %v), want (0, ErrWriterClosed)", n, err)
+	}
+}
+
+func TestCopierStaysQuietAfterClose(t *testing.T) {
+	cInner := newTestCopierHandle()
+	calls := 0
+
+	ctx := context.WithValue(context.Background(), ffiCopierFree.sym, func(c *opendalCopier) {
+		calls++
+	})
+	ctx = context.WithValue(ctx, ffiCopierNext.sym, ffiCopierNext.withFunc(ctx, func(c *opendalCopier, size *uint, hasNext *bool) *opendalError {
+		t.Fatal("Next crossed into FFI on a closed copier")
+		return nil
+	}))
+	ctx = context.WithValue(ctx, ffiCopierAbort.sym, ffiCopierAbort.withFunc(ctx, func(c *opendalCopier) *opendalError {
+		t.Fatal("Abort crossed into FFI on a closed copier")
+		return nil
+	}))
+
+	c := &Copier{inner: cInner, ctx: ctx}
+	if err := c.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	if err := c.Close(); err != nil {
+		t.Fatalf("second Close = %v, want nil", err)
+	}
+	if calls != 1 {
+		t.Fatalf("copier freed %d times, want 1", calls)
+	}
+	if size, ok, err := c.Next(); size != 0 || ok || err != nil {
+		t.Fatalf("Next after Close = (%d, %v, %v), want (0, false, nil)", size, ok, err)
+	}
+	if err := c.Abort(); err != nil {
+		t.Fatalf("Abort after Close = %v, want nil", err)
 	}
 }
 

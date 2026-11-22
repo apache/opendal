@@ -79,13 +79,14 @@ type Copier struct {
 //   - Both src and dest must be file paths, not directories.
 //   - The returned Copier must be released with Close.
 func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		opInner, release, err := op.acquire()
-		if err != nil {
-			return nil, err
-		}
 		inner, err := ffiOperatorCopier.symbol(op.ctx)(opInner, src, dest)
-		release()
 		if err != nil {
 			return nil, err
 		}
@@ -98,12 +99,7 @@ func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error
 		return nil, err
 	}
 	defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
-	opInner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	inner, err := ffiOperatorCopierWith.symbol(op.ctx)(opInner, src, dest, cOpts)
-	release()
 	// cOpts holds raw pointers into the Go buffers tracked by keepAlive.
 	// Keep them reachable until the native call above has returned.
 	runtime.KeepAlive(keepAlive)

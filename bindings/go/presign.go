@@ -30,8 +30,14 @@ type presignFunc func(op *opendalOperator, path string, expire uint64) (*opendal
 
 // PresignRead returns a presigned HTTP request that can be used to read the object at the given path.
 func (op *Operator) PresignRead(path string, expire time.Duration, opts ...WithReadFn) (*http.Request, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		return op.presign(path, expire, ffiOperatorPresignRead.symbol(op.ctx))
+		return op.presign(inner, path, expire, ffiOperatorPresignRead.symbol(op.ctx))
 	}
 
 	o := parseReadOptions(opts...)
@@ -40,20 +46,21 @@ func (op *Operator) PresignRead(path string, expire time.Duration, opts ...WithR
 		return nil, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	req, err := ffiOperatorPresignReadWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignWrite returns a presigned HTTP request that can be used to write the object at the given path.
 func (op *Operator) PresignWrite(path string, expire time.Duration, opts ...WithWriteFn) (*http.Request, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		return op.presign(path, expire, ffiOperatorPresignWrite.symbol(op.ctx))
+		return op.presign(inner, path, expire, ffiOperatorPresignWrite.symbol(op.ctx))
 	}
 
 	o := parseWriteOptions(opts...)
@@ -62,20 +69,21 @@ func (op *Operator) PresignWrite(path string, expire time.Duration, opts ...With
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	req, err := ffiOperatorPresignWriteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignDelete returns a presigned HTTP request that can be used to delete the object at the given path.
 func (op *Operator) PresignDelete(path string, expire time.Duration, opts ...WithDeleteFn) (*http.Request, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		return op.presign(path, expire, ffiOperatorPresignDelete.symbol(op.ctx))
+		return op.presign(inner, path, expire, ffiOperatorPresignDelete.symbol(op.ctx))
 	}
 
 	o := parseDeleteOptions(opts...)
@@ -84,20 +92,21 @@ func (op *Operator) PresignDelete(path string, expire time.Duration, opts ...Wit
 		return nil, err
 	}
 	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	req, err := ffiOperatorPresignDeleteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignStat returns a presigned HTTP request that can be used to stat the object at the given path.
 func (op *Operator) PresignStat(path string, expire time.Duration, opts ...WithStatFn) (*http.Request, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		return op.presign(path, expire, ffiOperatorPresignStat.symbol(op.ctx))
+		return op.presign(inner, path, expire, ffiOperatorPresignStat.symbol(op.ctx))
 	}
 
 	o := parseStatOptions(opts...)
@@ -106,25 +115,18 @@ func (op *Operator) PresignStat(path string, expire time.Duration, opts ...WithS
 		return nil, err
 	}
 	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	req, err := ffiOperatorPresignStatWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
-func (op *Operator) presign(path string, expire time.Duration, call presignFunc) (*http.Request, error) {
+// presign drives one presign FFI call on inner. The caller must have
+// acquired the operator read lock, so call is resolved from op.ctx only once
+// the Operator is known to be open.
+func (op *Operator) presign(inner *opendalOperator, path string, expire time.Duration, call presignFunc) (*http.Request, error) {
 	secs := uint64(expire / time.Second)
 
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	req, err := call(inner, path, secs)
-	release()
 	return op.buildPresignedRequest(req, err)
 }
 

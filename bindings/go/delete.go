@@ -86,12 +86,13 @@ type deleteOptions struct {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, release, err := op.acquire()
-		if err != nil {
-			return err
-		}
-		defer release()
 		return ffiOperatorDelete.symbol(op.ctx)(inner, path)
 	}
 
@@ -101,12 +102,7 @@ func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
 		return err
 	}
 	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return err
-	}
 	err = ffiOperatorDeleteWith.symbol(op.ctx)(inner, path, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return err
 }

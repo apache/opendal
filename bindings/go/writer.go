@@ -60,13 +60,14 @@ var ErrWriterClosed = errors.New("opendal: writer is closed")
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) (*Metadata, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, release, err := op.acquire()
-		if err != nil {
-			return nil, err
-		}
 		meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(inner, path, data, nil)
-		release()
 		if err != nil {
 			return nil, err
 		}
@@ -79,12 +80,7 @@ func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) (*Metad
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(inner, path, data, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -344,21 +340,18 @@ func (op *Operator) CreateDir(path string) error {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		opInner, release, err := op.acquire()
-		if err != nil {
-			return nil, err
-		}
 		inner, err := ffiOperatorWriter.symbol(op.ctx)(opInner, path)
-		release()
 		if err != nil {
 			return nil, err
 		}
-		writer := &Writer{
-			inner: inner,
-			ctx:   op.ctx,
-		}
-		return writer, nil
+		return &Writer{inner: inner, ctx: op.ctx}, nil
 	}
 
 	o := parseWriteOptions(opts...)
@@ -367,21 +360,12 @@ func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	opInner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	inner, err := ffiOperatorWriterWith.symbol(op.ctx)(opInner, path, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
 	}
-	writer := &Writer{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return writer, nil
+	return &Writer{inner: inner, ctx: op.ctx}, nil
 }
 
 const copyBufferSize = 256 * 1024

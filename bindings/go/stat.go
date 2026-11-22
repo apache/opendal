@@ -59,13 +59,14 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, release, err := op.acquire()
-		if err != nil {
-			return nil, err
-		}
 		meta, err := ffiOperatorStat.symbol(op.ctx)(inner, path)
-		release()
 		if err != nil {
 			return nil, err
 		}
@@ -78,12 +79,7 @@ func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
 		return nil, err
 	}
 	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	meta, err := ffiOperatorStatWith.symbol(op.ctx)(inner, path, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err

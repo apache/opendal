@@ -117,12 +117,13 @@ type copyOptions struct {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Copy(src, dest string, opts ...WithCopyFn) error {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, release, err := op.acquire()
-		if err != nil {
-			return err
-		}
-		defer release()
 		return ffiOperatorCopy.symbol(op.ctx)(inner, src, dest)
 	}
 
@@ -132,12 +133,7 @@ func (op *Operator) Copy(src, dest string, opts ...WithCopyFn) error {
 		return err
 	}
 	defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return err
-	}
 	err = ffiOperatorCopyWith.symbol(op.ctx)(inner, src, dest, cOpts)
-	release()
 	// cOpts holds raw pointers into the Go buffers tracked by keepAlive; keep
 	// them reachable until the native call above has returned.
 	runtime.KeepAlive(keepAlive)

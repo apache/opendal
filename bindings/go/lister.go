@@ -130,6 +130,12 @@ type listOptions struct {
 // Note: Always check lister.Error() after the loop to catch any errors that
 // occurred during iteration.
 func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	o := &listOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -145,12 +151,7 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 	}
 	ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
 	ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
-	opInner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(opInner, path, cOpts)
-	release()
 	if err != nil {
 		return nil, err
 	}

@@ -272,5 +272,7 @@ func (op *Operator) Close() {
 	}
 	ffiOperatorFree.symbol(op.ctx)(op.inner)
 	op.inner = nil
-	op.cancel()
+	if op.cancel != nil {
+		op.cancel()
+	}
 }

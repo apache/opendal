@@ -74,12 +74,13 @@ func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
 }
 
 func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return opendalBytes{}, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, release, err := op.acquire()
-		if err != nil {
-			return opendalBytes{}, err
-		}
-		defer release()
 		return ffiOperatorRead.symbol(op.ctx)(inner, path)
 	}
 
@@ -89,12 +90,7 @@ func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) 
 		return opendalBytes{}, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	inner, release, err := op.acquire()
-	if err != nil {
-		return opendalBytes{}, err
-	}
 	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(inner, path, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	return bytes, err
 }
@@ -519,12 +515,13 @@ func newOpendalReaderOptions(ctx context.Context, o *readerOptions) (*opendalRea
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		opInner, release, err := op.acquire()
-		if err != nil {
-			return nil, err
-		}
-		defer release()
 		inner, err := ffiOperatorReader.symbol(op.ctx)(opInner, path)
 		if err != nil {
 			return nil, err
@@ -538,12 +535,7 @@ func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 		return nil, err
 	}
 	defer ffiReaderOptionsFree.symbol(op.ctx)(cOpts)
-	opInner, release, err := op.acquire()
-	if err != nil {
-		return nil, err
-	}
 	inner, err := ffiOperatorReaderWith.symbol(op.ctx)(opInner, path, cOpts)
-	release()
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -572,9 +564,6 @@ var _ io.WriterTo = (*Reader)(nil)
 // If len(buf) is zero, Read returns (0, nil).
 // Otherwise, Read returns io.EOF when no bytes remain.
 func (r *Reader) Read(buf []byte) (int, error) {
-	if len(buf) == 0 {
-		return 0, nil
-	}
 	if r == nil {
 		return 0, ErrReaderClosed
 	}
@@ -582,6 +571,9 @@ func (r *Reader) Read(buf []byte) (int, error) {
 	defer r.mu.Unlock()
 	if r.inner == nil {
 		return 0, ErrReaderClosed
+	}
+	if len(buf) == 0 {
+		return 0, nil
 	}
 	size, err := ffiReaderRead.symbol(r.ctx)(r.inner, buf)
 	if size == 0 && err == nil {

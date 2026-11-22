@@ -21,7 +21,13 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("reader -> bytes -> int64 -> (int, string) Result.t ")]
-pub fn reader_pread(reader: &mut Reader, buf: &mut [u8], offset: u64) -> Result<usize, String> {
+pub fn reader_pread(reader: &mut Reader, buf: &mut [u8], offset: i64) -> Result<usize, String> {
+    let offset =
+        u64::try_from(offset).map_err(|_| format!("offset must be non-negative, got {offset}"))?;
+    if buf.is_empty() {
+        return Ok(0);
+    }
+
     // An unbounded range stops at EOF and returns a short read instead of failing
     // the bounded-range completeness check when the buffer exceeds the remaining
     // bytes. It also avoids computing `offset + buf.len()`, which can overflow.

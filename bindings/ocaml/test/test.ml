@@ -98,6 +98,18 @@ let test_reader_pread_eof test_ctxt =
   let n = Operator.Reader.pread reader data 100L |> test_check_result in
   assert_equal 0 n
 
+(** Test that a negative offset is rejected instead of wrapped to u64 *)
+let test_reader_pread_negative_offset _ =
+  let bo = new_test_memory_operator () in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 8 'x' in
+  match Operator.Reader.pread reader data (-1L) with
+  | Ok n -> assert_failure (Printf.sprintf "expected error, got %d" n)
+  | Error _ -> ()
+
 (** Test writer functionality *)
 let test_operator_writer test_ctxt =
   let bo = new_test_block_operator test_ctxt in
@@ -427,6 +439,8 @@ let suite =
          "test_operator_reader" >:: test_operator_reader;
          "test_reader_pread_short_read" >:: test_reader_pread_short_read;
          "test_reader_pread_eof" >:: test_reader_pread_eof;
+         "test_reader_pread_negative_offset"
+         >:: test_reader_pread_negative_offset;
          "test_operator_writer" >:: test_operator_writer;
          "test_write_copies_caller_bytes" >:: test_write_copies_caller_bytes;
          "test_writer_copies_caller_bytes" >:: test_writer_copies_caller_bytes;

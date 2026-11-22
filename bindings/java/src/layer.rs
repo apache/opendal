@@ -42,6 +42,7 @@ use opendal::layers::ImmutableIndexLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::SanityCheckLayer;
+use opendal::layers::TailCutLayer;
 use opendal::layers::ThrottleLayer;
 use opendal::layers::TimeoutLayer;
 use opendal::{Error, ErrorKind};
@@ -219,6 +220,58 @@ pub extern "system" fn Java_org_apache_opendal_layer_SanityCheckLayer_doLayer<'l
     env.with_env(|_| -> Result<jlong> {
         let op = unsafe { &*op };
         let layer: SanityCheckLayer = Default::default();
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+    })
+    .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_TailCutLayer_doLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+    percentile: jint,
+    safety_factor: jdouble,
+    window_nanos: jlong,
+    min_samples: jint,
+    min_deadline_nanos: jlong,
+    max_deadline_nanos: jlong,
+) -> jlong {
+    env.with_env(|env| -> Result<jlong> {
+        const MAX_WINDOW_NANOS: jlong = Duration::from_secs(120).as_nanos() as jlong;
+        let invalid_argument = if !(50..=99).contains(&percentile) {
+            Some(jni_str!("percentile must be between 50 and 99"))
+        } else if !(1.0..=5.0).contains(&safety_factor) {
+            Some(jni_str!("safetyFactor must be between 1.0 and 5.0"))
+        } else if !(0..=MAX_WINDOW_NANOS).contains(&window_nanos) {
+            Some(jni_str!("window must be between zero and 120 seconds"))
+        } else if min_samples < 0 {
+            Some(jni_str!("minSamples must be non-negative"))
+        } else if min_deadline_nanos < 0 {
+            Some(jni_str!("minDeadline must be non-negative"))
+        } else if max_deadline_nanos < 0 {
+            Some(jni_str!("maxDeadline must be non-negative"))
+        } else if min_deadline_nanos > max_deadline_nanos {
+            Some(jni_str!(
+                "minDeadline must be less than or equal to maxDeadline"
+            ))
+        } else {
+            None
+        };
+        if let Some(message) = invalid_argument {
+            env.throw_new(jni_str!("java/lang/IllegalArgumentException"), message)?;
+            return Ok(0);
+        }
+
+        let layer = TailCutLayer::builder()
+            .percentile(percentile as u8)
+            .safety_factor(safety_factor)
+            .window(Duration::from_nanos(window_nanos as u64))
+            .min_samples(min_samples as usize)
+            .min_deadline(Duration::from_nanos(min_deadline_nanos as u64))
+            .max_deadline(Duration::from_nanos(max_deadline_nanos as u64))
+            .build();
+        let op = unsafe { &*op };
         Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
     })
     .resolve::<ThrowException>()

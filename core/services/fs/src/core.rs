@@ -154,13 +154,42 @@ impl FsCore {
         Ok(size)
     }
 
-    pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn fs_rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
+        #[cfg(not(target_os = "linux"))]
+        if if_not_exists {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Conditional rename is only supported on Linux",
+            ));
+        }
+
         let from = self.root_join(from)?;
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
         let to = self
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
+
+        #[cfg(target_os = "linux")]
+        if if_not_exists {
+            use rustix::fs::{CWD, RenameFlags, renameat_with};
+            use rustix::io::Errno;
+
+            let result = tokio::task::spawn_blocking(move || {
+                renameat_with(CWD, &from, CWD, &to, RenameFlags::NOREPLACE)
+            })
+            .await
+            .map_err(new_task_join_error)?;
+
+            return result.map_err(|err| match err {
+                Errno::INVAL | Errno::NOSYS | Errno::OPNOTSUPP => Error::new(
+                    ErrorKind::Unsupported,
+                    "The kernel or filesystem does not support conditional rename",
+                )
+                .set_source(err),
+                _ => parse_error(ErrorContext::new(ServiceOperation("Rename")), err.into()),
+            });
+        }
 
         tokio::fs::rename(from, to)
             .await

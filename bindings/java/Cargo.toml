@@ -48,6 +48,7 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
   "layers-logging",
   "layers-mime-guess",
   "layers-retry",
+  "layers-route",
   "layers-sanity-check",
   "layers-tail-cut",
   "layers-throttle",

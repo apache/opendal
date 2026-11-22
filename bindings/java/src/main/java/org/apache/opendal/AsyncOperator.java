@@ -366,6 +366,12 @@ public class AsyncOperator extends NativeObject {
     }
 
     @Override
+    public synchronized void close() {
+        // Route registration holds this monitor while cloning the native operator.
+        super.close();
+    }
+
+    @Override
     protected native void disposeInternal(long handle);
 
     private static native long duplicate(long nativeHandle);

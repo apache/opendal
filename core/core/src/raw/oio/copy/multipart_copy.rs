@@ -93,18 +93,6 @@ impl IntoMultipartCopyContext for (Executor, Capability) {
     }
 }
 
-impl<C: MultipartCopy> Clone for CopyInput<C> {
-    fn clone(&self) -> Self {
-        Self {
-            copier: self.copier.clone(),
-            executor: self.executor.clone(),
-            upload_id: self.upload_id.clone(),
-            part_number: self.part_number,
-            range: self.range,
-        }
-    }
-}
-
 struct CopiedPart {
     part: MultipartPart,
     size: u64,
@@ -268,13 +256,11 @@ impl<C: MultipartCopy> MultipartCopier<C> {
                 range,
             };
 
-            loop {
-                match self.tasks.execute(input.clone()).await {
-                    Ok(()) => break,
-                    Err(err) if err.is_temporary() => continue,
-                    Err(err) => return Err(err),
-                }
-            }
+            // Propagate errors to the caller (e.g. RetryLayer) instead of
+            // retrying in place. ConcurrentTasks keeps failed task inputs in
+            // the queue, and this input is rebuilt from next_offset on the
+            // next call, so a retry preserves progress.
+            self.tasks.execute(input).await?;
 
             self.next_offset += size;
             self.next_part_number += 1;
@@ -314,22 +300,15 @@ where
         let upload_id = self.upload_id().await?;
         self.fill_tasks(upload_id.clone(), source_size).await?;
 
-        loop {
-            match self.tasks.next().await {
-                Some(Ok(result)) => {
-                    let size = result.size.try_into().map_err(|_| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "multipart copy part size exceeds usize",
-                        )
-                    })?;
-                    self.parts.push(result.part);
-                    return Ok(Some(size));
-                }
-                Some(Err(err)) if err.is_temporary() => continue,
-                Some(Err(err)) => return Err(err),
-                None => break,
-            }
+        if let Some(result) = self.tasks.next().await.transpose()? {
+            let size = result.size.try_into().map_err(|_| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart copy part size exceeds usize",
+                )
+            })?;
+            self.parts.push(result.part);
+            return Ok(Some(size));
         }
 
         if self.parts.len() != self.next_part_number {
@@ -379,21 +358,28 @@ where
 
     async fn abort(&mut self) -> Result<()> {
         self.tasks.clear();
-        let Some(upload_id) = self.upload_id.take() else {
+        // Keep upload_id in place until abort succeeds so that a retry can
+        // abort the same multipart copy.
+        let Some(upload_id) = self.upload_id.clone() else {
             return Ok(());
         };
 
         self.copier.abort_copy(&upload_id).await?;
         self.completed = true;
         self.metadata = None;
+        self.upload_id = None;
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
     use std::sync::atomic::Ordering;
+
+    use tokio::time::Duration;
+    use tokio::time::timeout;
 
     use super::*;
     use crate::raw::oio::Copy;
@@ -513,6 +499,147 @@ mod tests {
         // Validation must reject before any multipart state is created on the server.
         assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 0);
         assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[derive(Default)]
+    struct FlakyCopyState {
+        /// Number of `copy_part` calls that should still fail temporarily.
+        failures_remaining: usize,
+        copy_part_calls: usize,
+        completed_part_numbers: Vec<usize>,
+        completed_ranges: Vec<BytesRange>,
+    }
+
+    /// A MultipartCopy that fails `copy_part` temporarily for the first
+    /// `failures` calls and then succeeds.
+    struct FlakyCopy {
+        state: Arc<Mutex<FlakyCopyState>>,
+    }
+
+    impl FlakyCopy {
+        fn new(failures: usize) -> Self {
+            Self {
+                state: Arc::new(Mutex::new(FlakyCopyState {
+                    failures_remaining: failures,
+                    ..Default::default()
+                })),
+            }
+        }
+    }
+
+    impl MultipartCopy for FlakyCopy {
+        async fn source_metadata(&self) -> Result<Metadata> {
+            unreachable!()
+        }
+
+        async fn copy_once(&self) -> Result<Metadata> {
+            unreachable!()
+        }
+
+        async fn initiate_copy(&self) -> Result<String> {
+            Ok("upload_id".to_string())
+        }
+
+        async fn copy_part(
+            &self,
+            _: &str,
+            part_number: usize,
+            range: BytesRange,
+        ) -> Result<MultipartPart> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.copy_part_calls += 1;
+            if state.failures_remaining > 0 {
+                state.failures_remaining -= 1;
+                return Err(Error::new(ErrorKind::Unexpected, "503 SlowDown").set_temporary());
+            }
+
+            Ok(MultipartPart {
+                part_number,
+                etag: "etag".to_string(),
+                checksum: None,
+                size: range.size(),
+            })
+        }
+
+        async fn complete_copy(&self, _: &str, parts: &[MultipartPart]) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.completed_part_numbers = parts.iter().map(|part| part.part_number).collect();
+            state.completed_ranges = parts
+                .iter()
+                .map(|part| BytesRange::new(part.part_number as u64 * 4, part.size))
+                .collect();
+            Ok(MetadataBuilder::file(8).build())
+        }
+
+        async fn abort_copy(&self, _: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_temporary_copy_part_error_is_returned_immediately() -> Result<()> {
+        let inner = FlakyCopy::new(usize::MAX);
+        let state = inner.state.clone();
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 1,
+        );
+
+        // A persistent temporary error must surface to the caller (RetryLayer)
+        // instead of spinning inside `next` forever.
+        let err = timeout(Duration::from_secs(10), copier.next())
+            .await
+            .expect("next must not hang on temporary errors")
+            .expect_err("next must propagate the temporary error");
+        assert!(err.is_temporary());
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.copy_part_calls, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_temporary_copy_part_error_retries_without_losing_parts() -> Result<()> {
+        // Fail the very first copy_part call once, then succeed.
+        let inner = FlakyCopy::new(1);
+        let state = inner.state.clone();
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 2,
+        );
+
+        // Mimic RetryLayer: keep calling next() while it fails temporarily.
+        loop {
+            match timeout(Duration::from_secs(10), copier.next())
+                .await
+                .expect("next must not hang on temporary errors")
+            {
+                Ok(Some(_)) => continue,
+                Ok(None) => break,
+                Err(err) => assert!(err.is_temporary()),
+            }
+        }
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+
+        let state = state.lock().expect("test state mutex poisoned");
+        // One failed call plus two successful parts.
+        assert_eq!(state.copy_part_calls, 3);
+        assert_eq!(state.completed_part_numbers, vec![0, 1]);
+        assert_eq!(
+            state.completed_ranges,
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(4, Some(4))]
+        );
         Ok(())
     }
 }

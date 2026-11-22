@@ -337,6 +337,27 @@ jobs:
           # Add rocksdb and java lib path to LD_LIBRARY_PATH
           LD_LIBRARY_PATH: /tmp/rocksdb/lib:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
 
+  # Catches regressions that only appear without default features, such as
+  # the `not(feature = "auto-simulate")` tests in opendal-core.
+  unit_no_default_features:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test
+        working-directory: core
+        run: |
+          cargo nextest run --locked --no-default-features \
+            -p opendal -p opendal-core \
+            --features opendal/auto-register-services,opendal/executors-tokio
+
   doc-test:
     runs-on: ubuntu-latest
 

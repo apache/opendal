@@ -75,6 +75,7 @@ module OpenDAL
 where
 
 import Colog (LogAction, Message, Msg (Msg), (<&))
+import Control.Exception (finally, onException)
 import Control.Monad.Except (ExceptT, MonadError, MonadTrans, runExceptT, throwError)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, ask, liftIO, runReaderT)
 import Control.Monad.Trans (MonadTrans (lift))
@@ -82,6 +83,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.HashMap.Strict (HashMap)
 import qualified Data.HashMap.Strict as HashMap
+import Data.Maybe (fromMaybe)
 import Data.String (IsString (fromString))
 import Data.Text (pack)
 import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
@@ -304,7 +306,9 @@ instance (MonadIO m) => MonadOperation (OperatorT m) where
 -- helper functions
 
 byteSliceToByteString :: ByteSlice -> IO ByteString
-byteSliceToByteString (ByteSlice bsDataPtr len) = BS.packCStringLen (bsDataPtr, fromIntegral len)
+byteSliceToByteString (ByteSlice bsDataPtr len)
+  | bsDataPtr == nullPtr || len == 0 = return BS.empty
+  | otherwise = BS.packCStringLen (bsDataPtr, fromIntegral len)
 
 parseErrorCode :: Int -> ErrorCode
 parseErrorCode 1 = FFIError
@@ -328,32 +332,42 @@ parseEntryMode 0 = File
 parseEntryMode 1 = Dir
 parseEntryMode _ = Unknown
 
-parseCString :: CString -> IO (Maybe String)
-parseCString value | value == nullPtr = return Nothing
-parseCString value = do
-  value' <- peekCString value
-  free value
-  return $ Just value'
+maybePeekCString :: CString -> IO (Maybe String)
+maybePeekCString value | value == nullPtr = return Nothing
+maybePeekCString value = Just <$> peekCString value
 
-parseString :: CString -> IO String
-parseString value = do
-  value' <- peekCString value
-  free value
-  return value'
+-- | Peek a Rust-owned `CString` and release it through Rust's `free_string`.
+-- The pointer is always released, even when `peekCString` throws.
+-- Every byte allocated by Rust must be freed by a Rust function; calling C
+-- `free` on it is an allocator mismatch.
+parseOwnedCString :: CString -> IO (Maybe String)
+parseOwnedCString value
+  | value == nullPtr = return Nothing
+  | otherwise = (Just <$> peekCString value) `finally` freeString value
+
+-- | Convert a failed `FFIResult` into an `OpenDALError`, releasing the
+-- Rust-owned `errorMessage` buffer through `free_string`.
+parseError :: FFIResult a -> IO OpenDALError
+parseError ffiResult = do
+  let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
+  errMsg <- fromMaybe "" <$> parseOwnedCString (errorMessage ffiResult)
+  return $ OpenDALError code errMsg
 
 parseTime :: String -> Maybe UTCTime
 parseTime time = zonedTimeToUTC <$> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%S%Q%z" time
 
+-- | Peek the fields of a Rust `Metadata`. The caller releases the whole
+-- struct through `free_metadata`, so fields are peeked but never freed here.
 parseFFIMetadata :: FFIMetadata -> IO Metadata
 parseFFIMetadata (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
   let mode' = parseEntryMode $ fromIntegral mode
-  cacheControl' <- parseCString cacheControl
-  contentDisposition' <- parseCString contentDisposition
+  cacheControl' <- maybePeekCString cacheControl
+  contentDisposition' <- maybePeekCString contentDisposition
   let contentLength' = toInteger contentLength
-  contentMD5' <- parseCString contentMD5
-  contentType' <- parseCString contentType
-  eTag' <- parseCString eTag
-  lastModified' <- (>>= parseTime) <$> parseCString lastModified
+  contentMD5' <- maybePeekCString contentMD5
+  contentType' <- maybePeekCString contentType
+  eTag' <- maybePeekCString eTag
+  lastModified' <- (>>= parseTime) <$> maybePeekCString lastModified
   return $
     Metadata
       { mMode = mode',
@@ -409,6 +423,10 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
             alloca $ \ffiResultPtr -> do
+              -- Once Rust registers the logger the callback is owned by the
+              -- global Rust logger for the rest of the process. We
+              -- deliberately never call freeHaskellFunPtr: if registration
+              -- succeeded, freeing it would leave a dangling pointer.
               logFnPtr <- case maybeLogger of
                 Just logger -> wrapLogFn (logFn logger)
                 Nothing -> return nullFunPtr
@@ -418,12 +436,12 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do
-                  op <- Operator <$> newForeignPtr c_free_operator (dataPtr ffiResult)
+                  op <-
+                    Operator
+                      <$> newForeignPtr c_free_operator (dataPtr ffiResult)
+                      `onException` freeOperator (dataPtr ffiResult)
                   return $ Right op
-                else do
-                  let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-                  errMsg <- peekCString (errorMessage ffiResult)
-                  return $ Left $ OpenDALError code errMsg
+                else Left <$> parseError ffiResult
   where
     logFn logger enumSeverity cStr = do
       str <- peekCString cStr
@@ -443,14 +461,11 @@ readOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          byteslice <- peek $ dataPtr ffiResult
-          byte <- byteSliceToByteString byteslice
-          c_free_byteslice (bsData byteslice) (bsLen byteslice)
+          byte <-
+            (peek (dataPtr ffiResult) >>= byteSliceToByteString)
+              `finally` freeByteSlice (dataPtr ffiResult)
           return $ Right byte
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Write bytes into given path.
 writeOpRaw :: Operator -> String -> ByteString -> IO (Either OpenDALError ())
@@ -462,10 +477,7 @@ writeOpRaw (Operator op) path byte = withForeignPtr op $ \opptr ->
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
           then return $ Right ()
-          else do
-            let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-            errMsg <- peekCString (errorMessage ffiResult)
-            return $ Left $ OpenDALError code errMsg
+          else Left <$> parseError ffiResult
 
 -- | Check if this path exists or not.
 isExistOpRaw :: Operator -> String -> IO (Either OpenDALError Bool)
@@ -476,13 +488,10 @@ isExistOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          val <- peek $ dataPtr ffiResult
+          val <- peek (dataPtr ffiResult) `finally` freeBool (dataPtr ffiResult)
           let isExist = val /= 0
           return $ Right isExist
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Create a dir at given path.
 createDirOpRaw :: Operator -> String -> IO (Either OpenDALError ())
@@ -493,10 +502,7 @@ createDirOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then return $ Right ()
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Copy a file from srcPath to dstPath.
 copyOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
@@ -508,10 +514,7 @@ copyOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
           then return $ Right ()
-          else do
-            let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-            errMsg <- peekCString (errorMessage ffiResult)
-            return $ Left $ OpenDALError code errMsg
+          else Left <$> parseError ffiResult
 
 -- | Rename a file from srcPath to dstPath.
 renameOpRaw :: Operator -> String -> String -> IO (Either OpenDALError ())
@@ -523,10 +526,7 @@ renameOpRaw (Operator op) srcPath dstPath = withForeignPtr op $ \opptr ->
         ffiResult <- peek ffiResultPtr
         if ffiCode ffiResult == 0
           then return $ Right ()
-          else do
-            let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-            errMsg <- peekCString (errorMessage ffiResult)
-            return $ Left $ OpenDALError code errMsg
+          else Left <$> parseError ffiResult
 
 -- | Delete given path.
 deleteOpRaw :: Operator -> String -> IO (Either OpenDALError ())
@@ -537,10 +537,7 @@ deleteOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then return $ Right ()
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Get given path's metadata without cache directly.
 statOpRaw :: Operator -> String -> IO (Either OpenDALError Metadata)
@@ -551,13 +548,11 @@ statOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          ffimatadata <- peek $ dataPtr ffiResult
-          metadata <- parseFFIMetadata ffimatadata
+          metadata <-
+            (peek (dataPtr ffiResult) >>= parseFFIMetadata)
+              `finally` freeMetadata (dataPtr ffiResult)
           return $ Right metadata
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | List current dir path.
 -- This function will create a new handle to list entries.
@@ -570,13 +565,12 @@ listOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          ffilister <- peek $ dataPtr ffiResult
-          lister <- Lister <$> newForeignPtr c_free_lister ffilister
+          lister <-
+            Lister
+              <$> newForeignPtr c_free_lister (dataPtr ffiResult)
+              `onException` freeLister (dataPtr ffiResult)
           return $ Right lister
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | List dir in flat way.
 -- Also, this function can be used to list a prefix.
@@ -589,13 +583,12 @@ scanOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          ffilister <- peek $ dataPtr ffiResult
-          lister <- Lister <$> newForeignPtr c_free_lister ffilister
+          lister <-
+            Lister
+              <$> newForeignPtr c_free_lister (dataPtr ffiResult)
+              `onException` freeLister (dataPtr ffiResult)
           return $ Right lister
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Get operator info (scheme).
 operatorInfoRaw :: Operator -> IO (Either OpenDALError String)
@@ -604,13 +597,8 @@ operatorInfoRaw (Operator op) = withForeignPtr op $ \opptr ->
     c_operator_info opptr ffiResultPtr
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
-      then do
-        val <- peek $ dataPtr ffiResult
-        Right <$> parseString val
-      else do
-        let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-        errMsg <- peekCString (errorMessage ffiResult)
-        return $ Left $ OpenDALError code errMsg
+      then Right . fromMaybe "" <$> parseOwnedCString (dataPtr ffiResult)
+      else Left <$> parseError ffiResult
 
 -- | Get next entry path from `Lister`.
 nextLister :: Lister -> IO (Either OpenDALError (Maybe String))
@@ -619,13 +607,8 @@ nextLister (Lister lister) = withForeignPtr lister $ \listerptr ->
     c_lister_next listerptr ffiResultPtr
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
-      then do
-        val <- peek $ dataPtr ffiResult
-        Right <$> parseCString val
-      else do
-        let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-        errMsg <- peekCString (errorMessage ffiResult)
-        return $ Left $ OpenDALError code errMsg
+      then Right <$> parseOwnedCString (dataPtr ffiResult)
+      else Left <$> parseError ffiResult
 
 
 -- | Writes bytes into given writer.
@@ -637,10 +620,7 @@ writerWrite (Writer writer) byte = withForeignPtr writer $ \writerptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then return $ Right ()
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 -- | Closes given writer.
 writerClose :: Writer -> IO (Either OpenDALError Metadata)
@@ -650,13 +630,11 @@ writerClose (Writer writer) = withForeignPtr writer $ \writerptr ->
     ffiResult <- peek ffiResultPtr
     if ffiCode ffiResult == 0
       then do
-        ffimatadata <- peek $ dataPtr ffiResult
-        metadata <- parseFFIMetadata ffimatadata
+        metadata <-
+          (peek (dataPtr ffiResult) >>= parseFFIMetadata)
+            `finally` freeMetadata (dataPtr ffiResult)
         return $ Right metadata
-      else do
-        let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-        errMsg <- peekCString (errorMessage ffiResult)
-        return $ Left $ OpenDALError code errMsg
+      else Left <$> parseError ffiResult
 
 -- | Create a new writer for given path with specified options.
 writerOpRaw :: Operator -> String -> WriterOption -> IO (Either OpenDALError Writer)
@@ -669,13 +647,12 @@ writerOpRaw (Operator op) path writerOption = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then do
-          ffiwriter <- peek $ dataPtr ffiResult
-          writer <- Writer <$> newForeignPtr c_free_writer ffiwriter
+          writer <-
+            Writer
+              <$> newForeignPtr c_free_writer (dataPtr ffiResult)
+              `onException` freeWriter (dataPtr ffiResult)
           return $ Right writer
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult
 
 
 
@@ -688,7 +665,4 @@ removeAllOpRaw (Operator op) path = withForeignPtr op $ \opptr ->
       ffiResult <- peek ffiResultPtr
       if ffiCode ffiResult == 0
         then return $ Right ()
-        else do
-          let code = parseErrorCode $ fromIntegral $ ffiCode ffiResult
-          errMsg <- peekCString (errorMessage ffiResult)
-          return $ Left $ OpenDALError code errMsg
+        else Left <$> parseError ffiResult

@@ -17,47 +17,107 @@
 
 use std::ffi::CString;
 use std::ffi::c_char;
+use std::ptr;
 
 use ::opendal as od;
 
 #[repr(C)]
 #[derive(Debug)]
 pub struct ByteSlice {
-    data: *mut c_char,
-    len: usize,
+    pub(crate) data: *mut c_char,
+    pub(crate) len: usize,
 }
 
 impl ByteSlice {
+    /// Transfer `vec` to the caller inside a `ByteSlice`.
+    ///
+    /// The vector is converted into a boxed slice first so the allocation
+    /// length matches the reported `len` exactly; `free_byteslice` relies on
+    /// this to rebuild the same `Box<[u8]>`.
     pub fn from_vec(vec: Vec<u8>) -> Self {
-        let data = vec.as_ptr() as *mut c_char;
-        let len = vec.len();
-
-        // Leak the memory to pass the ownership to Haskell
-        std::mem::forget(vec);
+        let mut boxed = vec.into_boxed_slice();
+        let data = boxed.as_mut_ptr() as *mut c_char;
+        let len = boxed.len();
+        std::mem::forget(boxed);
 
         ByteSlice { data, len }
     }
+}
 
-    /// # Safety
-    ///
-    /// * `ptr` is a valid pointer to a `ByteSlice`.
-    ///
-    /// # Panics
-    ///
-    /// * If `ptr` is not a valid pointer.
-    #[unsafe(no_mangle)]
-    pub unsafe extern "C" fn free_byteslice(ptr: *mut c_char, len: usize) {
-        unsafe {
-            if !ptr.is_null() {
-                drop(Vec::from_raw_parts(ptr, len, len));
-            }
+/// Free a `ByteSlice` produced by `FFIResult<ByteSlice>`: first the payload
+/// buffer, then the boxed `ByteSlice` itself.
+///
+/// # Safety
+///
+/// * `ptr` must be null or a `data_ptr` taken from an `FFIResult<ByteSlice>`
+///   that has not been freed yet.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn free_byteslice(ptr: *mut ByteSlice) {
+    unsafe {
+        if ptr.is_null() {
+            return;
+        }
+        let slice = Box::from_raw(ptr);
+        if !slice.data.is_null() {
+            drop(Box::from_raw(ptr::slice_from_raw_parts_mut(
+                slice.data as *mut u8,
+                slice.len,
+            )));
         }
     }
 }
 
-impl From<&mut ByteSlice> for Vec<u8> {
-    fn from(val: &mut ByteSlice) -> Self {
-        unsafe { Vec::from_raw_parts(val.data as *mut u8, val.len, val.len) }
+/// Free a `bool` produced by `FFIResult<bool>`.
+///
+/// # Safety
+///
+/// * `ptr` must be null or a `data_ptr` taken from an `FFIResult<bool>` that
+///   has not been freed yet.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn free_bool(ptr: *mut bool) {
+    unsafe {
+        if !ptr.is_null() {
+            drop(Box::from_raw(ptr));
+        }
+    }
+}
+
+/// Free a nul-terminated string produced by this library: `error_message`
+/// fields, `FFIResult<c_char>` payloads and `Metadata` string fields.
+///
+/// # Safety
+///
+/// * `ptr` must be null or a pointer returned by `into_raw_c_string` /
+///   `CString::into_raw` in this crate that has not been freed yet.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn free_string(ptr: *mut c_char) {
+    unsafe {
+        if !ptr.is_null() {
+            drop(CString::from_raw(ptr));
+        }
+    }
+}
+
+/// Free a `Metadata` produced by `FFIResult<Metadata>`: every string field,
+/// then the boxed `Metadata` itself.
+///
+/// # Safety
+///
+/// * `ptr` must be null or a `data_ptr` taken from an `FFIResult<Metadata>`
+///   that has not been freed yet.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn free_metadata(ptr: *mut Metadata) {
+    unsafe {
+        if ptr.is_null() {
+            return;
+        }
+        let metadata = Box::from_raw(ptr);
+        free_string(metadata.cache_control);
+        free_string(metadata.content_disposition);
+        free_string(metadata.content_md5);
+        free_string(metadata.content_type);
+        free_string(metadata.etag);
+        free_string(metadata.last_modified);
     }
 }
 
@@ -72,14 +132,14 @@ pub enum EntryMode {
 #[repr(C)]
 #[derive(Debug)]
 pub struct Metadata {
-    mode: EntryMode,
-    cache_control: *const c_char,
-    content_disposition: *const c_char,
-    content_length: u64,
-    content_md5: *const c_char,
-    content_type: *const c_char,
-    etag: *const c_char,
-    last_modified: *const c_char,
+    pub(crate) mode: EntryMode,
+    pub(crate) cache_control: *mut c_char,
+    pub(crate) content_disposition: *mut c_char,
+    pub(crate) content_length: u64,
+    pub(crate) content_md5: *mut c_char,
+    pub(crate) content_type: *mut c_char,
+    pub(crate) etag: *mut c_char,
+    pub(crate) last_modified: *mut c_char,
 }
 
 impl From<od::Metadata> for Metadata {
@@ -90,60 +150,125 @@ impl From<od::Metadata> for Metadata {
             od::EntryMode::Unknown => EntryMode::Unknown,
         };
 
-        let cache_control = match val.cache_control() {
-            Some(s) => unsafe { leak_str(s) },
-            None => std::ptr::null(),
-        };
-
-        let content_disposition = match val.content_disposition() {
-            Some(s) => unsafe { leak_str(s) },
-            None => std::ptr::null(),
-        };
-
-        let content_length = val.content_length();
-
-        let content_md5 = match val.content_md5() {
-            Some(s) => unsafe { leak_str(s) },
-            None => std::ptr::null(),
-        };
-
-        let content_type = match val.content_type() {
-            Some(s) => unsafe { leak_str(s) },
-            None => std::ptr::null(),
-        };
-
-        let etag = match val.etag() {
-            Some(s) => unsafe { leak_str(s) },
-            None => std::ptr::null(),
-        };
-
-        let last_modified = match val.last_modified() {
-            Some(s) => unsafe { leak_str(s.to_string().as_str()) },
-            None => std::ptr::null(),
-        };
-
         Metadata {
             mode,
-            cache_control,
-            content_disposition,
-            content_length,
-            content_md5,
-            content_type,
-            etag,
-            last_modified,
+            cache_control: val
+                .cache_control()
+                .map_or(ptr::null_mut(), into_raw_c_string),
+            content_disposition: val
+                .content_disposition()
+                .map_or(ptr::null_mut(), into_raw_c_string),
+            content_length: val.content_length(),
+            content_md5: val.content_md5().map_or(ptr::null_mut(), into_raw_c_string),
+            content_type: val
+                .content_type()
+                .map_or(ptr::null_mut(), into_raw_c_string),
+            etag: val.etag().map_or(ptr::null_mut(), into_raw_c_string),
+            last_modified: val
+                .last_modified()
+                .map_or(ptr::null_mut(), |s| into_raw_c_string(&s.to_string())),
         }
     }
 }
 
-// Leak the memory to pass the ownership to Haskell
-// Please note that haskell should free the memory after using it
-pub unsafe fn leak_str(s: &str) -> *const c_char {
-    let s = match CString::new(s) {
-        Ok(s) => s,
-        Err(_) => return std::ptr::null(),
+/// Convert `s` into a `CString` and leak it, transferring ownership to the
+/// caller. The returned pointer must be released with `free_string`.
+///
+/// Interior NUL bytes are escaped as `\0` so this function never fails and
+/// never aborts the process on adversarial input.
+pub(crate) fn into_raw_c_string(s: &str) -> *mut c_char {
+    let s = if s.contains('\0') {
+        s.replace('\0', "\\0")
+    } else {
+        s.to_string()
     };
+    match CString::new(s) {
+        Ok(s) => s.into_raw(),
+        Err(_) => ptr::null_mut(),
+    }
+}
 
-    let ptr = s.as_ptr();
-    std::mem::forget(s);
-    ptr
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn byteslice_roundtrip_preserves_bytes() {
+        let payload: Vec<u8> = (0u8..=255).collect();
+        let slice = ByteSlice::from_vec(payload.clone());
+        assert_eq!(slice.len, payload.len());
+        unsafe {
+            let view = std::slice::from_raw_parts(slice.data as *const u8, slice.len);
+            assert_eq!(view, payload.as_slice());
+            free_byteslice(Box::into_raw(Box::new(slice)));
+        }
+    }
+
+    #[test]
+    fn byteslice_empty_roundtrip() {
+        let slice = ByteSlice::from_vec(Vec::new());
+        assert_eq!(slice.len, 0);
+        unsafe { free_byteslice(Box::into_raw(Box::new(slice))) };
+    }
+
+    #[test]
+    fn byteslice_free_null_is_noop() {
+        unsafe {
+            free_byteslice(ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn bool_result_roundtrip() {
+        let data_ptr = Box::into_raw(Box::new(true));
+        unsafe {
+            assert!(*data_ptr);
+            free_bool(data_ptr);
+            free_bool(ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn c_string_roundtrip_and_escaping() {
+        unsafe {
+            let ptr = into_raw_c_string("with space and 'quotes'");
+            assert_eq!(
+                CStr::from_ptr(ptr).to_str().unwrap(),
+                "with space and 'quotes'"
+            );
+            free_string(ptr);
+
+            let escaped = into_raw_c_string("a\0b");
+            assert_eq!(CStr::from_ptr(escaped).to_bytes(), b"a\\0b");
+            free_string(escaped);
+
+            free_string(ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn metadata_free_releases_every_field() {
+        let mut builder = od::MetadataBuilder::file(42);
+        builder
+            .cache_control("no-cache")
+            .content_disposition("attachment")
+            .content_md5("md5")
+            .content_type("text/plain")
+            .etag("etag");
+        let ffi = Metadata::from(builder.build());
+        let ptr = Box::into_raw(Box::new(ffi));
+        unsafe {
+            assert_eq!((*ptr).content_length, 42);
+            free_metadata(ptr);
+            free_metadata(ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn metadata_free_with_null_fields() {
+        let ffi = Metadata::from(od::MetadataBuilder::unknown().build());
+        let ptr = Box::into_raw(Box::new(ffi));
+        unsafe { free_metadata(ptr) };
+    }
 }

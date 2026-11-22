@@ -147,23 +147,11 @@ impl FtpLazyWriter {
                 }
             }
 
-            let tmp_path = (!self.append).then(|| build_ftp_tmp_path(&self.path));
-            let w = FtpWriter::new(ftp_stream, self.path.clone(), tmp_path);
+            let w = FtpWriter::new(ftp_stream, self.path.clone(), self.append);
             self.inner = Some(w);
         }
 
         Ok(self.inner.as_mut().expect("ftp writer must be initialized"))
-    }
-}
-
-fn build_ftp_tmp_path(path: &str) -> String {
-    let parent = get_parent(path);
-    let tmp_name = build_tmp_path_of(path);
-
-    if parent == "/" {
-        tmp_name
-    } else {
-        format!("{parent}{tmp_name}")
     }
 }
 
@@ -173,10 +161,10 @@ impl oio::Write for FtpLazyWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        match &mut self.inner {
-            Some(w) => w.close().await,
-            None => Ok(MetadataBuilder::unknown().build()),
-        }
+        // Create the inner writer even when nothing was written so that
+        // closing the writer still creates or touches the remote file and
+        // reports its final metadata.
+        self.inner().await?.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -242,25 +230,5 @@ impl oio::StreamRead for FtpReader {
         let stream = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::build_ftp_tmp_path;
-
-    #[test]
-    fn test_build_ftp_tmp_path() {
-        for path in [
-            "example.txt",
-            "folder/example.txt",
-            "folder/subfolder/deep/example.txt",
-            ".hidden dir/.résumé #%.txt",
-        ] {
-            let tmp_path = build_ftp_tmp_path(path);
-            let (stem, suffix) = tmp_path.rsplit_once('.').unwrap();
-            assert_eq!(stem, path);
-            assert!(!suffix.is_empty() && !suffix.contains('/'), "{tmp_path}");
-        }
     }
 }

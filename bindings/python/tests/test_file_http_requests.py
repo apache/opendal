@@ -620,13 +620,14 @@ async def test_async_file_cancelled_read_can_close(request_server):
 
 
 @pytest.mark.asyncio
-async def test_async_file_coalesces_small_writes(request_server):
+@pytest.mark.parametrize("options", [{}, {"chunk": 0}], ids=["default", "zero-chunk"])
+async def test_async_file_coalesces_small_writes(request_server, options):
     endpoint, state = request_server
     state._reset()
     op = opendal.AsyncOperator(
         "webdav", endpoint=endpoint, root="/", disable_create_dir="true"
     )
-    async with await op.open("file", "wb") as file:
+    async with await op.open("file", "wb", **options) as file:
         for _ in range(1000):
             assert await file.write(b"small") == 5
         assert state._methods() == []

@@ -70,9 +70,13 @@ public abstract class NativeObject implements AutoCloseable {
 
     @Override
     public void close() {
-        if (disposed.compareAndSet(false, true)) {
-            disposeInternal(nativeHandle);
+        // Coordinate with callers that clone an open native handle under this monitor.
+        synchronized (this) {
+            if (!disposed.compareAndSet(false, true)) {
+                return;
+            }
         }
+        disposeInternal(nativeHandle);
     }
 
     /**

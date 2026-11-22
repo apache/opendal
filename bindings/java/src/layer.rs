@@ -18,7 +18,7 @@
 use std::time::Duration;
 
 use crate::Result;
-use crate::convert::jstring_to_string;
+use crate::convert::{jstring_to_string, read_int64_field};
 use crate::error::ThrowException;
 use jni::Env;
 use jni::EnvUnowned;
@@ -35,6 +35,8 @@ use jni::sys::jfloat;
 use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::Operator;
+use opendal::blocking;
+use opendal::layers::CacheLayer;
 use opendal::layers::CapabilityCheckLayer;
 use opendal::layers::CapabilityOverrideLayer;
 use opendal::layers::ChaosLayer;
@@ -74,6 +76,65 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
         retry = retry.with_max_times(max_times as usize);
     }
     Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_createLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    cache: JObject<'local>,
+    is_blocking: jboolean,
+    chunk_size: jlong,
+    ttl_seconds: jlong,
+    ttl_nanos: jint,
+) -> jlong {
+    env.with_env(|env| -> Result<jlong> {
+        let chunk_size = usize::try_from(chunk_size).map_err(|_| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "chunkSize exceeds the native size range",
+            )
+        })?;
+        let handle = read_int64_field(env, &cache, "nativeHandle")?;
+        // Java holds the cache operator's monitor and checks that it is open.
+        let cache = if is_blocking {
+            unsafe { &*(handle as *const blocking::Operator) }
+                .clone()
+                .into()
+        } else {
+            unsafe { &*(handle as *const Operator) }.clone()
+        };
+        let mut layer = CacheLayer::new(cache)?;
+        if chunk_size != 0 {
+            layer = layer.with_chunk_size(chunk_size);
+        }
+        if let Ok(seconds) = u64::try_from(ttl_seconds) {
+            layer = layer.with_ttl(Duration::new(seconds, ttl_nanos as u32));
+        }
+        Ok(Box::into_raw(Box::new(layer)) as jlong)
+    })
+    .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_doLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *const Operator,
+    layer: *const CacheLayer,
+) -> jlong {
+    let op = unsafe { &*op };
+    let layer = unsafe { &*layer };
+    Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_CacheLayer_disposeLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    layer: *mut CacheLayer,
+) {
+    drop(unsafe { Box::from_raw(layer) });
 }
 
 #[unsafe(no_mangle)]

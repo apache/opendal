@@ -38,6 +38,10 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_presign_delete
         ))
     }
+
+    if op.info().scheme() == "swift" && cap.write && cap.presign_read {
+        tests.extend(async_trials!(op, test_presign_read_with_range));
+    }
 }
 
 /// Presign write should succeed.
@@ -131,6 +135,35 @@ pub async fn test_presign_read(op: Operator) -> Result<()> {
     assert_eq!(sha256_digest(&bs), sha256_digest(&content), "read content");
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// A presigned read should return only the requested bytes.
+async fn test_presign_read_with_range(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    op.write(&path, "abcdefgh").await?;
+
+    let signed_req = op
+        .presign_read_options(
+            &path,
+            Duration::from_secs(3600),
+            options::ReadOptions {
+                range: (2..5).into(),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    let resp = reqwest::Client::new()
+        .request(signed_req.method().clone(), signed_req.uri().to_string())
+        .headers(signed_req.header().clone())
+        .send()
+        .await?;
+    let status = resp.status();
+    let body = resp.bytes().await?;
+
+    assert_eq!(status, http::StatusCode::PARTIAL_CONTENT, "body: {body:?}");
+    assert_eq!(body.as_ref(), b"cde");
     Ok(())
 }
 

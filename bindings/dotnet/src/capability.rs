@@ -208,6 +208,8 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    pub list_with_glob: bool,
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,
     /// Indicates if presigned URLs for read operations are supported.
@@ -315,6 +317,7 @@ impl Capability {
             list_with_recursive: cap.list_with_recursive,
             list_with_versions: cap.list_with_versions,
             list_with_deleted: cap.list_with_deleted,
+            list_with_glob: cap.list_with_glob,
             presign: cap.presign,
             presign_read: cap.presign_read,
             presign_stat: cap.presign_stat,

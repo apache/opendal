@@ -57,6 +57,12 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     /// <seealso cref="Capability.ListWithDeleted"/>
     public bool Deleted { get; init; }
 
+    /// <summary>
+    /// Filter entries with a case-sensitive Unix shell style glob pattern.
+    /// </summary>
+    /// <seealso cref="Capability.ListWithGlob"/>
+    public string? Glob { get; init; }
+
     void IOptions<OpenDALListOptions>.Validate()
     {
         OptionValidators.RequireNullableGreaterThanZero(Limit, nameof(Limit));
@@ -74,6 +80,7 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
         native.Recursive = Recursive ? (byte)1 : (byte)0;
         native.Versions = Versions ? (byte)1 : (byte)0;
         native.Deleted = Deleted ? (byte)1 : (byte)0;
+        native.Glob = writer.String(Glob);
         return native;
     }
 }
@@ -91,4 +98,5 @@ internal struct OpenDALListOptions
     public byte Recursive;
     public byte Versions;
     public byte Deleted;
+    public IntPtr Glob;
 }

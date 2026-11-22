@@ -336,9 +336,11 @@ class AsyncOperator:
         path : str
             The path to the file.
         mode : str
-            `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
-            An optional `"b"` can appear before or after the letter. All supported
-            modes are binary.
+            `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+            or `"x"` to create a new file. An optional `"b"` can appear before or
+            after the letter. All supported modes are binary; text modes such as
+            `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
+            with `str.encode()` and decode reads with `bytes.decode()`.
         **kwargs : dict
             Additional options for the underlying reader or writer.
 
@@ -346,9 +348,13 @@ class AsyncOperator:
         ------
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
-            update (`"+"`) modes, or if append mode is combined with `append=False`.
+            update (`"+"`) modes, or if the mode conflicts with `append` or
+            `if_not_exists` in `**kwargs`.
+        ConditionNotMatch
+            If create mode (`"x"`) targets an existing file. The failure can
+            surface from `write()` or `close()`.
         Unsupported
-            If the service does not support append mode.
+            If the service does not support append or `if_not_exists` writes.
 
         Returns
         -------
@@ -1047,9 +1053,11 @@ class Operator:
         path : str
             The path to the file.
         mode : str
-            `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
-            An optional `"b"` can appear before or after the letter. All supported
-            modes are binary.
+            `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+            or `"x"` to create a new file. An optional `"b"` can appear before or
+            after the letter. All supported modes are binary; text modes such as
+            `"rt"` raise `ValueError`. Wrap the returned file with
+            `io.TextIOWrapper` to read or write text.
         **kwargs
             Additional options for the underlying reader or writer.
 
@@ -1057,9 +1065,13 @@ class Operator:
         ------
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
-            update (`"+"`) modes, or if append mode is combined with `append=False`.
+            update (`"+"`) modes, or if the mode conflicts with `append` or
+            `if_not_exists` in `**kwargs`.
+        ConditionNotMatch
+            If create mode (`"x"`) targets an existing file. The failure can
+            surface from `write()`, `flush()`, or `close()`.
         Unsupported
-            If the service does not support append mode.
+            If the service does not support append or `if_not_exists` writes.
 
         Returns
         -------

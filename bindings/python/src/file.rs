@@ -291,7 +291,7 @@ impl File {
         let runtime = get_runtime()?;
         py.detach(|| runtime.handle().block_on(writer.send(bs)))
             .map(|_| len)
-            .map_err(|err| PyIOError::new_err(err.to_string()))
+            .map_err(format_pyerr_from_write_error)
     }
 
     /// Change the position of this file to the given byte offset.
@@ -429,7 +429,7 @@ impl File {
             let runtime = get_runtime()?;
             match py.detach(|| runtime.handle().block_on(w.flush())) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(std::io::Error::from(e).into()),
+                Err(e) => Err(format_pyerr_from_write_error(e)),
             }
         } else {
             Ok(())
@@ -798,7 +798,7 @@ impl AsyncFile {
                 .send(bs)
                 .await
                 .map(|_| len)
-                .map_err(|err| PyIOError::new_err(err.to_string()))
+                .map_err(format_pyerr_from_write_error)
         })
     }
 

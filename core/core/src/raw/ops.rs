@@ -256,6 +256,23 @@ impl OpList {
         Self::default()
     }
 
+    pub(crate) fn from_options(value: options::ListOptions) -> Result<Self> {
+        if let Some(glob) = &value.glob {
+            // CompactValues stores a u16 bitmap and one u16 offset per field.
+            let mut encoded_len = 2 * size_of::<u16>() + glob.len();
+            if let Some(start_after) = &value.start_after {
+                encoded_len += size_of::<u16>() + start_after.len();
+            }
+            if encoded_len > u16::MAX as usize {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "glob and start_after exceed the maximum size of list options",
+                ));
+            }
+        }
+        Ok(value.into())
+    }
+
     /// Return the maximum number of results per request.
     #[inline]
     pub fn limit(&self) -> Option<usize> {
@@ -273,6 +290,35 @@ impl OpList {
     #[inline]
     pub fn start_after(&self) -> Option<&str> {
         string_value(&self.values, 0)
+    }
+
+    /// Set the glob pattern for this list operation.
+    ///
+    /// See [`options::ListOptions::glob`] for the pattern contract.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_glob(mut self, glob: &str) -> Self {
+        self.values = self.values.replace(1, glob.as_bytes());
+        self
+    }
+
+    /// Return the glob pattern for this list operation.
+    pub fn glob(&self) -> Option<&str> {
+        string_value(&self.values, 1)
+    }
+
+    pub(crate) fn clear_glob(&mut self) {
+        self.values = CompactValues::encode(&[self.values.get(0), None]);
+    }
+
+    pub(crate) fn set_recursive(&mut self, recursive: bool) {
+        if recursive {
+            self.flags |= OP_LIST_RECURSIVE;
+        } else {
+            self.flags &= !OP_LIST_RECURSIVE;
+        }
     }
 
     /// Return whether the list operation is recursive.
@@ -319,7 +365,10 @@ impl From<options::ListOptions> for OpList {
         Self {
             limit: value.limit.unwrap_or_default(),
             flags,
-            values: CompactValues::encode(&[value.start_after.as_deref().map(str::as_bytes)]),
+            values: CompactValues::encode(&[
+                value.start_after.as_deref().map(str::as_bytes),
+                value.glob.as_deref().map(str::as_bytes),
+            ]),
         }
     }
 }
@@ -1990,13 +2039,21 @@ mod tests {
             recursive: true,
             versions: true,
             deleted: true,
+            glob: Some("**/*.jpg".to_owned()),
         }
         .into();
         assert_eq!(list.limit(), Some(100));
         assert_eq!(list.start_after(), Some("marker"));
+        assert_eq!(list.glob(), Some("**/*.jpg"));
         assert!(list.recursive());
         assert!(list.versions());
         assert!(list.deleted());
+
+        let mut list = list.with_glob("é/*.txt");
+        assert_eq!(list.glob(), Some("é/*.txt"));
+        list.clear_glob();
+        assert_eq!(list.glob(), None);
+        assert_eq!(list.start_after(), Some("marker"));
 
         let restore: OpRestore = options::RestoreOptions {
             version: Some("version".to_owned()),

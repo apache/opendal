@@ -1159,6 +1159,7 @@ pub unsafe extern "C" fn opendal_operator_list_with(
             start_after,
             versions: o.versions,
             deleted: o.deleted,
+            glob: None,
         }
     };
     match op.deref().lister_options(path, list_opts) {

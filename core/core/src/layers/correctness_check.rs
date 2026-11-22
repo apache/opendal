@@ -469,6 +469,9 @@ impl Service for CorrectnessService {
         if args.deleted() && !capability.list_with_deleted {
             return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
         }
+        if args.glob().is_some() && !capability.list_with_glob {
+            return Err(new_unsupported_error(scheme, Operation::List, "glob"));
+        }
         self.inner.list(ctx, path, args)
     }
 
@@ -938,6 +941,9 @@ mod tests {
         let err = op.list_with("path/").deleted(true).await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(err.message().contains("deleted"));
+        let err = op.list_with("path/").glob("*.jpg").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("glob"));
         assert!(
             op.list_with("path/")
                 .versions(false)

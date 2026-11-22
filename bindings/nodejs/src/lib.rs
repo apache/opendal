@@ -363,7 +363,9 @@ impl Operator {
             .writer_options(&path, options.into())
             .await
             .map_err(format_napi_error)?;
-        Ok(Writer(writer))
+        Ok(Writer {
+            inner: Mutex::new(writer),
+        })
     }
 
     /// Write multiple bytes into a path synchronously.
@@ -718,7 +720,9 @@ impl Operator {
             .await
             .map_err(format_napi_error)?;
 
-        Ok(Lister(l))
+        Ok(Lister {
+            inner: Mutex::new(l),
+        })
     }
 
     /// Create a lister to list entries at given path synchronously.
@@ -1162,15 +1166,15 @@ impl BlockingWriter {
 /// Writer is designed to write data into a given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Writer(opendal::Writer);
+pub struct Writer {
+    inner: Mutex<opendal::Writer>,
+}
 
 #[napi]
 impl Writer {
-    /// # Safety
-    ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
     /// Write bytes into this writer.
+    ///
+    /// Concurrent calls are serialized in the order they acquire the lock.
     ///
     /// ### Example
     /// ```javascript
@@ -1179,18 +1183,15 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+    pub async fn write(&self, content: Either<Buffer, String>) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        self.0.write(c).await.map_err(format_napi_error)
+        let mut inner = self.inner.lock().await;
+        inner.write(c).await.map_err(format_napi_error)
     }
 
-    /// # Safety
-    ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
     /// Close this writer.
     ///
     /// ### Example
@@ -1200,28 +1201,28 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async unsafe fn close(&mut self) -> Result<()> {
-        self.0.close().await.map(|_| ()).map_err(format_napi_error)
+    pub async fn close(&self) -> Result<()> {
+        let mut inner = self.inner.lock().await;
+        inner.close().await.map(|_| ()).map_err(format_napi_error)
     }
 }
 
 /// Lister is designed to list entries at a given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Lister(opendal::Lister);
+pub struct Lister {
+    inner: Mutex<opendal::Lister>,
+}
 
 #[napi]
 impl Lister {
-    /// # Safety
+    /// Return the next entry, or `null` when the lister is exhausted.
     ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
-    /// napi will make sure the function is safe, and we didn't do unsafe
-    /// things internally.
+    /// Concurrent calls are serialized, so each entry is returned exactly once.
     #[napi]
-    pub async unsafe fn next(&mut self) -> Result<Option<Entry>> {
-        Ok(self
-            .0
+    pub async fn next(&self) -> Result<Option<Entry>> {
+        let mut inner = self.inner.lock().await;
+        Ok(inner
             .try_next()
             .await
             .map_err(format_napi_error)?

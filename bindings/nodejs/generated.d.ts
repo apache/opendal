@@ -298,12 +298,9 @@ export declare class Layer {
  */
 export declare class Lister {
   /**
-   * # Safety
+   * Return the next entry, or `null` when the lister is exhausted.
    *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
-   * napi will make sure the function is safe, and we didn't do unsafe
-   * things internally.
+   * Concurrent calls are serialized, so each entry is returned exactly once.
    */
   next(): Promise<Entry | null>
 }
@@ -1071,11 +1068,9 @@ export declare class TimeoutLayer {
  */
 export declare class Writer {
   /**
-   * # Safety
-   *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
    * Write bytes into this writer.
+   *
+   * Concurrent calls are serialized in the order they acquire the lock.
    *
    * ### Example
    * ```javascript
@@ -1086,10 +1081,6 @@ export declare class Writer {
    */
   write(content: Buffer | string): Promise<void>
   /**
-   * # Safety
-   *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
    * Close this writer.
    *
    * ### Example

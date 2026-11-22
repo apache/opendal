@@ -313,3 +313,142 @@ async fn nested_utf8_file_lifecycle() -> Result<()> {
     );
     Ok(())
 }
+
+#[tokio::test]
+async fn mkcol_root_and_missing_parent() -> Result<()> {
+    // MKCOL / must fail with 405 instead of panicking on the missing parent
+    // of "/"; the connection and server stay usable afterwards.
+    let dav = WebDav::new().await?;
+    dav.send(
+        dav.request("MKCOL", "/"),
+        b"",
+        StatusCode::METHOD_NOT_ALLOWED,
+    )
+    .await?;
+
+    dav.send(
+        dav.request("MKCOL", "/missing/child/"),
+        b"",
+        StatusCode::CONFLICT,
+    )
+    .await?;
+    dav.send(dav.request("MKCOL", "/alive/"), b"", StatusCode::CREATED)
+        .await?;
+    assert_eq!(
+        dav.propfind("/", "1").await?,
+        [
+            ("/".to_string(), Resource::Collection),
+            ("/alive/".to_string(), Resource::Collection)
+        ]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn move_non_empty_collection() -> Result<()> {
+    // The fs backend supports native rename, so MOVE on a non-empty
+    // collection must relocate it instead of failing with 501.
+    let dav = WebDav::new().await?;
+    dav.send(dav.request("MKCOL", "/dir/"), b"", StatusCode::CREATED)
+        .await?;
+    dav.send(
+        dav.request("MKCOL", "/dir/nested/"),
+        b"",
+        StatusCode::CREATED,
+    )
+    .await?;
+    let content = b"nested file";
+    dav.send(
+        dav.request("PUT", "/dir/nested/blob.bin"),
+        content,
+        StatusCode::CREATED,
+    )
+    .await?;
+    dav.send(
+        dav.request("PUT", "/dir/top.bin"),
+        b"top",
+        StatusCode::CREATED,
+    )
+    .await?;
+
+    let move_request = dav
+        .request("MOVE", "/dir/")
+        .header("Destination", format!("http://{}/moved/", dav.addr));
+    dav.send(move_request, b"", StatusCode::CREATED).await?;
+
+    dav.send(
+        dav.request("PROPFIND", "/dir/").header("Depth", "0"),
+        b"",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    assert_eq!(
+        dav.propfind("/moved/", "1").await?,
+        [
+            ("/moved/".to_string(), Resource::Collection),
+            ("/moved/nested/".to_string(), Resource::Collection),
+            ("/moved/top.bin".to_string(), Resource::File(3))
+        ]
+    );
+    let get = dav
+        .send(
+            dav.request("GET", "/moved/nested/blob.bin"),
+            b"",
+            StatusCode::OK,
+        )
+        .await?;
+    assert_eq!(get.body().as_ref(), content);
+
+    // MOVE with `Overwrite: F` onto an existing collection fails with 412.
+    dav.send(dav.request("MKCOL", "/occupied/"), b"", StatusCode::CREATED)
+        .await?;
+    dav.send(
+        dav.request("PUT", "/occupied/old.bin"),
+        b"old",
+        StatusCode::CREATED,
+    )
+    .await?;
+    let overwrite_f = dav
+        .request("MOVE", "/moved/")
+        .header("Destination", format!("http://{}/occupied/", dav.addr))
+        .header("Overwrite", "F");
+    dav.send(overwrite_f, b"", StatusCode::PRECONDITION_FAILED)
+        .await?;
+
+    // With `Overwrite: T` dav-server deletes the existing destination first
+    // and the move succeeds with 204.
+    let overwrite_t = dav
+        .request("MOVE", "/moved/")
+        .header("Destination", format!("http://{}/occupied/", dav.addr))
+        .header("Overwrite", "T");
+    dav.send(overwrite_t, b"", StatusCode::NO_CONTENT).await?;
+    dav.send(
+        dav.request("PROPFIND", "/moved/").header("Depth", "0"),
+        b"",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    dav.send(
+        dav.request("GET", "/occupied/old.bin"),
+        b"",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    assert_eq!(
+        dav.propfind("/occupied/", "1").await?,
+        [
+            ("/occupied/".to_string(), Resource::Collection),
+            ("/occupied/nested/".to_string(), Resource::Collection),
+            ("/occupied/top.bin".to_string(), Resource::File(3))
+        ]
+    );
+    let get = dav
+        .send(
+            dav.request("GET", "/occupied/nested/blob.bin"),
+            b"",
+            StatusCode::OK,
+        )
+        .await?;
+    assert_eq!(get.body().as_ref(), content);
+    Ok(())
+}

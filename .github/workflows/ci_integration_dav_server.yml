@@ -48,6 +48,6 @@ jobs:
         working-directory: integrations/dav-server
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: WebDAV loopback tests
+      - name: Cargo test
         working-directory: integrations/dav-server
-        run: cargo test --test webdav_loopback
+        run: cargo test

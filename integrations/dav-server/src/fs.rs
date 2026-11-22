@@ -158,19 +158,25 @@ impl DavFileSystem for OpendalFs {
             // check if the parent path is exist.
             // During MKCOL processing, a server MUST make the Request-URI a member of its parent collection, unless the Request-URI is "/".  If no such ancestor exists, the method MUST fail.
             // refer to https://datatracker.ietf.org/doc/html/rfc2518#section-8.3.1
-            let parent = Path::new(&path).parent().unwrap();
-            match self
-                .op
-                .exists(format!("{}/", parent.display()).as_str())
-                .await
+            // The root and paths without a parent separator have no parent; skip
+            // the check so they hit the existence check below instead.
+            if let Some(parent) = Path::new(&path).parent()
+                && parent != Path::new("/")
+                && !parent.as_os_str().is_empty()
             {
-                Ok(exist) => {
-                    if !exist && parent != Path::new("/") {
-                        return Err(FsError::NotFound);
+                match self
+                    .op
+                    .exists(format!("{}/", parent.display()).as_str())
+                    .await
+                {
+                    Ok(exist) => {
+                        if !exist {
+                            return Err(FsError::NotFound);
+                        }
                     }
-                }
-                Err(e) => {
-                    return Err(convert_error(e));
+                    Err(e) => {
+                        return Err(convert_error(e));
+                    }
                 }
             }
 
@@ -216,6 +222,12 @@ impl DavFileSystem for OpendalFs {
                 let from_path = self.fs_dir_path(from)?;
                 let to_path = self.fs_dir_path(to)?;
 
+                // Moving the root or onto the root is not a collection move.
+                // Refuse it before it can reach the create_dir + delete below.
+                if from_path == "/" || to_path == "/" {
+                    return Err(FsError::Forbidden);
+                }
+
                 if self
                     .op
                     .exists(to_path.as_str())
@@ -223,6 +235,44 @@ impl DavFileSystem for OpendalFs {
                     .map_err(convert_error)?
                 {
                     return Err(FsError::Exists);
+                }
+
+                // Services with native rename can move a non-empty collection
+                // atomically. Fall back to the empty-collection move when the
+                // service cannot rename this collection. `Operator::rename`
+                // takes file paths, so drop the collection trailing slashes.
+                if self.op.info().capability().rename {
+                    match self
+                        .op
+                        .rename(
+                            from_path.trim_end_matches('/'),
+                            to_path.trim_end_matches('/'),
+                        )
+                        .await
+                    {
+                        Ok(()) => return Ok(()),
+                        Err(e) => match e.kind() {
+                            // The service does not move collections; fall back
+                            // to the empty-collection move below.
+                            ErrorKind::Unsupported | ErrorKind::NotFound => {}
+                            // Some services report IsADirectory when they
+                            // cannot rename directories (smb) and also when
+                            // the destination is an existing directory. If a
+                            // destination collection appeared after the check
+                            // above, refuse the move instead of clobbering it.
+                            ErrorKind::IsADirectory => {
+                                if self
+                                    .op
+                                    .exists(to_path.as_str())
+                                    .await
+                                    .map_err(convert_error)?
+                                {
+                                    return Err(FsError::Exists);
+                                }
+                            }
+                            _ => return Err(convert_error(e)),
+                        },
+                    }
                 }
 
                 let mut lister = self

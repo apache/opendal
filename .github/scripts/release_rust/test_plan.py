@@ -128,6 +128,8 @@ class ReleaseRustPlanTest(unittest.TestCase):
         result = plan()
 
         self.assertIn("core/core", result)
+        self.assertIn("core/executors/compio", result)
+        self.assertIn("core/executors/tokio", result)
         self.assertIn("core/http-transports/cyper", result)
         self.assertIn("core/testkit", result)
         self.assertIn("core", result)
@@ -140,8 +142,14 @@ class ReleaseRustPlanTest(unittest.TestCase):
         result = plan()
 
         self.assertLess(
+            result.index("core/core"), result.index("core/executors/compio")
+        )
+        self.assertLess(result.index("core/core"), result.index("core/executors/tokio"))
+        self.assertLess(
             result.index("core/core"), result.index("core/http-transports/cyper")
         )
+        self.assertLess(result.index("core/executors/compio"), result.index("core"))
+        self.assertLess(result.index("core/executors/tokio"), result.index("core"))
         self.assertLess(result.index("core/http-transports/cyper"), result.index("core"))
         self.assertLess(result.index("core/core"), result.index("core"))
         self.assertLess(result.index("core/testkit"), result.index("core"))

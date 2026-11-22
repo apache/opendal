@@ -529,7 +529,7 @@ mod tests {
     impl TimeoutExecutor {
         pub fn new() -> Self {
             Self {
-                exec: Executor::new().into_inner(),
+                exec: crate::test_executor().into_inner(),
             }
         }
     }
@@ -541,7 +541,7 @@ mod tests {
 
         fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
             let time = rng().random_range(0..100);
-            Some(Box::pin(tokio::time::sleep(Duration::from_nanos(time))))
+            self.exec.sleep(Duration::from_nanos(time))
         }
     }
 
@@ -595,7 +595,7 @@ mod tests {
         let mut rng = rng();
 
         for _ in 0..100 {
-            let mut w = MultipartWriter::new(Executor::default(), TestWrite::new(), 200);
+            let mut w = MultipartWriter::new(crate::test_executor(), TestWrite::new(), 200);
             let size = rng.random_range(1..1024);
             let mut bs = vec![0; size];
             rng.fill_bytes(&mut bs);

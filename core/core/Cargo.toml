@@ -38,16 +38,13 @@ unused_async = "warn"
 all-features = true
 
 [features]
-default = ["executors-tokio"]
+default = []
 
 # Enable opendal's blocking support.
 blocking = ["internal-tokio-rt"]
 
 # Enable tokio runtime.
 internal-tokio-rt = ["tokio/rt-multi-thread"]
-
-# Enable tokio executors support.
-executors-tokio = ["tokio/rt"]
 
 # Enable reqsign integration.
 #

@@ -42,6 +42,19 @@ with `SignedDuration::from_secs(5)` or parse a duration string. The builder
 setters still accept `std::time::Duration`, and string/map configuration still
 accepts duration strings such as `"5s"`.
 
+## Tokio executor moved to `opendal-executor-tokio`
+
+If you depend directly on `opendal-core`, remove its `executors-tokio` feature
+and import `opendal_executor_tokio::TokioExecutor` from the new crate. Use
+`Executor::install_default(TokioExecutor::default())` before concurrent
+operations, or pass `Executor::with(TokioExecutor::default())` to your
+operator's `OperationContext`.
+
+The `opendal` facade still exposes `opendal::executors::TokioExecutor` with the
+`executors-tokio` feature. If you disable `auto-register-services` or your linker
+omits the process constructor, call `opendal::install_default()` to install
+Tokio and the other enabled defaults, or configure the executor explicitly.
+
 ## Raw API
 
 ### Path helper names

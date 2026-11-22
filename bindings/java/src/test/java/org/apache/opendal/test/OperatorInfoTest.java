@@ -20,7 +20,10 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.nio.file.Path;
+import java.util.Locale;
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.Capability;
 import org.apache.opendal.Operator;
@@ -134,5 +137,98 @@ public class OperatorInfoTest {
                 }
             }
         }
+    }
+
+    @Test
+    public void testAllGeneratedCapabilityFieldsMatchCoreOverrides() throws Exception {
+        try (AsyncOperator base =
+                AsyncOperator.of(ServiceConfig.Memory.builder().build())) {
+            for (Field field : Capability.class.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers())) {
+                    continue;
+                }
+                String snakeName = field.getName().replaceAll("([A-Z])", "_$1").toLowerCase(Locale.ROOT);
+                if (field.getType() == boolean.class) {
+                    try (AsyncOperator enabled = base.layer(new CapabilityOverrideLayer(snakeName + "=true"));
+                            AsyncOperator disabled = base.layer(new CapabilityOverrideLayer(snakeName + "=false"))) {
+                        assertThat(field.getBoolean(enabled.info.capability))
+                                .as("enabling %s", snakeName)
+                                .isTrue();
+                        assertThat(field.getBoolean(disabled.info.capability))
+                                .as("disabling %s", snakeName)
+                                .isFalse();
+                    }
+                } else if (field.getType() == long.class) {
+                    try (AsyncOperator set = base.layer(new CapabilityOverrideLayer(snakeName + "=4096"));
+                            AsyncOperator unset = set.layer(new CapabilityOverrideLayer(snakeName + "=none"))) {
+                        assertThat(field.getLong(set.info.capability))
+                                .as("setting %s", snakeName)
+                                .isEqualTo(4096L);
+                        assertThat(field.getLong(unset.info.capability))
+                                .as("unsetting %s", snakeName)
+                                .isEqualTo(-1L);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    @SuppressWarnings("deprecation")
+    public void testCapabilityBuilderAndLegacyConstructors() {
+        Capability defaults = Capability.builder().build();
+        assertThat(defaults.stat).isFalse();
+        assertThat(defaults.read).isFalse();
+        assertThat(defaults.write).isFalse();
+        assertThat(defaults.writeMultiMaxSize).isEqualTo(-1L);
+        assertThat(defaults.writeMultiMinSize).isEqualTo(-1L);
+        assertThat(defaults.writeTotalMaxSize).isEqualTo(-1L);
+        assertThat(defaults.deleteMaxSize).isEqualTo(-1L);
+        assertThat(defaults.copyMultiMaxSize).isEqualTo(-1L);
+        assertThat(defaults.copyMultiMinSize).isEqualTo(-1L);
+
+        Capability modified = defaults.toBuilder()
+                .read(true)
+                .listWithGlob(true)
+                .writeWithExpires(true)
+                .deleteWithVersion(true)
+                .presignDelete(true)
+                .deleteMaxSize(1000L)
+                .build();
+        assertThat(modified.read).isTrue();
+        assertThat(modified.listWithGlob).isTrue();
+        assertThat(modified.writeWithExpires).isTrue();
+        assertThat(modified.deleteWithVersion).isTrue();
+        assertThat(modified.presignDelete).isTrue();
+        assertThat(modified.deleteMaxSize).isEqualTo(1000L);
+        assertThat(modified.writeMultiMaxSize).isEqualTo(-1L);
+
+        Capability legacy41 = new Capability(
+                true, false, false, false, false, false, false, false, true, false, false, false, false, false, true,
+                false, false, false, false, false, false, false, false, false, 1024L, 512L, true, true, false, false,
+                true, false, false, false, false, false, false, false, false, false, true);
+        assertThat(legacy41.stat).isTrue();
+        assertThat(legacy41.read).isTrue();
+        assertThat(legacy41.write).isTrue();
+        assertThat(legacy41.writeMultiMaxSize).isEqualTo(1024L);
+        assertThat(legacy41.writeMultiMinSize).isEqualTo(512L);
+        assertThat(legacy41.writeTotalMaxSize).isEqualTo(-1L);
+        assertThat(legacy41.readWithVersion).isFalse();
+        assertThat(legacy41.shared).isTrue();
+
+        Capability legacy46 = new Capability(
+                true, false, false, false, false, false, false, false, true, false, false, false, false, false, true,
+                false, false, false, false, false, false, false, false, false, 2048L, 1024L, true, true, false, false,
+                true, false, false, false, false, false, false, false, false, false, true, true, true, false, true,
+                false);
+        assertThat(legacy46.writeMultiMaxSize).isEqualTo(2048L);
+        assertThat(legacy46.writeMultiMinSize).isEqualTo(1024L);
+        assertThat(legacy46.writeTotalMaxSize).isEqualTo(-1L);
+        assertThat(legacy46.readWithVersion).isTrue();
+        assertThat(legacy46.readWithIfVersionMatch).isTrue();
+        assertThat(legacy46.readWithIfVersionNotMatch).isFalse();
+        assertThat(legacy46.readWithIfModifiedSince).isTrue();
+        assertThat(legacy46.readWithIfUnmodifiedSince).isFalse();
+        assertThat(legacy46.listWithGlob).isFalse();
     }
 }

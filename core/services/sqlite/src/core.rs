@@ -182,6 +182,82 @@ impl SqliteCore {
         Ok(())
     }
 
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
+        let pool = self.get_client().await?;
+        // Serialize competing writers before checking the destination.
+        let mut tx = pool
+            .begin_with("BEGIN IMMEDIATE")
+            .await
+            .map_err(parse_sqlite_error)?;
+        let table = &self.table;
+        let key = &self.key_field;
+
+        let (source_exists, destination_exists): (bool, bool) =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!(
+                r#"SELECT EXISTS (SELECT 1 FROM "{table}" WHERE "{key}" = $1),
+                          EXISTS (SELECT 1 FROM "{table}" WHERE "{key}" = $2)"#,
+            )))
+            .bind(from)
+            .bind(to)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+
+        if !source_exists {
+            return Err(Error::new(ErrorKind::NotFound, "key not found in sqlite"));
+        }
+        if destination_exists {
+            if if_not_exists {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "destination key already exists in sqlite",
+                ));
+            }
+
+            // The key collation can make two different paths match the source row.
+            sqlx::query(sqlx::AssertSqlSafe(format!(
+                r#"DELETE FROM "{table}" WHERE "{key}" = $2 AND "{key}" <> $1"#,
+            )))
+            .bind(from)
+            .bind(to)
+            .execute(&mut *tx)
+            .await
+            .map_err(parse_sqlite_error)?;
+        }
+
+        // ABORT preserves rows that conflict through other constraints, even if
+        // the schema configures a different default conflict policy.
+        let result = sqlx::query(sqlx::AssertSqlSafe(format!(
+            r#"UPDATE OR ABORT "{table}" SET "{key}" = $2 WHERE "{key}" = $1"#,
+        )))
+        .bind(from)
+        .bind(to)
+        .execute(&mut *tx)
+        .await
+        .map_err(|err| {
+            if err
+                .as_database_error()
+                .is_some_and(|err| err.is_unique_violation())
+            {
+                Error::new(
+                    ErrorKind::Conflict,
+                    "sqlite rename violates a unique constraint",
+                )
+                .set_source(err)
+            } else {
+                parse_sqlite_error(err)
+            }
+        })?;
+        if result.rows_affected() == 0 {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "sqlite rename did not update the source key",
+            ));
+        }
+
+        tx.commit().await.map_err(parse_sqlite_error)
+    }
+
     pub async fn delete(&self, path: &str) -> Result<()> {
         let pool = self.get_client().await?;
 

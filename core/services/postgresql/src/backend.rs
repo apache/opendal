@@ -157,6 +157,7 @@ impl PostgresqlBackend {
             delete: true,
             copy: true,
             rename: true,
+            rename_with_if_not_exists: true,
             shared: true,
             ..Default::default()
         };
@@ -284,11 +285,11 @@ impl Service for PostgresqlBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
         let from = build_absolute_path(&self.root, from);
         let to = build_absolute_path(&self.root, to);
-        self.core.rename(&from, &to).await?;
+        self.core.rename(&from, &to, args.if_not_exists()).await?;
         Ok(RpRename::new())
     }
 

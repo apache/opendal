@@ -1759,6 +1759,7 @@
         "delete": true,
         "read": true,
         "rename": true,
+        "rename_with_if_not_exists": true,
         "shared": true,
         "stat": true,
         "write": true,

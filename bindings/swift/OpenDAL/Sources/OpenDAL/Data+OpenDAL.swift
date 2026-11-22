@@ -26,8 +26,8 @@ extension Data {
     /// `bytes` is moved into a heap-allocated box whose lifetime is
     /// managed by the data's deallocator, so both the box and the
     /// Rust buffer it owns are freed when the data gets deallocated.
-    init(openDALBytes bytes: consuming opendal_bytes) {
-        // Empty results carry no buffer, free the box eagerly and
+    init(openDALBytes bytes: opendal_bytes) {
+        // Empty results carry no buffer, free `bytes` eagerly and
         // produce an empty Data.
         guard let data = bytes.data, bytes.len > 0 else {
             var bytes = bytes
@@ -44,6 +44,7 @@ extension Data {
             count: length,
             deallocator: .custom({ _, _ in
                 opendal_bytes_free(box)
+                box.deinitialize(count: 1)
                 box.deallocate()
             })
         )

@@ -27,15 +27,15 @@ public struct OperatorError: Error {
     ///
     /// The caller transfers ownership of `error` to this initializer;
     /// it must not be used or freed again afterwards.
-    init(consuming error: UnsafePointer<opendal_error>) {
+    init(consuming error: UnsafeMutablePointer<opendal_error>) {
         self.code = error.pointee.code.rawValue
-        if let data = error.pointee.message.data {
+        if let data = error.pointee.message.data, error.pointee.message.len > 0 {
             self.message = Data(bytes: data, count: Int(error.pointee.message.len))
         }
         else {
             self.message = Data()
         }
-        opendal_error_free(UnsafeMutablePointer(mutating: error))
+        opendal_error_free(error)
     }
 }
 

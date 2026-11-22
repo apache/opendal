@@ -649,9 +649,9 @@ jobs:
       - name: Prepare staged name
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         run: |
-          export OPENDAL_WEBSITE_STAGED_NAME=$(echo ${{ github.ref_name }} | sed 's/[._]/-/g')
-          echo OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME}
-          echo OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME} >> $GITHUB_ENV
+          OPENDAL_WEBSITE_STAGED_NAME=$(printf '%s\n' "$GITHUB_REF_NAME" | sed 's/[._]/-/g')
+          echo "OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME}"
+          echo "OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME}" >> "$GITHUB_ENV"
 
       - name: Deploy to staged
         uses: peaceiris/actions-gh-pages@v4.1.0
@@ -678,6 +678,7 @@ jobs:
         if: ${{ (github.event_name != 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, 'rc')) || (github.event_name == 'workflow_dispatch' && inputs.deploy-nightlies) }}
         shell: bash
         env:
+          RELEASE_VERSION: ${{ inputs.release_version || github.ref_name }}
           NIGHTLIES_RSYNC_HOST: ${{ secrets.NIGHTLIES_RSYNC_HOST }}
           NIGHTLIES_RSYNC_KEY: ${{ secrets.NIGHTLIES_RSYNC_KEY }}
           NIGHTLIES_RSYNC_PATH: ${{ secrets.NIGHTLIES_RSYNC_PATH }}
@@ -690,7 +691,7 @@ jobs:
           rsync -avzr \
             -e "ssh -i ${HOME}/.ssh/nightlies_rsync -p ${NIGHTLIES_RSYNC_PORT} -o StrictHostKeyChecking=no" \
             build/ \
-            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${{ inputs.release_version || github.ref_name }}/"
+            "${NIGHTLIES_RSYNC_USER}@${NIGHTLIES_RSYNC_HOST}:${NIGHTLIES_RSYNC_PATH}/opendal/opendal-docs-release-${RELEASE_VERSION}/"
 
       - name: Clear build
         run: rm -rf ./build

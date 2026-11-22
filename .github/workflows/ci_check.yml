@@ -31,6 +31,18 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Scan GitHub Actions workflows
+        run: pipx run --spec zizmor==1.32.0 zizmor --offline --min-severity high --min-confidence high --config .github/zizmor.yml .github/workflows/
+
   hf-temp-repo:
     runs-on: ubuntu-latest
     timeout-minutes: 5

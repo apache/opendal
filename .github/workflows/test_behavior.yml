@@ -74,16 +74,17 @@ jobs:
 
       - name: Plan
         id: plan
+        env:
+          MODE: ${{ inputs.mode || github.event.inputs.mode || 'pr' }}
+          RETRY_ATTEMPTS: ${{ inputs.retry_attempts || github.event.inputs.retry_attempts || 1 }}
         run: |
           set -euo pipefail
           event_name="${{ github.event_name }}"
           repository="${{ github.repository }}"
-          mode="${{ inputs.mode || github.event.inputs.mode || 'pr' }}"
-          retry_attempts="${{ inputs.retry_attempts || github.event.inputs.retry_attempts || 1 }}"
           files_changed=""
           has_secrets="false"
 
-          if [ "$mode" == "nightly-live" ]; then
+          if [ "$MODE" == "nightly-live" ]; then
             if [ "$repository" == "apache/opendal" ]; then
               has_secrets="true"
             fi
@@ -94,7 +95,7 @@ jobs:
             files_changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
             echo "Files changed:"
             echo "$files_changed"
-          elif [ "$event_name" == "workflow_dispatch" ] && [ "$mode" == "pr" ]; then
+          elif [ "$event_name" == "workflow_dispatch" ] && [ "$MODE" == "pr" ]; then
             has_secrets="false"
             git fetch --no-tags --prune --depth=1 origin main
             files_changed=$(git diff --name-only origin/main HEAD)
@@ -102,8 +103,8 @@ jobs:
             echo "$files_changed"
           fi
 
-          PLAN=$(./.github/scripts/test_behavior/plan.py --mode "$mode" -- $files_changed)
-          echo "Mode: $mode (enable_secrets=$has_secrets, retry_attempts=$retry_attempts)"
+          PLAN=$(./.github/scripts/test_behavior/plan.py --mode "$MODE" -- $files_changed)
+          echo "Mode: $MODE (enable_secrets=$has_secrets, retry_attempts=$RETRY_ATTEMPTS)"
           echo "Plan:"
           echo "$PLAN" | jq .
           NOTES=$(echo "$PLAN" | jq -r '.notes[]? // empty')
@@ -118,7 +119,7 @@ jobs:
           fi
           echo "plan=$PLAN" >> "$GITHUB_OUTPUT"
           echo "enable_secrets=$has_secrets" >> "$GITHUB_OUTPUT"
-          echo "retry_attempts=$retry_attempts" >> "$GITHUB_OUTPUT"
+          echo "retry_attempts=$RETRY_ATTEMPTS" >> "$GITHUB_OUTPUT"
 
   test_core:
     name: core / ${{ matrix.os }}

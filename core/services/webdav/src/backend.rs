@@ -226,6 +226,9 @@ impl Builder for WebdavBuilder {
                 write: true,
                 write_can_multi: self.config.enable_partial_put,
                 write_can_empty: true,
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                write_with_if_not_exists: true,
                 write_with_user_metadata: true,
 
                 create_dir: true,
@@ -312,15 +315,18 @@ impl Service for WebdavBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        if args.is_conditional() {
+        if args.if_version_match().is_some() || args.if_version_not_match().is_some() {
             return Err(Error::new(
                 ErrorKind::Unsupported,
-                "WebDAV does not support conditional writes",
+                "WebDAV does not support write version conditions",
             ));
         }
 
+        // Partial PUT writes to a staging path. Only a PUT to the destination
+        // can evaluate its write preconditions.
+        let use_partial_put = self.core.capability.write_can_multi && !args.is_conditional();
         let writer = WebdavWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
-        if self.core.capability.write_can_multi {
+        if use_partial_put {
             Ok(TwoWays::Two(WebdavChunkedWriter::new(writer)))
         } else {
             Ok(TwoWays::One(oio::OneShotWriter::new(writer)))

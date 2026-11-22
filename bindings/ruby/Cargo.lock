@@ -1400,6 +1400,7 @@ version = "0.59.5"
 dependencies = [
  "ctor",
  "opendal-core",
+ "opendal-executor-tokio",
  "opendal-http-transport-reqwest",
  "opendal-layer-concurrent-limit",
  "opendal-layer-logging",
@@ -1447,6 +1448,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-executor-tokio"
+version = "0.59.5"
+dependencies = [
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-http-transport-reqwest"
 version = "0.59.5"
 dependencies = [
@@ -1472,6 +1481,8 @@ dependencies = [
 name = "opendal-layer-logging"
 version = "0.59.5"
 dependencies = [
+ "futures",
+ "http",
  "log",
  "opendal-core",
 ]
@@ -1497,6 +1508,7 @@ dependencies = [
 name = "opendal-layer-timeout"
 version = "0.59.5"
 dependencies = [
+ "futures",
  "opendal-core",
  "tokio",
 ]

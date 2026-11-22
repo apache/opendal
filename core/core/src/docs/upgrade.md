@@ -24,6 +24,15 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
 
+## Automatic capability simulation
+
+The `auto-simulate` feature in `opendal` and `opendal-core` now controls
+whether `Operator::new` installs `SimulateLayer` automatically. The feature
+is enabled by default. If you previously disabled default features and rely
+on automatic simulation, add `auto-simulate` to your dependency features.
+You can also apply `opendal::layers::SimulateLayer` to individual operators
+with `Operator::layer`.
+
 ## Glob listing
 
 `ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,
@@ -41,6 +50,19 @@ respectively. For exhaustive struct literals, add `glob: None` or
 with `SignedDuration::from_secs(5)` or parse a duration string. The builder
 setters still accept `std::time::Duration`, and string/map configuration still
 accepts duration strings such as `"5s"`.
+
+## Tokio executor moved to `opendal-executor-tokio`
+
+If you depend directly on `opendal-core`, remove its `executors-tokio` feature
+and import `opendal_executor_tokio::TokioExecutor` from the new crate. Use
+`Executor::install_default(TokioExecutor::default())` before concurrent
+operations, or pass `Executor::with(TokioExecutor::default())` to your
+operator's `OperationContext`.
+
+The `opendal` facade still exposes `opendal::executors::TokioExecutor` with the
+`executors-tokio` feature. If you disable `auto-register-services` or your linker
+omits the process constructor, call `opendal::install_default()` to install
+Tokio and the other enabled defaults, or configure the executor explicitly.
 
 ## Raw API
 

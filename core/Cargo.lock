@@ -7228,6 +7228,8 @@ dependencies = [
  "log",
  "logforth",
  "opendal-core",
+ "opendal-executor-compio",
+ "opendal-executor-tokio",
  "opendal-http-transport-cyper",
  "opendal-http-transport-reqwest",
  "opendal-layer-async-backtrace",
@@ -7421,6 +7423,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-executor-compio"
+version = "0.59.5"
+dependencies = [
+ "compio",
+ "futures",
+ "futures-timer",
+ "log",
+ "opendal-core",
+ "opendal-layer-timeout",
+ "opendal-layer-tracing",
+ "opendal-service-fs",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-executor-tokio"
+version = "0.59.5"
+dependencies = [
+ "futures",
+ "opendal-core",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-fuzz"
 version = "0.59.5"
 dependencies = [
@@ -7464,6 +7491,8 @@ name = "opendal-layer-async-backtrace"
 version = "0.59.5"
 dependencies = [
  "async-backtrace",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
 ]
 
@@ -7473,6 +7502,7 @@ version = "0.59.5"
 dependencies = [
  "await-tree",
  "futures",
+ "http 1.4.2",
  "opendal-core",
 ]
 
@@ -7513,6 +7543,7 @@ dependencies = [
  "futures",
  "http 1.4.2",
  "opendal-core",
+ "opendal-executor-tokio",
  "tokio",
 ]
 
@@ -7521,6 +7552,8 @@ name = "opendal-layer-dtrace"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
  "probe",
  "tokio",
@@ -7545,7 +7578,10 @@ dependencies = [
  "dotenvy",
  "fastrace",
  "fastrace-jaeger",
+ "futures",
+ "http 1.4.2",
  "opendal-core",
+ "opendal-service-http",
  "tokio",
 ]
 
@@ -7599,6 +7635,8 @@ dependencies = [
 name = "opendal-layer-logging"
 version = "0.59.5"
 dependencies = [
+ "futures",
+ "http 1.4.2",
  "log",
  "opendal-core",
 ]
@@ -7645,8 +7683,13 @@ dependencies = [
 name = "opendal-layer-oteltrace"
 version = "0.59.5"
 dependencies = [
+ "futures",
+ "http 1.4.2",
  "opendal-core",
+ "opendal-service-http",
  "opentelemetry",
+ "opentelemetry_sdk",
+ "tokio",
 ]
 
 [[package]]
@@ -7681,6 +7724,7 @@ dependencies = [
  "log",
  "logforth",
  "opendal-core",
+ "opendal-executor-tokio",
  "opendal-layer-logging",
  "opendal-layer-timeout",
  "tokio",
@@ -8000,6 +8044,7 @@ dependencies = [
  "bytes",
  "log",
  "opendal-core",
+ "opendal-executor-tokio",
  "rustix 1.1.4",
  "serde",
  "tempfile",
@@ -8195,6 +8240,7 @@ dependencies = [
  "http 1.4.2",
  "log",
  "opendal-core",
+ "opendal-executor-tokio",
  "opendal-http-transport-reqwest",
  "percent-encoding",
  "serde",

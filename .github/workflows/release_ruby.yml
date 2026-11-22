@@ -47,7 +47,6 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write # required for workflow to publish gem if releasing
 
 defaults:
   run:
@@ -93,7 +92,7 @@ jobs:
 
           echo "## Ruby gem built successfully! 📦" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Ref:** ${{ github.ref_name || github.ref }}" >> "$GITHUB_STEP_SUMMARY"
+          printf '**Ref:** %s\n' "${GITHUB_REF_NAME:-$GITHUB_REF}" >> "$GITHUB_STEP_SUMMARY"
           echo "**Version:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
 
   smoke-test:
@@ -246,6 +245,9 @@ jobs:
 
     needs: [build, smoke-test, build-native]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for RubyGems trusted publishing.
 
     steps:
       - name: Checkout repository

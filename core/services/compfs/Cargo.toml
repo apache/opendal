@@ -32,7 +32,7 @@ version = { workspace = true }
 all-features = true
 
 [dependencies]
-compio = { version = "0.19.0", features = [
+compio = { workspace = true, features = [
   "bytes",
   "dispatcher",
   "fs",

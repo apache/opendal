@@ -24,6 +24,7 @@ use oio::List as _;
 use oio::Read as _;
 use oio::ReadStream as _;
 use oio::Write as _;
+use opendal_executor_tokio::TokioExecutor;
 
 use super::*;
 
@@ -288,6 +289,10 @@ async fn exhausted_stream_cannot_reopen_without_a_reservation() -> Result<()> {
 async fn reader_deposit_is_independent_of_chunk_size() -> Result<()> {
     let budget = TestBudget::new(0);
     let op = Operator::new(services::Memory::default())?;
+    let context = op
+        .context()
+        .with_executor(Executor::with(TokioExecutor::default()));
+    let op = op.with_context(context);
     let content = Bytes::from_static(b"0123456789abcdefghijklmnopqrstuvwxyz");
     op.write("file", content.clone()).await?;
     let op = op.layer(RetryLayer::new().with_budget(budget.clone()));

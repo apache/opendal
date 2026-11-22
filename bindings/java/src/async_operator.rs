@@ -42,7 +42,8 @@ use crate::make_metadata;
 use crate::make_operator_info;
 use crate::make_presigned_request;
 use crate::{
-    make_entry, make_list_options, make_read_options, make_stat_options, make_write_options,
+    make_delete_options, make_entry, make_list_options, make_read_options, make_stat_options,
+    make_write_options,
 };
 
 #[unsafe(no_mangle)]
@@ -233,8 +234,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete<'loca
     op: *mut Operator,
     executor: *const Executor,
     path: JString<'local>,
+    options: JObject<'local>,
 ) -> jlong {
-    env.with_env(|env| intern_delete(env, op, executor, path))
+    env.with_env(|env| intern_delete(env, op, executor, path, options))
         .resolve::<ThrowException>()
 }
 
@@ -243,14 +245,16 @@ fn intern_delete(
     op: *mut Operator,
     executor: *const Executor,
     path: JString,
+    options: JObject,
 ) -> Result<jlong> {
-    let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
-
     let path = jstring_to_string(env, &path)?;
+    let options = make_delete_options(env, &options)?;
+    let op = unsafe { &*op }.clone();
 
-    executor_or_default(env, executor)?.spawn(async move {
-        let result = op.delete(&path).await;
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
+        let result = op.delete_options(&path, options).await;
         complete_future(id, move |_env| {
             result?;
             Ok(JObject::null())

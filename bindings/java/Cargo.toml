@@ -34,11 +34,14 @@ doc = false
 jni = { version = "0.22.4" }
 # opendal-java won't be published to crates.io, we always use the local version
 opendal = { version = ">=0", path = "../../core", default-features = false, features = [
+  "auto-simulate",
   "blocking",
   "http-transport-reqwest",
   "executors-tokio",
 
   # enabled layers
+  "layers-capability-check",
+  "layers-chaos",
   "layers-concurrent-limit",
   "layers-immutable-index",
   "layers-logging",

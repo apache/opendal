@@ -174,12 +174,21 @@ for (Entry entry : op.list("dir/", options)) {
 ## Delete a file or a whole tree
 
 ```java
+import org.apache.opendal.DeleteOptions;
+
 op.delete("path/to/file");   // single path; succeeds even if missing
-op.removeAll("a/");
+op.delete("a/", DeleteOptions.builder().recursive(true).build());
 ```
 
+Both `Operator` and `AsyncOperator` accept `DeleteOptions`. Use the builder to
+select a stored version or set conditions based on the current file's ETag,
+version, or previously returned metadata. Option support depends on the service.
+A failed condition returns `ConditionNotMatch` and an unsupported option returns
+`Unsupported`.
+
 Pass a trailing slash to limit recursive deletion to the directory. On
-prefix-based services, `"a"` can also match entries under `"ab/"`.
+prefix-based services, `"a"` can also match entries under `"ab/"`. You can also
+use `op.removeAll("a/")` for recursive deletion.
 
 ## Create a directory
 

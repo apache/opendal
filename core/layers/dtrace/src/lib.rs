@@ -22,11 +22,18 @@
 #![deny(missing_docs)]
 use std::ffi::CString;
 use std::sync::Arc;
+use std::task::Poll;
 
 use bytes::Buf;
+use futures::StreamExt;
+use futures::stream::poll_fn;
 use opendal_core::raw::*;
 use opendal_core::*;
+use probe::probe;
 use probe::probe_lazy;
+
+#[cfg(test)]
+mod tests;
 
 /// `DtraceLayer` supports User Statically-Defined Tracing (USDT) on Linux.
 ///
@@ -72,6 +79,19 @@ use probe::probe_lazy;
 /// 7. writer_close_start, arguments: path
 /// 8. writer_close_ok, arguments: path
 /// 9. writer_close_error, arguments: path
+///
+/// ### For HTTP Transport
+///
+/// The `opendal` provider emits these probes for requests through the operator's
+/// [`OperationContext`].
+///
+/// - `http_request_start` fires before the transport fetches the request.
+/// - `http_request_ok` reports the HTTP status code when the transport returns
+///   a response, including responses with 4xx and 5xx status codes.
+/// - `http_request_error` fires when the transport returns an error.
+/// - `http_response_body_chunk` reports the byte length of each streamed chunk.
+/// - `http_response_body_end` fires when the underlying stream reports EOF.
+/// - `http_response_body_error` fires when the underlying stream returns an error.
 ///
 /// Example:
 ///
@@ -139,11 +159,61 @@ impl Layer for DtraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
         Arc::new(self.layer(inner))
     }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(DtraceHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        inner.with_http_transport(transport)
+    }
 }
 
 impl DtraceLayer {
     fn layer(&self, inner: Servicer) -> DTraceService {
         DTraceService { inner }
+    }
+}
+
+struct DtraceHttpTransport {
+    inner: HttpTransporter,
+}
+
+macro_rules! http_probe {
+    ($name:ident $(, $arg:expr)*) => {{
+        #[cfg(test)]
+        tests::record_http_probe(stringify!($name));
+        probe!(opendal, $name $(, $arg)*);
+    }};
+}
+
+impl HttpTransport for DtraceHttpTransport {
+    async fn fetch(&self, request: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        http_probe!(http_request_start);
+        let response = self.inner.fetch(request).await.inspect_err(|_| {
+            http_probe!(http_request_error);
+        })?;
+        http_probe!(http_request_ok, response.status().as_u16());
+
+        Ok(response.map(|body| {
+            body.map_inner(|mut stream| {
+                Box::new(poll_fn(move |cx| {
+                    let result = stream.poll_next_unpin(cx);
+                    match &result {
+                        Poll::Ready(Some(Ok(chunk))) => {
+                            http_probe!(http_response_body_chunk, chunk.len());
+                        }
+                        Poll::Ready(Some(Err(_))) => {
+                            http_probe!(http_response_body_error);
+                        }
+                        Poll::Ready(None) => {
+                            http_probe!(http_response_body_end);
+                        }
+                        Poll::Pending => {}
+                    }
+                    result
+                }))
+            })
+        }))
     }
 }
 

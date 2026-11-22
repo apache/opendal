@@ -353,7 +353,7 @@ fn new_operator(
         .map(|value| (value.key, value.value))
         .collect();
 
-    od::init_default_registry();
+    od::install_default();
 
     let op = od::Operator::via_iter(scheme, map)?;
     let op = layers.apply(op);

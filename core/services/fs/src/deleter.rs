@@ -37,6 +37,13 @@ impl oio::OneShotDelete for FsDeleter {
     async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
         let p = self.core.root_join(&path)?;
 
+        // With recursive delete, a path without a trailing slash matches
+        // the prefix: the entry itself and every sibling sharing its final
+        // component. A trailing slash limits deletion to that directory.
+        if args.recursive() && !path.ends_with('/') {
+            return self.delete_by_prefix(&path).await;
+        }
+
         let file_type = match tokio::fs::symlink_metadata(&p).await {
             Ok(meta) => meta.file_type(),
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
@@ -65,22 +72,82 @@ impl oio::OneShotDelete for FsDeleter {
             }
         }
 
-        #[cfg(windows)]
-        let remove_as_dir = is_dir || file_type.is_symlink_dir();
-        #[cfg(not(windows))]
-        let remove_as_dir = is_dir;
+        remove_entry(&p, file_type, args.recursive()).await
+    }
+}
 
-        let result = if is_dir && args.recursive() {
-            tokio::fs::remove_dir_all(&p).await
-        } else if remove_as_dir {
-            tokio::fs::remove_dir(&p).await
-        } else {
-            tokio::fs::remove_file(&p).await
-        };
-        match result {
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            result => result.map_err(new_std_io_error),
+/// Remove one filesystem entry with the given file type.
+///
+/// Directories are removed recursively when `recursive` is set, and with
+/// `remove_dir` otherwise. On Windows, directory symlinks and junctions
+/// are removed with `remove_dir`, never followed. A missing entry is a
+/// no-op, so a concurrent delete keeps the operation idempotent.
+async fn remove_entry(
+    path: &std::path::Path,
+    file_type: std::fs::FileType,
+    recursive: bool,
+) -> Result<()> {
+    let is_dir = file_type.is_dir();
+
+    #[cfg(windows)]
+    let remove_as_dir = is_dir || file_type.is_symlink_dir();
+    #[cfg(not(windows))]
+    let remove_as_dir = is_dir;
+
+    let result = if is_dir && recursive {
+        tokio::fs::remove_dir_all(path).await
+    } else if remove_as_dir {
+        tokio::fs::remove_dir(path).await
+    } else {
+        tokio::fs::remove_file(path).await
+    };
+    match result {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        result => result.map_err(new_std_io_error),
+    }
+}
+
+impl FsDeleter {
+    /// Delete the entry at `path` and every sibling entry whose name starts
+    /// with `path`'s final component.
+    ///
+    /// The prefix and parent come from the relative OpenDAL path, and the
+    /// parent is resolved with `root_join`, so enumeration stays inside the
+    /// configured root. A path without a final component deletes nothing:
+    /// the root itself is never removed here.
+    async fn delete_by_prefix(&self, path: &str) -> Result<()> {
+        let prefix = get_basename(path);
+        if prefix.is_empty() {
+            return Ok(());
         }
+        let parent = self.core.root_join(get_parent(path))?;
+        let prefix = prefix.as_bytes();
+        let mut entries = match tokio::fs::read_dir(&parent).await {
+            Ok(entries) => entries,
+            // No parent directory means no siblings to remove.
+            Err(err)
+                if err.kind() == std::io::ErrorKind::NotFound
+                    || err.kind() == std::io::ErrorKind::NotADirectory =>
+            {
+                return Ok(());
+            }
+            Err(err) => return Err(new_std_io_error(err)),
+        };
+        while let Some(entry) = entries.next_entry().await.map_err(new_std_io_error)? {
+            if !entry.file_name().as_encoded_bytes().starts_with(prefix) {
+                continue;
+            }
+            // file_type does not follow symlinks, so a link to a directory
+            // is removed as a link, never followed.
+            let file_type = match entry.file_type().await {
+                Ok(file_type) => file_type,
+                // A concurrent delete may remove the entry first.
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(err) => return Err(new_std_io_error(err)),
+            };
+            remove_entry(&entry.path(), file_type, true).await?;
+        }
+        Ok(())
     }
 }
 
@@ -117,5 +184,55 @@ mod tests {
         op.create_dir("d/").await.unwrap();
         op.delete("d/").await.unwrap();
         assert!(op.stat("d/").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_recursive_delete_without_trailing_slash_matches_prefix() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        op.write("a/x.txt", "x").await.unwrap();
+        op.write("ab/y.txt", "y").await.unwrap();
+        op.write("a.txt", "a").await.unwrap();
+        op.write("b.txt", "b").await.unwrap();
+
+        op.delete_with("a").recursive(true).await.unwrap();
+
+        assert!(op.stat("a/x.txt").await.is_err());
+        assert!(op.stat("ab/y.txt").await.is_err());
+        assert!(op.stat("a.txt").await.is_err());
+        assert!(op.stat("b.txt").await.is_ok());
+
+        // A trailing slash still limits deletion to that directory.
+        op.write("c/x.txt", "x").await.unwrap();
+        op.write("cd/y.txt", "y").await.unwrap();
+        op.delete_with("c/").recursive(true).await.unwrap();
+        assert!(op.stat("c/x.txt").await.is_err());
+        assert!(op.stat("cd/y.txt").await.is_ok());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_recursive_delete_without_trailing_slash_removes_symlink_as_link() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        std::fs::create_dir(root.join("target")).unwrap();
+        std::fs::write(root.join("target/keep.txt"), "keep").unwrap();
+        std::os::unix::fs::symlink(root.join("target"), root.join("link")).unwrap();
+
+        op.delete_with("link").recursive(true).await.unwrap();
+
+        // The link is gone, its target stays.
+        assert!(op.stat("link").await.is_err());
+        assert!(op.stat("target/keep.txt").await.is_ok());
     }
 }

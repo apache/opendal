@@ -631,7 +631,7 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write("test", Buffer::from("HelloWorld")).await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,
@@ -657,7 +657,7 @@ mod tests {
         )
         .await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,
@@ -689,7 +689,7 @@ mod tests {
         )
         .await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,

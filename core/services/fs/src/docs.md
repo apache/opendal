@@ -15,6 +15,13 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Read
+
+Conditional reads compare `if_modified_since` and `if_unmodified_since` with
+the modification time reported by the opened file's metadata, including
+subsecond precision when available. When both conditions are set, both must
+match.
+
 ## List
 
 When set, `start_after` returns entries in lexicographic order and excludes
@@ -38,6 +45,14 @@ A trailing `/` requires a directory target. A symbolic link to a file returns
 [`opendal_core::ErrorKind::NotADirectory`] when addressed this way. If the link
 target is missing, deletion through a directory path succeeds and leaves the
 link in place.
+
+## Rename
+
+On Linux, `rename_with(...).if_not_exists(true)` atomically moves the source
+only when the destination is absent. If the destination exists, the operation
+returns [`opendal_core::ErrorKind::ConditionNotMatch`] and preserves both files.
+The option requires kernel and filesystem support for `RENAME_NOREPLACE`.
+Otherwise, the operation returns [`opendal_core::ErrorKind::Unsupported`].
 
 ## Configuration
 

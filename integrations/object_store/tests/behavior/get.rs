@@ -61,6 +61,11 @@ pub fn tests(store: &OpendalStore, tests: &mut Vec<Trial>) {
         store,
         test_get_opts_with_if_unmodified_since,
     ));
+    tests.push(build_trail(
+        "test_get_opts_with_if_combined_dates",
+        store,
+        test_get_opts_with_if_combined_dates,
+    ));
 }
 
 pub async fn test_basic_get(store: OpendalStore) -> Result<()> {
@@ -286,7 +291,7 @@ async fn test_get_ops_with_if_none_match(store: OpendalStore) -> Result<()> {
     assert!(ret.is_err());
     assert!(matches!(
         ret.err().unwrap(),
-        object_store::Error::Precondition { .. }
+        object_store::Error::NotModified { .. }
     ));
 
     store.delete(&location).await?;
@@ -299,29 +304,29 @@ async fn test_get_opts_with_if_modified_since(store: OpendalStore) -> Result<()>
     }
 
     let location = new_file_path("data").into();
-    let value = Bytes::from_static(b"Hello, world!");
-    store.put(&location, value.clone().into()).await?;
-    let meta = store.head(&location).await?;
+    for value in [Bytes::from_static(b"Hello, world!"), Bytes::new()] {
+        store.put(&location, value.clone().into()).await?;
+        let meta = store.head(&location).await?;
 
-    let opts = GetOptions {
-        if_modified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
-        ..Default::default()
-    };
-    let ret = store.get_opts(&location, opts).await?;
-    let data = ret.bytes().await?;
-    assert_eq!(value, data);
+        let opts = GetOptions {
+            if_modified_since: Some(meta.last_modified - std::time::Duration::from_secs(1)),
+            ..Default::default()
+        };
+        let ret = store.get_opts(&location, opts).await?;
+        assert_eq!(value, ret.bytes().await?);
 
-    // S3 ignores future If-Modified-Since dates.
-    let opts = GetOptions {
-        if_modified_since: Some(meta.last_modified),
-        ..Default::default()
-    };
-    let ret = store.get_opts(&location, opts).await;
-    assert!(ret.is_err());
-    assert!(matches!(
-        ret.err().unwrap(),
-        object_store::Error::Precondition { .. }
-    ));
+        // S3 ignores future If-Modified-Since dates.
+        let opts = GetOptions {
+            if_modified_since: Some(meta.last_modified),
+            ..Default::default()
+        };
+        let ret = store.get_opts(&location, opts).await;
+        assert!(ret.is_err());
+        assert!(matches!(
+            ret.err().unwrap(),
+            object_store::Error::NotModified { .. }
+        ));
+    }
 
     store.delete(&location).await?;
     Ok(())
@@ -357,5 +362,41 @@ async fn test_get_opts_with_if_unmodified_since(store: OpendalStore) -> Result<(
     ));
 
     store.delete(&location).await?;
+    Ok(())
+}
+
+async fn test_get_opts_with_if_combined_dates(store: OpendalStore) -> Result<()> {
+    let capability = store.info().capability();
+    if !capability.read_with_if_modified_since || !capability.read_with_if_unmodified_since {
+        return Ok(());
+    }
+
+    let location = new_file_path("data").into();
+    store
+        .put(&location, Bytes::from_static(b"data").into())
+        .await?;
+    let modified = store.head(&location).await?.last_modified;
+    let get_with_dates = |unmodified_since| {
+        store.get_opts(
+            &location,
+            GetOptions {
+                if_modified_since: Some(modified),
+                if_unmodified_since: Some(unmodified_since),
+                ..Default::default()
+            },
+        )
+    };
+    let both_fail = get_with_dates(modified - std::time::Duration::from_secs(1)).await;
+    let only_modified_fails = get_with_dates(modified).await;
+
+    store.delete(&location).await?;
+    assert!(matches!(
+        both_fail,
+        Err(object_store::Error::Precondition { .. })
+    ));
+    assert!(matches!(
+        only_modified_fails,
+        Err(object_store::Error::NotModified { .. })
+    ));
     Ok(())
 }

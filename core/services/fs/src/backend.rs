@@ -154,6 +154,8 @@ impl Builder for FsBuilder {
                     stat: true,
 
                     read: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
 
                     write: true,
                     write_can_empty: true,
@@ -173,6 +175,8 @@ impl Builder for FsBuilder {
 
                     copy: true,
                     rename: true,
+                    #[cfg(target_os = "linux")]
+                    rename_with_if_not_exists: true,
 
                     shared: true,
 
@@ -224,10 +228,11 @@ impl Service for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         Ok(oio::PositionReader::new(FsReader::new(
             self.core.clone(),
             path,
+            args,
         )))
     }
 
@@ -277,9 +282,9 @@ impl Service for FsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        self.core.fs_rename(from, to).await?;
+        self.core.fs_rename(from, to, args.if_not_exists()).await?;
         Ok(RpRename::default())
     }
 

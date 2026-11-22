@@ -23,6 +23,8 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::future::Either;
+use futures::future::select;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -102,9 +104,9 @@ use opendal_core::*;
 ///
 /// # Implementation Notes
 ///
-/// `TimeoutLayer` uses [`tokio::time::timeout`] to bound service calls and IO
-/// body methods. It also supplies an executor timeout so concurrent block write
-/// and copy tasks can fail instead of waiting forever.
+/// `TimeoutLayer` uses the configured executor's timer to bound service calls,
+/// I/O body methods, and individual concurrent I/O tasks. It uses Tokio timers
+/// when the executor does not implement [`Execute::sleep`].
 ///
 /// This introduces a small amount of overhead for IO operations, but it is needed
 /// to implement timeouts correctly. OpenDAL used to implement this as a
@@ -190,13 +192,20 @@ pub struct TimeoutService {
 }
 
 impl TimeoutService {
-    async fn timeout<F: Future<Output = Result<T>>, T>(&self, op: Operation, fut: F) -> Result<T> {
-        tokio::time::timeout(self.timeout, fut).await.map_err(|_| {
-            Error::new(ErrorKind::Unexpected, "operation timeout reached")
-                .with_operation(op)
-                .with_context("timeout", self.timeout.as_secs_f64().to_string())
-                .set_temporary()
-        })?
+    async fn timeout<F: Future<Output = Result<T>>, T>(
+        &self,
+        ctx: &OperationContext,
+        op: Operation,
+        fut: F,
+    ) -> Result<T> {
+        execute_with_timeout(
+            ctx.executor().inner(),
+            self.timeout,
+            op.into_static(),
+            "operation timeout reached",
+            fut,
+        )
+        .await
     }
 }
 
@@ -222,20 +231,24 @@ impl Service for TimeoutService {
         path: &str,
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        self.timeout(Operation::CreateDir, self.inner.create_dir(ctx, path, args))
-            .await
+        self.timeout(
+            ctx,
+            Operation::CreateDir,
+            self.inner.create_dir(ctx, path, args),
+        )
+        .await
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.inner
             .read(ctx, path, args)
-            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout, ctx.executor().clone()))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.inner
             .write(ctx, path, args)
-            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout, ctx.executor().clone()))
     }
 
     fn copy(
@@ -247,13 +260,13 @@ impl Service for TimeoutService {
     ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args)
-            .map(|c| TimeoutWrapper::new(c, self.io_timeout))
+            .map(|c| TimeoutWrapper::new(c, self.io_timeout, ctx.executor().clone()))
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
         self.inner
             .compose(ctx, to, args)
-            .map(|c| TimeoutWrapper::new(c, self.io_timeout))
+            .map(|c| TimeoutWrapper::new(c, self.io_timeout, ctx.executor().clone()))
     }
 
     async fn rename(
@@ -263,8 +276,12 @@ impl Service for TimeoutService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        self.timeout(Operation::Rename, self.inner.rename(ctx, from, to, args))
-            .await
+        self.timeout(
+            ctx,
+            Operation::Rename,
+            self.inner.rename(ctx, from, to, args),
+        )
+        .await
     }
 
     async fn restore(
@@ -273,25 +290,25 @@ impl Service for TimeoutService {
         path: &str,
         args: OpRestore,
     ) -> Result<RpRestore> {
-        self.timeout(Operation::Restore, self.inner.restore(ctx, path, args))
+        self.timeout(ctx, Operation::Restore, self.inner.restore(ctx, path, args))
             .await
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        self.timeout(Operation::Stat, self.inner.stat(ctx, path, args))
+        self.timeout(ctx, Operation::Stat, self.inner.stat(ctx, path, args))
             .await
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.inner
             .delete(ctx)
-            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout, ctx.executor().clone()))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner
             .list(ctx, path, args)
-            .map(|r| TimeoutWrapper::new(r, self.io_timeout))
+            .map(|r| TimeoutWrapper::new(r, self.io_timeout, ctx.executor().clone()))
     }
 
     async fn presign(
@@ -300,7 +317,7 @@ impl Service for TimeoutService {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
-        self.timeout(Operation::Presign, self.inner.presign(ctx, path, args))
+        self.timeout(ctx, Operation::Presign, self.inner.presign(ctx, path, args))
             .await
     }
 }
@@ -321,63 +338,107 @@ impl Execute for TimeoutExecutor {
         self.exec.execute(f)
     }
 
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.exec.try_execute(f)
+    }
+
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
-        Some(Box::pin(tokio::time::sleep(self.timeout)))
+        Some(timer(self.exec.as_ref(), self.timeout))
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.exec.sleep(duration)
     }
 }
 
 #[doc(hidden)]
 pub struct TimeoutWrapper<R> {
     inner: R,
-
     timeout: Duration,
+    executor: Executor,
 }
 
 impl<R> TimeoutWrapper<R> {
-    fn new(inner: R, timeout: Duration) -> Self {
-        Self { inner, timeout }
+    fn new(inner: R, timeout: Duration, executor: Executor) -> Self {
+        Self {
+            inner,
+            timeout,
+            executor,
+        }
     }
 
-    #[inline]
     async fn io_timeout<F: Future<Output = Result<T>>, T>(
+        executor: &Executor,
         timeout: Duration,
-        op: &'static str,
+        op: Operation,
         fut: F,
     ) -> Result<T> {
-        tokio::time::timeout(timeout, fut).await.map_err(|_| {
-            Error::new(ErrorKind::Unexpected, "io operation timeout reached")
-                .with_operation(op)
-                .with_context("timeout", timeout.as_secs_f64().to_string())
-                .set_temporary()
-        })?
+        execute_with_timeout(
+            executor.inner(),
+            timeout,
+            op.into_static(),
+            "io operation timeout reached",
+            fut,
+        )
+        .await
+    }
+}
+
+fn timer(executor: &dyn Execute, duration: Duration) -> BoxedStaticFuture<()> {
+    executor
+        .sleep(duration)
+        .unwrap_or_else(|| Box::pin(tokio::time::sleep(duration)))
+}
+
+async fn execute_with_timeout<F: Future<Output = Result<T>>, T>(
+    executor: &dyn Execute,
+    duration: Duration,
+    operation: &'static str,
+    message: &'static str,
+    fut: F,
+) -> Result<T> {
+    let deadline = timer(executor, duration);
+    futures::pin_mut!(fut);
+    match select(fut, deadline).await {
+        Either::Left((result, _)) => result,
+        Either::Right(_) => Err(Error::new(ErrorKind::Unexpected, message)
+            .with_operation(operation)
+            .with_context("timeout", duration.as_secs_f64().to_string())
+            .set_temporary()),
     }
 }
 
 impl<R: oio::ReadStream> oio::ReadStream for TimeoutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let fut = self.inner.read();
-        Self::io_timeout(self.timeout, Operation::Read.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Read, fut).await
     }
 }
 
 impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let (rp, stream) = Self::io_timeout(
+            &self.executor,
             self.timeout,
-            Operation::Read.into_static(),
+            Operation::Read,
             self.inner.open(range),
         )
         .await?;
         Ok((
             rp,
-            Box::new(TimeoutWrapper::new(stream, self.timeout)) as Box<dyn oio::ReadStreamDyn>,
+            Box::new(TimeoutWrapper::new(
+                stream,
+                self.timeout,
+                self.executor.clone(),
+            )) as Box<dyn oio::ReadStreamDyn>,
         ))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         Self::io_timeout(
+            &self.executor,
             self.timeout,
-            Operation::Read.into_static(),
+            Operation::Read,
             self.inner.read(range),
         )
         .await
@@ -387,70 +448,70 @@ impl<R: oio::Read> oio::Read for TimeoutWrapper<R> {
 impl<R: oio::Write> oio::Write for TimeoutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let fut = self.inner.write(bs);
-        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Write, fut).await
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
         let fut = self.inner.copy_from(path, args, range);
-        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Write, fut).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Write, fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, Operation::Write.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Write, fut).await
     }
 }
 
 impl<R: oio::List> oio::List for TimeoutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, Operation::List.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::List, fut).await
     }
 }
 
 impl<R: oio::Delete> oio::Delete for TimeoutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let fut = self.inner.delete(path, args);
-        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Delete, fut).await
     }
 
     async fn close(&mut self) -> Result<()> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::Delete.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Delete, fut).await
     }
 }
 
 impl<C: oio::Copy> oio::Copy for TimeoutWrapper<C> {
     async fn next(&mut self) -> Result<Option<usize>> {
         let fut = self.inner.next();
-        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Copy, fut).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Copy, fut).await
     }
 
     async fn abort(&mut self) -> Result<()> {
         let fut = self.inner.abort();
-        Self::io_timeout(self.timeout, Operation::Copy.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Copy, fut).await
     }
 }
 
 impl<C: oio::Compose> oio::Compose for TimeoutWrapper<C> {
     async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
         let fut = self.inner.compose(path, args);
-        Self::io_timeout(self.timeout, Operation::Compose.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Compose, fut).await
     }
 
     async fn close(&mut self) -> Result<Metadata> {
         let fut = self.inner.close();
-        Self::io_timeout(self.timeout, Operation::Compose.into_static(), fut).await
+        Self::io_timeout(&self.executor, self.timeout, Operation::Compose, fut).await
     }
 }
 
@@ -661,7 +722,8 @@ mod tests {
     async fn test_delete_io_timeout() {
         use oio::Delete;
 
-        let mut deleter = TimeoutWrapper::new(MockDeleter, Duration::from_secs(1));
+        let mut deleter =
+            TimeoutWrapper::new(MockDeleter, Duration::from_secs(1), Executor::default());
 
         let res = deleter.delete("test", OpDelete::default()).await;
         assert!(res.is_err());

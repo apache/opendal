@@ -22,6 +22,7 @@ members = [
   "benches/vs_*",
   "core",
   "edge/*",
+  "executors/*",
   "examples/*",
   "fuzz",
   "http-transports/*",
@@ -45,6 +46,7 @@ version = "0.59.5"
 asyncband = { version = "0.8.0" }
 base64 = "0.23"
 bytes = "1.10"
+compio = "0.19.1"
 ctor = "1.0.7"
 cyper = { version = "0.9.0", default-features = false }
 futures = { version = "0.3", default-features = false }
@@ -87,9 +89,11 @@ all-features = true
 # configured, install the default HTTP transport. Disable this feature when the
 # application needs to install its own process-wide HTTP transport.
 auto-register-services = ["dep:ctor"]
+auto-simulate = ["opendal-core/auto-simulate"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
+  "auto-simulate",
   "http-transport-reqwest",
   "executors-tokio",
   "layers-concurrent-limit",
@@ -97,7 +101,8 @@ default = [
   "layers-retry",
   "layers-timeout",
 ]
-executors-tokio = ["opendal-core/executors-tokio"]
+executors-compio = ["dep:opendal-executor-compio"]
+executors-tokio = ["dep:opendal-executor-tokio"]
 # Enable the opt-in Cyper transport with Rustls.
 http-transport-cyper = ["http-transport-cyper-rustls"]
 http-transport-cyper-native-tls = [
@@ -263,6 +268,7 @@ required-features = ["tests"]
 [dependencies]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.59.5", default-features = false }
+opendal-executor-tokio = { path = "executors/tokio", version = "0.59.5", optional = true }
 opendal-http-transport-cyper = { path = "http-transports/cyper", version = "0.59.5", optional = true, default-features = false }
 opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.59.5", optional = true, default-features = false }
@@ -359,6 +365,9 @@ opendal-service-webdav = { path = "services/webdav", version = "0.59.5", optiona
 opendal-service-webhdfs = { path = "services/webhdfs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.59.5", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.59.5", optional = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+opendal-executor-compio = { path = "executors/compio", version = "0.59.5", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 opendal-layer-dtrace = { path = "layers/dtrace", version = "0.59.5", optional = true, default-features = false }

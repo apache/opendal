@@ -31,7 +31,9 @@ use crate::Result;
 use crate::convert::{bytes_to_jbytearray, jstring_to_string};
 use crate::error::ThrowException;
 use crate::make_metadata;
-use crate::{make_entry, make_list_options, make_stat_options, make_write_options};
+use crate::{
+    make_delete_options, make_entry, make_list_options, make_stat_options, make_write_options,
+};
 
 /// # Safety
 ///
@@ -166,21 +168,15 @@ pub unsafe extern "system" fn Java_org_apache_opendal_Operator_delete<'local>(
     _: JClass<'local>,
     op: *mut blocking::Operator,
     path: JString<'local>,
+    options: JObject<'local>,
 ) {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
-        intern_delete(env, op_ref, path)
+        let op = unsafe { &*op };
+        let path = jstring_to_string(env, &path)?;
+        let options = make_delete_options(env, &options)?;
+        Ok(op.delete_options(&path, options)?)
     })
     .resolve::<ThrowException>()
-}
-
-fn intern_delete<'local>(
-    env: &mut Env<'local>,
-    op: &mut blocking::Operator,
-    path: JString<'local>,
-) -> Result<()> {
-    let path = jstring_to_string(env, &path)?;
-    Ok(op.delete(&path)?)
 }
 
 /// # Safety

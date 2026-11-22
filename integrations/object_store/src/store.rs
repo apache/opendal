@@ -29,6 +29,7 @@ use asyncband::oneshot;
 use bytes::Bytes;
 use futures::FutureExt;
 use futures::StreamExt;
+use futures::TryFutureExt;
 use futures::TryStreamExt;
 use futures::stream::BoxStream;
 use object_store::Attribute;
@@ -40,16 +41,21 @@ use object_store::ListResult;
 use object_store::MultipartUpload;
 use object_store::ObjectMeta;
 use object_store::ObjectStore;
+use object_store::ObjectStoreExt;
 use object_store::PutMultipartOptions;
 use object_store::PutOptions;
 use object_store::PutPayload;
 use object_store::PutResult;
+use object_store::RenameOptions;
+use object_store::RenameTargetMode;
 use object_store::path::Path;
 use object_store::{GetOptions, UploadPart};
 use object_store::{GetRange, GetResultPayload};
 use object_store::{GetResult, PutMode};
 use opendal::Buffer;
 use opendal::BytesRange;
+use opendal::ErrorKind;
+use opendal::FuturesBytesStream;
 use opendal::Writer;
 use opendal::options::CopyOptions;
 use opendal::options::ReaderOptions;
@@ -64,8 +70,16 @@ const DEFAULT_GET_RANGES_GAP: usize = object_store::OBJECT_STORE_COALESCE_DEFAUL
 
 fn format_object_attributes(meta: &opendal::Metadata) -> Attributes {
     let mut attributes = Attributes::new();
-    if let Some(language) = meta.content_language() {
-        attributes.insert(Attribute::ContentLanguage, language.to_owned().into());
+    for (attribute, value) in [
+        (Attribute::CacheControl, meta.cache_control()),
+        (Attribute::ContentDisposition, meta.content_disposition()),
+        (Attribute::ContentEncoding, meta.content_encoding()),
+        (Attribute::ContentLanguage, meta.content_language()),
+        (Attribute::ContentType, meta.content_type()),
+    ] {
+        if let Some(value) = value {
+            attributes.insert(attribute, value.to_owned().into());
+        }
     }
     if let Some(user_meta) = meta.user_metadata() {
         for (key, value) in user_meta {
@@ -120,19 +134,6 @@ fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
         }
         Some(GetRange::Suffix(suffix)) if *suffix < size => (size - *suffix)..size,
         _ => 0..size,
-    }
-}
-
-fn format_without_stat_error(err: opendal::Error, path: &str) -> object_store::Error {
-    match err.kind() {
-        // Ask get_opts to fall back to the stat path when read-open can't provide
-        // enough metadata to build a valid GetResult, such as ranges beyond EOF.
-        opendal::ErrorKind::Unsupported | opendal::ErrorKind::RangeNotSatisfied => {
-            object_store::Error::NotSupported {
-                source: Box::new(err),
-            }
-        }
-        _ => format_object_store_error(err, path),
     }
 }
 
@@ -269,18 +270,91 @@ impl OpendalStore {
         self.info.as_ref()
     }
 
+    async fn format_get_error(
+        &self,
+        location: &Path,
+        options: &GetOptions,
+        err: opendal::Error,
+    ) -> object_store::Error {
+        if err.kind() == ErrorKind::ConditionNotMatch
+            && (options.if_none_match.is_some() || options.if_modified_since.is_some())
+        {
+            let not_modified =
+                if options.if_match.is_none() && options.if_unmodified_since.is_none() {
+                    true
+                } else {
+                    // OpenDAL reports both classes of failure with one error kind.
+                    // Use the current metadata to identify the failed condition
+                    // when the caller supplied both classes.
+                    let raw_location = percent_decode_path(location.as_ref());
+                    let stat_options = StatOptions {
+                        version: options.version.clone(),
+                        ..Default::default()
+                    };
+                    self.inner
+                        .stat_options(&raw_location, stat_options)
+                        .into_send()
+                        .await
+                        .is_ok_and(|metadata| {
+                            let meta = format_object_meta(location.as_ref(), &metadata);
+                            matches!(
+                                options.check_preconditions(&meta),
+                                Err(object_store::Error::NotModified { .. })
+                            )
+                        })
+                };
+            if not_modified {
+                return object_store::Error::NotModified {
+                    path: location.to_string(),
+                    source: Box::new(err),
+                };
+            }
+        }
+        format_object_store_error(err, location.as_ref())
+    }
+
+    fn get_payload(
+        &self,
+        location: &Path,
+        options: &GetOptions,
+        stream: FuturesBytesStream,
+    ) -> GetResultPayload {
+        let store = self.clone();
+        let location = location.clone();
+        let options = options.clone();
+        let stream = stream.into_send().or_else(move |err| {
+            let store = store.clone();
+            let location = location.clone();
+            let options = options.clone();
+            async move {
+                // Positioned readers can check the conditions on the first poll.
+                let err = match err.downcast::<opendal::Error>() {
+                    Ok(err) if err.kind() == ErrorKind::ConditionNotMatch => {
+                        return Err(store.format_get_error(&location, &options, err).await);
+                    }
+                    Ok(err) => io::Error::from(err),
+                    Err(err) => err,
+                };
+                Err(object_store::Error::Generic {
+                    store: "IoError",
+                    source: Box::new(err),
+                })
+            }
+        });
+        GetResultPayload::Stream(Box::pin(stream))
+    }
+
     async fn get_opts_without_stat(
         &self,
         location: &Path,
         raw_location: &str,
         options: &GetOptions,
-    ) -> object_store::Result<GetResult> {
+    ) -> opendal::Result<GetResult> {
         let reader = self
             .inner
             .reader_options(raw_location, format_reader_options(options, None))
             .into_send()
-            .await
-            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+            .await?;
 
         let mut stream = match options.range.as_ref() {
             Some(GetRange::Bounded(range)) => {
@@ -297,14 +371,9 @@ impl OpendalStore {
                     .await
             }
             None => reader.into_bytes_stream(..).into_send().await,
-        }
-        .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+        }?;
 
-        let metadata = stream
-            .metadata()
-            .into_send()
-            .await
-            .map_err(|err| format_without_stat_error(err, location.as_ref()))?;
+        let metadata = stream.metadata().into_send().await?;
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.as_ref(), &metadata);
         let read_range = format_read_range(options.range.as_ref(), meta.size);
@@ -330,24 +399,15 @@ impl OpendalStore {
                     format_reader_options(options, Some(meta.size)),
                 )
                 .into_send()
-                .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                .await?;
             stream = reader
                 .into_bytes_stream(read_range.start..read_range.end)
                 .into_send()
-                .await
-                .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                .await?;
         }
 
-        let stream = stream
-            .into_send()
-            .map_err(|err: io::Error| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            });
-
         Ok(GetResult {
-            payload: GetResultPayload::Stream(Box::pin(stream)),
+            payload: self.get_payload(location, options, stream),
             range: read_range,
             meta,
             attributes,
@@ -361,14 +421,36 @@ impl OpendalStore {
         raw_location: &str,
         options: &GetOptions,
     ) -> object_store::Result<GetResult> {
+        let capability = self.info.capability();
+        // Some services can enforce date conditions on read but do not return
+        // metadata with that read or accept these conditions on stat.
+        let check_locally = !options.head
+            && ((options.if_modified_since.is_some() && !capability.stat_with_if_modified_since)
+                || (options.if_unmodified_since.is_some()
+                    && !capability.stat_with_if_unmodified_since))
+            && (options.if_modified_since.is_none() || capability.read_with_if_modified_since)
+            && (options.if_unmodified_since.is_none() || capability.read_with_if_unmodified_since)
+            && (options.if_match.is_none() || capability.read_with_if_match)
+            && (options.if_none_match.is_none() || capability.read_with_if_none_match);
+        let stat_options = if check_locally {
+            StatOptions {
+                version: options.version.clone(),
+                ..Default::default()
+            }
+        } else {
+            format_stat_options(options)
+        };
         let metadata = self
             .inner
-            .stat_options(raw_location, format_stat_options(options))
+            .stat_options(raw_location, stat_options)
             .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
+            .await?;
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.as_ref(), &metadata);
+        if check_locally {
+            options.check_preconditions(&meta)?;
+        }
 
         if options.head {
             return Ok(GetResult {
@@ -398,21 +480,16 @@ impl OpendalStore {
                 format_reader_options(options, Some(meta.size)),
             )
             .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+            .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
+            .await?;
         let stream = reader
             .into_bytes_stream(read_range.start..read_range.end)
             .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?
-            .into_send()
-            .map_err(|err: io::Error| object_store::Error::Generic {
-                store: "IoError",
-                source: Box::new(err),
-            });
+            .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
+            .await?;
 
         Ok(GetResult {
-            payload: GetResultPayload::Stream(Box::pin(stream)),
+            payload: self.get_payload(location, options, stream),
             range: read_range,
             meta,
             attributes,
@@ -442,7 +519,12 @@ impl OpendalStore {
             .into_send()
             .await
             .map_err(|err| {
-                if if_not_exists && err.kind() == opendal::ErrorKind::AlreadyExists {
+                if if_not_exists
+                    && matches!(
+                        err.kind(),
+                        opendal::ErrorKind::AlreadyExists | opendal::ErrorKind::ConditionNotMatch
+                    )
+                {
                     object_store::Error::AlreadyExists {
                         path: to.to_string(),
                         source: Box::new(err),
@@ -517,8 +599,15 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
-        if let Some(language) = opts.attributes.get(&Attribute::ContentLanguage) {
-            future_write = future_write.content_language(language.as_ref());
+        for (attribute, value) in opts.attributes.iter() {
+            future_write = match attribute {
+                Attribute::CacheControl => future_write.cache_control(value.as_ref()),
+                Attribute::ContentDisposition => future_write.content_disposition(value.as_ref()),
+                Attribute::ContentEncoding => future_write.content_encoding(value.as_ref()),
+                Attribute::ContentLanguage => future_write.content_language(value.as_ref()),
+                Attribute::ContentType => future_write.content_type(value.as_ref()),
+                _ => future_write,
+            };
         }
         let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {
@@ -600,9 +689,16 @@ impl ObjectStore for OpendalStore {
     async fn get_opts(
         &self,
         location: &Path,
-        options: GetOptions,
+        mut options: GetOptions,
     ) -> object_store::Result<GetResult> {
         let raw_location = percent_decode_path(location.as_ref());
+        // Match GetOptions::check_preconditions when forwarding combined conditions.
+        if options.if_match.is_some() {
+            options.if_unmodified_since = None;
+        }
+        if options.if_none_match.is_some() {
+            options.if_modified_since = None;
+        }
 
         if options.head {
             return self
@@ -615,8 +711,14 @@ impl ObjectStore for OpendalStore {
             .await
         {
             Ok(result) => return Ok(result),
-            Err(object_store::Error::NotSupported { .. }) => {}
-            Err(err) => return Err(err),
+            // Read-open can omit the metadata needed for a GetResult or reject
+            // a range beyond EOF. In both cases, use stat to resolve the range.
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    ErrorKind::Unsupported | ErrorKind::RangeNotSatisfied
+                ) => {}
+            Err(err) => return Err(self.format_get_error(location, &options, err).await),
         }
 
         self.get_opts_with_stat(location, &raw_location, &options)
@@ -830,6 +932,59 @@ impl ObjectStore for OpendalStore {
         let if_not_exists = matches!(options.mode, ObjectStoreCopyMode::Create);
         self.copy_request(from, to, if_not_exists).await
     }
+
+    async fn rename_opts(
+        &self,
+        from: &Path,
+        to: &Path,
+        options: RenameOptions,
+    ) -> object_store::Result<()> {
+        let capability = self.info().capability();
+        let (supports_rename, copy_mode) = match options.target_mode {
+            RenameTargetMode::Overwrite => (capability.rename, ObjectStoreCopyMode::Overwrite),
+            RenameTargetMode::Create => (
+                capability.rename_with_if_not_exists,
+                ObjectStoreCopyMode::Create,
+            ),
+        };
+        if !supports_rename {
+            self.copy_opts(
+                from,
+                to,
+                ObjectStoreCopyOptions {
+                    mode: copy_mode,
+                    extensions: options.extensions,
+                },
+            )
+            .await?;
+            return self.delete(from).await;
+        }
+
+        let if_not_exists = options.target_mode == RenameTargetMode::Create;
+        self.inner
+            .rename_with(
+                &percent_decode_path(from.as_ref()),
+                &percent_decode_path(to.as_ref()),
+            )
+            .if_not_exists(if_not_exists)
+            .into_send()
+            .await
+            .map_err(|err| {
+                if if_not_exists
+                    && matches!(
+                        err.kind(),
+                        opendal::ErrorKind::AlreadyExists | opendal::ErrorKind::ConditionNotMatch
+                    )
+                {
+                    object_store::Error::AlreadyExists {
+                        path: to.to_string(),
+                        source: Box::new(err),
+                    }
+                } else {
+                    format_object_store_error(err, from.as_ref())
+                }
+            })
+    }
 }
 
 /// `MultipartUpload`'s impl based on `Writer` in opendal
@@ -980,11 +1135,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_content_language_round_trip() -> object_store::Result<()> {
+    async fn test_content_attributes_round_trip() -> object_store::Result<()> {
         let op = Operator::new(services::Memory::default()).unwrap();
         let store = OpendalStore::new(op);
-        let language = "fr-CA, en";
-        let attributes = Attributes::from_iter([(Attribute::ContentLanguage, language)]);
+        let attributes = Attributes::from_iter([
+            (Attribute::CacheControl, "max-age=300"),
+            (
+                Attribute::ContentDisposition,
+                "attachment; filename=hello.txt",
+            ),
+            (Attribute::ContentEncoding, "identity"),
+            (Attribute::ContentLanguage, "fr-CA, en"),
+            (Attribute::ContentType, "text/plain"),
+        ]);
         let single = Path::from("single.txt");
         let multipart = Path::from("multipart.txt");
         let body = Bytes::from_static(b"hello");
@@ -1003,33 +1166,160 @@ mod tests {
             .put_multipart_opts(
                 &multipart,
                 PutMultipartOptions {
-                    attributes,
+                    attributes: attributes.clone(),
                     ..Default::default()
                 },
             )
             .await?;
-        upload.put_part(body.clone().into()).await?;
+        upload.put_part(body.slice(..2).into()).await?;
+        upload.put_part(body.slice(2..).into()).await?;
         upload.complete().await?;
 
         for path in [single, multipart] {
             let head = store
                 .get_opts(&path, GetOptions::new().with_head(true))
                 .await?;
-            assert_eq!(
-                head.attributes
-                    .get(&Attribute::ContentLanguage)
-                    .map(AsRef::as_ref),
-                Some(language)
-            );
+            assert_eq!(head.attributes, attributes);
+            assert_eq!(head.meta.location, path);
+            assert_eq!(head.meta.size, body.len() as u64);
+            assert_eq!(store.head(&path).await?, head.meta);
+
             let get = store.get(&path).await?;
-            assert_eq!(
-                get.attributes
-                    .get(&Attribute::ContentLanguage)
-                    .map(AsRef::as_ref),
-                Some(language)
-            );
+            assert_eq!(get.attributes, attributes);
+            assert_eq!(get.meta, head.meta);
             assert_eq!(get.bytes().await?, body);
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fs_get_rechecks_date_when_reading_payload() -> anyhow::Result<()> {
+        let root =
+            std::env::temp_dir().join(format!("opendal-object-store-{}", uuid::Uuid::new_v4()));
+        let store = OpendalStore::new(Operator::new(
+            services::Fs::default().root(root.to_str().unwrap()),
+        )?);
+        let location = Path::from("object");
+        let result = async {
+            store
+                .put(&location, Bytes::from_static(b"data").into())
+                .await?;
+            let meta = store.head(&location).await?;
+            let result = store
+                .get_opts(
+                    &location,
+                    GetOptions {
+                        if_modified_since: Some(
+                            meta.last_modified - std::time::Duration::from_secs(1),
+                        ),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let file = std::fs::File::options()
+                .write(true)
+                .open(root.join("object"))?;
+            file.set_modified(std::time::SystemTime::UNIX_EPOCH)?;
+            Ok::<_, anyhow::Error>(result.bytes().await)
+        }
+        .await;
+        tokio::fs::remove_dir_all(root).await?;
+        assert!(matches!(
+            result?,
+            Err(object_store::Error::NotModified { path, .. }) if path == location.as_ref()
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_overwrite_fs() -> anyhow::Result<()> {
+        let root =
+            std::env::temp_dir().join(format!("opendal-object-store-{}", uuid::Uuid::new_v4()));
+        let op = Operator::new(services::Fs::default().root(root.to_str().unwrap()))?;
+        let store = OpendalStore::new(op);
+        let from = Path::from("source");
+        let to = Path::from("target");
+        let nested = Path::from("new/parent/a~b");
+        let source = Bytes::from_static(b"source contents");
+        store.put(&from, source.clone().into()).await?;
+        store
+            .put(&to, Bytes::from_static(b"old target").into())
+            .await?;
+        #[cfg(unix)]
+        let source_inode = {
+            use std::os::unix::fs::MetadataExt;
+            tokio::fs::metadata(root.join("source")).await?.ino()
+        };
+
+        store.rename(&from, &to).await?;
+        assert_eq!(store.get(&to).await?.bytes().await?, source);
+        assert!(matches!(
+            store.head(&from).await,
+            Err(object_store::Error::NotFound { .. })
+        ));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let target_inode = tokio::fs::metadata(root.join("target")).await?.ino();
+            assert_eq!(target_inode, source_inode);
+        }
+
+        let err = store.rename(&from, &to).await.unwrap_err();
+        assert!(matches!(err, object_store::Error::NotFound { path, .. } if path == from.as_ref()));
+        assert_eq!(store.get(&to).await?.bytes().await?, source);
+
+        store.rename(&to, &nested).await?;
+        assert_eq!(tokio::fs::read(root.join("new/parent/a~b")).await?, source);
+        tokio::fs::remove_dir_all(root).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_create_fs() -> anyhow::Result<()> {
+        let root =
+            std::env::temp_dir().join(format!("opendal-object-store-{}", uuid::Uuid::new_v4()));
+        let op = Operator::new(services::Fs::default().root(root.to_str().unwrap()))?;
+        let store = OpendalStore::new(op);
+        let from = Path::from("source");
+        let to = Path::from("target");
+        let absent = Path::from("new/parent/target");
+        let source = Bytes::from_static(b"source contents");
+        let target = Bytes::from_static(b"target contents");
+        store.put(&from, source.clone().into()).await?;
+        store.put(&to, target.clone().into()).await?;
+
+        let err = store.rename_if_not_exists(&from, &to).await.unwrap_err();
+        let native_create = store.info().capability().rename_with_if_not_exists;
+        if native_create {
+            assert!(
+                matches!(err, object_store::Error::AlreadyExists { path, .. } if path == to.as_ref())
+            );
+        } else {
+            assert!(matches!(err, object_store::Error::NotSupported { .. }));
+        }
+        assert_eq!(store.get(&from).await?.bytes().await?, source);
+        assert_eq!(store.get(&to).await?.bytes().await?, target);
+
+        let result = store.rename_if_not_exists(&from, &absent).await;
+        if native_create {
+            result?;
+            assert_eq!(store.get(&absent).await?.bytes().await?, source);
+            assert!(matches!(
+                store.head(&from).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+        } else {
+            assert!(matches!(
+                result,
+                Err(object_store::Error::NotSupported { .. })
+            ));
+            assert_eq!(store.get(&from).await?.bytes().await?, source);
+            assert!(matches!(
+                store.head(&absent).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+        }
+        tokio::fs::remove_dir_all(root).await?;
         Ok(())
     }
 

@@ -192,6 +192,16 @@ pub struct S3Config {
     /// If `role_arn` is set, we will use already known config as source
     /// credential to assume role with `role_arn`.
     ///
+    /// When `role_arn` is not set, OpenDAL also reads it from the
+    /// `AWS_ROLE_ARN` environment variable or the selected AWS profile,
+    /// unless config loading is disabled.
+    ///
+    /// A configured web identity token file takes precedence over plain
+    /// role assumption, so EKS workloads keep using
+    /// `AssumeRoleWithWebIdentity`. Profiles with `source_profile` or
+    /// `credential_source` are skipped: chaining from another profile
+    /// is not supported yet.
+    ///
     /// <!-- @group Assume role -->
     pub role_arn: Option<String>,
     /// external_id for this backend.

@@ -37,9 +37,11 @@ use reqsign_aws_v4::ECSCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::S3ExpressSessionConfig;
 use reqsign_aws_v4::S3ExpressSessionProvider;
+use reqsign_aws_v4::SharedConfig;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
+use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::ProvideCredentialDyn;
 use reqsign_core::Signer;
@@ -1155,6 +1157,19 @@ impl S3Builder {
             }
             // Use AssumeRole directly so its STS error reaches the signer.
             Arc::new(assume_role_provider)
+        } else if !config.disable_config_load {
+            // No explicit role: resolve `role_arn` from the environment or
+            // the AWS profile lazily, when credentials are first needed.
+            Arc::new(RoleArnCredentialProvider::new(
+                Arc::new(default_provider),
+                region.clone(),
+                config.profile.clone(),
+                ctx.clone(),
+                config.role_session_name.clone(),
+                config.external_id.clone(),
+                config.assume_role_duration_seconds,
+                config.assume_role_session_tags.clone(),
+            ))
         } else {
             Arc::new(default_provider)
         };
@@ -1585,6 +1600,220 @@ impl Service for S3Backend {
         )))
     }
 }
+/// Environment variables read at build time for lazy role assumption.
+///
+/// They are snapshotted while building, so the values still apply when
+/// credentials are first resolved, after the build-time environment is gone.
+#[derive(Debug, Default)]
+struct RoleArnEnv {
+    role_arn: Option<String>,
+    role_session_name: Option<String>,
+    external_id: Option<String>,
+    sts_regional_endpoints: Option<String>,
+    web_identity_token_file: Option<String>,
+    profile: Option<String>,
+    config_file: Option<String>,
+    credentials_file: Option<String>,
+}
+
+impl RoleArnEnv {
+    fn from_ctx(ctx: &Context) -> Self {
+        let var = |key: &str| ctx.env_var(key).filter(|value| !value.is_empty());
+        Self {
+            role_arn: var("AWS_ROLE_ARN"),
+            role_session_name: var("AWS_ROLE_SESSION_NAME"),
+            external_id: var("AWS_EXTERNAL_ID"),
+            sts_regional_endpoints: var("AWS_STS_REGIONAL_ENDPOINTS"),
+            web_identity_token_file: var("AWS_WEB_IDENTITY_TOKEN_FILE"),
+            profile: var("AWS_PROFILE"),
+            config_file: var("AWS_CONFIG_FILE"),
+            credentials_file: var("AWS_SHARED_CREDENTIALS_FILE"),
+        }
+    }
+}
+
+/// Assumes an S3 role from the environment or the AWS profile, lazily.
+///
+/// When no `role_arn` is set on the builder, this provider resolves it on
+/// the first credential request through `reqsign_aws_core::SharedConfig`,
+/// so file precedence and INI parsing match the default credential chain.
+/// The default chain stays the source of credentials for the STS call.
+///
+/// Plain `AssumeRole` is skipped when a web identity token file is
+/// configured, so EKS workloads keep using `AssumeRoleWithWebIdentity`
+/// through the default chain. Profiles with `source_profile` or
+/// `credential_source` are skipped as well: sourcing their credentials
+/// is not supported yet.
+struct RoleArnCredentialProvider {
+    inner: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    region: String,
+    profile: Option<String>,
+    base_ctx: Context,
+    env: RoleArnEnv,
+    role_session_name: Option<String>,
+    external_id: Option<String>,
+    duration_seconds: Option<u32>,
+    session_tags: Option<HashMap<String, String>>,
+}
+
+impl std::fmt::Debug for RoleArnCredentialProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RoleArnCredentialProvider")
+            .finish_non_exhaustive()
+    }
+}
+
+impl RoleArnCredentialProvider {
+    #[allow(clippy::too_many_arguments)]
+    fn new(
+        inner: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+        region: String,
+        profile: Option<String>,
+        base_ctx: Context,
+        role_session_name: Option<String>,
+        external_id: Option<String>,
+        duration_seconds: Option<u32>,
+        session_tags: Option<HashMap<String, String>>,
+    ) -> Self {
+        let env = RoleArnEnv::from_ctx(&base_ctx);
+        Self {
+            inner,
+            region,
+            profile,
+            base_ctx,
+            env,
+            role_session_name,
+            external_id,
+            duration_seconds,
+            session_tags,
+        }
+    }
+
+    /// Resolve the assume-role provider, or `None` to use the default chain.
+    async fn resolve_assume_role(&self, ctx: &Context) -> Option<AssumeRoleCredentialProvider> {
+        // A configured web identity takes precedence over plain AssumeRole.
+        // The default chain already handles AssumeRoleWithWebIdentity, and
+        // plain AssumeRole fails for IRSA roles that only trust it.
+        if self.env.web_identity_token_file.is_some() {
+            debug!("skip plain AssumeRole: web identity token file is configured");
+            return None;
+        }
+
+        let profile_name = self
+            .profile
+            .clone()
+            .filter(|profile| !profile.is_empty())
+            .or_else(|| self.env.profile.clone())
+            .unwrap_or_else(|| "default".to_string());
+        let shared = SharedConfig::new()
+            .with_profile(profile_name)
+            .with_config_file(
+                self.env
+                    .config_file
+                    .clone()
+                    .unwrap_or_else(|| "~/.aws/config".to_string()),
+            )
+            .with_credentials_file(
+                self.env
+                    .credentials_file
+                    .clone()
+                    .unwrap_or_else(|| "~/.aws/credentials".to_string()),
+            );
+        let profile = match shared.load(&self.base_ctx).await {
+            Ok(profile) => profile,
+            Err(err) => {
+                debug!("skip plain AssumeRole: failed to load AWS profile: {err:?}");
+                return None;
+            }
+        };
+
+        if profile
+            .get("web_identity_token_file")
+            .is_some_and(|value| !value.is_empty())
+        {
+            debug!("skip plain AssumeRole: profile sets web_identity_token_file");
+            return None;
+        }
+
+        let role_arn = match self.env.role_arn.clone() {
+            Some(role_arn) => role_arn,
+            None => {
+                // Profiles that chain from another profile are not supported.
+                if profile.get("source_profile").is_some()
+                    || profile.get("credential_source").is_some()
+                {
+                    debug!("skip plain AssumeRole: profile chains from source_profile");
+                    return None;
+                }
+                let role_arn = profile.get("role_arn")?;
+                if role_arn.is_empty() {
+                    return None;
+                }
+                role_arn.to_string()
+            }
+        };
+
+        let sts_signer = Signer::new(
+            ctx.clone(),
+            self.inner.clone(),
+            AwsV4Signer::new("sts", &self.region),
+        );
+        let mut provider = AssumeRoleCredentialProvider::new(role_arn, sts_signer)
+            .with_region(self.region.clone());
+        if self.env.sts_regional_endpoints.as_deref() == Some("regional") {
+            provider = provider.with_regional_sts_endpoint();
+        }
+        if let Some(name) = self
+            .role_session_name
+            .clone()
+            .or_else(|| self.env.role_session_name.clone())
+            .or_else(|| {
+                profile
+                    .get("role_session_name")
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            })
+        {
+            provider = provider.with_role_session_name(name);
+        }
+        if let Some(id) = self
+            .external_id
+            .clone()
+            .or_else(|| self.env.external_id.clone())
+            .or_else(|| {
+                profile
+                    .get("external_id")
+                    .filter(|value| !value.is_empty())
+                    .map(str::to_string)
+            })
+        {
+            provider = provider.with_external_id(id);
+        }
+        if let Some(seconds) = self.duration_seconds {
+            provider = provider.with_duration_seconds(seconds);
+        }
+        if let Some(tags) = &self.session_tags {
+            provider =
+                provider.with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+        }
+        Some(provider)
+    }
+}
+
+impl ProvideCredential for RoleArnCredentialProvider {
+    type Credential = Credential;
+
+    async fn provide_credential(
+        &self,
+        ctx: &Context,
+    ) -> reqsign_core::Result<Option<Self::Credential>> {
+        match self.resolve_assume_role(ctx).await {
+            Some(provider) => provider.provide_credential(ctx).await,
+            None => self.inner.provide_credential_dyn(ctx).await,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -2666,6 +2895,599 @@ mod tests {
             let source = std::error::Error::source(&err).unwrap();
             assert!(source.to_string().contains(code), "{err:?}");
         }
+    }
+
+    static ROLE_ARN_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Saves the AWS role_arn environment variables and restores them on drop.
+    struct SavedRoleArnEnv {
+        saved: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
+
+    impl SavedRoleArnEnv {
+        fn new() -> Self {
+            Self {
+                saved: [
+                    "AWS_ROLE_ARN",
+                    "AWS_ROLE_SESSION_NAME",
+                    "AWS_EXTERNAL_ID",
+                    "AWS_STS_REGIONAL_ENDPOINTS",
+                    "AWS_WEB_IDENTITY_TOKEN_FILE",
+                    "AWS_PROFILE",
+                    "AWS_CONFIG_FILE",
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                ]
+                .iter()
+                .map(|key| (*key, std::env::var_os(key)))
+                .collect(),
+            }
+        }
+
+        fn set(&self, key: &str, value: Option<&str>) {
+            match value {
+                Some(value) => unsafe { std::env::set_var(key, value) },
+                None => unsafe { std::env::remove_var(key) },
+            }
+        }
+    }
+
+    impl Drop for SavedRoleArnEnv {
+        fn drop(&mut self) {
+            for (key, value) in self.saved.drain(..) {
+                match value {
+                    Some(value) => unsafe { std::env::set_var(key, value) },
+                    None => unsafe { std::env::remove_var(key) },
+                }
+            }
+        }
+    }
+
+    /// Captures every request. STS requests get fixed AssumeRole credentials,
+    /// everything else gets an empty 200 response.
+    #[derive(Clone)]
+    struct AssumeRoleCaptureTransport {
+        requests: Arc<Mutex<Vec<CapturedRequest>>>,
+    }
+
+    impl AssumeRoleCaptureTransport {
+        fn new() -> Self {
+            Self {
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn sts_request(&self) -> Option<CapturedRequest> {
+            let requests = self.requests.lock().expect("lock poisoned");
+            requests
+                .iter()
+                .find(|request| {
+                    request
+                        .uri
+                        .host()
+                        .is_some_and(|host| host.starts_with("sts."))
+                })
+                .cloned()
+        }
+
+        fn assume_role_arn(&self) -> Option<String> {
+            let sts = self.sts_request()?;
+            let url = Url::parse(&sts.uri.to_string()).ok()?;
+            url.query_pairs()
+                .find_map(|(key, value)| (key == "RoleArn").then(|| value.into_owned()))
+        }
+
+        fn assume_role_param(&self, name: &str) -> Option<String> {
+            let sts = self.sts_request()?;
+            let url = Url::parse(&sts.uri.to_string()).ok()?;
+            url.query_pairs()
+                .find_map(|(key, value)| (key == name).then(|| value.into_owned()))
+        }
+
+        fn sts_host(&self) -> Option<String> {
+            self.sts_request()?.uri.host().map(str::to_string)
+        }
+
+        fn response(status: StatusCode, body: impl Into<Bytes>) -> Response<HttpBody> {
+            let body = Buffer::from(body.into());
+            let size = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .expect("mock response must build")
+        }
+    }
+
+    impl HttpTransport for AssumeRoleCaptureTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests
+                .lock()
+                .expect("lock poisoned")
+                .push(CapturedRequest {
+                    method: req.method().clone(),
+                    uri: req.uri().clone(),
+                    headers: req.headers().clone(),
+                });
+
+            if req
+                .uri()
+                .host()
+                .is_some_and(|host| host.starts_with("sts."))
+            {
+                return Ok(Self::response(
+                    StatusCode::OK,
+                    "<AssumeRoleResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">\
+                     <AssumeRoleResult><Credentials>\
+                     <AccessKeyId>ASIAIOSFODNN7EXAMPLE</AccessKeyId>\
+                     <SecretAccessKey>wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY</SecretAccessKey>\
+                     <SessionToken>session-token</SessionToken>\
+                     <Expiration>2035-11-09T13:34:41Z</Expiration>\
+                     </Credentials></AssumeRoleResult></AssumeRoleResponse>",
+                ));
+            }
+
+            Ok(Self::response(StatusCode::OK, Bytes::new()))
+        }
+    }
+
+    fn role_arn_operator(
+        transport: AssumeRoleCaptureTransport,
+        role_arn: Option<&str>,
+    ) -> Operator {
+        let mut builder = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .disable_ec2_metadata()
+            .access_key_id("test-access-key")
+            .secret_access_key("test-secret-key");
+        if let Some(role_arn) = role_arn {
+            builder = builder.role_arn(role_arn);
+        }
+        Operator::new(builder).unwrap().with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport)),
+        )
+    }
+
+    /// Build an operator while the given environment variables are set.
+    ///
+    /// The lock and the saved environment only cover the synchronous build.
+    /// The environment is only read while building, so the operator can be
+    /// used after they are released.
+    fn role_arn_operator_with_env(
+        transport: AssumeRoleCaptureTransport,
+        role_arn: Option<&str>,
+        vars: &[(&str, Option<&str>)],
+    ) -> Operator {
+        let _guard = ROLE_ARN_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+        let env = SavedRoleArnEnv::new();
+        for (key, value) in vars {
+            env.set(key, *value);
+        }
+        role_arn_operator(transport, role_arn)
+    }
+
+    /// Create empty config and credentials fixture files under the temp dir.
+    ///
+    /// Tests point both `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE`
+    /// at these files so the host's real `~/.aws/*` is never read.
+    fn role_arn_empty_fixture_files(
+        dir: &std::path::Path,
+    ) -> (std::path::PathBuf, std::path::PathBuf) {
+        let config_path = dir.join("config-empty");
+        let credentials_path = dir.join("credentials-empty");
+        std::fs::write(&config_path, "").unwrap();
+        std::fs::write(&credentials_path, "").unwrap();
+        (config_path, credentials_path)
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_from_env() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-env-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (config_path, credentials_path) = role_arn_empty_fixture_files(&dir);
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                (
+                    "AWS_ROLE_ARN",
+                    Some("arn:aws:iam::000000000000:role/env-role"),
+                ),
+                ("AWS_PROFILE", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/env-role")
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_from_profile_files() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("config");
+        let credentials_path = dir.join("credentials");
+        let (empty_config, empty_credentials) = role_arn_empty_fixture_files(&dir);
+
+        // The selected profile's role_arn in the config file.
+        std::fs::write(
+            &config_path,
+            "[profile dev]\nrole_arn = arn:aws:iam::000000000000:role/profile-role\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(empty_credentials.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/profile-role")
+        );
+
+        // The default profile in the config file.
+        std::fs::write(
+            &config_path,
+            "[default]\nrole_arn = arn:aws:iam::000000000000:role/default-role\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(empty_credentials.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", None),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/default-role")
+        );
+
+        // The credentials file, where the section is the bare profile name.
+        std::fs::write(
+            &credentials_path,
+            "[dev]\nrole_arn = arn:aws:iam::000000000000:role/credentials-role\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(empty_config.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/credentials-role")
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_builder_value_wins_over_env() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-builder-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (config_path, credentials_path) = role_arn_empty_fixture_files(&dir);
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            Some("arn:aws:iam::000000000000:role/builder-role"),
+            &[
+                (
+                    "AWS_ROLE_ARN",
+                    Some("arn:aws:iam::000000000000:role/env-role"),
+                ),
+                ("AWS_PROFILE", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/builder-role")
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_ignored_when_config_load_disabled() {
+        let op = {
+            let _guard = ROLE_ARN_ENV_LOCK
+                .lock()
+                .unwrap_or_else(|err| err.into_inner());
+            let env = SavedRoleArnEnv::new();
+            env.set(
+                "AWS_ROLE_ARN",
+                Some("arn:aws:iam::000000000000:role/env-role"),
+            );
+            Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key"),
+            )
+            .unwrap()
+        };
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        let url = Url::parse(&request.uri().to_string()).unwrap();
+        let credential = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "X-Amz-Credential").then(|| value.into_owned()))
+            .unwrap();
+        assert_eq!(credential.split('/').next(), Some("test-access-key"));
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_credentials_file_overrides_config() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-precedence-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("config");
+        let credentials_path = dir.join("credentials");
+        std::fs::write(
+            &config_path,
+            "[profile dev]\nrole_arn = arn:aws:iam::000000000000:role/config-role\n",
+        )
+        .unwrap();
+        std::fs::write(
+            &credentials_path,
+            "[dev]\nrole_arn = arn:aws:iam::000000000000:role/credentials-role\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/credentials-role")
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_skipped_with_web_identity_token_file() {
+        // The token file in the environment (the EKS/IRSA case).
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-web-identity-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (config_path, credentials_path) = role_arn_empty_fixture_files(&dir);
+        let token_path = dir.join("token");
+        std::fs::write(&token_path, "dummy-token").unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                (
+                    "AWS_ROLE_ARN",
+                    Some("arn:aws:iam::000000000000:role/env-role"),
+                ),
+                (
+                    "AWS_WEB_IDENTITY_TOKEN_FILE",
+                    Some(token_path.to_str().unwrap()),
+                ),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", None),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(transport.assume_role_arn(), None);
+
+        // The token file in the profile.
+        let config_path = dir.join("config");
+        std::fs::write(
+            &config_path,
+            "[profile dev]\nrole_arn = arn:aws:iam::000000000000:role/profile-role\nweb_identity_token_file = /tmp/dummy-token\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_WEB_IDENTITY_TOKEN_FILE", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(transport.assume_role_arn(), None);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_multiline_ini_value() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-multiline-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("config");
+        let (_, empty_credentials) = role_arn_empty_fixture_files(&dir);
+        // An indented multiline value before role_arn.
+        std::fs::write(
+            &config_path,
+            "[profile dev]\ncredential_process = /bin/true\n    --flag value\nrole_arn = arn:aws:iam::000000000000:role/multi-role\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(empty_credentials.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_arn().as_deref(),
+            Some("arn:aws:iam::000000000000:role/multi-role")
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_skipped_with_source_profile() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-source-profile-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let config_path = dir.join("config");
+        let (_, empty_credentials) = role_arn_empty_fixture_files(&dir);
+        std::fs::write(
+            &config_path,
+            "[profile dev]\nrole_arn = arn:aws:iam::000000000000:role/profile-role\nsource_profile = base\n",
+        )
+        .unwrap();
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(empty_credentials.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", Some("dev")),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(transport.assume_role_arn(), None);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_companion_env_vars() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-companion-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (config_path, credentials_path) = role_arn_empty_fixture_files(&dir);
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                (
+                    "AWS_ROLE_ARN",
+                    Some("arn:aws:iam::000000000000:role/env-role"),
+                ),
+                ("AWS_ROLE_SESSION_NAME", Some("env-session")),
+                ("AWS_EXTERNAL_ID", Some("env-external-id")),
+                ("AWS_STS_REGIONAL_ENDPOINTS", Some("regional")),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", None),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(
+            transport.assume_role_param("RoleSessionName").as_deref(),
+            Some("env-session")
+        );
+        assert_eq!(
+            transport.assume_role_param("ExternalId").as_deref(),
+            Some("env-external-id")
+        );
+        assert_eq!(
+            transport.sts_host().as_deref(),
+            Some("sts.us-west-2.amazonaws.com")
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[tokio::test]
+    async fn test_role_arn_empty_profile_files_are_hermetic() {
+        let dir = std::env::temp_dir().join("opendal-s3-role-arn-hermetic-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (config_path, credentials_path) = role_arn_empty_fixture_files(&dir);
+        let transport = AssumeRoleCaptureTransport::new();
+        let op = role_arn_operator_with_env(
+            transport.clone(),
+            None,
+            &[
+                ("AWS_ROLE_ARN", None),
+                ("AWS_CONFIG_FILE", Some(config_path.to_str().unwrap())),
+                (
+                    "AWS_SHARED_CREDENTIALS_FILE",
+                    Some(credentials_path.to_str().unwrap()),
+                ),
+                ("AWS_PROFILE", None),
+            ],
+        );
+        let _ = op.stat("test").await;
+        assert_eq!(transport.assume_role_arn(), None);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[tokio::test]

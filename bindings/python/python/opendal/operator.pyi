@@ -30,6 +30,8 @@ from .options import OpenKwargs
 from .services import Scheme
 from .types import Entry, Metadata, PresignedRequest
 
+__all__ = ["AsyncOperator", "Operator"]
+
 @final
 class AsyncOperator:
     """

@@ -17,6 +17,8 @@
 
 from typing import final
 
+__all__ = ["Capability"]
+
 @final
 class Capability:
     """

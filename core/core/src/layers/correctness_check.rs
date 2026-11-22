@@ -70,6 +70,38 @@ pub(crate) fn new_unsupported_error(scheme: &'static str, op: Operation, args: &
     .with_operation(op)
 }
 
+// `Operator` runs this check against the effective capability: this layer sits
+// below user layers, so it would miss a `CapabilityOverrideLayer` either way.
+pub(crate) fn check_copy_metadata_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpCopy,
+) -> Result<()> {
+    if args.user_metadata().is_some() && !capability.copy_with_user_metadata {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "user_metadata",
+        ));
+    }
+    if args.content_type().is_some() && !capability.copy_with_content_type {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_type",
+        ));
+    }
+    if args.content_language().is_some() && !capability.copy_with_content_language {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_language",
+        ));
+    }
+
+    Ok(())
+}
+
 fn check_delete_args(scheme: &'static str, capability: Capability, args: &OpDelete) -> Result<()> {
     if args.version().is_some() && !capability.delete_with_version {
         return Err(new_unsupported_error(scheme, Operation::Delete, "version"));
@@ -1009,6 +1041,60 @@ mod tests {
         .content_type("text/plain")
         .await
         .expect("supported compose options must be forwarded");
+    }
+
+    #[tokio::test]
+    async fn test_copy_with_metadata_replacement() {
+        let op = new_test_operator(Capability {
+            copy: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .copy_with("from", "to")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .await
+            .expect_err("user metadata must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .copy_with("from", "to")
+            .content_type("text/plain")
+            .await
+            .expect_err("content type must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .copy_with("from", "to")
+            .content_language("en")
+            .await
+            .expect_err("content language must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            copy: true,
+            copy_with_user_metadata: true,
+            copy_with_content_type: true,
+            copy_with_content_language: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .copy("same", "same")
+            .await
+            .expect_err("a plain copy onto itself must fail");
+        assert_eq!(err.kind(), ErrorKind::IsSameFile);
+
+        op.copy_with("same", "same")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_type("text/plain")
+            .await
+            .expect("replacing metadata in place must be forwarded");
+
+        op.copy_with("same", "same")
+            .content_language("en")
+            .await
+            .expect("replacing content language in place must be forwarded");
     }
 
     #[tokio::test]

@@ -85,6 +85,9 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithIfVersionMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithIfVersionNotMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithSourceVersion;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithUserMetadata;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithContentType;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithContentLanguage;
     [MarshalAs(UnmanagedType.U1)] internal byte copyCanMulti;
     internal nuint copyMultiMaxSize;
     internal nuint copyMultiMinSize;

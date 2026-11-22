@@ -148,6 +148,12 @@ pub struct Capability {
     pub copy_with_if_version_not_match: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
+    /// Indicates if copy operations can replace the destination's user metadata.
+    pub copy_with_user_metadata: bool,
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    pub copy_with_content_type: bool,
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    pub copy_with_content_language: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.
@@ -279,6 +285,9 @@ impl Capability {
             copy_with_if_version_match: cap.copy_with_if_version_match,
             copy_with_if_version_not_match: cap.copy_with_if_version_not_match,
             copy_with_source_version: cap.copy_with_source_version,
+            copy_with_user_metadata: cap.copy_with_user_metadata,
+            copy_with_content_type: cap.copy_with_content_type,
+            copy_with_content_language: cap.copy_with_content_language,
             copy_can_multi: cap.copy_can_multi,
             copy_multi_max_size: cap.copy_multi_max_size.unwrap_or(usize::MAX),
             copy_multi_min_size: cap.copy_multi_min_size.unwrap_or(usize::MAX),

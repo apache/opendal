@@ -518,6 +518,12 @@ pub struct OpendalCopyOptions {
     pub if_version_not_match: *const c_char,
     pub if_not_changed: *const OpendalMetadata,
     pub source_version: *const c_char,
+    pub user_metadata_has_value: u8,
+    pub user_metadata_keys: *const *const c_char,
+    pub user_metadata_values: *const *const c_char,
+    pub user_metadata_len: usize,
+    pub content_type: *const c_char,
+    pub content_language: *const c_char,
     pub source_content_length_hint_has_value: u8,
     pub source_content_length_hint: u64,
     pub concurrent: usize,
@@ -538,6 +544,15 @@ impl NativeOptions for OpendalCopyOptions {
             borrowed_string(self.if_version_not_match, "if_version_not_match")?;
         options.if_not_changed = borrowed_metadata(self.if_not_changed)?;
         options.source_version = borrowed_string(self.source_version, "source_version")?;
+        options.user_metadata = borrowed_string_pairs(
+            self.user_metadata_has_value,
+            self.user_metadata_keys,
+            self.user_metadata_values,
+            self.user_metadata_len,
+            "user_metadata",
+        )?;
+        options.content_type = borrowed_string(self.content_type, "content_type")?;
+        options.content_language = borrowed_string(self.content_language, "content_language")?;
         options.source_content_length_hint = (self.source_content_length_hint_has_value != 0)
             .then_some(self.source_content_length_hint);
         validate_positive_integer(self.concurrent, "copy concurrent")?;
@@ -563,6 +578,12 @@ impl Default for OpendalCopyOptions {
             if_version_not_match: std::ptr::null(),
             if_not_changed: std::ptr::null(),
             source_version: std::ptr::null(),
+            user_metadata_has_value: 0,
+            user_metadata_keys: std::ptr::null(),
+            user_metadata_values: std::ptr::null(),
+            user_metadata_len: 0,
+            content_type: std::ptr::null(),
+            content_language: std::ptr::null(),
             source_content_length_hint_has_value: 0,
             source_content_length_hint: 0,
             concurrent: 1,

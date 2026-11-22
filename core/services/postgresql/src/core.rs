@@ -153,9 +153,17 @@ impl PostgresqlCore {
         Ok(MetadataBuilder::file(length as u64).build())
     }
 
-    pub async fn rename(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
         let pool = self.get_client().await?;
-        let mut tx = pool.begin().await.map_err(parse_postgres_error)?;
+        let mut tx = if if_not_exists {
+            // A competing destination may commit after the rename statement starts.
+            // Read Committed lets the conflict check see that row in a fresh snapshot.
+            pool.begin_with("BEGIN ISOLATION LEVEL READ COMMITTED")
+                .await
+        } else {
+            pool.begin().await
+        }
+        .map_err(parse_postgres_error)?;
 
         let table = &self.table;
         let key_field = &self.key_field;
@@ -169,12 +177,14 @@ impl PostgresqlCore {
                         SELECT $2, {value_field} FROM moved
                         ON CONFLICT ({key_field})
                             DO UPDATE SET {value_field} = EXCLUDED.{value_field}
+                            WHERE NOT $3
                         RETURNING 1
                 )
                 SELECT EXISTS (SELECT 1 FROM moved), EXISTS (SELECT 1 FROM written)",
             )))
             .bind(from)
             .bind(to)
+            .bind(if_not_exists)
             .fetch_one(&mut *tx)
             .await
             .map_err(parse_postgres_error)?;
@@ -185,11 +195,29 @@ impl PostgresqlCore {
                 "kv not found in postgresql",
             ));
         }
-        // A trigger can skip the destination write without raising an error.
-        // Commit the source deletion only after confirming the write took effect.
         if !destination_written {
+            let error = if if_not_exists {
+                // ON CONFLICT locks the destination even when its WHERE clause
+                // rejects the update. If the destination is absent, a trigger
+                // may have skipped the write.
+                let destination_exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT EXISTS (SELECT 1 FROM {table} WHERE {key_field} = $1)",
+                )))
+                .bind(to)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(parse_postgres_error)?;
+                if destination_exists {
+                    ErrorKind::ConditionNotMatch
+                } else {
+                    ErrorKind::Unexpected
+                }
+            } else {
+                ErrorKind::Unexpected
+            };
+            tx.rollback().await.map_err(parse_postgres_error)?;
             return Err(Error::new(
-                ErrorKind::Unexpected,
+                error,
                 "postgresql rename did not write the destination",
             ));
         }

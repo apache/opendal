@@ -54,8 +54,8 @@ impl FsBuilder {
     ///
     /// # Notes
     ///
-    /// - When append is enabled, we will not use atomic write
-    ///   to avoid data loss and performance issue.
+    /// - Append to an existing file normally writes directly to the file.
+    /// - Writes with `if_not_exists` require Linux support for `RENAME_NOREPLACE`.
     pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         if !dir.is_empty() {
             self.config.atomic_write_dir = Some(dir.to_string());
@@ -161,7 +161,8 @@ impl Builder for FsBuilder {
                     write_can_empty: true,
                     write_can_append: !direct_io,
                     write_can_multi: true,
-                    write_with_if_not_exists: true,
+                    write_with_if_not_exists: atomic_write_dir.is_none()
+                        || cfg!(target_os = "linux"),
                     #[cfg(unix)]
                     write_with_user_metadata: true,
 
@@ -241,6 +242,13 @@ impl Service for FsBackend {
             return Err(Error::new(
                 ErrorKind::Unsupported,
                 "append is not supported with direct_io",
+            ));
+        }
+
+        if op.if_not_exists() && !self.core.capability.write_with_if_not_exists {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "if_not_exists with atomic_write_dir is only supported on Linux",
             ));
         }
 

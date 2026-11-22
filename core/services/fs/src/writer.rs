@@ -27,6 +27,8 @@ use bytes::Buf;
 use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
+#[cfg(target_os = "linux")]
+use super::core::rename_noreplace;
 use super::core::{ErrorContext, FsCore, parse_error};
 #[cfg(target_os = "linux")]
 use super::direct_io::DirectIoAlignment;
@@ -152,8 +154,10 @@ impl DirectWriteBuffer {
 
 pub struct FsWriter {
     target_path: PathBuf,
-    /// The temp_path is used to specify whether we should move to target_path after the file has been closed.
+    /// The staging path for a write that publishes the file on close.
     temp_path: Option<PathBuf>,
+    #[cfg(target_os = "linux")]
+    if_not_exists: bool,
     f: tokio::fs::File,
     #[cfg(target_os = "linux")]
     direct_io: Option<DirectIoAlignment>,
@@ -176,17 +180,13 @@ impl FsWriter {
 
         let mut temp_path = None;
         if let Some(atomic_write_dir) = &core.atomic_write_dir {
-            let exists = tokio::fs::try_exists(&target_path)
-                .await
-                .map_err(new_std_io_error)?;
-            if op.if_not_exists() && exists {
-                return Err(Error::new(
-                    ErrorKind::ConditionNotMatch,
-                    "file already exists, doesn't match the condition if_not_exists",
-                ));
-            }
-            // Append to an existing file in place even with atomic writes enabled.
-            if !(op.append() && exists) {
+            // Only an unconditional append may write to an existing file in place.
+            let append_in_place = op.append()
+                && !op.if_not_exists()
+                && tokio::fs::try_exists(&target_path)
+                    .await
+                    .map_err(new_std_io_error)?;
+            if !append_in_place {
                 temp_path = Some(
                     core.ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
                         .await?,
@@ -227,6 +227,7 @@ impl FsWriter {
             return Ok(Self {
                 target_path,
                 temp_path,
+                if_not_exists: op.if_not_exists(),
                 f: tokio::fs::File::from_std(f),
                 direct_io: Some(alignment),
                 #[cfg(unix)]
@@ -242,12 +243,45 @@ impl FsWriter {
         Ok(Self {
             target_path,
             temp_path,
+            #[cfg(target_os = "linux")]
+            if_not_exists: op.if_not_exists(),
             f,
             #[cfg(target_os = "linux")]
             direct_io: None,
             #[cfg(unix)]
             user_metadata,
         })
+    }
+
+    async fn commit_staged_file(&self) -> Result<()> {
+        let Some(temp_path) = &self.temp_path else {
+            return Ok(());
+        };
+
+        #[cfg(target_os = "linux")]
+        if self.if_not_exists {
+            let temp_path = temp_path.clone();
+            let target_path = self.target_path.clone();
+            return tokio::task::spawn_blocking(move || {
+                rename_noreplace(&temp_path, &target_path).map_err(|err| {
+                    // The staged file is discarded, so this close cannot be retried.
+                    let err = err.set_permanent();
+                    match std::fs::remove_file(&temp_path) {
+                        Ok(()) => err,
+                        Err(cleanup_err) if cleanup_err.kind() == std::io::ErrorKind::NotFound => {
+                            err
+                        }
+                        Err(cleanup_err) => err.with_context("staging_cleanup", cleanup_err),
+                    }
+                })
+            })
+            .await
+            .map_err(new_task_join_error)?;
+        }
+
+        tokio::fs::rename(temp_path, &self.target_path)
+            .await
+            .map_err(new_std_io_error)
     }
 }
 
@@ -270,11 +304,7 @@ impl oio::Write for FsWriter {
         self.f.flush().await.map_err(new_std_io_error)?;
         self.f.sync_all().await.map_err(new_std_io_error)?;
 
-        if let Some(temp_path) = &self.temp_path {
-            tokio::fs::rename(temp_path, &self.target_path)
-                .await
-                .map_err(new_std_io_error)?;
-        }
+        self.commit_staged_file().await?;
 
         // Write user metadata to xattr on Unix systems.
         #[cfg(unix)]
@@ -355,11 +385,7 @@ impl oio::PositionWrite for FsWriter {
         f.flush().map_err(new_std_io_error)?;
         f.sync_all().map_err(new_std_io_error)?;
 
-        if let Some(temp_path) = &self.temp_path {
-            tokio::fs::rename(temp_path, &self.target_path)
-                .await
-                .map_err(new_std_io_error)?;
-        }
+        self.commit_staged_file().await?;
 
         // Write user metadata to xattr on Unix systems.
         #[cfg(unix)]

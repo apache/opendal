@@ -57,7 +57,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # params must be in sync with `test` job
           node-version: "20"
@@ -101,7 +101,7 @@ jobs:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # params must be in sync with `node-cache` job
           node-version: "20"

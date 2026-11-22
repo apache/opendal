@@ -97,7 +97,7 @@ runs:
     - name: Cache Protoc
       if: inputs.need-protoc == 'true'
       id: cache-protoc
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       with:
         path: ${{ runner.temp }}/protoc/${{ env.PROTOC_VERSION }}
         key: protoc-${{ env.PROTOC_VERSION }}-${{ runner.os }}-${{ runner.arch }}
@@ -160,7 +160,7 @@ runs:
 
     - name: Cache rocksdb
       id: cache-rocksdb
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       if: runner.os == 'Linux' && inputs.need-rocksdb == 'true'
       with:
         path: /tmp/rocksdb
@@ -187,7 +187,7 @@ runs:
 
     - name: Cache foundationdb
       id: cache-foundationdb
-      uses: actions/cache@v5
+      uses: actions/cache@v6
       if: runner.os == 'Linux' && inputs.need-foundationdb == 'true'
       with:
         path: /etc/foundationdb

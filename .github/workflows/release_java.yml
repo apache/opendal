@@ -64,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up JDK 8
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: "8"
@@ -74,7 +74,7 @@ jobs:
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ github.event_name != 'pull_request' && secrets.GPG_SECRET_KEY || '' }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Setup Rust toolchain
@@ -209,7 +209,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up JDK 8
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: "8"
@@ -219,7 +219,7 @@ jobs:
           server-password: MAVEN_CENTRAL_TOKEN
           gpg-private-key: ${{ github.event_name != 'pull_request' && secrets.GPG_SECRET_KEY || '' }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Download platform JARs
@@ -306,7 +306,7 @@ jobs:
           repository: apache/opendal
           ref: ${{ github.ref }}
       - name: Set up JDK 8
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: "8"

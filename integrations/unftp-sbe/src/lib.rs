@@ -62,6 +62,7 @@ use opendal::Operator;
 use unftp_core::auth::UserDetail;
 use unftp_core::storage::{self, Error, StorageBackend};
 
+use futures::StreamExt;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
@@ -342,28 +343,40 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
                 format!("{directory} is not a directory"),
             )),
-            Err(e) => {
+            Err(e) if matches!(e.kind(), NotFound | NotADirectory | Unsupported) => {
                 // Object stores can serve implicit prefix directories that
                 // have no directory entry of their own; probing needs the
-                // list capability.
+                // list capability. The probe only reads the first entry.
                 if !self.op.info().capability().list {
                     return Err(Error::new(
                         storage::ErrorKind::PermanentDirectoryNotAvailable,
                         e,
                     ));
                 }
-                match self.op.list(&directory).await {
-                    Ok(entries) if !entries.is_empty() => Ok(()),
-                    Ok(_) => Err(Error::new(
-                        storage::ErrorKind::PermanentDirectoryNotAvailable,
-                        e,
-                    )),
+                match self.op.lister(&directory).await {
+                    Ok(mut entries) => match entries.next().await {
+                        Some(Ok(_)) => Ok(()),
+                        Some(Err(e))
+                            if matches!(e.kind(), NotFound | NotADirectory | Unsupported) =>
+                        {
+                            Err(Error::new(
+                                storage::ErrorKind::PermanentDirectoryNotAvailable,
+                                e,
+                            ))
+                        }
+                        Some(Err(e)) => Err(convert_err(e)),
+                        None => Err(Error::new(
+                            storage::ErrorKind::PermanentDirectoryNotAvailable,
+                            e,
+                        )),
+                    },
                     Err(e) if matches!(e.kind(), NotFound | NotADirectory | Unsupported) => Err(
                         Error::new(storage::ErrorKind::PermanentDirectoryNotAvailable, e),
                     ),
                     Err(e) => Err(convert_err(e)),
                 }
             }
+            Err(e) => Err(convert_err(e)),
         }
     }
 }

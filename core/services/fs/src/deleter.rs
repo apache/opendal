@@ -41,7 +41,7 @@ impl oio::OneShotDelete for FsDeleter {
         // the prefix: the entry itself and every sibling sharing its final
         // component. A trailing slash limits deletion to that directory.
         if args.recursive() && !path.ends_with('/') {
-            return self.delete_by_prefix(&p).await;
+            return self.delete_by_prefix(&path).await;
         }
 
         let file_type = match tokio::fs::symlink_metadata(&p).await {
@@ -72,41 +72,57 @@ impl oio::OneShotDelete for FsDeleter {
             }
         }
 
-        #[cfg(windows)]
-        let remove_as_dir = is_dir || file_type.is_symlink_dir();
-        #[cfg(not(windows))]
-        let remove_as_dir = is_dir;
+        remove_entry(&p, file_type, args.recursive()).await
+    }
+}
 
-        let result = if is_dir && args.recursive() {
-            tokio::fs::remove_dir_all(&p).await
-        } else if remove_as_dir {
-            tokio::fs::remove_dir(&p).await
-        } else {
-            tokio::fs::remove_file(&p).await
-        };
-        match result {
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            result => result.map_err(new_std_io_error),
-        }
+/// Remove one filesystem entry with the given file type.
+///
+/// Directories are removed recursively when `recursive` is set, and with
+/// `remove_dir` otherwise. On Windows, directory symlinks and junctions
+/// are removed with `remove_dir`, never followed. A missing entry is a
+/// no-op, so a concurrent delete keeps the operation idempotent.
+async fn remove_entry(
+    path: &std::path::Path,
+    file_type: std::fs::FileType,
+    recursive: bool,
+) -> Result<()> {
+    let is_dir = file_type.is_dir();
+
+    #[cfg(windows)]
+    let remove_as_dir = is_dir || file_type.is_symlink_dir();
+    #[cfg(not(windows))]
+    let remove_as_dir = is_dir;
+
+    let result = if is_dir && recursive {
+        tokio::fs::remove_dir_all(path).await
+    } else if remove_as_dir {
+        tokio::fs::remove_dir(path).await
+    } else {
+        tokio::fs::remove_file(path).await
+    };
+    match result {
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        result => result.map_err(new_std_io_error),
     }
 }
 
 impl FsDeleter {
-    /// Delete the entry at `p` and every sibling entry whose name starts
-    /// with `p`'s final component.
-    async fn delete_by_prefix(&self, p: &std::path::Path) -> Result<()> {
-        let Some(file_name) = p.file_name() else {
-            // No final component: fall back to removing the directory tree.
-            return match tokio::fs::remove_dir_all(p).await {
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-                result => result.map_err(new_std_io_error),
-            };
-        };
-        let prefix = file_name.as_encoded_bytes();
-        let Some(parent) = p.parent() else {
+    /// Delete the entry at `path` and every sibling entry whose name starts
+    /// with `path`'s final component.
+    ///
+    /// The prefix and parent come from the relative OpenDAL path, and the
+    /// parent is resolved with `root_join`, so enumeration stays inside the
+    /// configured root. A path without a final component deletes nothing:
+    /// the root itself is never removed here.
+    async fn delete_by_prefix(&self, path: &str) -> Result<()> {
+        let prefix = get_basename(path);
+        if prefix.is_empty() {
             return Ok(());
-        };
-        let mut entries = match tokio::fs::read_dir(parent).await {
+        }
+        let parent = self.core.root_join(get_parent(path))?;
+        let prefix = prefix.as_bytes();
+        let mut entries = match tokio::fs::read_dir(&parent).await {
             Ok(entries) => entries,
             // No parent directory means no siblings to remove.
             Err(err)
@@ -123,16 +139,13 @@ impl FsDeleter {
             }
             // file_type does not follow symlinks, so a link to a directory
             // is removed as a link, never followed.
-            let file_type = entry.file_type().await.map_err(new_std_io_error)?;
-            let result = if file_type.is_dir() {
-                tokio::fs::remove_dir_all(entry.path()).await
-            } else {
-                tokio::fs::remove_file(entry.path()).await
+            let file_type = match entry.file_type().await {
+                Ok(file_type) => file_type,
+                // A concurrent delete may remove the entry first.
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(err) => return Err(new_std_io_error(err)),
             };
-            match result {
-                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
-                result => result.map_err(new_std_io_error)?,
-            }
+            remove_entry(&entry.path(), file_type, true).await?;
         }
         Ok(())
     }

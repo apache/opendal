@@ -504,6 +504,27 @@ pub async fn test_delete_with_recursive_no_trailing_slash_matches_prefix(
         }
     }
 
+    // Recursive delete without a trailing slash matches the prefix only on
+    // services that guarantee prefix matching. HDFS, Azure Data Lake,
+    // Google Drive, and OPFS delete only the named path tree, so siblings
+    // sharing the prefix would remain there.
+    #[cfg(feature = "services-hdfs")]
+    if op.info().scheme() == services::HDFS_SCHEME {
+        return Ok(());
+    }
+    #[cfg(feature = "services-azdls")]
+    if op.info().scheme() == services::AZDLS_SCHEME {
+        return Ok(());
+    }
+    #[cfg(feature = "services-gdrive")]
+    if op.info().scheme() == services::GDRIVE_SCHEME {
+        return Ok(());
+    }
+    #[cfg(feature = "services-opfs")]
+    if op.info().scheme() == services::OPFS_SCHEME {
+        return Ok(());
+    }
+
     let base = format!("delete_recursive_prefix_{}/", uuid::Uuid::new_v4());
 
     let files = [

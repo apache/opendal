@@ -1,7 +1,9 @@
 # Apache OpenDAL™ OpenTelemetry Trace Layer
 
 `opendal-layer-oteltrace` traces supported OpenDAL operations with
-OpenTelemetry's global tracer provider.
+OpenTelemetry's global tracer provider. It also traces outbound HTTP requests
+through response body polling and propagates the active OpenTelemetry context
+into spawned tasks.
 
 ## Use through `opendal`
 

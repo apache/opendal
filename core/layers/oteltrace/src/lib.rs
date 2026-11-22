@@ -28,20 +28,27 @@ use opentelemetry::KeyValue;
 use opentelemetry::global;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
+use opentelemetry::trace::SpanKind;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
+
+#[cfg(test)]
+mod tests;
 
 /// `OtelTraceLayer` traces OpenDAL operations with
 /// [OpenTelemetry](https://docs.rs/opentelemetry/latest/opentelemetry/trace/index.html).
 ///
 /// The layer obtains the `opendal` tracer from OpenTelemetry's global tracer
-/// provider. Applications must install and configure that provider before
-/// issuing operations.
+/// provider. Applications must install that provider before issuing operations.
 ///
 /// The layer creates spans for service metadata, create, read, write, copy,
-/// rename, stat, list, and presign calls. It carries read, write, and list
-/// contexts into their stateful I/O bodies. Delete calls currently pass through
-/// without creating a span.
+/// rename, restore, stat, list, and presign calls. It carries read, write, and
+/// list contexts into their stateful I/O bodies. Delete calls currently pass
+/// through without creating an operation span.
+///
+/// The layer also creates a client span for each outbound HTTP request and
+/// keeps it active while polling the response body. Tasks spawned through the
+/// OpenDAL executor inherit the OpenTelemetry context active at submission.
 ///
 /// # Examples
 ///
@@ -74,11 +81,54 @@ impl Layer for OtelTraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
         Arc::new(self.layer(inner))
     }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(OtelTraceHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        let executor = Executor::with(OtelTraceExecutor {
+            inner: inner.executor().clone().into_inner(),
+        });
+
+        inner.with_http_transport(transport).with_executor(executor)
+    }
 }
 
 impl OtelTraceLayer {
     fn layer(&self, inner: Servicer) -> OtelTraceService {
         OtelTraceService { inner }
+    }
+}
+
+struct OtelTraceHttpTransport {
+    inner: HttpTransporter,
+}
+
+impl HttpTransport for OtelTraceHttpTransport {
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let tracer = global::tracer("opendal");
+        let span = tracer
+            .span_builder("http::fetch")
+            .with_kind(SpanKind::Client)
+            .start(&tracer);
+        let cx = TraceContext::current_with_span(span);
+        let response = self.inner.fetch(req).with_context(cx.clone()).await?;
+
+        Ok(response.map(|body| body.map_inner(|stream| Box::new(stream.with_context(cx)))))
+    }
+}
+
+struct OtelTraceExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl Execute for OtelTraceExecutor {
+    fn execute(&self, task: BoxedStaticFuture<()>) {
+        self.inner.execute(Box::pin(task.with_current_context()));
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
     }
 }
 

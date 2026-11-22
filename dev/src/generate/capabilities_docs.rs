@@ -1158,9 +1158,7 @@ mod tests {
         );
         assert_eq!(
             fs_srv.native.get("write_with_if_not_exists"),
-            Some(&NativeBoolDoc::Conditional(
-                "When `atomic_write_dir` is not set or on Linux".to_string()
-            ))
+            Some(&NativeBoolDoc::Supported(true))
         );
         assert_eq!(
             fs_srv.native.get("write_with_user_metadata"),

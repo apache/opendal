@@ -48,7 +48,7 @@ sha2 = { version = "0.11.0" }
 syn = { version = "2.0.91", features = ["visit", "full", "extra-traits"] }
 tar = { version = "0.4.43" }
 toml_edit = { version = "0.25.11", features = ["serde"] }
-tonic-prost-build = "=0.14.5"
+tonic-prost-build = "=0.14.6"
 which = { version = "8.0.2" }
 
 [dev-dependencies]

@@ -411,6 +411,14 @@ export default function ServicePage({ data }) {
               </Link>
             </div>
 
+            <p className={styles.hint}>
+              Entries reflect native capabilities declared by the{" "}
+              <code>{service.scheme}</code> backend. Language bindings expose
+              different subsets of options and may simulate operations
+              client-side, and protocol-compatible endpoints may support only a
+              subset of the declared features.
+            </p>
+
             <div className={styles.serviceCapControls}>
               <label className={styles.layerToggle}>
                 <input

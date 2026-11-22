@@ -249,7 +249,7 @@
       "short": "can_copy_from",
       "group": "write",
       "kind": "bool",
-      "doc": "Indicates if a non-append writer can natively copy source ranges into an in-progress write. `Writer::copy_from` remains available through streaming fallback when false or when appending."
+      "doc": "Indicates if a non-append writer can natively copy source ranges into an in-progress write."
     },
     {
       "name": "write_with_content_type",

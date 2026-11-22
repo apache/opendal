@@ -580,12 +580,14 @@ export default function CapabilitiesPage({ data }) {
             <li>
               <strong>Native declarations vs. client-side fallbacks:</strong>{" "}
               Columns reflect native backend support. For example,{" "}
-              <code>list_with_recursive</code> indicates single-call prefix
-              recursion supported by the backend itself. Depending on the
-              operator setup and language binding, OpenDAL can also simulate
-              operations such as suffix byte-range reads, nested directory
-              traversal for recursive listing or deletion, and empty directory
-              markers on top of primitive operations.
+              <code>list_with_recursive</code> indicates native prefix or
+              recursive listing supported by the backend itself (which may still
+              paginate across requests), rather than client-side
+              directory-by-directory traversal. Depending on the operator setup
+              and language binding, OpenDAL can also simulate operations such as
+              suffix byte-range reads, nested directory traversal for recursive
+              listing or deletion, and empty directory markers on top of
+              primitive operations.
             </li>
             <li>
               <strong>Language binding surface:</strong> Each binding exposes

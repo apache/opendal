@@ -168,6 +168,13 @@ enum EvalLimit {
     UsizeMax,
 }
 
+#[derive(Debug, Default)]
+struct RawLimit {
+    v64: Option<EvalLimit>,
+    v32: Option<EvalLimit>,
+    platform_cond: Option<String>,
+}
+
 pub fn generate(workspace_dir: &Path, services: &Services) -> Result<()> {
     let output = extract_all(workspace_dir, services)?;
 
@@ -252,14 +259,27 @@ fn build_field_doc(field: &CapabilityField) -> CapabilityFieldDoc {
         "bytes"
     };
 
+    // Strip trailing sentences that reference Rust-only `Type::method` APIs
+    // (such as `Writer::copy_from`) so cross-language pages stay binding-neutral.
+    let doc = sanitize_website_doc(&field.doc);
+
     CapabilityFieldDoc {
         summary: SUMMARY_FIELDS.contains(&field.name.as_str()),
         name: field.name.clone(),
         short,
         group,
         kind,
-        doc: field.doc.clone(),
+        doc,
     }
+}
+
+fn sanitize_website_doc(doc: &str) -> String {
+    let kept: Vec<&str> = doc
+        .split_inclusive(". ")
+        .map(str::trim)
+        .filter(|sentence| !sentence.contains("::"))
+        .collect();
+    kept.join(" ")
 }
 
 fn extract_service_capability(
@@ -301,7 +321,7 @@ fn parse_capability_literal(
     let mut seen_64 = HashSet::new();
     let mut seen_32 = HashSet::new();
     let mut native = BTreeMap::new();
-    let mut limits = BTreeMap::new();
+    let mut raw_limits: BTreeMap<String, RawLimit> = BTreeMap::new();
 
     for fv in &expr_struct.fields {
         let Member::Named(ident) = &fv.member else {
@@ -343,19 +363,29 @@ fn parse_capability_literal(
                 native.insert(field_name, doc);
             }
         } else {
-            let v64 = if ptr_cfg != Some(false) {
-                eval_limit_branch(&fv.expr, true, rel_path, consts)?
-            } else {
-                None
-            };
-            let v32 = if ptr_cfg != Some(true) {
-                eval_limit_branch(&fv.expr, false, rel_path, consts)?
-            } else {
-                None
-            };
-            if let Some(limit) = build_limit_doc(&field_name, v64, v32, platform_cond) {
-                limits.insert(field_name, limit);
+            if ptr_cfg.is_some() && platform_cond.is_some() {
+                bail!(
+                    "{}: combining platform and pointer-width #[cfg] on limit `{field_name}` is unsupported",
+                    loc(rel_path, fv.span())
+                );
             }
+            let entry = raw_limits.entry(field_name).or_default();
+            if ptr_cfg != Some(false) {
+                entry.v64 = eval_limit_branch(&fv.expr, true, rel_path, consts)?;
+            }
+            if ptr_cfg != Some(true) {
+                entry.v32 = eval_limit_branch(&fv.expr, false, rel_path, consts)?;
+            }
+            if let Some(cond) = platform_cond {
+                entry.platform_cond = Some(cond);
+            }
+        }
+    }
+
+    let mut limits = BTreeMap::new();
+    for (field_name, raw) in raw_limits {
+        if let Some(limit) = build_limit_doc(&field_name, raw.v64, raw.v32, raw.platform_cond) {
+            limits.insert(field_name, limit);
         }
     }
 
@@ -1055,6 +1085,14 @@ mod tests {
         let out = extract_all(&workspace, &services).expect("all service capabilities must parse");
         assert_eq!(out.services.len(), services.len());
         assert!(out.fields.len() >= 96);
+        for f in &out.fields {
+            assert!(
+                !f.doc.contains("::"),
+                "field `{}` doc leaked Rust path syntax: {}",
+                f.name,
+                f.doc
+            );
+        }
 
         let s3 = out.services.iter().find(|s| s.scheme == "s3").unwrap();
         assert_eq!(s3.native.get("read"), Some(&NativeBoolDoc::Supported(true)));
@@ -1198,5 +1236,43 @@ mod tests {
         let msg = err.to_string();
         assert!(msg.contains("core/services/mock/src/core.rs:2"), "{msg}");
         assert!(msg.contains("duplicate usize constant `LIMIT`"), "{msg}");
+    }
+
+    #[test]
+    fn test_merges_complementary_cfg_limit_fields() {
+        let fields = HashMap::from([("write_multi_max_size", false)]);
+        for snippet in [
+            r#"Capability {
+                #[cfg(target_pointer_width = "64")]
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                #[cfg(not(target_pointer_width = "64"))]
+                write_multi_max_size: Some(usize::MAX),
+                ..Default::default()
+            }"#,
+            r#"Capability {
+                #[cfg(not(target_pointer_width = "64"))]
+                write_multi_max_size: Some(usize::MAX),
+                #[cfg(target_pointer_width = "64")]
+                write_multi_max_size: Some(5 * 1024 * 1024 * 1024),
+                ..Default::default()
+            }"#,
+        ] {
+            let expr: ExprStruct = syn::parse_str(snippet).unwrap();
+            let doc = parse_capability_literal(
+                "mock",
+                "core/services/mock/src/backend.rs",
+                &expr,
+                &fields,
+                &[],
+            )
+            .unwrap();
+            assert_eq!(
+                doc.limits.get("write_multi_max_size"),
+                Some(&LimitValueDoc {
+                    display: "5 GiB".to_string(),
+                    condition: Some("64-bit targets (`usize::MAX` on 32-bit)".to_string()),
+                })
+            );
+        }
     }
 }

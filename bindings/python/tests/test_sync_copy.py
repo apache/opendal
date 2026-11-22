@@ -20,7 +20,7 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import IsADirectory, IsSameFile, NotFound
+from opendal.exceptions import IsADirectory, IsSameFile, NotFound, Unsupported
 
 
 @pytest.mark.need_capability("read", "write", "copy")
@@ -106,3 +106,26 @@ def test_sync_copy_overwrite(service_name, operator, async_operator):
     assert target_content == source_content
     operator.delete(source_path)
     operator.delete(target_path)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_copy_if_not_exists_unsupported(service_name, operator):
+    if service_name not in {"memory", "fs"}:
+        pytest.skip("test requires memory or fs")
+    if operator.capability().copy_with_if_not_exists:
+        pytest.skip("service supports conditional copy")
+
+    source_path = f"random_file_{uuid4()}"
+    target_path = f"random_file_{uuid4()}"
+    source_content = b"source contents"
+    target_content = b"target contents"
+    operator.write(source_path, source_content)
+    operator.write(target_path, target_content)
+    try:
+        with pytest.raises(Unsupported, match="if_not_exists"):
+            operator.copy(source_path, target_path, if_not_exists=True)
+        assert operator.read(source_path) == source_content
+        assert operator.read(target_path) == target_content
+    finally:
+        operator.delete(source_path)
+        operator.delete(target_path)

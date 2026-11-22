@@ -85,7 +85,12 @@ class AsyncOperator:
             If the operator is not able to work correctly.
         """
     def copy(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Copy a file from one path to another.
@@ -96,6 +101,10 @@ class AsyncOperator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `copy_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists. Defaults to False, which allows overwriting.
 
         Returns
         -------
@@ -578,7 +587,12 @@ class AsyncOperator:
             An awaitable that completes when the removal is finished.
         """
     def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> collections.abc.Awaitable[None]:
         """
         Rename (move) a file from one path to another.
@@ -589,6 +603,11 @@ class AsyncOperator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `rename_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists, leaving both files unchanged. Defaults to False,
+            which allows overwriting.
 
         Returns
         -------
@@ -790,7 +809,14 @@ class Operator:
         Exception
             If the operator is not able to work correctly.
         """
-    def copy(self, /, source: str | PathLike[str], target: str | PathLike[str]) -> None:
+    def copy(
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
+    ) -> None:
         """
         Copy a file from one path to another.
 
@@ -800,6 +826,10 @@ class Operator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `copy_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists. Defaults to False, which allows overwriting.
         """
     def create_dir(self, /, path: str | PathLike[str]) -> None:
         """
@@ -1088,7 +1118,12 @@ class Operator:
             The path to remove.
         """
     def rename(
-        self, /, source: str | PathLike[str], target: str | PathLike[str]
+        self,
+        /,
+        source: str | PathLike[str],
+        target: str | PathLike[str],
+        *,
+        if_not_exists: bool | None = None,
     ) -> None:
         """
         Rename (move) a file from one path to another.
@@ -1099,6 +1134,11 @@ class Operator:
             The path to the source file.
         target : str
             The path to the target file.
+        if_not_exists : bool, optional
+            If True, require `rename_with_if_not_exists` and raise `Unsupported`
+            if the service lacks it. Raise `ConditionNotMatch` if the target
+            already exists, leaving both files unchanged. Defaults to False,
+            which allows overwriting.
         """
     def scan(
         self,

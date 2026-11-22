@@ -142,6 +142,20 @@ class StatKwargs(TypedDict, total=False):
     """The content disposition of the file."""
 
 
+class CopyKwargs(TypedDict, total=False):
+    """Options for `copy` operations."""
+
+    if_not_exists: bool
+    """Whether to fail if a file already exists at the target path."""
+
+
+class RenameKwargs(TypedDict, total=False):
+    """Options for `rename` operations."""
+
+    if_not_exists: bool
+    """Whether to fail if a file already exists at the target path."""
+
+
 class DeleteKwargs(TypedDict, total=False):
     """Options for `delete` operations."""
 
@@ -170,6 +184,8 @@ __all__ = [
     "WriteKwargs",
     "ListKwargs",
     "StatKwargs",
+    "CopyKwargs",
+    "RenameKwargs",
     "DeleteKwargs",
     "OpenKwargs",
 ]

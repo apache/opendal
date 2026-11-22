@@ -41,3 +41,5 @@ pub use capability_override::CapabilityOverrideLayer;
 mod correctness_check;
 pub(crate) use correctness_check::CorrectnessCheckLayer;
 pub(crate) use correctness_check::check_copy_metadata_args;
+pub(crate) use correctness_check::check_delete_args;
+pub(crate) use correctness_check::check_write_args;

@@ -1174,6 +1174,7 @@ impl Operator {
 
         let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &args)?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context)?;
         Ok(w)

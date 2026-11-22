@@ -16,13 +16,13 @@
 // under the License.
 
 use anyhow::Result;
-use asyncband::mutex::Mutex;
+use asyncband::mutex::Mutex as AsyncMutex;
 use cxx_async::CxxAsyncException;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
@@ -108,10 +108,14 @@ unsafe impl Future for RustFutureEntryOption {
 
 pub struct Operator(od::Operator);
 
-// Global storage for readers and listers to avoid Send issues with raw pointers
+// Global storage for readers and listers to avoid Send issues with raw pointers.
+// The outer tables are only locked briefly and never held across `.await`, so a
+// std mutex is enough; the inner lister mutex stays async because `lister_next`
+// holds it across `try_next().await`.
 static READER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<od::Reader>>>> = OnceLock::new();
 static READER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
-static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>>> = OnceLock::new();
+static LISTER_STORAGE: OnceLock<Mutex<HashMap<usize, Arc<AsyncMutex<od::Lister>>>>> =
+    OnceLock::new();
 static LISTER_COUNTER: OnceLock<Mutex<usize>> = OnceLock::new();
 
 fn get_reader_storage() -> &'static Mutex<HashMap<usize, Arc<od::Reader>>> {
@@ -122,12 +126,18 @@ fn get_reader_counter() -> &'static Mutex<usize> {
     READER_COUNTER.get_or_init(|| Mutex::new(0))
 }
 
-fn get_lister_storage() -> &'static Mutex<HashMap<usize, Arc<Mutex<od::Lister>>>> {
+fn get_lister_storage() -> &'static Mutex<HashMap<usize, Arc<AsyncMutex<od::Lister>>>> {
     LISTER_STORAGE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
 fn get_lister_counter() -> &'static Mutex<usize> {
     LISTER_COUNTER.get_or_init(|| Mutex::new(0))
+}
+
+/// Locks a std mutex without propagating poisoning: a panic in a previous
+/// holder must not abort a C++ destructor or an FFI call.
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Operator>> {
@@ -237,12 +247,12 @@ fn operator_reader(op: &Operator, path: String) -> RustFutureReaderId {
 
         // Store the reader in global storage and return an ID
         let reader_arc = Arc::new(reader);
-        let mut counter = get_reader_counter().lock().await;
-        *counter += 1;
-        let id = *counter;
-
-        let mut storage = get_reader_storage().lock().await;
-        storage.insert(id, reader_arc);
+        let id = {
+            let mut counter = lock(get_reader_counter());
+            *counter += 1;
+            *counter
+        };
+        lock(get_reader_storage()).insert(id, reader_arc);
 
         Ok(id)
     })
@@ -257,13 +267,13 @@ fn operator_lister(op: &Operator, path: String) -> RustFutureListerId {
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
 
         // Store the lister in global storage and return an ID
-        let lister_arc = Arc::new(Mutex::new(lister));
-        let mut counter = get_lister_counter().lock().await;
-        *counter += 1;
-        let id = *counter;
-
-        let mut storage = get_lister_storage().lock().await;
-        storage.insert(id, lister_arc);
+        let lister_arc = Arc::new(AsyncMutex::new(lister));
+        let id = {
+            let mut counter = lock(get_lister_counter());
+            *counter += 1;
+            *counter
+        };
+        lock(get_lister_storage()).insert(id, lister_arc);
 
         Ok(id)
     })
@@ -272,22 +282,11 @@ fn operator_lister(op: &Operator, path: String) -> RustFutureListerId {
 fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
     // The C++ `Reader` only passes its id. Resolve it eagerly so the returned
     // future owns the reader handle and stays valid even if the C++ reader is
-    // destroyed before the future is polled. The global storage uses an async
-    // mutex, so fall back to resolving at first poll when it is contended.
-    let resolved_reader = get_reader_storage()
-        .try_lock()
-        .and_then(|storage| storage.get(&reader).cloned());
+    // destroyed before the future is polled.
+    let resolved_reader = lock(get_reader_storage()).get(&reader).cloned();
     RustFutureRead::fallible(async move {
-        let reader_arc = match resolved_reader {
-            Some(reader_arc) => reader_arc,
-            None => {
-                let storage = get_reader_storage().lock().await;
-                storage
-                    .get(&reader)
-                    .ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?
-                    .clone()
-            }
-        };
+        let reader_arc =
+            resolved_reader.ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?;
 
         let buffer = reader_arc
             .read(start..(start + len))
@@ -300,22 +299,12 @@ fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
 fn lister_next(lister: usize) -> RustFutureEntryOption {
     // Same ownership rule as `reader_read`: resolve the id eagerly so the
     // future owns the lister handle.
-    let resolved_lister = get_lister_storage()
-        .try_lock()
-        .and_then(|storage| storage.get(&lister).cloned());
+    let resolved_lister = lock(get_lister_storage()).get(&lister).cloned();
     RustFutureEntryOption::fallible(async move {
         use futures::TryStreamExt;
 
-        let lister_arc = match resolved_lister {
-            Some(lister_arc) => lister_arc,
-            None => {
-                let storage = get_lister_storage().lock().await;
-                storage
-                    .get(&lister)
-                    .ok_or_else(|| CxxAsyncException::new("Invalid lister ID".into()))?
-                    .clone()
-            }
-        };
+        let lister_arc =
+            resolved_lister.ok_or_else(|| CxxAsyncException::new("Invalid lister ID".into()))?;
 
         let mut lister_guard = lister_arc.lock().await;
         match lister_guard.try_next().await {
@@ -327,19 +316,15 @@ fn lister_next(lister: usize) -> RustFutureEntryOption {
 }
 
 fn delete_reader(reader: usize) {
-    // Use blocking lock since this is called from C++ destructors
-    if let Some(mut storage) = get_reader_storage().try_lock() {
-        storage.remove(&reader);
-    }
-    // If we can't get the lock immediately, we'll just skip cleanup
-    // This is better than panicking in a destructor
+    // Called from C++ destructors: always evict the id, then drop the removed
+    // handle outside the lock.
+    let removed = lock(get_reader_storage()).remove(&reader);
+    drop(removed);
 }
 
 fn delete_lister(lister: usize) {
-    // Use blocking lock since this is called from C++ destructors
-    if let Some(mut storage) = get_lister_storage().try_lock() {
-        storage.remove(&lister);
-    }
-    // If we can't get the lock immediately, we'll just skip cleanup
-    // This is better than panicking in a destructor
+    // Called from C++ destructors: always evict the id, then drop the removed
+    // handle outside the lock.
+    let removed = lock(get_lister_storage()).remove(&lister);
+    drop(removed);
 }

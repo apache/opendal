@@ -493,7 +493,9 @@ TEST_F(AsyncOpendalTest, AsyncReaderListerFuturesOutliveHandle) {
 }
 
 // Regression test: move-assigning a `Reader` or `Lister` must release the
-// previously owned handle instead of leaking it.
+// previously owned handle instead of leaking it. Leaked entries would stay
+// reachable in the process-global tables until exit, so the test verifies
+// eviction by checking that the old ids no longer resolve.
 TEST_F(AsyncOpendalTest, AsyncMoveAssignmentReleasesHandle) {
   const auto file_path = "test_move_assign/file.txt";
   std::vector<uint8_t> data{1, 2, 3};
@@ -508,6 +510,18 @@ TEST_F(AsyncOpendalTest, AsyncMoveAssignmentReleasesHandle) {
   auto res = cppcoro::sync_wait(reader.Read(0, data.size()));
   ASSERT_EQ(res.size(), data.size());
 
+  // The first id must have been evicted: a handle reconstructed from it can
+  // no longer read.
+  {
+    opendal::async::Reader stale_reader(first_reader_id);
+    EXPECT_ANY_THROW(cppcoro::sync_wait(stale_reader.Read(0, 1)));
+  }
+
+  // Self-move must keep the live handle usable.
+  reader = std::move(reader);
+  res = cppcoro::sync_wait(reader.Read(0, data.size()));
+  ASSERT_EQ(res.size(), data.size());
+
   auto first_lister_id = cppcoro::sync_wait(op->GetLister("test_move_assign/"));
   auto second_lister_id =
       cppcoro::sync_wait(op->GetLister("test_move_assign/"));
@@ -516,6 +530,18 @@ TEST_F(AsyncOpendalTest, AsyncMoveAssignmentReleasesHandle) {
 
   auto entry = cppcoro::sync_wait(lister.Next());
   EXPECT_FALSE(entry.empty());
+
+  // The first id must have been evicted: a handle reconstructed from it can
+  // no longer list.
+  {
+    opendal::async::Lister stale_lister(first_lister_id);
+    EXPECT_ANY_THROW(cppcoro::sync_wait(stale_lister.Next()));
+  }
+
+  // Self-move must keep the live handle usable; the single entry was already
+  // consumed, so `Next` resolves to the end-of-iteration sentinel.
+  lister = std::move(lister);
+  EXPECT_NO_THROW(cppcoro::sync_wait(lister.Next()));
 }
 
 // Calling any method on a moved-from `Operator` must report an error instead

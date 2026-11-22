@@ -41,7 +41,7 @@ fn fork_error() -> PyErr {
 pub(crate) fn runtime_is_inherited() -> bool {
     #[cfg(unix)]
     {
-        let owner = RUNTIME_PID.load(Ordering::Relaxed);
+        let owner = RUNTIME_PID.load(Ordering::Acquire);
         owner != 0 && owner != process::id()
     }
     #[cfg(not(unix))]
@@ -62,12 +62,12 @@ pub(crate) fn get_runtime() -> PyResult<&'static Runtime> {
     #[cfg(unix)]
     {
         let pid = process::id();
-        let owner = RUNTIME_PID.load(Ordering::Relaxed);
+        let owner = RUNTIME_PID.load(Ordering::Acquire);
         let owner = if owner == 0 {
-            // Record ownership before touching Tokio's OnceLock, which a fork
+            // Publish ownership before touching Tokio's OnceLock, which a fork
             // can inherit while initialization is still in progress.
             RUNTIME_PID
-                .compare_exchange(0, pid, Ordering::Relaxed, Ordering::Relaxed)
+                .compare_exchange(0, pid, Ordering::AcqRel, Ordering::Acquire)
                 .err()
                 .unwrap_or(pid)
         } else {

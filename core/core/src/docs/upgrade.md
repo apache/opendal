@@ -30,8 +30,8 @@ The `auto-simulate` feature in `opendal` and `opendal-core` now controls
 whether `Operator::new` installs `SimulateLayer` automatically. The feature
 is enabled by default. If you previously disabled default features and rely
 on automatic simulation, add `auto-simulate` to your dependency features.
-You can also apply `opendal::layers::SimulateLayer` to individual operators
-with `Operator::layer`.
+To apply simulation to individual operators, see the runnable
+[`SimulateLayer` example][crate::layers::SimulateLayer#examples].
 
 ## WebDAV recursive listing
 

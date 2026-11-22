@@ -25,7 +25,37 @@ use crate::raw::oio::PrefixLister;
 use crate::raw::*;
 use crate::*;
 
-/// Simulate missing capabilities for backends in a configurable way.
+/// Simulate missing capabilities for a storage service.
+///
+/// The default `auto-simulate` Cargo feature applies this layer automatically
+/// when you create an operator with [`Operator::new`]. To opt in per operator,
+/// set `default-features = false` on your `opendal` or `opendal-core` dependency,
+/// leave `auto-simulate` disabled, and add the layer with [`Operator::layer`].
+///
+/// # Examples
+///
+/// The memory service has no native directory creation. The layer uses listing
+/// and empty writes to provide `create_dir`. This example uses Tokio with the
+/// `macros` and `rt` features.
+///
+/// ```
+/// use opendal_core::layers::SimulateLayer;
+/// use opendal_core::services::Memory;
+/// use opendal_core::{Operator, Result};
+///
+/// #[tokio::main(flavor = "current_thread")]
+/// async fn main() -> Result<()> {
+///     let op = Operator::new(Memory::default())?;
+///     # #[cfg(not(feature = "auto-simulate"))]
+///     # assert!(!op.info().capability().create_dir);
+///     let op = op.layer(SimulateLayer::default());
+///
+///     assert!(op.info().capability().create_dir);
+///     op.create_dir("reports/").await?;
+///     assert!(op.stat("reports/").await?.is_dir());
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct SimulateLayer {
     read_with_suffix: bool,

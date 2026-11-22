@@ -22,6 +22,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	opendal "github.com/apache/opendal/bindings/go"
@@ -254,11 +255,22 @@ func testReadWithWriteOptions(assert *require.Assertions, op *opendal.Operator, 
 	assert.Equal(content[offset:offset+length], bs, "read range content")
 }
 
+func alignConditionalReadMtime(assert *require.Assertions, info *opendal.OperatorInfo, path string) {
+	if info.GetScheme() != "fs" {
+		return
+	}
+
+	// The C binding exposes millisecond timestamps, while fs compares the native mtime.
+	mtime := time.Now().Truncate(time.Second)
+	assert.NoError(os.Chtimes(filepath.Join(info.GetRoot(), path), mtime, mtime))
+}
+
 func testReadWithIfModifiedSince(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	path, content, _ := fixture.NewFile()
 
 	_, err := op.Write(path, content)
 	assert.Nil(err, "write must succeed")
+	alignConditionalReadMtime(assert, op.Info(), path)
 
 	meta, err := op.Stat(path)
 	assert.Nil(err)
@@ -278,6 +290,8 @@ func testReadWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 
 	_, err := op.Write(path, content)
 	assert.Nil(err, "write must succeed")
+	info := op.Info()
+	alignConditionalReadMtime(assert, info, path)
 
 	meta, err := op.Stat(path)
 	assert.Nil(err)
@@ -286,6 +300,12 @@ func testReadWithIfUnmodifiedSince(assert *require.Assertions, op *opendal.Opera
 	bs, err := op.Read(path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(time.Second)))
 	assert.Nil(err, "read with if-unmodified-since after last modified must succeed")
 	assert.Equal(content, bs, "read content")
+
+	if info.GetScheme() == "fs" {
+		bs, err := op.Read(path, opendal.ReadWithIfUnmodifiedSince(lastModified))
+		assert.Nil(err, "read with if-unmodified-since at last modified must succeed")
+		assert.Equal(content, bs, "read content")
+	}
 
 	_, err = op.Read(path, opendal.ReadWithIfUnmodifiedSince(lastModified.Add(-time.Second)))
 	assert.NotNil(err)

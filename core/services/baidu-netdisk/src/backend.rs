@@ -25,7 +25,7 @@ use crate::{
     writer::{BaiduNetdiskWriter, MAX_WRITE_SIZE},
 };
 use opendal_core::{raw::*, *};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// Builds an operator for the Baidu Netdisk Open Platform.
 ///
@@ -174,35 +174,26 @@ impl Service for BaiduNetdiskBackend {
         let ctx = ctx.clone();
         let from = from.to_string();
         let to = to.to_string();
-        let destination_id = Arc::new(OnceLock::new());
         // Rebuild the request so RetryLayer can retry filemanager's busy errors.
         Ok(oio::OneShotCopier::new_with(move || {
             let core = core.clone();
             let ctx = ctx.clone();
             let from = from.clone();
             let to = to.clone();
-            let destination_id = destination_id.clone();
             async move {
-                let id = match destination_id.get() {
-                    Some(id) => *id,
-                    None => {
-                        let source = core.stat(&ctx, &from).await?;
-                        if source.isdir == 1 {
-                            return Err(Error::new(
-                                ErrorKind::IsADirectory,
-                                "copy source is a directory",
-                            ));
-                        }
-                        if from == to {
-                            return source.metadata();
-                        }
-                        let id = core.copy(&ctx, &from, &to).await?;
-                        // A retry after this point must only repeat the metadata lookup.
-                        *destination_id.get_or_init(|| id)
-                    }
-                };
+                let source = core.stat(&ctx, &from).await?;
+                if source.isdir == 1 {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "copy source is a directory",
+                    ));
+                }
+                if from == to {
+                    return source.metadata();
+                }
+                let destination_id = core.copy(&ctx, &from, &to).await?;
                 let destination = core.stat(&ctx, &to).await?;
-                if destination.fs_id != id {
+                if destination.fs_id != destination_id {
                     return Err(Error::new(
                         ErrorKind::Unexpected,
                         "copy destination was replaced",

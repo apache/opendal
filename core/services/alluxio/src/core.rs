@@ -291,20 +291,11 @@ impl AlluxioCore {
         }
     }
 
-    pub async fn read(
-        &self,
-        ctx: &OperationContext,
-        stream_id: u64,
-        range: BytesRange,
-    ) -> Result<Response<HttpBody>> {
-        if !range.is_full() {
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                "alluxio stream read doesn't support range",
-            )
-            .with_context("range", format!("{range:?}")));
-        }
-
+    /// Read the file stream from the start.
+    ///
+    /// The proxy read endpoint has no range support, so it always returns
+    /// the whole stream. The reader serves ranges out of it.
+    pub async fn read(&self, ctx: &OperationContext, stream_id: u64) -> Result<Response<HttpBody>> {
         let req = Request::post(format!(
             "{}/api/v1/streams/{}/read",
             self.endpoint, stream_id,
@@ -381,27 +372,104 @@ impl AlluxioCore {
 }
 
 #[cfg(test)]
-mod tests {
-    use http::StatusCode;
+pub(crate) mod test_utils {
+    use std::sync::Arc;
 
     use super::*;
 
-    #[tokio::test]
-    async fn test_read_rejects_range() {
+    /// Fake Alluxio proxy that serves one file from memory.
+    #[derive(Clone)]
+    pub(crate) struct MockTransport {
+        data: Arc<bytes::Bytes>,
+        chunk: usize,
+    }
+
+    impl MockTransport {
+        pub(crate) fn new(data: Vec<u8>, chunk: usize) -> Self {
+            Self {
+                data: Arc::new(bytes::Bytes::from(data)),
+                chunk,
+            }
+        }
+    }
+
+    impl HttpTransport for MockTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let uri = req.uri().to_string();
+            if uri.contains("/get-status") {
+                let info = serde_json::json!({
+                    "path": "/file",
+                    "lastModificationTimeMs": 0,
+                    "folder": false,
+                    "length": self.data.len(),
+                });
+                let body = Buffer::from(bytes::Bytes::from(serde_json::to_vec(&info).unwrap()));
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(
+                        futures::stream::iter(vec![Ok(body)]),
+                        Some(size),
+                    ))
+                    .unwrap());
+            }
+            if uri.contains("/open-file") {
+                let body = Buffer::from(bytes::Bytes::from_static(b"1"));
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(
+                        futures::stream::iter(vec![Ok(body)]),
+                        Some(size),
+                    ))
+                    .unwrap());
+            }
+            if uri.ends_with("/read") {
+                let data = self.data.clone();
+                let chunk = self.chunk;
+                let stream = futures::stream::iter(
+                    data.chunks(chunk)
+                        .map(|c| Ok(Buffer::from(bytes::Bytes::copy_from_slice(c))))
+                        .collect::<Vec<_>>(),
+                );
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(stream, Some(data.len() as u64)))
+                    .unwrap());
+            }
+            panic!("unexpected url {uri}");
+        }
+    }
+
+    pub(crate) fn test_core_with(transport: MockTransport) -> (AlluxioCore, OperationContext) {
+        let ctx =
+            OperationContext::from_parts(HttpTransporter::new(transport), Executor::default());
         let core = AlluxioCore {
             info: ServiceInfo::new("alluxio", "", ""),
             capability: Capability::default(),
             root: "/".to_string(),
             endpoint: "http://127.0.0.1:1".to_string(),
         };
+        (core, ctx)
+    }
+}
 
-        let ctx = OperationContext::new();
-        let err = match core.read(&ctx, 1, BytesRange::from(0_u64..1)).await {
-            Ok(_) => panic!("range read should be rejected"),
-            Err(err) => err,
-        };
+#[cfg(test)]
+mod tests {
+    use http::StatusCode;
 
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
+    use super::test_utils::*;
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_returns_full_stream() {
+        let data = (0..1024).map(|i| (i % 251) as u8).collect::<Vec<u8>>();
+        let (core, ctx) = test_core_with(MockTransport::new(data.clone(), 13));
+        let resp = core.read(&ctx, 1).await.unwrap();
+        assert!(resp.status().is_success());
+        let mut body = resp.into_body();
+        let out = body.to_buffer().await.unwrap().to_vec();
+        assert_eq!(out, data);
     }
 
     #[test]

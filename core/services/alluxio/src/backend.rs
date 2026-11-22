@@ -97,11 +97,10 @@ impl Builder for AlluxioBuilder {
                 capability: Capability {
                     stat: true,
 
-                    // FIXME:
-                    //
-                    // alluxio's read support is not implemented correctly
-                    // We need to refactor by use [page_read](https://github.com/Alluxio/alluxio-py/blob/main/alluxio/const.py#L18)
-                    read: false,
+                    // Alluxio reads by pages: the proxy stream read
+                    // returns the file from the start, and ranges are
+                    // served by skipping the leading pages.
+                    read: true,
 
                     write: true,
                     write_can_multi: true,

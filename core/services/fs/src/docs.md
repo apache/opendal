@@ -37,6 +37,10 @@ entries from the filesystem.
 
 ## Delete
 
+Recursive deletion targets the named filesystem entry. Deleting `a/`
+recursively removes that directory and its descendants and leaves siblings
+such as `ab/` intact. Use the trailing slash for portable directory deletion.
+
 Deleting a symbolic link removes the link and preserves its target, even with
 recursive deletion enabled. Use a path without a trailing `/` to delete a
 dangling link.

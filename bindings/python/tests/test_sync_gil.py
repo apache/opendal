@@ -17,7 +17,9 @@
 
 import multiprocessing
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -280,3 +282,107 @@ def test_blocking_file_releases_gil(operation, service_name):
         server.terminate()
         server.join(TEST_TIMEOUT_SECONDS)
         receiver.close()
+
+
+class _PagedListHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        query = parse_qs(urlsplit(self.path).query)
+        prefix = query.get("prefix", [""])[0]
+        second_page = query.get("continuation-token") == ["page-two"]
+        if second_page and prefix == "denied/":
+            status = 403
+            body = (
+                b"<Error><Code>AccessDenied</Code>"
+                b"<Message>Listing denied</Message></Error>"
+            )
+        else:
+            if second_page:
+                # A pipe lets the server send the signal even if Python holds the GIL.
+                self.server.control.send_bytes(b"page-two")
+                if not self.server.control.poll(SERVER_FALLBACK_SECONDS):
+                    self.send_error(504, "Timed out waiting for Python thread progress")
+                    return
+                self.server.control.recv_bytes()
+            status = 200
+            names = ("second", "third") if second_page else ("first",)
+            entries = "".join(
+                f"<Contents><Key>{prefix}{name}</Key><Size>1</Size>"
+                "<LastModified>2024-01-01T00:00:00Z</LastModified></Contents>"
+                for name in names
+            )
+            pagination = (
+                "<IsTruncated>false</IsTruncated>"
+                if second_page
+                else "<IsTruncated>true</IsTruncated>"
+                "<NextContinuationToken>page-two</NextContinuationToken>"
+            )
+            body = (
+                f"<ListBucketResult>{pagination}{entries}</ListBucketResult>".encode()
+            )
+
+        self.send_response(status)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format_, *args: object) -> None:
+        pass
+
+
+def _serve_paged_list(control) -> None:
+    with ThreadingHTTPServer(("127.0.0.1", 0), _PagedListHandler) as server:
+        server.control = control
+        control.send(server.server_address[1])
+        server.serve_forever()
+
+
+def test_blocking_lister_releases_gil(service_name):
+    if service_name != "memory":
+        pytest.skip("run the standalone GIL regression test once")
+
+    context = multiprocessing.get_context("spawn")
+    control, server_control = context.Pipe()
+    server = context.Process(target=_serve_paged_list, args=(server_control,))
+    server.start()
+    server_control.close()
+    try:
+        assert control.poll(TEST_TIMEOUT_SECONDS), "HTTP test server did not start"
+        op = opendal.Operator(
+            "s3",
+            endpoint=f"http://127.0.0.1:{control.recv()}",
+            bucket="test",
+            region="us-east-1",
+            skip_signature="true",
+            disable_config_load="true",
+        )
+        lister = iter(op.list("/"))
+        assert next(lister).path == "first"
+
+        def check_thread_progress() -> None:
+            assert control.poll(TEST_TIMEOUT_SECONDS), "second page was not requested"
+            assert control.recv_bytes() == b"page-two"
+            try:
+                with pytest.raises(RuntimeError, match="borrow"):
+                    next(lister)
+            finally:
+                control.send_bytes(b"continue")
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            progress = executor.submit(check_thread_progress)
+            second = next(lister)
+            progress.result(timeout=TEST_TIMEOUT_SECONDS)
+            third = executor.submit(next, lister).result(timeout=TEST_TIMEOUT_SECONDS)
+        assert [second.path, third.path] == ["second", "third"]
+        with pytest.raises(StopIteration):
+            next(lister)
+
+        denied = iter(op.list("denied/"))
+        assert next(denied).path == "denied/first"
+        with pytest.raises(opendal.exceptions.PermissionDenied, match="Listing denied"):
+            next(denied)
+        with pytest.raises(StopIteration):
+            next(denied)
+    finally:
+        server.terminate()
+        server.join(TEST_TIMEOUT_SECONDS)
+        control.close()

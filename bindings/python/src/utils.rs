@@ -64,6 +64,41 @@ pub fn buffer_into_py_bytes<'py>(
     }
 }
 
+/// Recursively insert a module's nested `#[pymodule]` submodules into
+/// `sys.modules` under `parent_name` and qualify their `__name__`, so
+/// `from opendal.operator import ...` resolves.
+///
+/// PyO3 attaches submodules as attributes but skips `sys.modules` (PyO3 #759);
+/// `parent_name` lets us use the public `opendal` name, not the `_opendal` lib.
+pub fn register_submodules(module: &Bound<'_, PyModule>, parent_name: &str) -> PyResult<()> {
+    let sys_modules = module.py().import("sys")?.getattr("modules")?;
+    for attr_name in module.index()? {
+        let attr_name: String = attr_name.extract()?;
+        let attr = module.getattr(&attr_name)?;
+        if let Ok(submodule) = attr.cast::<PyModule>() {
+            let qualified_name = format!("{parent_name}.{attr_name}");
+            submodule.setattr("__name__", &qualified_name)?;
+            sys_modules.set_item(&qualified_name, submodule)?;
+            register_submodules(submodule, &qualified_name)?;
+        }
+    }
+    Ok(())
+}
+
+/// Add exception types to a module by their Rust identifier.
+///
+/// `create_exception!` types are `PyErr` subtypes, not `#[pyclass]`es, so they
+/// cannot be listed with `#[pymodule_export]`.
+#[macro_export]
+macro_rules! add_exceptions {
+    ($module:expr, [$($exc:ty),* $(,)?]) => {{
+        $(
+            $module.add(stringify!($exc), $module.py().get_type::<$exc>())?;
+        )*
+        Ok::<_, pyo3::PyErr>(())
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
@@ -107,39 +142,4 @@ mod tests {
         });
         assert_eq!(buffer.to_vec(), b"mutable");
     }
-}
-
-/// Recursively insert a module's nested `#[pymodule]` submodules into
-/// `sys.modules` under `parent_name` and qualify their `__name__`, so
-/// `from opendal.operator import ...` resolves.
-///
-/// PyO3 attaches submodules as attributes but skips `sys.modules` (PyO3 #759);
-/// `parent_name` lets us use the public `opendal` name, not the `_opendal` lib.
-pub fn register_submodules(module: &Bound<'_, PyModule>, parent_name: &str) -> PyResult<()> {
-    let sys_modules = module.py().import("sys")?.getattr("modules")?;
-    for attr_name in module.index()? {
-        let attr_name: String = attr_name.extract()?;
-        let attr = module.getattr(&attr_name)?;
-        if let Ok(submodule) = attr.cast::<PyModule>() {
-            let qualified_name = format!("{parent_name}.{attr_name}");
-            submodule.setattr("__name__", &qualified_name)?;
-            sys_modules.set_item(&qualified_name, submodule)?;
-            register_submodules(submodule, &qualified_name)?;
-        }
-    }
-    Ok(())
-}
-
-/// Add exception types to a module by their Rust identifier.
-///
-/// `create_exception!` types are `PyErr` subtypes, not `#[pyclass]`es, so they
-/// cannot be listed with `#[pymodule_export]`.
-#[macro_export]
-macro_rules! add_exceptions {
-    ($module:expr, [$($exc:ty),* $(,)?]) => {{
-        $(
-            $module.add(stringify!($exc), $module.py().get_type::<$exc>())?;
-        )*
-        Ok::<_, pyo3::PyErr>(())
-    }};
 }

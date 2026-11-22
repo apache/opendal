@@ -34,9 +34,8 @@ use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
-use pyo3_async_runtimes::tokio::future_into_py;
-use pyo3_async_runtimes::tokio::get_runtime;
 
+use crate::runtime::{check_runtime_process, future_into_py, get_runtime, runtime_is_inherited};
 use crate::*;
 
 /// A file-like object for reading and writing data.
@@ -66,10 +65,18 @@ impl File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        if matches!(self.0, FileState::Writer(_)) {
+        if matches!(self.0, FileState::Closed) {
+            return;
+        }
+        let state = std::mem::replace(&mut self.0, FileState::Closed);
+        if runtime_is_inherited() {
+            // Dropping a blocking reader or pending write can touch Tokio.
+            std::mem::forget(state);
+        } else if matches!(state, FileState::Writer(_)) {
             // Pending operations can own runtime resources even without close.
-            let _guard = get_runtime().enter();
-            drop(std::mem::replace(&mut self.0, FileState::Closed));
+            let runtime = get_runtime().expect("runtime belongs to this process");
+            let _guard = runtime.enter();
+            drop(state);
         }
     }
 }
@@ -113,6 +120,7 @@ impl File {
             }
         };
 
+        check_runtime_process()?;
         let buffer = py
             .detach(|| match size {
                 Some(size) => reader.read_buffer(size),
@@ -161,6 +169,7 @@ impl File {
             }
         };
 
+        check_runtime_process()?;
         let buffer = py
             .detach(|| -> std::io::Result<Vec<u8>> {
                 let mut buffer = Vec::new();
@@ -210,6 +219,7 @@ impl File {
             return Err(PyIOError::new_err("Buffer is not C contiguous."));
         }
 
+        check_runtime_process()?;
         let size = buffer.len_bytes();
         // Wait using owned storage, without exposing the Python buffer to I/O.
         let data = py.detach(|| reader.read_buffer(size))?;
@@ -260,7 +270,8 @@ impl File {
         if len == 0 {
             return Ok(0);
         }
-        py.detach(|| get_runtime().handle().block_on(writer.send(bs)))
+        let runtime = get_runtime()?;
+        py.detach(|| runtime.handle().block_on(writer.send(bs)))
             .map(|_| len)
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
@@ -314,6 +325,7 @@ impl File {
             _ => return Err(PyValueError::new_err("invalid whence")),
         };
 
+        check_runtime_process()?;
         py.detach(|| reader.seek(whence))
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
@@ -341,6 +353,7 @@ impl File {
             }
         };
 
+        check_runtime_process()?;
         py.detach(|| reader.stream_position())
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
@@ -353,10 +366,11 @@ impl File {
     /// -----
     /// A closed file cannot be used for further I/O operations.
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+        let runtime = get_runtime()?;
         py.detach(|| {
-            let _guard = get_runtime().enter();
+            let _guard = runtime.enter();
             if let FileState::Writer(w) = &mut self.0 {
-                get_runtime().handle().block_on(w.close())?;
+                runtime.handle().block_on(w.close())?;
             }
             self.0 = FileState::Closed;
             Ok(())
@@ -394,7 +408,8 @@ impl File {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
         } else if let FileState::Writer(w) = &mut self.0 {
-            match py.detach(|| get_runtime().handle().block_on(w.flush())) {
+            let runtime = get_runtime()?;
+            match py.detach(|| runtime.handle().block_on(w.flush())) {
                 Ok(_) => Ok(()),
                 Err(e) => Err(std::io::Error::from(e).into()),
             }
@@ -1025,7 +1040,8 @@ mod tests {
     #[test]
     fn test_unclosed_file_drops_pending_input_in_runtime() {
         let op = ocore::Operator::via_iter("memory", []).unwrap();
-        let writer = get_runtime()
+        let runtime = get_runtime().unwrap();
+        let writer = runtime
             .block_on(async { op.writer_with("pending").chunk(256 * 1024).await })
             .unwrap();
         let dropped_in_runtime = Arc::new(AtomicBool::new(false));
@@ -1034,7 +1050,7 @@ mod tests {
         let FileState::Writer(sink) = &mut file.0 else {
             unreachable!();
         };
-        get_runtime().block_on(sink.send(data.into())).unwrap();
+        runtime.block_on(sink.send(data.into())).unwrap();
         assert!(!dropped_in_runtime.load(Ordering::SeqCst));
         assert!(tokio::runtime::Handle::try_current().is_err());
         drop(file);

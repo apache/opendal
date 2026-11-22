@@ -20,8 +20,10 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 use std::fmt::Debug;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::task::{Context, Poll};
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -577,6 +579,88 @@ impl<R> TailCutWrapper<R> {
 
         result
     }
+
+    /// Like [`Self::with_io_deadline`], but only records a latency sample when
+    /// the inner future ever returns `Poll::Pending`.
+    ///
+    /// Operations like `Delete::delete` and `Compose::compose` are synchronous
+    /// buffer pushes on batching backends (`BatchDeleter`, `GcsComposer`):
+    /// sampling those instant in-memory completions would flood the lowest
+    /// histogram bucket, pass `min_samples` before any real I/O ran, and
+    /// collapse the deadline toward `min_deadline`. The deadline itself is
+    /// still enforced so real async work (mid-batch flushes, intermediate
+    /// requests) cannot hang.
+    #[inline]
+    async fn with_buffered_io_deadline<F, T>(
+        deadline: Option<Duration>,
+        percentile: u8,
+        stats: &Arc<TailCutStats>,
+        size: Option<u64>,
+        op: Operation,
+        fut: F,
+    ) -> Result<T>
+    where
+        F: std::future::Future<Output = Result<T>>,
+    {
+        let start = Instant::now();
+        let tracked = YieldTrackingFuture::new(fut);
+
+        let (result, yielded) = if let Some(dl) = deadline {
+            match tokio::time::timeout(dl, tracked).await {
+                Ok((res, yielded)) => (res, yielded),
+                Err(_) => (
+                    Err(
+                        Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
+                            .with_operation(op)
+                            .with_context("percentile", format!("P{}", percentile))
+                            .with_context("deadline", format!("{:?}", dl))
+                            .set_temporary(),
+                    ),
+                    true,
+                ),
+            }
+        } else {
+            let (res, yielded) = tracked.await;
+            (res, yielded)
+        };
+
+        if yielded && result.is_ok() {
+            let latency = start.elapsed();
+            stats.stats_for(op).record(size, latency);
+        }
+
+        result
+    }
+}
+
+/// Future wrapper that reports whether the inner future ever returned
+/// `Poll::Pending`, so buffered operations only sample real async work.
+struct YieldTrackingFuture<F> {
+    inner: Pin<Box<F>>,
+    yielded: bool,
+}
+
+impl<F> YieldTrackingFuture<F> {
+    fn new(inner: F) -> Self {
+        Self {
+            inner: Box::pin(inner),
+            yielded: false,
+        }
+    }
+}
+
+impl<F: Future> Future for YieldTrackingFuture<F> {
+    type Output = (F::Output, bool);
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match self.inner.as_mut().poll(cx) {
+            Poll::Ready(output) => Poll::Ready((output, self.yielded)),
+            Poll::Pending => {
+                self.yielded = true;
+                Poll::Pending
+            }
+        }
+    }
 }
 
 impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
@@ -706,7 +790,7 @@ impl<R: oio::List> oio::List for TailCutWrapper<R> {
 impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Delete);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -719,7 +803,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
 
     async fn close(&mut self) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Delete);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -775,7 +859,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
 impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
     async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Compose);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -788,7 +872,7 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
 
     async fn close(&mut self) -> Result<Metadata> {
         let deadline = self.calculate_deadline(Operation::Compose);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -802,8 +886,8 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
 
 /// Statistics engine for tail cut layer.
 struct TailCutStats {
-    // Statistics for each operation type (8 operations)
-    operations: [Arc<OperationStats>; 8],
+    // Statistics for each operation type (9 operations)
+    operations: [Arc<OperationStats>; 9],
 }
 
 impl TailCutStats {
@@ -823,6 +907,7 @@ impl TailCutStats {
             Operation::Copy => 5,
             Operation::Rename => 6,
             Operation::Compose => 7,
+            Operation::Restore => 8,
             _ => 2, // fallback to Stat
         };
         &self.operations[idx]
@@ -1038,7 +1123,7 @@ impl TimeSlice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use opendal_core::raw::oio::Delete;
+    use opendal_core::raw::oio::{Compose, Delete};
 
     #[test]
     fn test_latency_to_bucket() {
@@ -1111,9 +1196,9 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct SlowStatService;
+    struct SlowService;
 
-    impl Service for SlowStatService {
+    impl Service for SlowService {
         type Reader = ();
         type Writer = ();
         type Lister = ();
@@ -1128,6 +1213,7 @@ mod tests {
         fn capability(&self) -> Capability {
             Capability {
                 stat: true,
+                restore: true,
                 ..Default::default()
             }
         }
@@ -1137,6 +1223,18 @@ mod tests {
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
             Ok(RpStat::new(MetadataBuilder::file(0).build()))
+        }
+
+        async fn restore(
+            &self,
+            _: &OperationContext,
+            path: &str,
+            _: OpRestore,
+        ) -> Result<RpRestore> {
+            if path == "slow" {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            Ok(RpRestore::new())
         }
 
         async fn create_dir(
@@ -1189,8 +1287,8 @@ mod tests {
             .min_samples(5)
             .max_deadline(Duration::from_millis(500))
             .build();
-        let op = Operator::from_parts(OperationContext::default(), Arc::new(SlowStatService))
-            .layer(layer);
+        let op =
+            Operator::from_parts(OperationContext::default(), Arc::new(SlowService)).layer(layer);
 
         for _ in 0..5 {
             op.stat("fast").await.unwrap();
@@ -1200,6 +1298,28 @@ mod tests {
             .stat("slow")
             .await
             .expect_err("tail cut must cancel the slow stat");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "cancelled by tail cut");
+        assert!(err.is_temporary());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_tail_cut_cancels_slow_restore() {
+        let layer = TailCutLayer::builder()
+            .min_samples(5)
+            .max_deadline(Duration::from_millis(500))
+            .build();
+        let op =
+            Operator::from_parts(OperationContext::default(), Arc::new(SlowService)).layer(layer);
+
+        for _ in 0..5 {
+            op.restore("fast").await.unwrap();
+        }
+
+        let err = op
+            .restore("slow")
+            .await
+            .expect_err("tail cut must cancel the slow restore");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert_eq!(err.message(), "cancelled by tail cut");
         assert!(err.is_temporary());
@@ -1264,8 +1384,9 @@ mod tests {
         assert!(Arc::ptr_eq(&layer.stats, &cloned.stats));
     }
 
-    /// A deleter whose `delete()` either resolves immediately or stays
-    /// pending forever, for exercising the tail-cut deadline deterministically.
+    /// A deleter whose `delete()` either yields once like a one-shot network
+    /// call or stays pending forever, for exercising the tail-cut deadline
+    /// deterministically.
     struct StubDeleter {
         hang: bool,
     }
@@ -1275,12 +1396,57 @@ mod tests {
             if self.hang {
                 std::future::pending::<Result<()>>().await
             } else {
+                tokio::task::yield_now().await;
                 Ok(())
             }
         }
 
         async fn close(&mut self) -> Result<()> {
             Ok(())
+        }
+    }
+
+    /// A deleter that buffers `delete()` calls synchronously like
+    /// `BatchDeleter` and only performs async work in `close()`.
+    struct BufferedDeleter {
+        buffered: usize,
+    }
+
+    impl oio::Delete for BufferedDeleter {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            self.buffered += 1;
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            if self.buffered == 0 {
+                return Ok(());
+            }
+            self.buffered = 0;
+            tokio::task::yield_now().await;
+            Ok(())
+        }
+    }
+
+    /// A composer that buffers `compose()` calls synchronously like
+    /// `GcsComposer` and only performs async work in `close()`.
+    struct BufferedComposer {
+        buffered: usize,
+    }
+
+    impl oio::Compose for BufferedComposer {
+        async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            self.buffered += 1;
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            if self.buffered == 0 {
+                return Ok(MetadataBuilder::file(0).build());
+            }
+            self.buffered = 0;
+            tokio::task::yield_now().await;
+            Ok(MetadataBuilder::file(0).build())
         }
     }
 
@@ -1339,5 +1505,63 @@ mod tests {
             .stats_for(Operation::Delete)
             .total_samples(None, layer.config.window);
         assert_eq!(samples, 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_buffered_delete_skips_synchronous_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_secs(1))
+            .build();
+        let stats = layer.stats.stats_for(Operation::Delete);
+
+        let mut deleter = test_deleter(&layer, BufferedDeleter { buffered: 0 });
+
+        // Synchronous buffer pushes must not feed the estimator: on a real
+        // batch deleter hundreds of these run before the first HTTP request,
+        // which would pass `min_samples` and collapse the deadline.
+        for i in 0..250 {
+            deleter
+                .delete(&format!("file-{i}"), OpDelete::new())
+                .await
+                .unwrap();
+        }
+        assert_eq!(stats.total_samples(None, layer.config.window), 0);
+        assert!(deleter.calculate_deadline(Operation::Delete).is_none());
+
+        // The real async flush still counts as a sample.
+        deleter.close().await.unwrap();
+        assert_eq!(stats.total_samples(None, layer.config.window), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_buffered_compose_skips_synchronous_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_secs(1))
+            .build();
+        let stats = layer.stats.stats_for(Operation::Compose);
+
+        let mut composer = TailCutWrapper::new(
+            Box::new(BufferedComposer { buffered: 0 }) as oio::Composer,
+            None,
+            layer.config.clone(),
+            layer.stats.clone(),
+        );
+
+        for i in 0..32 {
+            composer
+                .compose(&format!("src-{i}"), OpRead::new())
+                .await
+                .unwrap();
+        }
+        assert_eq!(stats.total_samples(None, layer.config.window), 0);
+
+        composer.close().await.unwrap();
+        assert_eq!(stats.total_samples(None, layer.config.window), 1);
     }
 }

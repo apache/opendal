@@ -28,11 +28,18 @@ use futures::SinkExt;
 use crate::raw::*;
 use crate::*;
 
-/// FuturesIoAsyncWriter is the adapter of [`AsyncWrite`] for [`Writer`].
+/// Adapts a [`Writer`] to [`AsyncWrite`].
 ///
-/// Users can use this adapter in cases where they need to use [`AsyncWrite`] related trait.
+/// The adapter copies input into a 256 KiB buffer. Writing beyond that buffer
+/// or calling `flush()` can produce multiple chunks. Sending multiple chunks
+/// to the service requires [`Capability::write_can_multi`]. Call `close()` to
+/// send any remaining data and commit the write.
 ///
-/// FuturesIoAsyncWriter also implements [`Unpin`], [`Send`] and [`Sync`]
+/// When this capability is false, pass the complete [`Buffer`] to
+/// [`Operator::write`] or to a single [`Writer::write`] call on a default writer.
+/// To use this adapter with a known payload size, set `chunk(size)` with
+/// [`Operator::writer_with`] so the underlying writer buffers the full payload
+/// in one chunk.
 pub struct FuturesAsyncWriter {
     sink: BufferSink,
     buf: oio::FlexBuf,

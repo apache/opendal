@@ -265,6 +265,13 @@ pub struct BufferStream {
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
+    /// A metadata preparation future that owns the reader.
+    ///
+    /// Keeping the future in the state preserves the reader and the progress it
+    /// already made when a [`BufferStream::metadata`] future is dropped.
+    PreparingMetadata(
+        BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Metadata>)>,
+    ),
 }
 
 impl BufferStream {
@@ -314,28 +321,41 @@ impl BufferStream {
     /// Calling this method opens the underlying read request if needed.
     /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
     /// return metadata while opening the read operation.
+    ///
+    /// Dropping this future before it completes does not lose the stream's
+    /// reader; later calls resume the same preparation.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         if let Some(metadata) = self.ctx.metadata() {
             return Ok(metadata.clone());
         }
 
-        match std::mem::replace(&mut self.state, State::Idle(None)) {
+        match &mut self.state {
             State::Idle(reader) => {
-                let mut reader = reader.expect("reader must exist while idle");
-                let prepared = match &mut reader {
-                    TwoWays::One(v) => v.metadata().await,
-                    TwoWays::Two(v) => v.metadata().await,
+                let mut reader = reader.take().expect("reader must exist while idle");
+                let fut = async move {
+                    let ret = match &mut reader {
+                        TwoWays::One(v) => v.metadata().await,
+                        TwoWays::Two(v) => v.metadata().await,
+                    };
+                    (reader, ret)
                 };
-                self.state = State::Idle(Some(reader));
-                prepared
+                self.state = State::PreparingMetadata(Box::pin(fut));
             }
-            State::Reading(fut) => {
-                self.state = State::Reading(fut);
-                self.ctx.metadata().cloned().ok_or_else(|| {
-                    Error::new(ErrorKind::Unsupported, "read metadata is not available")
-                })
+            State::PreparingMetadata(_) => {}
+            State::Reading(_) => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "read metadata is not available",
+                ));
             }
         }
+
+        let State::PreparingMetadata(fut) = &mut self.state else {
+            unreachable!("metadata state must be preparing")
+        };
+        let (reader, result) = fut.as_mut().await;
+        self.state = State::Idle(Some(reader));
+        result
     }
 }
 
@@ -356,7 +376,7 @@ impl Stream for BufferStream {
         loop {
             match &mut this.state {
                 State::Idle(reader) => {
-                    let mut reader = reader.take().unwrap();
+                    let mut reader = reader.take().expect("reader must exist while idle");
                     let fut = async move {
                         let ret = reader.read().await;
                         (reader, ret)
@@ -386,6 +406,15 @@ impl Stream for BufferStream {
                         Err(err) => Poll::Ready(Some(Err(err))),
                     };
                 }
+                State::PreparingMetadata(fut) => {
+                    let (reader, result) = ready!(fut.as_mut().poll(cx));
+                    this.state = State::Idle(Some(reader));
+                    match result {
+                        Ok(_) => {}
+                        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+                        Err(err) => return Poll::Ready(Some(Err(err))),
+                    }
+                }
             }
         }
     }
@@ -394,13 +423,75 @@ impl Stream for BufferStream {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     use bytes::Buf;
     use bytes::Bytes;
+    use futures::StreamExt;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    struct PendingOnceReader {
+        content: Bytes,
+        pending: AtomicBool,
+    }
+
+    impl PendingOnceReader {
+        fn new(content: Bytes) -> Self {
+            Self {
+                content,
+                pending: AtomicBool::new(true),
+            }
+        }
+    }
+
+    impl oio::Read for PendingOnceReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            if self.pending.swap(false, Ordering::SeqCst) {
+                let mut polled = false;
+                std::future::poll_fn(|cx| {
+                    if polled {
+                        Poll::Ready(())
+                    } else {
+                        polled = true;
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    }
+                })
+                .await;
+            }
+
+            let start = range.offset() as usize;
+            let size = range.size().expect("range must be bounded") as usize;
+            let metadata = MetadataBuilder::file(self.content.len() as u64).build();
+
+            Ok((
+                RpRead::new(metadata),
+                Box::new(self.content.slice(start..start + size)),
+            ))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Err(Error::new(ErrorKind::Unsupported, "read is not supported"))
+        }
+    }
+
+    fn new_pending_once_read_context(content: Bytes) -> Arc<ReadContext> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        Arc::new(ReadContext::new(
+            ctx,
+            srv,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+            Box::new(PendingOnceReader::new(content)),
+        ))
+    }
 
     fn new_read_context(
         ctx: OperationContext,
@@ -429,6 +520,72 @@ mod tests {
         let v = BufferStream::create(ctx, 4..8, None).await?;
 
         let _: Box<dyn Unpin + MaybeSend + 'static> = Box::new(v);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_cancel_then_metadata() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut metadata = std::pin::pin!(stream.metadata());
+            assert!(futures::poll!(&mut metadata).is_pending());
+        }
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+        assert!(stream.next().await.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_cancel_then_read() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut metadata = std::pin::pin!(stream.metadata());
+            assert!(futures::poll!(&mut metadata).is_pending());
+        }
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+        assert!(stream.next().await.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_while_reading() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut next = std::pin::pin!(stream.next());
+            assert!(futures::poll!(&mut next).is_pending());
+        }
+
+        let err = stream
+            .metadata()
+            .await
+            .expect_err("metadata must be unavailable while reading");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+        assert!(stream.next().await.is_none());
 
         Ok(())
     }

@@ -59,6 +59,9 @@ impl FuturesBytesStream {
     /// Calling this method opens the underlying read request if needed.
     /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
     /// return metadata while opening the read operation.
+    ///
+    /// Dropping this future before it completes does not lose the stream's
+    /// reader; later calls resume the same preparation.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         self.stream.metadata().await
     }

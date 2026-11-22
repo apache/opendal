@@ -11,10 +11,9 @@ with Apache OpenDAL™.
 > after a same-second overwrite, allowing a stale `If-Match` to overwrite or
 > delete newer content.
 >
-> Use `CapabilityOverrideLayer` to mark affected capabilities as disabled
-> and check `op.info().capability()` before issuing the operation. An explicit
-> conditional call can still reach the server
-> ([#8640](https://github.com/apache/opendal/issues/8640)).
+> Use `CapabilityOverrideLayer` to disable the affected capabilities. OpenDAL
+> returns `ErrorKind::Unsupported` before sending a conditional write or delete
+> to the server if the operation uses a disabled capability.
 
 ## Use through `opendal`
 

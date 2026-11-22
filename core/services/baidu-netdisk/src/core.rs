@@ -62,10 +62,6 @@ impl BaiduNetdiskCore {
             .send(req)
             .await
             .map_err(|e| if commit { e.set_permanent() } else { e })?;
-        // A server error after a namespace mutation cannot establish whether it committed.
-        if commit && response.status().is_server_error() {
-            return Err(http_error(response.status()).set_permanent());
-        }
         parse_response(response, method)
     }
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<FileMetadata> {
@@ -221,7 +217,7 @@ fn response_json(response: Response<Buffer>, method: Option<&str>) -> Result<Val
         let mut error = if status.is_success() {
             new_json_deserialize_error(source).with_context("status", status.as_str())
         } else {
-            http_error(status).set_source(source)
+            http_error(status, method).set_source(source)
         };
         if let Some(method) = method {
             error = error.with_context("baidu_method", method);
@@ -231,10 +227,10 @@ fn response_json(response: Response<Buffer>, method: Option<&str>) -> Result<Val
 }
 
 pub fn parse_response(response: Response<Buffer>, method: Option<&str>) -> Result<Value> {
-    check_response(response.status(), response_json(response, method)?)
+    check_response(response.status(), response_json(response, method)?, method)
 }
 
-fn check_response(status: StatusCode, value: Value) -> Result<Value> {
+fn check_response(status: StatusCode, value: Value, method: Option<&str>) -> Result<Value> {
     if value["error_code"].as_i64() == Some(111) {
         return Err(Error::new(
             ErrorKind::PermissionDenied,
@@ -268,12 +264,12 @@ fn check_response(status: StatusCode, value: Value) -> Result<Value> {
         return Err(api_error(code));
     }
     if !status.is_success() {
-        return Err(http_error(status));
+        return Err(http_error(status, method));
     }
     Ok(value)
 }
 
-fn http_error(status: StatusCode) -> Error {
+fn http_error(status: StatusCode, method: Option<&str>) -> Error {
     let kind = match status {
         StatusCode::NOT_FOUND => ErrorKind::NotFound,
         StatusCode::FORBIDDEN | StatusCode::UNAUTHORIZED => ErrorKind::PermissionDenied,
@@ -282,7 +278,11 @@ fn http_error(status: StatusCode) -> Error {
     };
     let error = Error::new(kind, "Baidu Netdisk HTTP request failed")
         .with_context("status", status.as_str());
-    if status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS {
+    // An unclassified server error after a mutation leaves its outcome unknown.
+    // Explicit Baidu rejections (including filemanager busy) are parsed first.
+    if status == StatusCode::TOO_MANY_REQUESTS
+        || (status.is_server_error() && !matches!(method, Some("create" | "filemanager")))
+    {
         error.set_temporary()
     } else {
         error

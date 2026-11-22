@@ -19,20 +19,32 @@ import COpenDAL
 import Foundation
 
 extension Data {
-    /// Creates a new data by managing `opendal_bytes` as its
+    /// Creates a new data by taking over `bytes` as its
     /// underlying buffer.
     ///
     /// This can be used to read data from Rust with zero-copying.
-    /// The underlying buffer will be freed when the data gets
-    /// deallocated.
-    init(openDALBytes: UnsafeMutablePointer<opendal_bytes>) {
-        let address = UnsafeRawPointer(openDALBytes.pointee.data)!
-        let length = Int(openDALBytes.pointee.len)
+    /// `bytes` is moved into a heap-allocated box whose lifetime is
+    /// managed by the data's deallocator, so both the box and the
+    /// Rust buffer it owns are freed when the data gets deallocated.
+    init(openDALBytes bytes: consuming opendal_bytes) {
+        // Empty results carry no buffer, free the box eagerly and
+        // produce an empty Data.
+        guard let data = bytes.data, bytes.len > 0 else {
+            var bytes = bytes
+            opendal_bytes_free(&bytes)
+            self.init()
+            return
+        }
+
+        let length = Int(bytes.len)
+        let box = UnsafeMutablePointer<opendal_bytes>.allocate(capacity: 1)
+        box.initialize(to: bytes)
         self.init(
-            bytesNoCopy: .init(mutating: address),
+            bytesNoCopy: .init(mutating: data),
             count: length,
             deallocator: .custom({ _, _ in
-                opendal_bytes_free(openDALBytes)
+                opendal_bytes_free(box)
+                box.deallocate()
             })
         )
     }

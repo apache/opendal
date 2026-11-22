@@ -460,6 +460,7 @@ mod tests {
         };
 
         assert!(service.capability().list_with_recursive);
+        assert!(service.capability().delete_with_recursive);
         assert!(
             service
                 .list(&OperationContext::default(), "/", args.into())
@@ -481,6 +482,9 @@ mod tests {
         };
 
         assert!(!service.capability().list_with_recursive);
+        // `disable_depth_infinity` only controls recursive `PROPFIND`;
+        // collection `DELETE` stays recursive per RFC 4918 §9.6.1.
+        assert!(service.capability().delete_with_recursive);
         let err = service.list(&ctx, "/", args.into()).err().unwrap();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(service.list(&ctx, "/", OpList::default()).is_ok());

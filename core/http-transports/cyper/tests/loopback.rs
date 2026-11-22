@@ -27,8 +27,11 @@ use std::time::Duration;
 use futures::channel::oneshot;
 use http::Request;
 use opendal_core::Buffer;
+use opendal_core::Error;
+use opendal_core::ErrorKind;
 use opendal_core::HttpTransporter;
 use opendal_core::Operator;
+use opendal_core::raw::oio::ReadStream;
 use opendal_http_transport_cyper::CyperTransport;
 use opendal_service_http::Http;
 
@@ -36,7 +39,7 @@ const TEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[test]
 fn operator_read_on_compio() {
-    let (endpoint, server) = serve(|connection| {
+    let (endpoint, server) = serve("/object", |connection| {
         connection
             .write_all(
                 b"HTTP/1.1 200 OK\r\nContent-Length: 11\r\nConnection: close\r\n\r\nhello Cyper",
@@ -60,7 +63,7 @@ fn operator_read_on_compio() {
 #[test]
 fn drop_unread_body_from_another_thread() {
     let (disconnected, wait_for_disconnect) = oneshot::channel();
-    let (endpoint, server) = serve(move |connection| {
+    let (endpoint, server) = serve("/object", move |connection| {
         connection
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 11\r\n\r\n")
             .unwrap();
@@ -87,7 +90,88 @@ fn drop_unread_body_from_another_thread() {
     server.join().unwrap();
 }
 
+const SIGNED_PATH: &str = concat!("/object?access_token=", "fixture-value", "&version=3");
+const REDACTED_PATH: &str = "/object?access_token=[REDACTED]&version=3";
+
+#[test]
+fn redacts_invalid_url() {
+    let transport = HttpTransporter::new(CyperTransport::new());
+    let runtime = compio::runtime::Runtime::new().unwrap();
+    let Err(error) = runtime.block_on(transport.fetch(request(SIGNED_PATH))) else {
+        panic!("expected a relative URL to be rejected");
+    };
+    assert_redacted_error(error, "", "request url is invalid", false);
+}
+
+#[test]
+fn redacts_send_error() {
+    let (endpoint, server) = serve(SIGNED_PATH, |_| {});
+    let transport = HttpTransporter::new(CyperTransport::new());
+    let runtime = compio::runtime::Runtime::new().unwrap();
+    let Err(error) = runtime
+        .block_on(compio::time::timeout(
+            TEST_TIMEOUT,
+            transport.fetch(request(&format!("{endpoint}{SIGNED_PATH}"))),
+        ))
+        .unwrap()
+    else {
+        panic!("expected a connection closed before headers to fail");
+    };
+    server.join().unwrap();
+    assert_redacted_error(error, &endpoint, "send http request", true);
+}
+
+#[test]
+fn redacts_body_read_error() {
+    let (close_connection, wait_to_close) = std::sync::mpsc::channel();
+    let (endpoint, server) = serve(SIGNED_PATH, move |connection| {
+        connection
+            .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\na")
+            .unwrap();
+        wait_to_close.recv_timeout(TEST_TIMEOUT).unwrap();
+    });
+    let transport = HttpTransporter::new(CyperTransport::new());
+    let runtime = compio::runtime::Runtime::new().unwrap();
+    let error = runtime.block_on(async {
+        compio::time::timeout(TEST_TIMEOUT, async {
+            let response = transport
+                .fetch(request(&format!("{endpoint}{SIGNED_PATH}")))
+                .await
+                .unwrap();
+            assert_eq!(response.status(), http::StatusCode::OK);
+            let mut body = response.into_body();
+            assert_eq!(body.read().await.unwrap().to_bytes(), "a");
+            close_connection.send(()).unwrap();
+            body.read().await.unwrap_err()
+        })
+        .await
+        .unwrap()
+    });
+    server.join().unwrap();
+    assert_redacted_error(error, &endpoint, "read data from http response", true);
+}
+
+fn request(uri: &str) -> Request<Buffer> {
+    Request::get(uri).body(Buffer::new()).unwrap()
+}
+
+fn assert_redacted_error(error: Error, endpoint: &str, message: &str, temporary: bool) {
+    assert_eq!(error.kind(), ErrorKind::Unexpected);
+    assert_eq!(error.message(), message);
+    assert_eq!(error.is_temporary(), temporary);
+    let expected = format!("{endpoint}{REDACTED_PATH}");
+    for diagnostic in [
+        error.to_string(),
+        format!("{error:?}"),
+        format!("{error:#?}"),
+    ] {
+        assert!(diagnostic.contains(&expected), "{diagnostic}");
+        assert!(!diagnostic.contains("fixture-value"), "{diagnostic}");
+    }
+}
+
 fn serve(
+    path: &'static str,
     response: impl FnOnce(&mut TcpStream) + Send + 'static,
 ) -> (String, thread::JoinHandle<()>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -98,7 +182,10 @@ fn serve(
         connection.set_write_timeout(Some(TEST_TIMEOUT)).unwrap();
 
         let mut lines = BufReader::new(&mut connection).lines();
-        assert_eq!(lines.next().unwrap().unwrap(), "GET /object HTTP/1.1");
+        assert_eq!(
+            lines.next().unwrap().unwrap(),
+            format!("GET {path} HTTP/1.1")
+        );
         assert!(lines.any(|line| line.unwrap().is_empty()));
         response(&mut connection);
     });

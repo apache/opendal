@@ -22,15 +22,19 @@ use crate::convert::jstring_to_string;
 use crate::error::ThrowException;
 use jni::Env;
 use jni::EnvUnowned;
+use jni::jni_str;
 use jni::objects::IntoAuto;
 use jni::objects::JClass;
 use jni::objects::JObjectArray;
 use jni::objects::JString;
 use jni::sys::jboolean;
+use jni::sys::jdouble;
 use jni::sys::jfloat;
 use jni::sys::jlong;
 use opendal::Operator;
+use opendal::layers::CapabilityCheckLayer;
 use opendal::layers::CapabilityOverrideLayer;
+use opendal::layers::ChaosLayer;
 use opendal::layers::ConcurrentLimitLayer;
 use opendal::layers::ImmutableIndexLayer;
 use opendal::layers::MimeGuessLayer;
@@ -65,6 +69,16 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_CapabilityCheckLayer_doLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+) -> jlong {
+    let op = unsafe { &*op };
+    Box::into_raw(Box::new(op.clone().layer(CapabilityCheckLayer::new()))) as jlong
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_CapabilityOverrideLayer_doLayer<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
@@ -84,6 +98,27 @@ fn intern_capability_override_layer(
     let overrides = jstring_to_string(env, &overrides)?;
     let layer = CapabilityOverrideLayer::from_overrides(&overrides)?;
     Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_ChaosLayer_doLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+    error_ratio: jdouble,
+) -> jlong {
+    env.with_env(|env| -> Result<jlong> {
+        if !(0.0..=1.0).contains(&error_ratio) {
+            env.throw_new(
+                jni_str!("java/lang/IllegalArgumentException"),
+                jni_str!("errorRatio must be between 0.0 and 1.0"),
+            )?;
+            return Ok(0);
+        }
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(ChaosLayer::new(error_ratio)))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

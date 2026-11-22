@@ -34,6 +34,10 @@ import org.apache.opendal.Layer;
 import org.apache.opendal.ListOptions;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.ServiceConfig;
+import org.apache.opendal.WriteOptions;
+import org.apache.opendal.layer.CapabilityCheckLayer;
+import org.apache.opendal.layer.CapabilityOverrideLayer;
+import org.apache.opendal.layer.ChaosLayer;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
 import org.apache.opendal.layer.ImmutableIndexLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
@@ -68,6 +72,47 @@ public class LayerTest {
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
         assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testCapabilityCheckLayerRejectsUnsupportedWriteContentType() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup
+        final AsyncOperator overriddenOp = op.layer(new CapabilityOverrideLayer("write_with_content_type=false"));
+        @Cleanup final AsyncOperator layeredOp = overriddenOp.layer(new CapabilityCheckLayer());
+
+        final WriteOptions options =
+                WriteOptions.builder().contentType("text/plain").build();
+        assertThatThrownBy(() -> layeredOp.write("file.txt", "hello", options).join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported))
+                .hasMessageContaining("content_type");
+
+        layeredOp.write("file.txt", "hello").join();
+        assertThat(op.stat("file.txt").join().contentLength).isEqualTo(5);
+    }
+
+    @Test
+    void testChaosLayerReadErrorRatioBoundaries() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator noErrors = op.layer(new ChaosLayer(0.0));
+        @Cleanup final AsyncOperator allErrors = op.layer(new ChaosLayer(1.0));
+
+        final byte[] content = {1, 2, 3};
+        op.write("file.txt", content).join();
+        assertThat(noErrors.read("file.txt").join()).containsExactly(content);
+        assertThatThrownBy(() -> allErrors.read("file.txt").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                .hasMessageContaining("I am your chaos!");
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-0.1, 1.1, Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY})
+    void testChaosLayerRejectsInvalidErrorRatio(double invalid) {
+        assertThatThrownBy(() -> new ChaosLayer(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("errorRatio ");
     }
 
     @Test

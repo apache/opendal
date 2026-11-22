@@ -128,6 +128,7 @@ class ReleaseRustPlanTest(unittest.TestCase):
         result = plan()
 
         self.assertIn("core/core", result)
+        self.assertIn("core/http-transports/cyper", result)
         self.assertIn("core/testkit", result)
         self.assertIn("core", result)
         self.assertIn("integrations/object_store", result)
@@ -138,6 +139,10 @@ class ReleaseRustPlanTest(unittest.TestCase):
     def test_repository_plan_orders_core_before_root_and_integrations(self):
         result = plan()
 
+        self.assertLess(
+            result.index("core/core"), result.index("core/http-transports/cyper")
+        )
+        self.assertLess(result.index("core/http-transports/cyper"), result.index("core"))
         self.assertLess(result.index("core/core"), result.index("core"))
         self.assertLess(result.index("core/testkit"), result.index("core"))
         self.assertLess(result.index("core"), result.index("integrations/object_store"))

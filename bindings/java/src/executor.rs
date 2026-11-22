@@ -223,7 +223,7 @@ fn initialize_current_thread(env: &mut Env, class_loader: &JClassLoader) -> Resu
 #[inline]
 pub(crate) fn executor_or_default(env: &mut Env, executor: *const Executor) -> Result<Executor> {
     if !executor.is_null() {
-        // SAFETY: The caller must keep a supplied executor alive until its operators close.
+        // SAFETY: The Java caller holds a borrow of the supplied executor during this JNI call.
         return Ok(unsafe { &*executor }.clone());
     }
 

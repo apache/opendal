@@ -402,6 +402,12 @@ async fn move_non_empty_collection() -> Result<()> {
     // MOVE with `Overwrite: F` onto an existing collection fails with 412.
     dav.send(dav.request("MKCOL", "/occupied/"), b"", StatusCode::CREATED)
         .await?;
+    dav.send(
+        dav.request("PUT", "/occupied/old.bin"),
+        b"old",
+        StatusCode::CREATED,
+    )
+    .await?;
     let overwrite_f = dav
         .request("MOVE", "/moved/")
         .header("Destination", format!("http://{}/occupied/", dav.addr))
@@ -409,7 +415,8 @@ async fn move_non_empty_collection() -> Result<()> {
     dav.send(overwrite_f, b"", StatusCode::PRECONDITION_FAILED)
         .await?;
 
-    // With `Overwrite: T` the destination is replaced atomically (204).
+    // With `Overwrite: T` dav-server deletes the existing destination first
+    // and the move succeeds with 204.
     let overwrite_t = dav
         .request("MOVE", "/moved/")
         .header("Destination", format!("http://{}/occupied/", dav.addr))
@@ -417,6 +424,12 @@ async fn move_non_empty_collection() -> Result<()> {
     dav.send(overwrite_t, b"", StatusCode::NO_CONTENT).await?;
     dav.send(
         dav.request("PROPFIND", "/moved/").header("Depth", "0"),
+        b"",
+        StatusCode::NOT_FOUND,
+    )
+    .await?;
+    dav.send(
+        dav.request("GET", "/occupied/old.bin"),
         b"",
         StatusCode::NOT_FOUND,
     )

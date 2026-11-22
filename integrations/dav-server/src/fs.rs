@@ -222,6 +222,12 @@ impl DavFileSystem for OpendalFs {
                 let from_path = self.fs_dir_path(from)?;
                 let to_path = self.fs_dir_path(to)?;
 
+                // Moving the root or onto the root is not a collection move.
+                // Refuse it before it can reach the create_dir + delete below.
+                if from_path == "/" || to_path == "/" {
+                    return Err(FsError::Forbidden);
+                }
+
                 if self
                     .op
                     .exists(to_path.as_str())
@@ -245,12 +251,27 @@ impl DavFileSystem for OpendalFs {
                         .await
                     {
                         Ok(()) => return Ok(()),
-                        // A missing collection on a rename-capable backend can
-                        // look like a missing source; the listing below decides.
-                        Err(e)
-                            if matches!(e.kind(), ErrorKind::Unsupported | ErrorKind::NotFound) => {
-                        }
-                        Err(e) => return Err(convert_error(e)),
+                        Err(e) => match e.kind() {
+                            // The service does not move collections; fall back
+                            // to the empty-collection move below.
+                            ErrorKind::Unsupported | ErrorKind::NotFound => {}
+                            // Some services report IsADirectory when they
+                            // cannot rename directories (smb) and also when
+                            // the destination is an existing directory. If a
+                            // destination collection appeared after the check
+                            // above, refuse the move instead of clobbering it.
+                            ErrorKind::IsADirectory => {
+                                if self
+                                    .op
+                                    .exists(to_path.as_str())
+                                    .await
+                                    .map_err(convert_error)?
+                                {
+                                    return Err(FsError::Exists);
+                                }
+                            }
+                            _ => return Err(convert_error(e)),
+                        },
                     }
                 }
 

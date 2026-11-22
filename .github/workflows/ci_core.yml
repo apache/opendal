@@ -122,19 +122,25 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check that GCS with rustls and no default provider excludes aws-lc-rs
+      - name: Fetch locked dependencies
+        working-directory: core
+        run: cargo fetch --locked --target x86_64-unknown-linux-gnu
+
+      - name: Check that the no-provider features exclude built-in TLS providers
         shell: bash
         working-directory: core
         run: |
-          tree=$(cargo tree --locked -p opendal \
-            --no-default-features \
-            --features services-gcs,http-transport-reqwest-rustls-no-provider \
-            --edges normal,build \
-            --prefix none)
-          if grep -E '^aws-lc-rs( |$)' <<< "$tree"; then
-            echo "::error::aws-lc-rs is in the dependency tree for services-gcs with http-transport-reqwest-rustls-no-provider"
-            exit 1
-          fi
+          for feature in http-transport-reqwest-rustls-no-provider reqwest-rustls-no-provider-tls; do
+            tree=$(cargo tree --frozen -p opendal \
+              --no-default-features \
+              --features "services-s3,services-azblob,services-gcs,$feature" \
+              --edges normal,build \
+              --prefix none)
+            if grep -E '^(ring|aws-lc-rs|aws-lc-sys)( |$)' <<< "$tree"; then
+              echo "::error::Unexpected TLS crypto provider for $feature"
+              exit 1
+            fi
+          done
 
   build_default_features:
     runs-on: ${{ matrix.os }}

@@ -342,6 +342,14 @@ impl WriteGenerator<oio::Writer> {
             remaining -= boundary_size;
         }
 
+        // Exact chunking keeps a full buffer queued until the next write, so
+        // the boundary fill above can leave `chunk_size` bytes unflushed. Flush
+        // them now so the buffered prefix is not written after the native
+        // copies below.
+        if self.buffer.len() >= chunk_size {
+            self.flush_buffer(None).await?;
+        }
+
         while remaining >= chunk_size as u64 {
             let part_size = if self.exact {
                 chunk_size as u64
@@ -615,6 +623,103 @@ mod tests {
         writer.close().await?;
 
         assert_eq!(op.read("target").await?.to_vec(), b"abcdefghij0123456789");
+        Ok(())
+    }
+
+    /// Exact chunking may leave a full buffer unflushed when `copy_from` tops it
+    /// up to `chunk_size`. The buffered prefix must still be written before any
+    /// native `copy_from` parts.
+    #[tokio::test]
+    async fn test_exact_copy_from_flushes_full_buffer_before_native_copy() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("XYZ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghij"
+        );
+        Ok(())
+    }
+
+    /// A native `copy_from` following a `write` that filled the buffer to
+    /// exactly `chunk_size` must not overtake the buffered chunk.
+    #[tokio::test]
+    async fn test_exact_copy_from_after_full_buffered_chunk() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("ABCDEFGHIJ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"ABCDEFGHIJ0123456789abcdefghij"
+        );
+        Ok(())
+    }
+
+    /// Consecutive `copy_from` calls with misaligned ranges must preserve call
+    /// order even when a call ends with the buffer holding exactly `chunk_size`
+    /// bytes or a partial tail.
+    #[tokio::test]
+    async fn test_exact_copy_from_consecutive_calls_preserve_order() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijklmnopqrstuv")
+            .await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("XYZ").await?;
+        // Fills the buffered prefix to exactly chunk_size with no bytes left
+        // for the native path, leaving a full buffer queued for the next call.
+        writer.copy_from("source", 0..7).await?;
+        // Starts with the full buffer, then copies a native chunk and a tail
+        // that leaves 3 bytes buffered.
+        writer.copy_from("source", 7..20).await?;
+        // Tops the 3 buffered bytes up to a full chunk, leaving 5 bytes
+        // buffered again.
+        writer.copy_from("source", 20..32).await?;
+        // Fills the 5 buffered bytes to a full chunk, then copies a native
+        // chunk and a tail while that chunk is still queued.
+        writer.copy_from("source", 0..18).await?;
+        writer.write("end").await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghijklmnopqrstuv0123456789abcdefghend"
+        );
+        Ok(())
+    }
+
+    /// Without an explicit `.chunk()`, `copy_from` uses the service's minimum
+    /// multi size in inexact mode; interleaved writes must keep their order.
+    #[tokio::test]
+    async fn test_inexact_copy_from_preserves_order() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX).writer("target").await?;
+        writer.write("XYZ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.write("end").await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghijend"
+        );
         Ok(())
     }
 

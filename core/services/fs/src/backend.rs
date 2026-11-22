@@ -173,6 +173,8 @@ impl Builder for FsBuilder {
 
                     copy: true,
                     rename: true,
+                    #[cfg(target_os = "linux")]
+                    rename_with_if_not_exists: true,
 
                     shared: true,
 
@@ -277,9 +279,9 @@ impl Service for FsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        self.core.fs_rename(from, to).await?;
+        self.core.fs_rename(from, to, args.if_not_exists()).await?;
         Ok(RpRename::default())
     }
 

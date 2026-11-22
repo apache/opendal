@@ -39,6 +39,14 @@ A trailing `/` requires a directory target. A symbolic link to a file returns
 target is missing, deletion through a directory path succeeds and leaves the
 link in place.
 
+## Rename
+
+On Linux, `rename_with(...).if_not_exists(true)` atomically moves the source
+only when the destination is absent. If the destination exists, the operation
+returns [`opendal_core::ErrorKind::ConditionNotMatch`] and preserves both files.
+The option requires kernel and filesystem support for `RENAME_NOREPLACE`.
+Otherwise, the operation returns [`opendal_core::ErrorKind::Unsupported`].
+
 ## Configuration
 
 Use [`crate::FsConfig`] for serializable configuration and this builder's

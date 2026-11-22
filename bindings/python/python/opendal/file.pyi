@@ -22,8 +22,6 @@ from typing import Any, SupportsIndex, final
 
 __all__ = ["AsyncFile", "File"]
 
-__all__ = ["AsyncFile", "File"]
-
 @final
 class AsyncFile:
     """

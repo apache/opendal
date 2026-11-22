@@ -1236,6 +1236,7 @@ impl S3Core {
             .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_AMZ_COPY_SOURCE, source)
             .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())
+            .header(CONTENT_LENGTH, 0)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 

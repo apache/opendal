@@ -2198,6 +2198,37 @@ mod tests {
         assert_eq!(transport.requests().len(), requests.len());
     }
 
+    #[test]
+    fn test_s3_upload_part_copy_sends_zero_content_length() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .build_backend()
+            .unwrap();
+        let request = backend
+            .core
+            .s3_upload_part_copy_request(S3UploadPartCopyRequest {
+                from: "source",
+                to: "target",
+                source_version: None,
+                if_match: None,
+                if_none_match: None,
+                if_modified_since: None,
+                if_unmodified_since: None,
+                upload_id: "upload",
+                part_number: 1,
+                range: (0_u64..5 * 1024 * 1024).into(),
+                operation: Operation::Copy,
+            })
+            .unwrap();
+
+        assert_eq!(
+            request.headers().get(http::header::CONTENT_LENGTH),
+            Some(&HeaderValue::from_static("0"))
+        );
+        assert!(request.body().is_empty());
+    }
+
     #[tokio::test]
     async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
         let source_content_length = 5 * 1024 * 1024 + 1;

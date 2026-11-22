@@ -268,9 +268,9 @@ async fn root_file_lifecycle() -> Result<()> {
 
 #[tokio::test]
 async fn nested_utf8_file_lifecycle() -> Result<()> {
-    // /données & archives/雪 #1/
-    let outer = "/donn%C3%A9es%20%26%20archives/";
-    let inner = format!("{outer}%E9%9B%AA%20%231/");
+    // /notes & 雪/冬 #1/
+    let outer = "/notes%20%26%20%E9%9B%AA/";
+    let inner = format!("{outer}%E5%86%AC%20%231/");
     let dav = WebDav::new().await?;
     dav.send(dav.request("MKCOL", &inner), b"", StatusCode::CONFLICT)
         .await?;

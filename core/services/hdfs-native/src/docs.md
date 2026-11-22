@@ -19,6 +19,11 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+HDFS Native deletes a directory and its descendants in a single NameNode
+request when `recursive(true)` is set. Deleting a non-empty directory without
+this option returns an error. Deleting `/` targets the configured root. If the
+configured root is the HDFS filesystem root, HDFS keeps it intact.
+
 ## Configuration
 
 Use [`crate::HdfsNativeConfig`] for serializable configuration and this builder's

@@ -131,6 +131,7 @@ impl Builder for HdfsNativeBuilder {
 
                     create_dir: true,
                     delete: true,
+                    delete_with_recursive: true,
 
                     list: true,
 

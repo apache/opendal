@@ -46,6 +46,7 @@ import org.apache.opendal.layer.HedgeLayer;
 import org.apache.opendal.layer.ImmutableIndexLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.RouteLayer;
 import org.apache.opendal.layer.SanityCheckLayer;
 import org.apache.opendal.layer.TailCutLayer;
 import org.apache.opendal.layer.ThrottleLayer;
@@ -164,6 +165,91 @@ public class LayerTest {
         assertThatThrownBy(() -> new ChaosLayer(invalid))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageStartingWith("errorRatio ");
+    }
+
+    @Test
+    void testRouteLayerUsesFirstMatchAndFallsBackToInnerOperator() {
+        final ServiceConfig.Memory memory = ServiceConfig.Memory.builder().build();
+        try (final AsyncOperator inner = AsyncOperator.of(memory);
+                final AsyncOperator target = AsyncOperator.of(memory);
+                final RouteLayer layer = RouteLayer.builder()
+                        .route("archive/**", inner)
+                        .route("**/special.txt", target)
+                        .build();
+                final AsyncOperator routed = inner.layer(layer)) {
+            final byte[] firstMatch = {1};
+            final byte[] laterMatch = {2};
+            final byte[] fallback = {3};
+            routed.write("archive/special.txt", firstMatch).join();
+            routed.write("other/special.txt", laterMatch).join();
+            routed.write("fallback.txt", fallback).join();
+
+            assertThat(inner.read("archive/special.txt").join()).containsExactly(firstMatch);
+            assertThat(target.read("other/special.txt").join()).containsExactly(laterMatch);
+            assertThat(inner.read("fallback.txt").join()).containsExactly(fallback);
+            assertThat(routed.read("archive/special.txt").join()).containsExactly(firstMatch);
+            assertThat(routed.read("other/special.txt").join()).containsExactly(laterMatch);
+            assertThat(routed.read("fallback.txt").join()).containsExactly(fallback);
+
+            target.write("archive/special.txt", laterMatch).join();
+            try (final RouteLayer reversed = RouteLayer.builder()
+                            .route("**/special.txt", target)
+                            .route("archive/**", inner)
+                            .build();
+                    final AsyncOperator reversedOp = inner.layer(reversed)) {
+                assertThat(reversedOp.read("archive/special.txt").join()).containsExactly(laterMatch);
+            }
+        }
+    }
+
+    @Test
+    void testRouteLayerRetainsTargetAfterItsHandleCloses() {
+        final ServiceConfig.Memory memory = ServiceConfig.Memory.builder().build();
+        try (final AsyncOperator inner = AsyncOperator.of(memory);
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            final byte[] before = {1};
+            try (final AsyncOperator target = AsyncOperator.of(memory)) {
+                target.write("archive/before.txt", before).join();
+                builder.route("archive/**", target);
+            }
+
+            try (final RouteLayer layer = builder.build();
+                    final AsyncOperator routed = inner.layer(layer)) {
+                layer.close();
+                assertThat(routed.read("archive/before.txt").join()).containsExactly(before);
+
+                final byte[] after = {2};
+                routed.write("archive/after.txt", after).join();
+                assertThat(routed.read("archive/after.txt").join()).containsExactly(after);
+                assertThatThrownBy(() -> inner.stat("archive/after.txt").join())
+                        .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+            }
+        }
+    }
+
+    @Test
+    void testRouteLayerRejectsInvalidGlob() {
+        try (final AsyncOperator target =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            builder.route("archive/[", target);
+            assertThatThrownBy(builder::build)
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
+                    .hasMessageContaining("invalid route glob pattern")
+                    .hasMessageContaining("archive/[");
+        }
+    }
+
+    @Test
+    void testRouteLayerRejectsClosedTarget() {
+        try (final AsyncOperator target =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            target.close();
+            assertThatThrownBy(() -> builder.route("archive/**", target))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("target is closed");
+        }
     }
 
     @Test

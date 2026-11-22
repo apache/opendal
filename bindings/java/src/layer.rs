@@ -22,9 +22,11 @@ use crate::convert::jstring_to_string;
 use crate::error::ThrowException;
 use jni::Env;
 use jni::EnvUnowned;
+use jni::jni_sig;
 use jni::jni_str;
 use jni::objects::IntoAuto;
 use jni::objects::JClass;
+use jni::objects::JObject;
 use jni::objects::JObjectArray;
 use jni::objects::JString;
 use jni::sys::jboolean;
@@ -41,6 +43,8 @@ use opendal::layers::HedgeLayer;
 use opendal::layers::ImmutableIndexLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
+use opendal::layers::RouteLayer;
+use opendal::layers::RouteLayerBuilder;
 use opendal::layers::SanityCheckLayer;
 use opendal::layers::TailCutLayer;
 use opendal::layers::ThrottleLayer;
@@ -253,6 +257,80 @@ pub extern "system" fn Java_org_apache_opendal_layer_MimeGuessLayer_doLayer<'loc
 ) -> jlong {
     let op = unsafe { &*op };
     Box::into_raw(Box::new(op.clone().layer(MimeGuessLayer::new()))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_createBuilder<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+) -> jlong {
+    Box::into_raw(Box::new(RouteLayer::builder())) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_addRoute<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    builder: *mut RouteLayerBuilder,
+    pattern: JString<'local>,
+    target: JObject<'local>,
+) {
+    env.with_env(|env| -> Result<()> {
+        let pattern = jstring_to_string(env, &pattern)?;
+        let handle = env
+            .get_field(&target, jni_str!("nativeHandle"), jni_sig!("J"))?
+            .j()? as *const Operator;
+        // Java holds the target's monitor and checks that it is open before calling JNI.
+        let target = unsafe { &*handle }.clone();
+        let builder = unsafe { &mut *builder };
+        *builder = std::mem::take(builder).route(pattern, target);
+        Ok(())
+    })
+    .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_buildLayer<'local>(
+    mut env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    builder: *mut RouteLayerBuilder,
+) -> jlong {
+    env.with_env(|_| -> Result<jlong> {
+        let builder = unsafe { &mut *builder };
+        let layer = std::mem::take(builder).build()?;
+        Ok(Box::into_raw(Box::new(layer)) as jlong)
+    })
+    .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_disposeBuilder<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    builder: *mut RouteLayerBuilder,
+) {
+    drop(unsafe { Box::from_raw(builder) });
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_doLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *const Operator,
+    layer: *const RouteLayer,
+) -> jlong {
+    let op = unsafe { &*op };
+    let layer = unsafe { &*layer };
+    Box::into_raw(Box::new(op.clone().layer(layer.clone()))) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_RouteLayer_disposeLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    layer: *mut RouteLayer,
+) {
+    drop(unsafe { Box::from_raw(layer) });
 }
 
 #[unsafe(no_mangle)]

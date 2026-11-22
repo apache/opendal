@@ -53,7 +53,8 @@ class BlockingReadStream extends Readable {
 
   _read(size) {
     try {
-      const buf = Buffer.alloc(size)
+      // Node can request size 0 when highWaterMark is 0.
+      const buf = Buffer.alloc(Math.max(size, 1))
       let s = this.reader.read(buf)
       if (s === 0n) {
         this.push(null)

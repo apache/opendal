@@ -28,6 +28,10 @@ and each pooled connection health check. Both limits default to `10s` and
 accept subsecond values such as `500ms`. Set either limit to `0s` to disable
 it. The OpenSSH client's own configuration can still impose limits.
 
+`control_directory` sets where the SSH client creates the temporary directory
+holding the control socket. It defaults to `$XDG_STATE_HOME` or
+`$HOME/.local/state`, falling back to the current directory.
+
 For security reasons, it doesn't support password login. Use SSH key-based authentication (e.g., configure your public key on the server via `ssh-copy-id` and provide the private key here).
 
 ## Example

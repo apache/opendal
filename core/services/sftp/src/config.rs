@@ -42,6 +42,11 @@ pub struct SftpConfig {
     pub acquire_timeout: Option<SignedDuration>,
     /// Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.
     pub connect_timeout: Option<SignedDuration>,
+    /// Directory for the SSH control socket.
+    ///
+    /// The SSH client creates a temporary directory holding the control socket here.
+    /// Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory.
+    pub control_directory: Option<String>,
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -161,5 +166,49 @@ mod tests {
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.key.as_deref(), Some("/home/alice/.ssh/id_rsa"));
         assert_eq!(cfg.known_hosts_strategy.as_deref(), Some("accept"));
+    }
+
+    #[test]
+    fn control_directory_from_map_builder_and_uri() {
+        let cfg = SftpConfig::from_iter([(
+            "control_directory".to_string(),
+            "/tmp/sftp-control".to_string(),
+        )])
+        .unwrap();
+        assert_eq!(cfg.control_directory.as_deref(), Some("/tmp/sftp-control"));
+
+        let builder = SftpBuilder::default().control_directory("/tmp/sftp-control");
+        assert_eq!(
+            builder.config.control_directory.as_deref(),
+            Some("/tmp/sftp-control")
+        );
+        assert_eq!(
+            SftpBuilder::default()
+                .control_directory("")
+                .config
+                .control_directory,
+            None
+        );
+
+        let uri = OperatorUri::new(
+            "sftp://host",
+            [(
+                "control_directory".to_string(),
+                "/tmp/sftp-control".to_string(),
+            )],
+        )
+        .unwrap();
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.control_directory.as_deref(), Some("/tmp/sftp-control"));
+    }
+
+    #[test]
+    fn builder_builds_with_control_directory() {
+        use opendal_core::Builder;
+
+        let builder = SftpBuilder::default()
+            .endpoint("host")
+            .control_directory("/tmp/sftp-control");
+        assert!(builder.build().is_ok());
     }
 }

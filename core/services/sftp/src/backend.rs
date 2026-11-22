@@ -133,6 +133,19 @@ impl SftpBuilder {
         self
     }
 
+    /// set control directory for sftp backend.
+    /// The SSH client creates a temporary directory holding the control socket here.
+    /// Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory.
+    pub fn control_directory(mut self, dir: &str) -> Self {
+        self.config.control_directory = if dir.is_empty() {
+            None
+        } else {
+            Some(dir.to_string())
+        };
+
+        self
+    }
+
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -238,6 +251,8 @@ impl Builder for SftpBuilder {
                 key: self.config.key.clone(),
                 known_hosts_strategy,
                 connect_timeout,
+                #[cfg(not(windows))]
+                control_directory: self.config.control_directory.clone(),
             },
             acquire_timeout,
         ));

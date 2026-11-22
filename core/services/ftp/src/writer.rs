@@ -169,26 +169,24 @@ impl oio::Write for FtpWriter {
             // open is the only step a retry may repeat, since the stream was
             // never consumed at this point.
             self.data_stream().await?;
-            // Consuming the stream is the point of no return: whatever
-            // happens next, close must never re-open it.
-            self.state = CloseState::Rename;
             // Take the stream before flushing so a failed flush drops the
             // data connection instead of leaving it open.
             let mut data_stream = self
                 .data_stream
                 .take()
                 .expect("ftp data stream must be initialized");
+            // Consuming the stream is the point of no return: any error or
+            // future cancellation from now on leaves the remote content
+            // unknown, so stay Failed until the transfer is finalized.
+            self.state = CloseState::Failed;
             data_stream.flush().await.map_err(|err| {
-                self.state = CloseState::Failed;
                 Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
             })?;
             self.ftp_stream
                 .finalize_put_stream(data_stream)
                 .await
-                .map_err(|err| {
-                    self.state = CloseState::Failed;
-                    format_ftp_error(err)
-                })?;
+                .map_err(format_ftp_error)?;
+            self.state = CloseState::Rename;
         }
 
         if self.state == CloseState::Rename {

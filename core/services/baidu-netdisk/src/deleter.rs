@@ -44,16 +44,14 @@ impl oio::OneShotDelete for BaiduNetdiskDeleter {
             }
             paths
         } else {
-            let file = match self.core.stat(&self.ctx, &path).await {
-                Ok(file) => file,
-                Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
-                Err(e) => return Err(e),
-            };
-            if !args.recursive() && file.isdir == 1 {
-                return Err(Error::new(
-                    ErrorKind::Unsupported,
-                    "Baidu Netdisk requires recursive=true to delete a directory",
-                ));
+            // The path sent to filemanager has no trailing slash. Check directory
+            // paths so deleting "file/" preserves an existing "file".
+            if path.ends_with('/') {
+                match self.core.stat(&self.ctx, &path).await {
+                    Ok(_) => {}
+                    Err(e) if e.kind() == ErrorKind::NotFound => return Ok(()),
+                    Err(e) => return Err(e),
+                }
             }
             vec![self.core.absolute_path(&path)]
         };

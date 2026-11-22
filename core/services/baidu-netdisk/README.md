@@ -30,13 +30,14 @@ and returns the API error.
 Copy accepts file sources and rejects existing directory destinations. Baidu's
 native move rejects an existing destination, so the service omits rename.
 
-Baidu's delete API removes directory trees. Ordinary deletion of an existing
-directory returns `Unsupported`, including when it is empty. Use
-`delete_with("dir/").recursive(true)` to remove a directory and its contents.
-Without the trailing slash, recursive deletion removes all matching paths in
-the parent directory, including matching directory trees. File deletion is
-path-based. Applications must serialize changes that replace a file with a
-directory at the same path during deletion.
+Ordinary delete targets the exact path. If it is a directory, Baidu removes
+the entire directory and its contents, including children added before the
+service processes the request. A trailing slash selects a directory. The type
+check and deletion are separate requests, so callers must serialize replacements
+of the target at the same path when its type matters.
+
+Recursive deletion of a path without a trailing slash also removes sibling
+paths in the parent directory whose names start with that prefix.
 
 For automatic renewal in Rust, configure `client_id` (AppKey), `client_secret`
 (SecretKey), `refresh_token`, and `on_token_refresh` together. The callback

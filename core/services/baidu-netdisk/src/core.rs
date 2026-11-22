@@ -190,17 +190,12 @@ impl FileMetadata {
 }
 
 pub fn api_error(code: i64) -> Error {
-    if code == 31023 {
-        return Error::new(
-            ErrorKind::ConfigInvalid,
-            "Baidu Netdisk rejected a request parameter",
-        )
-        .with_context("errno", code.to_string());
-    }
     let kind = match code {
         -9 | 31066 | 31190 => ErrorKind::NotFound,
         -8 => ErrorKind::AlreadyExists,
         -7 | 6 | 110 | 31024 | 31045 | 20011 => ErrorKind::PermissionDenied,
+        // The metadata lookup before upload can return this parameter error for emoji paths.
+        31023 => ErrorKind::ConfigInvalid,
         31034 => ErrorKind::RateLimited,
         _ => ErrorKind::Unexpected,
     };

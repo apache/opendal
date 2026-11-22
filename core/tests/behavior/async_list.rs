@@ -285,7 +285,7 @@ pub async fn test_list_empty_dir(op: Operator) -> Result<()> {
         "given dir should exist and must be dir"
     );
 
-    op.delete_with(&dir).recursive(true).await?;
+    op.delete(&dir).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -334,7 +334,7 @@ pub async fn test_list_sub_dir(op: Operator) -> Result<()> {
         "dir should be found in list, but only got: {entries:?}"
     );
 
-    op.delete_with(&path).recursive(true).await?;
+    op.delete(&path).await.expect("delete must succeed");
     Ok(())
 }
 
@@ -417,7 +417,9 @@ pub async fn test_list_nested_dir(op: Operator) -> Result<()> {
         .await?;
     assert_eq!(meta.mode(), EntryMode::DIR);
 
-    op.delete_with(&parent).recursive(true).await?;
+    op.delete(&file_path).await.expect("delete must succeed");
+    op.delete(&dir_path).await.expect("delete must succeed");
+    op.delete(&dir).await.expect("delete must succeed");
     Ok(())
 }
 

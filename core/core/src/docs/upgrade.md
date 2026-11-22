@@ -76,6 +76,14 @@ The `opendal` facade still exposes `opendal::executors::TokioExecutor` with the
 omits the process constructor, call `opendal::install_default()` to install
 Tokio and the other enabled defaults, or configure the executor explicitly.
 
+## `PrometheusClientLayer` uses `prometheus-client` 0.26
+
+`opendal-layer-prometheus-client` upgraded its `prometheus-client` dependency
+from 0.25 to 0.26. Callers that pass a `&mut prometheus_client::registry::Registry`
+to `PrometheusClientLayerBuilder::register` must update their direct
+`prometheus-client` dependency to 0.26; a 0.25 `Registry` no longer satisfies
+the signature.
+
 ## Raw API
 
 ### Path helper names

@@ -7484,6 +7484,7 @@ dependencies = [
  "http-body 1.1.0",
  "opendal-core",
  "reqwest 0.13.4",
+ "tokio",
 ]
 
 [[package]]
@@ -7785,9 +7786,11 @@ dependencies = [
  "futures",
  "http 1.4.2",
  "opendal-core",
+ "opendal-http-transport-reqwest",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "reqwest 0.13.4",
  "tokio",
  "tracing",
  "tracing-opentelemetry",

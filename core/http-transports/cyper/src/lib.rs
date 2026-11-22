@@ -39,6 +39,7 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::HttpBody;
 use opendal_core::HttpTransport;
+use opendal_core::HttpUri;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
@@ -201,7 +202,7 @@ async fn fetch(
         .map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
                 .with_operation("cyper::fetch")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .set_source(err)
         })?
         .headers(parts.headers)
@@ -215,7 +216,7 @@ async fn fetch(
     let mut resp = client.execute(req_builder.build()).await.map_err(|err| {
         Error::new(ErrorKind::Unexpected, "send http request")
             .with_operation("cyper::send")
-            .with_context("url", uri.to_string())
+            .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
             .with_temporary(is_temporary_error(&err))
             .set_source(err)
     })?;
@@ -242,7 +243,7 @@ async fn fetch(
         .map_err(move |err| {
             Error::new(ErrorKind::Unexpected, "read data from http response")
                 .with_operation("cyper::fetch")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err)
         });

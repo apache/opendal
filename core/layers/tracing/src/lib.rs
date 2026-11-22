@@ -170,7 +170,13 @@ struct TracingHttpTransport {
 
 impl HttpTransport for TracingHttpTransport {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
-        let span = span!(Level::DEBUG, "http::fetch", ?req);
+        let span = span!(
+            Level::DEBUG,
+            "http::fetch",
+            method = %req.method(),
+            uri = %HttpUri::new(req.uri().to_string()).redacted_uri(),
+            version = ?req.version(),
+        );
 
         let resp = self.inner.fetch(req).instrument(span.clone()).await?;
 

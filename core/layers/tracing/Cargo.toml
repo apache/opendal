@@ -55,3 +55,8 @@ tracing-subscriber = { version = "0.3", features = [
   "env-filter",
   "tracing-log",
 ] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+opendal-http-transport-reqwest = { path = "../../http-transports/reqwest", version = "0.59.5", default-features = false }
+reqwest = { version = "0.13.4", default-features = false }
+tokio = { workspace = true, features = ["io-util", "net", "time"] }

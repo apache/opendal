@@ -27,9 +27,10 @@ use percent_encoding::percent_decode_str;
 /// validate, resolve, or normalize the URI. Ordinary query values remain intact.
 /// Clones share both representations; formatting does not repeat redaction.
 ///
-/// Recognized query names are `Signature`, `Policy`, `token`, `access_token`,
-/// `X-Amz-Signature`, and `X-Amz-Security-Token`, matched case-insensitively after
-/// decoding the name. Arbitrary application parameters are not classified.
+/// Recognized query names include OAuth credentials, storage session tokens, and
+/// signed URL credentials such as `access_token`, `X-Amz-Security-Token`,
+/// `X-Goog-Signature`, and `sig`. Names are matched case-insensitively after
+/// percent-decoding. Arbitrary application parameters are not classified.
 #[derive(Clone)]
 pub struct HttpUri {
     original: Arc<str>,
@@ -147,14 +148,25 @@ fn redact_uri(value: &str) -> String {
                 };
                 let name = percent_decode_str(key).decode_utf8_lossy();
                 match name.to_ascii_lowercase().as_str() {
-                    "signature"
+                    "access_token"
+                    | "client_secret"
+                    | "delegation"
                     | "policy"
+                    | "q-signature"
+                    | "refresh_token"
+                    | "security-token"
+                    | "sig"
+                    | "signature"
                     | "token"
-                    | "access_token"
+                    | "x-amz-s3session-token"
+                    | "x-amz-security-token"
                     | "x-amz-signature"
-                    | "x-amz-security-token" => {
-                        format!("{key}=[REDACTED]")
-                    }
+                    | "x-cos-security-token"
+                    | "x-goog-signature"
+                    | "x-oss-security-token"
+                    | "x-oss-signature"
+                    | "x-tos-security-token"
+                    | "x-tos-signature" => format!("{key}=[REDACTED]"),
                     _ => pair.to_string(),
                 }
             })
@@ -163,4 +175,46 @@ fn redact_uri(value: &str) -> String {
         value.replace_range(start + 1..end, &query);
     }
     value
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn redacts_credential_query_values() {
+        for key in [
+            "access_token",
+            "client_secret",
+            "delegation",
+            "Policy",
+            "q-signature",
+            "refresh_token",
+            "security-token",
+            "Si%67",
+            "Signature",
+            "token",
+            "X-Amz-S3session-Token",
+            "X-Amz-Security-Token",
+            "X-Amz-Signature",
+            "X-Cos-Security-Token",
+            "X-Goog-Signature",
+            "x-oss-security-token",
+            "x-oss-signature",
+            "X-Tos-Security-Token",
+            "X-Tos-Signature",
+        ] {
+            let metadata =
+                "sv=2024-08-04&X-Amz-Expires=60&x-oss-signature-version=OSS4-HMAC-SHA256&flag";
+            let original =
+                format!("https://example.com/object?{metadata}&{key}=test-value&{key}=other-value");
+            let uri = HttpUri::new(original.clone());
+            assert_eq!(uri.original_uri(), original);
+            assert_eq!(
+                uri.redacted_uri(),
+                format!("https://example.com/object?{metadata}&{key}=[REDACTED]&{key}=[REDACTED]")
+            );
+            assert!(!format!("{uri:?}").contains("-value"));
+        }
+    }
 }

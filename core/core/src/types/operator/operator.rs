@@ -1020,21 +1020,19 @@ impl Operator {
         w.close().await
     }
 
-    /// Create a new writer of given path.
+    /// Create a writer for the specified path.
     ///
-    /// # Notes
+    /// Streaming data in multiple writes to the service requires
+    /// [`Capability::write_can_multi`]. This includes [`FuturesAsyncWriter`]
+    /// when its 256 KiB buffer or calls to `flush()` produce multiple chunks.
     ///
-    /// ## Writer Features
+    /// When this capability is false, pass the complete [`Buffer`] to
+    /// [`Operator::write`] or to a single [`Writer::write`] call. If you know
+    /// the payload size in advance, set `chunk(size)` with [`Operator::writer_with`]
+    /// to buffer the full payload in one chunk.
     ///
-    /// The writer provides several powerful capabilities:
-    /// - Streaming writes for continuous data transfer
-    /// - Automatic multipart upload handling
-    /// - Memory-efficient chunk-based writing
-    ///
-    /// ## Extra Options
-    ///
-    /// [`Operator::writer`] is a simplified version that does not include additional options.
-    /// For advanced features such as `chunk` and `concurrent`, use [`Operator::writer_with`] or [`Operator::writer_options`] instead.
+    /// Use [`Operator::writer_with`] or [`Operator::writer_options`] to set
+    /// chunk size and concurrency.
     ///
     /// # Examples
     ///
@@ -1055,18 +1053,15 @@ impl Operator {
         self.writer_with(path).await
     }
 
-    /// Create a new writer of given path with additional options.
+    /// Create a writer for the specified path with additional options.
     ///
-    /// # Notes
+    /// Streaming data in multiple writes to the service requires
+    /// [`Capability::write_can_multi`]. When this capability is false, pass the
+    /// complete [`Buffer`] to [`Operator::write`] or to a single [`Writer::write`]
+    /// call on a default writer. If you know the payload size in advance, set
+    /// [`chunk(size)`][FutureWriter::chunk] to buffer the full payload in one chunk.
     ///
-    /// ## Writer Features
-    ///
-    /// The writer provides several powerful capabilities:
-    /// - Streaming writes for continuous data transfer
-    /// - Automatic multipart upload handling
-    /// - Memory-efficient chunk-based writing
-    ///
-    /// ## Chunk Size Handling
+    /// # Chunk Size Handling
     ///
     /// Storage services often have specific requirements for chunk sizes:
     /// - Services like `s3` may return `EntityTooSmall` errors for undersized chunks

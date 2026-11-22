@@ -35,9 +35,9 @@ use crate::*;
 ///
 /// ### Write Multiple Chunks
 ///
-/// Some services support to write multiple chunks of data into given path. Services that doesn't
-/// support write multiple chunks will return [`ErrorKind::Unsupported`] error when calling `write`
-/// at the second time.
+/// Sending multiple chunks to the service requires [`Capability::write_can_multi`].
+/// A writer that accepts only one chunk returns [`ErrorKind::Unsupported`] if it
+/// receives a second chunk. See [`Operator::writer_with`] for buffering options.
 ///
 /// ```
 /// use opendal_core::Operator;
@@ -312,15 +312,17 @@ impl Writer {
         BufferSink::new(self.inner)
     }
 
-    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
+    /// Convert this writer into a [`FuturesAsyncWriter`] that implements [`futures::AsyncWrite`].
     ///
-    /// # Notes
+    /// The adapter copies input into a 256 KiB buffer. Writing beyond that buffer
+    /// or calling `flush()` can produce multiple chunks. Sending multiple chunks
+    /// to the service requires [`Capability::write_can_multi`]. Call `close()` to
+    /// commit the write.
     ///
-    /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
-    /// requires an owned [`Buffer`], which involves an extra copy operation.
-    ///
-    /// FuturesAsyncWriter is required to call `close()` to make sure all
-    /// data have been written to the storage.
+    /// When this capability is false, pass the complete [`Buffer`] to
+    /// [`Operator::write`] or to a single [`Writer::write`] call on a default writer.
+    /// To use this adapter with a known payload size, set `chunk(size)` with
+    /// [`Operator::writer_with`] to buffer the full payload in one chunk.
     ///
     /// # Examples
     ///
@@ -370,12 +372,17 @@ impl Writer {
         FuturesAsyncWriter::new(self.inner)
     }
 
-    /// Convert writer into [`FuturesBytesSink`] which implements [`futures::Sink<Bytes>`].
+    /// Convert this writer into a [`FuturesBytesSink`] that implements [`futures::Sink<Bytes>`].
     ///
-    /// # Notes
+    /// The sink passes owned [`bytes::Bytes`] to the underlying writer without copying
+    /// the payload. Sending multiple chunks to the service requires
+    /// [`Capability::write_can_multi`].
     ///
-    /// FuturesBytesSink is a zero-cost abstraction. The underlying writer
-    /// will reuse the Bytes and won't perform any copy operation.
+    /// When this capability is false, pass the complete payload as one
+    /// [`bytes::Bytes`] item on a default writer. You can also pass the full
+    /// [`Buffer`] to [`Operator::write`] or to a single [`Writer::write`] call.
+    /// If you know the payload size in advance, set `chunk(size)` with
+    /// [`Operator::writer_with`] to buffer the full payload in one chunk.
     ///
     /// # Examples
     ///

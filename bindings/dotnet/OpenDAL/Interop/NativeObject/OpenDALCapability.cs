@@ -115,6 +115,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte listWithRecursive;
     [MarshalAs(UnmanagedType.U1)] internal byte listWithVersions;
     [MarshalAs(UnmanagedType.U1)] internal byte listWithDeleted;
+    [MarshalAs(UnmanagedType.U1)] internal byte listWithGlob;
     [MarshalAs(UnmanagedType.U1)] internal byte presign;
     [MarshalAs(UnmanagedType.U1)] internal byte presignRead;
     [MarshalAs(UnmanagedType.U1)] internal byte presignStat;

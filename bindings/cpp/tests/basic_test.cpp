@@ -52,8 +52,6 @@ class OpenDALBasicTest : public ::testing::Test {
 // Scenario: OpenDAL Blocking Operations
 OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   std::string file_path = "test";
-  std::string file_path_copied = "test_copied";
-  std::string file_path_renamed = "test_renamed";
   std::string dir_path = "test_dir/";
   std::string_view data = "abc";
 
@@ -88,10 +86,13 @@ OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
   EXPECT_TRUE(paths.find(list_file_path) != paths.end());
 
-  // remove files
-  op_.Remove(file_path_renamed);
+  // remove files and the empty directory
+  op_.Remove(file_path);
+  op_.Remove(list_file_path);
   op_.Remove(dir_path);
-  EXPECT_FALSE(op_.Exists(file_path_renamed));
+  EXPECT_FALSE(op_.Exists(file_path));
+  EXPECT_FALSE(op_.Exists(list_file_path));
+  EXPECT_FALSE(op_.Exists(dir_path));
 }
 
 OPENDAL_TEST_F(OpenDALTest, ReaderTest) {

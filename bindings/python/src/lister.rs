@@ -32,7 +32,11 @@ use crate::*;
 
 const ASYNC_LISTER_BATCH_SIZE: usize = 64;
 
-#[pyclass(unsendable, module = "opendal")]
+/// An iterator over entries returned by `Operator.list()`.
+///
+/// Waiting for an entry releases the Python GIL. Concurrent calls to `next()`
+/// on the same iterator raise `RuntimeError`.
+#[pyclass(module = "opendal")]
 pub struct BlockingLister(ocore::blocking::Lister);
 
 impl BlockingLister {
@@ -47,9 +51,9 @@ impl BlockingLister {
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __next__(mut slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
-        match slf.0.next() {
-            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(slf.py())?)),
+    fn __next__(&mut self, py: Python<'_>) -> PyResult<Option<Py<PyAny>>> {
+        match py.detach(|| self.0.next()) {
+            Some(Ok(entry)) => Ok(Some(Entry::new(entry).into_py_any(py)?)),
             Some(Err(err)) => {
                 let pyerr = format_pyerr(err);
                 Err(pyerr)

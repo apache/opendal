@@ -47,6 +47,8 @@ pub use rps::*;
 mod ops;
 pub use ops::*;
 
+pub(crate) mod glob_matcher;
+
 mod http_util;
 pub use http_util::*;
 

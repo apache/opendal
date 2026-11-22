@@ -41,12 +41,30 @@ impl Operator {
     /// # }
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
+        Self::from_builder(ab, true)
+    }
+
+    /// Create an operator with client-side glob simulation disabled.
+    ///
+    /// Glob requests still use native service support when available. Otherwise
+    /// they fail with [`ErrorKind::Unsupported`].
+    pub fn new_without_glob_simulation<B: Builder>(ab: B) -> Result<Operator> {
+        Self::from_builder(ab, false)
+    }
+
+    fn from_builder<B: Builder>(ab: B, simulate_glob: bool) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
-        Ok(Operator::from_parts(OperationContext::default(), service)
+        let op = Operator::from_parts(OperationContext::default(), service)
             .layer(ErrorContextLayer)
-            .layer(SimulateLayer::default())
-            .layer(CompleteLayer)
-            .layer(CorrectnessCheckLayer))
+            .layer(SimulateLayer::default());
+        let op = if simulate_glob {
+            // Traverse the service's directory entries before metadata completion
+            // can resolve symbolic links to directories.
+            op.layer(GlobLayer)
+        } else {
+            op
+        };
+        Ok(op.layer(CompleteLayer).layer(CorrectnessCheckLayer))
     }
 
     /// Create a new operator from given config.

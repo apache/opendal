@@ -1500,6 +1500,15 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.args.deleted = v;
         self
     }
+
+    /// Filter entries using a Unix shell style glob pattern.
+    ///
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
+        self
+    }
 }
 
 /// [`Operator::list_with`] and [`Operator::lister_with`] return this future.
@@ -1552,6 +1561,15 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
+        self
+    }
+
+    /// Filter entries using a Unix shell style glob pattern.
+    ///
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
         self
     }
 }

@@ -284,6 +284,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn glob_does_not_traverse_discovered_symlinks() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+        op.write("dir/photo.jpg", "data").await.unwrap();
+        std::os::unix::fs::symlink("dir", root.path().join("alias")).unwrap();
+
+        let entries = op.list_with("/").glob("**/*.jpg").await.unwrap();
+        let paths: Vec<_> = entries.iter().map(|entry| entry.path()).collect();
+        assert_eq!(paths, ["dir/photo.jpg"]);
+    }
+
+    #[tokio::test]
     async fn list_recursively_skips_unreadable_child() {
         let root = tempfile::tempdir().unwrap();
         let locked = root.path().join("locked");

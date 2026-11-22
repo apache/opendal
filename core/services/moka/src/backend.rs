@@ -339,7 +339,8 @@ impl Service for MokaBackend {
         let output: oio::HierarchyLister<MokaLister> = {
             // For moka, we don't distinguish between files and directories
             // Just return the lister to iterate through all matching keys
-            let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
+            let p = build_absolute_path(&self.root, path);
+            let lister = MokaLister::new(self.core.clone(), self.root.clone(), p);
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
             Ok(lister)
         }?;
@@ -400,5 +401,59 @@ mod tests {
 
         assert_eq!(builder.time_to_live, Some(time_to_live));
         assert_eq!(builder.time_to_idle, Some(time_to_idle));
+    }
+
+    async fn list_paths(op: &Operator, path: &str, recursive: bool) -> Result<Vec<String>> {
+        let mut paths: Vec<String> = op
+            .list_with(path)
+            .recursive(recursive)
+            .await?
+            .into_iter()
+            .map(|entry| entry.path().to_string())
+            .collect();
+        paths.sort_unstable();
+        Ok(paths)
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix() -> Result<()> {
+        let op = Operator::new(MokaBuilder::default())?;
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            op.write(path, "x").await?;
+        }
+
+        assert_eq!(list_paths(&op, "a/", true).await?, ["a/1", "a/nested/2"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix_with_root() -> Result<()> {
+        let op = Operator::new(MokaBuilder::default().root("/sub"))?;
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            op.write(path, "x").await?;
+        }
+
+        assert_eq!(list_paths(&op, "a/", true).await?, ["a/1", "a/nested/2"]);
+        assert_eq!(
+            list_paths(&op, "/", true).await?,
+            ["a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn non_recursive_list_and_root_list_still_work() -> Result<()> {
+        let op = Operator::new(MokaBuilder::default())?;
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            op.write(path, "x").await?;
+        }
+
+        assert_eq!(list_paths(&op, "a/", false).await?, ["a/1", "a/nested/"]);
+        assert_eq!(list_paths(&op, "/", false).await?, ["a/", "ab/", "b/"]);
+        assert_eq!(
+            list_paths(&op, "/", true).await?,
+            ["a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
     }
 }

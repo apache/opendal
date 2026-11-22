@@ -29,10 +29,13 @@ pub struct MokaLister {
 }
 
 impl MokaLister {
-    pub fn new(core: Arc<MokaCore>, root: String, _path: String) -> Self {
+    /// `path` is the absolute listing prefix inside the cache, built by the
+    /// backend with `build_absolute_path`.
+    pub fn new(core: Arc<MokaCore>, root: String, path: String) -> Self {
         let entries: Vec<(String, Metadata)> = core
             .cache
             .iter()
+            .filter(|(key, _)| key.starts_with(path.as_str()))
             .map(|(key, value)| (key.to_string(), value.metadata.clone()))
             .collect();
 

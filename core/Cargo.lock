@@ -8339,6 +8339,7 @@ dependencies = [
  "mini-moka",
  "opendal-core",
  "serde",
+ "tokio",
 ]
 
 [[package]]

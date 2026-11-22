@@ -230,15 +230,42 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         _: &User,
         mut input: R,
         path: P,
-        _: u64,
+        start_pos: u64,
     ) -> storage::Result<u64> {
-        let mut w = self
-            .op
-            .writer(convert_path(path.as_ref())?)
-            .await
-            .map_err(convert_err)?
-            .into_futures_async_write()
-            .compat_write();
+        let path = convert_path(path.as_ref())?;
+
+        // libunftp sends nonzero `start_pos` for APPE, where it equals the
+        // current file size. Silently overwriting there would corrupt data,
+        // so writes at an offset require an append-capable backend and must
+        // land exactly at the end of the existing file.
+        let append = start_pos > 0;
+        if append {
+            if !self.op.info().capability().write_can_append {
+                return Err(Error::new(
+                    storage::ErrorKind::CommandNotImplemented,
+                    "the storage service does not support appending to an existing file",
+                ));
+            }
+            match self.op.stat(path).await {
+                Ok(meta) if meta.content_length() == start_pos => {}
+                Ok(_) => {
+                    return Err(Error::new(
+                        storage::ErrorKind::PermanentFileNotAvailable,
+                        format!("start position {start_pos} does not match the size of {path}"),
+                    ));
+                }
+                Err(err) => return Err(convert_err(err)),
+            }
+        }
+
+        let writer = if append {
+            self.op.writer_with(path).append(true).await
+        } else {
+            self.op.writer(path).await
+        }
+        .map_err(convert_err)?;
+
+        let mut w = writer.into_futures_async_write().compat_write();
         // Avoid `tokio::io::copy`'s pending-read flush path and keep buffering policy explicit.
         let copy_result = copy_read_write_loop(&mut input, &mut w).await;
         let shutdown_result = w.shutdown().await;
@@ -298,13 +325,32 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     async fn cwd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
         use opendal::ErrorKind::*;
 
-        match self.op.stat(convert_path(path.as_ref())?).await {
-            Ok(_) => Ok(()),
-            Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(Error::new(
+        // Object stores only address directories with a trailing `/`.
+        // Normalizing to root yields "/", which `trim_end_matches('/')`
+        // preserves.
+        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let directory = format!("{}/", path.trim_end_matches('/'));
+
+        match self.op.stat(&directory).await {
+            Ok(meta) if meta.is_dir() => Ok(()),
+            Ok(_) => Err(Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
-                e,
+                format!("{directory} is not a directory"),
             )),
-            Err(e) => Err(convert_err(e)),
+            Err(e) => match self.op.list(&directory).await {
+                // Object stores can serve implicit prefix directories that
+                // have no directory entry of their own.
+                Ok(entries) if !entries.is_empty() => Ok(()),
+                Ok(_) => Err(Error::new(
+                    storage::ErrorKind::PermanentDirectoryNotAvailable,
+                    e,
+                )),
+                Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(Error::new(
+                    storage::ErrorKind::PermanentDirectoryNotAvailable,
+                    e,
+                )),
+                Err(e) => Err(convert_err(e)),
+            },
         }
     }
 }

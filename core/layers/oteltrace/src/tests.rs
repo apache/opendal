@@ -148,6 +148,72 @@ fn traces_operator_delete_and_deleter_in_their_creation_contexts() {
     }
 }
 
+struct FailingDeleter {
+    delete_error: Option<Error>,
+    close_error: Option<Error>,
+}
+
+impl oio::Delete for FailingDeleter {
+    async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+        Err(self.delete_error.take().unwrap())
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        Err(self.close_error.take().unwrap())
+    }
+}
+
+#[test]
+fn records_deleter_failures_without_changing_errors() {
+    let context = OperationContext::default();
+    let create_error = Service::delete(&(), &context).unwrap_err();
+    let delete_error =
+        Error::new(ErrorKind::PermissionDenied, "delete rejected").with_context("path", "object");
+    let close_error = Error::new(ErrorKind::RateLimited, "flush rejected").set_temporary();
+    let expected = [&delete_error, &close_error, &create_error]
+        .map(|err| (err.kind(), err.to_string(), err.is_temporary()));
+
+    let (results, spans) = collect_spans(async {
+        let service = OtelTraceLayer::new().layer(Arc::new(()));
+        let create = service.delete(&context).map(|_| ());
+        let mut deleter = OtelTraceWrapper::new(
+            TraceContext::new(),
+            FailingDeleter {
+                delete_error: Some(delete_error),
+                close_error: Some(close_error),
+            },
+        );
+        let delete = oio::Delete::delete(&mut deleter, "object", OpDelete::default()).await;
+        let close = oio::Delete::close(&mut deleter).await;
+        [delete, close, create]
+    });
+
+    for ((name, result), (kind, message, temporary)) in
+        ["deleter.delete", "deleter.close", "delete"]
+            .into_iter()
+            .zip(results)
+            .zip(expected)
+    {
+        let err = result.expect_err(name);
+        assert_eq!(err.kind(), kind);
+        assert_eq!(err.to_string(), message);
+        assert_eq!(err.is_temporary(), temporary);
+
+        let span = spans.iter().find(|span| span.name == name).unwrap();
+        assert_eq!(span.status, Status::error(kind.into_static()), "{name}");
+        let event = span
+            .events
+            .iter()
+            .find(|event| event.name == "exception")
+            .unwrap_or_else(|| panic!("missing exception event on {name}"));
+        assert!(
+            event
+                .attributes
+                .contains(&KeyValue::new("exception.message", message))
+        );
+    }
+}
+
 #[derive(Clone, Default)]
 struct QueuedExecutor {
     task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,

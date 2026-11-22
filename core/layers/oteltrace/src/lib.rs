@@ -29,6 +29,7 @@ use opentelemetry::global;
 use opentelemetry::trace::FutureExt as TraceFutureExt;
 use opentelemetry::trace::Span;
 use opentelemetry::trace::SpanKind;
+use opentelemetry::trace::Status;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::Tracer;
 
@@ -45,7 +46,8 @@ mod tests;
 /// rename, restore, stat, delete, list, and presign calls. It carries read,
 /// write, delete, and list contexts into their stateful I/O bodies. Each
 /// deletion request and the final flush have their own `deleter.delete` and
-/// `deleter.close` child spans, respectively.
+/// `deleter.close` child spans, respectively. If creating the deleter,
+/// submitting a deletion, or flushing fails, its span records the error.
 ///
 /// The layer also creates a client span for each outbound HTTP request and
 /// keeps it active while polling the response body. Tasks spawned through the
@@ -264,6 +266,11 @@ impl Service for OtelTraceService {
         let _guard = cx.clone().attach();
         self.inner
             .delete(ctx)
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
             .map(|deleter| OtelTraceWrapper::new(cx, deleter))
     }
 
@@ -369,14 +376,26 @@ impl<D: oio::Delete> oio::Delete for OtelTraceWrapper<D> {
         span.set_attribute(KeyValue::new("args", format!("{args:?}")));
         let cx = self.cx.with_span(span);
         async { self.inner.delete(path, args).await }
-            .with_context(cx)
+            .with_context(cx.clone())
             .await
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
     }
 
     async fn close(&mut self) -> Result<()> {
         let tracer = global::tracer("opendal");
         let span = tracer.start_with_context("deleter.close", &self.cx);
         let cx = self.cx.with_span(span);
-        async { self.inner.close().await }.with_context(cx).await
+        async { self.inner.close().await }
+            .with_context(cx.clone())
+            .await
+            .inspect_err(|err| {
+                let span = cx.span();
+                span.record_error(err);
+                span.set_status(Status::error(err.kind().into_static()));
+            })
     }
 }

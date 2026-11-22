@@ -16,23 +16,17 @@ wasm-pack build
 
 ## Test
 
-NOTE:
-
-- You need to have Chrome installed.
-- OPFS requires a browser context (no Node.js support).
-- Headless Chrome may not work for OPFS tests.
-
-Some code execution path differ whether it's running in the main thread or in a web worker, use the 2 following commands to test both cases:
+Run these commands from this directory with Chrome and a matching ChromeDriver.
+The Edge Test workflow runs both suites in headless Chrome.
 
 ### Main thread
+
 ```shell
-wasm-pack test --chrome
+wasm-pack test --headless --chrome -- --locked
 ```
 
-### Web worker
-
-To run the same tests in a dedicated web worker:
+### Dedicated worker
 
 ```shell
-wasm-pack test --chrome -- --features worker
+wasm-pack test --headless --chrome -- --locked --features worker
 ```

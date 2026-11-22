@@ -23,7 +23,7 @@ import Link from "@docusaurus/Link";
 import styles from "./styles.module.css";
 
 export default function ServicesIndex({ data }) {
-  const { services } = data;
+  const { services, capabilityFieldCount } = data;
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -44,9 +44,26 @@ export default function ServicesIndex({ data }) {
           <h1 className={styles.title}>Services</h1>
           <p className={styles.subtitle}>
             Every storage service OpenDAL supports. Open one for its full
-            configuration reference and ready-to-copy setup code in each binding.
+            configuration reference, capability details, and ready-to-copy setup
+            code in each binding.
           </p>
         </header>
+
+        <Link to="/services/capabilities" className={styles.matrixBanner}>
+          <div className={styles.matrixBannerText}>
+            <span className={styles.matrixBannerTitle}>
+              Service capability matrix
+            </span>
+            <span className={styles.matrixBannerDesc}>
+              Compare {capabilityFieldCount || "all"} native operations,
+              conditional features, and size limits across {services.length}{" "}
+              services.
+            </span>
+          </div>
+          <span className={styles.matrixBannerCta} aria-hidden="true">
+            View matrix →
+          </span>
+        </Link>
 
         <input
           type="search"

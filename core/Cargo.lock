@@ -7659,8 +7659,13 @@ dependencies = [
 name = "opendal-layer-oteltrace"
 version = "0.59.5"
 dependencies = [
+ "futures",
+ "http 1.4.2",
  "opendal-core",
+ "opendal-service-http",
  "opentelemetry",
+ "opentelemetry_sdk",
+ "tokio",
 ]
 
 [[package]]

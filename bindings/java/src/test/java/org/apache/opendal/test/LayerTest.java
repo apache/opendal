@@ -213,6 +213,8 @@ public class LayerTest {
                         releaseResponse.await();
                         return;
                     }
+                    // Keep the HTTP client from reusing warm-up connections on JDK 11.
+                    exchange.getResponseHeaders().set("Connection", "close");
                     exchange.getResponseHeaders().set("Content-Length", "7");
                     exchange.sendResponseHeaders(200, -1);
                 } catch (InterruptedException e) {

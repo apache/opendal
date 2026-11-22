@@ -581,6 +581,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -730,6 +731,30 @@ mod tests {
             "LeaseIdMismatchWithFileOperation",
         );
         assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        // Real Azure Files response observed in Nightly Tier B behavior tests:
+        // GET with a range past EOF returns 416 with x-ms-error-code InvalidRange.
+        let body = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+             <Error><Code>InvalidRange</Code>\
+             <Message>The range specified is invalid for the current size of the resource.</Message>\
+             </Error>";
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("content-length", "249")
+            .header("content-type", "application/xml")
+            .header("content-range", "bytes */6")
+            .header("server", "Windows-Azure-File/1.0 Microsoft-HTTPAPI/2.0")
+            .header("x-ms-version", "2022-11-02")
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::from(body.to_string()))
+            .expect("response must build");
+
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
         assert!(!err.is_temporary());
     }
 

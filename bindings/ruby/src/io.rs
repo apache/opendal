@@ -94,6 +94,16 @@ impl Io {
         let (_open_flags, fmode, encoding) =
             ruby.io_extract_modeenc(&mut mode, &mut permission, &kwargs)?;
 
+        // `OpenDal::IO` is unidirectional, so read-write modes (`r+`, `w+`,
+        // `a+`) have no valid mapping: silently dropping either half could
+        // lose data or break reads. Reject them explicitly.
+        if fmode.contains(FMode::READ) && fmode.contains(FMode::WRITE) {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                "Invalid mode: read-write modes are not supported",
+            ));
+        }
+
         let state =
             // Create reader if mode supports reading
             if fmode.contains(FMode::READ) {
@@ -105,9 +115,20 @@ impl Io {
                         .map_err(|err| format_magnus_error(ruby, err))?,
                 )
             } else if fmode.contains(FMode::WRITE) {
+                // Honor the mode's open flags instead of always truncating:
+                // `a` appends and `x` fails when the file already exists. Both
+                // return an `Unsupported` error on services without the
+                // capability instead of silently overwriting data.
                 FileState::Writer(
                 operator
-                    .writer(&path)
+                    .writer_options(
+                        &path,
+                        ocore::options::WriteOptions {
+                            append: fmode.contains(FMode::APPEND),
+                            if_not_exists: fmode.contains(FMode::EXCLUSIVE),
+                            ..Default::default()
+                        },
+                    )
                     .map_err(|err| format_magnus_error(ruby, err))?
                     .into_std_write(),
             )

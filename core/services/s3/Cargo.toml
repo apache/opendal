@@ -45,7 +45,6 @@ quick-xml = { workspace = true, features = ["serialize", "overlapped-lists"] }
 reqsign-aws-v4 = { version = "3.4.0", default-features = false }
 reqsign-core = { version = "3.3.3", default-features = false }
 reqsign-file-read-tokio = { version = "3.0.8", default-features = false }
-rust-ini = "0.21"
 serde = { workspace = true, features = ["derive"] }
 url = { workspace = true }
 

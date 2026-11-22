@@ -8467,7 +8467,6 @@ dependencies = [
  "reqsign-aws-v4",
  "reqsign-core",
  "reqsign-file-read-tokio",
- "rust-ini",
  "serde",
  "serde_json",
  "tokio",

@@ -3280,6 +3280,14 @@ public interface ServiceConfig {
          * <p>role_arn for this backend.</p>
          * <p>If <code>role_arn</code> is set, we will use already known config as source
          * credential to assume role with <code>role_arn</code>.</p>
+         * <p>When <code>role_arn</code> is not set, OpenDAL also reads it from the
+         * <code>AWS_ROLE_ARN</code> environment variable or the selected AWS profile,
+         * unless config loading is disabled.</p>
+         * <p>A configured web identity token file takes precedence over plain
+         * role assumption, so EKS workloads keep using
+         * <code>AssumeRoleWithWebIdentity</code>. Profiles with <code>source_profile</code> or
+         * <code>credential_source</code> are skipped: chaining from another profile
+         * is not supported yet.</p>
          */
         public final String roleArn;
         /**

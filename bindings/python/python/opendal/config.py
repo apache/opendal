@@ -827,7 +827,7 @@ class S3Config(TypedDict):
     region: NotRequired[str]
     """Region represent the signing region of this endpoint. This is required if you are using the default AWS S3 endpoint.  If using a custom endpoint, - If region is set, we will take user's input first. - If not, we will try to load it from environment."""
     role_arn: NotRequired[str]
-    """role_arn for this backend.  If `role_arn` is set, we will use already known config as source credential to assume role with `role_arn`."""
+    """role_arn for this backend.  If `role_arn` is set, we will use already known config as source credential to assume role with `role_arn`.  When `role_arn` is not set, OpenDAL also reads it from the `AWS_ROLE_ARN` environment variable or the selected AWS profile, unless config loading is disabled.  A configured web identity token file takes precedence over plain role assumption, so EKS workloads keep using `AssumeRoleWithWebIdentity`. Profiles with `source_profile` or `credential_source` are skipped: chaining from another profile is not supported yet."""
     role_session_name: NotRequired[str]
     """role_session_name for this backend."""
     root: NotRequired[str | os.PathLike[str]]

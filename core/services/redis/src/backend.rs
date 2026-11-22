@@ -34,6 +34,7 @@ use super::REDIS_SCHEME;
 use super::config::RedisConfig;
 use super::core::*;
 use super::deleter::RedisDeleter;
+use super::lister::RedisLister;
 use super::reader::*;
 use super::writer::RedisWriter;
 
@@ -187,7 +188,7 @@ impl Builder for RedisBuilder {
                 .as_str(),
         );
 
-        if let Some(endpoints) = self.config.cluster_endpoints.clone() {
+        let core = if let Some(endpoints) = self.config.cluster_endpoints.clone() {
             let mut cluster_endpoints: Vec<ConnectionInfo> = Vec::default();
             for endpoint in endpoints.split(',') {
                 cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
@@ -204,14 +205,13 @@ impl Builder for RedisBuilder {
             }
             let client = client_builder.build().map_err(format_redis_error)?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoints,
                 None,
                 Some(client),
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
+            )
         } else {
             let endpoint = self
                 .config
@@ -228,15 +228,36 @@ impl Builder for RedisBuilder {
                         .set_source(e)
                 })?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoint,
                 Some(client),
                 None,
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
-        }
+            )
+        };
+
+        let capability = Capability {
+            read: true,
+            write: true,
+            delete: true,
+            stat: true,
+            // A cluster SCAN cursor only covers the node that issued it.
+            list: self.config.cluster_endpoints.is_none(),
+            list_with_limit: self.config.cluster_endpoints.is_none(),
+            list_with_recursive: self.config.cluster_endpoints.is_none(),
+            write_can_empty: true,
+            write_with_expires: true,
+            shared: true,
+            ..Default::default()
+        };
+
+        Ok(RedisBackend {
+            info: ServiceInfo::new(REDIS_SCHEME, &root, core.addr()),
+            core: Arc::new(core),
+            root,
+            capability,
+        })
     }
 }
 
@@ -317,39 +338,10 @@ pub struct RedisBackend {
     pub(crate) capability: Capability,
 }
 
-impl RedisBackend {
-    fn new(core: RedisCore) -> Self {
-        let info = ServiceInfo::new(REDIS_SCHEME, "/", core.addr());
-        let capability = Capability {
-            read: true,
-            write: true,
-            delete: true,
-            stat: true,
-            write_can_empty: true,
-            write_with_expires: true,
-            shared: true,
-            ..Default::default()
-        };
-
-        Self {
-            core: Arc::new(core),
-            root: "/".to_string(),
-            info,
-            capability,
-        }
-    }
-
-    fn with_normalized_root(mut self, root: String) -> Self {
-        self.info = self.info.with_root(&root);
-        self.root = root;
-        self
-    }
-}
-
 impl Service for RedisBackend {
     type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
-    type Lister = ();
+    type Lister = RedisLister;
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
     type Composer = ();
@@ -418,11 +410,14 @@ impl Service for RedisBackend {
         Ok(output)
     }
 
-    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        if !self.capability.list {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "listing is unavailable with Redis Cluster endpoints",
+            ));
+        }
+        Ok(RedisLister::new(self.core.clone(), &self.root, path, args))
     }
 
     fn copy(
@@ -467,6 +462,28 @@ impl Service for RedisBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn list_capabilities_depend_on_connection_mode() -> Result<()> {
+        let standalone = RedisBuilder::default().build()?;
+        let capability = standalone.capability();
+        assert!(capability.list && capability.list_with_recursive && capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+
+        let cluster = RedisBuilder::default().cluster_endpoints("redis://localhost:6379");
+        let op = Operator::new(cluster)?;
+        let capability = op.info().capability();
+        assert!(!capability.list);
+        assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+        let err = op
+            .list("/")
+            .await
+            .expect_err("cluster listing is unsupported");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        Ok(())
+    }
 
     #[test]
     fn replica_reads_require_cluster_endpoints() {

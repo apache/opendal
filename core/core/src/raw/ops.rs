@@ -673,9 +673,9 @@ impl OpReader {
         self.concurrent
     }
 
-    /// Set the request chunk size.
+    /// Set the request chunk size. A value of `0` clears the chunk size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk.max(1));
+        self.chunk = (chunk != 0).then_some(chunk);
         self
     }
 
@@ -715,7 +715,7 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
         let range = value.range;
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk.map(|v| v.max(1)),
+            chunk: value.chunk.filter(|&chunk| chunk != 0),
             gap: value.gap,
             prefetch: 0,
         };
@@ -727,7 +727,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
     fn from(value: options::ReaderOptions) -> Self {
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk.map(|v| v.max(1)),
+            chunk: value.chunk.filter(|&chunk| chunk != 0),
             gap: value.gap,
             prefetch: value.prefetch,
         };
@@ -946,7 +946,7 @@ impl OpWrite {
         }
 
         let writer = OpWriter {
-            chunk: options.chunk.map(|v| v.max(1)),
+            chunk: options.chunk.filter(|&chunk| chunk != 0),
         };
         let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
         let mut flags = 0;
@@ -1141,7 +1141,7 @@ impl OpWriter {
         self.chunk
     }
 
-    /// Set the chunk of op.
+    /// Set the writer chunk size. A value of `0` clears the chunk size.
     ///
     /// If chunk is set, the data will be chunked by the underlying writer.
     ///
@@ -1151,7 +1151,7 @@ impl OpWriter {
     /// operations like multipart uploads. So the chunk size may be larger than
     /// the given buffer size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk.max(1));
+        self.chunk = (chunk != 0).then_some(chunk);
         self
     }
 }
@@ -1434,7 +1434,7 @@ impl OpCopy {
             user_metadata.as_deref().map(user_metadata_encoded_len);
         Ok(Self {
             concurrent: options.concurrent.max(1),
-            chunk: options.chunk,
+            chunk: options.chunk.filter(|&chunk| chunk != 0),
             source_content_length_hint: options.source_content_length_hint,
             flags: if options.if_not_exists {
                 OP_COPY_IF_NOT_EXISTS
@@ -1667,6 +1667,27 @@ mod tests {
     }
 
     #[test]
+    fn raw_chunk_setters_clear_zero() {
+        assert_eq!(OpReader::new().with_chunk(16).with_chunk(0).chunk(), None);
+        assert_eq!(OpWriter::new().with_chunk(16).with_chunk(0).chunk(), None);
+    }
+
+    #[test]
+    fn copy_options_chunk_uses_default_for_zero() {
+        for (chunk, expected) in [(None, None), (Some(0), None), (Some(16), Some(16))] {
+            let args = OpCopy::from_options(
+                &Capability::default(),
+                options::CopyOptions {
+                    chunk,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(args.chunk(), expected);
+        }
+    }
+
+    #[test]
     fn read_options_roundtrip() {
         let modified = Timestamp::new(-1, -123).unwrap();
         let unmodified = Timestamp::new(2, 456).unwrap();
@@ -1679,13 +1700,15 @@ mod tests {
             if_modified_since: Some(modified),
             if_unmodified_since: Some(unmodified),
             content_length_hint: Some(42),
+            chunk: Some(0),
             override_content_type: Some("text/plain".to_owned()),
             override_cache_control: Some("no-cache".to_owned()),
             override_content_disposition: Some("attachment".to_owned()),
             ..Default::default()
         };
-        let (_, args, _) = options.into();
+        let (_, args, reader) = options.into();
 
+        assert_eq!(reader.chunk(), None);
         assert_eq!(args.version(), Some("version"));
         assert_eq!(args.if_match(), Some("etag"));
         assert_eq!(args.if_none_match(), Some("other-etag"));

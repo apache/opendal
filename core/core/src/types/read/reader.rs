@@ -808,6 +808,7 @@ mod tests {
             .expect("write must succeed");
 
         let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);
@@ -1020,6 +1021,7 @@ mod tests {
             .expect("write must succeed");
 
         let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
         let bufs = reader
             .fetch(vec![0..100, 200..300])
             .await

@@ -704,7 +704,7 @@ impl Operator {
         }
 
         let limit = opts.limit;
-        if limit.is_some() && (opts.chunk.is_some() || opts.concurrent > 1) {
+        if limit.is_some() && (opts.chunk.is_some_and(|chunk| chunk != 0) || opts.concurrent > 1) {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "read limit cannot be combined with chunk or concurrent reads",
@@ -2931,6 +2931,28 @@ mod tests {
 
         op.write("file", "data").await?;
         let buf = op.read_with("file").limit(2).concurrent(1).await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_limit_accepts_zero_chunk() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let buf = op.read_with("file").limit(2).chunk(0).await?;
+        assert_eq!(buf.to_bytes(), "da");
+
+        let buf = op
+            .read_options(
+                "file",
+                options::ReadOptions {
+                    limit: Some(2),
+                    chunk: Some(0),
+                    ..Default::default()
+                },
+            )
+            .await?;
         assert_eq!(buf.to_bytes(), "da");
         Ok(())
     }

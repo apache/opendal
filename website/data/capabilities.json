@@ -1144,7 +1144,7 @@
         "write_can_append": "When `direct_io` is disabled",
         "write_can_empty": true,
         "write_can_multi": true,
-        "write_with_if_not_exists": true,
+        "write_with_if_not_exists": "When `atomic_write_dir` is not set or on Linux",
         "write_with_user_metadata": "Unix only"
       }
     },

@@ -626,6 +626,20 @@ fn eval_bool_field(
 fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
     let expr = strip_parens(expr);
     match expr {
+        Expr::Binary(ExprBinary {
+            left,
+            op: BinOp::Or(_),
+            right,
+            ..
+        }) => {
+            let left = describe_bool_condition(left, rel_path)?;
+            let right = describe_bool_condition(right, rel_path)?;
+            if let Some(platform) = right.strip_suffix(" only") {
+                Ok(format!("{left} or on {platform}"))
+            } else {
+                Ok(format!("{left} or {right}"))
+            }
+        }
         Expr::Macro(ExprMacro { mac, .. }) if mac.path.is_ident("cfg") => {
             let (ptr_cfg, plat_cond) =
                 parse_cfg_tokens(&mac.tokens.to_string(), rel_path, mac.span())?;
@@ -1140,6 +1154,12 @@ mod tests {
             fs_srv.native.get("write_can_append"),
             Some(&NativeBoolDoc::Conditional(
                 "When `direct_io` is disabled".to_string()
+            ))
+        );
+        assert_eq!(
+            fs_srv.native.get("write_with_if_not_exists"),
+            Some(&NativeBoolDoc::Conditional(
+                "When `atomic_write_dir` is not set or on Linux".to_string()
             ))
         );
         assert_eq!(

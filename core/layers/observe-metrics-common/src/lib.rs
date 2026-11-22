@@ -614,15 +614,15 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                     .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
-            Ok(resp) if resp.status().is_client_error() || resp.status().is_server_error() => {
-                self.interceptor.observe(
-                    labels.with_status_code(resp.status()),
-                    MetricValue::HttpStatusErrorsTotal,
-                );
-                Ok(resp)
-            }
             Ok(resp) => {
-                guard.defuse();
+                let is_status_error =
+                    resp.status().is_client_error() || resp.status().is_server_error();
+                if is_status_error {
+                    self.interceptor.observe(
+                        labels.clone().with_status_code(resp.status()),
+                        MetricValue::HttpStatusErrorsTotal,
+                    );
+                }
                 self.interceptor.observe(
                     labels.clone(),
                     MetricValue::HttpRequestBytes(req_size as u64),
@@ -645,8 +645,14 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                         size: 0,
                         start: Instant::now(),
                         succeeded: false,
+                        is_status_error,
+                        polled: false,
                     })
                 });
+                // Defuse only after the response body wrapper takes over the
+                // `http_executing` decrement, so a panic above can't leak the
+                // gauge or double-decrement it.
+                guard.defuse();
 
                 Ok(http::Response::from_parts(parts, body))
             }
@@ -662,6 +668,15 @@ struct MetricsStream<S, I: MetricsIntercept> {
     size: u64,
     start: Instant,
     succeeded: bool,
+    /// Whether the response carried a 4xx/5xx status code.
+    is_status_error: bool,
+    /// Whether the body stream was polled at least once.
+    ///
+    /// Services routinely drop error responses without reading the body, so an
+    /// unread 4xx/5xx body does not indicate a transport failure. Once the
+    /// body has been polled, an unfinished stream means the transfer was cut
+    /// short and counts as a connection error again.
+    polled: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -672,6 +687,7 @@ where
     type Item = Result<Buffer>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.polled = true;
         match ready!(self.inner.poll_next_unpin(cx)) {
             Some(Ok(bs)) => {
                 self.size += bs.len() as u64;
@@ -691,7 +707,10 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
         let resp_size = self.size;
         let resp_duration = self.start.elapsed();
 
-        if !self.succeeded {
+        // An unread error response body is normal control flow, not a
+        // connection failure; only a body that was started and never finished
+        // counts as one.
+        if !self.succeeded && (!self.is_status_error || self.polled) {
             self.interceptor
                 .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
         }
@@ -1464,12 +1483,11 @@ mod tests {
     }
 
     enum MockFetchBehavior {
-        /// Return a response with the given status code and an empty body.
-        Respond(StatusCode),
+        /// Return a response with the given status code and a body stream that
+        /// yields the given items.
+        Respond(StatusCode, Vec<Result<Buffer>>),
         /// Fail before receiving a response.
         ConnectionError,
-        /// Return HTTP 200 with a body stream that yields the given items.
-        StreamBody(Vec<Result<Buffer>>),
     }
 
     struct MockHttpTransport {
@@ -1483,21 +1501,13 @@ mod tests {
                 MockFetchBehavior::ConnectionError,
             );
             match behavior {
-                MockFetchBehavior::Respond(status) => {
-                    let body = HttpBody::new(stream::empty(), None);
+                MockFetchBehavior::Respond(status, items) => {
+                    let body = HttpBody::new(stream::iter(items), None);
                     let resp = http::Response::builder().status(status).body(body).unwrap();
                     Ok(resp)
                 }
                 MockFetchBehavior::ConnectionError => {
                     Err(Error::new(ErrorKind::Unexpected, "mock connection refused"))
-                }
-                MockFetchBehavior::StreamBody(items) => {
-                    let body = HttpBody::new(stream::iter(items), None);
-                    let resp = http::Response::builder()
-                        .status(StatusCode::OK)
-                        .body(body)
-                        .unwrap();
-                    Ok(resp)
                 }
             }
         }
@@ -1518,7 +1528,11 @@ mod tests {
     }
 
     fn build_http_request() -> http::Request<Buffer> {
-        let mut req = http::Request::new(Buffer::new());
+        build_http_request_with_body(Buffer::new())
+    }
+
+    fn build_http_request_with_body(body: Buffer) -> http::Request<Buffer> {
+        let mut req = http::Request::new(body);
         *req.uri_mut() = "https://example.com/test".parse().unwrap();
         req.extensions_mut().insert(Operation::Read);
         req
@@ -1593,11 +1607,13 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::Respond(StatusCode::NOT_FOUND),
+            MockFetchBehavior::Respond(StatusCode::NOT_FOUND, vec![]),
         );
 
-        let _ = fetcher.fetch(build_http_request()).await;
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
 
+        // The status error is counted as soon as the headers arrive, while
+        // `http_executing` stays elevated until the response body is dropped.
         assert_eq!(
             mock.count_metric_with_status(
                 "opendal_http_status_errors_total",
@@ -1605,7 +1621,12 @@ mod tests {
             ),
             1
         );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+
+        // An unread error body is normal control flow, not a connection error.
+        drop(resp);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
     }
 
     #[tokio::test]
@@ -1613,10 +1634,10 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::Respond(StatusCode::INTERNAL_SERVER_ERROR),
+            MockFetchBehavior::Respond(StatusCode::INTERNAL_SERVER_ERROR, vec![]),
         );
 
-        let _ = fetcher.fetch(build_http_request()).await;
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
 
         assert_eq!(
             mock.count_metric_with_status(
@@ -1625,6 +1646,136 @@ mod tests {
             ),
             1
         );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+
+        // An unread error body is normal control flow, not a connection error.
+        drop(resp);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_records_full_metrics() {
+        let mock = MockInterceptor::default();
+        let response_body = Buffer::from("<Error><Code>NoSuchKey</Code></Error>");
+        let response_size = response_body.len() as u64;
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(StatusCode::NOT_FOUND, vec![Ok(response_body)]),
+        );
+        let request_body = Buffer::from("<Delete><Object><Key>file</Key></Object></Delete>");
+        let request_size = request_body.len() as u64;
+
+        let resp = fetcher
+            .fetch(build_http_request_with_body(request_body))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        // Error responses record the status error and the request metrics just
+        // like successful ones; `http_executing` stays elevated until the
+        // response body is fully consumed or dropped.
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::NOT_FOUND
+            ),
+            1
+        );
+        assert_eq!(
+            mock.get_value_u64("opendal_http_request_bytes"),
+            Some(request_size)
+        );
+        assert!(
+            mock.get_duration_seconds("opendal_http_request_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), None);
+
+        let (_, mut body) = resp.into_parts();
+        let buf = body.to_buffer().await.unwrap();
+        assert_eq!(buf.len() as u64, response_size);
+        drop(body);
+
+        assert_eq!(
+            mock.get_value_u64("opendal_http_response_bytes"),
+            Some(response_size)
+        );
+        assert!(
+            mock.get_duration_seconds("opendal_http_response_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_dropped_early_records_metrics() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                vec![Ok(Buffer::from("internal error"))],
+            ),
+        );
+
+        // Services routinely drop error responses without reading the body.
+        // That must still decrement `http_executing` and record the response
+        // metrics observed so far, but it is not a connection error.
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        drop(resp);
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(0));
+        assert!(
+            mock.get_duration_seconds("opendal_http_response_duration_seconds")
+                .is_some()
+        );
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_body_failure_records_connection_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                vec![
+                    Ok(Buffer::from("partial")),
+                    Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+                ],
+            ),
+        );
+
+        // An error body that was started and then failed mid-read is a real
+        // transfer failure and counts as a connection error.
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        let (_, mut body) = resp.into_parts();
+        let res = body.to_buffer().await;
+        assert!(res.is_err());
+        drop(body);
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(7));
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
     }
 
@@ -1633,10 +1784,10 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::StreamBody(vec![
-                Ok(Buffer::from("hello")),
-                Ok(Buffer::from(" world")),
-            ]),
+            MockFetchBehavior::Respond(
+                StatusCode::OK,
+                vec![Ok(Buffer::from("hello")), Ok(Buffer::from(" world"))],
+            ),
         );
 
         let resp = fetcher.fetch(build_http_request()).await.unwrap();
@@ -1682,10 +1833,13 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::StreamBody(vec![
-                Ok(Buffer::from("partial")),
-                Err(Error::new(ErrorKind::Unexpected, "connection reset")),
-            ]),
+            MockFetchBehavior::Respond(
+                StatusCode::OK,
+                vec![
+                    Ok(Buffer::from("partial")),
+                    Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+                ],
+            ),
         );
 
         let resp = fetcher.fetch(build_http_request()).await.unwrap();
@@ -1715,6 +1869,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while s.next().await.is_some() {}
@@ -1739,6 +1895,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         let _ = s.next().await;
@@ -1766,6 +1924,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while let Some(res) = s.next().await {

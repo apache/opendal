@@ -520,7 +520,7 @@ pub async fn test_delete_with_recursive_no_trailing_slash_matches_prefix(
     if op.info().scheme() == services::GDRIVE_SCHEME {
         return Ok(());
     }
-    #[cfg(feature = "services-opfs")]
+    #[cfg(all(target_arch = "wasm32", feature = "services-opfs"))]
     if op.info().scheme() == services::OPFS_SCHEME {
         return Ok(());
     }

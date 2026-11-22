@@ -233,7 +233,7 @@ public class Capability {
     public final boolean listWithDeleted;
 
     /**
-     * If backend supports listing with a glob pattern.
+     * Whether the operator can list with a glob pattern, including through GlobLayer.
      */
     public final boolean listWithGlob;
 
@@ -453,7 +453,7 @@ public class Capability {
                 false);
     }
 
-    public Capability(
+    private Capability(
             boolean stat,
             boolean statWithIfMatch,
             boolean statWithIfNoneMatch,

@@ -878,6 +878,8 @@ class SftpConfig(TypedDict):
     """Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
     connect_timeout: NotRequired[str | timedelta]
     """Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    control_directory: NotRequired[str]
+    """Directory for the SSH control socket.  The SSH client creates a temporary directory holding the control socket here. Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]

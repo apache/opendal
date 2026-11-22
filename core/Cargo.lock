@@ -8489,8 +8489,9 @@ name = "opendal-service-redb"
 version = "0.59.5"
 dependencies = [
  "opendal-core",
- "redb 4.1.0",
+ "redb 5.0.0",
  "serde",
+ "tempfile",
  "tokio",
 ]
 
@@ -10223,9 +10224,9 @@ dependencies = [
 
 [[package]]
 name = "redb"
-version = "4.1.0"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e925444704b5f17d32bf42f5b6e2df050bceebc3dcd6e71cc73dafe8092e839"
+checksum = "11175cc688ba1b9d3cec4fe582fd82cb97e2a82e28ccc8101b7b8030a8003280"
 dependencies = [
  "libc",
 ]

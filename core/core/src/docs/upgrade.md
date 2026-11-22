@@ -102,6 +102,22 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 `raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.
 
+## Services
+
+### Redb requires `redb` 5
+
+`RedbBuilder::database` takes an `Arc<redb::Database>`, so the `redb` version OpenDAL builds
+with appears in your dependency graph. `opendal` now depends on `redb` 5. Upgrade your own
+`redb` dependency to `5.x` when you pass an externally created database to the builder.
+
+`redb` 5 changed the file locking protocol. Open the same database file with matching `redb` 5.x
+versions in every process, because `redb` 5 does not reliably detect a `redb` 4.2 or earlier
+process that keeps the file open.
+
+Existing databases need no data migration. `redb` 5 changed the encoding of `Option<&str>`,
+`Option<String>`, `Option<bool>`, and `Option<char>` only, and the Redb service stores entries
+in a `TableDefinition<&str, &[u8]>` table.
+
 # Upgrade to v0.59
 
 ## Public API

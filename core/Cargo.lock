@@ -7911,7 +7911,9 @@ dependencies = [
  "compio",
  "opendal-core",
  "rand 0.10.1",
+ "rustix 1.1.4",
  "serde",
+ "tempfile",
  "tokio",
 ]
 

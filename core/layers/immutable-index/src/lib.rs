@@ -189,6 +189,10 @@ impl Service for ImmutableIndexService {
         // deleted entries.
         capability.list_with_versions = false;
         capability.list_with_deleted = false;
+        // `GlobLayer` sits below this layer and advertises `list_with_glob` on
+        // its wrapped stack, but this layer answers list calls directly. The
+        // index cannot honor glob patterns.
+        capability.list_with_glob = false;
 
         capability
     }
@@ -243,6 +247,13 @@ impl Service for ImmutableIndexService {
                 self.info().scheme(),
                 Operation::List,
                 "deleted",
+            ));
+        }
+        if args.glob().is_some() {
+            return Err(new_unsupported_error(
+                self.info().scheme(),
+                Operation::List,
+                "glob",
             ));
         }
 
@@ -368,6 +379,7 @@ mod tests {
                 list_with_recursive: true,
                 list_with_versions: true,
                 list_with_deleted: true,
+                list_with_glob: true,
                 ..Default::default()
             }
         }
@@ -627,9 +639,9 @@ mod tests {
     }
 
     /// The index owns all list options: `start_after` and `recursive` are
-    /// implemented; `limit`, `versions`, and `deleted` must not be inherited
-    /// from the inner service, or the layer would advertise options it
-    /// cannot honor.
+    /// implemented; `limit`, `versions`, `deleted`, and `glob` must not be
+    /// inherited from the inner service, or the layer would advertise options
+    /// it cannot honor.
     #[tokio::test]
     async fn test_capability_does_not_inherit_inner_list_options() -> Result<()> {
         let mut iil = ImmutableIndexLayer::default();
@@ -644,9 +656,11 @@ mod tests {
         assert!(!capability.list_with_limit);
         assert!(!capability.list_with_versions);
         assert!(!capability.list_with_deleted);
+        assert!(!capability.list_with_glob);
 
-        // `versions` and `deleted` must fail fast instead of returning the
-        // current entries as if they were versioned or deleted data.
+        // `versions`, `deleted`, and `glob` must fail fast instead of
+        // returning the current entries as if they were versioned, deleted,
+        // or filtered data.
         let err = op
             .list_with("/")
             .versions(true)
@@ -659,6 +673,13 @@ mod tests {
             .deleted(true)
             .await
             .expect_err("deleted must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .list_with("/")
+            .glob("*.txt")
+            .await
+            .expect_err("glob must not be silently ignored");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         Ok(())
     }
@@ -753,6 +774,88 @@ mod tests {
             .try_collect()
             .await?;
         assert_eq!(actual, ["b"]);
+        Ok(())
+    }
+
+    /// `start_after` on an empty index or a prefix that has no entries returns
+    /// nothing instead of leaking entries outside the prefix.
+    #[tokio::test]
+    async fn test_list_start_after_empty() -> Result<()> {
+        let op = build_operator(ImmutableIndexLayer::default());
+
+        for recursive in [false, true] {
+            let actual: Vec<String> = op
+                .lister_with("/")
+                .recursive(recursive)
+                .start_after("a")
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert!(actual.is_empty(), "recursive={recursive}");
+        }
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a/1", "a/2"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        // `start_after` beyond every key under the prefix.
+        for recursive in [false, true] {
+            let actual: Vec<String> = op
+                .lister_with("a/")
+                .recursive(recursive)
+                .start_after("a/9")
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert!(actual.is_empty(), "recursive={recursive}");
+        }
+
+        // A prefix with no entries must not leak entries from other prefixes,
+        // even when `start_after` would admit them.
+        let actual: Vec<String> = op
+            .lister_with("missing/")
+            .start_after("0")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert!(actual.is_empty());
+        Ok(())
+    }
+
+    /// The option guards live in `ImmutableIndexService::list` itself, so they
+    /// must hold even when the caller drives the `Service` trait directly
+    /// without an `Operator` in front.
+    #[tokio::test]
+    async fn test_list_rejects_unsupported_options_at_service_level() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("file".to_string());
+
+        let service = iil.layer(Arc::new(MockService));
+        let ctx = OperationContext::default();
+
+        for args in [
+            OpList::from(options::ListOptions {
+                versions: true,
+                ..Default::default()
+            }),
+            OpList::from(options::ListOptions {
+                deleted: true,
+                ..Default::default()
+            }),
+            OpList::new().with_glob("*.txt"),
+        ] {
+            let err = match service.list(&ctx, "/", args) {
+                Err(err) => err,
+                Ok(_) => panic!("unsupported options must be rejected"),
+            };
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+        }
         Ok(())
     }
 }

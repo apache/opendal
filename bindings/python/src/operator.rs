@@ -704,11 +704,23 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn copy(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    /// if_not_exists : bool, optional
+    ///     If True, require `copy_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists. Defaults to False, which allows overwriting.
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
+    pub fn copy(
+        &self,
+        py: Python<'_>,
+        source: PathBuf,
+        target: PathBuf,
+        if_not_exists: Option<bool>,
+    ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         let this = self.core.clone();
-        py.detach(move || this.copy(&source, &target))
+        let opts = CopyOptions { if_not_exists };
+        py.detach(move || this.copy_options(&source, &target, opts.into()))
             .map(|_| ())
             .map_err(format_pyerr)
     }
@@ -721,11 +733,24 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn rename(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    /// if_not_exists : bool, optional
+    ///     If True, require `rename_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists, leaving both files unchanged. Defaults to False,
+    ///     which allows overwriting.
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
+    pub fn rename(
+        &self,
+        py: Python<'_>,
+        source: PathBuf,
+        target: PathBuf,
+        if_not_exists: Option<bool>,
+    ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
         let this = self.core.clone();
-        py.detach(move || this.rename(&source, &target))
+        let opts = RenameOptions { if_not_exists };
+        py.detach(move || this.rename_options(&source, &target, opts.into()))
             .map_err(format_pyerr)
     }
 
@@ -1531,23 +1556,29 @@ impl AsyncOperator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
+    /// if_not_exists : bool, optional
+    ///     If True, require `copy_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists. Defaults to False, which allows overwriting.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that completes when the copy is finished.
-    #[pyo3(signature = (source, target) -> "collections.abc.Awaitable[None]")]
+    #[pyo3(signature = (source, target, *, if_not_exists=None) -> "collections.abc.Awaitable[None]")]
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
         source: PathBuf,
         target: PathBuf,
+        if_not_exists: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        let opts = CopyOptions { if_not_exists };
         future_into_py(py, async move {
-            this.copy(&source, &target)
+            this.copy_options(&source, &target, opts)
                 .await
                 .map(|_| ())
                 .map_err(format_pyerr)
@@ -1562,23 +1593,32 @@ impl AsyncOperator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
+    /// if_not_exists : bool, optional
+    ///     If True, require `rename_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists, leaving both files unchanged. Defaults to False,
+    ///     which allows overwriting.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that completes when the rename is finished.
-    #[pyo3(signature = (source, target) -> "collections.abc.Awaitable[None]")]
+    #[pyo3(signature = (source, target, *, if_not_exists=None) -> "collections.abc.Awaitable[None]")]
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
         source: PathBuf,
         target: PathBuf,
+        if_not_exists: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        let opts = RenameOptions { if_not_exists };
         future_into_py(py, async move {
-            this.rename(&source, &target).await.map_err(format_pyerr)
+            this.rename_options(&source, &target, opts)
+                .await
+                .map_err(format_pyerr)
         })
     }
 

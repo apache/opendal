@@ -331,6 +331,39 @@ impl From<StatOptions> for ocore::options::StatOptions {
     }
 }
 
+/// Options for `copy` operations.
+#[pyclass(module = "opendal")]
+#[derive(Default, Debug)]
+pub struct CopyOptions {
+    /// Whether to fail if a file already exists at the target path.
+    pub if_not_exists: Option<bool>,
+}
+
+impl From<CopyOptions> for ocore::options::CopyOptions {
+    fn from(opts: CopyOptions) -> Self {
+        Self {
+            if_not_exists: opts.if_not_exists.unwrap_or(false),
+            ..Default::default()
+        }
+    }
+}
+
+/// Options for `rename` operations.
+#[pyclass(module = "opendal")]
+#[derive(Default, Debug)]
+pub struct RenameOptions {
+    /// Whether to fail if a file already exists at the target path.
+    pub if_not_exists: Option<bool>,
+}
+
+impl From<RenameOptions> for ocore::options::RenameOptions {
+    fn from(opts: RenameOptions) -> Self {
+        Self {
+            if_not_exists: opts.if_not_exists.unwrap_or(false),
+        }
+    }
+}
+
 /// Options for `delete` operations.
 #[pyclass(module = "opendal")]
 #[derive(Default, Debug)]

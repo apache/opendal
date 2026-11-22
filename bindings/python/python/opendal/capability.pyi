@@ -34,6 +34,9 @@ class Capability:
     def copy(self, /) -> bool:
         """If operator supports copy."""
     @property
+    def copy_with_if_not_exists(self, /) -> bool:
+        """If copy can require that the target file does not exist."""
+    @property
     def create_dir(self, /) -> bool:
         """If operator supports create dir."""
     @property
@@ -108,6 +111,9 @@ class Capability:
     @property
     def rename(self, /) -> bool:
         """If operator supports rename."""
+    @property
+    def rename_with_if_not_exists(self, /) -> bool:
+        """If rename can require that the target file does not exist."""
     @property
     def shared(self, /) -> bool:
         """If operator supports shared."""

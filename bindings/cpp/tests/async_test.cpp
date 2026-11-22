@@ -17,7 +17,9 @@
  * under the License.
  */
 
+#include <optional>
 #include <random>
+#include <stdexcept>
 
 #include "cppcoro/sync_wait.hpp"
 #include "cppcoro/task.hpp"
@@ -356,4 +358,177 @@ TEST_F(AsyncOpendalTest, AsyncReaderListerIntegrationTest) {
 
     co_return;
   }());
+}
+
+// Regression test: futures returned by `Operator` methods must own the
+// underlying operator handle. Destroying the `Operator` before a returned
+// future is polled must not invalidate the future. This used to crash or read
+// dangling memory because the future borrowed the operator through a raw
+// pointer.
+TEST_F(AsyncOpendalTest, AsyncFuturesOutliveOperator) {
+  const auto dir_path = "test_outlive/";
+  const auto file_path = "test_outlive/file.txt";
+  const auto written_path = "test_outlive/written.txt";
+  const auto copied_path = "test_outlive/copied.txt";
+  const auto rename_source_path = "test_outlive/rename_source.txt";
+  const auto moved_path = "test_outlive/moved.txt";
+  const auto created_dir_path = "test_outlive/created/";
+  std::vector<uint8_t> data{10, 20, 30, 40};
+
+  std::optional<opendal::async::Operator::WriteFuture> write_future;
+  std::optional<opendal::async::Operator::ExistsFuture> exists_future;
+  std::optional<opendal::async::Operator::ReadFuture> read_future;
+  std::optional<opendal::async::Operator::ListFuture> list_future;
+  std::optional<opendal::async::Operator::CreateDirFuture> create_dir_future;
+  std::optional<opendal::async::Operator::CopyFuture> copy_future;
+  std::optional<opendal::async::Operator::ExistsFuture> copy_exists_future;
+  std::optional<opendal::async::Operator::RenameFuture> rename_future;
+  std::optional<opendal::async::Operator::ExistsFuture> moved_exists_future;
+  std::optional<opendal::async::Operator::DeleteFuture> delete_future;
+  std::optional<opendal::async::Operator::ExistsFuture> deleted_exists_future;
+  std::optional<opendal::async::Operator::ReaderFuture> reader_future;
+  std::optional<opendal::async::Operator::ListerFuture> lister_future;
+
+  {
+    opendal::async::Operator scoped_op(scheme, config);
+    cppcoro::sync_wait(scoped_op.Write(file_path, data));
+    cppcoro::sync_wait(scoped_op.Write(rename_source_path, data));
+
+    // Create one future per async operation; none of them is polled until
+    // after `scoped_op` is destroyed.
+    write_future.emplace(scoped_op.Write(written_path, data));
+    exists_future.emplace(scoped_op.Exists(file_path));
+    read_future.emplace(scoped_op.Read(file_path));
+    list_future.emplace(scoped_op.List(dir_path));
+    create_dir_future.emplace(scoped_op.CreateDir(created_dir_path));
+    copy_future.emplace(scoped_op.Copy(file_path, copied_path));
+    copy_exists_future.emplace(scoped_op.Exists(copied_path));
+    rename_future.emplace(
+        scoped_op.Rename(rename_source_path, moved_path));
+    moved_exists_future.emplace(scoped_op.Exists(moved_path));
+    delete_future.emplace(scoped_op.DeletePath(moved_path));
+    deleted_exists_future.emplace(scoped_op.Exists(moved_path));
+    reader_future.emplace(scoped_op.GetReader(file_path));
+    lister_future.emplace(scoped_op.GetLister(dir_path));
+  }
+  // `scoped_op` is destroyed here; all the futures above must still resolve.
+
+  cppcoro::sync_wait(std::move(*write_future));
+
+  // The memory service does not support copy/rename; polling these futures
+  // must still safely reach the service and surface its Unsupported error
+  // instead of dereferencing a destroyed operator.
+  EXPECT_ANY_THROW(cppcoro::sync_wait(std::move(*copy_future)));
+  EXPECT_ANY_THROW(cppcoro::sync_wait(std::move(*rename_future)));
+
+  EXPECT_TRUE(cppcoro::sync_wait(std::move(*exists_future)));
+  EXPECT_FALSE(cppcoro::sync_wait(std::move(*copy_exists_future)));
+  EXPECT_FALSE(cppcoro::sync_wait(std::move(*moved_exists_future)));
+
+  cppcoro::sync_wait(std::move(*delete_future));
+  EXPECT_FALSE(cppcoro::sync_wait(std::move(*deleted_exists_future)));
+
+  cppcoro::sync_wait(std::move(*create_dir_future));
+
+  auto res = cppcoro::sync_wait(std::move(*read_future));
+  ASSERT_EQ(res.size(), data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    EXPECT_EQ(res[i], data[i]);
+  }
+
+  auto entries = cppcoro::sync_wait(std::move(*list_future));
+  bool found_file = false;
+  for (const auto &entry : entries) {
+    if (std::string(entry).ends_with("file.txt")) found_file = true;
+  }
+  EXPECT_TRUE(found_file);
+
+  auto reader_id = cppcoro::sync_wait(std::move(*reader_future));
+  opendal::async::Reader reader(reader_id);
+  auto reader_res = cppcoro::sync_wait(reader.Read(0, data.size()));
+  ASSERT_EQ(reader_res.size(), data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    EXPECT_EQ(reader_res[i], data[i]);
+  }
+
+  auto lister_id = cppcoro::sync_wait(std::move(*lister_future));
+  opendal::async::Lister lister(lister_id);
+  auto entry = cppcoro::sync_wait(lister.Next());
+  EXPECT_FALSE(entry.empty());
+}
+
+// Regression test: a `Reader::Read` or `Lister::Next` future must keep its
+// reader/lister alive even if the C++ handle is destroyed before the future is
+// polled.
+TEST_F(AsyncOpendalTest, AsyncReaderListerFuturesOutliveHandle) {
+  const auto file_path = "test_outlive_handle/file.txt";
+  std::vector<uint8_t> data{1, 2, 3, 4, 5, 6, 7, 8};
+
+  cppcoro::sync_wait(op->Write(file_path, data));
+
+  std::optional<opendal::async::Reader::ReadFuture> read_future;
+  {
+    auto reader_id = cppcoro::sync_wait(op->GetReader(file_path));
+    opendal::async::Reader reader(reader_id);
+    read_future.emplace(reader.Read(0, data.size()));
+  }
+  // The `Reader` is destroyed here; the read future must still resolve.
+
+  auto res = cppcoro::sync_wait(std::move(*read_future));
+  ASSERT_EQ(res.size(), data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    EXPECT_EQ(res[i], data[i]);
+  }
+
+  std::optional<opendal::async::Lister::NextFuture> next_future;
+  {
+    auto lister_id = cppcoro::sync_wait(op->GetLister("test_outlive_handle/"));
+    opendal::async::Lister lister(lister_id);
+    next_future.emplace(lister.Next());
+  }
+  // The `Lister` is destroyed here; the next future must still resolve.
+
+  auto entry = cppcoro::sync_wait(std::move(*next_future));
+  EXPECT_FALSE(entry.empty());
+}
+
+// Regression test: move-assigning a `Reader` or `Lister` must release the
+// previously owned handle instead of leaking it.
+TEST_F(AsyncOpendalTest, AsyncMoveAssignmentReleasesHandle) {
+  const auto file_path = "test_move_assign/file.txt";
+  std::vector<uint8_t> data{1, 2, 3};
+
+  cppcoro::sync_wait(op->Write(file_path, data));
+
+  auto first_reader_id = cppcoro::sync_wait(op->GetReader(file_path));
+  auto second_reader_id = cppcoro::sync_wait(op->GetReader(file_path));
+  opendal::async::Reader reader(first_reader_id);
+  reader = opendal::async::Reader(second_reader_id);
+
+  auto res = cppcoro::sync_wait(reader.Read(0, data.size()));
+  ASSERT_EQ(res.size(), data.size());
+
+  auto first_lister_id = cppcoro::sync_wait(op->GetLister("test_move_assign/"));
+  auto second_lister_id =
+      cppcoro::sync_wait(op->GetLister("test_move_assign/"));
+  opendal::async::Lister lister(first_lister_id);
+  lister = opendal::async::Lister(second_lister_id);
+
+  auto entry = cppcoro::sync_wait(lister.Next());
+  EXPECT_FALSE(entry.empty());
+}
+
+// Calling any method on a moved-from `Operator` must report an error instead
+// of dereferencing a null `rust::Box`.
+TEST_F(AsyncOpendalTest, MovedFromOperatorThrows) {
+  opendal::async::Operator moved_to(std::move(*op));
+
+  EXPECT_THROW(op->Exists("anything"), std::logic_error);
+
+  // The moved-to operator still works.
+  const auto file_path = "test_moved_operator/file.txt";
+  std::vector<uint8_t> data{1, 2, 3};
+  cppcoro::sync_wait(moved_to.Write(file_path, data));
+  auto res = cppcoro::sync_wait(moved_to.Read(file_path));
+  ASSERT_EQ(res.size(), data.size());
 }

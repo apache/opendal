@@ -21,6 +21,11 @@
 // Stubs for opendal-php
 
 namespace OpenDAL {
+    /**
+     * An error returned by OpenDAL.
+     */
+    class Exception extends \Exception {}
+
     class Metadata {
         public $content_disposition;
 

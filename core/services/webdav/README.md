@@ -15,6 +15,18 @@ with Apache OpenDAL™.
 > returns `ErrorKind::Unsupported` before sending a conditional write or delete
 > to the server if the operation uses a disabled capability.
 
+## Recursive listing
+
+WebDAV uses `Depth: infinity` for recursive listings by default. Nextcloud and
+`dav-server` with infinity depth enabled return nested entries. The tested
+nginx and ownCloud configurations reject infinity depth with HTTP 403 and 412,
+respectively. Jianguoyun has been reported to return only one level.
+
+Set `disable_depth_infinity = true` for those endpoints. With the default
+`auto-simulate` feature, OpenDAL walks the directory tree using `Depth: 1`
+requests for recursive listing and deletion. If you disable that feature in
+Rust, apply `SimulateLayer::default()` to the operator to enable the walk.
+
 ## Use through `opendal`
 
 Applications should normally enable this service through the `opendal` facade with the

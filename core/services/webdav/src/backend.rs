@@ -119,6 +119,18 @@ impl WebdavBuilder {
         self
     }
 
+    /// Disable native recursive listing with WebDAV's `Depth: infinity`.
+    ///
+    /// Set this to `true` for servers that reject or ignore infinity depth.
+    /// With capability simulation enabled, OpenDAL walks the directory tree
+    /// using `Depth: 1` requests instead.
+    ///
+    /// The default is `false`.
+    pub fn disable_depth_infinity(mut self, disable: bool) -> Self {
+        self.config.disable_depth_infinity = disable;
+        self
+    }
+
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -231,9 +243,8 @@ impl Builder for WebdavBuilder {
                 rename_with_if_not_exists: true,
 
                 list: true,
+                list_with_recursive: !self.config.disable_depth_infinity,
 
-                // We already support recursive list but some details still need to polish.
-                // list_with_recursive: true,
                 shared: true,
 
                 ..Default::default()
@@ -332,16 +343,19 @@ impl Service for WebdavBackend {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let output: oio::PageLister<WebdavLister> = {
-            Ok(oio::PageLister::new(WebdavLister::new(
-                self.core.clone(),
-                ctx.clone(),
-                path,
-                args,
-            )))
-        }?;
+        if args.recursive() && !self.core.capability.list_with_recursive {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "WebDAV recursive listing with Depth: infinity is disabled",
+            ));
+        }
 
-        Ok(output)
+        Ok(oio::PageLister::new(WebdavLister::new(
+            self.core.clone(),
+            ctx.clone(),
+            path,
+            args,
+        )))
     }
 
     fn copy(
@@ -427,5 +441,48 @@ impl Service for WebdavBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn depth_infinity_is_enabled_by_default() -> Result<()> {
+        let service = WebdavBuilder::default()
+            .endpoint("http://localhost:8080")
+            .build()?;
+        let args = options::ListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        assert!(service.capability().list_with_recursive);
+        assert!(
+            service
+                .list(&OperationContext::default(), "/", args.into())
+                .is_ok()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn disabling_depth_infinity_rejects_native_recursive_list() -> Result<()> {
+        let service = WebdavBuilder::default()
+            .endpoint("http://localhost:8080")
+            .disable_depth_infinity(true)
+            .build()?;
+        let ctx = OperationContext::default();
+        let args = options::ListOptions {
+            recursive: true,
+            ..Default::default()
+        };
+
+        assert!(!service.capability().list_with_recursive);
+        let err = service.list(&ctx, "/", args.into()).err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(service.list(&ctx, "/", OpList::default()).is_ok());
+        Ok(())
     }
 }

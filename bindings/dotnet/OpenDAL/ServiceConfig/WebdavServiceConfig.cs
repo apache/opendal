@@ -38,6 +38,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public bool? DisableCreateDir { get; init; }
         /// <summary>
+        /// Disable native recursive listing with WebDAV's `Depth: infinity`. Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead. The default is `false`.
+        /// </summary>
+        public bool? DisableDepthInfinity { get; init; }
+        /// <summary>
         /// Deprecated: WebDAV conditional read capabilities are enabled by default.
         /// </summary>
         [System.Obsolete("WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.")]
@@ -90,6 +94,10 @@ namespace OpenDAL.ServiceConfig
             if (DisableCreateDir is not null)
             {
                 map["disable_create_dir"] = Utilities.ToOptionString(DisableCreateDir);
+            }
+            if (DisableDepthInfinity is not null)
+            {
+                map["disable_depth_infinity"] = Utilities.ToOptionString(DisableDepthInfinity);
             }
 #pragma warning disable CS0618
             if (EnableConditionalRead is not null)

@@ -4156,6 +4156,14 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
+         * <p>Disable native recursive listing with WebDAV's <code>Depth: infinity</code>.</p>
+         * <p>Set this to <code>true</code> for servers that reject or ignore infinity depth.
+         * With capability simulation enabled, OpenDAL walks the directory tree
+         * using <code>Depth: 1</code> requests instead.</p>
+         * <p>The default is <code>false</code>.</p>
+         */
+        public final Boolean disableDepthInfinity;
+        /**
          * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
          *
          * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
@@ -4216,6 +4224,9 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (disableDepthInfinity != null) {
+                map.put("disable_depth_infinity", String.valueOf(disableDepthInfinity));
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));

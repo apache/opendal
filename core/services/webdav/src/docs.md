@@ -41,6 +41,35 @@ Use [`crate::WebdavConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+### Recursive listing
+
+Recursive listing sends a `PROPFIND` request with `Depth: infinity` by default.
+Nextcloud and `dav-server` with infinity depth enabled return nested entries.
+The tested nginx and ownCloud configurations reject infinity depth with HTTP
+403 and 412, respectively. Jianguoyun has been reported to return only one
+level. [Server compatibility reports](https://github.com/apache/opendal/issues/4256)
+
+Set `disable_depth_infinity = true` for these endpoints. The default
+`auto-simulate` feature installs `SimulateLayer`, which walks the directory
+tree with `Depth: 1` requests for recursive listing and deletion. If you
+build without `auto-simulate`, add `SimulateLayer::default()` to the operator
+to enable the walk. With native recursion disabled and no simulation,
+recursive listing returns `ErrorKind::Unsupported`.
+
+```rust,no_run
+use opendal_core::{Operator, Result};
+use opendal_service_webdav::Webdav;
+
+# fn main() -> Result<()> {
+let op = Operator::new(
+    Webdav::default()
+        .endpoint("http://localhost:8080")
+        .disable_depth_infinity(true),
+)?;
+# Ok(())
+# }
+```
+
 ### Conditional writes
 
 OpenDAL sends write preconditions on the PUT that writes the destination file.

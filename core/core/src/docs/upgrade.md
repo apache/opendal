@@ -33,6 +33,18 @@ on automatic simulation, add `auto-simulate` to your dependency features.
 You can also apply `opendal::layers::SimulateLayer` to individual operators
 with `Operator::layer`.
 
+## WebDAV recursive listing
+
+WebDAV now sends `Depth: infinity` for recursive listings by default. The
+reported nginx and ownCloud configurations reject that depth with HTTP 403
+and 412, respectively. Jianguoyun has been reported to return only one level.
+
+Set `disable_depth_infinity = true` in the affected endpoint's WebDAV
+configuration. With the default `auto-simulate` feature, OpenDAL walks the
+directory tree using `Depth: 1` requests for recursive listing and deletion.
+If `auto-simulate` is disabled, add `SimulateLayer::default()` to the Rust
+operator to enable the walk.
+
 ## Glob listing
 
 `ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,

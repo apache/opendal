@@ -326,17 +326,27 @@ class AsyncOperator:
         """
         Open an async file-like object for the given path.
 
-        The returning async file-like object is a context manager.
-        In `"rb"` mode, use `read()` to supply response header overrides.
+        The returned file is an async context manager and reads or writes bytes.
+        Use `read()` to supply response header overrides when reading.
 
         Parameters
         ----------
         path : str
             The path to the file.
         mode : str
-            The mode to open the file in. Only "rb" and "wb" are supported.
+            `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
+            An optional `"b"` can appear before or after the letter. All supported
+            modes are binary.
         **kwargs : dict
             Additional options for the underlying reader or writer.
+
+        Raises
+        ------
+        ValueError
+            If the mode is invalid or unsupported, including text (`"t"`) and
+            update (`"+"`) modes, or if append mode is combined with `append=False`.
+        Unsupported
+            If the service does not support append mode.
 
         Returns
         -------
@@ -1027,17 +1037,27 @@ class Operator:
         """
         Open a file-like object for the given path.
 
-        The returning file-like object is a context manager.
-        In `"rb"` mode, use `read()` to supply response header overrides.
+        The returned file is a context manager and reads or writes bytes.
+        Use `read()` to supply response header overrides when reading.
 
         Parameters
         ----------
         path : str
             The path to the file.
         mode : str
-            The mode to open the file in. Only "rb" and "wb" are supported.
+            `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
+            An optional `"b"` can appear before or after the letter. All supported
+            modes are binary.
         **kwargs
             Additional options for the underlying reader or writer.
+
+        Raises
+        ------
+        ValueError
+            If the mode is invalid or unsupported, including text (`"t"`) and
+            update (`"+"`) modes, or if append mode is combined with `append=False`.
+        Unsupported
+            If the service does not support append mode.
 
         Returns
         -------

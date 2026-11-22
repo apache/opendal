@@ -21,6 +21,7 @@ use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
 use pyo3::types::PyDict;
@@ -30,6 +31,37 @@ use pyo3::types::PyType;
 use pyo3_async_runtimes::tokio::future_into_py;
 
 use crate::*;
+
+enum OpenMode {
+    Read,
+    Write,
+    Append,
+}
+
+impl OpenMode {
+    fn parse(mode: &str) -> PyResult<Self> {
+        match mode {
+            "r" | "rb" | "br" => Ok(Self::Read),
+            "w" | "wb" | "bw" => Ok(Self::Write),
+            "a" | "ab" | "ba" => Ok(Self::Append),
+            _ => Err(PyValueError::new_err(format!(
+                "unsupported file mode {mode:?}. Use 'r', 'w', or 'a' with an optional 'b' for binary I/O"
+            ))),
+        }
+    }
+
+    fn apply_write_options(&self, options: &mut WriteOptions) -> PyResult<()> {
+        if matches!(self, Self::Append) {
+            if options.append == Some(false) {
+                return Err(PyValueError::new_err(
+                    "append file mode cannot be combined with append=False",
+                ));
+            }
+            options.append = Some(true);
+        }
+        Ok(())
+    }
+}
 
 fn build_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<ocore::Operator> {
     let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
@@ -375,17 +407,27 @@ impl Operator {
 
     /// Open a file-like object for the given path.
     ///
-    /// The returning file-like object is a context manager.
-    /// In `"rb"` mode, use `read()` to supply response header overrides.
+    /// The returned file is a context manager and reads or writes bytes.
+    /// Use `read()` to supply response header overrides when reading.
     ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
+    ///     An optional `"b"` can appear before or after the letter. All supported
+    ///     modes are binary.
     /// **kwargs
     ///     Additional options for the underlying reader or writer.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the mode is invalid or unsupported, including text (`"t"`) and
+    ///     update (`"+"`) modes, or if append mode is combined with `append=False`.
+    /// Unsupported
+    ///     If the service does not support append mode.
     ///
     /// Returns
     /// -------
@@ -399,6 +441,7 @@ impl Operator {
         mode: String,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<File> {
+        let mode = OpenMode::parse(&mode)?;
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
@@ -412,7 +455,7 @@ impl Operator {
             .transpose()?
             .unwrap_or_default();
 
-        if mode == "rb" {
+        if matches!(mode, OpenMode::Read) {
             let range = reader_opts.make_range();
             let r = py
                 .detach(move || {
@@ -421,8 +464,9 @@ impl Operator {
                 })
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
-        } else if mode == "wb" {
+        } else {
             let mut writer_opts = writer_opts;
+            mode.apply_write_options(&mut writer_opts)?;
             // Keep small writes coalesced without the std::io adapter when
             // neither the caller nor the service supplies a nonzero chunk size.
             if matches!(writer_opts.chunk, None | Some(0))
@@ -439,10 +483,6 @@ impl Operator {
                 })
                 .map_err(format_pyerr)?;
             Ok(File::new_writer(writer))
-        } else {
-            Err(Unsupported::new_err(format!(
-                "OpenDAL doesn't support mode: {mode}"
-            )))
         }
     }
 
@@ -1218,17 +1258,27 @@ impl AsyncOperator {
 
     /// Open an async file-like object for the given path.
     ///
-    /// The returning async file-like object is a context manager.
-    /// In `"rb"` mode, use `read()` to supply response header overrides.
+    /// The returned file is an async context manager and reads or writes bytes.
+    /// Use `read()` to supply response header overrides when reading.
     ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
+    ///     An optional `"b"` can appear before or after the letter. All supported
+    ///     modes are binary.
     /// **kwargs : dict
     ///     Additional options for the underlying reader or writer.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the mode is invalid or unsupported, including text (`"t"`) and
+    ///     update (`"+"`) modes, or if append mode is combined with `append=False`.
+    /// Unsupported
+    ///     If the service does not support append mode.
     ///
     /// Returns
     /// -------
@@ -1242,6 +1292,7 @@ impl AsyncOperator {
         mode: String,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
+        let mode = OpenMode::parse(&mode)?;
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
@@ -1256,7 +1307,7 @@ impl AsyncOperator {
             .unwrap_or_default();
 
         future_into_py(py, async move {
-            if mode == "rb" {
+            if matches!(mode, OpenMode::Read) {
                 let range = reader_opts.make_range();
                 let reader = this
                     .reader_options(&path, reader_opts.into())
@@ -1268,8 +1319,9 @@ impl AsyncOperator {
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
-            } else if mode == "wb" {
+            } else {
                 let mut writer_opts = writer_opts;
+                mode.apply_write_options(&mut writer_opts)?;
                 // Keep small writes coalesced when neither the caller nor the
                 // service supplies a chunk size. The core treats zero as unset.
                 if matches!(writer_opts.chunk, None | Some(0))
@@ -1282,10 +1334,6 @@ impl AsyncOperator {
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_writer(writer))
-            } else {
-                Err(Unsupported::new_err(format!(
-                    "OpenDAL doesn't support mode: {mode}"
-                )))
             }
         })
     }

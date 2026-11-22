@@ -28,8 +28,8 @@ use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
-use pyo3_async_runtimes::tokio::future_into_py;
 
+use crate::runtime::{check_runtime_process, future_into_py, get_runtime};
 use crate::*;
 
 enum OpenMode {
@@ -74,7 +74,7 @@ fn build_blocking_operator(
 ) -> PyResult<ocore::blocking::Operator> {
     let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
 
-    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let runtime = get_runtime()?;
     let _guard = runtime.enter();
     let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
@@ -91,7 +91,7 @@ fn build_blocking_operator_from_uri(
 ) -> PyResult<ocore::blocking::Operator> {
     let op = build_operator_from_uri(uri, map)?;
 
-    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let runtime = get_runtime()?;
     let _guard = runtime.enter();
     let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
@@ -395,7 +395,7 @@ impl Operator {
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let runtime = get_runtime()?;
         let _guard = runtime.enter();
         let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
         Ok(Self {
@@ -456,6 +456,7 @@ impl Operator {
             .unwrap_or_default();
 
         if matches!(mode, OpenMode::Read) {
+            check_runtime_process()?;
             let range = reader_opts.make_range();
             let r = py
                 .detach(move || {
@@ -474,10 +475,11 @@ impl Operator {
             {
                 writer_opts.chunk = Some(256 * 1024);
             }
+            let runtime = get_runtime()?;
             let writer = py
                 .detach(move || {
                     let op: ocore::Operator = this.into();
-                    pyo3_async_runtimes::tokio::get_runtime()
+                    runtime
                         .handle()
                         .block_on(op.writer_options(&path, writer_opts.into()))
                 })
@@ -581,6 +583,7 @@ impl Operator {
             content_disposition,
         };
         let use_prefetch_reader = opts.use_prefetch_reader()?;
+        check_runtime_process()?;
         let this = self.core.clone();
         let buffer = py
             .detach(move || {
@@ -675,6 +678,7 @@ impl Operator {
             user_metadata,
         };
 
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.write_options(&path, bs, opts.into()))
             .map(|_| ())
@@ -742,6 +746,7 @@ impl Operator {
             cache_control,
             content_disposition,
         };
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.stat_options(&path, opts.into()))
             .map_err(format_pyerr)
@@ -770,6 +775,7 @@ impl Operator {
     ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         let opts = CopyOptions { if_not_exists };
         py.detach(move || this.copy_options(&source, &target, opts.into()))
@@ -800,6 +806,7 @@ impl Operator {
     ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         let opts = RenameOptions { if_not_exists };
         py.detach(move || this.rename_options(&source, &target, opts.into()))
@@ -815,6 +822,7 @@ impl Operator {
     pub fn remove_all(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         use ocore::options::DeleteOptions;
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || {
             this.delete_options(
@@ -841,6 +849,7 @@ impl Operator {
     ///     The path to the directory.
     pub fn create_dir(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.create_dir(&path))
             .map_err(format_pyerr)
@@ -873,6 +882,7 @@ impl Operator {
         if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
@@ -909,6 +919,7 @@ impl Operator {
         if paths.is_empty() {
             return Ok(());
         }
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.delete_iter(paths))
             .map_err(format_pyerr)
@@ -927,6 +938,7 @@ impl Operator {
     ///     True if the path exists, False otherwise.
     pub fn exists(&self, py: Python<'_>, path: PathBuf) -> PyResult<bool> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.exists(&path)).map_err(format_pyerr)
     }
@@ -979,6 +991,7 @@ impl Operator {
             deleted,
         };
 
+        check_runtime_process()?;
         let this = self.core.clone();
         let l = py
             .detach(move || this.lister_options(&path, opts.into()))
@@ -1043,6 +1056,7 @@ impl Operator {
     /// Exception
     ///     If the operator is not able to work correctly.
     pub fn check(&self, py: Python<'_>) -> PyResult<()> {
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.check()).map_err(format_pyerr)
     }
@@ -2245,7 +2259,7 @@ impl AsyncOperator {
     /// Operator
     ///     The blocking operator.
     pub fn to_operator(&self) -> PyResult<Operator> {
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let runtime = get_runtime()?;
         let _guard = runtime.enter();
         let op = ocore::blocking::Operator::new(self.core.clone()).map_err(format_pyerr)?;
 

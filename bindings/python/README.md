@@ -105,6 +105,14 @@ OpenDAL also has a first-class async API via `opendal.AsyncOperator`. See
 and [Connecting to your storage](https://opendal.apache.org/docs/bindings/python/connecting)
 for the full guide.
 
+## Multiprocessing
+
+Use `multiprocessing.get_context("spawn")` when starting workers after OpenDAL
+has initialized its Tokio runtime. On Unix, OpenDAL raises `RuntimeError` if a
+child tries to use a runtime inherited through `fork()`. If you use `fork`,
+start workers before creating a blocking `Operator` or running an async
+OpenDAL operation, and initialize OpenDAL in each child.
+
 ## Contributing
 
 This project uses [`just`](https://github.com/casey/just) as a command runner.

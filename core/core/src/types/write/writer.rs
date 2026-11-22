@@ -434,6 +434,7 @@ mod tests {
     use rand::{Rng, RngExt};
 
     use crate::Operator;
+    use crate::Result;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
@@ -464,19 +465,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_writer_write_with_chunk_zero() {
-        let op = Operator::new(services::Memory::default()).unwrap();
+    async fn test_writer_write_with_chunk_zero() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
         let path = "test_file";
-
         let content = vec![b'x'; 4096];
-        op.write_with(path, content.clone())
-            .chunk(0)
-            .await
-            .expect("write with chunk 0 must succeed");
 
-        let buf = op.read(path).await.expect("read to end mut succeed");
+        let mut writer = op.writer_with(path).chunk(0).await?;
+        assert_eq!(writer.ctx.options().chunk(), None);
+        writer.write(content.clone()).await?;
+        writer.close().await?;
+        assert_eq!(op.read(path).await?.to_bytes(), content);
 
-        assert_eq!(buf.to_bytes(), content);
+        let content = vec![b'y'; 4096];
+        op.write_with(path, content.clone()).chunk(0).await?;
+        assert_eq!(op.read(path).await?.to_bytes(), content);
+        Ok(())
     }
 
     #[tokio::test]

@@ -337,6 +337,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     }
 
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// Pass `0` to use the default read behavior without an explicit chunk size.
     ///
     /// This following example will make opendal read data in 4MiB chunks:
     ///
@@ -512,6 +513,7 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     }
 
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// Pass `0` to use the default read behavior without an explicit chunk size.
     ///
     /// This following example will make opendal read data in 4MiB chunks:
     ///
@@ -699,6 +701,7 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     }
 
     /// Sets chunk size for buffered writes.
+    /// Pass `0` to use the default buffering behavior.
     ///
     /// Refer to [`options::WriteOptions::chunk`] for more details.
     ///
@@ -1041,6 +1044,7 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     }
 
     /// Sets chunk size for buffered writes.
+    /// Pass `0` to use the default buffering behavior.
     ///
     /// Refer to [`options::WriteOptions::chunk`] for more details.
     ///
@@ -1849,6 +1853,7 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
     }
 
     /// Sets chunk size for segmented copy operations.
+    /// Pass `0` to let the service choose how to copy.
     ///
     /// Refer to [`options::CopyOptions::chunk`] for more details.
     pub fn chunk(mut self, v: usize) -> Self {
@@ -1968,6 +1973,7 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     }
 
     /// Sets chunk size for segmented copy operations.
+    /// Pass `0` to let the service choose how to copy.
     ///
     /// Refer to [`options::CopyOptions::chunk`] for more details.
     pub fn chunk(mut self, v: usize) -> Self {

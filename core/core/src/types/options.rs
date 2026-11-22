@@ -207,7 +207,7 @@ pub struct ReadOptions {
     /// accessing storage. Without a limit, bounded forward ranges require the
     /// full requested length.
     ///
-    /// Setting a limit with an explicit `chunk`, with `concurrent` greater
+    /// Setting a limit with a positive `chunk`, with `concurrent` greater
     /// than one, or when presigning a read returns [`crate::ErrorKind::ConfigInvalid`].
     pub limit: Option<u64>,
     /// Read the given version of the file instead of the current one.
@@ -310,6 +310,7 @@ pub struct ReadOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -462,6 +463,7 @@ pub struct ReaderOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -869,6 +871,7 @@ pub struct WriteOptions {
     /// ### Behavior
     ///
     /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - `Some(0)` has the same behavior as `None`
     /// - When chunk size is set:
     ///   - Data will be buffered until reaching chunk size
     ///   - One API call will be made per chunk
@@ -1140,6 +1143,7 @@ pub struct CopyOptions {
     /// This is a best-effort execution option. Services that support
     /// server-side segmented copy can use it as the target size for each copy
     /// step. Services that cannot split copy operations can ignore it.
+    /// `Some(0)` has the same behavior as `None`.
     pub chunk: Option<usize>,
 }
 

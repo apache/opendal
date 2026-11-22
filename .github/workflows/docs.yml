@@ -226,7 +226,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: ruby/setup-ruby@v1
+      - uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           working-directory: bindings/ruby
           bundler-cache: true
@@ -620,7 +620,7 @@ jobs:
           cp ${{ github.workspace }}/.asf.yaml ./build/.asf.yaml
 
       - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4.1.0
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         # Keep the public root site pinned to main; tag builds are published below.
         if: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
         with:
@@ -654,7 +654,7 @@ jobs:
           echo "OPENDAL_WEBSITE_STAGED_NAME=${OPENDAL_WEBSITE_STAGED_NAME}" >> "$GITHUB_ENV"
 
       - name: Deploy to staged
-        uses: peaceiris/actions-gh-pages@v4.1.0
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, 'rc') }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

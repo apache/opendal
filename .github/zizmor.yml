@@ -17,4 +17,9 @@
 
 rules:
   unpinned-uses:
-    disable: true
+    config:
+      policies:
+        "actions/*": ref-pin
+        "github/*": ref-pin
+        "apache/*": ref-pin
+        "*": hash-pin

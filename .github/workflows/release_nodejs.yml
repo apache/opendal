@@ -139,7 +139,7 @@ jobs:
             | tar -xJ --strip-components=1 -C "${ZIG_HOME}"
           echo "${ZIG_HOME}" >> "${GITHUB_PATH}"
       - name: Install cargo-zigbuild
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         if: ${{ matrix.settings.zig }}
         env:
           GITHUB_TOKEN: ${{ github.token }}

@@ -2180,6 +2180,7 @@
         "create_dir": true,
         "delete": true,
         "delete_with_if_match": true,
+        "delete_with_recursive": true,
         "list": true,
         "list_with_recursive": "When `disable_depth_infinity` is disabled",
         "read": true,

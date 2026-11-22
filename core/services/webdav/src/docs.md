@@ -51,10 +51,10 @@ level. [Server compatibility reports](https://github.com/apache/opendal/issues/4
 
 Set `disable_depth_infinity = true` for these endpoints. The default
 `auto-simulate` feature installs `SimulateLayer`, which walks the directory
-tree with `Depth: 1` requests for recursive listing and deletion. If you
-build without `auto-simulate`, add `SimulateLayer::default()` to the operator
-to enable the walk. With native recursion disabled and no simulation,
-recursive listing returns `ErrorKind::Unsupported`.
+tree with `Depth: 1` requests for recursive listing. If you build without
+`auto-simulate`, add `SimulateLayer::default()` to the operator to enable the
+walk. With native recursion disabled and no simulation, recursive listing
+returns `ErrorKind::Unsupported`.
 
 ```rust,no_run
 use opendal_core::{Operator, Result};
@@ -69,6 +69,24 @@ let op = Operator::new(
 # Ok(())
 # }
 ```
+
+### Recursive delete
+
+Per [RFC 4918 §9.6.1](https://datatracker.ietf.org/doc/html/rfc4918#section-9.6.1),
+a WebDAV `DELETE` on a collection always acts as `Depth: infinity`: the
+server removes the collection and every member in one request, and clients
+must not send `Depth: 0` or `Depth: 1`. OpenDAL sends one `DELETE` for
+`delete("dir/")` and for `delete_with("dir/").recursive(true)`; there is no
+client-side traversal. `disable_depth_infinity` only controls recursive
+`PROPFIND` and does not affect this.
+
+This means a non-recursive `delete("dir/")` also removes the directory's
+contents, and `delete_with("/").recursive(true)` targets the configured root.
+
+When the server cannot remove every member, it answers `207 Multi-Status`
+with per-resource failures, for example on a locked or read-only subtree.
+OpenDAL reports that response as an error while some descendants may already
+have been deleted.
 
 ### Conditional writes
 

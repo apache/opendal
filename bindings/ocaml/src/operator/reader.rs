@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io::Read;
+
 use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("reader -> bytes -> int64 -> (int, string) Result.t ")]
-pub fn reader_pread(reader: &mut Reader, mut buf: &mut [u8], offset: u64) -> Result<usize, String> {
-    let size = buf.len();
-    let n = map_res_error(reader.0.read_into(&mut buf, offset..offset + size as u64))?;
-    Ok(n)
+pub fn reader_pread(reader: &mut Reader, buf: &mut [u8], offset: u64) -> Result<usize, String> {
+    // An unbounded range stops at EOF and returns a short read instead of failing
+    // the bounded-range completeness check when the buffer exceeds the remaining
+    // bytes. It also avoids computing `offset + buf.len()`, which can overflow.
+    let mut reader = map_res_error(reader.0.clone().into_std_read(offset..))?;
+    reader.read(buf).map_err(|err| err.to_string())
 }

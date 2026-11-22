@@ -28,13 +28,20 @@ let new_test_block_operator test_ctxt : operator =
   let cfgs = [ ("root", bracket_tmpdir test_ctxt) ] in
   test_check_result (Operator.new_operator "fs" cfgs)
 
+let new_test_memory_operator () : operator =
+  test_check_result (Operator.new_operator "memory" [])
+
+let read_string bo path =
+  test_check_result (Operator.read bo path)
+  |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string
+
 (** Basic operator creation tests *)
 let test_new_block_operator _ = ignore new_test_block_operator
 
 (** Test directory creation and recursive removal *)
 let test_create_dir_and_remove_all test_ctxt =
   let bo = new_test_block_operator test_ctxt in
-  ignore (test_check_result (Operator.create_dir bo "/testdir/"));
+  assert_equal true (test_check_result (Operator.create_dir bo "/testdir/"));
   ignore
     (test_check_result
        (Operator.write bo "/testdir/foo" (Bytes.of_string "bar")));
@@ -65,6 +72,32 @@ let test_operator_reader test_ctxt =
   assert_equal 5 i;
   assert_equal "world" (Bytes.to_string data)
 
+(** Test that a read buffer larger than the remaining bytes returns the tail *)
+let test_reader_pread_short_read test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 64 '\000' in
+  let n = Operator.Reader.pread reader data 5L |> test_check_result in
+  assert_equal 5 n;
+  assert_equal "world" (Bytes.sub_string data 0 n)
+
+(** Test that reads at or beyond EOF return zero without failing *)
+let test_reader_pread_eof test_ctxt =
+  let bo = new_test_block_operator test_ctxt in
+  ignore
+    (test_check_result
+       (Operator.write bo "tempfile" (Bytes.of_string "helloworld")));
+  let reader = Operator.reader bo "tempfile" |> test_check_result in
+  let data = Bytes.make 8 'x' in
+  let n = Operator.Reader.pread reader data 10L |> test_check_result in
+  assert_equal 0 n;
+  assert_equal "xxxxxxxx" (Bytes.to_string data);
+  let n = Operator.Reader.pread reader data 100L |> test_check_result in
+  assert_equal 0 n
+
 (** Test writer functionality *)
 let test_operator_writer test_ctxt =
   let bo = new_test_block_operator test_ctxt in
@@ -81,6 +114,30 @@ let test_operator_writer test_ctxt =
   let data = test_check_result (Operator.read bo "test_writer_file") in
   assert_equal "Hello World!"
     (data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string)
+
+(** Test that write copies caller-owned bytes instead of retaining them *)
+let test_write_copies_caller_bytes _ =
+  let bo = new_test_memory_operator () in
+  let data = Bytes.of_string "original" in
+  ignore (test_check_result (Operator.write bo "copy" data));
+  Bytes.set data 0 'X';
+  Gc.compact ();
+  assert_equal "original" (read_string bo "copy")
+
+(** Test that each writer chunk is copied before it is buffered *)
+let test_writer_copies_caller_bytes _ =
+  let bo = new_test_memory_operator () in
+  let writer = Operator.writer bo "copy" |> test_check_result in
+  let first = Bytes.of_string "Hello " in
+  let second = Bytes.of_string "World!" in
+  ignore (test_check_result (Operator.Writer.write writer first));
+  Bytes.set first 0 'J';
+  Gc.compact ();
+  ignore (test_check_result (Operator.Writer.write writer second));
+  Bytes.set second 0 'X';
+  Gc.compact ();
+  ignore (test_check_result (Operator.Writer.close writer));
+  assert_equal "Hello World!" (read_string bo "copy")
 
 (** Test metadata functionality *)
 let test_operator_stat test_ctxt =
@@ -368,7 +425,11 @@ let suite =
          "test_create_dir_and_remove_all" >:: test_create_dir_and_remove_all;
          "test_block_write_and_read" >:: test_block_write_and_read;
          "test_operator_reader" >:: test_operator_reader;
+         "test_reader_pread_short_read" >:: test_reader_pread_short_read;
+         "test_reader_pread_eof" >:: test_reader_pread_eof;
          "test_operator_writer" >:: test_operator_writer;
+         "test_write_copies_caller_bytes" >:: test_write_copies_caller_bytes;
+         "test_writer_copies_caller_bytes" >:: test_writer_copies_caller_bytes;
          "test_operator_stat" >:: test_operator_stat;
          "test_list" >:: test_list;
          "test_lister" >:: test_lister;

@@ -599,6 +599,7 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_match(etag.as_str());
             }
         }
+        let mut user_metadata = Vec::new();
         for (attribute, value) in opts.attributes.iter() {
             future_write = match attribute {
                 Attribute::CacheControl => future_write.cache_control(value.as_ref()),
@@ -606,8 +607,15 @@ impl ObjectStore for OpendalStore {
                 Attribute::ContentEncoding => future_write.content_encoding(value.as_ref()),
                 Attribute::ContentLanguage => future_write.content_language(value.as_ref()),
                 Attribute::ContentType => future_write.content_type(value.as_ref()),
+                Attribute::Metadata(key) => {
+                    user_metadata.push((key.to_string(), value.to_string()));
+                    future_write
+                }
                 _ => future_write,
             };
+        }
+        if !user_metadata.is_empty() {
+            future_write = future_write.user_metadata(user_metadata);
         }
         let rp = future_write.into_send().await.map_err(|err| {
             match format_object_store_error(err, location.as_ref()) {

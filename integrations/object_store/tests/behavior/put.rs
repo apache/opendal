@@ -19,7 +19,10 @@ use crate::utils::{build_trail, new_file_path};
 use anyhow::Result;
 use bytes::Bytes;
 use libtest_mimic::Trial;
-use object_store::{ObjectStore, ObjectStoreExt, PutMode, UpdateVersion};
+use object_store::{
+    Attribute, Attributes, GetOptions, ObjectStore, ObjectStoreExt, PutMode, PutOptions,
+    UpdateVersion,
+};
 use object_store_opendal::OpendalStore;
 
 pub fn tests(store: &OpendalStore, tests: &mut Vec<Trial>) {
@@ -39,6 +42,13 @@ pub fn tests(store: &OpendalStore, tests: &mut Vec<Trial>) {
         store,
         test_put_opts_with_update,
     ));
+    if store.info().capability().write_with_user_metadata {
+        tests.push(build_trail(
+            "test_put_opts_with_user_metadata",
+            store,
+            test_put_opts_with_user_metadata,
+        ));
+    }
 }
 
 pub async fn test_basic_put(store: OpendalStore) -> Result<()> {
@@ -99,6 +109,43 @@ pub async fn test_put_opts_with_create(store: OpendalStore) -> Result<()> {
     ));
 
     store.delete(&location).await?;
+    Ok(())
+}
+
+async fn test_put_opts_with_user_metadata(store: OpendalStore) -> Result<()> {
+    let location = new_file_path("data").into();
+    let attributes = Attributes::from_iter([
+        (Attribute::Metadata("project".into()), "opendal"),
+        (Attribute::Metadata("owner".into()), "storage"),
+    ]);
+    let options = PutOptions {
+        attributes: attributes.clone(),
+        ..Default::default()
+    };
+    store
+        .put_opts(&location, Bytes::from_static(b"data").into(), options)
+        .await?;
+
+    let head = store
+        .get_opts(&location, GetOptions::new().with_head(true))
+        .await;
+    let get = store.get(&location).await;
+    store.delete(&location).await?;
+
+    let head = head?;
+    let get = get?;
+    for (attribute, expected) in &attributes {
+        assert_eq!(
+            head.attributes.get(attribute),
+            Some(expected),
+            "HEAD {attribute:?}"
+        );
+        assert_eq!(
+            get.attributes.get(attribute),
+            Some(expected),
+            "GET {attribute:?}"
+        );
+    }
     Ok(())
 }
 

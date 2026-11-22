@@ -15,10 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use bytes::BufMut;
-use opendal_core::raw::Timestamp;
+use opendal_core::raw::{SystemTime, Timestamp};
 use opendal_core::{Buffer, EntryMode, Metadata, MetadataBuilder};
 
 use crate::key::{Identity, Tier};

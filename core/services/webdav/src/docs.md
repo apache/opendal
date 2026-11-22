@@ -1,3 +1,17 @@
+> **Warning:** Verify conditional writes and deletes against your endpoint before
+> relying on them. In the tested configurations, nginx’s `ngx_http_dav_module`
+> ignored PUT preconditions and `If-Match` on DELETE. Apache `mod_dav_fs` allowed
+> concurrent `If-None-Match: *` creates to succeed and allowed an overwrite with
+> a matching weak `If-None-Match`. Nextcloud and ownCloud could reuse an ETag
+> after a same-second overwrite, allowing a stale `If-Match` to overwrite or
+> delete newer content.
+>
+> Use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
+> to mark affected capabilities as disabled and check `op.info().capability()`
+> before issuing the operation. An explicit conditional call can still reach
+> the server
+> ([#8640](https://github.com/apache/opendal/issues/8640)).
+
 ## Capabilities
 
 Depending on its configuration and the backing system, this service can expose:
@@ -20,15 +34,7 @@ Inspect the effective capability set with [`opendal_core::Operator::info`] and
 Bazel Remote Caching and Ccache HTTP Storage is also part of this service.
 Users can use `webdav` to connect those services.
 
-`delete_with_if_match` is only as safe as the server's ETags. SabreDAV-based
-servers such as Nextcloud and ownCloud derive ETags from one-second
-modification times, so a stale ETag still matches after an overwrite within
-the same second and the delete removes content the caller never observed.
-Disable `delete_with_if_match` with `CapabilityOverrideLayer` for such servers.
-
-nginx's `ngx_http_dav_module` omits ETags from DAV `PUT` responses and ignores
-`If-Match` on `DELETE`, making deletes unconditional. Disable
-`delete_with_if_match` with `CapabilityOverrideLayer` for these deployments as well.
+nginx’s `ngx_http_dav_module` omits ETags from DAV `PUT` responses.
 
 ## Configuration
 
@@ -59,10 +65,9 @@ Each concurrent create trial used eight requests against the same missing path.
 Apache HTTP Server, ownCloud, Nextcloud, and `dav-server` also accepted an
 overwrite when `If-None-Match` supplied the weak form of a current strong ETag.
 
-Use [`opendal_core::layers::CapabilityOverrideLayer`] to report the affected
-capabilities as disabled for endpoints that cannot enforce them. Check the
-operator's effective capabilities before using a write condition. For example,
-report all three as disabled for the nginx deployment above.
+For the nginx deployment above, report all four conditional write and delete
+capabilities as disabled. Check the flag for the condition you intend to use
+in the operator’s effective capabilities.
 
 ```rust,no_run
 use opendal_core::layers::CapabilityOverrideLayer;
@@ -75,8 +80,10 @@ let op = Operator::new(Webdav::default().endpoint("http://localhost:8080"))?
         cap.write_with_if_match = false;
         cap.write_with_if_none_match = false;
         cap.write_with_if_not_exists = false;
+        cap.delete_with_if_match = false;
         cap
     }));
+assert!(!op.info().capability().write_with_if_not_exists);
 # Ok(())
 # }
 ```

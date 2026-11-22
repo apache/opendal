@@ -25,8 +25,80 @@ use futures::channel::oneshot;
 use futures::future;
 use futures::task::noop_waker_ref;
 use http::StatusCode;
+use opendal_core::raw::oio::Compose;
+use opendal_core::raw::oio::Delete;
 
 use super::*;
+
+struct PendingDelete;
+
+impl oio::Delete for PendingDelete {
+    async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+        future::pending().await
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        future::pending().await
+    }
+}
+
+struct PendingCompose;
+
+impl oio::Compose for PendingCompose {
+    async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+        future::pending().await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        future::pending().await
+    }
+}
+
+#[test]
+fn delete_spans_cover_delete_and_close() {
+    let registry = Registry::new(Default::default());
+    let mut cx = Context::from_waker(noop_waker_ref());
+    let mut deleter = AwaitTreeWrapper::new(PendingDelete);
+
+    {
+        let root = registry.register("delete", "delete");
+        let mut delete = pin!(root.instrument(deleter.delete("path", OpDelete::new())));
+        assert!(delete.as_mut().poll(&mut cx).is_pending());
+        let tree = registry.get("delete").unwrap().to_string();
+        assert!(tree.contains("  opendal::delete ["), "{tree}");
+    }
+
+    {
+        let root = registry.register("close", "close");
+        let mut close = pin!(root.instrument(deleter.close()));
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        let tree = registry.get("close").unwrap().to_string();
+        assert!(tree.contains("  opendal::delete ["), "{tree}");
+    }
+}
+
+#[test]
+fn compose_spans_cover_compose_and_close() {
+    let registry = Registry::new(Default::default());
+    let mut cx = Context::from_waker(noop_waker_ref());
+    let mut composer = AwaitTreeWrapper::new(PendingCompose);
+
+    {
+        let root = registry.register("compose", "compose");
+        let mut compose = pin!(root.instrument(composer.compose("path", OpRead::new())));
+        assert!(compose.as_mut().poll(&mut cx).is_pending());
+        let tree = registry.get("compose").unwrap().to_string();
+        assert!(tree.contains("  opendal::compose ["), "{tree}");
+    }
+
+    {
+        let root = registry.register("compose-close", "compose-close");
+        let mut close = pin!(root.instrument(composer.close()));
+        assert!(close.as_mut().poll(&mut cx).is_pending());
+        let tree = registry.get("compose-close").unwrap().to_string();
+        assert!(tree.contains("  opendal::compose ["), "{tree}");
+    }
+}
 
 struct GatedTransport {
     response: Mutex<Option<oneshot::Receiver<Response<HttpBody>>>>,

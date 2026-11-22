@@ -25,7 +25,7 @@ rust-version.workspace = true
 version.workspace = true
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 opendal = { path = "../..", default-features = false, features = [

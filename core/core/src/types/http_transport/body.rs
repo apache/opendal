@@ -20,12 +20,16 @@ use std::cmp::Ordering;
 use futures::Stream;
 use futures::StreamExt;
 
+use crate::raw::BoxedFuture;
 use crate::raw::oio;
 use crate::raw::oio::ReadStream;
 use crate::types::Buffer;
 use crate::types::Error;
 use crate::types::ErrorKind;
 use crate::types::Result;
+
+type StreamNext<'a> = BoxedFuture<'a, Option<Result<Buffer>>>;
+type WrapStreamNext = dyn for<'a> Fn(StreamNext<'a>) -> StreamNext<'a> + Send + Sync;
 
 /// The streaming body returned by [`HttpTransporter`].
 ///
@@ -41,6 +45,7 @@ pub struct HttpBody {
     stream: Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
     size: Option<u64>,
     consumed: u64,
+    wrap_stream_next: Option<Box<WrapStreamNext>>,
 }
 
 /// # Safety
@@ -64,6 +69,7 @@ impl HttpBody {
             stream: Box::new(stream),
             size,
             consumed: 0,
+            wrap_stream_next: None,
         }
     }
 
@@ -77,6 +83,7 @@ impl HttpBody {
             stream: Box::new(stream),
             size,
             consumed: 0,
+            wrap_stream_next: None,
         }
     }
 
@@ -102,6 +109,20 @@ impl HttpBody {
         ) -> Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
     ) -> Self {
         self.stream = f(self.stream);
+        self
+    }
+
+    /// Wrap each stream read future, including any wrapper already installed.
+    /// The wrapper future is dropped when the caller cancels the read.
+    #[doc(hidden)]
+    pub fn wrap_stream_next(
+        mut self,
+        wrap: impl for<'a> Fn(StreamNext<'a>) -> StreamNext<'a> + Send + Sync + 'static,
+    ) -> Self {
+        self.wrap_stream_next = Some(match self.wrap_stream_next.take() {
+            Some(previous) => Box::new(move |next| wrap(previous(next))),
+            None => Box::new(wrap),
+        });
         self
     }
 
@@ -135,7 +156,12 @@ impl HttpBody {
 
 impl oio::ReadStream for HttpBody {
     async fn read(&mut self) -> Result<Buffer> {
-        match self.stream.next().await.transpose()? {
+        let next = self.stream.next();
+        let chunk = match &self.wrap_stream_next {
+            Some(wrap) => wrap(Box::pin(next)).await,
+            None => next.await,
+        };
+        match chunk.transpose()? {
             Some(buf) => {
                 self.consumed += buf.len() as u64;
                 Ok(buf)

@@ -129,11 +129,11 @@ impl HdfsNativeCore {
         Ok((f, initial_size))
     }
 
-    pub async fn hdfs_delete(&self, path: &str) -> Result<()> {
+    pub async fn hdfs_delete(&self, path: &str, recursive: bool) -> Result<()> {
         let p = build_rooted_absolute_path(&self.root, path);
 
         self.client
-            .delete(&p, true)
+            .delete(&p, recursive)
             .await
             .map_err(parse_hdfs_error)?;
 

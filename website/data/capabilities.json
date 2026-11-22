@@ -1379,6 +1379,7 @@
       "native": {
         "create_dir": true,
         "delete": true,
+        "delete_with_recursive": true,
         "list": true,
         "read": true,
         "rename": true,

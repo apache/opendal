@@ -93,7 +93,16 @@ impl opendal_reader {
     ) -> *mut opendal_error {
         assert!(!pos.is_null());
         let seek_from = match whence {
-            OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
+            OPENDAL_SEEK_SET => match u64::try_from(offset) {
+                Ok(offset) => SeekFrom::Start(offset),
+                Err(_) => {
+                    std::ptr::write(pos, 0);
+                    return opendal_error::new(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        "negative seek offset is invalid with OPENDAL_SEEK_SET",
+                    ));
+                }
+            },
             OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
             OPENDAL_SEEK_END => SeekFrom::End(offset),
             _ => {
@@ -131,5 +140,39 @@ impl opendal_reader {
                 drop(Box::from_raw(ptr));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_seek_set_rejects_negative_offset() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default()).unwrap();
+        let blocking_op = {
+            let _guard = runtime.enter();
+            core::blocking::Operator::new(op).unwrap()
+        };
+        blocking_op.write("test", "hello").unwrap();
+
+        let reader = blocking_op
+            .reader("test")
+            .unwrap()
+            .into_std_read(core::BytesRange::default())
+            .unwrap();
+        let mut reader = opendal_reader::new(reader);
+
+        let mut pos = 42;
+        let err = unsafe {
+            opendal_reader::opendal_reader_seek(&mut reader, -1, OPENDAL_SEEK_SET, &mut pos)
+        };
+        assert!(!err.is_null());
+        assert_eq!(pos, 0);
+        unsafe { opendal_error::opendal_error_free(err) };
     }
 }

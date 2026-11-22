@@ -511,7 +511,7 @@ dependencies = [
  "bytes",
  "fastrand",
  "hex",
- "http 1.4.2",
+ "http 1.5.0",
  "ring",
  "time",
  "tokio",
@@ -534,9 +534,9 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-rs"
-version = "1.16.3"
+version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec6fb3fe69024a75fa7e1bfb48aa6cf59706a101658ea01bfd33b2b248a038f"
+checksum = "048006790404103c488e6c5616b3e7e702a71292aadda08e8f7698a9e0d2eb53"
 dependencies = [
  "aws-lc-sys",
  "zeroize",
@@ -544,14 +544,15 @@ dependencies = [
 
 [[package]]
 name = "aws-lc-sys"
-version = "0.40.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f50037ee5e1e41e7b8f9d161680a725bd1626cb6f8c7e901f91f942850852fe7"
+checksum = "8bfbe32ac36b3c428696ce315464181bc4029d689fd58e3f2a4e58c252242f52"
 dependencies = [
  "cc",
  "cmake",
  "dunce",
  "fs_extra",
+ "pkg-config",
 ]
 
 [[package]]
@@ -603,7 +604,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 0.4.6",
  "lru 0.12.5",
  "percent-encoding",
@@ -697,7 +698,7 @@ dependencies = [
  "hex",
  "hmac 0.12.1",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "p256 0.11.1",
  "percent-encoding",
  "ring",
@@ -764,7 +765,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 0.4.6",
  "percent-encoding",
  "pin-project-lite",
@@ -784,7 +785,7 @@ dependencies = [
  "h2 0.3.27",
  "h2 0.4.14",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 0.4.6",
  "hyper 0.14.32",
  "hyper 1.9.0",
@@ -793,8 +794,8 @@ dependencies = [
  "hyper-util",
  "pin-project-lite",
  "rustls 0.21.12",
- "rustls 0.23.40",
- "rustls-native-certs 0.8.4",
+ "rustls 0.23.46",
+ "rustls-native-certs 0.8.5",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.6",
@@ -845,7 +846,7 @@ dependencies = [
  "bytes",
  "fastrand",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 0.4.6",
  "http-body 1.1.0",
  "pin-project-lite",
@@ -864,7 +865,7 @@ dependencies = [
  "aws-smithy-types",
  "bytes",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "pin-project-lite",
  "tokio",
  "tracing",
@@ -882,7 +883,7 @@ dependencies = [
  "bytes-utils",
  "futures-core",
  "http 0.2.12",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 0.4.6",
  "http-body 1.1.0",
  "http-body-util",
@@ -957,7 +958,7 @@ dependencies = [
  "axum-core 0.5.6",
  "bytes",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
  "itoa",
@@ -998,7 +999,7 @@ checksum = "08c78f31d7b1291f7ee735c1c6780ccde7785daae9a9206026862dab7d8792d1"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
  "mime",
@@ -1045,9 +1046,9 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64"
-version = "0.23.0"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
 
 [[package]]
 name = "base64-simd"
@@ -1320,9 +1321,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.12.1"
+version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
+checksum = "776dfebd015e2d8732c684a2c71003674ccb49457b539b9e82151ba38e96dd7c"
 dependencies = [
  "serde",
 ]
@@ -1868,7 +1869,7 @@ dependencies = [
  "libc",
  "quinn-proto",
  "rustc-hash 2.1.2",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-platform-verifier",
  "synchrony",
  "thiserror 2.0.18",
@@ -1918,7 +1919,7 @@ dependencies = [
  "futures-util",
  "native-tls",
  "pin-project-lite",
- "rustls 0.23.40",
+ "rustls 0.23.46",
 ]
 
 [[package]]
@@ -2378,7 +2379,7 @@ dependencies = [
  "cyper-core",
  "encoding_rs",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body-util",
  "hyper 1.9.0",
  "hyper-util",
@@ -3049,7 +3050,7 @@ version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ef5da6e9a6ae89f4a91f80ba1caae45a5a924397a19947e18f5121a43285e9bc"
 dependencies = [
- "http 1.4.2",
+ "http 1.5.0",
  "prost 0.14.3",
  "tokio",
  "tokio-stream",
@@ -3628,7 +3629,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f2f12607f92c69b12ed746fabf9ca4f5c482cba46679c1a75b874ed7c26adb"
 dependencies = [
  "futures-io",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
 ]
 
@@ -4765,7 +4766,7 @@ dependencies = [
  "gix-sec",
  "gix-url",
  "parking_lot 0.12.5",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "thiserror 2.0.18",
 ]
 
@@ -5035,7 +5036,7 @@ dependencies = [
  "fnv",
  "futures-core",
  "futures-sink",
- "http 1.4.2",
+ "http 1.5.0",
  "indexmap 2.14.0",
  "slab",
  "tokio",
@@ -5277,7 +5278,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "more-asserts",
  "serde",
  "serde_json",
@@ -5405,9 +5406,9 @@ dependencies = [
 
 [[package]]
 name = "http"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6970f50e31d6fc17d3fa27329444bfa74e196cf62e95052a3f6fee181dba6425"
+checksum = "918d3568bebf352712bc2ef3d46a8bcf1a75b373be6539de198e9105cbbf9ce0"
 dependencies = [
  "bytes",
  "itoa",
@@ -5431,7 +5432,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca2a8f2913ee65f60facd6a5905613afaa448497a0230cc41ce022d93290bc2c"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
 ]
 
 [[package]]
@@ -5442,7 +5443,7 @@ checksum = "b021d93e26becf5dc7e1b75b1bed1fd93124b374ceb73f43d4d4eafec896a64a"
 dependencies = [
  "bytes",
  "futures-core",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "pin-project-lite",
 ]
@@ -5517,7 +5518,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "h2 0.4.14",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "httparse",
  "httpdate",
@@ -5550,11 +5551,11 @@ version = "0.27.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "33ca68d021ef39cf6463ab54c1d0f5daf03377b70561305bb89a8f83aab66e0f"
 dependencies = [
- "http 1.4.2",
+ "http 1.5.0",
  "hyper 1.9.0",
  "hyper-util",
- "rustls 0.23.40",
- "rustls-native-certs 0.8.4",
+ "rustls 0.23.46",
+ "rustls-native-certs 0.8.5",
  "tokio",
  "tokio-rustls 0.26.6",
  "tower-service",
@@ -5611,7 +5612,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "hyper 1.9.0",
  "ipnet",
@@ -6898,7 +6899,7 @@ dependencies = [
  "percent-encoding",
  "rand 0.9.4",
  "rustc_version_runtime",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustversion",
  "serde",
  "serde_bytes",
@@ -7223,7 +7224,7 @@ dependencies = [
  "ctor",
  "divan",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "libtest-mimic",
  "log",
  "logforth",
@@ -7329,7 +7330,7 @@ dependencies = [
  "opendal-service-yandex-disk",
  "opendal-testkit",
  "rand 0.10.1",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "sha2 0.11.0",
  "size",
  "tokio",
@@ -7368,10 +7369,10 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "asyncband",
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "jiff",
  "log",
  "logforth",
@@ -7467,10 +7468,10 @@ dependencies = [
  "compio",
  "cyper",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "opendal-service-http",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-platform-verifier",
 ]
 
@@ -7480,10 +7481,10 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "opendal-core",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "tokio",
 ]
 
@@ -7493,7 +7494,7 @@ version = "0.59.5"
 dependencies = [
  "async-backtrace",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
 ]
 
@@ -7503,7 +7504,7 @@ version = "0.59.5"
 dependencies = [
  "await-tree",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
 ]
 
@@ -7542,7 +7543,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "opendal-executor-tokio",
  "tokio",
@@ -7554,7 +7555,7 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "probe",
  "tokio",
@@ -7580,7 +7581,7 @@ dependencies = [
  "fastrace",
  "fastrace-jaeger",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "opendal-service-http",
  "tokio",
@@ -7616,7 +7617,7 @@ version = "0.59.5"
 dependencies = [
  "futures",
  "hotpath",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "tokio",
 ]
@@ -7637,7 +7638,7 @@ name = "opendal-layer-logging"
 version = "0.59.5"
 dependencies = [
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
 ]
@@ -7666,7 +7667,7 @@ name = "opendal-layer-observe-metrics-common"
 version = "0.59.5"
 dependencies = [
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "tokio",
 ]
@@ -7685,7 +7686,7 @@ name = "opendal-layer-oteltrace"
 version = "0.59.5"
 dependencies = [
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "opendal-service-http",
  "opentelemetry",
@@ -7784,13 +7785,13 @@ dependencies = [
  "anyhow",
  "dotenvy",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "opendal-http-transport-reqwest",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "tokio",
  "tracing",
  "tracing-opentelemetry",
@@ -7803,7 +7804,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -7816,7 +7817,7 @@ name = "opendal-service-alluxio"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -7828,9 +7829,9 @@ dependencies = [
 name = "opendal-service-azblob"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "opendal-service-azure-common",
@@ -7851,9 +7852,9 @@ name = "opendal-service-azdls"
 version = "0.59.5"
 dependencies = [
  "asyncband",
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "opendal-service-azure-common",
@@ -7871,7 +7872,7 @@ name = "opendal-service-azfile"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "opendal-service-azure-common",
@@ -7887,7 +7888,7 @@ dependencies = [
 name = "opendal-service-azure-common"
 version = "0.59.5"
 dependencies = [
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
 ]
 
@@ -7897,7 +7898,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -7921,7 +7922,7 @@ name = "opendal-service-cloudflare-kv"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7946,7 +7947,7 @@ name = "opendal-service-cos"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "quick-xml",
@@ -7962,7 +7963,7 @@ name = "opendal-service-d1"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -7984,9 +7985,9 @@ dependencies = [
 name = "opendal-service-dbfs"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8000,7 +8001,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "serde",
  "serde_json",
@@ -8063,10 +8064,10 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
- "rustls-native-certs 0.8.4",
+ "rustls-native-certs 0.8.5",
  "serde",
  "suppaftp",
  "tokio",
@@ -8080,7 +8081,7 @@ dependencies = [
  "asyncband",
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "percent-encoding",
@@ -8100,7 +8101,7 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "percent-encoding",
@@ -8121,7 +8122,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8135,7 +8136,7 @@ version = "0.59.5"
 dependencies = [
  "bytes",
  "ghac",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "opendal-service-azblob",
@@ -8155,7 +8156,7 @@ dependencies = [
  "bytes",
  "futures",
  "gix",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8170,10 +8171,10 @@ dependencies = [
 name = "opendal-service-github"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8238,11 +8239,11 @@ name = "opendal-service-hf"
 version = "0.59.5"
 dependencies = [
  "asyncband",
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "futures",
  "hf-xet",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "opendal-executor-tokio",
@@ -8257,7 +8258,7 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.59.5"
 dependencies = [
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8269,7 +8270,7 @@ name = "opendal-service-ipfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "prost 0.14.3",
@@ -8282,7 +8283,7 @@ name = "opendal-service-ipmfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8296,7 +8297,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8309,7 +8310,7 @@ name = "opendal-service-lakefs"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8323,7 +8324,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "opendal-core",
- "rustls-native-certs 0.8.4",
+ "rustls-native-certs 0.8.5",
  "serde",
  "tokio",
  "tokio-rustls 0.26.6",
@@ -8392,7 +8393,7 @@ name = "opendal-service-obs"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "quick-xml",
@@ -8410,7 +8411,7 @@ dependencies = [
  "asyncband",
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8436,7 +8437,7 @@ name = "opendal-service-oss"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "pretty_assertions",
@@ -8453,7 +8454,7 @@ name = "opendal-service-pcloud"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8498,7 +8499,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "redis",
  "serde",
@@ -8519,11 +8520,11 @@ dependencies = [
 name = "opendal-service-s3"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "crc-fast",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "md-5 0.11.0",
  "opendal-core",
@@ -8545,7 +8546,7 @@ dependencies = [
  "asyncband",
  "bytes",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8618,10 +8619,10 @@ dependencies = [
 name = "opendal-service-swift"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "hmac 0.13.0",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "percent-encoding",
@@ -8650,7 +8651,7 @@ name = "opendal-service-tos"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "opendal-core",
  "quick-xml",
  "reqsign-core",
@@ -8664,10 +8665,10 @@ dependencies = [
 name = "opendal-service-upyun"
 version = "0.59.5"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "hmac 0.13.0",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "md-5 0.11.0",
  "opendal-core",
@@ -8684,7 +8685,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8697,7 +8698,7 @@ name = "opendal-service-vercel-blob"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "quick-xml",
@@ -8712,7 +8713,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "quick-xml",
@@ -8727,7 +8728,7 @@ dependencies = [
  "anyhow",
  "asyncband",
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "serde",
@@ -8741,7 +8742,7 @@ name = "opendal-service-yandex-disk"
 version = "0.59.5"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "opendal-core",
  "quick-xml",
@@ -8927,7 +8928,7 @@ version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9966929966d17620d7c316c643ba62631826e10021409357772d5eea84f62c35"
 dependencies = [
- "http 1.4.2",
+ "http 1.5.0",
  "opentelemetry",
  "opentelemetry-proto",
  "opentelemetry_sdk",
@@ -9199,7 +9200,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d354a98a3d1251555de99e8fdd8afda05573c31b82f59063a7b0a29b5527f120"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "serde_core",
 ]
 
@@ -9368,7 +9369,7 @@ version = "0.15.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98dd311a5e525d1200365273a509b9d07bccf3481aaa901047fdca19830ca721"
 dependencies = [
- "base64 0.23.0",
+ "base64 0.23.1",
  "crypto-bigint 0.7.10",
  "oid",
  "picky-asn1",
@@ -9773,9 +9774,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.25.0"
+version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba70bf887030e45213b4a95c9b08d5a450b157f87c1d63661ed0847a12fa2aad"
+checksum = "f021d42d29841d029b61b45a25a7ef94feaf1d744913e59665103333a56045b8"
 dependencies = [
  "dtoa",
  "itoa",
@@ -9785,13 +9786,13 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client-derive-encode"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9adf1691c04c0a5ff46ff8f262b58beb07b0dbb61f96f9f54f6cbd82106ed87f"
+checksum = "01e34894696ff94f64a20c2c373a6440903e9c2789a303d68ec6e6f953f890e4"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.118",
+ "syn 3.0.3",
 ]
 
 [[package]]
@@ -9978,7 +9979,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.1.2",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
@@ -9999,7 +10000,7 @@ dependencies = [
  "rand 0.9.4",
  "ring",
  "rustc-hash 2.1.2",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "slab",
  "thiserror 2.0.18",
@@ -10251,8 +10252,8 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rand 0.9.4",
- "rustls 0.23.40",
- "rustls-native-certs 0.8.4",
+ "rustls 0.23.46",
+ "rustls-native-certs 0.8.5",
  "ryu",
  "sha1_smol",
  "socket2 0.6.3",
@@ -10357,7 +10358,7 @@ checksum = "56e082c4e466b47ab9dcb37b0037153eda868722acc857a86c328d4a51462017"
 dependencies = [
  "anyhow",
  "form_urlencoded",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -10378,7 +10379,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "hex",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "quick-xml",
@@ -10397,7 +10398,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f30bc6afac5932e1c21763dd51fd593a86b242c5a83a8a12d428c0c2bef7819f"
 dependencies = [
  "bytes",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "quick-xml",
  "reqsign-aws-core",
@@ -10413,10 +10414,10 @@ checksum = "cd2821e751de92f75df704aed0039ca43f8a21c8635021c4727898369274fb05"
 dependencies = [
  "anyhow",
  "asyncband",
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "form_urlencoded",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "pem",
  "percent-encoding",
@@ -10435,11 +10436,11 @@ checksum = "5041e58962ebf1a1806a06f45735f1932c9dda25ac2814a59a1b4a3f619c7862"
 dependencies = [
  "anyhow",
  "asyncband",
- "base64 0.23.0",
+ "base64 0.23.1",
  "bytes",
  "hex",
  "hmac 0.13.0",
- "http 1.4.2",
+ "http 1.5.0",
  "jiff",
  "log",
  "percent-encoding",
@@ -10470,7 +10471,7 @@ checksum = "a00ab10d7d395237b232233d0064a73c740ad81b1795527f887eeb02f122e6f4"
 dependencies = [
  "bytes",
  "form_urlencoded",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "reqsign-aws-v4",
@@ -10488,7 +10489,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "734ce697219050537b7774400cfb3c57367880fb3fc028f10f06a4848c4b5077"
 dependencies = [
  "anyhow",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -10501,7 +10502,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1faaeab618fc02a522e5687b965206826c6226f2466b7fbf05df813273ad8a0d"
 dependencies = [
  "anyhow",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -10516,7 +10517,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "20994b36030d3ee9a0406e8a2a7791b3a4fbc4706b4f09eb63300d9766c5a4cd"
 dependencies = [
  "anyhow",
- "http 1.4.2",
+ "http 1.5.0",
  "log",
  "percent-encoding",
  "reqsign-core",
@@ -10533,7 +10534,7 @@ dependencies = [
  "futures-channel",
  "futures-core",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
@@ -10544,8 +10545,8 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.40",
- "rustls-native-certs 0.8.4",
+ "rustls 0.23.46",
+ "rustls-native-certs 0.8.5",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -10564,18 +10565,18 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.13.4"
+version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "219c5811de6525e5416c7d5d53bb656d3afdbc6c5af816e0802bcfa42dbdc1c3"
+checksum = "16a1cfa75cc186dd73d5818e510e042e40927bccc9c236b061cea97e1eb08029"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "encoding_rs",
  "futures-channel",
  "futures-core",
  "futures-util",
  "h2 0.4.14",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
@@ -10590,7 +10591,7 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "serde",
@@ -10618,8 +10619,8 @@ checksum = "199dda04a536b532d0cc04d7979e39b1c763ea749bf91507017069c00b96056f"
 dependencies = [
  "anyhow",
  "async-trait",
- "http 1.4.2",
- "reqwest 0.13.4",
+ "http 1.5.0",
+ "reqwest 0.13.5",
  "thiserror 2.0.18",
  "tower-service",
 ]
@@ -10998,16 +10999,16 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.40"
+version = "0.23.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef86cd5876211988985292b91c96a8f2d298df24e75989a43a3c73f2d4d8168b"
+checksum = "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf"
 dependencies = [
  "aws-lc-rs",
  "log",
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.17",
  "subtle",
  "zeroize",
 ]
@@ -11026,9 +11027,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-native-certs"
-version = "0.8.4"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dab5152771c58876a2146916e53e35057e1a4dfa2b9df0f0305b07f611fdea4d"
+checksum = "4a073f5dc7469f984c52ad2752b63b0807745133b6de880b7b64c1ac4c48aec4"
 dependencies = [
  "openssl-probe 0.2.1",
  "rustls-pki-types",
@@ -11057,19 +11058,19 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26d1e2536ce4f35f4846aa13bff16bd0ff40157cdb14cc056c7b14ba41233ba0"
+checksum = "1167586491e2b18b8bfbb293e8180ec17c201c4f076d7cb3070ca964e7598f98"
 dependencies = [
  "core-foundation 0.10.1",
  "core-foundation-sys",
  "jni",
  "log",
  "once_cell",
- "rustls 0.23.40",
- "rustls-native-certs 0.8.4",
+ "rustls 0.23.46",
+ "rustls-native-certs 0.8.5",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.17",
  "security-framework 3.7.0",
  "security-framework-sys",
  "webpki-root-certs",
@@ -11078,9 +11079,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier-android"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f87165f0995f63a9fbeea62b64d10b4d9d8e78ec6d7d51fb2125fda7bb36788f"
+checksum = "eec689c0bc40ff2458a5977b6619cb718087084a18e02a131c599b62d05e1a5f"
 
 [[package]]
 name = "rustls-webpki"
@@ -11094,9 +11095,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "e3a0760a887c14823fca5a1c970b01d47c328c696c0c64829d1df50e8f853fd5"
 dependencies = [
  "aws-lc-rs",
  "ring",
@@ -11323,10 +11324,11 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.151"
+version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c841b55ecdae098c80dcae9cf767f6f8a0c2cdb3416bbef72181df4d0fe73f14"
+checksum = "e7e9cc8b1b85264074fbcc02a88680c4096b1e47df8f739dceb03bf482f04bd6"
 dependencies = [
+ "foldhash 0.2.0",
  "indexmap 2.14.0",
  "itoa",
  "memchr",
@@ -11911,7 +11913,7 @@ dependencies = [
  "log",
  "memchr",
  "percent-encoding",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -12109,7 +12111,7 @@ dependencies = [
  "rustcrypto-ff",
  "rustcrypto-ff_derive",
  "rustcrypto-group",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "serde",
  "sha1 0.11.0",
  "sha2 0.11.0",
@@ -12261,9 +12263,9 @@ dependencies = [
  "indexmap 2.14.0",
  "js-sys",
  "path-clean",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "ring",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "semver",
  "serde",
@@ -12482,11 +12484,11 @@ dependencies = [
  "getrandom 0.2.17",
  "getrandom 0.3.4",
  "hex",
- "http 1.4.2",
+ "http 1.5.0",
  "papaya",
  "rand 0.9.4",
  "regex",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "rust_decimal",
  "semver",
  "serde",
@@ -12947,7 +12949,7 @@ version = "0.26.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
 dependencies = [
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "tokio",
 ]
 
@@ -12970,7 +12972,7 @@ checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.6",
@@ -12987,7 +12989,7 @@ dependencies = [
  "bytes",
  "futures-channel",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "httparse",
  "js-sys",
  "thiserror 2.0.18",
@@ -13107,7 +13109,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "h2 0.4.14",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "http-body-util",
  "hyper 1.9.0",
@@ -13225,7 +13227,7 @@ dependencies = [
  "bitflags 2.11.1",
  "bytes",
  "futures-util",
- "http 1.4.2",
+ "http 1.5.0",
  "http-body 1.1.0",
  "pin-project-lite",
  "tower 0.5.3",
@@ -13400,11 +13402,11 @@ checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
 dependencies = [
  "bytes",
  "data-encoding",
- "http 1.4.2",
+ "http 1.5.0",
  "httparse",
  "log",
  "rand 0.9.4",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "sha1 0.10.6",
  "thiserror 2.0.18",
@@ -13420,12 +13422,12 @@ checksum = "6c01152af293afb9c7c2a57e4b559c5620b421f6d133261c60dd2d0cdb38e6b8"
 dependencies = [
  "bytes",
  "data-encoding",
- "http 1.4.2",
+ "http 1.5.0",
  "httparse",
  "log",
  "native-tls",
  "rand 0.9.4",
- "rustls 0.23.40",
+ "rustls 0.23.46",
  "rustls-pki-types",
  "sha1 0.10.6",
  "thiserror 2.0.18",
@@ -13608,9 +13610,9 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 
 [[package]]
 name = "uuid"
-version = "1.24.0"
+version = "1.26.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3923a6f5c4c6382e0b653c4117f48d631ea17f38ed86e2a828e6f7412f5239"
+checksum = "2ef6dac1e96601b4fb3acccccff2139741fcb757cb9a36089bf5be91cfb285ce"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
@@ -14498,12 +14500,12 @@ dependencies = [
  "bytes",
  "crc32fast",
  "futures",
- "http 1.4.2",
+ "http 1.5.0",
  "hyper 1.9.0",
  "more-asserts",
  "rand 0.10.1",
  "redb 3.1.3",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "reqwest-middleware",
  "serde",
  "serde_json",
@@ -14566,7 +14568,7 @@ dependencies = [
  "bytes",
  "chrono",
  "gearhash",
- "http 1.4.2",
+ "http 1.5.0",
  "itertools 0.14.0",
  "more-asserts",
  "rand 0.10.1",
@@ -14610,7 +14612,7 @@ dependencies = [
  "oneshot",
  "pin-project",
  "rand 0.10.1",
- "reqwest 0.13.4",
+ "reqwest 0.13.5",
  "serde",
  "serde_json",
  "shellexpand",

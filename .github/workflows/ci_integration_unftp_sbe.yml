@@ -52,6 +52,6 @@ jobs:
         working-directory: integrations/unftp-sbe
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: FTP loopback tests
+      - name: Cargo test
         working-directory: integrations/unftp-sbe
-        run: cargo test --test ftp_loopback
+        run: cargo test

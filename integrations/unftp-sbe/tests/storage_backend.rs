@@ -199,3 +199,36 @@ async fn cwd_on_memory_backend() -> Result<()> {
     assert_eq!(err.kind(), ErrorKind::PermanentDirectoryNotAvailable);
     Ok(())
 }
+
+/// Backends without the list capability cannot probe implicit prefix
+/// directories; `cwd` must still report `PermanentDirectoryNotAvailable`
+/// instead of leaking an internal `LocalError`.
+#[tokio::test]
+async fn cwd_on_backend_without_list_capability() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let cacache =
+        services::Cacache::default().datadir(root.path().to_str().context("non-UTF-8 test root")?);
+    let op = Operator::new(cacache)?;
+    assert!(!op.info().capability().list);
+    let storage = OpendalStorage::new(op);
+    let user = DefaultUser;
+
+    storage.cwd(&user, "/").await.context("cwd /")?;
+
+    storage
+        .put(&user, "abc".as_bytes(), "file", 0)
+        .await
+        .context("put file")?;
+    let err = storage
+        .cwd(&user, "file")
+        .await
+        .expect_err("cwd file must fail");
+    assert_eq!(err.kind(), ErrorKind::PermanentDirectoryNotAvailable);
+
+    let err = storage
+        .cwd(&user, "nonexistent")
+        .await
+        .expect_err("cwd nonexistent must fail");
+    assert_eq!(err.kind(), ErrorKind::PermanentDirectoryNotAvailable);
+    Ok(())
+}

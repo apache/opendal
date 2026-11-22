@@ -331,26 +331,39 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
         let directory = format!("{}/", path.trim_end_matches('/'));
 
+        // The FTP root always exists; some backends cannot stat it.
+        if directory == "/" {
+            return Ok(());
+        }
+
         match self.op.stat(&directory).await {
             Ok(meta) if meta.is_dir() => Ok(()),
             Ok(_) => Err(Error::new(
                 storage::ErrorKind::PermanentDirectoryNotAvailable,
                 format!("{directory} is not a directory"),
             )),
-            Err(e) => match self.op.list(&directory).await {
+            Err(e) => {
                 // Object stores can serve implicit prefix directories that
-                // have no directory entry of their own.
-                Ok(entries) if !entries.is_empty() => Ok(()),
-                Ok(_) => Err(Error::new(
-                    storage::ErrorKind::PermanentDirectoryNotAvailable,
-                    e,
-                )),
-                Err(e) if matches!(e.kind(), NotFound | NotADirectory) => Err(Error::new(
-                    storage::ErrorKind::PermanentDirectoryNotAvailable,
-                    e,
-                )),
-                Err(e) => Err(convert_err(e)),
-            },
+                // have no directory entry of their own; probing needs the
+                // list capability.
+                if !self.op.info().capability().list {
+                    return Err(Error::new(
+                        storage::ErrorKind::PermanentDirectoryNotAvailable,
+                        e,
+                    ));
+                }
+                match self.op.list(&directory).await {
+                    Ok(entries) if !entries.is_empty() => Ok(()),
+                    Ok(_) => Err(Error::new(
+                        storage::ErrorKind::PermanentDirectoryNotAvailable,
+                        e,
+                    )),
+                    Err(e) if matches!(e.kind(), NotFound | NotADirectory | Unsupported) => Err(
+                        Error::new(storage::ErrorKind::PermanentDirectoryNotAvailable, e),
+                    ),
+                    Err(e) => Err(convert_err(e)),
+                }
+            }
         }
     }
 }

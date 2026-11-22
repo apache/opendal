@@ -41,6 +41,13 @@ const X_MS_TYPE: &str = "x-ms-type";
 const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
+/// Drops the leading `?` of a SAS token and treats an empty token as unset.
+pub(crate) fn normalize_sas_token(token: Option<&str>) -> Option<&str> {
+    token
+        .map(|token| token.trim_start_matches('?'))
+        .filter(|token| !token.is_empty())
+}
+
 pub struct AzfileCore {
     pub info: ServiceInfo,
     pub capability: Capability,
@@ -268,12 +275,7 @@ impl AzfileCore {
         self.send(ctx, req).await
     }
 
-    pub async fn azfile_rename(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        new_path: &str,
-    ) -> Result<Response<Buffer>> {
+    pub fn azfile_rename_request(&self, path: &str, new_path: &str) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
@@ -316,16 +318,26 @@ impl AzfileCore {
         if let Some(sas_token) = &self.sas_token {
             source_url = format!("{source_url}?{sas_token}");
         }
+        let mut source = build_header_value(&source_url)?;
+        source.set_sensitive(self.sas_token.is_some());
 
-        req = req.header(X_MS_FILE_RENAME_SOURCE, &source_url);
+        req = req.header(X_MS_FILE_RENAME_SOURCE, source);
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
-        let req = req
-            .extension(Operation::Rename)
-            .extension(ServiceOperation("Rename"));
+        req.extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+    pub async fn azfile_rename(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        new_path: &str,
+    ) -> Result<Response<Buffer>> {
+        let req = self.azfile_rename_request(path, new_path)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -653,7 +665,45 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use reqsign_azure_storage::{RequestSigner, StaticCredentialProvider};
+
     use super::*;
+
+    #[test]
+    fn test_rename_source_carries_normalized_sas_token() {
+        let rename_source = |sas_token: Option<&str>| {
+            let core = AzfileCore {
+                info: ServiceInfo::new("azfile", "/", ""),
+                capability: Capability::default(),
+                root: "/".to_string(),
+                endpoint: "https://acc.file.core.windows.net".to_string(),
+                share_name: "share".to_string(),
+                sas_token: normalize_sas_token(sas_token).map(str::to_string),
+                signer: Signer::new(
+                    Context::new(),
+                    StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                    RequestSigner::new(),
+                ),
+                sign_ctx: Context::new(),
+            };
+            let req = core.azfile_rename_request("a", "b").expect("must build");
+            let source = &req.headers()[X_MS_FILE_RENAME_SOURCE];
+            (source.to_str().unwrap().to_string(), source.is_sensitive())
+        };
+        let bare = "https://acc.file.core.windows.net/share/a";
+        let signed = "https://acc.file.core.windows.net/share/a?sv=x&sig=y";
+
+        for (sas_token, expected) in [
+            (None, (bare, false)),
+            (Some("sv=x&sig=y"), (signed, true)),
+            (Some("?sv=x&sig=y"), (signed, true)),
+            (Some(""), (bare, false)),
+            (Some("?"), (bare, false)),
+        ] {
+            let (source, sensitive) = rename_source(sas_token);
+            assert_eq!((source.as_str(), sensitive), expected, "{sas_token:?}");
+        }
+    }
 
     fn parse_native_error(operation: &'static str, status: StatusCode, code: &str) -> Error {
         let resp = Response::builder()

@@ -32,7 +32,7 @@ use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
 use super::core::X_MS_META_PREFIX;
 use super::core::parse_error;
-use super::core::{AzfileCore, ErrorContext};
+use super::core::{AzfileCore, ErrorContext, normalize_sas_token};
 use super::deleter::AzfileDeleter;
 use super::lister::AzfileLister;
 use super::reader::*;
@@ -199,7 +199,8 @@ impl Builder for AzfileBuilder {
                 account_key,
             ));
         }
-        if let Some(sas_token) = self.config.sas_token.as_deref() {
+        let sas_token = normalize_sas_token(self.config.sas_token.as_deref());
+        if let Some(sas_token) = sas_token {
             credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
@@ -238,7 +239,7 @@ impl Builder for AzfileBuilder {
                 signer,
                 sign_ctx,
                 share_name: self.config.share_name.clone(),
-                sas_token: self.config.sas_token.clone(),
+                sas_token: sas_token.map(str::to_string),
             }),
         })
     }

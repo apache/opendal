@@ -71,7 +71,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
-jiff = { version = "0.2.28", features = ["serde"] }
+jiff = { version = "1.0.1", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.11.0"
 percent-encoding = "2"

@@ -15,6 +15,13 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+## Read
+
+Conditional reads compare `if_modified_since` and `if_unmodified_since` with
+the modification time reported by the opened file's metadata, including
+subsecond precision when available. When both conditions are set, both must
+match.
+
 ## List
 
 When set, `start_after` returns entries in lexicographic order and excludes

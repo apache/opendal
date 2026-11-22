@@ -173,10 +173,10 @@ impl oio::Write for FtpLazyWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        match &mut self.inner {
-            Some(w) => w.close().await,
-            None => Ok(MetadataBuilder::unknown().build()),
-        }
+        // Create the inner writer even when nothing was written so that
+        // closing the writer still creates or touches the remote file and
+        // reports its final metadata.
+        self.inner().await?.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {

@@ -57,15 +57,14 @@ impl FtpWriter {
     }
 }
 
-impl oio::Write for FtpWriter {
-    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
-        let path = if let Some(tmp_path) = &self.tmp_path {
-            tmp_path
-        } else {
-            &self.target_path
-        };
-
+impl FtpWriter {
+    /// Open the data stream on first use so that empty writes and appends still
+    /// create the remote file once the stream is finalized.
+    async fn data_stream(
+        &mut self,
+    ) -> Result<&mut Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>> {
         if self.data_stream.is_none() {
+            let path = self.tmp_path.as_ref().unwrap_or(&self.target_path);
             self.data_stream = Some(Box::new(
                 self.ftp_stream
                     .append_with_stream(path)
@@ -74,16 +73,21 @@ impl oio::Write for FtpWriter {
             ));
         }
 
+        Ok(self
+            .data_stream
+            .as_mut()
+            .expect("ftp data stream must be initialized"))
+    }
+}
+
+impl oio::Write for FtpWriter {
+    async fn write(&mut self, mut bs: Buffer) -> Result<()> {
+        let data_stream = self.data_stream().await?;
+
         while bs.has_remaining() {
-            let n = self
-                .data_stream
-                .as_mut()
-                .unwrap()
-                .write(bs.chunk())
-                .await
-                .map_err(|err| {
-                    Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
-                })?;
+            let n = data_stream.write(bs.chunk()).await.map_err(|err| {
+                Error::new(ErrorKind::Unexpected, "copy from ftp stream").set_source(err)
+            })?;
             bs.advance(n);
         }
 
@@ -91,26 +95,36 @@ impl oio::Write for FtpWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let data_stream = self.data_stream.take();
-        if let Some(mut data_stream) = data_stream {
-            data_stream.flush().await.map_err(|err| {
-                Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
-            })?;
+        let data_stream = self.data_stream().await?;
+        data_stream.flush().await.map_err(|err| {
+            Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
+        })?;
 
+        let data_stream = self
+            .data_stream
+            .take()
+            .expect("ftp data stream must be initialized");
+        self.ftp_stream
+            .finalize_put_stream(data_stream)
+            .await
+            .map_err(format_ftp_error)?;
+
+        if let Some(tmp_path) = &self.tmp_path {
             self.ftp_stream
-                .finalize_put_stream(data_stream)
+                .rename(tmp_path, &self.target_path)
                 .await
                 .map_err(format_ftp_error)?;
-
-            if let Some(tmp_path) = &self.tmp_path {
-                self.ftp_stream
-                    .rename(tmp_path, &self.target_path)
-                    .await
-                    .map_err(format_ftp_error)?;
-            }
         }
 
-        Ok(MetadataBuilder::unknown().build())
+        // Report the final content length of the target file; append writers
+        // must return it so that CompleteWriter can verify the write.
+        let size = self
+            .ftp_stream
+            .size(&self.target_path)
+            .await
+            .map_err(format_ftp_error)?;
+
+        Ok(MetadataBuilder::file(size as u64).build())
     }
 
     async fn abort(&mut self) -> Result<()> {

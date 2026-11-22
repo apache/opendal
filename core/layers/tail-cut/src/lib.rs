@@ -846,10 +846,14 @@ struct WindowedHistogram {
 
 impl WindowedHistogram {
     fn new() -> Self {
+        let now = Self::now_ms();
         Self {
-            slices: Box::new(std::array::from_fn(|_| TimeSlice::new())),
+            slices: Box::new(std::array::from_fn(|index| {
+                let start_epoch_ms = if index == 0 { now } else { 0 };
+                TimeSlice::new(start_epoch_ms)
+            })),
             current_idx: AtomicUsize::new(0),
-            last_rotate: AtomicU64::new(Self::now_ms()),
+            last_rotate: AtomicU64::new(now),
         }
     }
 
@@ -965,10 +969,10 @@ struct TimeSlice {
 }
 
 impl TimeSlice {
-    fn new() -> Self {
+    fn new(start_epoch_ms: u64) -> Self {
         Self {
             buckets: std::array::from_fn(|_| AtomicU64::new(0)),
-            start_epoch_ms: AtomicU64::new(0),
+            start_epoch_ms: AtomicU64::new(start_epoch_ms),
         }
     }
 }
@@ -1034,21 +1038,112 @@ mod tests {
         assert!(bucket.contains(u64::MAX));
     }
 
-    #[tokio::test]
-    async fn test_histogram_basic() {
+    #[test]
+    fn test_histogram_records_initial_samples() {
         let hist = WindowedHistogram::new();
-        let now = WindowedHistogram::now_ms();
-        hist.slices[0].start_epoch_ms.store(now, Ordering::Release);
+        let window = Duration::from_secs(60);
 
         hist.record(Duration::from_millis(10));
         hist.record(Duration::from_millis(20));
         hist.record(Duration::from_millis(30));
 
-        let samples = hist.total_samples(Duration::from_secs(60));
-        assert_eq!(samples, 3);
+        assert_eq!(hist.total_samples(window), 3);
+        assert_eq!(hist.quantile(0.5, window), Some(Duration::from_millis(32)));
+    }
 
-        let p50 = hist.quantile(0.5, Duration::from_secs(60));
-        assert!(p50.is_some());
+    #[derive(Debug)]
+    struct SlowStatService;
+
+    impl Service for SlowStatService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("test")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                stat: true,
+                ..Default::default()
+            }
+        }
+
+        async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
+            if path == "slow" {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            Ok(RpStat::new(MetadataBuilder::file(0).build()))
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            unreachable!()
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            unreachable!()
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            unreachable!()
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            unreachable!()
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            unreachable!()
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            unreachable!()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            unreachable!()
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_tail_cut_cancels_after_initial_samples() {
+        let layer = TailCutLayer::builder()
+            .min_samples(5)
+            .max_deadline(Duration::from_millis(500))
+            .build();
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(SlowStatService))
+            .layer(layer);
+
+        for _ in 0..5 {
+            op.stat("fast").await.unwrap();
+        }
+
+        let err = op
+            .stat("slow")
+            .await
+            .expect_err("tail cut must cancel the slow stat");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "cancelled by tail cut");
+        assert!(err.is_temporary());
     }
 
     #[tokio::test]

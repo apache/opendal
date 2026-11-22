@@ -26,7 +26,8 @@ use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
 use super::lister::FsLister;
-use super::reader::*;
+use super::reader::FsReader;
+use super::writer::FsLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -62,6 +63,12 @@ impl FsBuilder {
 
         self
     }
+
+    /// Bypass the page cache for file reads and writes on Linux. Defaults to `false`.
+    pub fn direct_io(mut self, enabled: bool) -> Self {
+        self.config.direct_io = enabled;
+        self
+    }
 }
 
 impl Builder for FsBuilder {
@@ -69,6 +76,14 @@ impl Builder for FsBuilder {
 
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", self);
+
+        let direct_io = self.config.direct_io;
+        if direct_io && !cfg!(target_os = "linux") {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "direct_io is only supported on Linux",
+            ));
+        }
 
         let root = match self.config.root.map(PathBuf::from) {
             Some(root) => Ok(root),
@@ -142,7 +157,7 @@ impl Builder for FsBuilder {
 
                     write: true,
                     write_can_empty: true,
-                    write_can_append: true,
+                    write_can_append: !direct_io,
                     write_can_multi: true,
                     write_with_if_not_exists: true,
                     #[cfg(unix)]
@@ -165,6 +180,7 @@ impl Builder for FsBuilder {
                 },
                 root,
                 atomic_write_dir,
+                direct_io,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
             }),
         })
@@ -216,6 +232,13 @@ impl Service for FsBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        if self.core.direct_io && op.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "append is not supported with direct_io",
+            ));
+        }
+
         Ok(FsLazyWriter::new(
             self.core.clone(),
             ctx.executor().clone(),

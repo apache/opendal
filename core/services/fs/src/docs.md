@@ -45,6 +45,18 @@ Use [`crate::FsConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
 
+### Direct I/O
+
+Enable `direct_io` on Linux to bypass the kernel page cache for file reads and
+writes. The service handles the alignment of buffers, offsets, and lengths.
+Opening a file for direct I/O returns [`opendal_core::ErrorKind::Unsupported`]
+if the backing filesystem or file does not support it. `copy` still uses
+`tokio::fs::copy`. Append is unsupported when `direct_io` is enabled.
+
+On Linux, finish all direct I/O before calling `fork()`. The service uses
+heap-allocated buffers, and running `O_DIRECT` operations concurrently with
+`fork()` can corrupt data.
+
 ## Example
 
 ### Via Builder

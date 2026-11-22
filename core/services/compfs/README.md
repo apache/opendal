@@ -1,7 +1,8 @@
 # Apache OpenDAL™ Compfs Service
 
 `opendal-service-compfs` provides local filesystem access powered by `compio` for
-applications built with Apache OpenDAL™.
+applications built with Apache OpenDAL™. The crate and the `opendal`
+`services-compfs` feature require Rust 1.95 or later.
 
 ## Use through `opendal`
 

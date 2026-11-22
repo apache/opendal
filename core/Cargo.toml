@@ -48,6 +48,7 @@ base64 = "0.23"
 bytes = "1.10"
 compio = "0.19.1"
 ctor = "1.0.7"
+cyper = { version = "0.9.0", default-features = false }
 futures = { version = "0.3", default-features = false }
 http = "1.4"
 log = { version = "0.4.32" }
@@ -100,6 +101,16 @@ default = [
 ]
 executors-compio = ["dep:opendal-executor-compio"]
 executors-tokio = ["dep:opendal-executor-tokio"]
+# Enable the opt-in Cyper transport with Rustls.
+http-transport-cyper = ["http-transport-cyper-rustls"]
+http-transport-cyper-native-tls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/native-tls",
+]
+http-transport-cyper-rustls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/rustls",
+]
 # Default http-transport-reqwest transport feature, used for:
 # - install default http transport
 # - feature gate for various of bindings dependency
@@ -255,6 +266,7 @@ required-features = ["tests"]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.59.5", default-features = false }
 opendal-executor-tokio = { path = "executors/tokio", version = "0.59.5", optional = true }
+opendal-http-transport-cyper = { path = "http-transports/cyper", version = "0.59.5", optional = true, default-features = false }
 opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.59.5", optional = true, default-features = false }

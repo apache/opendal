@@ -31,6 +31,12 @@ pub mod executors {
     pub use opendal_executor_tokio::TokioExecutor;
 }
 
+#[cfg(any(
+    feature = "http-transport-cyper-native-tls",
+    feature = "http-transport-cyper-rustls"
+))]
+pub use opendal_http_transport_cyper::CyperTransport;
+
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 

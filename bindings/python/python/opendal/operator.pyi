@@ -339,8 +339,8 @@ class AsyncOperator:
             `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
             or `"x"` to create a new file. An optional `"b"` can appear before or
             after the letter. All supported modes are binary; text modes such as
-            `"rt"` raise `ValueError`. Wrap the returned file with
-            `io.TextIOWrapper` to read or write text.
+            `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
+            with `str.encode()` and decode reads with `bytes.decode()`.
         **kwargs : dict
             Additional options for the underlying reader or writer.
 
@@ -1069,7 +1069,7 @@ class Operator:
             `if_not_exists` in `**kwargs`.
         ConditionNotMatch
             If create mode (`"x"`) targets an existing file. The failure can
-            surface from `write()` or `close()`.
+            surface from `write()`, `flush()`, or `close()`.
         Unsupported
             If the service does not support append or `if_not_exists` writes.
 

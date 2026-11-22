@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import contextlib
+
 import pytest
 
 import opendal
@@ -98,6 +100,26 @@ def test_sync_open_create_mode(local_operator, mode):
     assert op.read("new") == b"first"
 
 
+def test_sync_open_create_existing_file_large_write(service_name, tmp_path):
+    if service_name != "fs":
+        pytest.skip("requires the fs service")
+    op = opendal.Operator("fs", root=str(tmp_path))
+    if not op.capability().write_with_if_not_exists:
+        pytest.skip("requires write_with_if_not_exists")
+    op.write("data", b"old contents")
+
+    file = op.open("data", "xb", chunk=64 * 1024)
+    try:
+        with pytest.raises(ConditionNotMatch):
+            file.write(b"new" * (100 * 1024))
+        with pytest.raises(ConditionNotMatch):
+            file.flush()
+    finally:
+        with contextlib.suppress(ConditionNotMatch):
+            file.close()
+    assert op.read("data") == b"old contents"
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(("read", "write", "append"), BINARY_MODES)
 async def test_async_open_modes(local_operator, read, write, append):
@@ -157,6 +179,25 @@ async def test_async_open_create_mode(local_operator, mode):
         async with await op.open("new", mode) as file:
             await file.write(b"second")
     assert await op.read("new") == b"first"
+
+
+@pytest.mark.asyncio
+async def test_async_open_create_existing_file_large_write(service_name, tmp_path):
+    if service_name != "fs":
+        pytest.skip("requires the fs service")
+    op = opendal.AsyncOperator("fs", root=str(tmp_path))
+    if not op.capability().write_with_if_not_exists:
+        pytest.skip("requires write_with_if_not_exists")
+    await op.write("data", b"old contents")
+
+    file = await op.open("data", "xb", chunk=64 * 1024)
+    try:
+        with pytest.raises(ConditionNotMatch):
+            await file.write(b"new" * (100 * 1024))
+    finally:
+        with contextlib.suppress(ConditionNotMatch):
+            await file.close()
+    assert await op.read("data") == b"old contents"
 
 
 INVALID_MODES = [

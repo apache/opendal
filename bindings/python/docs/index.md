@@ -111,7 +111,7 @@ This again yields
 b'baz'
 ```
 
-Again, note that all reads with OpenDAL return bytes. `"r"` and `"rb"` are both binary; wrap the file with `io.TextIOWrapper` if you need text.
+Again, note that all reads with OpenDAL return bytes. `"r"` and `"rb"` are both binary; wrap the synchronous file with `io.TextIOWrapper` if you need text.
 
 
 ### Writing
@@ -153,7 +153,7 @@ This again yields:
 my amazing data
 ```
 
-Again, note that all writing happens in bytes. `"w"` and `"wb"` are both binary; wrap the file with `io.TextIOWrapper` if you need text.
+Again, note that all writing happens in bytes. `"w"` and `"wb"` are both binary; wrap the synchronous file with `io.TextIOWrapper` if you need text.
 
 `open` supports the binary modes `"r"`, `"w"`, `"a"`, and `"x"`, each with an optional `b` before or after the letter. It rejects text modes such as `"rt"` and update modes such as `"r+"`.
 
@@ -185,3 +185,5 @@ async def main():
 
 asyncio.run(main())
 ```
+
+`AsyncFile` reads and writes bytes. Encode text with `str.encode()` and decode reads with `bytes.decode()`; `io.TextIOWrapper` only works with the blocking `File`.

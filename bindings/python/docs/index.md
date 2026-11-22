@@ -111,7 +111,7 @@ This again yields
 b'baz'
 ```
 
-Again, note that all reads with OpenDAL return bytes, so specifying a mode of `"r"` will raise an exception.
+Again, note that all reads with OpenDAL return bytes. `"r"` and `"rb"` are both binary; wrap the file with `io.TextIOWrapper` if you need text.
 
 
 ### Writing
@@ -153,7 +153,9 @@ This again yields:
 my amazing data
 ```
 
-Again, note that all writing happens in bytes and a mode of `"w"` will raise an exception.
+Again, note that all writing happens in bytes. `"w"` and `"wb"` are both binary; wrap the file with `io.TextIOWrapper` if you need text.
+
+`open` supports the binary modes `"r"`, `"w"`, `"a"`, and `"x"`, each with an optional `b` before or after the letter. It rejects text modes such as `"rt"` and update modes such as `"r+"`.
 
 ## Async
 OpenDAL supports async operation on all operator methods. One can simply replace the `Operator` with an `AsyncOperator` and await on method calls. The below example illustrates this behavior:

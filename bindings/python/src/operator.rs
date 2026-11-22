@@ -36,6 +36,7 @@ enum OpenMode {
     Read,
     Write,
     Append,
+    Create,
 }
 
 impl OpenMode {
@@ -44,20 +45,42 @@ impl OpenMode {
             "r" | "rb" | "br" => Ok(Self::Read),
             "w" | "wb" | "bw" => Ok(Self::Write),
             "a" | "ab" | "ba" => Ok(Self::Append),
+            "x" | "xb" | "bx" => Ok(Self::Create),
             _ => Err(PyValueError::new_err(format!(
-                "unsupported file mode {mode:?}. Use 'r', 'w', or 'a' with an optional 'b' for binary I/O"
+                "unsupported file mode {mode:?}. Use 'r', 'w', 'a', or 'x' with an optional 'b' for binary I/O"
             ))),
         }
     }
 
     fn apply_write_options(&self, options: &mut WriteOptions) -> PyResult<()> {
-        if matches!(self, Self::Append) {
-            if options.append == Some(false) {
-                return Err(PyValueError::new_err(
-                    "append file mode cannot be combined with append=False",
-                ));
+        match self {
+            Self::Read | Self::Write => {}
+            Self::Append => {
+                if options.append == Some(false) {
+                    return Err(PyValueError::new_err(
+                        "append file mode cannot be combined with append=False",
+                    ));
+                }
+                if options.if_not_exists == Some(true) {
+                    return Err(PyValueError::new_err(
+                        "append file mode cannot be combined with if_not_exists=True",
+                    ));
+                }
+                options.append = Some(true);
             }
-            options.append = Some(true);
+            Self::Create => {
+                if options.if_not_exists == Some(false) {
+                    return Err(PyValueError::new_err(
+                        "create file mode cannot be combined with if_not_exists=False",
+                    ));
+                }
+                if options.append == Some(true) {
+                    return Err(PyValueError::new_err(
+                        "create file mode cannot be combined with append=True",
+                    ));
+                }
+                options.if_not_exists = Some(true);
+            }
         }
         Ok(())
     }
@@ -415,9 +438,11 @@ impl Operator {
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
-    ///     An optional `"b"` can appear before or after the letter. All supported
-    ///     modes are binary.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+    ///     or `"x"` to create a new file. An optional `"b"` can appear before or
+    ///     after the letter. All supported modes are binary; text modes such as
+    ///     `"rt"` raise `ValueError`. Wrap the returned file with
+    ///     `io.TextIOWrapper` to read or write text.
     /// **kwargs
     ///     Additional options for the underlying reader or writer.
     ///
@@ -425,9 +450,13 @@ impl Operator {
     /// ------
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
-    ///     update (`"+"`) modes, or if append mode is combined with `append=False`.
+    ///     update (`"+"`) modes, or if the mode conflicts with `append` or
+    ///     `if_not_exists` in `**kwargs`.
+    /// ConditionNotMatch
+    ///     If create mode (`"x"`) targets an existing file. The failure can
+    ///     surface from `write()` or `close()`.
     /// Unsupported
-    ///     If the service does not support append mode.
+    ///     If the service does not support append or `if_not_exists` writes.
     ///
     /// Returns
     /// -------
@@ -1280,9 +1309,11 @@ impl AsyncOperator {
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     `"r"` to read, `"w"` to write (overwrite by default), or `"a"` to append.
-    ///     An optional `"b"` can appear before or after the letter. All supported
-    ///     modes are binary.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+    ///     or `"x"` to create a new file. An optional `"b"` can appear before or
+    ///     after the letter. All supported modes are binary; text modes such as
+    ///     `"rt"` raise `ValueError`. Wrap the returned file with
+    ///     `io.TextIOWrapper` to read or write text.
     /// **kwargs : dict
     ///     Additional options for the underlying reader or writer.
     ///
@@ -1290,9 +1321,13 @@ impl AsyncOperator {
     /// ------
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
-    ///     update (`"+"`) modes, or if append mode is combined with `append=False`.
+    ///     update (`"+"`) modes, or if the mode conflicts with `append` or
+    ///     `if_not_exists` in `**kwargs`.
+    /// ConditionNotMatch
+    ///     If create mode (`"x"`) targets an existing file. The failure can
+    ///     surface from `write()` or `close()`.
     /// Unsupported
-    ///     If the service does not support append mode.
+    ///     If the service does not support append or `if_not_exists` writes.
     ///
     /// Returns
     /// -------

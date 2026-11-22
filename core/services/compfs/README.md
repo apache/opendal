@@ -48,6 +48,14 @@ Services that send HTTP requests also require an HTTP transport in
 
 This service is useful when an application wants `compio`-based filesystem I/O.
 
+## Rename
+
+On Linux, `rename_with(...).if_not_exists(true)` atomically moves the source
+only when the destination is absent. If the destination exists, the operation
+returns `ErrorKind::ConditionNotMatch` and preserves both files.
+The option requires kernel and filesystem support for `RENAME_NOREPLACE`.
+Otherwise, the operation returns `ErrorKind::Unsupported`.
+
 ## Documentation
 
 - [Service configuration and examples](https://opendal.apache.org/services/compfs)

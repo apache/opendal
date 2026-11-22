@@ -26,6 +26,18 @@ use std::vec::IntoIter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Same contract as `CorrectnessCheckLayer`: report a list option the index
+/// cannot honor instead of silently ignoring it.
+fn new_unsupported_error(scheme: &'static str, op: Operation, args: &str) -> Error {
+    let op = op.into_static();
+
+    Error::new(
+        ErrorKind::Unsupported,
+        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
+    )
+    .with_operation(op)
+}
+
 /// `ImmutableIndexLayer` adds an immutable in-memory index to a storage service.
 ///
 /// Especially useful for services without list capability like HTTP.
@@ -163,8 +175,21 @@ impl Service for ImmutableIndexService {
 
     fn capability(&self) -> Capability {
         let mut capability = self.inner.capability();
+
+        // List operations are answered by the index, so all `list_with_*`
+        // options must reflect what the index actually implements instead of
+        // inheriting the inner service's capabilities.
         capability.list = true;
         capability.list_with_recursive = true;
+        capability.list_with_start_after = true;
+        // `limit` is a per-request size hint; the index materializes the whole
+        // listing, so it is ignored rather than advertised.
+        capability.list_with_limit = false;
+        // The index only stores paths, so it cannot return versions or
+        // deleted entries.
+        capability.list_with_versions = false;
+        capability.list_with_deleted = false;
+
         capability
     }
 
@@ -204,16 +229,43 @@ impl Service for ImmutableIndexService {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        // CorrectnessCheckLayer sits below this layer, so reject the list
+        // options the index cannot honor instead of silently ignoring them.
+        if args.versions() {
+            return Err(new_unsupported_error(
+                self.info().scheme(),
+                Operation::List,
+                "versions",
+            ));
+        }
+        if args.deleted() {
+            return Err(new_unsupported_error(
+                self.info().scheme(),
+                Operation::List,
+                "deleted",
+            ));
+        }
+
         let mut path = path;
         if path == "/" {
             path = ""
         }
 
-        let idx = if args.recursive() {
+        let mut idx = if args.recursive() {
             self.children_flat(path)
         } else {
             self.children_hierarchy(path)
         };
+
+        // Entries must be emitted in lexicographical order for `start_after`
+        // to mark a resumable position.
+        idx.sort_unstable();
+
+        if let Some(start_after) = args.start_after()
+            && start_after != "/"
+        {
+            idx.retain(|v| v.as_str() > start_after);
+        }
 
         Ok(ImmutableDir::new(idx))
     }
@@ -311,7 +363,11 @@ mod tests {
         fn capability(&self) -> Capability {
             Capability {
                 list: true,
+                list_with_limit: true,
+                list_with_start_after: true,
                 list_with_recursive: true,
+                list_with_versions: true,
+                list_with_deleted: true,
                 ..Default::default()
             }
         }
@@ -567,6 +623,136 @@ mod tests {
             map["dataset/stateful/ontime_2009_200.csv"],
             EntryMode::Unknown
         );
+        Ok(())
+    }
+
+    /// The index owns all list options: `start_after` and `recursive` are
+    /// implemented; `limit`, `versions`, and `deleted` must not be inherited
+    /// from the inner service, or the layer would advertise options it
+    /// cannot honor.
+    #[tokio::test]
+    async fn test_capability_does_not_inherit_inner_list_options() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        iil.insert("file".to_string());
+
+        let op = build_operator(iil);
+        let capability = op.info().capability();
+
+        assert!(capability.list);
+        assert!(capability.list_with_recursive);
+        assert!(capability.list_with_start_after);
+        assert!(!capability.list_with_limit);
+        assert!(!capability.list_with_versions);
+        assert!(!capability.list_with_deleted);
+
+        // `versions` and `deleted` must fail fast instead of returning the
+        // current entries as if they were versioned or deleted data.
+        let err = op
+            .list_with("/")
+            .versions(true)
+            .await
+            .expect_err("versions must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .list_with("/")
+            .deleted(true)
+            .await
+            .expect_err("deleted must not be silently ignored");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        Ok(())
+    }
+
+    /// `start_after` resumes after the given key in lexicographical order, on
+    /// the entries emitted by the list operation.
+    #[tokio::test]
+    async fn test_list_start_after() -> Result<()> {
+        // (name, path, recursive, start_after, expected)
+        let cases: &[(&str, &str, bool, &str, &[&str])] = &[
+            ("before prefix", "a/d/", true, "0", &["a/d/x", "a/d/y"]),
+            ("at key", "a/", true, "a/2", &["a/d/x", "a/d/y", "a/z"]),
+            ("between keys", "a/d/", true, "a/d/w", &["a/d/x", "a/d/y"]),
+            ("key in folder", "a/", true, "a/d/x", &["a/d/y", "a/z"]),
+            ("after prefix", "a/", true, "a0", &[]),
+            ("folds folders", "a/", false, "a/1", &["a/2", "a/d/", "a/z"]),
+            ("before folder", "a/", false, "a/c", &["a/d/", "a/z"]),
+            ("at folder skips it", "a/", false, "a/d/", &["a/z"]),
+            ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
+            ("prefix without slash", "a/d", false, "a/d/x", &[]),
+            ("list root", "/", false, "a/2", &["a0", "b/"]),
+            ("list root recursively", "/", true, "a0", &["b/1"]),
+        ];
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a/1", "a/2", "a/d/x", "a/d/y", "a/z", "a0", "b/1"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        for &(name, path, recursive, start_after, expected) in cases {
+            let actual: Vec<String> = op
+                .lister_with(path)
+                .recursive(recursive)
+                .start_after(start_after)
+                .await?
+                .map_ok(|entry| entry.path().to_string())
+                .try_collect()
+                .await?;
+            assert_eq!(actual, expected, "{name}");
+        }
+        Ok(())
+    }
+
+    /// Listing emits entries in lexicographical order so `start_after` marks
+    /// a resumable position.
+    #[tokio::test]
+    async fn test_list_emits_sorted_order() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["b/2", "a/c", "b/1", "a/b", "a/d/1", "f.txt"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let recursive: Vec<String> = op
+            .lister_with("/")
+            .recursive(true)
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(recursive, ["a/b", "a/c", "a/d/1", "b/1", "b/2", "f.txt"]);
+
+        let hierarchy: Vec<String> = op
+            .lister("/")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(hierarchy, ["a/", "b/", "f.txt"]);
+        Ok(())
+    }
+
+    /// Wrapping a backend that advertises `list_with_start_after` must honor
+    /// the option instead of silently returning earlier entries.
+    #[tokio::test]
+    async fn test_start_after_with_memory_backend() -> Result<()> {
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["a", "b"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = Operator::from_iter::<services::Memory>(HashMap::<_, _>::default())?.layer(iil);
+
+        let actual: Vec<String> = op
+            .lister_with("/")
+            .start_after("a")
+            .await?
+            .map_ok(|entry| entry.path().to_string())
+            .try_collect()
+            .await?;
+        assert_eq!(actual, ["b"]);
         Ok(())
     }
 }

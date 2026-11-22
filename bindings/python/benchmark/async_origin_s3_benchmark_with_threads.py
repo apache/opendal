@@ -15,98 +15,60 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import argparse
 import asyncio
-import timeit
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import closing
+from threading import Barrier
 
+from async_s3_benchmark import parse_args, run_benchmark
 from boto3 import client as boto3_client
-from mypy_boto3_s3 import S3Client
-from pydantic_settings import BaseSettings
+from botocore.config import Config
 
 
-class Config(BaseSettings):
-    aws_region: str
-    aws_endpoint: str
-    aws_s3_bucket: str
-    aws_access_key_id: str
-    aws_secret_access_key: str
-
-
-SETTINGS = Config()
-
-S3_CLIENT: S3Client = boto3_client(
-    "s3",
-    region_name=SETTINGS.aws_region,
-    endpoint_url=SETTINGS.aws_endpoint,
-    aws_access_key_id=SETTINGS.aws_access_key_id,
-    aws_secret_access_key=SETTINGS.aws_secret_access_key,
-)
-
-
-TEST_CASE = [
-    {"name": "4kb", "data": b"0" * 4096},
-    {"name": "8kb", "data": b"0" * 8192},
-    {"name": "16kb", "data": b"0" * 16384},
-    {"name": "32kb", "data": b"0" * 32768},
-    {"name": "256kb", "data": b"0" * 262144},
-    {"name": "512kb", "data": b"0" * 524288},
-    {"name": "16mb", "data": b"0" * 16777216},
-]
-
-
-def write_object(name: str, data: bytes) -> None:
-    S3_CLIENT.put_object(
-        Bucket=SETTINGS.aws_s3_bucket,
-        Key=f"benchmark/async_write/{name}",
-        Body=data,
+async def benchmark(args: argparse.Namespace) -> None:
+    config = Config(
+        max_pool_connections=args.concurrency,
+        s3={"addressing_style": "path"} if args.endpoint else None,
     )
-
-
-def read_object(name: str) -> bytes:
-    response = S3_CLIENT.get_object(
-        Bucket=SETTINGS.aws_s3_bucket,
-        Key=f"benchmark/async_write/{name}",
-    )
-    return response["Body"].read()
-
-
-async def write_objects() -> None:
-    loop = asyncio.get_running_loop()
-    with ThreadPoolExecutor(max_workers=len(TEST_CASE)) as executor:
+    with (
+        closing(
+            boto3_client(
+                "s3",
+                region_name=args.region,
+                endpoint_url=args.endpoint,
+                config=config,
+            )
+        ) as client,
+        ThreadPoolExecutor(max_workers=args.concurrency) as executor,
+    ):
+        loop = asyncio.get_running_loop()
+        # Start every worker before measuring, even if the warmup requests are fast.
+        barrier = Barrier(args.concurrency, timeout=10)
         await asyncio.gather(
             *(
-                loop.run_in_executor(executor, write_object, case["name"], case["data"])
-                for case in TEST_CASE
+                loop.run_in_executor(executor, barrier.wait)
+                for _ in range(args.concurrency)
             )
         )
 
+        def write_object(key: str, payload: bytes) -> None:
+            client.put_object(Bucket=args.bucket, Key=key, Body=payload)
 
-async def read_objects() -> None:
-    loop = asyncio.get_running_loop()
-    with ThreadPoolExecutor(max_workers=len(TEST_CASE)) as executor:
-        await asyncio.gather(
-            *(
-                loop.run_in_executor(executor, read_object, case["name"])
-                for case in TEST_CASE
-            )
-        )
+        def read_object(key: str) -> bytes:
+            response = client.get_object(Bucket=args.bucket, Key=key)
+            with closing(response["Body"]) as body:
+                return body.read()
 
-
-def threaded_origin_s3_write() -> None:
-    asyncio.run(write_objects())
-
-
-def threaded_origin_s3_read() -> None:
-    asyncio.run(read_objects())
-
-
-def threaded_s3_benchmark() -> None:
-    for func in (threaded_origin_s3_write, threaded_origin_s3_read):
-        fn_name = func.__name__
-        print(
-            f"threaded_origin_s3_benchmark::{fn_name}: {timeit.timeit(func, number=3)}"
+        await run_benchmark(
+            "boto3",
+            args,
+            lambda key, payload: loop.run_in_executor(
+                executor, write_object, key, payload
+            ),
+            lambda key: loop.run_in_executor(executor, read_object, key),
         )
 
 
 if __name__ == "__main__":
-    threaded_s3_benchmark()
+    asyncio.run(benchmark(parse_args()))

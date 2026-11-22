@@ -54,10 +54,6 @@ pub struct WebdavConfig {
     ///
     /// Default: false
     pub disable_create_dir: bool,
-    /// Enable streaming writes using partial PUT. Disabled by default.
-    ///
-    /// The endpoint must support `Content-Range` on PUT and WebDAV MOVE.
-    pub enable_partial_put: bool,
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -98,7 +94,6 @@ impl Default for WebdavConfig {
             root: None,
             disable_copy: false,
             disable_create_dir: false,
-            enable_partial_put: false,
             enable_user_metadata: false,
             user_metadata_prefix: None,
             user_metadata_uri: None,
@@ -114,7 +109,6 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_create_dir", &self.disable_create_dir)
-            .field("enable_partial_put", &self.enable_partial_put)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()
@@ -187,21 +181,6 @@ mod tests {
 
         let cfg = WebdavConfig::from_uri(&uri).unwrap();
         assert!(cfg.disable_copy);
-    }
-
-    #[test]
-    fn partial_put_capability_requires_opt_in() {
-        for enable in [false, true] {
-            let options = if enable {
-                vec![("enable_partial_put".to_owned(), "true".to_owned())]
-            } else {
-                Vec::new()
-            };
-            let uri = OperatorUri::new("webdav://dav.example.com", options).unwrap();
-            let config = WebdavConfig::from_uri(&uri).unwrap();
-            let op = opendal_core::Operator::new(config.into_builder()).unwrap();
-            assert_eq!(op.info().capability().write_can_multi, enable);
-        }
     }
 
     #[test]

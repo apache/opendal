@@ -224,7 +224,6 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        content_range: Option<BytesContentRange>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
@@ -238,9 +237,6 @@ impl WebdavCore {
         }
 
         req = req.header(header::CONTENT_LENGTH, body.len());
-        if let Some(range) = content_range {
-            req = req.header(header::CONTENT_RANGE, range.to_header());
-        }
 
         if let Some(v) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, v)
@@ -388,7 +384,6 @@ impl WebdavCore {
         from: &str,
         to: &str,
         if_not_exists: bool,
-        operation: Operation,
     ) -> Result<Response<Buffer>> {
         let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
@@ -406,7 +401,7 @@ impl WebdavCore {
         req = req.header(HEADER_OVERWRITE, if if_not_exists { "F" } else { "T" });
 
         let req = req
-            .extension(operation)
+            .extension(Operation::Rename)
             .extension(ServiceOperation("Move"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;

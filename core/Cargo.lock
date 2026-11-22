@@ -8715,7 +8715,6 @@ dependencies = [
  "quick-xml",
  "serde",
  "tokio",
- "uuid",
 ]
 
 [[package]]

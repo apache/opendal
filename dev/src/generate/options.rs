@@ -195,6 +195,8 @@ mod tests {
                 "WriteOptions",
                 "ListOptions",
                 "StatOptions",
+                "CopyOptions",
+                "RenameOptions",
                 "DeleteOptions"
             ]
         );
@@ -219,7 +221,18 @@ mod tests {
             "The user metadata to set on the file."
         );
 
-        let delete = &options[4];
+        for option in [&options[4], &options[5]] {
+            assert!(
+                option
+                    .fields
+                    .iter()
+                    .any(|field| field.name == "if_not_exists" && field.ty == OptionType::Bool),
+                "{} must have a boolean if_not_exists field",
+                option.name
+            );
+        }
+
+        let delete = &options[6];
         assert_eq!(delete.fields.len(), 3);
         assert_eq!(
             delete.fields[1].doc,

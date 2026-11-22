@@ -102,7 +102,11 @@ pub(crate) fn check_copy_metadata_args(
     Ok(())
 }
 
-fn check_delete_args(scheme: &'static str, capability: Capability, args: &OpDelete) -> Result<()> {
+pub(crate) fn check_delete_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpDelete,
+) -> Result<()> {
     if args.version().is_some() && !capability.delete_with_version {
         return Err(new_unsupported_error(scheme, Operation::Delete, "version"));
     }
@@ -151,50 +155,58 @@ impl std::fmt::Debug for CorrectnessService {
 
 impl CorrectnessService {
     fn check_write_args(&self, args: &OpWrite) -> Result<()> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.append() && !capability.write_can_append {
-            return Err(new_unsupported_error(scheme, Operation::Write, "append"));
-        }
-        if args.expires().is_some() && !capability.write_with_expires {
-            return Err(new_unsupported_error(scheme, Operation::Write, "expires"));
-        }
-        if args.if_not_exists() && !capability.write_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_not_exists",
-            ));
-        }
-        if args.if_match().is_some() && !capability.write_with_if_match {
-            return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
-        }
-        if let Some(if_none_match) = args.if_none_match()
-            && !capability.write_with_if_none_match
-        {
-            let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
-            if if_none_match == "*" && capability.write_with_if_not_exists {
-                err = err.with_context("hint", "use if_not_exists instead");
-            }
-            return Err(err);
-        }
-        if args.if_version_match().is_some() && !capability.write_with_if_version_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_version_match",
-            ));
-        }
-        if args.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_version_not_match",
-            ));
-        }
-
-        Ok(())
+        check_write_args(self.info().scheme(), self.capability(), args)
     }
+}
+
+// `Operator` runs this check against the effective capability: this layer sits
+// below user layers, so it would miss a `CapabilityOverrideLayer` either way.
+pub(crate) fn check_write_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpWrite,
+) -> Result<()> {
+    if args.append() && !capability.write_can_append {
+        return Err(new_unsupported_error(scheme, Operation::Write, "append"));
+    }
+    if args.expires().is_some() && !capability.write_with_expires {
+        return Err(new_unsupported_error(scheme, Operation::Write, "expires"));
+    }
+    if args.if_not_exists() && !capability.write_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_not_exists",
+        ));
+    }
+    if args.if_match().is_some() && !capability.write_with_if_match {
+        return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
+    }
+    if let Some(if_none_match) = args.if_none_match()
+        && !capability.write_with_if_none_match
+    {
+        let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
+        if if_none_match == "*" && capability.write_with_if_not_exists {
+            err = err.with_context("hint", "use if_not_exists instead");
+        }
+        return Err(err);
+    }
+    if args.if_version_match().is_some() && !capability.write_with_if_version_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_version_match",
+        ));
+    }
+    if args.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_version_not_match",
+        ));
+    }
+
+    Ok(())
 }
 
 impl Service for CorrectnessService {
@@ -1438,5 +1450,197 @@ mod tests {
         });
         let res = op.rename_with("from", "to").if_not_exists(true).await;
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_conditional_write_honors_capability_override() {
+        // #8640: a conditional write disabled by an outer capability override
+        // must fail instead of reaching the service.
+        let op = Operator::new(crate::services::Memory::default())
+            .unwrap()
+            .layer(
+                crate::layers::CapabilityOverrideLayer::from_overrides(
+                    "write_with_if_not_exists=false",
+                )
+                .unwrap(),
+            );
+        assert!(!op.info().capability().write_with_if_not_exists);
+
+        let err = op
+            .write_with("new", "data")
+            .if_not_exists(true)
+            .await
+            .expect_err("if_not_exists write must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!op.exists("new").await.unwrap());
+
+        let err = op
+            .writer_with("new")
+            .if_not_exists(true)
+            .await
+            .expect_err("if_not_exists writer must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!op.exists("new").await.unwrap());
+
+        // The same conditional write still works without the override.
+        let op = Operator::new(crate::services::Memory::default()).unwrap();
+        assert!(op.info().capability().write_with_if_not_exists);
+        op.write_with("new", "data")
+            .if_not_exists(true)
+            .await
+            .expect("if_not_exists write must succeed when supported");
+        assert!(op.exists("new").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_conditional_delete_honors_capability_override() {
+        // #8640: the same bypass for deletes; the deleter handle must check too.
+        let op = Operator::new(crate::services::Memory::default())
+            .unwrap()
+            .layer(
+                crate::layers::CapabilityOverrideLayer::from_overrides(
+                    "delete_with_recursive=false",
+                )
+                .unwrap(),
+            );
+        assert!(!op.info().capability().delete_with_recursive);
+
+        op.write("dir/file", "data").await.unwrap();
+        let err = op
+            .delete_with("dir/")
+            .recursive(true)
+            .await
+            .expect_err("recursive delete must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(op.exists("dir/file").await.unwrap());
+
+        let mut deleter = op.deleter().await.unwrap();
+        let err = deleter
+            .delete((
+                "dir/".to_string(),
+                options::DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            ))
+            .await
+            .expect_err("recursive delete via handle must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(op.exists("dir/file").await.unwrap());
+
+        // Without the override, the recursive delete succeeds.
+        let op = Operator::new(crate::services::Memory::default()).unwrap();
+        op.write("dir/file", "data").await.unwrap();
+        op.delete_with("dir/").recursive(true).await.unwrap();
+        assert!(!op.exists("dir/file").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_honors_capability_override() {
+        // #8640 follow-up: presigned writes must validate against the
+        // effective capability, not just the inner service's.
+        let op = new_test_operator(Capability {
+            presign_write: true,
+            write_with_if_match: true,
+            ..Default::default()
+        })
+        .layer(
+            crate::layers::CapabilityOverrideLayer::from_overrides("write_with_if_match=false")
+                .unwrap(),
+        );
+        assert!(!op.info().capability().write_with_if_match);
+
+        let err = op
+            .presign_write_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("presigned write with if_match must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        // Without the override, the presign reaches the service.
+        let op = new_test_operator(Capability {
+            presign_write: true,
+            write_with_if_match: true,
+            ..Default::default()
+        });
+        let err = op
+            .presign_write_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+    }
+
+    #[tokio::test]
+    async fn test_presign_delete_honors_capability_override() {
+        // #8640 follow-up: presigned deletes and conditional deletes must
+        // validate against the effective capability.
+        let op = new_test_operator(Capability {
+            delete: true,
+            presign_delete: true,
+            delete_with_if_match: true,
+            ..Default::default()
+        })
+        .layer(
+            crate::layers::CapabilityOverrideLayer::from_overrides("delete_with_if_match=false")
+                .unwrap(),
+        );
+        assert!(!op.info().capability().delete_with_if_match);
+
+        let err = op
+            .presign_delete_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("presigned delete with if_match must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .delete_with("path")
+            .if_match("etag")
+            .await
+            .expect_err("conditional delete must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        // Without the override, both reach the service.
+        let op = new_test_operator(Capability {
+            delete: true,
+            presign_delete: true,
+            delete_with_if_match: true,
+            ..Default::default()
+        });
+        let err = op
+            .presign_delete_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+        op.delete_with("path").if_match("etag").await.unwrap();
     }
 }

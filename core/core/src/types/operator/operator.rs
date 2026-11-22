@@ -1186,6 +1186,7 @@ impl Operator {
 
         let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &args)?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context)?;
         Ok(w)
@@ -2789,6 +2790,7 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &op_write)?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2903,6 +2905,7 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let op_delete = OpDelete::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_delete_args(srv.info().scheme(), srv.capability(), &op_delete)?;
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())

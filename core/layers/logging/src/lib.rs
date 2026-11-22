@@ -345,7 +345,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     type Lister = LoggingLister<oio::Lister, I>;
     type Deleter = LoggingDeleter<oio::Deleter, I>;
     type Copier = LoggingCopier<oio::Copier, I>;
-    type Composer = oio::Composer;
+    type Composer = LoggingComposer<oio::Composer, I>;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -356,7 +356,28 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.log_start(Operation::Compose, &[("to", to)]);
+        self.inner
+            .compose(ctx, to, args)
+            .map(|c| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", to)],
+                    "created composer",
+                    None,
+                );
+                LoggingComposer::new(self.info.clone(), self.logger.clone(), to, c)
+            })
+            .inspect_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", to)],
+                    "failed",
+                    Some(err),
+                );
+            })
     }
 
     async fn create_dir(
@@ -1040,6 +1061,90 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
                         ("copied", &self.copied.to_string()),
                     ],
                     "abort failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct LoggingComposer<C, I: LoggingInterceptor> {
+    info: ServiceInfo,
+    logger: I,
+    to: String,
+
+    composed: usize,
+    inner: C,
+}
+
+impl<C, I: LoggingInterceptor> LoggingComposer<C, I> {
+    fn new(info: ServiceInfo, logger: I, to: &str, inner: C) -> Self {
+        Self {
+            info,
+            logger,
+            to: to.to_string(),
+
+            composed: 0,
+            inner,
+        }
+    }
+}
+
+impl<C: oio::Compose, I: LoggingInterceptor> oio::Compose for LoggingComposer<C, I> {
+    async fn compose(&mut self, from: &str, args: OpRead) -> Result<()> {
+        match self.inner.compose(from, args).await {
+            Ok(()) => {
+                self.composed += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[
+                        ("to", &self.to),
+                        ("from", from),
+                        ("composed", &self.composed.to_string()),
+                    ],
+                    "accepted source",
+                    None,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[
+                        ("to", &self.to),
+                        ("from", from),
+                        ("composed", &self.composed.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match self.inner.close().await {
+            Ok(meta) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", &self.to), ("composed", &self.composed.to_string())],
+                    "close succeeded",
+                    None,
+                );
+                Ok(meta)
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", &self.to), ("composed", &self.composed.to_string())],
+                    "close failed",
                     Some(&err),
                 );
                 Err(err)

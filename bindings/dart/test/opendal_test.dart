@@ -1,12 +1,20 @@
-import 'package:test/test.dart';
+import 'dart:io' as io;
 import 'dart:typed_data';
-import '../lib/opendal.dart';
+
+import 'package:opendal/opendal.dart';
+import 'package:test/test.dart';
 
 void main() {
   group('opendal unit test', () {
     group('opendal fs schema', () {
       test('File and Directory functions in fs schema', () async {
-        final storage = await Storage.init(schemeStr: "fs", map: {"root": "/tmp"});
+        final tempDir = io.Directory.systemTemp.createTempSync('opendal-fs-');
+        addTearDown(() => tempDir.deleteSync(recursive: true));
+
+        final storage = await Storage.init(
+          schemeStr: 'fs',
+          map: {'root': tempDir.path},
+        );
         final File = storage.initFile();
         var testFile = File("test_1.txt");
         expect(await testFile.exists(), false);
@@ -24,13 +32,18 @@ void main() {
 
     group('opendal memory schema', () {
       test('File and Directory functions in memory schema', () async {
-        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(
+          schemeStr: "memory",
+          map: {"root": "/tmp"},
+        );
         final Directory = storage.initDir();
 
         var testDir = Directory("test/");
         await testDir.create();
         expect(
-            await testDir.exists(), isTrue); // Directory exists after creation
+          await testDir.exists(),
+          isTrue,
+        ); // Directory exists after creation
 
         final meta = await testDir.stat();
         expect(meta, isNotNull);
@@ -39,7 +52,10 @@ void main() {
       });
 
       test('File read/write round-trip', () async {
-        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(
+          schemeStr: "memory",
+          map: {"root": "/tmp"},
+        );
         final File = storage.initFile();
         var testFile = File("roundtrip.txt");
         final data = Uint8List.fromList([1, 2, 3, 4, 5]);
@@ -52,7 +68,10 @@ void main() {
       });
 
       test('File read from missing path throws', () async {
-        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(
+          schemeStr: "memory",
+          map: {"root": "/tmp"},
+        );
         final File = storage.initFile();
         var missingFile = File("nonexistent.txt");
 
@@ -60,7 +79,10 @@ void main() {
       });
 
       test('File overwrite semantics', () async {
-        final storage = await Storage.init(schemeStr: "memory", map: {"root": "/tmp"});
+        final storage = await Storage.init(
+          schemeStr: "memory",
+          map: {"root": "/tmp"},
+        );
         final File = storage.initFile();
         var testFile = File("overwrite.txt");
 

@@ -96,6 +96,6 @@ jobs:
       - name: test
         working-directory: bindings/dart
         run: |
-          dart run tests/opendal_test.dart
+          dart test
           dart run examples/basic.dart
           dart run examples/getting_started.dart

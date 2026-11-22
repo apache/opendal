@@ -41,6 +41,16 @@ impl FsCore {
 
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
+        self.ensure_write_abs_path_with(parent, path, new_std_io_error)
+            .await
+    }
+
+    async fn ensure_write_abs_path_with(
+        &self,
+        parent: &Path,
+        path: &str,
+        map_io_error: impl FnOnce(std::io::Error) -> Error,
+    ) -> Result<PathBuf> {
         let p = confined_join(parent, path)?;
 
         // Create dir before write path.
@@ -62,7 +72,7 @@ impl FsCore {
 
         tokio::fs::create_dir_all(&parent)
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(map_io_error)?;
 
         Ok(p)
     }
@@ -163,11 +173,19 @@ impl FsCore {
             ));
         }
 
+        let map_path_error = |err| {
+            #[cfg(target_os = "linux")]
+            if if_not_exists {
+                return parse_conditional_rename_directory_error(err, new_std_io_error);
+            }
+            new_std_io_error(err)
+        };
+
         let from = self.root_join(from)?;
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+        tokio::fs::metadata(&from).await.map_err(map_path_error)?;
 
         let to = self
-            .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
+            .ensure_write_abs_path_with(&self.root, to.trim_end_matches('/'), map_path_error)
             .await?;
 
         #[cfg(target_os = "linux")]
@@ -187,7 +205,9 @@ impl FsCore {
                     "The kernel or filesystem does not support conditional rename",
                 )
                 .set_source(err),
-                _ => parse_error(ErrorContext::new(ServiceOperation("Rename")), err.into()),
+                _ => parse_conditional_rename_directory_error(err.into(), |err| {
+                    parse_error(ErrorContext::new(ServiceOperation("Rename")), err)
+                }),
             });
         }
 
@@ -257,6 +277,24 @@ impl FsCore {
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
 
+#[cfg(target_os = "linux")]
+fn parse_conditional_rename_directory_error(
+    err: std::io::Error,
+    fallback: impl FnOnce(std::io::Error) -> Error,
+) -> Error {
+    use rustix::io::Errno;
+
+    let kind = match err.raw_os_error().map(Errno::from_raw_os_error) {
+        Some(Errno::ISDIR) => ErrorKind::IsADirectory,
+        Some(Errno::NOTDIR) => ErrorKind::NotADirectory,
+        _ => return fallback(err),
+    };
+
+    Error::new(kind, err.kind().to_string())
+        .set_source(err)
+        .with_context("service_operation", "Rename")
+}
+
 /// Context needed to classify an error from this service.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
@@ -286,6 +324,47 @@ pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_conditional_rename_directory_errno_mapping() {
+        use rustix::io::Errno;
+        use std::error::Error as _;
+
+        for (errno, kind) in [
+            (Errno::ISDIR, ErrorKind::IsADirectory),
+            (Errno::NOTDIR, ErrorKind::NotADirectory),
+        ] {
+            let err = parse_conditional_rename_directory_error(errno.into(), new_std_io_error);
+            assert_eq!(err.kind(), kind);
+            assert!(!err.is_temporary());
+            let source = err
+                .source()
+                .unwrap()
+                .downcast_ref::<std::io::Error>()
+                .unwrap();
+            assert_eq!(source.raw_os_error(), Some(errno.raw_os_error()));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_conditional_rename_rejects_non_directory_path_components() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("file"), b"data").unwrap();
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        for (from, to) in [("file/child", "target"), ("file", "file/dir/target")] {
+            let err = op
+                .rename_with(from, to)
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
 
     #[cfg(unix)]
     #[tokio::test]

@@ -28,6 +28,7 @@ version = "0.4.11"
 
 [dependencies]
 async-trait = "0.1.88"
+futures = "0.3"
 opendal = { version = "0.59.5", path = "../../core" }
 tokio = { version = "1.38.0", default-features = false, features = ["io-util"] }
 tokio-util = { version = "0.7.11", features = ["compat"] }
@@ -39,6 +40,7 @@ libunftp = "0.23.0"
 opendal = { version = "0.59.5", path = "../../core", features = [
   "services-fs",
   "services-s3",
+  "services-cacache",
 ] }
 suppaftp = { version = "10.0.2", default-features = false, features = [
   "tokio",

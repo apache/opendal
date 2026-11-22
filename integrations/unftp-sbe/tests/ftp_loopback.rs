@@ -188,6 +188,38 @@ async fn utf8_directory_lifecycle() -> Result<()> {
 }
 
 #[tokio::test]
+async fn append_extends_existing_file() -> Result<()> {
+    with_ftp_client(async |ftp| {
+        let file = "append.bin";
+
+        ftp.put_file(file, &mut "abc".as_bytes())
+            .await
+            .context("STOR append.bin")?;
+        ftp.append_file(file, &mut "def".as_bytes())
+            .await
+            .context("APPE append.bin")?;
+        assert_eq!(retrieve(ftp, file).await?, b"abcdef");
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn cwd_rejects_regular_file() -> Result<()> {
+    with_ftp_client(async |ftp| {
+        let file = "file.bin";
+
+        ftp.put_file(file, &mut "abc".as_bytes())
+            .await
+            .context("STOR file.bin")?;
+        assert_reply(ftp.cwd(file).await, Status::FileUnavailable, "CWD file.bin");
+        assert_eq!(ftp.pwd().await.context("PWD")?, "/");
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
 async fn restart_is_unsupported() -> Result<()> {
     with_ftp_client(async |ftp| {
         assert_reply(

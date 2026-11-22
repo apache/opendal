@@ -63,7 +63,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           bundler-cache: true
           working-directory: bindings/ruby
@@ -107,7 +107,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           bundler-cache: true # runs 'bundle install' and caches installed gems automatically
           working-directory: bindings/ruby
@@ -171,7 +171,7 @@ jobs:
 
       - name: Setup Ruby 3.3
         id: ruby-3-3
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.3"
           bundler-cache: true
@@ -182,7 +182,7 @@ jobs:
 
       - name: Setup Ruby 3.4
         id: ruby-3-4
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.4"
           bundler-cache: true
@@ -193,7 +193,7 @@ jobs:
 
       - name: Setup Ruby 4.0
         id: ruby-4-0
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "4.0"
           bundler-cache: true
@@ -256,7 +256,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Ruby and install dependencies
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           bundler-cache: true
           working-directory: bindings/ruby

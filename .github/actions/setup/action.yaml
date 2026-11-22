@@ -141,13 +141,13 @@ runs:
 
     - name: Install cargo-nextest
       if: inputs.need-nextest == 'true'
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
       with:
         tool: cargo-nextest@0.9.72
 
     - name: Install cargo-deny
       if: inputs.need-deny == 'true'
-      uses: taiki-e/install-action@v2
+      uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
       with:
         tool: cargo-deny@0.20.2
 

@@ -54,7 +54,9 @@ jobs:
         with:
           working-directory: "bindings/python"
 
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: just
 
       # Useful for debugging
       - name: Print Clippy version
@@ -82,15 +84,17 @@ jobs:
         with:
           working-directory: "bindings/python"
 
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: just
 
       - name: Setup taplo
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: taplo-cli
 
       - name: Install Hawkeye
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
         with:
           tool: hawkeye@7.2.0
 
@@ -117,7 +121,9 @@ jobs:
         with:
           working-directory: bindings/python
 
-      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2.90.8
+        with:
+          tool: just
 
       - name: Build with maturin
         shell: bash

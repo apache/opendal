@@ -29,11 +29,12 @@ for an existing destination when committing the staged file. If the destination
 exists, the write returns [`opendal_core::ErrorKind::ConditionNotMatch`] and
 preserves the existing file. This also applies when `append(true)` is set.
 
-Staged conditional writes require Linux and kernel and filesystem support for
-`RENAME_NOREPLACE`. OpenDAL returns [`opendal_core::ErrorKind::Unsupported`]
-when that support is unavailable. The staging directory and the destination
-must be on the same filesystem. Without `atomic_write_dir`, conditional writes
-use exclusive file creation on all supported platforms.
+On Linux, the conditional commit uses `RENAME_NOREPLACE` and returns
+[`opendal_core::ErrorKind::Unsupported`] when the kernel or filesystem lacks
+it. Other platforms publish the staged file through a hard link that
+atomically fails on an existing destination. The staging directory and the
+destination must be on the same filesystem. Without `atomic_write_dir`,
+conditional writes use exclusive file creation on all supported platforms.
 
 ## List
 

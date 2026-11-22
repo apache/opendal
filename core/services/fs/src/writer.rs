@@ -27,9 +27,7 @@ use bytes::Buf;
 use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
-#[cfg(target_os = "linux")]
-use super::core::rename_noreplace;
-use super::core::{ErrorContext, FsCore, parse_error};
+use super::core::{ErrorContext, FsCore, parse_error, publish_staged_file};
 #[cfg(target_os = "linux")]
 use super::direct_io::DirectIoAlignment;
 use opendal_core::raw::*;
@@ -156,7 +154,6 @@ pub struct FsWriter {
     target_path: PathBuf,
     /// The staging path for a write that publishes the file on close.
     temp_path: Option<PathBuf>,
-    #[cfg(target_os = "linux")]
     if_not_exists: bool,
     f: tokio::fs::File,
     #[cfg(target_os = "linux")]
@@ -180,12 +177,20 @@ impl FsWriter {
 
         let mut temp_path = None;
         if let Some(atomic_write_dir) = &core.atomic_write_dir {
-            // Only an unconditional append may write to an existing file in place.
-            let append_in_place = op.append()
-                && !op.if_not_exists()
+            // Fail fast on an existing destination instead of staging content
+            // that the conditional commit must reject.
+            let target_exists = (op.if_not_exists() || op.append())
                 && tokio::fs::try_exists(&target_path)
                     .await
                     .map_err(new_std_io_error)?;
+            if op.if_not_exists() && target_exists {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "file already exists, doesn't match the condition if_not_exists",
+                ));
+            }
+            // Only an unconditional append may write to an existing file in place.
+            let append_in_place = op.append() && target_exists;
             if !append_in_place {
                 temp_path = Some(
                     core.ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
@@ -243,7 +248,6 @@ impl FsWriter {
         Ok(Self {
             target_path,
             temp_path,
-            #[cfg(target_os = "linux")]
             if_not_exists: op.if_not_exists(),
             f,
             #[cfg(target_os = "linux")]
@@ -258,12 +262,11 @@ impl FsWriter {
             return Ok(());
         };
 
-        #[cfg(target_os = "linux")]
         if self.if_not_exists {
             let temp_path = temp_path.clone();
             let target_path = self.target_path.clone();
             return tokio::task::spawn_blocking(move || {
-                rename_noreplace(&temp_path, &target_path).map_err(|err| {
+                publish_staged_file(&temp_path, &target_path).map_err(|err| {
                     // The staged file is discarded, so this close cannot be retried.
                     let err = err.set_permanent();
                     match std::fs::remove_file(&temp_path) {

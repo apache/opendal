@@ -261,6 +261,40 @@ impl FsCore {
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
 
+/// Publish a staged write at `to` without replacing an existing entry.
+///
+/// Returns `ConditionNotMatch` when the destination already exists.
+pub(super) fn publish_staged_file(from: &Path, to: &Path) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        rename_noreplace(from, to)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Non-Linux systems lack a rename that fails on an existing
+        // destination. Linking the staged file to `to` creates the destination
+        // atomically and fails with `AlreadyExists` when it is already
+        // present, on both POSIX and Windows. Hard links require both paths on
+        // one filesystem, which the atomic publish already requires for its
+        // rename.
+        std::fs::hard_link(from, to)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Rename")), err))?;
+
+        match std::fs::remove_file(from) {
+            // A concurrent cleanup or an unusual filesystem may have removed
+            // the staging entry already; the destination is still published.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            // The destination was published, but the staging file is orphaned
+            // now. Report it instead of leaking it silently.
+            Err(err) => {
+                Err(new_std_io_error(err).with_context("service_operation", "RemoveStagedFile"))
+            }
+            Ok(()) => Ok(()),
+        }
+    }
+}
+
 #[cfg(target_os = "linux")]
 pub(super) fn rename_noreplace(from: &Path, to: &Path) -> Result<()> {
     use rustix::fs::{CWD, RenameFlags, renameat_with};

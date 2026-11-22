@@ -169,7 +169,7 @@ impl Service for AwaitTreeAccessor {
     type Lister = AwaitTreeWrapper<oio::Lister>;
     type Deleter = AwaitTreeWrapper<oio::Deleter>;
     type Copier = AwaitTreeWrapper<oio::Copier>;
-    type Composer = oio::Composer;
+    type Composer = AwaitTreeWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -180,7 +180,7 @@ impl Service for AwaitTreeAccessor {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.inner.compose(ctx, to, args).map(AwaitTreeWrapper::new)
     }
 
     async fn create_dir(
@@ -350,13 +350,32 @@ impl<R: oio::List> oio::List for AwaitTreeWrapper<R> {
 
 impl<R: oio::Delete> oio::Delete for AwaitTreeWrapper<R> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        self.inner.delete(path, args).await
+        self.inner
+            .delete(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Delete))
+            .await
     }
 
     async fn close(&mut self) -> Result<()> {
         self.inner
             .close()
             .instrument_await(format!("opendal::{}", Operation::Delete))
+            .await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for AwaitTreeWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner
+            .compose(path, args)
+            .instrument_await(format!("opendal::{}", Operation::Compose))
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner
+            .close()
+            .instrument_await(format!("opendal::{}", Operation::Compose))
             .await
     }
 }

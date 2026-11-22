@@ -154,7 +154,13 @@ impl oio::Write for CompfsLazyWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "cannot abort completion-based operations",
+            )),
+        }
     }
 }
 
@@ -198,5 +204,47 @@ impl oio::List for CompfsLazyLister {
             Some(lister) => lister.next().await,
             None => Ok(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use opendal_core::ErrorKind;
+    use opendal_core::Operator;
+
+    use crate::Compfs;
+
+    #[tokio::test]
+    async fn test_abort_unused_writer_preserves_existing_file() {
+        let root = std::env::temp_dir().join("opendal-test-compfs-abort-unused-existing");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let path = root.join("existing.txt");
+        std::fs::write(&path, b"original").unwrap();
+
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let mut writer = op.writer("existing.txt").await.unwrap();
+
+        let err = writer.abort().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(std::fs::read(&path).unwrap(), b"original");
+
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_abort_unused_writer_does_not_create_path() {
+        let root = std::env::temp_dir().join("opendal-test-compfs-abort-unused-missing");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let mut writer = op.writer("new-dir/nested/file.txt").await.unwrap();
+
+        let err = writer.abort().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!root.join("new-dir").exists());
+
+        std::fs::remove_dir_all(&root).unwrap();
     }
 }

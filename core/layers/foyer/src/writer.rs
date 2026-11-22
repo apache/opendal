@@ -33,6 +33,12 @@ pub struct Writer<W> {
     pub(crate) path: String,
     pub(crate) inner: Arc<Inner>,
     pub(crate) size_limit: std::ops::Range<usize>,
+    /// Whether the write appends to an existing object. Appended chunks never
+    /// complete the cached object, so they are not buffered and a successful
+    /// close evicts the superseded entry instead of inserting one.
+    pub(crate) append: bool,
+    /// Once the buffered bytes can no longer match the object's final size,
+    /// the writer stops buffering and stays uncacheable until close.
     pub(crate) skip_cache: bool,
 }
 
@@ -42,6 +48,7 @@ impl<W> Writer<W> {
         path: String,
         inner: Arc<Inner>,
         size_limit: std::ops::Range<usize>,
+        append: bool,
     ) -> Self {
         Self {
             w,
@@ -49,42 +56,84 @@ impl<W> Writer<W> {
             path,
             inner,
             size_limit,
+            append,
             skip_cache: false,
+        }
+    }
+
+    fn unversioned_key(&self) -> FoyerKey {
+        FoyerKey {
+            path: self.path.clone(),
+            version: None,
         }
     }
 }
 
 impl<W: oio::Write> oio::Write for Writer<W> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        if self.size_limit.contains(&(self.buf.len() + bs.len())) {
-            self.buf.push(bs.clone());
-            self.skip_cache = false;
-        } else {
-            self.buf.clear();
-            self.skip_cache = true;
+        self.w.write(bs.clone()).await?;
+        // Appended bytes are only a suffix of the object. Once the buffer can
+        // no longer hold the full object (cumulative size reaches the limit's
+        // end), `skip_cache` stays set so a later small chunk cannot leave a
+        // truncated suffix behind in the cache.
+        if !self.skip_cache && !self.append {
+            if self.buf.len() + bs.len() < self.size_limit.end {
+                self.buf.push(bs);
+            } else {
+                self.buf.clear();
+                self.skip_cache = true;
+            }
         }
-        self.w.write(bs).await
+        Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let buffer = self.buf.clone().collect();
+        let buffer = self.buf.take().collect();
         let metadata = self.w.close().await?;
-        if !self.skip_cache {
-            let key = FoyerKey {
-                path: self.path.clone(),
-                version: metadata.version().map(|v| v.to_string()),
-            };
+        let key = FoyerKey {
+            path: self.path.clone(),
+            version: metadata.version().map(|v| v.to_string()),
+        };
+        let unversioned = self.unversioned_key();
+        let cacheable = !self.append && !self.skip_cache && self.size_limit.contains(&buffer.len());
+        if cacheable {
             self.inner.cache.insert(key.clone(), FoyerValue(buffer));
+            let mut deleted_keys = self
+                .inner
+                .deleted_keys
+                .lock()
+                .expect("deleted keys lock poisoned");
+            deleted_keys.remove(&key);
+            if key != unversioned {
+                // On a versioned backend the write produced a new version, so
+                // the unversioned entry still points at the superseded object.
+                // Evict it without marking deleted so a later read can refill
+                // it with the new content.
+                deleted_keys.remove(&unversioned);
+                drop(deleted_keys);
+                self.inner.cache.remove(&unversioned);
+            }
+        } else if self.append {
+            // Appended bytes are only a suffix of the object, so the cached
+            // entry is superseded but the object remains cacheable: evict it
+            // and let a later read refill it.
             self.inner
                 .deleted_keys
                 .lock()
                 .expect("deleted keys lock poisoned")
-                .remove(&key);
+                .remove(&unversioned);
+            self.inner.cache.remove(&unversioned);
+        } else {
+            // The stored object is outside the size limit, so any cached entry
+            // is superseded and refill attempts cannot succeed: invalidate it.
+            self.inner.invalidate_unversioned(self.path.clone());
         }
         Ok(metadata)
     }
 
     async fn abort(&mut self) -> Result<()> {
+        // An aborted write does not change the stored object, so the cached
+        // entry stays valid.
         self.buf.clear();
         self.w.abort().await
     }

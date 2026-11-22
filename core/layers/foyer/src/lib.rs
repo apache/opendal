@@ -152,7 +152,11 @@ impl Code for FoyerValue {
 /// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-/// - `write`: [`FoyerLayer`] caches data after the service completes the write.
+/// - `write`: [`FoyerLayer`] caches data after the service completes the write
+///   when the object's total size stays inside [`FoyerLayer::with_size_limit`].
+///   Writes that end up outside the limit, and append writes whose buffered
+///   chunks do not contain the whole object, invalidate the superseded cache
+///   entry instead. An aborted write leaves the cache untouched.
 /// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
 ///   and caches the entire object if its size is within the configured
 ///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
@@ -351,8 +355,9 @@ impl Service for FoyerService {
         let inner = self.operation_inner(ctx);
         let size_limit = self.size_limit.clone();
         let path = path.to_string();
+        let append = args.append();
         let w = inner.srv.write(&inner.ctx, &path, args)?;
-        Ok(Writer::new(w, path, inner, size_limit))
+        Ok(Writer::new(w, path, inner, size_limit, append))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {

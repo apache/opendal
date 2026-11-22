@@ -2384,7 +2384,7 @@ dependencies = [
  "hyper-util",
  "mime",
  "rustls-platform-verifier",
- "send_wrapper",
+ "send_wrapper 0.6.0",
  "serde",
  "serde_urlencoded",
  "synchrony",
@@ -2402,7 +2402,7 @@ dependencies = [
  "compio",
  "futures-util",
  "hyper 1.9.0",
- "send_wrapper",
+ "send_wrapper 0.6.0",
 ]
 
 [[package]]
@@ -7433,14 +7433,17 @@ dependencies = [
 
 [[package]]
 name = "opendal-http-transport-cyper"
-version = "0.59.3"
+version = "0.59.5"
 dependencies = [
+ "async-channel",
+ "compio",
  "cyper",
  "futures",
  "http 1.4.2",
  "opendal-core",
+ "opendal-service-http",
  "rustls 0.23.40",
- "send_wrapper",
+ "rustls-platform-verifier",
 ]
 
 [[package]]

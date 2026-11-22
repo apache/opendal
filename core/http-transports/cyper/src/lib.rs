@@ -20,10 +20,18 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 
+use std::cell::RefCell;
 use std::future;
-use std::mem;
+use std::pin::pin;
+use std::task::Waker;
 
+use compio::runtime::Runtime;
+use futures::Stream;
+use futures::StreamExt;
 use futures::TryStreamExt;
+use futures::channel::oneshot;
+use futures::future::Either;
+use futures::future::select;
 use http::Request;
 use http::Response;
 use opendal_core::Buffer;
@@ -31,47 +39,156 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::HttpBody;
 use opendal_core::HttpTransport;
-use opendal_core::HttpTransporter;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
-use send_wrapper::SendWrapper;
 
-// Cyper clients are thread-affine, so each runtime thread needs its own client
-// and connection pool.
 thread_local! {
-    static CLIENT: cyper::Client =
-        cyper::Client::new().expect("default Cyper client must initialize");
+    static CLIENT: RefCell<Option<(Waker, cyper::Client)>> = const { RefCell::new(None) };
 }
 
 /// A Cyper-backed HTTP transport for Compio runtimes.
 ///
-/// Each runtime thread reuses its own thread-affine [`cyper::Client`].
-/// [`SendWrapper`] satisfies OpenDAL's `Send` and `Sync` bounds while enforcing
-/// that Cyper futures and streams stay on their originating thread.
+/// Requests must start inside an active Compio runtime. The runtime that
+/// starts a request owns its response stream and must keep running while the
+/// response is consumed. The returned body can be read or dropped from any thread.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct CyperTransport {}
+pub struct CyperTransport;
 
 impl CyperTransport {
     /// Create a Cyper transport.
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
 impl HttpTransport for CyperTransport {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
-        CLIENT
-            .with(|client| {
-                let client = client.clone();
-                // Adapt Cyper's thread-affine future to HttpTransport's Send bound.
-                SendWrapper::new(async move { fetch(&client, req).await })
-            })
-            .await
+        let (reply, response) = oneshot::channel();
+        {
+            let runtime = Runtime::try_current().ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "Cyper requires a Compio runtime")
+                    .with_operation("cyper::fetch")
+            })?;
+            let client = client_for_runtime(&runtime)?;
+            runtime.spawn(drive_request(client, req, reply)).detach();
+        }
+        response.await.map_err(|err| {
+            Error::new(
+                ErrorKind::Unexpected,
+                "Compio stopped before response headers",
+            )
+            .with_operation("cyper::fetch")
+            .set_source(err)
+        })?
     }
 }
 
-async fn fetch(client: &cyper::Client, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+fn client_for_runtime(runtime: &Runtime) -> Result<cyper::Client> {
+    CLIENT.with_borrow_mut(|cached| {
+        // A different runtime on this thread cannot drive the cached pool's connections.
+        let waker = runtime.waker();
+        if let Some((owner, client)) = cached
+            && owner.will_wake(&waker)
+        {
+            return Ok(client.clone());
+        }
+
+        let builder = cyper::Client::builder();
+        #[cfg(feature = "rustls")]
+        let builder = {
+            use rustls_platform_verifier::BuilderVerifierExt;
+            use std::sync::Arc;
+
+            // Reqwest can enable another Rustls provider in the same executable.
+            let mut config = rustls::ClientConfig::builder_with_provider(Arc::new(
+                rustls::crypto::ring::default_provider(),
+            ))
+            .with_safe_default_protocol_versions()
+            .and_then(BuilderVerifierExt::with_platform_verifier)
+            .map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "configure Cyper Rustls client")
+                    .with_operation("cyper::fetch")
+                    .set_source(err)
+            })?
+            .with_no_client_auth();
+            config.alpn_protocols = vec![b"http/1.1".to_vec()];
+            builder.use_rustls(Arc::new(config))
+        };
+        let client = builder.build().map_err(|err| {
+            Error::new(ErrorKind::ConfigInvalid, "configure Cyper client")
+                .with_operation("cyper::fetch")
+                .set_source(err)
+        })?;
+        *cached = Some((waker, client.clone()));
+        Ok(client)
+    })
+}
+
+async fn drive_request(
+    client: cyper::Client,
+    req: Request<Buffer>,
+    mut reply: oneshot::Sender<Result<Response<HttpBody>>>,
+) {
+    // Cancel a request even when it has yet to receive its response headers.
+    let response = match select(reply.cancellation(), pin!(fetch(&client, req))).await {
+        Either::Left(_) => return,
+        Either::Right((result, _)) => result,
+    };
+    let (response, content_length) = match response {
+        Ok(response) => response,
+        Err(err) => {
+            let _ = reply.send(Err(err));
+            return;
+        }
+    };
+    let (parts, stream) = response.into_parts();
+
+    // Only the runtime task owns the Cyper stream. The bounded channel applies
+    // backpressure, and closing it wakes the task even during a pending read.
+    let (tx, rx) = async_channel::bounded(1);
+    let body = futures::stream::unfold(Some(rx), |rx| async {
+        let rx = rx?;
+        match rx.recv().await {
+            Ok(Some(item)) => Some((item, Some(rx))),
+            Ok(None) => None,
+            Err(err) => Some((
+                Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "Compio stopped before the response ended",
+                )
+                .with_operation("cyper::fetch")
+                .set_source(err)),
+                None,
+            )),
+        }
+    });
+    let response = Response::from_parts(parts, HttpBody::new(Box::pin(body), content_length));
+    if reply.send(Ok(response)).is_err() {
+        return;
+    }
+
+    let forward = async {
+        let mut stream = pin!(stream);
+        while let Some(item) = stream.next().await {
+            let failed = item.is_err();
+            if tx.send(Some(item)).await.is_err() {
+                return;
+            }
+            if failed {
+                break;
+            }
+        }
+        // An explicit end distinguishes EOF from an interrupted runtime.
+        let _ = tx.send(None).await;
+    };
+    let _ = select(pin!(tx.closed()), pin!(forward)).await;
+}
+
+async fn fetch(
+    client: &cyper::Client,
+    req: Request<Buffer>,
+) -> Result<(Response<impl Stream<Item = Result<Buffer>>>, Option<u64>)> {
     // Uri stores all string-like data in `Bytes`, so this clone is cheap.
     let uri = req.uri().clone();
     let is_head = req.method() == http::Method::HEAD;
@@ -89,7 +206,7 @@ async fn fetch(client: &cyper::Client, req: Request<Buffer>) -> Result<Response<
         .version(parts.version);
 
     if !body.is_empty() {
-        let stream = futures::stream::iter(body.map(Ok::<_, cyper::Error>));
+        let stream = futures::stream::iter(Iterator::map(body, Ok::<_, cyper::Error>));
         req_builder = req_builder.body(cyper::Body::stream(stream));
     }
 
@@ -114,7 +231,7 @@ async fn fetch(client: &cyper::Client, req: Request<Buffer>) -> Result<Response<
         .status(resp.status())
         .version(resp.version())
         .extension(uri.clone());
-    mem::swap(builder.headers_mut().unwrap(), resp.headers_mut());
+    *builder.headers_mut().unwrap() = std::mem::take(resp.headers_mut());
 
     let stream = resp
         .bytes_stream()
@@ -127,16 +244,10 @@ async fn fetch(client: &cyper::Client, req: Request<Buffer>) -> Result<Response<
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err)
         });
-    // Adapt Cyper's thread-affine stream to HttpBody's Send + Sync bounds.
-    let body = HttpBody::new(SendWrapper::new(stream), content_length);
-
-    Ok(builder.body(body).expect("response must build succeed"))
-}
-
-/// Install Cyper as the process-wide default HTTP transport.
-#[doc(hidden)]
-pub fn install_default() {
-    HttpTransporter::install_default(CyperTransport::new());
+    Ok((
+        builder.body(stream).expect("response headers are valid"),
+        content_length,
+    ))
 }
 
 #[inline]
@@ -148,20 +259,4 @@ fn is_temporary_error(err: &cyper::Error) -> bool {
             | cyper::Error::Hyper(_)
             | cyper::Error::HyperClient(_)
     )
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_install_default_is_lazy() {
-        install_default();
-    }
-
-    #[test]
-    fn test_default_transport_succeeds() {
-        let transport = CyperTransport::new();
-        assert_eq!(format!("{transport:?}"), "CyperTransport");
-    }
 }

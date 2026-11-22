@@ -24,11 +24,9 @@ use web_sys::File;
 use super::config::OpfsConfig;
 use super::core::OpfsCore;
 use super::core::*;
-use super::core::*;
 use super::deleter::OpfsDeleter;
 use super::lister::OpfsLister;
-use super::reader::OpfsReadStream;
-use super::reader::*;
+use super::reader::OpfsReader;
 use super::writer::OpfsWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -84,7 +82,7 @@ impl Service for OpfsBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _args: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.core.root, path);
+        let p = build_absolute_path(&self.core.root, path);
 
         if p.ends_with('/') {
             get_directory_handle(&p, false).await?;
@@ -130,7 +128,7 @@ impl Service for OpfsBackend {
         _: OpCreateDir,
     ) -> Result<RpCreateDir> {
         debug_assert!(path != "/", "root path should be handled upstream");
-        let p = build_abs_path(&self.core.root, path);
+        let p = build_absolute_path(&self.core.root, path);
         get_directory_handle(&p, true).await?;
 
         Ok(RpCreateDir::default())

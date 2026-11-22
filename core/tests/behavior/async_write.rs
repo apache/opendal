@@ -16,6 +16,7 @@
 // under the License.
 
 use std::collections::HashMap;
+use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -66,6 +67,28 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_write_with_if_match,
             test_writer_write_with_version_conditions
         ))
+    }
+
+    if op.info().scheme() == "webdav" && cap.write_can_multi {
+        tests.extend(async_trials!(op, test_webdav_partial_put));
+    }
+
+    if cap.write && cap.write_with_content_language && cap.stat {
+        tests.extend(async_trials!(op, test_write_with_content_language));
+        if cap.write_can_multi {
+            tests.extend(async_trials!(
+                op,
+                test_write_with_content_language_multipart
+            ));
+        }
+    }
+
+    if cap.read && cap.write_with_expires && cap.stat {
+        tests.extend(async_trials!(
+            op,
+            test_write_with_expires,
+            test_write_with_zero_expires
+        ));
     }
 
     if cap.read && cap.write && cap.write_can_append && cap.stat {
@@ -233,6 +256,37 @@ pub async fn test_write_with_content_encoding(op: Operator) -> Result<()> {
     Ok(())
 }
 
+/// Write Content-Language and read it back with stat.
+pub async fn test_write_with_content_language(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let language = "fr-CA, en";
+    op.write_with(&path, "bonjour")
+        .content_language(language)
+        .await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
+    Ok(())
+}
+
+/// Store Content-Language when a writer splits an upload into parts.
+pub async fn test_write_with_content_language_multipart(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let chunk = op.info().capability().write_multi_min_size.unwrap_or(1024);
+    let language = "es-MX";
+    let mut writer = op
+        .writer_with(&path)
+        .chunk(chunk)
+        .content_language(language)
+        .await?;
+    writer.write(vec![0; chunk]).await?;
+    writer.write(vec![1; chunk]).await?;
+    writer.write(vec![2]).await?;
+    writer.close().await?;
+
+    assert_eq!(op.stat(&path).await?.content_language(), Some(language));
+    Ok(())
+}
+
 /// write a single file with user defined metadata should succeed.
 pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
     if !op.info().capability().write_with_user_metadata {
@@ -255,6 +309,55 @@ pub async fn test_write_with_user_metadata(op: Operator) -> Result<()> {
             .collect::<HashMap<_, _>>(),
         target_user_metadata.into_iter().collect::<HashMap<_, _>>()
     );
+
+    Ok(())
+}
+
+/// Both write entry points set expiration on the committed file.
+pub async fn test_write_with_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let writer_path = TEST_FIXTURE.new_file_path();
+    let short_path = TEST_FIXTURE.new_file_path();
+    let expires = Duration::from_secs(2);
+
+    let mut writer = op.writer_with(&writer_path).expires(expires).await?;
+    writer.write("streamed").await?;
+    writer.close().await?;
+    assert_eq!(op.read(&writer_path).await?.to_vec(), b"streamed");
+
+    op.write_with(&path, "written").expires(expires).await?;
+    assert_eq!(op.read(&path).await?.to_vec(), b"written");
+
+    op.write_with(&short_path, "short")
+        .expires(Duration::from_millis(500))
+        .await?;
+
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while op.exists(&path).await?
+            || op.exists(&writer_path).await?
+            || op.exists(&short_path).await?
+        {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        Ok::<_, opendal::Error>(())
+    })
+    .await
+    .expect("writes must expire")?;
+
+    Ok(())
+}
+
+/// Zero cannot create a file with an unlimited lifetime.
+pub async fn test_write_with_zero_expires(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let err = op
+        .write_with(&path, "rejected")
+        .expires(Duration::ZERO)
+        .await
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    assert!(!err.is_temporary());
+    assert!(!op.exists(&path).await?);
 
     Ok(())
 }
@@ -356,6 +459,61 @@ pub async fn test_writer_write(op: Operator) -> Result<()> {
         "read content b"
     );
 
+    Ok(())
+}
+
+/// Preserve an overwrite until commit and remove the temporary upload on abort or close.
+async fn test_webdav_partial_put(op: Operator) -> Result<()> {
+    let dir = TEST_FIXTURE.new_dir_path();
+    let path = format!("{dir}nested/target.bin");
+    let parent = format!("{dir}nested/");
+    let original = b"original destination bytes".as_slice();
+
+    // Uploading to a missing parent creates it without publishing the target.
+    let mut writer = op.writer(&path).await?;
+    writer.write("first").await?;
+    writer.write(Buffer::new()).await?;
+    writer.write("second").await?;
+    assert!(!op.exists(&path).await?);
+    let entries = op.list(&parent).await?;
+    let staged = entries
+        .iter()
+        .find(|entry| entry.metadata().is_file())
+        .unwrap();
+    TEST_FIXTURE.add_path(staged.path().to_owned());
+    assert_eq!(op.read(staged.path()).await?.to_bytes(), "firstsecond");
+    assert_eq!(writer.close().await?.content_length(), 11);
+    assert_eq!(op.read(&path).await?.to_bytes(), "firstsecond");
+    assert!(!op.exists(staged.path()).await?);
+
+    op.write(&path, original).await?;
+    let mut writer = op.writer(&path).await?;
+    writer.write("new").await?;
+    writer.write(" bytes").await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), original);
+    let entries = op.list(&parent).await?;
+    let staged = entries
+        .iter()
+        .find(|entry| entry.metadata().is_file() && entry.path() != path)
+        .unwrap();
+    TEST_FIXTURE.add_path(staged.path().to_owned());
+    writer.abort().await?;
+    assert_eq!(op.read(&path).await?.to_bytes(), original);
+    assert!(!op.exists(staged.path()).await?);
+
+    let payload = gen_fixed_bytes(600 * 1024);
+    let mut writer = op.writer(&path).await?.into_futures_async_write();
+    writer.write_all(&payload).await?;
+    writer.close().await?;
+    assert_eq!(op.read(&path).await?.to_vec(), payload);
+    let entries = op.list(&parent).await?;
+    let files: Vec<_> = entries
+        .iter()
+        .filter(|entry| entry.metadata().is_file())
+        .map(|entry| entry.path())
+        .collect();
+    assert_eq!(files, [path.as_str()]);
+    op.delete_with(&dir).recursive(true).await?;
     Ok(())
 }
 

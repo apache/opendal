@@ -24,6 +24,7 @@ use std::sync::LazyLock;
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use bytes::Buf;
+use http::HeaderValue;
 use http::StatusCode;
 use log::debug;
 use log::warn;
@@ -32,6 +33,7 @@ use md5::Md5;
 use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
+use reqsign_aws_v4::ECSCredentialProvider;
 use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::S3ExpressSessionConfig;
 use reqsign_aws_v4::S3ExpressSessionProvider;
@@ -39,6 +41,7 @@ use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
+use reqsign_core::ProvideCredentialDyn;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
@@ -145,6 +148,18 @@ impl S3Builder {
             self.config.region = Some(region.to_string())
         }
 
+        self
+    }
+
+    /// Set the fallback signing region.
+    ///
+    /// OpenDAL uses this value only when `region`, `AWS_REGION`, and
+    /// `AWS_DEFAULT_REGION` do not supply a region. Without any region,
+    /// building the service returns [`ErrorKind::ConfigInvalid`].
+    pub fn default_region(mut self, region: &str) -> Self {
+        if !region.is_empty() {
+            self.config.default_region = Some(region.to_string());
+        }
         self
     }
 
@@ -292,6 +307,16 @@ impl S3Builder {
         self
     }
 
+    /// Control S3 Bucket Keys for SSE-KMS writes and copies.
+    ///
+    /// `true` enables Bucket Keys for destination objects; `false` explicitly
+    /// disables them. If this method is not called, objects inherit the bucket
+    /// setting. This option does not change the bucket's configuration.
+    pub fn server_side_encryption_bucket_key_enabled(mut self, enabled: bool) -> Self {
+        self.config.server_side_encryption_bucket_key_enabled = Some(enabled);
+        self
+    }
+
     /// Set server_side_encryption_customer_algorithm for this backend.
     ///
     /// Available values: `AES256`.
@@ -410,13 +435,74 @@ impl S3Builder {
         self
     }
 
-    /// Disable config load so that opendal will not load config from
-    /// environment.
+    /// Set the relative URI for AWS container credential metadata.
     ///
-    /// For examples:
+    /// An explicit full endpoint takes precedence. The relative URI takes
+    /// precedence over ambient full and relative container credential URIs and
+    /// is joined to [`Self::container_metadata_uri_override`] when set.
     ///
-    /// - envs like `AWS_ACCESS_KEY_ID`
-    /// - files like `~/.aws/config`
+    /// This setting configures the ECS slot in the default credential chain. It
+    /// does not move that slot ahead of earlier default providers.
+    pub fn container_credentials_relative_uri(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_credentials_relative_uri = Some(uri.to_string());
+        }
+        self
+    }
+
+    /// Set the full URI for AWS container credential metadata.
+    ///
+    /// This endpoint takes precedence over the relative URI and both ambient
+    /// container credential URI forms.
+    pub fn container_credentials_endpoint(mut self, endpoint: &str) -> Self {
+        if !endpoint.is_empty() {
+            self.config.container_credentials_endpoint = Some(endpoint.to_string());
+        }
+        self
+    }
+
+    /// Set the authorization token for AWS container credential requests.
+    ///
+    /// This value takes precedence over the configured token file and both
+    /// ambient token forms.
+    pub fn container_authorization_token(mut self, token: &str) -> Self {
+        if !token.is_empty() {
+            self.config.container_authorization_token = Some(token.to_string());
+        }
+        self
+    }
+
+    /// Set the file containing the authorization token for AWS container
+    /// credential requests.
+    ///
+    /// This file takes precedence over both ambient token forms. The credential
+    /// provider trims surrounding whitespace after reading the file.
+    pub fn container_authorization_token_file(mut self, file_path: &str) -> Self {
+        if !file_path.is_empty() {
+            self.config.container_authorization_token_file = Some(file_path.to_string());
+        }
+        self
+    }
+
+    /// Set the base URI used to resolve a relative AWS container credential
+    /// URI.
+    ///
+    /// The override affects relative URIs only and does not alter a configured
+    /// or ambient full URI. The override alone does not select an endpoint.
+    pub fn container_metadata_uri_override(mut self, uri: &str) -> Self {
+        if !uri.is_empty() {
+            self.config.container_metadata_uri_override = Some(uri.to_string());
+        }
+        self
+    }
+
+    /// Disable automatic endpoint loading and the environment/profile
+    /// credential providers.
+    ///
+    /// This skips endpoint environment variables and removes the static
+    /// environment and shared-profile credential slots. Region environment
+    /// lookup and other credential providers, including AWS container
+    /// credentials and EC2 instance metadata, remain enabled.
     pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
@@ -494,6 +580,10 @@ impl S3Builder {
     }
 
     /// Replace the credential providers with a custom chain.
+    ///
+    /// Build the chain from [`opendal_core::reqsign_core`] and
+    /// [`crate::reqsign_aws_v4`] so that its types match the ones this service is
+    /// built with.
     pub fn credential_provider_chain(mut self, chain: ProvideCredentialChain<Credential>) -> Self {
         self.credential_providers = Some(chain);
         self
@@ -712,6 +802,7 @@ impl S3Builder {
     ///   - Cloudflare R2
     ///   - AWS S3
     ///   - Aliyun OSS
+    ///   - Neon Object Storage
     /// - Send a `HEAD` request to endpoint with bucket name to get `x-amz-bucket-region`.
     ///
     /// # Examples
@@ -779,6 +870,21 @@ impl S3Builder {
             }
         }
 
+        // If this bucket is Neon Object Storage, the region is part of the branch endpoint.
+        // Neon doesn't return `x-amz-bucket-region` for HeadBucket.
+        //
+        // - `br-xxx.storage.c-6.us-east-2.aws.neon.tech` => `us-east-2`
+        //
+        // Reference: <https://neon.com/docs/storage/s3-compatibility>
+        if let Some((_, region)) = endpoint
+            .strip_prefix("https://")
+            .and_then(|v| v.strip_suffix(".aws.neon.tech"))
+            .and_then(|v| v.split_once(".storage."))
+            .and_then(|(_, v)| v.split_once('.'))
+        {
+            return Some(region.to_string());
+        }
+
         // Try to detect region by HeadBucket.
         let req = http::Request::head(&url).body(Buffer::new()).ok()?;
 
@@ -824,6 +930,12 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl S3Builder {
+    fn build_backend(self) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
         let S3Builder {
@@ -915,10 +1027,12 @@ impl Builder for S3Builder {
         } else {
             std::env::var("AWS_REGION")
                 .or_else(|_| std::env::var("AWS_DEFAULT_REGION"))
-                .map_err(|_| {
+                .ok()
+                .or_else(|| config.default_region.clone().filter(|v| !v.is_empty()))
+                .ok_or_else(|| {
                     Error::new(
                         ErrorKind::ConfigInvalid,
-                        "region is missing. Please find it by S3::detect_region() or set them in env.",
+                        "region is missing. Set region, an AWS region environment variable, or default_region.",
                     )
                     .with_operation("Builder::build")
                     .with_context("service", S3_SCHEME)
@@ -952,7 +1066,7 @@ impl Builder for S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = {
+        let mut default_provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
@@ -969,7 +1083,34 @@ impl Builder for S3Builder {
                 builder = builder.no_imds();
             }
 
-            ProvideCredentialChain::new().push(builder.build())
+            if config.container_credentials_endpoint.is_some()
+                || config.container_credentials_relative_uri.is_some()
+                || config.container_authorization_token.is_some()
+                || config.container_authorization_token_file.is_some()
+                || config.container_metadata_uri_override.is_some()
+            {
+                let mut ecs = ECSCredentialProvider::new();
+
+                if let Some(endpoint) = config.container_credentials_endpoint.as_deref() {
+                    ecs = ecs.with_endpoint(endpoint);
+                }
+                if let Some(relative_uri) = config.container_credentials_relative_uri.as_deref() {
+                    ecs = ecs.with_relative_uri(relative_uri);
+                }
+                if let Some(token) = config.container_authorization_token.as_deref() {
+                    ecs = ecs.with_auth_token(token);
+                }
+                if let Some(token_file) = config.container_authorization_token_file.as_deref() {
+                    ecs = ecs.with_auth_token_file(token_file);
+                }
+                if let Some(uri_override) = config.container_metadata_uri_override.as_deref() {
+                    ecs = ecs.with_metadata_uri_override(uri_override);
+                }
+
+                builder = builder.ecs(ecs);
+            }
+
+            builder.build()
         };
 
         // Insert static key if user provided.
@@ -979,17 +1120,20 @@ impl Builder for S3Builder {
             } else {
                 StaticCredentialProvider::new(ak, sk)
             };
-            provider = provider.push_front(static_provider);
+            default_provider = default_provider.push_front(static_provider);
         }
 
-        // Insert assume role provider if user provided.
-        if let Some(role_arn) = &config.role_arn {
+        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
+            credential_providers
+        {
+            Arc::new(chain)
+        } else if let Some(role_arn) = &config.role_arn {
             // The assume-role provider owns its STS signer, so give it a
             // concrete HTTP sender instead of relying on a future operation
             // context.
             let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+            let sts_signer = Signer::new(sts_ctx, default_provider, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
                     .with_region(region.clone())
@@ -1009,18 +1153,13 @@ impl Builder for S3Builder {
                 assume_role_provider = assume_role_provider
                     .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
             }
-            provider = ProvideCredentialChain::new().push(assume_role_provider);
-        }
-
-        // Replace provider if user provide their own.
-        let provider = if let Some(credential_providers) = credential_providers {
-            credential_providers
+            // Use AssumeRole directly so its STS error reaches the signer.
+            Arc::new(assume_role_provider)
         } else {
-            provider
+            Arc::new(default_provider)
         };
 
         let signers = if is_s3_express {
-            let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
                 provider.clone(),
@@ -1076,6 +1215,7 @@ impl Builder for S3Builder {
                     write_with_content_type: true,
                     write_with_content_disposition: true,
                     write_with_content_encoding: !is_s3_express,
+                    write_with_content_language: true,
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
@@ -1150,6 +1290,11 @@ impl Builder for S3Builder {
                 root,
                 server_side_encryption,
                 server_side_encryption_aws_kms_key_id,
+                server_side_encryption_bucket_key_enabled: config
+                    .server_side_encryption_bucket_key_enabled
+                    .map(|enabled| {
+                        HeaderValue::from_static(if enabled { "true" } else { "false" })
+                    }),
                 server_side_encryption_customer_algorithm,
                 server_side_encryption_customer_key,
                 server_side_encryption_customer_key_md5,
@@ -1364,7 +1509,7 @@ impl Service for S3Backend {
             quick_xml::de::from_reader(resp.into_body().reader())
                 .map_err(new_xml_deserialize_error)
                 .map_err(Error::set_temporary)?;
-        let abs_path = build_abs_path(&self.core.root, path);
+        let abs_path = build_absolute_path(&self.core.root, path);
 
         if output
             .version
@@ -1441,14 +1586,113 @@ impl Service for S3Backend {
 mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
     use bytes::Bytes;
     use http::HeaderMap;
+    use http::HeaderValue;
     use http::Method;
     use http::Request;
     use http::Response;
+    use reqsign_core::ProvideCredential;
 
     use super::*;
+
+    #[tokio::test]
+    async fn test_bucket_key_presign_headers() {
+        let header = "x-amz-server-side-encryption-bucket-key-enabled";
+        for (key, value) in [
+            ("server_side_encryption_bucket_key_enabled", None),
+            ("server_side_encryption_bucket_key_enabled", Some("false")),
+            ("server_side_encryption_bucket_key_enabled", Some("true")),
+            ("aws_sse_bucket_key_enabled", Some("false")),
+        ] {
+            let mut config = vec![
+                ("bucket".to_string(), "test-bucket".to_string()),
+                ("region".to_string(), "us-east-1".to_string()),
+                ("access_key_id".to_string(), "test-access-key".to_string()),
+                (
+                    "secret_access_key".to_string(),
+                    "test-secret-key".to_string(),
+                ),
+                ("disable_config_load".to_string(), "true".to_string()),
+                ("server_side_encryption".to_string(), "aws:kms".to_string()),
+            ];
+            if let Some(value) = value {
+                config.push((key.to_string(), value.to_string()));
+            }
+            let op = opendal_core::Operator::from_iter::<S3Builder>(config).unwrap();
+            let write = op
+                .presign_write("test", std::time::Duration::from_secs(60))
+                .await
+                .unwrap();
+            assert_eq!(
+                write.header().get(header).map(|v| v.to_str().unwrap()),
+                value
+            );
+            let read = op
+                .presign_read("test", std::time::Duration::from_secs(60))
+                .await
+                .unwrap();
+            assert!(!read.header().contains_key(header));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_default_region_presign_scope() {
+        let environment_region = std::env::var("AWS_REGION")
+            .or_else(|_| std::env::var("AWS_DEFAULT_REGION"))
+            .ok();
+        for (explicit, expected) in [
+            (None, environment_region.as_deref().unwrap_or("us-west-2")),
+            (Some("us-east-1"), "us-east-1"),
+        ] {
+            let mut config = vec![
+                ("bucket".to_string(), "test-bucket".to_string()),
+                ("aws_default_region".to_string(), "us-west-2".to_string()),
+                ("access_key_id".to_string(), "test-access-key".to_string()),
+                (
+                    "secret_access_key".to_string(),
+                    "test-secret-key".to_string(),
+                ),
+                ("disable_config_load".to_string(), "true".to_string()),
+            ];
+            if let Some(region) = explicit {
+                config.push(("region".to_string(), region.to_string()));
+            }
+            let op = opendal_core::Operator::from_iter::<S3Builder>(config).unwrap();
+            let request = op
+                .presign_read("test", std::time::Duration::from_secs(60))
+                .await
+                .unwrap();
+            let url = url::Url::parse(&request.uri().to_string()).unwrap();
+            let credential = url
+                .query_pairs()
+                .find_map(|(key, value)| (key == "X-Amz-Credential").then(|| value.into_owned()))
+                .unwrap();
+            assert_eq!(credential.split('/').nth(2), Some(expected));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_aws_skip_signature_alias() {
+        let config = [
+            ("bucket", "test-bucket"),
+            ("region", "us-east-1"),
+            ("aws_skip_signature", "true"),
+            ("disable_config_load", "true"),
+            ("disable_ec2_metadata", "true"),
+        ]
+        .map(|(key, value)| (key.to_string(), value.to_string()));
+        let op = opendal_core::Operator::from_iter::<S3Builder>(config).unwrap();
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        assert!(request.uri().query().is_none());
+        assert!(!request.header().contains_key(http::header::AUTHORIZATION));
+    }
 
     #[derive(Clone, Copy)]
     enum CreateSessionOutcome {
@@ -1605,7 +1849,78 @@ mod tests {
                 ));
             }
 
-            Ok(Self::response(StatusCode::OK, Bytes::new()))
+            let mut response = Self::response(StatusCode::OK, Bytes::new());
+            response
+                .headers_mut()
+                .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
+            Ok(response)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_multipart_sse_kms_header_scope() {
+        const PART_SIZE: usize = 5 * 1024 * 1024;
+        for is_copy in [false, true] {
+            let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .server_side_encryption("aws:kms")
+                    .server_side_encryption_aws_kms_key_id("example-kms-key")
+                    .skip_signature()
+                    .disable_config_load()
+                    .disable_ec2_metadata(),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(transport.clone())),
+            );
+            if is_copy {
+                op.copy_with("source", "target")
+                    .source_content_length_hint(PART_SIZE as u64 + 1)
+                    .chunk(PART_SIZE)
+                    .await
+                    .unwrap();
+            } else {
+                let mut writer = op.writer_with("target").chunk(PART_SIZE).await.unwrap();
+                writer.write(vec![0; PART_SIZE]).await.unwrap();
+                writer.write("x").await.unwrap();
+                writer.close().await.unwrap();
+            }
+            let requests = transport.requests();
+            let initiate = requests
+                .iter()
+                .find(|request| request.uri.query() == Some("uploads"))
+                .unwrap();
+            assert_eq!(header(initiate, "x-amz-server-side-encryption"), "aws:kms");
+            assert_eq!(
+                header(initiate, "x-amz-server-side-encryption-aws-kms-key-id"),
+                "example-kms-key"
+            );
+            let mut parts = 0;
+            let mut completions = 0;
+            for request in requests.iter().filter(|request| {
+                request
+                    .uri
+                    .query()
+                    .is_some_and(|query| query.contains("uploadId="))
+            }) {
+                if request.method == Method::PUT {
+                    parts += 1;
+                } else if request.method == Method::POST {
+                    completions += 1;
+                }
+                assert!(!request.headers.contains_key("x-amz-server-side-encryption"));
+                assert!(
+                    !request
+                        .headers
+                        .contains_key("x-amz-server-side-encryption-aws-kms-key-id")
+                );
+            }
+            assert_eq!(parts, 2);
+            assert_eq!(completions, 1);
         }
     }
 
@@ -2057,6 +2372,273 @@ mod tests {
         }
     }
 
+    #[derive(Debug)]
+    struct FailingOnceCredentialProvider {
+        error: Mutex<Option<reqsign_core::Error>>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl ProvideCredential for FailingOnceCredentialProvider {
+        type Credential = Credential;
+
+        async fn provide_credential(
+            &self,
+            ctx: &Context,
+        ) -> reqsign_core::Result<Option<Self::Credential>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(err) = self.error.lock().expect("lock poisoned").take() {
+                return Err(err);
+            }
+            StaticCredentialProvider::new("provider-access-key", "provider-secret-key")
+                .provide_credential(ctx)
+                .await
+        }
+    }
+
+    fn s3_general_operator_with_provider(
+        error: reqsign_core::Error,
+        transport: S3ExpressMockTransport,
+    ) -> (Operator, Arc<AtomicUsize>) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = FailingOnceCredentialProvider {
+            error: Mutex::new(Some(error)),
+            calls: calls.clone(),
+        };
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build_backend()
+            .expect("S3 backend must build");
+        let mut core = Arc::into_inner(backend.core).expect("S3 core must not be shared");
+        core.signers = S3Signers::General(Signer::new(
+            Context::new(),
+            provider,
+            AwsV4Signer::new("s3", "us-west-2"),
+        ));
+        let service = Arc::new(S3Backend {
+            core: Arc::new(core),
+        }) as Servicer;
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
+        (Operator::from_parts(ctx, service), calls)
+    }
+
+    #[tokio::test]
+    async fn test_s3_retryable_credential_error_is_temporary() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let (op, calls) = s3_general_operator_with_provider(
+            reqsign_core::Error::unexpected("failed to send AWS STS AssumeRole request")
+                .set_retryable(true),
+            transport.clone(),
+        );
+
+        let err = op
+            .stat("test")
+            .await
+            .expect_err("credential failure must reach the caller");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(transport.requests().is_empty());
+
+        op.stat("test")
+            .await
+            .expect("retry must load the credential and sign the request");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(header(&transport.requests()[0], "authorization").contains("provider-access-key/"));
+    }
+
+    #[tokio::test]
+    async fn test_s3_persistent_credential_error_is_not_temporary() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let (op, calls) = s3_general_operator_with_provider(
+            reqsign_core::Error::credential_invalid("failed to load signing credential"),
+            transport.clone(),
+        );
+
+        let err = op
+            .stat("test")
+            .await
+            .expect_err("credential failure must reach the caller");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(transport.requests().is_empty());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug)]
+    struct ExpiredSsoSession;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::FileRead for ExpiredSsoSession {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-west-2\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "expired-token",
+                    "expiresAt": "2000-01-01T00:00:00Z",
+                    "refreshToken": "test-refresh-token",
+                    "clientId": "test-client-id",
+                    "clientSecret": "test-client-secret",
+                    "registrationExpiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::HttpSend for ExpiredSsoSession {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            assert_eq!(request.method(), Method::POST);
+            assert_eq!(request.uri(), "https://oidc.us-west-2.amazonaws.com/token");
+            Ok(Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .body(Bytes::new())
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_default_credentials_preserve_retryable_sso_refresh_error() {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .endpoint("https://s3.us-west-2.amazonaws.com")
+            .profile("sso-test")
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                ..Default::default()
+            })
+            .with_file_read(ExpiredSsoSession)
+            .with_http_send(ExpiredSsoSession);
+        let (mut parts, ()) = Request::get("https://example.s3.us-west-2.amazonaws.com/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        let err = backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable(), "{err:?}");
+        assert!(err.to_string().contains("SSO token refresh returned 503"));
+    }
+
+    struct StsErrorResponse {
+        status: StatusCode,
+        body: &'static str,
+    }
+
+    impl HttpTransport for StsErrorResponse {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(request.uri().host(), Some("sts.us-west-2.amazonaws.com"));
+            assert!(request.uri().query().unwrap().contains("Action=AssumeRole"));
+            let body = Buffer::from(self.body);
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assume_role_preserves_sts_error() {
+        for (status, code, body, temporary) in [
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ServiceUnavailable",
+                "<ErrorResponse><Error><Code>ServiceUnavailable</Code>\
+                 <Message>Try again</Message></Error></ErrorResponse>",
+                true,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                "AccessDenied",
+                "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                 <Message>Forbidden</Message></Error></ErrorResponse>",
+                false,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key")
+                    .role_arn("arn:aws:iam::000000000000:role/example"),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(StsErrorResponse { status, body })),
+            );
+
+            let err = op.stat("test").await.unwrap_err();
+            assert_eq!(err.is_temporary(), temporary, "{err:?}");
+            let source = std::error::Error::source(&err).unwrap();
+            assert!(source.to_string().contains(code), "{err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_chain_overrides_assume_role_and_static_keys() {
+        let chain = ProvideCredentialChain::new().push(StaticCredentialProvider::new(
+            "custom-access-key",
+            "custom-secret-key",
+        ));
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .role_arn("arn:aws:iam::000000000000:role/example")
+                .credential_provider_chain(chain),
+        )
+        .unwrap();
+
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        let url = Url::parse(&request.uri().to_string()).unwrap();
+        let credential = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "X-Amz-Credential").then_some(value))
+            .unwrap();
+        assert_eq!(credential.split('/').next(), Some("custom-access-key"));
+    }
+
     #[test]
     fn test_profile() {
         let builder = S3Builder::default().profile("selected");
@@ -2262,6 +2844,12 @@ mod tests {
                 Some("auto"),
             ),
             (
+                "neon",
+                "https://br-example-a1b2c3d4.storage.c-6.us-east-2.aws.neon.tech",
+                "example",
+                Some("us-east-2"),
+            ),
+            (
                 "invalid service",
                 "https://opendal.apache.org",
                 "example",
@@ -2276,7 +2864,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_presign_write_preserves_content_type() {
+    async fn test_presign_write_preserves_content_headers() {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
@@ -2290,6 +2878,7 @@ mod tests {
             &backend.capability(),
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
+                content_language: Some("fr-CA".to_owned()),
                 ..Default::default()
             },
         )
@@ -2305,6 +2894,13 @@ mod tests {
         assert_eq!(
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
+        );
+        assert_eq!(
+            presigned
+                .header()
+                .get(http::header::CONTENT_LANGUAGE)
+                .unwrap(),
+            "fr-CA"
         );
     }
 

@@ -40,8 +40,11 @@ opendal = { version = ">=0", path = "../../core", default-features = false, feat
 
   # enabled layers
   "layers-concurrent-limit",
+  "layers-immutable-index",
   "layers-logging",
+  "layers-mime-guess",
   "layers-retry",
+  "layers-throttle",
   "layers-timeout",
 
   # enabled services

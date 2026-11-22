@@ -17,9 +17,8 @@
 
 import collections.abc
 import types
+import typing
 from typing import Any, final
-
-import typing_extensions
 
 @final
 class AsyncFile:
@@ -29,14 +28,14 @@ class AsyncFile:
     Created by the `open` method of the `AsyncOperator` class.
     """
 
-    def __aenter__(self, /) -> collections.abc.Awaitable[typing_extensions.Self]: ...
+    def __aenter__(self, /) -> collections.abc.Awaitable[typing.Self]: ...
     def __aexit__(
         self,
         /,
         exc_type: type[BaseException] | None,
         exc_value: BaseException | None,
         traceback: types.TracebackType | None,
-    ) -> None: ...
+    ) -> collections.abc.Awaitable[None]: ...
     def close(self, /) -> collections.abc.Awaitable[None]:
         """
         Close this file.
@@ -72,6 +71,30 @@ class AsyncFile:
         -----
         Fewer bytes may be returned than requested, read in a loop
         to ensure all bytes are read.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the bytes read from the stream.
+        """
+    def read_buffered(self, /, size: int) -> collections.abc.Awaitable[bytes]:
+        """
+        Read up to `size` bytes by combining immediately available data.
+
+        A positive-sized read waits for the first bytes, then returns when
+        more data would require waiting, at EOF, or at the requested limit.
+        Keep reading until an empty result to consume the file. A zero-sized
+        read returns empty bytes without consuming data or a pending error.
+
+        If a read encounters an error after collecting bytes, it returns those
+        bytes and the next positive-sized read raises the error. A successful
+        seek clears a pending error. Cancelling a pending read preserves the
+        file position and any bytes collected for that read.
+
+        Parameters
+        ----------
+        size : int
+            The maximum number of bytes to read. Must be non-negative.
 
         Returns
         -------
@@ -128,10 +151,18 @@ class AsyncFile:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         coroutine
             An awaitable that returns the current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> collections.abc.Awaitable[bool]:
         """
@@ -312,10 +343,18 @@ class File:
         """
         Return the current position of this file.
 
+        In write mode, the position is the number of bytes accepted by the
+        writer, including buffered bytes.
+
         Returns
         -------
         int
             The current absolute position.
+
+        Raises
+        ------
+        ValueError
+            If the file is closed.
         """
     def writable(self, /) -> bool:
         """

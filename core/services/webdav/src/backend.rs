@@ -29,7 +29,7 @@ use super::core::*;
 use super::deleter::WebdavDeleter;
 use super::lister::WebdavLister;
 use super::reader::*;
-use super::writer::WebdavWriter;
+use super::writer::{WebdavChunkedWriter, WebdavWriter};
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -116,6 +116,15 @@ impl WebdavBuilder {
     /// Default: false
     pub fn disable_create_dir(mut self, disable: bool) -> Self {
         self.config.disable_create_dir = disable;
+        self
+    }
+
+    /// Enable streaming writes using partial PUT. Disabled by default.
+    ///
+    /// Enable this only for endpoints that support `Content-Range` on PUT
+    /// and WebDAV MOVE with overwrite.
+    pub fn enable_partial_put(mut self, enable: bool) -> Self {
+        self.config.enable_partial_put = enable;
         self
     }
 
@@ -215,15 +224,18 @@ impl Builder for WebdavBuilder {
                 read_with_if_unmodified_since: true,
 
                 write: true,
+                write_can_multi: self.config.enable_partial_put,
                 write_can_empty: true,
                 write_with_user_metadata: true,
 
                 create_dir: true,
                 delete: true,
+                delete_with_if_match: true,
 
                 copy: true,
 
                 rename: true,
+                rename_with_if_not_exists: true,
 
                 list: true,
 
@@ -258,7 +270,7 @@ pub struct WebdavBackend {
 
 impl Service for WebdavBackend {
     type Reader = oio::StreamReader<WebdavReader>;
-    type Writer = oio::OneShotWriter<WebdavWriter>;
+    type Writer = TwoWays<oio::OneShotWriter<WebdavWriter>, WebdavChunkedWriter>;
     type Lister = oio::PageLister<WebdavLister>;
     type Deleter = oio::OneShotDeleter<WebdavDeleter>;
     type Copier = oio::OneShotCopier;
@@ -300,16 +312,19 @@ impl Service for WebdavBackend {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let output: oio::OneShotWriter<WebdavWriter> = {
-            Ok(oio::OneShotWriter::new(WebdavWriter::new(
-                self.core.clone(),
-                ctx.clone(),
-                args,
-                path.to_string(),
-            )))
-        }?;
+        if args.is_conditional() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "WebDAV does not support conditional writes",
+            ));
+        }
 
-        Ok(output)
+        let writer = WebdavWriter::new(self.core.clone(), ctx.clone(), args, path.to_string());
+        if self.core.capability.write_can_multi {
+            Ok(TwoWays::Two(WebdavChunkedWriter::new(writer)))
+        } else {
+            Ok(TwoWays::One(oio::OneShotWriter::new(writer)))
+        }
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -388,9 +403,14 @@ impl Service for WebdavBackend {
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        let resp = self.core.webdav_move(ctx, from, to).await?;
+        self.core.webdav_stat(ctx, from).await?;
+        self.core.webdav_mkcol(ctx, get_parent(to)).await?;
+        let resp = self
+            .core
+            .webdav_move(ctx, from, to, args.if_not_exists(), Operation::Rename)
+            .await?;
 
         let status = resp.status();
         match status {

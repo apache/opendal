@@ -16,13 +16,12 @@
 // under the License.
 
 use super::backend::*;
-use super::core::Manager;
+use super::core::SftpConnection;
 use super::core::is_not_found;
 use super::core::is_sftp_failure;
 use super::core::parse_sftp_error;
 use super::lister::SftpLister;
 use super::writer::SftpWriter;
-use asyncband::pool::bounded;
 use bytes::BytesMut;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -32,7 +31,7 @@ use tokio::io::AsyncSeekExt;
 
 pub struct SftpReadStream {
     /// Keep the connection alive while data stream is alive.
-    _conn: bounded::Object<Manager>,
+    _conn: SftpConnection,
 
     file: File,
     chunk: usize,
@@ -42,7 +41,7 @@ pub struct SftpReadStream {
 }
 
 impl SftpReadStream {
-    pub fn new(conn: bounded::Object<Manager>, file: File, size: Option<u64>) -> Self {
+    pub fn new(conn: SftpConnection, file: File, size: Option<u64>) -> Self {
         Self {
             _conn: conn,
             file,

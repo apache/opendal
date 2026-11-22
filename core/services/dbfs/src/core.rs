@@ -58,7 +58,7 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -87,7 +87,7 @@ impl DbfsCore {
         let auth_header_content = format!("Bearer {}", self.token);
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -114,8 +114,8 @@ impl DbfsCore {
         from: &str,
         to: &str,
     ) -> Result<Response<Buffer>> {
-        let source = build_rooted_abs_path(&self.root, from);
-        let target = build_rooted_abs_path(&self.root, to);
+        let source = build_rooted_absolute_path(&self.root, from);
+        let target = build_rooted_absolute_path(&self.root, to);
 
         let url = format!("{}/api/2.0/dbfs/move", self.endpoint);
         let mut req = Request::post(&url);
@@ -140,7 +140,7 @@ impl DbfsCore {
     }
 
     pub async fn dbfs_list(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 
@@ -173,7 +173,7 @@ impl DbfsCore {
         req = req.header(header::AUTHORIZATION, auth_header_content);
 
         let req_body = &json!({
-            "path": build_rooted_abs_path(&self.root, path),
+            "path": build_rooted_absolute_path(&self.root, path),
             "contents": contents,
             "overwrite": true,
         });
@@ -191,7 +191,7 @@ impl DbfsCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path)
+        let p = build_rooted_absolute_path(&self.root, path)
             .trim_end_matches('/')
             .to_string();
 

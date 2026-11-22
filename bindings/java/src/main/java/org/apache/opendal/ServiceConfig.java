@@ -187,7 +187,9 @@ public interface ServiceConfig {
          */
         public final String encryptionAlgorithm;
         /**
-         * <p>The encryption key of Azblob service backend.</p>
+         * <p>The Base64-encoded AES-256 customer-provided encryption key.</p>
+         * <p>The key must decode to exactly 32 bytes. Building an operator returns
+         * <code>ConfigInvalid</code> for invalid Base64 or a different decoded length.</p>
          */
         public final String encryptionKey;
         /**
@@ -902,27 +904,39 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Etcd implements ServiceConfig {
         /**
-         * <p>certificate authority file path</p>
+         * <p>PEM certificate authority file used to verify the server.
+         * Enables TLS independently of <code>cert_path</code> and <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String caPath;
         /**
-         * <p>cert path</p>
+         * <p>PEM client certificate file used for mutual TLS.
+         * Must be configured together with <code>key_path</code>.</p>
          * <p>default is None</p>
          */
         public final String certPath;
         /**
          * <p>network address of the Etcd services.
-         * If use https, must set TLS options: <code>ca_path</code>, <code>cert_path</code>, <code>key_path</code>.
+         * Use HTTPS endpoints for TLS. Set <code>ca_path</code> to trust a custom certificate authority.
+         * Client authentication additionally requires both <code>cert_path</code> and <code>key_path</code>.
          * e.g. &quot;127.0.0.1:23790,127.0.0.1:23791,127.0.0.1:23792&quot; or &quot;http://127.0.0.1:23790,http://127.0.0.1:23791,http://127.0.0.1:23792&quot; or &quot;https://127.0.0.1:23790,https://127.0.0.1:23791,https://127.0.0.1:23792&quot;</p>
          * <p>default is &quot;http://127.0.0.1:2379&quot;</p>
          */
         public final String endpoints;
         /**
-         * <p>key path</p>
+         * <p>PEM client private key file used for mutual TLS.
+         * Must be configured together with <code>cert_path</code>.</p>
          * <p>default is None</p>
          */
         public final String keyPath;
+        /**
+         * <p>the maximum size in bytes of a gRPC response that the etcd client decodes.</p>
+         * <p>Set this to read values larger than the etcd client's own limit. The etcd
+         * server must also allow responses of that size.</p>
+         * <p>Refer to <a href="https://docs.rs/etcd-client/latest/etcd_client/struct.KvClient.html#method.max_decoding_message_size"><code>etcd_client::KvClient::max_decoding_message_size</code></a></p>
+         * <p>default is None, which keeps the etcd client default of 4 MiB</p>
+         */
+        public final Long maxDecodingMessageSize;
         /**
          * <p>the password for authentication</p>
          * <p>default is None</p>
@@ -958,6 +972,9 @@ public interface ServiceConfig {
             }
             if (keyPath != null) {
                 map.put("key_path", keyPath);
+            }
+            if (maxDecodingMessageSize != null) {
+                map.put("max_decoding_message_size", String.valueOf(maxDecodingMessageSize));
             }
             if (password != null) {
                 map.put("password", password);
@@ -1331,6 +1348,12 @@ public interface ServiceConfig {
          */
         public final String clientSecret;
         /**
+         * <p>Shared drive (formerly Team Drive) id for gdrive.</p>
+         * <p>When set, gdrive resolves <code>root</code> inside this shared drive instead of
+         * the user's My Drive.</p>
+         */
+        public final String driveId;
+        /**
          * <p>Refresh token for gdrive.</p>
          */
         public final String refreshToken;
@@ -1355,6 +1378,9 @@ public interface ServiceConfig {
             }
             if (clientSecret != null) {
                 map.put("client_secret", clientSecret);
+            }
+            if (driveId != null) {
+                map.put("drive_id", driveId);
             }
             if (refreshToken != null) {
                 map.put("refresh_token", refreshToken);
@@ -1677,6 +1703,13 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Hf implements ServiceConfig {
         /**
+         * <p>Disable loading config from the environment.</p>
+         * <p>When set, the service ignores <code>HF_ENDPOINT</code>, <code>HF_HUB_DISABLE_XET</code>,
+         * <code>HF_TOKEN</code>, <code>HF_TOKEN_PATH</code>, and the <code>token</code> file under <code>HF_HOME</code>,
+         * <code>$XDG_CACHE_HOME/huggingface</code> or <code>~/.cache/huggingface</code>.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Download mode. Either <code>xet</code> (default) or <code>http</code>.</p>
          * <p>When unset, the mode is resolved from the <code>HF_HUB_DISABLE_XET</code>
          * environment variable: a non-empty value forces <code>http</code>, otherwise it
@@ -1732,6 +1765,9 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (downloadMode != null) {
                 map.put("download_mode", downloadMode);
             }
@@ -2013,6 +2049,11 @@ public interface ServiceConfig {
          */
         public final Duration defaultTtl;
         /**
+         * <p>Enable TLS for TCP connections. Defaults to false.</p>
+         * <p>The server certificate must match the endpoint host and a native trust root.</p>
+         */
+        public final Boolean enableTls;
+        /**
          * <p>network address of the memcached service.</p>
          * <p>For example: &quot;tcp://localhost:11211&quot;</p>
          */
@@ -2044,6 +2085,9 @@ public interface ServiceConfig {
             }
             if (defaultTtl != null) {
                 map.put("default_ttl", defaultTtl.toString());
+            }
+            if (enableTls != null) {
+                map.put("enable_tls", String.valueOf(enableTls));
             }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
@@ -2108,12 +2152,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_idle"><code>mini-moka::sync::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/mini-moka/latest/mini_moka/sync/struct.CacheBuilder.html#method.time_to_live"><code>mini-moka::sync::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2130,10 +2174,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2163,12 +2207,12 @@ public interface ServiceConfig {
          * <p>Sets the time to idle of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_idle"><code>moka::future::CacheBuilder::time_to_idle</code></a></p>
          */
-        public final String timeToIdle;
+        public final Duration timeToIdle;
         /**
          * <p>Sets the time to live of the cache.</p>
          * <p>Refer to <a href="https://docs.rs/moka/latest/moka/future/struct.CacheBuilder.html#method.time_to_live"><code>moka::future::CacheBuilder::time_to_live</code></a></p>
          */
-        public final String timeToLive;
+        public final Duration timeToLive;
 
         @Override
         public String scheme() {
@@ -2188,10 +2232,10 @@ public interface ServiceConfig {
                 map.put("root", root);
             }
             if (timeToIdle != null) {
-                map.put("time_to_idle", timeToIdle);
+                map.put("time_to_idle", timeToIdle.toString());
             }
             if (timeToLive != null) {
-                map.put("time_to_live", timeToLive);
+                map.put("time_to_live", timeToLive.toString());
             }
             return map;
         }
@@ -2946,6 +2990,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -2979,6 +3031,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);
@@ -3042,10 +3097,52 @@ public interface ServiceConfig {
          */
         public final String checksumAlgorithm;
         /**
+         * <p>Authorization token sent to the AWS container credential endpoint.</p>
+         * <p>This token takes precedence over the configured token file and the
+         * ambient direct and file token forms.</p>
+         */
+        public final String containerAuthorizationToken;
+        /**
+         * <p>File containing the authorization token sent to the AWS container
+         * credential endpoint.</p>
+         * <p>This file takes precedence over both ambient token forms. The credential
+         * provider trims surrounding whitespace after reading the file.</p>
+         */
+        public final String containerAuthorizationTokenFile;
+        /**
+         * <p>Full URI for AWS container credential metadata.</p>
+         * <p>This endpoint takes precedence over the relative container credential
+         * URI and both ambient container credential URI forms. It does not change
+         * the position or priority of the default ECS credential provider.</p>
+         */
+        public final String containerCredentialsEndpoint;
+        /**
+         * <p>Relative URI for AWS container credential metadata.</p>
+         * <p>An explicit full endpoint takes precedence over this value. This value
+         * takes precedence over the ambient full and relative container credential
+         * URIs. OpenDAL joins it to <code>container_metadata_uri_override</code> when set,
+         * otherwise to <code>http://169.254.170.2</code>.</p>
+         * <p>Setting any container credential field replaces the ECS slot in the
+         * default credential chain. It does not move that slot ahead of earlier
+         * default providers.</p>
+         */
+        public final String containerCredentialsRelativeUri;
+        /**
+         * <p>Base URI used to resolve a relative AWS container credential URI.</p>
+         * <p>This override affects relative URIs only. It does not alter a configured
+         * or ambient full URI. The override alone does not select an endpoint.</p>
+         */
+        public final String containerMetadataUriOverride;
+        /**
          * <p>Default ACL for new objects.
          * Note that some s3 services like minio do not support this option.</p>
          */
         public final String defaultAcl;
+        /**
+         * <p>Fallback signing region when neither <code>region</code>, <code>AWS_REGION</code>, nor
+         * <code>AWS_DEFAULT_REGION</code> supplies one.</p>
+         */
+        public final String defaultRegion;
         /**
          * <p>default storage_class for this backend.</p>
          * <p>Available values:</p>
@@ -3071,13 +3168,12 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
-         * <p>Disable config load so that opendal will not load config from
-         * environment.</p>
-         * <p>For examples:</p>
-         * <ul>
-         * <li>envs like <code>AWS_ACCESS_KEY_ID</code></li>
-         * <li>files like <code>~/.aws/config</code></li>
-         * </ul>
+         * <p>Disable automatic endpoint loading and the environment/profile
+         * credential providers.</p>
+         * <p>This skips endpoint environment variables and removes the static
+         * environment and shared-profile credential slots. Region environment
+         * lookup and other credential providers, including AWS container
+         * credentials and EC2 instance metadata, remain enabled.</p>
          */
         public final Boolean disableConfigLoad;
         /**
@@ -3217,6 +3313,12 @@ public interface ServiceConfig {
          */
         public final String serverSideEncryptionAwsKmsKeyId;
         /**
+         * <p>Control S3 Bucket Keys for SSE-KMS writes and copies.</p>
+         * <p>Omit this option to inherit the bucket setting. <code>false</code> disables Bucket
+         * Keys for destination objects, and <code>true</code> enables them.</p>
+         */
+        public final Boolean serverSideEncryptionBucketKeyEnabled;
+        /**
          * <p>server_side_encryption_customer_algorithm for this backend.</p>
          * <p>Available values: <code>AES256</code>.</p>
          */
@@ -3270,8 +3372,26 @@ public interface ServiceConfig {
             if (checksumAlgorithm != null) {
                 map.put("checksum_algorithm", checksumAlgorithm);
             }
+            if (containerAuthorizationToken != null) {
+                map.put("container_authorization_token", containerAuthorizationToken);
+            }
+            if (containerAuthorizationTokenFile != null) {
+                map.put("container_authorization_token_file", containerAuthorizationTokenFile);
+            }
+            if (containerCredentialsEndpoint != null) {
+                map.put("container_credentials_endpoint", containerCredentialsEndpoint);
+            }
+            if (containerCredentialsRelativeUri != null) {
+                map.put("container_credentials_relative_uri", containerCredentialsRelativeUri);
+            }
+            if (containerMetadataUriOverride != null) {
+                map.put("container_metadata_uri_override", containerMetadataUriOverride);
+            }
             if (defaultAcl != null) {
                 map.put("default_acl", defaultAcl);
+            }
+            if (defaultRegion != null) {
+                map.put("default_region", defaultRegion);
             }
             if (defaultStorageClass != null) {
                 map.put("default_storage_class", defaultStorageClass);
@@ -3335,6 +3455,11 @@ public interface ServiceConfig {
             }
             if (serverSideEncryptionAwsKmsKeyId != null) {
                 map.put("server_side_encryption_aws_kms_key_id", serverSideEncryptionAwsKmsKeyId);
+            }
+            if (serverSideEncryptionBucketKeyEnabled != null) {
+                map.put(
+                        "server_side_encryption_bucket_key_enabled",
+                        String.valueOf(serverSideEncryptionBucketKeyEnabled));
             }
             if (serverSideEncryptionCustomerAlgorithm != null) {
                 map.put("server_side_encryption_customer_algorithm", serverSideEncryptionCustomerAlgorithm);
@@ -3418,6 +3543,14 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
+         * <p>Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration acquireTimeout;
+        /**
+         * <p>Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration connectTimeout;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3452,6 +3585,12 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (acquireTimeout != null) {
+                map.put("acquire_timeout", acquireTimeout.toString());
+            }
+            if (connectTimeout != null) {
+                map.put("connect_timeout", connectTimeout.toString());
+            }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));
             }
@@ -4007,6 +4146,11 @@ public interface ServiceConfig {
          */
         public final Boolean enableConditionalRead;
         /**
+         * <p>Enable streaming writes using partial PUT. Disabled by default.</p>
+         * <p>The endpoint must support <code>Content-Range</code> on PUT and WebDAV MOVE.</p>
+         */
+        public final Boolean enablePartialPut;
+        /**
          * <p>Deprecated: WebDAV user metadata capability is enabled by default.</p>
          *
          * @deprecated WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.
@@ -4064,6 +4208,9 @@ public interface ServiceConfig {
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));
+            }
+            if (enablePartialPut != null) {
+                map.put("enable_partial_put", String.valueOf(enablePartialPut));
             }
             if (enableUserMetadata != null) {
                 map.put("enable_user_metadata", String.valueOf(enableUserMetadata));

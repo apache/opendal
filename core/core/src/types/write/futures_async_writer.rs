@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::io;
 use std::pin::Pin;
 use std::task::Context;
@@ -35,6 +36,12 @@ use crate::*;
 pub struct FuturesAsyncWriter {
     sink: BufferSink,
     buf: oio::FlexBuf,
+}
+
+impl fmt::Debug for FuturesAsyncWriter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FuturesAsyncWriter").finish_non_exhaustive()
+    }
 }
 
 impl FuturesAsyncWriter {
@@ -140,6 +147,28 @@ mod tests {
         let v = FuturesAsyncWriter::new(write_gen);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
+    }
+
+    #[tokio::test]
+    async fn test_writer_debug_omits_path_and_payload() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let path = "private/object";
+        let writer = op.writer_with(path).chunk(8).await.unwrap();
+
+        let output = format!("{writer:?}");
+        assert!(output.starts_with("Writer {"), "{output}");
+        assert!(output.contains("chunk: Some(8)"), "{output}");
+        assert!(output.contains("append: false"), "{output}");
+        assert!(!output.contains(path), "{output}");
+
+        let payload = "private payload";
+        let mut writer = writer.into_futures_async_write();
+        writer.write_all(payload.as_bytes()).await.unwrap();
+        let output = format!("{writer:?}");
+        assert!(output.starts_with("FuturesAsyncWriter {"), "{output}");
+        assert!(!output.contains(path), "{output}");
+        assert!(!output.contains(payload), "{output}");
+        writer.close().await.unwrap();
     }
 
     #[tokio::test]

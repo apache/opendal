@@ -1,0 +1,100 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Nightly Tier B
+
+on:
+  schedule:
+    # Daily 02:15 Asia/Shanghai (18:15 UTC).
+    - cron: '15 18 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run reporter without creating, updating, or closing issues"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-tier-b-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  behavior_live:
+    if: github.repository == 'apache/opendal'
+    uses: ./.github/workflows/test_behavior.yml
+    with:
+      mode: nightly-live
+      retry_attempts: 2
+    secrets:
+      OP_CONNECT_HOST: ${{ secrets.OP_CONNECT_HOST }}
+      OP_CONNECT_TOKEN: ${{ secrets.OP_CONNECT_TOKEN }}
+
+  ghac:
+    if: github.repository == 'apache/opendal'
+    permissions:
+      contents: read
+      actions: write
+    uses: ./.github/workflows/service_test_ghac.yml
+    with:
+      retry_attempts: 2
+
+  edge_aws_oidc:
+    if: github.repository == 'apache/opendal'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/test_edge_aws_oidc.yml
+    with:
+      retry_attempts: 2
+
+  report:
+    name: Report Nightly Status
+    if: always() && github.repository == 'apache/opendal'
+    needs:
+      - behavior_live
+      - ghac
+      - edge_aws_oidc
+    runs-on: ubuntu-slim
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Reconcile nightly live-service issues
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          args=(
+            --tier tier-b
+            --workflow-file nightly_tier_b.yml
+            --run-id "${{ github.run_id }}"
+            --head-sha "${{ github.sha }}"
+            --self-job-name "Report Nightly Status"
+          )
+          if [ "${{ github.repository }}" = "apache/opendal" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$DRY_RUN" != "true" ]; then
+            args+=(--apply)
+          fi
+          python3 .github/scripts/nightly/report.py "${args[@]}"

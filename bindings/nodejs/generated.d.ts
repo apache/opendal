@@ -882,13 +882,18 @@ export declare class Operator {
  */
 export declare class Reader {
   /**
-   * # Safety
+   * Read bytes from this reader into the given buffer.
    *
-   * > &mut self in async napi methods should be marked as unsafe
-   *
-   * Read bytes from this reader into given buffer.
+   * Wait for the promise to settle before accessing the buffer again.
    */
   read(buf: Buffer): Promise<bigint>
+  /**
+   * Read up to `maxBytes` bytes from the same cursor as `read`.
+   *
+   * `maxBytes` must be an integer between 1 and 4294967295. The promise
+   * resolves to a writable Buffer, or `null` at the end of the input.
+   */
+  readChunk(maxBytes: number): Promise<Buffer | null>
 }
 
 /**

@@ -19,25 +19,22 @@ name: Bindings Swift CI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - '*'
-    paths: &paths
-      - "bindings/swift/**"
-      - "bindings/c/**"
-      - "core/**"
-      - ".github/actions/setup/**"
-      - ".github/workflows/ci_bindings_swift.yml"
   pull_request:
     branches:
       - main
-    paths: *paths
+    paths:
+      - "bindings/c/**"
+      - "bindings/swift/**"
+      - ".github/actions/setup/**"
+      - ".github/workflows/ci_bindings_swift.yml"
+  workflow_call:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-bindings-swift-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

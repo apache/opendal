@@ -136,6 +136,10 @@ generate-services: $(FINAL_LIB_FILE) setup-workspace-$(SERVICE) generate-scheme-
 
 # Run tests
 run-tests: generate-services
+	@if [ "$(SERVICE)" = "fs" ]; then \
+		OPENDAL_C_LIB_PATH="../c/target/debug/libopendal_c.$(LIB_EXT)" \
+		go test ./opendal/bindings/go -v; \
+	fi
 	@echo "Running behavior tests..."
 	go test ./opendal/bindings/go/tests/behavior_tests -v -run TestBehavior
 

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::io;
 use std::io::SeekFrom;
 use std::pin::Pin;
@@ -59,6 +60,16 @@ pub struct FuturesAsyncReader {
 
 /// Safety: FuturesAsyncReader only exposes `&mut self` to the outside world,
 unsafe impl Sync for FuturesAsyncReader {}
+
+impl fmt::Debug for FuturesAsyncReader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("FuturesAsyncReader")
+            .field("start", &self.start)
+            .field("range_end", &self.range_end)
+            .field("pos", &self.pos)
+            .finish_non_exhaustive()
+    }
+}
 
 impl FuturesAsyncReader {
     /// NOTE: don't allow users to create FuturesAsyncReader directly.
@@ -191,12 +202,12 @@ impl FuturesAsyncReader {
             };
         }
 
-        let size = self.buf.len().min(size);
-        let buffer = self.buf.split_to(size);
-        if self.buf.is_empty() {
-            self.buf = Buffer::new();
-        }
-        self.pos += size as u64;
+        let buffer = if size >= self.buf.len() {
+            std::mem::take(&mut self.buf)
+        } else {
+            self.buf.split_to(size)
+        };
+        self.pos += buffer.len() as u64;
         Ok(buffer)
     }
 
@@ -723,6 +734,31 @@ mod tests {
         let pos = fr.seek(SeekFrom::Start(4)).await.unwrap();
         assert_eq!(pos, 4);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_reader_debug_does_not_access_storage() -> Result<()> {
+        let (op, counts) = new_counting_operator();
+        let path = "private/object";
+        let reader = op.reader_with(path).chunk(8).concurrent(2).await?;
+
+        let output = format!("{reader:?}");
+        assert!(output.starts_with("Reader {"), "{output}");
+        assert!(output.contains("chunk: Some(8)"), "{output}");
+        assert!(output.contains("concurrent: 2"), "{output}");
+        assert!(!output.contains(path), "{output}");
+
+        let reader = reader.into_futures_async_read(4..8).await?;
+        let output = format!("{reader:?}");
+        assert!(output.starts_with("FuturesAsyncReader {"), "{output}");
+        assert!(output.contains("start: 4"), "{output}");
+        assert!(output.contains("range_end: Some(8)"), "{output}");
+        assert!(output.contains("pos: 0"), "{output}");
+        assert!(!output.contains(path), "{output}");
+
+        assert_eq!(counts.stats.load(Ordering::SeqCst), 0);
+        assert!(opened_ranges(&counts).is_empty());
         Ok(())
     }
 

@@ -42,6 +42,6 @@ rustls = ["cyper/rustls", "dep:rustls"]
 cyper = { workspace = true, features = ["stream"] }
 futures = { workspace = true, features = ["std"] }
 http = { workspace = true }
-opendal-core = { path = "../../core", version = "0.59.3", default-features = false }
+opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 rustls = { workspace = true, features = ["ring"], optional = true }
-send_wrapper = { workspace = true, features = ["futures"] }
+send_wrapper = { version = "0.6", features = ["futures"] }

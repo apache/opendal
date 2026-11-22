@@ -28,6 +28,10 @@ on:
       - main
     paths:
       - ".github/workflows/release_ruby.yml"
+      - "bindings/ruby/.tool-versions"
+      - "bindings/ruby/Rakefile"
+      - "bindings/ruby/lib/opendal.rb"
+      - "bindings/ruby/opendal.gemspec"
   # Rubygems doesn't have a staging environment, and Rubygems don't provide a
   # public registry. Most gems follow a pre-release tag convention. But
   # OpenDAL doesn't want pre-releases to a publish registry beyond
@@ -166,17 +170,58 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.rust_target }}
 
-      - name: Setup Ruby and install dependencies
+      - name: Setup Ruby 3.3
+        id: ruby-3-3
         uses: ruby/setup-ruby@v1
         with:
+          ruby-version: "3.3"
           bundler-cache: true
-          working-directory: bindings/ruby # must repeat because actions will not use defaults.run
+          working-directory: bindings/ruby
 
-      - name: Show available rake tasks
-        run: bundle exec rake --tasks
+      - name: Compile the Ruby 3.3 extension
+        run: bundle exec rake native:compile
 
-      - name: Build native gem
-        run: bundle exec rake native:opendal
+      - name: Setup Ruby 3.4
+        id: ruby-3-4
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+          working-directory: bindings/ruby
+
+      - name: Compile the Ruby 3.4 extension
+        run: bundle exec rake native:compile
+
+      - name: Setup Ruby 4.0
+        id: ruby-4-0
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0"
+          bundler-cache: true
+          working-directory: bindings/ruby
+
+      - name: Compile the Ruby 4.0 extension and package the native gem
+        run: bundle exec rake native:compile native:opendal
+
+      - name: Smoke test the native gem on each Ruby version
+        env:
+          RUBY_33: ${{ steps.ruby-3-3.outputs.ruby-prefix }}
+          RUBY_34: ${{ steps.ruby-3-4.outputs.ruby-prefix }}
+          RUBY_40: ${{ steps.ruby-4-0.outputs.ruby-prefix }}
+        run: |
+          for prefix in "$RUBY_33" "$RUBY_34" "$RUBY_40"; do
+            "$prefix/bin/ruby" "$prefix/bin/gem" install --local pkg/opendal-*.gem --no-document
+            "$prefix/bin/ruby" -ropendal -rtmpdir <<'RUBY'
+          Dir.mktmpdir do |root|
+            op = OpenDal::Operator.new("fs", {"root" => root})
+            op.write("hello.txt", "hello")
+            raise "bad read on Ruby #{RUBY_VERSION}" unless op.read("hello.txt") == "hello"
+            expected = Time.utc(2024, 1, 2, 3, 4, 5, 125_000)
+            File.utime(expected, expected, File.join(root, "hello.txt"))
+            raise "bad last_modified on Ruby #{RUBY_VERSION}" unless op.stat("hello.txt").last_modified == expected
+          end
+          RUBY
+          done
 
       - name: Collect built gem
         run: |
@@ -227,7 +272,7 @@ jobs:
           ls -lh pkg/*.gem
 
       - name: Release opendal gem
-        uses: rubygems/release-gem@052cc82692552de3ef2b81fd670e41d13cba8092 # v1.2.0
+        uses: rubygems/release-gem@7f9650160c1a4e7989fdc9855807bdbd421d8b6b # v1.4.1
         with:
           working-directory: bindings/ruby
 

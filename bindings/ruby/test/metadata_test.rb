@@ -18,6 +18,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "tmpdir"
 
 class MetadataTest < ActiveSupport::TestCase
   setup do
@@ -74,5 +75,46 @@ class MetadataTest < ActiveSupport::TestCase
   test "#etag works" do
     metadata = @op.stat("file")
     assert_nil metadata.etag
+  end
+
+  test "#last_modified returns nil when the service does not provide it" do
+    metadata = @op.stat("file")
+    assert_nil metadata.last_modified
+  end
+
+  test "#last_modified returns a UTC Time with fractional seconds" do
+    Dir.mktmpdir do |root|
+      path = File.join(root, "file")
+      File.write(path, "OpenDAL Ruby is ready.")
+      expected = Time.utc(2024, 1, 2, 3, 4, 5, 125_000)
+      File.utime(expected, expected, path)
+
+      op = OpenDal::Operator.new("fs", {"root" => root})
+      last_modified = op.stat("file").last_modified
+
+      assert_instance_of Time, last_modified
+      assert last_modified.utc?
+      assert_equal expected, last_modified
+    end
+  end
+
+  test "#last_modified preserves fractional seconds before the Unix epoch" do
+    Dir.mktmpdir do |root|
+      path = File.join(root, "file")
+      File.write(path, "OpenDAL Ruby is ready.")
+      expected = Time.at(-0.25).utc
+      begin
+        File.utime(expected, expected, path)
+      rescue Errno::EINVAL, Errno::ERANGE, Errno::EOVERFLOW, Errno::ENOTSUP
+        skip "File.utime rejected the pre-epoch timestamp"
+      end
+      skip "File.mtime did not preserve the pre-epoch fractional timestamp" unless File.mtime(path) == expected
+
+      op = OpenDal::Operator.new("fs", {"root" => root})
+      last_modified = op.stat("file").last_modified
+
+      assert last_modified.utc?
+      assert_equal expected, last_modified
+    end
   end
 end

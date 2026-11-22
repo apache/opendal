@@ -29,6 +29,14 @@ namespace OpenDAL.ServiceConfig
     public sealed class SftpServiceConfig : IServiceConfig
     {
         /// <summary>
+        /// Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.
+        /// </summary>
+        public string? AcquireTimeout { get; init; }
+        /// <summary>
+        /// Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.
+        /// </summary>
+        public string? ConnectTimeout { get; init; }
+        /// <summary>
         /// Deprecated: SFTP copy capability is enabled by default.
         /// </summary>
         [System.Obsolete("SFTP copy capability is enabled by default and this option is no longer needed.")]
@@ -59,6 +67,14 @@ namespace OpenDAL.ServiceConfig
         public IReadOnlyDictionary<string, string> ToOptions()
         {
             var map = new Dictionary<string, string>();
+            if (AcquireTimeout is not null)
+            {
+                map["acquire_timeout"] = Utilities.ToOptionString(AcquireTimeout);
+            }
+            if (ConnectTimeout is not null)
+            {
+                map["connect_timeout"] = Utilities.ToOptionString(ConnectTimeout);
+            }
 #pragma warning disable CS0618
             if (EnableCopy is not null)
             {

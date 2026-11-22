@@ -8159,6 +8159,7 @@ dependencies = [
 name = "opendal-service-hdfs-native"
 version = "0.59.5"
 dependencies = [
+ "asyncband",
  "bytes",
  "futures",
  "hdfs-native",

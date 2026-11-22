@@ -43,10 +43,6 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.")]
         public bool? EnableConditionalRead { get; init; }
         /// <summary>
-        /// Enable streaming writes using partial PUT. Disabled by default. The endpoint must support `Content-Range` on PUT and WebDAV MOVE.
-        /// </summary>
-        public bool? EnablePartialPut { get; init; }
-        /// <summary>
         /// Deprecated: WebDAV user metadata capability is enabled by default.
         /// </summary>
         [System.Obsolete("WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support.")]
@@ -101,10 +97,6 @@ namespace OpenDAL.ServiceConfig
                 map["enable_conditional_read"] = Utilities.ToOptionString(EnableConditionalRead);
             }
 #pragma warning restore CS0618
-            if (EnablePartialPut is not null)
-            {
-                map["enable_partial_put"] = Utilities.ToOptionString(EnablePartialPut);
-            }
 #pragma warning disable CS0618
             if (EnableUserMetadata is not null)
             {

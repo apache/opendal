@@ -1009,8 +1009,6 @@ class WebdavConfig(TypedDict):
     """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
     enable_conditional_read: NotRequired[bool]
     """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
-    enable_partial_put: NotRequired[bool]
-    """Enable streaming writes using partial PUT. Disabled by default.  The endpoint must support `Content-Range` on PUT and WebDAV MOVE."""
     enable_user_metadata: NotRequired[bool]
     """Deprecated: WebDAV user metadata capability is enabled by default. [Deprecated since 0.57.0] WebDAV user metadata capability is enabled by default. Use CapabilityOverrideLayer to override write_with_user_metadata for endpoints without PROPPATCH support."""
     endpoint: NotRequired[str]

@@ -1735,7 +1735,6 @@ dependencies = [
  "opendal-core",
  "quick-xml",
  "serde",
- "uuid",
 ]
 
 [[package]]

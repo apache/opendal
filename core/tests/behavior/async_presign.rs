@@ -39,6 +39,17 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
         ))
     }
 
+    if op.info().scheme() == "s3"
+        && cap.presign_write
+        && cap.stat
+        && cap.write_with_cache_control
+        && cap.write_with_content_disposition
+        && cap.write_with_content_language
+        && cap.write_with_content_type
+    {
+        tests.extend(async_trials!(op, test_presign_write_with_metadata));
+    }
+
     if op.info().scheme() == "swift" && cap.write && cap.presign_read {
         tests.extend(async_trials!(op, test_presign_read_with_range));
     }
@@ -74,6 +85,72 @@ pub async fn test_presign_write(op: Operator) -> Result<()> {
     assert_eq!(meta.content_length(), size as u64);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// A presigned PUT should store the metadata supplied when it was generated.
+async fn test_presign_write_with_metadata(op: Operator) -> Result<()> {
+    let path = TEST_FIXTURE.new_file_path();
+    let content_type = "text/plain";
+    let content_language = "fr-CA";
+    let content_disposition = "attachment; filename=\"greeting.txt\"";
+    let cache_control = "max-age=300";
+    let signed_req = op
+        .presign_write_options(
+            &path,
+            Duration::from_secs(3600),
+            options::WriteOptions {
+                content_type: Some(content_type.to_owned()),
+                content_language: Some(content_language.to_owned()),
+                content_disposition: Some(content_disposition.to_owned()),
+                cache_control: Some(cache_control.to_owned()),
+                ..Default::default()
+            },
+        )
+        .await?;
+
+    let url = Url::parse(&signed_req.uri().to_string())?;
+    // The anonymous S3 fixture also exercises metadata forwarding without signing.
+    if let Some((_, signed_headers)) = url
+        .query_pairs()
+        .find(|(name, _)| name == "X-Amz-SignedHeaders")
+    {
+        for header in [
+            header::CONTENT_TYPE,
+            header::CONTENT_LANGUAGE,
+            header::CONTENT_DISPOSITION,
+            header::CACHE_CONTROL,
+        ] {
+            assert!(
+                signed_headers
+                    .split(';')
+                    .any(|name| name == header.as_str()),
+                "{header} must be signed"
+            );
+        }
+    }
+
+    let response = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()?
+        .request(signed_req.method().clone(), url)
+        .headers(signed_req.header().clone())
+        .body("bonjour")
+        .send()
+        .await
+        .map_err(reqwest::Error::without_url)?;
+    let status = response.status();
+    assert!(
+        status.is_success(),
+        "presigned PUT returned {status}: {}",
+        response.text().await?
+    );
+
+    let metadata = op.stat(&path).await?;
+    assert_eq!(metadata.content_type(), Some(content_type));
+    assert_eq!(metadata.content_language(), Some(content_language));
+    assert_eq!(metadata.content_disposition(), Some(content_disposition));
+    assert_eq!(metadata.cache_control(), Some(cache_control));
     Ok(())
 }
 

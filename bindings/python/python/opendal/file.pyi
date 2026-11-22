@@ -18,7 +18,7 @@
 import collections.abc
 import types
 import typing
-from typing import Any, final
+from typing import Any, SupportsIndex, final
 
 __all__ = ["AsyncFile", "File"]
 
@@ -58,7 +58,9 @@ class AsyncFile:
         coroutine
             An awaitable that returns True if this file is closed.
         """
-    def read(self, /, size: int | None = None) -> collections.abc.Awaitable[bytes]:
+    def read(
+        self, /, size: SupportsIndex | None = None
+    ) -> collections.abc.Awaitable[bytes]:
         """
         Read at most `size` bytes from this file asynchronously.
 
@@ -79,7 +81,9 @@ class AsyncFile:
         coroutine
             An awaitable that returns the bytes read from the stream.
         """
-    def read_buffered(self, /, size: int) -> collections.abc.Awaitable[bytes]:
+    def read_buffered(
+        self, /, size: SupportsIndex
+    ) -> collections.abc.Awaitable[bytes]:
         """
         Read up to `size` bytes by combining immediately available data.
 
@@ -112,7 +116,9 @@ class AsyncFile:
         coroutine
             An awaitable that returns True if this file can be read from.
         """
-    def seek(self, /, pos: int, whence: int = 0) -> collections.abc.Awaitable[int]:
+    def seek(
+        self, /, pos: SupportsIndex, whence: SupportsIndex = 0
+    ) -> collections.abc.Awaitable[int]:
         """
         Change the position of this file to the given byte offset.
 
@@ -239,7 +245,7 @@ class File:
         buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
         """
-    def read(self, /, size: int | None = None) -> bytes:
+    def read(self, /, size: SupportsIndex | None = None) -> bytes:
         """
         Read at most `size` bytes from this file.
 
@@ -283,7 +289,7 @@ class File:
         int
             The number of bytes read.
         """
-    def readline(self, /, size: int | None = None) -> bytes:
+    def readline(self, /, size: SupportsIndex | None = None) -> bytes:
         """
         Read one line from this file.
 
@@ -304,7 +310,7 @@ class File:
         bytes
             The bytes read from this file.
         """
-    def seek(self, /, pos: int, whence: int = 0) -> int:
+    def seek(self, /, pos: SupportsIndex, whence: SupportsIndex = 0) -> int:
         """
         Change the position of this file to the given byte offset.
 

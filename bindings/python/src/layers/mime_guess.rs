@@ -34,7 +34,7 @@ use opendal::Operator;
 ///
 /// A ``Content-Type`` is not guaranteed. If the file extension is
 /// uncommon or unknown, the content type will remain unset.
-#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends = Layer)]
 #[derive(Clone)]
 pub struct MimeGuessLayer(ocore::layers::MimeGuessLayer);
 

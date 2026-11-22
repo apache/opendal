@@ -17,10 +17,10 @@
   },
   "dependencies": {
     "@docusaurus/core": "^3.10.2",
-    "@docusaurus/faster": "^3.10.1",
+    "@docusaurus/faster": "^3.10.2",
     "@docusaurus/plugin-client-redirects": "^3.10.2",
     "@docusaurus/preset-classic": "^3.10.2",
-    "@docusaurus/theme-common": "^3.10.1",
+    "@docusaurus/theme-common": "^3.10.2",
     "@mdx-js/react": "^3.1.1",
     "badge-maker": "6.0.0",
     "cheerio": "1.2.0",
@@ -37,8 +37,8 @@
     "unified": "^11.0.5"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "^3.10.1",
-    "@docusaurus/types": "^3.10.1",
+    "@docusaurus/module-type-aliases": "^3.10.2",
+    "@docusaurus/types": "^3.10.2",
     "docusaurus-plugin-llms-builder": "^0.1.13"
   },
   "browserslist": {

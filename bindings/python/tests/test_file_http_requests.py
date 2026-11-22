@@ -18,15 +18,18 @@
 import asyncio
 import contextlib
 import multiprocessing
+from collections import Counter
 from collections.abc import Callable
 from contextvars import Context
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Event as EventType
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 import opendal
+from opendal.options import ReadKwargs
 
 CONTENT = b"HelloWorld"
 TRUNCATED_CONTENT = b"Hell"
@@ -41,12 +44,13 @@ class RequestState:
         self.slow_release = slow_release
 
     def _methods(self) -> list[str]:
-        return [
-            entry[0] if isinstance(entry, tuple) else entry for entry in self._requests
-        ]
+        return [entry[0] for entry in self._requests]
 
     def _uploads(self) -> list[bytes]:
-        return [entry[1] for entry in self._requests if isinstance(entry, tuple)]
+        return [entry[1] for entry in self._requests if entry[0] == "PUT"]
+
+    def _reads(self) -> list[tuple[str, str | None]]:
+        return [(entry[1], entry[2]) for entry in self._requests if entry[0] == "GET"]
 
     def _reset(self) -> None:
         self._requests[:] = []
@@ -59,7 +63,7 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
         protocol_version = "HTTP/1.1"
 
         def do_HEAD(self) -> None:
-            requests.append("HEAD")
+            requests.append(("HEAD",))
             self.send_response(200)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(CONTENT)))
@@ -71,18 +75,18 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
             if self.path == "/slow":
                 slow_started.set()
                 slow_release.wait(timeout=5)
-            uploads = [entry for entry in requests if isinstance(entry, tuple)]
+            uploads = [entry for entry in requests if entry[0] == "PUT"]
             status = 403 if self.path == "/retry" and len(uploads) == 1 else 201
             self.send_response(status)
             self.send_header("Content-Length", "0")
             self.end_headers()
 
         def do_GET(self) -> None:
-            requests.append("GET")
+            range_header = self.headers.get("Range")
+            requests.append(("GET", self.path, range_header))
             content = TRUNCATED_CONTENT if self.path == "/truncated" else CONTENT
             body = content
             status = 200
-            range_header = self.headers.get("Range")
             if range_header is not None:
                 start, end = range_header.removeprefix("bytes=").split("-", 1)
                 start = int(start)
@@ -163,6 +167,80 @@ def request_server():
         process.terminate()
         process.join(timeout=5)
     manager.shutdown()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefetch", [None, 0])
+async def test_read_forwards_response_overrides(request_server, prefetch):
+    endpoint, state = request_server
+    state._reset()
+    config = {
+        "endpoint": endpoint,
+        "bucket": "fixture-bucket",
+        "region": "us-west-2",
+        "disable_config_load": "true",
+        "access_key_id": "test-key",
+        "secret_access_key": "test-secret",
+    }
+    operator = opendal.Operator("s3", **config)
+    async_operator = opendal.AsyncOperator("s3", **config)
+    options: ReadKwargs = {
+        "offset": 2,
+        "size": 5,
+        "content_type": "text/plain",
+        "cache_control": "max-age=60",
+        "content_disposition": 'attachment; filename="sample.txt"',
+    }
+
+    assert operator.read("file", prefetch=prefetch, **options) == b"lloWo"
+    assert await async_operator.read("file", prefetch=prefetch, **options) == b"lloWo"
+    expected_query = {
+        "response-content-type": ["text/plain"],
+        "response-cache-control": ["max-age=60"],
+        "response-content-disposition": ['attachment; filename="sample.txt"'],
+    }
+    assert [
+        (parse_qs(urlsplit(target).query), byte_range)
+        for target, byte_range in state._reads()
+    ] == [(expected_query, "bytes=2-6")] * 2
+
+
+@pytest.mark.asyncio
+async def test_read_range_with_prefetch(request_server):
+    endpoint, state = request_server
+    state._reset()
+    operator = opendal.Operator("http", endpoint=endpoint, root="/")
+    async_operator = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    assert (
+        operator.read("file", offset=2, size=5, chunk=2, concurrent=2, prefetch=1)
+        == b"lloWo"
+    )
+    assert (
+        await async_operator.read(
+            "file", offset=2, size=5, chunk=2, concurrent=2, prefetch=1
+        )
+        == b"lloWo"
+    )
+    assert Counter(state._reads()) == {
+        ("/file", "bytes=2-3"): 2,
+        ("/file", "bytes=4-5"): 2,
+        ("/file", "bytes=6-6"): 2,
+    }
+
+
+@pytest.mark.asyncio
+async def test_read_rejects_prefetch_with_response_overrides():
+    operator = opendal.Operator("memory")
+    async_operator = opendal.AsyncOperator("memory")
+    operator.write("file", CONTENT)
+    await async_operator.write("file", CONTENT)
+
+    message = "prefetch cannot be combined with response header overrides"
+    with pytest.raises(ValueError, match=message):
+        operator.read("file", prefetch=1, content_type="text/plain")
+    with pytest.raises(ValueError, match=message):
+        await async_operator.read("file", prefetch=1, content_type="text/plain")
 
 
 def test_sync_file_sequential_read_uses_one_request(request_server):

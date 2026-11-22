@@ -376,6 +376,7 @@ impl Operator {
     /// Open a file-like object for the given path.
     ///
     /// The returning file-like object is a context manager.
+    /// In `"rb"` mode, use `read()` to supply response header overrides.
     ///
     /// Parameters
     /// ----------
@@ -445,7 +446,10 @@ impl Operator {
         }
     }
 
-    /// Read the entire contents of a file at the given path.
+    /// Read all or a selected range of bytes from a file.
+    ///
+    /// A positive `prefetch` cannot be combined with `content_type`,
+    /// `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
     ///
     /// Parameters
     /// ----------
@@ -462,23 +466,23 @@ impl Operator {
     /// offset : int, optional
     ///     The offset of the file.
     /// prefetch : int, optional
-    ///     The number of bytes to prefetch.
+    ///     The number of completed chunks to buffer during concurrent reads.
     /// size : int, optional
     ///     The size of the file.
     /// if_match : str, optional
     ///     The ETag of the file.
     /// if_none_match : str, optional
     ///     The ETag of the file.
-    /// if_modified_since : str, optional
+    /// if_modified_since : datetime, optional
     ///     The last modified time of the file.
-    /// if_unmodified_since : str, optional
+    /// if_unmodified_since : datetime, optional
     ///     The last modified time of the file.
     /// content_type : str, optional
-    ///     The content type of the file.
+    ///     The Content-Type response header override, where supported.
     /// cache_control : str, optional
-    ///     The cache control of the file.
+    ///     The Cache-Control response header override, where supported.
     /// content_disposition : str, optional
-    ///     The content disposition of the file.
+    ///     The Content-Disposition response header override, where supported.
     ///
     /// Returns
     /// -------
@@ -536,9 +540,17 @@ impl Operator {
             cache_control,
             content_disposition,
         };
+        let use_prefetch_reader = opts.use_prefetch_reader()?;
         let this = self.core.clone();
         let buffer = py
-            .detach(move || this.read_options(&path, opts.into()))
+            .detach(move || {
+                if use_prefetch_reader {
+                    let range = opts.make_range();
+                    this.reader_options(&path, opts.into())?.read(range)
+                } else {
+                    this.read_options(&path, opts.into())
+                }
+            })
             .map_err(format_pyerr)?;
 
         Ok(buffer_into_py_bytes(py, buffer)?.into_any())
@@ -1182,6 +1194,7 @@ impl AsyncOperator {
     /// Open an async file-like object for the given path.
     ///
     /// The returning async file-like object is a context manager.
+    /// In `"rb"` mode, use `read()` to supply response header overrides.
     ///
     /// Parameters
     /// ----------
@@ -1252,7 +1265,10 @@ impl AsyncOperator {
         })
     }
 
-    /// Read the entire contents of a file at the given path.
+    /// Read all or a selected range of bytes from a file.
+    ///
+    /// A positive `prefetch` cannot be combined with `content_type`,
+    /// `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
     ///
     /// Parameters
     /// ----------
@@ -1269,23 +1285,23 @@ impl AsyncOperator {
     /// offset : int, optional
     ///     The offset of the file.
     /// prefetch : int, optional
-    ///     The number of bytes to prefetch.
+    ///     The number of completed chunks to buffer during concurrent reads.
     /// size : int, optional
     ///     The size of the file.
     /// if_match : str, optional
     ///     The ETag of the file.
     /// if_none_match : str, optional
     ///     The ETag of the file.
-    /// if_modified_since : str, optional
+    /// if_modified_since : datetime, optional
     ///     The last modified time of the file.
-    /// if_unmodified_since : str, optional
+    /// if_unmodified_since : datetime, optional
     ///     The last modified time of the file.
     /// content_type : str, optional
-    ///     The content type of the file.
+    ///     The Content-Type response header override, where supported.
     /// cache_control : str, optional
-    ///     The cache control of the file.
+    ///     The Cache-Control response header override, where supported.
     /// content_disposition : str, optional
-    ///     The content disposition of the file.
+    ///     The Content-Disposition response header override, where supported.
     ///
     /// Returns
     /// -------
@@ -1345,15 +1361,18 @@ impl AsyncOperator {
             content_disposition,
         };
         future_into_py(py, async move {
-            let range = opts.make_range();
-            let res = this
-                .reader_options(&path, opts.into())
-                .await
-                .map_err(format_pyerr)?
-                .read(range.to_range())
-                .await
-                .map_err(format_pyerr)?;
-            Python::attach(|py| buffer_into_py_bytes(py, res).map(Bound::unbind))
+            let buffer = if opts.use_prefetch_reader()? {
+                let range = opts.make_range();
+                this.reader_options(&path, opts.into())
+                    .await
+                    .map_err(format_pyerr)?
+                    .read(range)
+                    .await
+            } else {
+                this.read_options(&path, opts.into()).await
+            }
+            .map_err(format_pyerr)?;
+            Python::attach(|py| buffer_into_py_bytes(py, buffer).map(Bound::unbind))
         })
     }
 

@@ -43,7 +43,9 @@ bytes = "1"
 chrono = { version = "0.4.42", features = ["std", "clock"] }
 futures = "0.3"
 object_store = "0.14.1"
-opendal = { version = "0.59.5", path = "../../core", default-features = false }
+opendal = { version = "0.59.5", path = "../../core", default-features = false, features = [
+  "auto-simulate",
+] }
 pin-project = "1.1"
 send_wrapper = { version = "0.6", features = ["futures"], optional = true }
 tokio = { version = "1", default-features = false }

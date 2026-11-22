@@ -89,9 +89,11 @@ all-features = true
 # configured, install the default HTTP transport. Disable this feature when the
 # application needs to install its own process-wide HTTP transport.
 auto-register-services = ["dep:ctor"]
+auto-simulate = ["opendal-core/auto-simulate"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
+  "auto-simulate",
   "http-transport-reqwest",
   "executors-tokio",
   "layers-concurrent-limit",

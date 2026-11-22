@@ -7,10 +7,9 @@
 > delete newer content.
 >
 > Use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
-> to mark affected capabilities as disabled and check `op.info().capability()`
-> before issuing the operation. An explicit conditional call can still reach
-> the server
-> ([#8640](https://github.com/apache/opendal/issues/8640)).
+> to disable the affected capabilities. OpenDAL returns
+> [`opendal_core::ErrorKind::Unsupported`] before sending a conditional write
+> or delete to the server if the operation uses a disabled capability.
 
 ## Capabilities
 
@@ -65,9 +64,8 @@ Each concurrent create trial used eight requests against the same missing path.
 Apache HTTP Server, ownCloud, Nextcloud, and `dav-server` also accepted an
 overwrite when `If-None-Match` supplied the weak form of a current strong ETag.
 
-For the nginx deployment above, report all four conditional write and delete
-capabilities as disabled. Check the flag for the condition you intend to use
-in the operator’s effective capabilities.
+For the nginx deployment above, use `CapabilityOverrideLayer` to disable all
+four conditional write and delete capabilities.
 
 ```rust,no_run
 use opendal_core::layers::CapabilityOverrideLayer;

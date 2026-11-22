@@ -7232,6 +7232,7 @@ dependencies = [
  "opendal-http-transport-reqwest",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
+ "opendal-layer-cache",
  "opendal-layer-capability-check",
  "opendal-layer-chaos",
  "opendal-layer-concurrent-limit",
@@ -7473,6 +7474,19 @@ dependencies = [
  "await-tree",
  "futures",
  "opendal-core",
+]
+
+[[package]]
+name = "opendal-layer-cache"
+version = "0.59.5"
+dependencies = [
+ "bytes",
+ "opendal-core",
+ "opendal-service-fs",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

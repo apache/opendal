@@ -33,6 +33,14 @@ You can apply the code style with the following command:
 ./mvnw spotless:apply
 ```
 
+## Code generation
+
+`ServiceConfig.java`, `Capability.java`, and `src/capability.rs` are generated from OpenDAL core definitions. After changing service configurations or `core/core/src/types/capability.rs`, regenerate them from the repository root:
+
+```shell
+just generate java
+```
+
 ## Run behavior tests
 
 Services behavior tests read necessary configs from env vars or the `.env` file.
@@ -89,4 +97,3 @@ convention for `linux-x86_64`, `linux-x86_64-musl`, `linux-aarch_64`,
 `linux-aarch_64-musl`, `osx-x86_64`, `osx-aarch_64`, and `windows-x86_64`.
 The profile builds the default and `all` JARs in `target/` using the supplied JNI
 libraries.
-</content>

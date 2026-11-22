@@ -37,3 +37,10 @@ This page documents all layers in OpenDAL.
       heading_level: 2
       show_root_heading: true
       show_source: false
+
+::: opendal.layers.HttpConfigLayer
+    options:
+      heading: "HttpConfigLayer"
+      heading_level: 2
+      show_root_heading: true
+      show_source: false

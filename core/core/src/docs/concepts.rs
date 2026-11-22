@@ -105,6 +105,12 @@
 //! Operation-specific values such as ranges, versions, conditions, and
 //! concurrency remain in that operation's options.
 //!
+//! A transport describes how requests are sent, so HTTP client behavior such as
+//! proxies and timeouts belongs to the transport rather than to a service.
+//! [`HttpConfig`] carries portable transport options and
+//! [`HttpTransport::configure`] builds a configured transport. The separate
+//! `opendal-layer-http-config` crate applies one to an operator.
+//!
 //! Adding a layer with [`Operator::layer`] or replacing the base context with
 //! [`Operator::with_context`] rebuilds both the service stack and the composed
 //! context from the same ordered layer list:
@@ -142,3 +148,5 @@
 //! [`Operator::with_context`]: crate::Operator::with_context
 //! [`Capability`]: crate::Capability
 //! [`OperationContext`]: crate::OperationContext
+//! [`HttpConfig`]: crate::HttpConfig
+//! [`HttpTransport::configure`]: crate::HttpTransport::configure

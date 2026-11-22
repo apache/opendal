@@ -36,6 +36,9 @@ use crate::types::Result;
 mod body;
 pub use body::HttpBody;
 
+mod config;
+pub use config::HttpConfig;
+
 mod uri;
 pub use uri::{HttpRedirect, HttpUri};
 
@@ -57,17 +60,38 @@ pub trait HttpTransport: Send + Sync + Unpin + 'static {
     /// Fetch a request and return a streamable [`HttpBody`].
     #[cfg(target_arch = "wasm32")]
     fn fetch(&self, req: Request<Buffer>) -> impl Future<Output = Result<Response<HttpBody>>>;
+
+    /// Build a transport that applies portable [`HttpConfig`] options.
+    ///
+    /// The returned transport must honor every option in `config`, or return an
+    /// error. The default implementation returns [`ErrorKind::Unsupported`] so a
+    /// transport that cannot apply the options fails loudly instead of silently
+    /// ignoring them.
+    fn configure(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        let _ = config;
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "http transport does not support configuration",
+        ))
+    }
 }
 
 /// Object-safe version of [`HttpTransport`].
 pub(crate) trait HttpTransportDyn: Send + Sync + Unpin + 'static {
     /// Fetch a request through a boxed future.
     fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>>;
+
+    /// Build a configured transport.
+    fn configure_dyn(&self, config: &HttpConfig) -> Result<HttpTransporter>;
 }
 
 impl<T: HttpTransport + ?Sized> HttpTransportDyn for T {
     fn fetch_dyn(&self, req: Request<Buffer>) -> BoxedFuture<'_, Result<Response<HttpBody>>> {
         Box::pin(self.fetch(req))
+    }
+
+    fn configure_dyn(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        self.configure(config)
     }
 }
 
@@ -108,6 +132,16 @@ impl HttpTransporter {
     /// configured directly on an operator.
     pub fn install_default(transport: impl HttpTransport) {
         let _ = DEFAULT_HTTP_TRANSPORTER.set(Self::new(transport));
+    }
+
+    /// Build a transport from [`HttpConfig`] using the installed default
+    /// transport.
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] when no default transport is
+    /// installed, and [`ErrorKind::Unsupported`] when the installed transport
+    /// cannot apply the options.
+    pub fn from_config(config: &HttpConfig) -> Result<HttpTransporter> {
+        Self::default().configure(config)
     }
 
     /// Send a request and consume the response body into a [`Buffer`].
@@ -157,6 +191,10 @@ impl HttpTransport for HttpTransporter {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         HttpTransporter::fetch(self, req).await
     }
+
+    fn configure(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        self.inner.configure_dyn(config)
+    }
 }
 
 #[cfg(feature = "reqsign")]
@@ -198,12 +236,19 @@ impl HttpTransport for DefaultHttpTransport {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         fetch_with_default_transport(req).await
     }
+
+    fn configure(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        default_transport()?.configure(config)
+    }
 }
 
 async fn fetch_with_default_transport(req: Request<Buffer>) -> Result<Response<HttpBody>> {
-    match DEFAULT_HTTP_TRANSPORTER.get() {
-        Some(transport) => transport.fetch(req).await,
-        None => Err(Error::new(
+    default_transport()?.fetch(req).await
+}
+
+fn default_transport() -> Result<&'static HttpTransporter> {
+    DEFAULT_HTTP_TRANSPORTER.get().ok_or_else(|| {
+        Error::new(
             ErrorKind::ConfigInvalid,
             "default HTTP transport is not installed",
         )
@@ -211,8 +256,8 @@ async fn fetch_with_default_transport(req: Request<Buffer>) -> Result<Response<H
         .with_context(
             "advice",
             "call HttpTransporter::install_default before using HTTP services",
-        )),
-    }
+        )
+    })
 }
 
 #[cfg(all(test, feature = "reqsign", not(target_arch = "wasm32")))]

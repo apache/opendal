@@ -502,6 +502,8 @@ pub mod layers {
     pub use opendal_layer_hedge::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
+    #[cfg(feature = "layers-http-config")]
+    pub use opendal_layer_http_config::*;
     #[cfg(feature = "layers-immutable-index")]
     pub use opendal_layer_immutable_index::*;
     #[cfg(feature = "layers-logging")]

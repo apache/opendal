@@ -24,12 +24,14 @@
 
 mod capability_override;
 mod concurrent_limit;
+mod http_config;
 mod mime_guess;
 mod retry;
 mod timeout;
 
 pub use capability_override::CapabilityOverrideLayer;
 pub use concurrent_limit::ConcurrentLimitLayer;
+pub use http_config::HttpConfigLayer;
 pub use mime_guess::MimeGuessLayer;
 pub use retry::RetryLayer;
 pub use timeout::TimeoutLayer;

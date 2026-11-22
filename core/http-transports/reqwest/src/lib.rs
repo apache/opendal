@@ -32,6 +32,8 @@ use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::HttpBody;
+#[cfg(not(target_arch = "wasm32"))]
+use opendal_core::HttpConfig;
 use opendal_core::HttpRedirect;
 use opendal_core::HttpTransport;
 use opendal_core::HttpTransporter;
@@ -39,6 +41,8 @@ use opendal_core::HttpUri;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
+#[cfg(not(target_arch = "wasm32"))]
+use opendal_core::raw::signed_duration_to_duration;
 
 static DEFAULT_REQWEST_TRANSPORT: LazyLock<ReqwestTransport> =
     LazyLock::new(|| ReqwestTransport::new(reqwest::Client::new()));
@@ -204,6 +208,66 @@ impl HttpTransport for ReqwestTransport {
         let resp = hr.body(bs).expect("response must build succeed");
         Ok(resp)
     }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn configure(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        let mut builder = reqwest::Client::builder();
+
+        if let Some(proxy) = &config.proxy {
+            if let Ok(url) = reqwest::Url::parse(proxy)
+                && !matches!(url.scheme(), "http" | "https")
+            {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "http proxy scheme is not supported",
+                )
+                .with_operation("reqwest::configure")
+                .with_context("proxy", HttpUri::new(proxy.clone()).redacted_uri()));
+            }
+            let mut reqwest_proxy = reqwest::Proxy::all(proxy).map_err(|err| {
+                Error::new(ErrorKind::ConfigInvalid, "http proxy is invalid")
+                    .with_operation("reqwest::configure")
+                    .with_context("proxy", HttpUri::new(proxy.clone()).redacted_uri())
+                    .set_source(err.without_url())
+            })?;
+            if let Some(no_proxy) = &config.no_proxy {
+                reqwest_proxy = reqwest_proxy.no_proxy(reqwest::NoProxy::from_string(no_proxy));
+            }
+            builder = builder.proxy(reqwest_proxy);
+        }
+        if let Some(value) = config.connect_timeout {
+            builder =
+                builder.connect_timeout(signed_duration_to_duration(value).map_err(|err| {
+                    err.with_operation("reqwest::configure")
+                        .with_context("option", "connect_timeout")
+                })?);
+        }
+        if let Some(value) = config.read_timeout {
+            builder = builder.read_timeout(signed_duration_to_duration(value).map_err(|err| {
+                err.with_operation("reqwest::configure")
+                    .with_context("option", "read_timeout")
+            })?);
+        }
+        if let Some(value) = config.timeout {
+            builder = builder.timeout(signed_duration_to_duration(value).map_err(|err| {
+                err.with_operation("reqwest::configure")
+                    .with_context("option", "timeout")
+            })?);
+        }
+        if let Some(value) = &config.user_agent {
+            builder = builder.user_agent(value.as_str());
+        }
+
+        let client = builder.build().map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                "http client configuration is invalid",
+            )
+            .with_operation("reqwest::configure")
+            .set_source(err.without_url())
+        })?;
+        Ok(HttpTransporter::new(Self::new(client)))
+    }
 }
 
 /// Install the process-wide default reqwest transport.
@@ -220,6 +284,11 @@ struct LazyReqwestTransport;
 impl HttpTransport for LazyReqwestTransport {
     async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
         DEFAULT_REQWEST_TRANSPORT.fetch(req).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn configure(&self, config: &HttpConfig) -> Result<HttpTransporter> {
+        DEFAULT_REQWEST_TRANSPORT.configure(config)
     }
 }
 

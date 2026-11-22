@@ -26,6 +26,7 @@ pub(crate) mod compact;
 
 mod http_transport;
 pub use http_transport::HttpBody;
+pub use http_transport::HttpConfig;
 pub use http_transport::HttpRedirect;
 pub use http_transport::HttpTransport;
 pub use http_transport::HttpTransporter;

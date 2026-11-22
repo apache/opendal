@@ -7244,6 +7244,7 @@ dependencies = [
  "opendal-layer-foyer",
  "opendal-layer-hedge",
  "opendal-layer-hotpath",
+ "opendal-layer-http-config",
  "opendal-layer-immutable-index",
  "opendal-layer-logging",
  "opendal-layer-metrics",
@@ -7619,6 +7620,15 @@ dependencies = [
  "http 1.4.2",
  "opendal-core",
  "tokio",
+]
+
+[[package]]
+name = "opendal-layer-http-config"
+version = "0.59.5"
+dependencies = [
+ "http 1.4.2",
+ "opendal-core",
+ "opendal-http-transport-reqwest",
 ]
 
 [[package]]

@@ -211,6 +211,7 @@ jiff = { version = "0.2.15" }
 # this crate won't be published, we always use the local version
 opendal = { version = ">=0", path = "../../core", features = [
   "blocking",
+  "layers-http-config",
   "layers-mime-guess",
 ] }
 pyo3 = { version = "0.29.1", features = [

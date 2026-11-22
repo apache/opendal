@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from datetime import timedelta
 from typing import final
 
 @final
@@ -60,6 +61,71 @@ class ConcurrentLimitLayer(Layer):
         Returns
         -------
         ConcurrentLimitLayer
+        """
+
+@final
+class HttpConfigLayer(Layer):
+    """
+    A layer that configures the operator's HTTP transport.
+
+    The layer replaces the operator's HTTP client with one built from the given
+    options, so it applies to that operator only: two operators in the same
+    process can use different proxies, timeouts, and user agents.
+
+    Notes
+    -----
+    Setting ``proxy`` replaces the proxy environment variables
+    (``HTTP_PROXY``, ``HTTPS_PROXY``, ``ALL_PROXY``, and ``NO_PROXY``) for this
+    operator. Use ``no_proxy`` to exclude hosts from the proxy.
+
+    The layer replaces the operator's transport instead of wrapping it. Apply it
+    before layers that wrap the transport, such as ``ConcurrentLimitLayer``.
+    """
+
+    def __new__(
+        cls,
+        /,
+        proxy: str | None = None,
+        no_proxy: str | None = None,
+        connect_timeout: timedelta | None = None,
+        read_timeout: timedelta | None = None,
+        timeout: timedelta | None = None,
+        user_agent: str | None = None,
+    ) -> HttpConfigLayer:
+        """
+        Create a new HttpConfigLayer.
+
+        Parameters
+        ----------
+        proxy : Optional[str]
+            Proxy URL used for all requests from this operator, for example
+            ``http://127.0.0.1:7890``. The URL may carry credentials.
+        no_proxy : Optional[str]
+            Comma-separated hosts and domains that bypass ``proxy``, for
+            example ``169.254.169.254,.internal.example.com``. Requires
+            ``proxy``.
+        connect_timeout : Optional[datetime.timedelta]
+            Timeout for establishing a connection. Must not be negative.
+        read_timeout : Optional[datetime.timedelta]
+            Timeout for a single read from the connection. Must not be
+            negative.
+        timeout : Optional[datetime.timedelta]
+            Timeout for a whole HTTP request, including connecting, sending
+            the request, and reading the response body. Must not be negative.
+        user_agent : Optional[str]
+            ``User-Agent`` header sent with every request from this operator.
+
+        Returns
+        -------
+        HttpConfigLayer
+
+        Raises
+        ------
+        ConfigInvalid
+            If ``no_proxy`` is set without ``proxy``, a duration is negative,
+            or a proxy URL is invalid.
+        Unsupported
+            If the installed HTTP transport cannot apply these options.
         """
 
 class Layer:

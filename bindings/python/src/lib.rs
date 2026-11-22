@@ -85,8 +85,8 @@ mod _opendal {
     mod layers {
         #[pymodule_export]
         use crate::{
-            CapabilityOverrideLayer, ConcurrentLimitLayer, Layer, MimeGuessLayer, RetryLayer,
-            TimeoutLayer,
+            CapabilityOverrideLayer, ConcurrentLimitLayer, HttpConfigLayer, Layer, MimeGuessLayer,
+            RetryLayer, TimeoutLayer,
         };
     }
 

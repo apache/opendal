@@ -18,6 +18,7 @@
 """Maintain repository labels and classify the current GitHub event."""
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -28,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+MODEL = "@cf/qwen/qwen3.8-27b"
 PR_CATEGORIES = {
     "feat": "Adds a user-facing feature or capability.",
     "fix": "Fixes incorrect behavior, including a downstream compilation regression.",
@@ -111,10 +112,28 @@ def request(url, token, method="GET", body=None):
                 return json.loads(payload) if payload else None
         except urllib.error.HTTPError as error:
             if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
-                raise RuntimeError(
-                    f"{method} request failed with HTTP {error.code}"
-                ) from None
+                with error:
+                    detail = http_error_detail(error, token)
+                message = f"{method} request failed with HTTP {error.code}"
+                if detail:
+                    message += f": {detail}"
+                raise RuntimeError(message) from None
+            error.close()
             time.sleep(2**attempt)
+
+
+def http_error_detail(error, token):
+    limit = 500
+    try:
+        # Allow for UTF-8 and a token that straddles the snippet boundary.
+        body = error.read(4 * (limit + len(token))).decode("utf-8", errors="replace")
+    except (OSError, http.client.HTTPException):
+        return ""
+    if token:
+        body = body.replace(token, "*" * len(token))
+    detail = "".join(char if char.isprintable() else " " for char in body[:limit])
+    # Keep legacy GitHub Actions command markers out of the log.
+    return detail.replace("##[", "# [").strip()
 
 
 class GitHub:
@@ -162,7 +181,7 @@ def model_request(item, files):
             if is_pr
             else "Choose unclassified if none of the issue categories apply. "
         )
-        + "Return JSON only. /no_think\nCategories:\n"
+        + "Return JSON only.\nCategories:\n"
         + json.dumps(categories)
         + "\nComponents:\n"
         + json.dumps(components)
@@ -201,14 +220,18 @@ def model_request(item, files):
             {"role": "user", "content": json.dumps(data)},
         ],
         "temperature": 0,
-        "max_tokens": 512,
+        "max_completion_tokens": 512,
+        "chat_template_kwargs": {"enable_thinking": False},
         "response_format": {
             "type": "json_schema",
             "json_schema": {
-                "type": "object",
-                "properties": properties,
-                "required": list(properties),
-                "additionalProperties": False,
+                "name": "label_classification",
+                "schema": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": list(properties),
+                    "additionalProperties": False,
+                },
             },
         },
     }
@@ -231,8 +254,11 @@ def classify(body):
     choice = result["choices"][0]
     if choice["finish_reason"] != "stop":
         raise ValueError("Incomplete model output")
+    content = choice["message"]["content"]
+    if not content:
+        raise ValueError("Workers AI returned no classification content")
     print(json.dumps({"model": MODEL, "usage": result.get("usage")}))
-    return json.loads(choice["message"]["content"])
+    return json.loads(content)
 
 
 def generated_file(path):

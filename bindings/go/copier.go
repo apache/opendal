@@ -20,6 +20,7 @@ package opendal
 import (
 	"context"
 	"runtime"
+	"sync"
 )
 
 // Copier drives a long-running copy operation from a source to a destination.
@@ -50,6 +51,10 @@ import (
 //		}
 //	}
 type Copier struct {
+	// mu serializes access to inner. The C copier hands out a &mut to the
+	// underlying Rust copier, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalCopier
 	ctx   context.Context
 }
@@ -75,7 +80,12 @@ type Copier struct {
 //   - The returned Copier must be released with Close.
 func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error) {
 	if len(opts) == 0 {
-		inner, err := ffiOperatorCopier.symbol(op.ctx)(op.inner, src, dest)
+		opInner, release, err := op.acquire()
+		if err != nil {
+			return nil, err
+		}
+		inner, err := ffiOperatorCopier.symbol(op.ctx)(opInner, src, dest)
+		release()
 		if err != nil {
 			return nil, err
 		}
@@ -88,7 +98,12 @@ func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error
 		return nil, err
 	}
 	defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorCopierWith.symbol(op.ctx)(op.inner, src, dest, cOpts)
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	inner, err := ffiOperatorCopierWith.symbol(op.ctx)(opInner, src, dest, cOpts)
+	release()
 	// cOpts holds raw pointers into the Go buffers tracked by keepAlive.
 	// Keep them reachable until the native call above has returned.
 	runtime.KeepAlive(keepAlive)
@@ -105,6 +120,11 @@ func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error
 // A non-nil error reports a failed copy. Calling Next on a closed Copier also
 // returns (0, false, nil).
 func (c *Copier) Next() (size uint, ok bool, err error) {
+	if c == nil {
+		return 0, false, nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.inner == nil {
 		return 0, false, nil
 	}
@@ -116,6 +136,11 @@ func (c *Copier) Next() (size uint, ok bool, err error) {
 // After Abort, the Copier should still be released with Close. Calling Abort
 // on a closed Copier is a no-op.
 func (c *Copier) Abort() error {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.inner == nil {
 		return nil
 	}
@@ -126,6 +151,11 @@ func (c *Copier) Abort() error {
 // Copier is no longer needed. Close is safe to call more than once; subsequent
 // calls are no-ops.
 func (c *Copier) Close() error {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.inner == nil {
 		return nil
 	}

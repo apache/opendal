@@ -19,10 +19,15 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 )
+
+// ErrReaderClosed reports that a Reader is used after Close released it.
+var ErrReaderClosed = errors.New("opendal: reader is closed")
 
 // Read reads the entire contents of the file at the specified path into a byte slice.
 //
@@ -70,7 +75,12 @@ func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
 
 func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) {
 	if len(opts) == 0 {
-		return ffiOperatorRead.symbol(op.ctx)(op.inner, path)
+		inner, release, err := op.acquire()
+		if err != nil {
+			return opendalBytes{}, err
+		}
+		defer release()
+		return ffiOperatorRead.symbol(op.ctx)(inner, path)
 	}
 
 	o := parseReadOptions(opts...)
@@ -79,7 +89,12 @@ func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) 
 		return opendalBytes{}, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(op.inner, path, cOpts)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return opendalBytes{}, err
+	}
+	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(inner, path, cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	return bytes, err
 }
@@ -505,7 +520,12 @@ func newOpendalReaderOptions(ctx context.Context, o *readerOptions) (*opendalRea
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 	if len(opts) == 0 {
-		inner, err := ffiOperatorReader.symbol(op.ctx)(op.inner, path)
+		opInner, release, err := op.acquire()
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+		inner, err := ffiOperatorReader.symbol(op.ctx)(opInner, path)
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +538,12 @@ func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 		return nil, err
 	}
 	defer ffiReaderOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorReaderWith.symbol(op.ctx)(op.inner, path, cOpts)
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	inner, err := ffiOperatorReaderWith.symbol(op.ctx)(opInner, path, cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -527,6 +552,10 @@ func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 }
 
 type Reader struct {
+	// mu serializes access to inner. The C reader hands out a &mut to the
+	// underlying Rust reader, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalReader
 	ctx   context.Context
 }
@@ -545,6 +574,14 @@ var _ io.WriterTo = (*Reader)(nil)
 func (r *Reader) Read(buf []byte) (int, error) {
 	if len(buf) == 0 {
 		return 0, nil
+	}
+	if r == nil {
+		return 0, ErrReaderClosed
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return 0, ErrReaderClosed
 	}
 	size, err := ffiReaderRead.symbol(r.ctx)(r.inner, buf)
 	if size == 0 && err == nil {
@@ -595,6 +632,14 @@ func (r *Reader) Read(buf []byte) (int, error) {
 // Note: The actual new position may differ from the requested position
 // if the underlying storage system has restrictions on seeking.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	if r == nil {
+		return 0, ErrReaderClosed
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return 0, ErrReaderClosed
+	}
 	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
 }
 
@@ -612,8 +657,20 @@ func (r *Reader) WriteTo(dst io.Writer) (int64, error) {
 }
 
 // Close releases resources associated with the OperatorReader.
+//
+// Close is safe to call more than once; further calls are no-ops returning
+// nil. Read and Seek on a closed Reader return ErrReaderClosed.
 func (r *Reader) Close() error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return nil
+	}
 	ffiReaderFree.symbol(r.ctx)(r.inner)
+	r.inner = nil
 	return nil
 }
 

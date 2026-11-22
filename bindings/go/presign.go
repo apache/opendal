@@ -40,7 +40,12 @@ func (op *Operator) PresignRead(path string, expire time.Duration, opts ...WithR
 		return nil, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignReadWith.symbol(op.ctx)(op.inner, path, uint64(expire/time.Second), cOpts)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	req, err := ffiOperatorPresignReadWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
@@ -57,7 +62,12 @@ func (op *Operator) PresignWrite(path string, expire time.Duration, opts ...With
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignWriteWith.symbol(op.ctx)(op.inner, path, uint64(expire/time.Second), cOpts)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	req, err := ffiOperatorPresignWriteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
@@ -74,7 +84,12 @@ func (op *Operator) PresignDelete(path string, expire time.Duration, opts ...Wit
 		return nil, err
 	}
 	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignDeleteWith.symbol(op.ctx)(op.inner, path, uint64(expire/time.Second), cOpts)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	req, err := ffiOperatorPresignDeleteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
@@ -91,7 +106,12 @@ func (op *Operator) PresignStat(path string, expire time.Duration, opts ...WithS
 		return nil, err
 	}
 	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignStatWith.symbol(op.ctx)(op.inner, path, uint64(expire/time.Second), cOpts)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	req, err := ffiOperatorPresignStatWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+	release()
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
@@ -99,7 +119,12 @@ func (op *Operator) PresignStat(path string, expire time.Duration, opts ...WithS
 func (op *Operator) presign(path string, expire time.Duration, call presignFunc) (*http.Request, error) {
 	secs := uint64(expire / time.Second)
 
-	req, err := call(op.inner, path, secs)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	req, err := call(inner, path, secs)
+	release()
 	return op.buildPresignedRequest(req, err)
 }
 

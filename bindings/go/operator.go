@@ -55,7 +55,12 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Rename(src, dest string) error {
-	return ffiOperatorRename.symbol(op.ctx)(op.inner, src, dest)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return ffiOperatorRename.symbol(op.ctx)(inner, src, dest)
 }
 
 // Check verifies if the operator is functioning correctly.
@@ -81,7 +86,12 @@ func (op *Operator) Rename(src, dest string) error {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Check() error {
-	return ffiOperatorCheck.symbol(op.ctx)(op.inner)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return ffiOperatorCheck.symbol(op.ctx)(inner)
 }
 
 func normalizeScheme(scheme Scheme) (*byte, error) {

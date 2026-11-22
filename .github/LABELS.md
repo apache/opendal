@@ -1,7 +1,7 @@
 # Issue and PR labels
 
 The Label workflow classifies the issue or PR that triggered it using Cloudflare
-Workers AI (`@cf/qwen/qwen3-30b-a3b-fp8`). It runs when an issue or PR is opened,
+Workers AI (`@cf/qwen/qwen3.8-27b`). It runs when an issue or PR is opened,
 edited or reopened, and when a PR receives new commits. It processes open items
 only. There is no scheduled scan or historical backfill.
 
@@ -93,10 +93,12 @@ before applying its result and skips a result if the item changed during
 inference. These reads are not an atomic lock against concurrent edits.
 
 Requests retry HTTP 429 and transient server errors up to three attempts.
-Missing credentials, quota exhaustion, truncated output, malformed responses and
-invalid categories fail the job without applying a classification. After fixing the cause, rerun
-the failed job. Logs contain proposed label changes and model token/Neuron
-usage. They do not publish model-generated explanations as comments.
+When an HTTP request fails, the log includes the status and a short response
+excerpt with the request token redacted. Missing credentials, quota exhaustion,
+truncated output, malformed responses and invalid categories fail the job
+without applying a classification. After fixing the cause, rerun the failed job.
+Logs contain proposed label changes and model token/Neuron usage. They do not
+publish model-generated explanations as comments.
 
 Run local contract tests with:
 

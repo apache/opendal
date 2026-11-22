@@ -18,7 +18,9 @@
 """Label taxonomy, model boundary and event application contracts."""
 
 import copy
+import io
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 import label
@@ -57,9 +59,15 @@ class LabelTests(unittest.TestCase):
     def test_schema_separates_issue_and_pr_categories(self):
         issue = label.model_request(self.item(False), [])
         pr = label.model_request(self.item(), [])
-        schema = lambda body: body["response_format"]["json_schema"]["properties"]
-        self.assertNotIn("fix", schema(issue)["category"]["enum"])
-        self.assertNotIn("bug", schema(pr)["category"]["enum"])
+        issue_schema = issue["response_format"]["json_schema"]["schema"]
+        pr_format = pr["response_format"]
+        pr_schema = pr_format["json_schema"]["schema"]
+        self.assertNotIn("fix", issue_schema["properties"]["category"]["enum"])
+        self.assertNotIn("bug", pr_schema["properties"]["category"]["enum"])
+        self.assertEqual(pr_format["type"], "json_schema")
+        self.assertEqual(pr_format["json_schema"]["name"], "label_classification")
+        self.assertEqual(pr["max_completion_tokens"], 512)
+        self.assertIs(pr["chat_template_kwargs"]["enable_thinking"], False)
 
     def test_invalid_model_shapes_never_reach_github(self):
         for result in (
@@ -244,6 +252,34 @@ class LabelTests(unittest.TestCase):
         self.assertEqual(len(github.writes), 1)
         self.assertEqual(github.writes[0][2]["name"], "services/goosefs")
 
+    def test_http_error_reports_a_bounded_body_without_credentials(self):
+        url = "https://api.cloudflare.com/example"
+        token = "example-token-do-not-log"
+        body = (
+            f'{{"errors":[{{"code":5028,"message":"Model deprecated for {token}"}}]}}\n'
+            "##[error]" + "x" * 600
+        )
+        error = urllib.error.HTTPError(
+            url,
+            410,
+            "Gone",
+            {"Authorization": "Bearer header-value"},
+            io.BytesIO(body.encode()),
+        )
+        with (
+            patch("urllib.request.urlopen", side_effect=error),
+            self.assertRaisesRegex(
+                RuntimeError, r"HTTP 410: .*5028.*Model deprecated"
+            ) as caught,
+        ):
+            label.request(url, token, "POST", {})
+        detail = str(caught.exception).partition(": ")[2]
+        self.assertLessEqual(len(detail), 500)
+        self.assertNotIn(token, detail)
+        self.assertNotIn("header-value", detail)
+        self.assertNotIn("\n", detail)
+        self.assertNotIn("##[", detail)
+
     def test_cloudflare_response_is_parsed_and_truncation_rejected(self):
         response = {
             "success": True,
@@ -261,12 +297,24 @@ class LabelTests(unittest.TestCase):
                 "os.environ",
                 {"CLOUDFLARE_ACCOUNT_ID": "a" * 32, "CLOUDFLARE_API_TOKEN": "test"},
             ),
-            patch.object(label, "request", return_value=response),
+            patch.object(label, "request", return_value=response) as request,
             patch("builtins.print"),
         ):
             self.assertEqual(label.classify({}), {"category": "bug", "components": []})
-            response["result"]["choices"][0]["finish_reason"] = "length"
-            with self.assertRaises(ValueError):
+            request.assert_called_once_with(
+                f"https://api.cloudflare.com/client/v4/accounts/{'a' * 32}"
+                "/ai/run/@cf/qwen/qwen3.8-27b",
+                "test",
+                "POST",
+                {},
+            )
+            choice = response["result"]["choices"][0]
+            choice["finish_reason"] = "length"
+            with self.assertRaisesRegex(ValueError, "Incomplete model output"):
+                label.classify({})
+            choice["finish_reason"] = "stop"
+            choice["message"]["content"] = None
+            with self.assertRaisesRegex(ValueError, "no classification content"):
                 label.classify({})
 
 

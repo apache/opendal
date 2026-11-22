@@ -41,7 +41,11 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_batch_delete_with_version_keeps_newer_objects
         ));
         if cap.delete_with_recursive {
-            tests.extend(async_trials!(op, test_delete_with_recursive_basic));
+            tests.extend(async_trials!(
+                op,
+                test_delete_with_recursive_basic,
+                test_delete_with_recursive_no_trailing_slash_matches_prefix
+            ));
         }
         if cap.list_with_recursive {
             tests.extend(async_trials!(op, test_remove_all_basic));
@@ -475,6 +479,53 @@ pub async fn test_delete_with_recursive_basic(op: Operator) -> Result<()> {
     for path in &files {
         assert!(!op.exists(path).await?, "{path} should be removed");
     }
+
+    Ok(())
+}
+
+/// Recursive delete of a path without a trailing slash matches the prefix.
+///
+/// On prefix-based services, `delete_with("a").recursive(true)` removes the
+/// `a` directory, sibling entries under `ab/`, and the sibling file `a.txt`.
+/// A trailing slash would limit deletion to the `a/` directory only.
+pub async fn test_delete_with_recursive_no_trailing_slash_matches_prefix(
+    op: Operator,
+) -> Result<()> {
+    if !op.info().capability().delete_with_recursive {
+        return Ok(());
+    }
+
+    #[cfg(feature = "services-hf")]
+    {
+        if op.info().scheme() == services::HF_SCHEME {
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
+            return Ok(());
+        }
+    }
+
+    let base = format!("delete_recursive_prefix_{}/", uuid::Uuid::new_v4());
+
+    let files = [
+        format!("{base}a/x.txt"),
+        format!("{base}ab/y.txt"),
+        format!("{base}a.txt"),
+    ];
+
+    for path in &files {
+        op.write(path, "delete recursive prefix").await?;
+    }
+
+    // An unrelated sibling must survive: the prefix is `a`, not the base.
+    let kept = format!("{base}b.txt");
+    op.write(&kept, "keep me").await?;
+
+    op.delete_with(&format!("{base}a")).recursive(true).await?;
+
+    for path in &files {
+        assert!(!op.exists(path).await?, "{path} should be removed");
+    }
+    assert!(op.exists(&kept).await?, "{kept} should be kept");
 
     Ok(())
 }

@@ -122,6 +122,82 @@ class IOTest < ActiveSupport::TestCase
     assert_equal "This is a sentence.", File.read("#{@root}/sample_write")
   end
 
+  test "open in append mode appends to existing file" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", "a")
+    io.write("new")
+    io.close
+
+    assert_equal "previousnew", @op.read("log")
+  end
+
+  test "open in append mode accepts integer flags" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", File::WRONLY | File::APPEND)
+    io.write("new")
+    io.close
+
+    assert_equal "previousnew", @op.read("log")
+  end
+
+  test "open in append mode creates missing file" do
+    io = @op.open("created", "a")
+    io.write("data")
+    io.close
+
+    assert_equal "data", @op.read("created")
+  end
+
+  test "open in append mode raises Unsupported without append capability" do
+    op = OpenDal::Operator.new("memory", {})
+    assert_not op.capability.write_can_append
+
+    op.write("log", "previous")
+
+    err = assert_raise(RuntimeError) { op.open("log", "a") }
+    assert_match(/Unsupported/, err.message)
+    assert_equal "previous", op.read("log")
+  end
+
+  test "open in exclusive mode fails when file exists" do
+    @op.write("log", "previous")
+
+    err = assert_raise(RuntimeError) do
+      io = @op.open("log", "wx")
+      io.write("new")
+      io.close
+    end
+
+    assert_match(/ConditionNotMatch/, err.message)
+    assert_equal "previous", @op.read("log")
+  end
+
+  test "open in exclusive mode creates missing file" do
+    io = @op.open("created", "wx")
+    io.write("data")
+    io.close
+
+    assert_equal "data", @op.read("created")
+  end
+
+  test "open in read-write mode raises ArgumentError" do
+    assert_raise(ArgumentError) { @op.open("sample", "r+") }
+    assert_raise(ArgumentError) { @op.open("sample", "w+") }
+    assert_raise(ArgumentError) { @op.open("sample", "a+") }
+  end
+
+  test "open in append mode is not supported for reading" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", "a")
+    err = assert_raise(RuntimeError) { io.read }
+    io.close
+
+    assert_match(/write-only/, err.message)
+  end
+
   test "#readline reads a line" do
     line = @io_read.readline
 

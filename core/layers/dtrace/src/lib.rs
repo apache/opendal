@@ -20,6 +20,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+use std::cell::LazyCell;
 use std::ffi::CString;
 use std::sync::Arc;
 use std::task::Poll;
@@ -49,18 +50,18 @@ mod tests;
 ///     2. read
 ///     3. write
 ///     4. stat
-///     5. delete
-///     6. list
-///     7. presign
+///     5. list
+///     6. presign
 ///
 /// 2. ${operation}_end, arguments: path
 ///     1. create_dir
 ///     2. read
 ///     3. write
 ///     4. stat
-///     5. delete
-///     6. list
-///     7. presign
+///     5. list
+///     6. presign
+///
+/// `delete_start` and `delete_end` surround deleter creation and take no arguments.
 ///
 /// ### For Reader
 ///
@@ -79,6 +80,21 @@ mod tests;
 /// 7. writer_close_start, arguments: path
 /// 8. writer_close_ok, arguments: path
 /// 9. writer_close_error, arguments: path
+///
+/// ### For Lister
+///
+/// `lister_next_start`, `lister_next_ok`, and `lister_next_error` take the listing
+/// path. `lister_next_ok` covers both an entry and the end of the listing.
+///
+/// ### For Deleter
+///
+/// `deleter_delete_start`, `deleter_delete_ok`, and `deleter_delete_error` take
+/// the path passed to the deleter. Paths containing a NUL byte appear as an
+/// empty string in these probes. `deleter_delete_ok` means the deleter accepted
+/// the request, which may still be buffered.
+///
+/// `deleter_close_start`, `deleter_close_ok`, and `deleter_close_error` take no
+/// arguments and trace the final flush.
 ///
 /// ### For HTTP Transport
 ///
@@ -181,7 +197,7 @@ struct DtraceHttpTransport {
 macro_rules! http_probe {
     ($name:ident $(, $arg:expr)*) => {{
         #[cfg(test)]
-        tests::record_http_probe(stringify!($name));
+        tests::record_probe(stringify!($name));
         probe!(opendal, $name $(, $arg)*);
     }};
 }
@@ -217,6 +233,14 @@ impl HttpTransport for DtraceHttpTransport {
     }
 }
 
+macro_rules! operation_probe {
+    ($name:ident $(, $arg:expr)*) => {{
+        #[cfg(test)]
+        tests::record_probe(stringify!($name));
+        probe_lazy!(opendal, $name $(, $arg)*);
+    }};
+}
+
 #[doc(hidden)]
 #[derive(Debug)]
 pub struct DTraceService {
@@ -226,8 +250,8 @@ pub struct DTraceService {
 impl Service for DTraceService {
     type Reader = DtraceLayerWrapper<oio::Reader>;
     type Writer = DtraceLayerWrapper<oio::Writer>;
-    type Lister = oio::Lister;
-    type Deleter = oio::Deleter;
+    type Lister = DtraceLayerWrapper<oio::Lister>;
+    type Deleter = DtraceLayerWrapper<oio::Deleter>;
     type Copier = oio::Copier;
     type Composer = oio::Composer;
 
@@ -321,14 +345,23 @@ impl Service for DTraceService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        self.inner.delete(ctx)
+        operation_probe!(delete_start);
+        let result = self
+            .inner
+            .delete(ctx)
+            .map(|deleter| DtraceLayerWrapper::new(deleter, ""));
+        operation_probe!(delete_end);
+        result
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, list_start, c_path.as_ptr());
-        let result = self.inner.list(ctx, path, args);
-        probe_lazy!(opendal, list_end, c_path.as_ptr());
+        operation_probe!(list_start, c_path.as_ptr());
+        let result = self
+            .inner
+            .list(ctx, path, args)
+            .map(|lister| DtraceLayerWrapper::new(lister, path));
+        operation_probe!(list_end, c_path.as_ptr());
         result
     }
 
@@ -534,6 +567,51 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             })
             .inspect_err(|_| {
                 probe_lazy!(opendal, writer_close_error, c_path.as_ptr());
+            })
+    }
+}
+
+impl<R: oio::List> oio::List for DtraceLayerWrapper<R> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let c_path = LazyCell::new(|| CString::new(self.path.as_str()).unwrap());
+        operation_probe!(lister_next_start, c_path.as_ptr());
+        self.inner
+            .next()
+            .await
+            .inspect(|_| {
+                operation_probe!(lister_next_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                operation_probe!(lister_next_error, c_path.as_ptr());
+            })
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for DtraceLayerWrapper<R> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let c_path = LazyCell::new(|| CString::new(path).unwrap_or_default());
+        operation_probe!(deleter_delete_start, c_path.as_ptr());
+        self.inner
+            .delete(path, args)
+            .await
+            .inspect(|_| {
+                operation_probe!(deleter_delete_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                operation_probe!(deleter_delete_error, c_path.as_ptr());
+            })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        operation_probe!(deleter_close_start);
+        self.inner
+            .close()
+            .await
+            .inspect(|_| {
+                operation_probe!(deleter_close_ok);
+            })
+            .inspect_err(|_| {
+                operation_probe!(deleter_close_error);
             })
     }
 }

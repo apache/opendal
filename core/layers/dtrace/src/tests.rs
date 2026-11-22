@@ -30,12 +30,12 @@ use oio::ReadStream;
 use super::*;
 
 thread_local! {
-    // Tokio's current-thread test runtime keeps each request and body on the test thread.
-    static HTTP_PROBES: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    // Tokio's current-thread test runtime keeps operation futures on the test thread.
+    static PROBES: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(super) fn record_http_probe(name: &'static str) {
-    HTTP_PROBES.with_borrow_mut(|probes| probes.push(name));
+pub(super) fn record_probe(name: &'static str) {
+    PROBES.with_borrow_mut(|probes| probes.push(name));
 }
 
 struct TestTransport(Mutex<Option<Result<Response<HttpBody>>>>);
@@ -87,7 +87,7 @@ async fn forwards_http_response_without_reading_ahead() {
         "bytes 0-10/12"
     );
     assert_eq!(chunks_read.load(Ordering::Relaxed), 0);
-    HTTP_PROBES.with_borrow(|probes| {
+    PROBES.with_borrow(|probes| {
         assert_eq!(probes.as_slice(), ["http_request_start", "http_request_ok"]);
     });
 
@@ -96,7 +96,7 @@ async fn forwards_http_response_without_reading_ahead() {
     assert_eq!(chunks_read.load(Ordering::Relaxed), 1);
     assert_eq!(body.read().await.unwrap().to_vec(), b"second");
     assert!(body.read().await.unwrap().is_empty());
-    HTTP_PROBES.with_borrow(|probes| {
+    PROBES.with_borrow(|probes| {
         assert_eq!(
             probes.as_slice(),
             [
@@ -125,7 +125,7 @@ async fn forwards_http_error_status_and_body_error() {
     assert_eq!(error.to_string(), expected);
     assert_eq!(error.kind(), ErrorKind::Unexpected);
     assert!(error.is_temporary());
-    HTTP_PROBES.with_borrow(|probes| {
+    PROBES.with_borrow(|probes| {
         assert_eq!(
             probes.as_slice(),
             [
@@ -160,10 +160,75 @@ async fn forwards_http_transport_error() {
         .expect("transport error");
     assert_eq!(error.to_string(), expected);
     assert_eq!(error.kind(), ErrorKind::PermissionDenied);
-    HTTP_PROBES.with_borrow(|probes| {
+    PROBES.with_borrow(|probes| {
         assert_eq!(
             probes.as_slice(),
             ["http_request_start", "http_request_error"]
         );
     });
+}
+
+#[tokio::test]
+async fn traces_lister_entries_and_end_of_stream() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?.layer(DtraceLayer::new());
+    op.write("dir/file", "data").await?;
+
+    let mut lister = op.lister("dir/").await?;
+    assert_eq!(lister.next().await.transpose()?.unwrap().path(), "dir/file");
+    assert!(lister.next().await.is_none());
+    PROBES.with_borrow(|probes| {
+        assert_eq!(
+            probes.as_slice(),
+            [
+                "list_start",
+                "list_end",
+                "lister_next_start",
+                "lister_next_ok",
+                "lister_next_start",
+                "lister_next_ok",
+            ]
+        );
+    });
+    Ok(())
+}
+
+#[tokio::test]
+async fn traces_deleter_and_preserves_results() -> Result<()> {
+    let base = Operator::new(services::Memory::default())?;
+    base.write("dir/file", "data").await?;
+    let nul_path = "file\0name";
+    base.write(nul_path, "data").await?;
+    let op = base.clone().layer(DtraceLayer::new());
+
+    let mut deleter = op.deleter().await?;
+    let error = deleter.delete("dir/").await.unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::Unexpected);
+    assert_eq!(error.message(), "directory not empty");
+    let options = options::DeleteOptions {
+        recursive: true,
+        ..Default::default()
+    };
+    deleter.delete(("dir/".to_owned(), options)).await?;
+    deleter.delete(nul_path).await?;
+    deleter.close().await?;
+    assert!(!base.exists("dir/file").await?);
+    assert!(!base.exists(nul_path).await?);
+    PROBES.with_borrow(|probes| {
+        assert_eq!(
+            probes.as_slice(),
+            [
+                "delete_start",
+                "delete_end",
+                "deleter_delete_start",
+                "deleter_delete_error",
+                "deleter_delete_start",
+                "deleter_delete_ok",
+                "deleter_delete_start",
+                "deleter_delete_ok",
+                "deleter_close_start",
+                "deleter_close_ok",
+            ]
+        );
+    });
+    Ok(())
 }

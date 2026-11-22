@@ -74,7 +74,7 @@ pub fn install_default() {
     feature = "executors-tokio",
     not(target_arch = "wasm32")
 ))]
-mod tests {
+mod default_executor_tests {
     #[tokio::test]
     async fn default_executor_runs_concurrent_reads() -> crate::Result<()> {
         let op = crate::Operator::via_iter("memory", [])?;

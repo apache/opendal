@@ -265,11 +265,13 @@ def test_sync_file_sequential_read_uses_one_request(request_server):
         file.read(1)
 
 
-def test_sync_file_flush_keeps_small_writes_coalesced(request_server):
+@pytest.mark.parametrize("chunk", [None, 0], ids=["default", "zero"])
+def test_sync_file_flush_keeps_small_writes_coalesced(request_server, chunk):
     endpoint, state = request_server
     state._reset()
     op = opendal.Operator("webdav", endpoint=endpoint, disable_create_dir="true")
-    with op.open("file", "wb") as file:
+    options = {} if chunk is None else {"chunk": chunk}
+    with op.open("file", "wb", **options) as file:
         for _ in range(1000):
             assert file.write(b"small") == 5
         file.flush()

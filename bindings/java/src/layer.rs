@@ -26,6 +26,7 @@ use jni::jni_sig;
 use jni::jni_str;
 use jni::objects::IntoAuto;
 use jni::objects::JClass;
+use jni::objects::JLongArray;
 use jni::objects::JObject;
 use jni::objects::JObjectArray;
 use jni::objects::JString;
@@ -51,6 +52,7 @@ use opendal::layers::SanityCheckLayer;
 use opendal::layers::TailCutLayer;
 use opendal::layers::ThrottleLayer;
 use opendal::layers::TimeoutLayer;
+use opendal::raw::Operation;
 use opendal::{Error, ErrorKind};
 
 #[unsafe(no_mangle)]
@@ -491,23 +493,69 @@ pub extern "system" fn Java_org_apache_opendal_layer_ThrottleLayer_doLayer<'loca
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_org_apache_opendal_layer_TimeoutLayer_doLayer<'local>(
+pub extern "system" fn Java_org_apache_opendal_layer_TimeoutLayer_doLayerWithTimeouts<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
     timeout_nanos: jlong,
     io_timeout_nanos: jlong,
+    operations: JObjectArray<'local, JString<'local>>,
+    operation_timeout_nanos: JLongArray<'local>,
 ) -> jlong {
-    env.with_env(|_| -> Result<jlong> {
+    env.with_env(|env| -> Result<jlong> {
         let timeout_nanos = u64::try_from(timeout_nanos)
             .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "timeout must be non-negative"))?;
         let io_timeout_nanos = u64::try_from(io_timeout_nanos)
             .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "ioTimeout must be non-negative"))?;
-        let op = unsafe { &*op };
-        let timeout = TimeoutLayer::new()
+        let mut layer = TimeoutLayer::new()
             .with_timeout(Duration::from_nanos(timeout_nanos))
             .with_io_timeout(Duration::from_nanos(io_timeout_nanos));
-        Ok(Box::into_raw(Box::new(op.clone().layer(timeout))) as jlong)
+
+        let operation_count = operations.len(env)?;
+        if operation_count != operation_timeout_nanos.len(env)? {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "operations and operation timeouts must have the same length",
+            )
+            .into());
+        }
+        let mut timeouts = vec![0; operation_count];
+        operation_timeout_nanos.get_region(env, 0, &mut timeouts)?;
+        for (index, timeout) in timeouts.into_iter().enumerate() {
+            let name = operations.get_element(env, index)?.auto();
+            let name = jstring_to_string(env, &name)?;
+            let operation = match name.as_str() {
+                "create_dir" => Operation::CreateDir,
+                "read" => Operation::Read,
+                "write" => Operation::Write,
+                "copy" => Operation::Copy,
+                "compose" => Operation::Compose,
+                "rename" => Operation::Rename,
+                "restore" => Operation::Restore,
+                "stat" => Operation::Stat,
+                "delete" => Operation::Delete,
+                "list" => Operation::List,
+                "presign" => Operation::Presign,
+                _ => {
+                    return Err(
+                        Error::new(ErrorKind::ConfigInvalid, "unknown timeout operation")
+                            .with_context("operation", name)
+                            .into(),
+                    );
+                }
+            };
+            let timeout = u64::try_from(timeout).map_err(|_| {
+                Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "operation timeout must be non-negative",
+                )
+                .with_context("operation", operation.into_static())
+            })?;
+            layer = layer.with_operation_timeout(operation, Duration::from_nanos(timeout));
+        }
+
+        let op = unsafe { &*op };
+        Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
     })
     .resolve::<ThrowException>()
 }

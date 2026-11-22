@@ -25,6 +25,7 @@ import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -51,6 +52,7 @@ import org.apache.opendal.layer.SanityCheckLayer;
 import org.apache.opendal.layer.TailCutLayer;
 import org.apache.opendal.layer.ThrottleLayer;
 import org.apache.opendal.layer.TimeoutLayer;
+import org.apache.opendal.layer.TimeoutLayer.Operation;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -479,8 +481,9 @@ public class LayerTest {
         assertThat(op.stat(layeredPath).join().contentType).isEqualTo(contentType);
     }
 
-    @Test
-    void testTimeoutLayer() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testTimeoutLayer(boolean useOperationTimeout) throws Exception {
         final CountDownLatch releaseResponse = new CountDownLatch(1);
         final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/file", exchange -> {
@@ -497,14 +500,73 @@ public class LayerTest {
             final ServiceConfig.Http config = ServiceConfig.Http.builder()
                     .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
                     .build();
+            final Duration timeout = Duration.ofMillis(100);
+            final TimeoutLayer layer = useOperationTimeout
+                    ? new TimeoutLayer().withOperationTimeout(Operation.STAT, timeout)
+                    : new TimeoutLayer().withTimeout(timeout);
             @Cleanup final AsyncOperator op = AsyncOperator.of(config);
-            @Cleanup final AsyncOperator layeredOp = op.layer(new TimeoutLayer().withTimeout(Duration.ofMillis(100)));
+            @Cleanup final AsyncOperator layeredOp = op.layer(layer);
             assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
                     .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
                     .hasMessageContaining("operation timeout reached");
         } finally {
             releaseResponse.countDown();
             server.stop(0);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {100, 0})
+    void testTimeoutLayerOverridesOnlyTheSpecifiedOperation(long timeoutMillis) throws Exception {
+        final byte[] content = {1, 2, 3};
+        final CountDownLatch readStarted = new CountDownLatch(1);
+        final CountDownLatch releaseRead = new CountDownLatch(1);
+        final CountDownLatch releaseStat = new CountDownLatch(1);
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        final ExecutorService handlers = Executors.newFixedThreadPool(2);
+        try {
+            server.setExecutor(handlers);
+            server.createContext("/file", exchange -> {
+                try {
+                    if ("HEAD".equals(exchange.getRequestMethod())) {
+                        releaseStat.await();
+                        return;
+                    }
+                    readStarted.countDown();
+                    releaseRead.await();
+                    exchange.sendResponseHeaders(200, content.length);
+                    exchange.getResponseBody().write(content);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final TimeoutLayer.TimeoutLayerBuilder builder = TimeoutLayer.builder()
+                    .operationTimeout(Operation.STAT, Duration.ofSeconds(30))
+                    .operationTimeout(Operation.STAT, Duration.ofMillis(timeoutMillis));
+            final TimeoutLayer layer = builder.build().withTimeout(Duration.ofSeconds(30));
+            builder.operationTimeout(Operation.STAT, Duration.ofSeconds(30));
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(layer);
+
+            final CompletableFuture<byte[]> read = layeredOp.read("file");
+            assertThat(readStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("operation timeout reached");
+            releaseRead.countDown();
+            assertThat(read.get(5, TimeUnit.SECONDS)).containsExactly(content);
+        } finally {
+            releaseRead.countDown();
+            releaseStat.countDown();
+            server.stop(0);
+            handlers.shutdownNow();
         }
     }
 
@@ -518,7 +580,16 @@ public class LayerTest {
             assertThatThrownBy(() -> new TimeoutLayer().withIoTimeout(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageStartingWith("ioTimeout ");
+            assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(Operation.STAT, invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("timeout ");
         }
+        assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(null, Duration.ZERO))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("operation");
+        assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(Operation.STAT, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("timeout");
     }
 
     @Test

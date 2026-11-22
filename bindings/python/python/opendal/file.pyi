@@ -20,6 +20,8 @@ import types
 import typing
 from typing import Any, final
 
+__all__ = ["AsyncFile", "File"]
+
 @final
 class AsyncFile:
     """

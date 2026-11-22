@@ -28,6 +28,8 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.LongBinaryOperator;
+import java.util.function.LongUnaryOperator;
 
 /**
  * AsyncOperator represents an underneath OpenDAL operator that
@@ -111,7 +113,7 @@ public class AsyncOperator extends NativeObject {
 
     public final OperatorInfo info;
 
-    private final long executorHandle;
+    private final AsyncExecutor executor;
 
     /**
      * Construct an OpenDAL operator.
@@ -159,16 +161,15 @@ public class AsyncOperator extends NativeObject {
      * @param executor the underneath executor to run async operations; {@code null} to use a default global executor.
      */
     public static AsyncOperator of(String scheme, Map<String, String> map, AsyncExecutor executor) {
-        final long executorHandle = executor != null ? executor.nativeHandle : 0;
-        final long nativeHandle = constructor(scheme, map, executorHandle);
+        final long nativeHandle = withExecutor(executor, handle -> constructor(scheme, map, handle));
         final OperatorInfo info = makeOperatorInfo(nativeHandle);
-        return new AsyncOperator(nativeHandle, executorHandle, info);
+        return new AsyncOperator(nativeHandle, executor, info);
     }
 
-    private AsyncOperator(long nativeHandle, long executorHandle, OperatorInfo info) {
+    private AsyncOperator(long nativeHandle, AsyncExecutor executor, OperatorInfo info) {
         super(nativeHandle);
         this.info = info;
-        this.executorHandle = executorHandle;
+        this.executor = executor;
     }
 
     /**
@@ -181,8 +182,8 @@ public class AsyncOperator extends NativeObject {
      * @return the cloned operator.
      */
     public AsyncOperator duplicate() {
-        final long nativeHandle = duplicate(this.nativeHandle);
-        return new AsyncOperator(nativeHandle, this.executorHandle, this.info);
+        final long nativeHandle = withHandle(AsyncOperator::duplicate);
+        return new AsyncOperator(nativeHandle, executor, info);
     }
 
     /**
@@ -196,8 +197,8 @@ public class AsyncOperator extends NativeObject {
      * @return the layered new operator.
      */
     public AsyncOperator layer(Layer layer) {
-        final long nativeHandle = layer.layer(this.nativeHandle);
-        return new AsyncOperator(nativeHandle, this.executorHandle, makeOperatorInfo(nativeHandle));
+        final long nativeHandle = withHandle(handle -> layer.layer(handle));
+        return new AsyncOperator(nativeHandle, executor, makeOperatorInfo(nativeHandle));
     }
 
     /**
@@ -209,8 +210,7 @@ public class AsyncOperator extends NativeObject {
      * @return the blocking new operator.
      */
     public Operator blocking() {
-        final long nativeHandle = makeBlockingOp(this.nativeHandle, this.executorHandle);
-        final OperatorInfo info = this.info;
+        final long nativeHandle = withOperatorAndExecutor(AsyncOperator::makeBlockingOp);
         return new Operator(nativeHandle, info);
     }
 
@@ -230,7 +230,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Void> write(String path, byte[] content, WriteOptions options) {
-        final long requestId = write(nativeHandle, executorHandle, path, content, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> write(op, exec, path, content, options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -239,7 +239,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<Metadata> stat(String path, StatOptions options) {
-        final long requestId = stat(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> stat(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -252,7 +252,7 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<byte[]> read(String path, ReadOptions options) {
-        final long requestId = read(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> read(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -272,7 +272,8 @@ public class AsyncOperator extends NativeObject {
      * @return the presigned request.
      */
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration, ReadOptions options) {
-        final long requestId = presignRead(nativeHandle, executorHandle, path, duration.toNanos(), options);
+        final long requestId =
+                withOperatorAndExecutor((op, exec) -> presignRead(op, exec, path, duration.toNanos(), options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -292,7 +293,8 @@ public class AsyncOperator extends NativeObject {
      * @return the presigned request.
      */
     public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration, WriteOptions options) {
-        final long requestId = presignWrite(nativeHandle, executorHandle, path, duration.toNanos(), options);
+        final long requestId =
+                withOperatorAndExecutor((op, exec) -> presignWrite(op, exec, path, duration.toNanos(), options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -312,7 +314,8 @@ public class AsyncOperator extends NativeObject {
      * @return the presigned request.
      */
     public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration, StatOptions options) {
-        final long requestId = presignStat(nativeHandle, executorHandle, path, duration.toNanos(), options);
+        final long requestId =
+                withOperatorAndExecutor((op, exec) -> presignStat(op, exec, path, duration.toNanos(), options));
         return AsyncRegistry.take(requestId);
     }
 
@@ -331,27 +334,27 @@ public class AsyncOperator extends NativeObject {
      *     if an option is unsupported, a condition fails, or deletion fails
      */
     public CompletableFuture<Void> delete(String path, DeleteOptions options) {
-        final long requestId = delete(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> delete(op, exec, path, options));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> createDir(String path) {
-        final long requestId = createDir(nativeHandle, executorHandle, path);
+        final long requestId = withOperatorAndExecutor((op, exec) -> createDir(op, exec, path));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> copy(String sourcePath, String targetPath) {
-        final long requestId = copy(nativeHandle, executorHandle, sourcePath, targetPath);
+        final long requestId = withOperatorAndExecutor((op, exec) -> copy(op, exec, sourcePath, targetPath));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> rename(String sourcePath, String targetPath) {
-        final long requestId = rename(nativeHandle, executorHandle, sourcePath, targetPath);
+        final long requestId = withOperatorAndExecutor((op, exec) -> rename(op, exec, sourcePath, targetPath));
         return AsyncRegistry.take(requestId);
     }
 
     public CompletableFuture<Void> removeAll(String path) {
-        final long requestId = removeAll(nativeHandle, executorHandle, path);
+        final long requestId = withOperatorAndExecutor((op, exec) -> removeAll(op, exec, path));
         return AsyncRegistry.take(requestId);
     }
 
@@ -360,15 +363,17 @@ public class AsyncOperator extends NativeObject {
     }
 
     public CompletableFuture<List<Entry>> list(String path, ListOptions options) {
-        final long requestId = list(nativeHandle, executorHandle, path, options);
+        final long requestId = withOperatorAndExecutor((op, exec) -> list(op, exec, path, options));
         final CompletableFuture<Entry[]> result = AsyncRegistry.take(requestId);
         return Objects.requireNonNull(result).thenApplyAsync(Arrays::asList);
     }
 
-    @Override
-    public synchronized void close() {
-        // Route registration holds this monitor while cloning the native operator.
-        super.close();
+    private long withOperatorAndExecutor(LongBinaryOperator action) {
+        return withHandle(op -> withExecutor(executor, exec -> action.applyAsLong(op, exec)));
+    }
+
+    private static long withExecutor(AsyncExecutor executor, LongUnaryOperator action) {
+        return executor == null ? action.applyAsLong(0) : executor.withHandle(action::applyAsLong);
     }
 
     @Override

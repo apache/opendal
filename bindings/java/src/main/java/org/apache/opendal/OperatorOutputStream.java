@@ -62,8 +62,7 @@ public class OperatorOutputStream extends OutputStream {
         if (maxBytes <= 0) {
             throw new IllegalArgumentException("maxBytes must be positive");
         }
-        final long op = operator.nativeHandle;
-        this.writer = new Writer(constructWriter(op, path, options));
+        this.writer = new Writer(operator.withHandle(handle -> constructWriter(handle, path, options)));
         this.bytes = new byte[maxBytes];
         this.maxBatchBytes = maxBatchBytes;
     }

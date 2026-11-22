@@ -81,9 +81,9 @@ fn intern_constructor(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_duplicate<'local>(
     _: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> jlong {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op };
     Box::into_raw(Box::new(op.clone())) as jlong
 }
 
@@ -108,7 +108,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_disposeInter
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     content: JByteArray<'local>,
@@ -120,7 +120,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_write<'local
 
 fn intern_write(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     content: JByteArray,
@@ -151,7 +151,7 @@ fn intern_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     stat_options: JObject<'local>,
@@ -162,7 +162,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_stat<'local>
 
 fn intern_stat(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
@@ -188,7 +188,7 @@ fn intern_stat(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     read_options: JObject<'local>,
@@ -199,7 +199,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_read<'local>
 
 fn intern_read(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
@@ -231,7 +231,7 @@ fn intern_read(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     options: JObject<'local>,
@@ -242,7 +242,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_delete<'loca
 
 fn intern_delete(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
@@ -271,7 +271,7 @@ fn intern_delete(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlockingOp<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
 ) -> jlong {
     env.with_env(|env| intern_make_blocking_op(env, op, executor))
@@ -280,10 +280,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeBlocking
 
 fn intern_make_blocking_op(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
 ) -> Result<jlong> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op };
     let op = executor_or_default(env, executor)?
         .enter_with(move || blocking::Operator::new(op.clone()))?;
     Ok(Box::into_raw(Box::new(op)) as jlong)
@@ -296,7 +296,7 @@ fn intern_make_blocking_op(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperatorInfo<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> JObject<'local> {
     env.with_env(|env| intern_make_operator_info(env, op))
         .resolve::<ThrowException>()
@@ -304,9 +304,9 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_makeOperator
 
 fn intern_make_operator_info<'local>(
     env: &mut Env<'local>,
-    op: *mut Operator,
+    op: *const Operator,
 ) -> Result<JObject<'local>> {
-    let op = unsafe { &mut *op };
+    let op = unsafe { &*op };
     make_operator_info(env, op.info())
 }
 
@@ -317,7 +317,7 @@ fn intern_make_operator_info<'local>(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
 ) -> jlong {
@@ -327,7 +327,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_createDir<'l
 
 fn intern_create_dir(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
@@ -354,7 +354,7 @@ fn intern_create_dir(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString<'local>,
     target_path: JString<'local>,
@@ -365,7 +365,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_copy<'local>
 
 fn intern_copy(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString,
     target_path: JString,
@@ -394,7 +394,7 @@ fn intern_copy(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString<'local>,
     target_path: JString<'local>,
@@ -405,7 +405,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_rename<'loca
 
 fn intern_rename(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     source_path: JString,
     target_path: JString,
@@ -434,7 +434,7 @@ fn intern_rename(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
 ) -> jlong {
@@ -444,7 +444,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_removeAll<'l
 
 fn intern_remove_all(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
 ) -> Result<jlong> {
@@ -471,7 +471,7 @@ fn intern_remove_all(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     options: JObject<'local>,
@@ -482,7 +482,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_list<'local>
 
 fn intern_list(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     options: JObject,
@@ -522,7 +522,7 @@ fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JO
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
@@ -534,7 +534,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignRead<
 
 fn intern_presign_read(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,
@@ -561,7 +561,7 @@ fn intern_presign_read(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
@@ -573,7 +573,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignWrite
 
 fn intern_presign_write(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,
@@ -601,7 +601,7 @@ fn intern_presign_write(
 pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat<'local>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString<'local>,
     expire: jlong,
@@ -613,7 +613,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_AsyncOperator_presignStat<
 
 fn intern_presign_stat(
     env: &mut Env,
-    op: *mut Operator,
+    op: *const Operator,
     executor: *const Executor,
     path: JString,
     expire: jlong,

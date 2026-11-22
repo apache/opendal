@@ -270,8 +270,9 @@ pub trait RetryBudget: Send + Sync + RefUnwindSafe + Debug + 'static {
     /// success. Each reader deposits once when its first range completes, even
     /// when it reads multiple ranges concurrently or resumes an interrupted
     /// stream. A streaming range completes at EOF or when it yields the final
-    /// byte of a bounded range. Writers, copiers, and deleters deposit once on
-    /// successful close. Listers deposit once when they first reach the end.
+    /// byte of a bounded range. Writers, copiers, composers, and deleters
+    /// deposit once on successful close. Listers deposit once when they first
+    /// reach the end.
     fn deposit(&self, op: Operation);
 
     /// Atomically reserve one retry. Return `false` without changing the
@@ -481,7 +482,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
     type Lister = RetryWrapper<oio::Lister, I>;
     type Deleter = RetryWrapper<oio::Deleter, I>;
     type Copier = RetryWrapper<oio::Copier, I>;
-    type Composer = oio::Composer;
+    type Composer = RetryWrapper<oio::Composer, I>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -492,7 +493,11 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let composer = self.policy.retry_blocking(Operation::Compose, || {
+            self.inner.compose(ctx, to, args.clone())
+        })?;
+
+        Ok(RetryWrapper::new(composer, self.policy.clone()))
     }
 
     async fn create_dir(
@@ -907,6 +912,30 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
     }
 }
 
+impl<C: oio::Compose, I: RetryInterceptor> oio::Compose for RetryWrapper<C, I> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.retry(Operation::Compose, |mut inner| {
+            let args = args.clone();
+            async move {
+                let result = inner.compose(path, args).await;
+                (inner, result)
+            }
+        })
+        .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let result = self
+            .retry(Operation::Compose, |mut inner| async move {
+                let result = inner.close().await;
+                (inner, result)
+            })
+            .await?;
+        self.deposit_once(Operation::Compose);
+        Ok(result)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     mod budget;
@@ -927,6 +956,7 @@ mod tests {
     struct MockBuilder {
         attempt: Arc<Mutex<usize>>,
         operation_failures: Option<usize>,
+        compose: MockComposeConfig,
     }
 
     impl MockBuilder {
@@ -935,6 +965,11 @@ mod tests {
                 operation_failures: Some(failures),
                 ..Default::default()
             }
+        }
+
+        fn with_compose(mut self, compose: MockComposeConfig) -> Self {
+            self.compose = compose;
+            self
         }
     }
 
@@ -945,6 +980,7 @@ mod tests {
             Ok(MockService {
                 attempt: self.attempt,
                 operation_failures: self.operation_failures,
+                compose: self.compose,
             })
         }
     }
@@ -953,6 +989,7 @@ mod tests {
     struct MockService {
         attempt: Arc<Mutex<usize>>,
         operation_failures: Option<usize>,
+        compose: MockComposeConfig,
     }
 
     impl MockService {
@@ -1004,7 +1041,7 @@ mod tests {
         type Lister = MockLister;
         type Deleter = MockDeleter;
         type Copier = MockCopier;
-        type Composer = ();
+        type Composer = MockComposer;
 
         fn info(&self) -> ServiceInfo {
             ServiceInfo::with_scheme("mock")
@@ -1021,6 +1058,7 @@ mod tests {
                 list: true,
                 list_with_recursive: true,
                 copy: true,
+                compose: true,
                 ..Default::default()
             }
         }
@@ -1073,6 +1111,29 @@ mod tests {
         fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
             Ok(MockCopier {
                 attempt: self.attempt.clone(),
+            })
+        }
+
+        fn compose(&self, _: &OperationContext, to: &str, _: OpCompose) -> Result<Self::Composer> {
+            let mut state = self.compose.state.lock().unwrap();
+            state.creation_attempts += 1;
+            let attempt = state.creation_attempts;
+            drop(state);
+
+            if attempt <= self.compose.creation_failures {
+                return Err(Error::new(
+                    ErrorKind::RateLimited,
+                    "temporary compose initialization failure",
+                )
+                .set_temporary());
+            }
+
+            Ok(MockComposer {
+                state: self.compose.state.clone(),
+                to: to.to_string(),
+                source_failures: self.compose.source_failures,
+                close_failures: self.compose.close_failures,
+                source_error: self.compose.source_error,
             })
         }
 
@@ -1271,6 +1332,94 @@ mod tests {
         async fn abort(&mut self) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[derive(Debug, Default)]
+    struct MockComposeState {
+        creation_attempts: usize,
+        source_attempts: usize,
+        close_attempts: usize,
+        sources: Vec<String>,
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct MockComposeConfig {
+        state: Arc<Mutex<MockComposeState>>,
+        creation_failures: usize,
+        source_failures: usize,
+        close_failures: usize,
+        source_error: Option<ErrorKind>,
+    }
+
+    #[derive(Debug, Clone)]
+    struct MockComposer {
+        state: Arc<Mutex<MockComposeState>>,
+        to: String,
+        source_failures: usize,
+        close_failures: usize,
+        source_error: Option<ErrorKind>,
+    }
+
+    impl oio::Compose for MockComposer {
+        async fn compose(&mut self, path: &str, _: OpRead) -> Result<()> {
+            let mut state = self.state.lock().unwrap();
+            state.source_attempts += 1;
+            let attempt = state.source_attempts;
+
+            if let Some(kind) = self.source_error {
+                return Err(Error::new(kind, "non-temporary compose source failure"));
+            }
+            if attempt <= self.source_failures {
+                return Err(
+                    Error::new(ErrorKind::RateLimited, "temporary compose source failure")
+                        .set_temporary(),
+                );
+            }
+            if path == self.to {
+                return Err(Error::new(
+                    ErrorKind::IsSameFile,
+                    "source and destination paths are same",
+                ));
+            }
+
+            state.sources.push(path.to_string());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            let mut state = self.state.lock().unwrap();
+            state.close_attempts += 1;
+            let attempt = state.close_attempts;
+            drop(state);
+
+            if attempt <= self.close_failures {
+                return Err(
+                    Error::new(ErrorKind::RateLimited, "temporary compose close failure")
+                        .set_temporary(),
+                );
+            }
+
+            Ok(MetadataBuilder::file(13).build())
+        }
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct RecordingComposeBudget {
+        reserves: Arc<Mutex<usize>>,
+        deposits: Arc<Mutex<Vec<Operation>>>,
+    }
+
+    impl RetryBudget for RecordingComposeBudget {
+        fn deposit(&self, op: Operation) {
+            self.deposits.lock().unwrap().push(op);
+        }
+
+        fn try_reserve(&self, _: Operation) -> bool {
+            *self.reserves.lock().unwrap() += 1;
+            true
+        }
+
+        fn release(&self, _: Operation) {}
     }
 
     fn setup() {
@@ -1527,6 +1676,147 @@ mod tests {
                 (Operation::Copy, 1),
             ],
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_compose_initialization() -> Result<()> {
+        setup();
+
+        let compose = MockComposeConfig {
+            creation_failures: 2,
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO)
+                .with_max_times(2),
+        );
+
+        let mut composer = op.composer("target").await?;
+        composer.compose("source").await?;
+        assert_eq!(composer.close().await?.content_length(), 13);
+        assert_eq!(compose.state.lock().unwrap().creation_attempts, 3);
+
+        let compose = MockComposeConfig {
+            creation_failures: usize::MAX,
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO)
+                .with_max_times(2),
+        );
+
+        let err = op
+            .composer("target")
+            .await
+            .err()
+            .expect("compose initialization must fail");
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_persistent());
+        assert_eq!(compose.state.lock().unwrap().creation_attempts, 3);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_compose_source() -> Result<()> {
+        setup();
+
+        let compose = MockComposeConfig {
+            source_failures: 2,
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO)
+                .with_max_times(2),
+        );
+
+        let mut composer = op.composer("target").await?;
+        composer.compose("source").await?;
+        {
+            let state = compose.state.lock().unwrap();
+            assert_eq!(state.source_attempts, 3);
+            assert_eq!(state.sources, vec!["source".to_string()]);
+        }
+
+        let compose = MockComposeConfig {
+            source_error: Some(ErrorKind::PermissionDenied),
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO),
+        );
+
+        let mut composer = op.composer("target").await?;
+        let err = composer
+            .compose("source")
+            .await
+            .expect_err("non-temporary compose source error must fail");
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        let state = compose.state.lock().unwrap();
+        assert_eq!(state.source_attempts, 1);
+        assert!(state.sources.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_compose_close() -> Result<()> {
+        setup();
+
+        let budget = RecordingComposeBudget::default();
+        let compose = MockComposeConfig {
+            close_failures: 2,
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO)
+                .with_max_times(2)
+                .with_budget(budget.clone()),
+        );
+
+        let mut composer = op.composer("target").await?;
+        composer.compose("source").await?;
+        assert!(budget.deposits.lock().unwrap().is_empty());
+        assert_eq!(composer.close().await?.content_length(), 13);
+        assert_eq!(compose.state.lock().unwrap().close_attempts, 3);
+        assert_eq!(*budget.reserves.lock().unwrap(), 2);
+        assert_eq!(
+            budget.deposits.lock().unwrap().as_slice(),
+            [Operation::Compose]
+        );
+
+        let compose = MockComposeConfig {
+            close_failures: usize::MAX,
+            ..Default::default()
+        };
+        let builder = MockBuilder::default().with_compose(compose.clone());
+        let op = Operator::new(builder.clone())?.layer(
+            RetryLayer::new()
+                .with_min_delay(Duration::ZERO)
+                .with_max_delay(Duration::ZERO)
+                .with_max_times(2),
+        );
+
+        let mut composer = op.composer("target").await?;
+        composer.compose("source").await?;
+        let err = composer.close().await.expect_err("compose close must fail");
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_persistent());
+        assert_eq!(compose.state.lock().unwrap().close_attempts, 3);
         Ok(())
     }
 }

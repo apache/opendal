@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
@@ -223,10 +225,17 @@ pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     assert!(op.exists(&directory).await?, "{directory} should exist");
     op.remove_all(&directory).await?;
 
-    assert!(
-        !op.exists(&directory).await?,
-        "{directory} should be removed"
-    );
+    // COS ListObjects is eventually consistent after deletes, so the removed
+    // directory can stay visible to existence checks that list its prefix.
+    // See apache/opendal#7502.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while op.exists(&directory).await? {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "{directory} should be removed"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
     for path in descendants {
         assert!(!op.exists(&path).await?, "{path} should be removed");
     }

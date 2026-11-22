@@ -528,7 +528,9 @@ impl Operator {
         path: String,
         opts: options::StatOptions,
     ) -> Result<Metadata> {
-        let rp = srv.stat(&ctx, &path, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_stat_args(srv.info().scheme(), srv.capability(), &args)?;
+        let rp = srv.stat(&ctx, &path, args).await?;
         Ok(rp.into_metadata())
     }
 
@@ -712,7 +714,7 @@ impl Operator {
         }
 
         let (mut range, args, opts) = opts.into();
-        // Creating a reader validates capabilities without opening the object.
+        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
         let reader = srv.read(&ctx, &path, args.clone())?;
         if limit == Some(0) || range.size() == Some(0) {
             return Ok(Buffer::new());
@@ -841,6 +843,7 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
+        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
         let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         Ok(Reader::new(read_context))
@@ -1334,8 +1337,10 @@ impl Operator {
             );
         }
 
-        let args = OpCompose::from_options(&srv.capability(), opts)
+        let capability = srv.capability();
+        let args = OpCompose::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_compose_args(srv.info().scheme(), capability, &args)?;
         Composer::create(ctx, srv, to, args)
     }
 
@@ -1596,7 +1601,9 @@ impl Operator {
         let capability = srv.capability();
         let args = OpCopy::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        crate::layers::check_copy_metadata_args(srv.info().scheme(), capability, &args)?;
+        let scheme = srv.info().scheme();
+        crate::layers::check_copy_metadata_args(scheme, capability, &args)?;
+        crate::layers::check_copy_args(scheme, capability, &args)?;
         Copier::create(ctx, srv, &from, &to, args)
     }
 
@@ -1739,7 +1746,9 @@ impl Operator {
             );
         }
 
-        srv.rename(&ctx, &from, &to, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_rename_args(srv.info().scheme(), srv.capability(), &args)?;
+        srv.rename(&ctx, &from, &to, args).await?;
 
         Ok(())
     }
@@ -1828,7 +1837,9 @@ impl Operator {
             .with_context("path", path));
         }
 
-        srv.restore(&ctx, &path, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_restore_args(srv.info().scheme(), srv.capability(), &args)?;
+        srv.restore(&ctx, &path, args).await?;
         Ok(())
     }
 
@@ -2382,6 +2393,7 @@ impl Operator {
         opts: options::ListOptions,
     ) -> Result<Lister> {
         let args = OpList::from_options(opts)?;
+        crate::layers::check_list_args(srv.info().scheme(), srv.capability(), &args)?;
         Lister::create(ctx, srv, &path, args)
     }
 }

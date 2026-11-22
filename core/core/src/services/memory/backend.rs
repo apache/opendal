@@ -76,6 +76,7 @@ impl MemoryBackend {
             write_with_content_encoding: true,
             write_with_content_language: true,
             write_with_if_not_exists: true,
+            write_with_user_metadata: true,
             delete: true,
             delete_with_recursive: true,
             stat: true,
@@ -271,6 +272,31 @@ mod tests {
 
         op.write(path, "bonjour").await?;
         assert_eq!(op.stat(path).await?.content_language(), None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_close_and_overwrite_user_metadata() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let mut writer = op
+            .writer_with(path)
+            .user_metadata([("owner".to_string(), "opendal".to_string())])
+            .await?;
+        writer.write("hello").await?;
+        let written = writer.close().await?;
+        assert_eq!(
+            written
+                .user_metadata()
+                .and_then(|metadata| metadata.get("owner")),
+            Some("opendal")
+        );
+
+        op.write_with(path, "bonjour").user_metadata([]).await?;
+        assert!(op.stat(path).await?.user_metadata().unwrap().is_empty());
+
+        op.write(path, "hello again").await?;
+        assert!(op.stat(path).await?.user_metadata().is_none());
         Ok(())
     }
 

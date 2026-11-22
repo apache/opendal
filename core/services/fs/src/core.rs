@@ -17,7 +17,6 @@
 
 #[cfg(unix)]
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -30,6 +29,7 @@ pub struct FsCore {
     pub capability: Capability,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
+    pub direct_io: bool,
     pub buf_pool: oio::PooledBuf,
 }
 
@@ -104,79 +104,6 @@ impl FsCore {
         }
 
         Ok(m.build())
-    }
-
-    pub async fn fs_open(&self, path: &str) -> Result<File> {
-        let p = self.root_join(path)?;
-
-        let f = tokio::fs::OpenOptions::new()
-            .read(true)
-            .open(&p)
-            .await
-            .map_err(new_std_io_error)?
-            .into_std()
-            .await;
-
-        Ok(f)
-    }
-
-    pub async fn fs_write(&self, path: &PathBuf, op: &OpWrite) -> Result<tokio::fs::File> {
-        let mut open_options = tokio::fs::OpenOptions::new();
-        if op.if_not_exists() {
-            open_options.create_new(true);
-        } else {
-            open_options.create(true);
-        }
-
-        open_options.write(true);
-
-        if op.append() {
-            open_options.append(true);
-        } else {
-            open_options.truncate(true);
-        }
-
-        let f = open_options
-            .open(path)
-            .await
-            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("OpenForWrite")), err))?;
-
-        Ok(f)
-    }
-
-    /// This function is used to build a tempfile for writing.
-    ///
-    /// We don't care about the OpWrite since every check should be performed on target path directly.
-    pub async fn fs_tempfile_write(
-        &self,
-        path: &str,
-    ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
-        let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug.",
-            ));
-        };
-
-        let tmp_path = self
-            .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
-            .await?;
-
-        let mut open_options = tokio::fs::OpenOptions::new();
-
-        // tempfile should always be new file.
-        open_options.create_new(true);
-        open_options.write(true);
-        open_options.truncate(true);
-
-        let f = open_options.open(&tmp_path).await.map_err(|err| {
-            parse_error(
-                ErrorContext::new(ServiceOperation("OpenTemporaryFile")),
-                err,
-            )
-        })?;
-
-        Ok((f, Some(tmp_path)))
     }
 
     pub async fn fs_list(&self, path: &str) -> Result<Option<tokio::fs::ReadDir>> {

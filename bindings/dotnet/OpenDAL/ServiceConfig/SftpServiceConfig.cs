@@ -37,6 +37,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? ConnectTimeout { get; init; }
         /// <summary>
+        /// Directory for the SSH control socket. The SSH client creates a temporary directory holding the control socket here. Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory.
+        /// </summary>
+        public string? ControlDirectory { get; init; }
+        /// <summary>
         /// Deprecated: SFTP copy capability is enabled by default.
         /// </summary>
         [System.Obsolete("SFTP copy capability is enabled by default and this option is no longer needed.")]
@@ -74,6 +78,10 @@ namespace OpenDAL.ServiceConfig
             if (ConnectTimeout is not null)
             {
                 map["connect_timeout"] = Utilities.ToOptionString(ConnectTimeout);
+            }
+            if (ControlDirectory is not null)
+            {
+                map["control_directory"] = Utilities.ToOptionString(ControlDirectory);
             }
 #pragma warning disable CS0618
             if (EnableCopy is not null)

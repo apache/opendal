@@ -3566,6 +3566,12 @@ public interface ServiceConfig {
          */
         public final Duration connectTimeout;
         /**
+         * <p>Directory for the SSH control socket.</p>
+         * <p>The SSH client creates a temporary directory holding the control socket here.
+         * Defaults to <code>$XDG_STATE_HOME</code> or <code>$HOME/.local/state</code>, falling back to the current directory.</p>
+         */
+        public final String controlDirectory;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3605,6 +3611,9 @@ public interface ServiceConfig {
             }
             if (connectTimeout != null) {
                 map.put("connect_timeout", connectTimeout.toString());
+            }
+            if (controlDirectory != null) {
+                map.put("control_directory", controlDirectory);
             }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));

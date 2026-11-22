@@ -106,6 +106,8 @@ pub struct Manager {
     pub(super) key: Option<String>,
     pub(super) known_hosts_strategy: KnownHosts,
     pub(super) connect_timeout: Option<Duration>,
+    #[cfg(not(windows))]
+    pub(super) control_directory: Option<String>,
 }
 
 impl Manager {
@@ -156,6 +158,10 @@ impl ManageObject for Manager {
         }
 
         session.known_hosts_check(self.known_hosts_strategy.clone());
+        #[cfg(not(windows))]
+        if let Some(dir) = &self.control_directory {
+            session.control_directory(dir);
+        }
         if let Some(timeout) = self.connect_timeout {
             // OpenSSH uses whole seconds. Keep a process-side limit even if the Rust
             // deadline expires first and drops the connect future.
@@ -429,6 +435,8 @@ mod tests {
                 key: None,
                 known_hosts_strategy: KnownHosts::Strict,
                 connect_timeout: None,
+                #[cfg(not(windows))]
+                control_directory: None,
             },
             Some(Duration::from_millis(10)),
         );

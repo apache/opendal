@@ -384,6 +384,6 @@ logforth = { workspace = true }
 rand = { workspace = true }
 reqwest = "0.13.2"
 sha2 = { workspace = true }
-size = "0.5"
+size = "0.6"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { workspace = true, features = ["serde", "v4"] }

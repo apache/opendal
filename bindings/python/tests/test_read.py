@@ -410,3 +410,39 @@ def test_sync_readinto_buffer_boundaries(operator):
             assert target == b"??abcdef??"
     finally:
         operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_empty_buffers(operator):
+    filename = f"readinto_empty_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with operator.open(filename, "rb") as reader:
+            # Zero-length buffers may carry a NULL data pointer; `readinto`
+            # must return 0 instead of panicking.
+            assert reader.readinto(bytearray()) == 0
+            assert reader.readinto(memoryview(bytearray(0))) == 0
+            assert reader.tell() == 0
+
+        with operator.open(filename, "rb") as reader:
+            # A zero-length read at EOF also returns 0 without touching the
+            # buffer pointer.
+            reader.read()
+            assert reader.readinto(bytearray(4)) == 0
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_readonly_empty_buffer(operator):
+    filename = f"readinto_empty_readonly_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with (
+            operator.open(filename, "rb") as reader,
+            pytest.raises(OSError, match="not writable"),
+        ):
+            # A zero-length but readonly buffer is still rejected.
+            reader.readinto(memoryview(b""))
+    finally:
+        operator.delete(filename)

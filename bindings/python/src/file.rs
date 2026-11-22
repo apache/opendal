@@ -221,17 +221,29 @@ impl File {
 
         check_runtime_process()?;
         let size = buffer.len_bytes();
+        if size == 0 {
+            return Ok(0);
+        }
         // Wait using owned storage, without exposing the Python buffer to I/O.
         let data = py.detach(|| reader.read_buffer(size))?;
         let len = data.len();
-        let target = buffer.as_slice_ptr().expect("buffer was validated above");
+        if len == 0 {
+            return Ok(0);
+        }
+        let target = buffer
+            .as_slice_ptr()
+            .ok_or_else(|| PyIOError::new_err("Buffer pointer is null or not C contiguous."))?;
+        assert!(len <= target.len());
         let mut offset = 0;
         for chunk in data {
             // SAFETY: the buffer is writable, C-contiguous, and `as_slice_ptr`
-            // covers `item_count` elements, so writing `chunk.len()` bytes at
-            // `offset` stays within the buffer. `data` is owned storage that
-            // cannot overlap the Python buffer. Only the prefix holding `len`
-            // bytes is overwritten; the buffer tail is left untouched.
+            // covers `target.len()` elements with `len <= target.len()`, so
+            // writing `chunk.len()` bytes at `offset` stays within the buffer.
+            // `data` is owned storage that cannot overlap the Python buffer.
+            // Callers must not mutate or read the same buffer from another
+            // thread while `readinto` runs (possible under free-threaded
+            // Python). Only the prefix holding `len` bytes is overwritten; the
+            // buffer tail is left untouched.
             unsafe {
                 std::ptr::copy_nonoverlapping(
                     chunk.as_ptr(),

@@ -86,6 +86,19 @@ async fn main() {
 }
 ```
 
+### Object attributes and renames
+
+`get` and `get_opts` expose the content attributes and user metadata returned
+by the service in `GetResult.attributes`. To retrieve attributes without reading
+the body, use `get_opts` with `GetOptions::with_head(true)`. The `head`
+convenience method returns only `ObjectMeta`.
+
+`rename` and `rename_if_not_exists` use OpenDAL's rename support when the
+operator advertises the requested mode. Otherwise, the integration copies the
+object and deletes the source after a successful copy. The `Create` mode
+requires a conditional rename or conditional copy and returns `NotSupported`
+when the operator supports neither.
+
 ### Tune vectored reads
 
 `OpendalStore` coalesces ranges separated by up to 1 MiB by default, matching

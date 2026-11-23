@@ -258,22 +258,26 @@ impl Io {
         if let FileState::Reader(reader) = &mut handle.state {
             let buffer: Option<bytes::Bytes> = match size {
                 Some(size) => {
-                    if size <= 0 {
+                    if size < 0 {
                         return Err(Error::new(
                             ruby.exception_arg_error(),
                             format!("negative length {} given", size),
                         ));
                     }
-                    let mut bs = vec![0; size as usize];
-                    let n = reader
-                        .read(&mut bs)
-                        .map_err(|err| format_io_error(ruby, err))?;
-                    if n == 0 && size > 0 {
-                        // when called at end of file, read(positive_integer) returns nil.
-                        None
+                    if size == 0 {
+                        Some(bytes::Bytes::new())
                     } else {
-                        bs.truncate(n);
-                        Some(bs.into())
+                        let mut bs = vec![0; size as usize];
+                        let n = reader
+                            .read(&mut bs)
+                            .map_err(|err| format_io_error(ruby, err))?;
+                        if n == 0 {
+                            // when called at end of file, read(positive_integer) returns nil.
+                            None
+                        } else {
+                            bs.truncate(n);
+                            Some(bs.into())
+                        }
                     }
                 }
                 None => {
@@ -285,11 +289,13 @@ impl Io {
                 }
             };
 
-            // when provided the buffer parameter, append read buffer
-            if let (Some(output_buffer), Some(inner)) =
-                (option_output_buffer.as_mut(), buffer.as_ref())
-            {
-                output_buffer.cat(inner);
+            if let Some(output_buffer) = option_output_buffer.as_mut() {
+                if size == Some(0) {
+                    // Ruby clears the output buffer for a zero-length read.
+                    output_buffer.drop_bytes(output_buffer.len())?;
+                } else if let Some(inner) = buffer.as_ref() {
+                    output_buffer.cat(inner);
+                }
             }
 
             Ok(buffer)

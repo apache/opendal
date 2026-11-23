@@ -101,11 +101,24 @@ class IOTest < ActiveSupport::TestCase
   end
 
   test "#read raises ArgumentError with -1" do
-    assert_raise(ArgumentError) do |err|
-      @io_read.read(-1)
+    err = assert_raise(ArgumentError) { @io_read.read(-1) }
 
-      assert_equal "negative length -1 given", err.message
-    end
+    assert_equal "negative length -1 given", err.message
+  end
+
+  test "#read with zero size returns an empty string without moving the stream" do
+    buffer = +"stale"
+
+    assert_equal "", @io_read.read(0)
+    assert_equal "", @io_read.read(0, buffer)
+    assert_equal "", buffer
+    assert_equal 0, @io_read.pos
+    assert_equal "Sample", @io_read.read(6)
+
+    @io_read.read
+    assert @io_read.eof?
+    assert_equal "", @io_read.read(0)
+    assert_equal 43, @io_read.pos
   end
 
   test "#read reads to a buffer" do
@@ -235,6 +248,15 @@ class IOTest < ActiveSupport::TestCase
 
   test "#eof? returns" do
     @io_read.read
+    assert @io_read.eof?
+  end
+
+  test "#eof? preserves the stream position" do
+    @io_read.read(1)
+
+    assert_not @io_read.eof?
+    assert_equal 1, @io_read.pos
+    assert_equal "ample data for testing\nA line after title\n", @io_read.read
     assert @io_read.eof?
   end
 

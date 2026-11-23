@@ -57,7 +57,7 @@ impl std::fmt::Debug for CompleteService {
 
 impl Service for CompleteService {
     type Reader = CompleteReader<oio::Reader>;
-    type Writer = CompleteWriter<oio::Writer>;
+    type Writer = CompleteWriter;
     type Lister = CompleteLister;
     type Deleter = oio::Deleter;
     type Copier = CompleteCopier;
@@ -384,41 +384,59 @@ pub(crate) fn check_complete(size: Option<u64>, actual: u64) -> Result<()> {
     }
 }
 
-/// Tracks the state of the Write operation.
-/// A successful operation goes through states: Open -> Written -> Closed
-/// A failed operation terminates in the Error state
-#[derive(Debug, PartialEq, Eq)]
-enum CompleteState {
-    Open,
-    Written,
+/// State of a [`CompleteWriter`].
+///
+/// The writer lives in the state because each phase decides what to do with it:
+/// `Open` and `Written` keep it for the next write, `Failed` keeps it so the
+/// caller can still abort, and `Closed` holds none.
+///
+/// A failure stays recorded until the writer is closed or aborted, so a later
+/// successful operation does not clear it.
+enum State {
+    /// The writer has not accepted data yet.
+    Open(oio::Writer),
+    /// The writer accepted data and must be closed or aborted.
+    Written(oio::Writer),
+    /// The writer is closed or aborted and accepts no more data.
     Closed,
-    Error,
+    /// A write, copy, or close failed. The writer is kept so the caller can
+    /// still abort it.
+    Failed(oio::Writer),
 }
 
-impl CompleteState {
-    /// Attempt to transition to the destination state. Once CompleteState has
-    /// errored all further transitions are ignored.
-    fn transition(&mut self, destination: CompleteState) {
-        if *self != CompleteState::Error {
-            *self = destination
+impl State {
+    /// Record that the writer accepted data.
+    fn written(self) -> State {
+        match self {
+            State::Open(writer) | State::Written(writer) => State::Written(writer),
+            State::Failed(writer) => State::Failed(writer),
+            State::Closed => State::Closed,
+        }
+    }
+
+    /// Record that a write, copy, or close failed.
+    fn failed(self) -> State {
+        match self {
+            State::Open(writer) | State::Written(writer) | State::Failed(writer) => {
+                State::Failed(writer)
+            }
+            State::Closed => State::Closed,
         }
     }
 }
 
-pub struct CompleteWriter<W> {
-    inner: Option<W>,
+pub struct CompleteWriter {
     append: bool,
     size: u64,
-    state: CompleteState,
+    state: State,
 }
 
-impl<W> CompleteWriter<W> {
-    pub fn new(inner: W, append: bool) -> CompleteWriter<W> {
+impl CompleteWriter {
+    pub fn new(inner: oio::Writer, append: bool) -> CompleteWriter {
         CompleteWriter {
-            inner: Some(inner),
             append,
             size: 0,
-            state: CompleteState::Open,
+            state: State::Open(inner),
         }
     }
 
@@ -441,14 +459,45 @@ impl<W> CompleteWriter<W> {
             ),
         }
     }
+
+    /// Validate the metadata returned by the inner writer on close.
+    ///
+    /// An append cannot verify the written size, so it requires the service to
+    /// report the final content length. A service that reports unknown metadata
+    /// gets the size written through this writer promoted onto it.
+    fn check_close(&self, metadata: Metadata) -> Result<Metadata> {
+        if metadata.is_file() {
+            self.check(metadata.content_length())?;
+            return Ok(metadata);
+        }
+        if self.append {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "append result does not contain the final content length",
+            )
+            .with_operation("CompleteWriter::close"));
+        }
+
+        let mut builder = metadata.into_builder();
+        builder.set_file(self.size);
+        Ok(builder.build())
+    }
+
+    /// Move the state out so an operation can record its outcome on it.
+    ///
+    /// The writer moves to the next state through this call. `State::Closed`
+    /// fills the slot during the move, and no await point is crossed here.
+    fn take_state(&mut self) -> State {
+        std::mem::replace(&mut self.state, State::Closed)
+    }
 }
 
 /// Check if the writer has been closed or aborted while debug_assertions
 /// enabled. This code will never be executed in release mode.
 #[cfg(debug_assertions)]
-impl<W> Drop for CompleteWriter<W> {
+impl Drop for CompleteWriter {
     fn drop(&mut self) {
-        if self.state == CompleteState::Written {
+        if matches!(self.state, State::Written(_)) {
             log::warn!(
                 "writer has not been closed or aborted after successful write operation, must be a bug"
             )
@@ -456,100 +505,115 @@ impl<W> Drop for CompleteWriter<W> {
     }
 }
 
-impl<W> oio::Write for CompleteWriter<W>
-where
-    W: oio::Write,
-{
+impl oio::Write for CompleteWriter {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            debug_assert_ne!(
-                self.state,
-                CompleteState::Open,
-                "bug: inner is empty, but state is Open"
-            );
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
+        let len = bs.len() as u64;
 
-        let len = bs.len();
-        w.write(bs)
-            .await
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        self.size += len as u64;
-        self.state.transition(CompleteState::Written);
+        // The writer stays in the state while the write runs, so a canceled
+        // write never loses it.
+        let result = match &mut self.state {
+            State::Open(writer) | State::Written(writer) | State::Failed(writer) => {
+                writer.write(bs).await
+            }
+            State::Closed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has been closed or aborted",
+                ));
+            }
+        };
+
+        let state = self.take_state();
+        self.state = if result.is_ok() {
+            state.written()
+        } else {
+            state.failed()
+        };
+        result?;
+        self.size += len;
 
         Ok(())
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
+        // The writer stays in the state while the copy runs, so a canceled copy
+        // never loses it.
+        let writer = match &mut self.state {
+            State::Open(writer) | State::Written(writer) | State::Failed(writer) => writer,
+            State::Closed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has been closed or aborted",
+                ));
+            }
+        };
         let size = range.size().ok_or_else(|| {
             Error::new(
                 ErrorKind::Unexpected,
                 "native writer copy requires a bounded range",
             )
         })?;
+        let result = writer.copy_from(path, args, range).await;
 
-        w.copy_from(path, args, range)
-            .await
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
+        let state = self.take_state();
+        self.state = if result.is_ok() {
+            state.written()
+        } else {
+            state.failed()
+        };
+        result?;
         self.size += size;
-        self.state.transition(CompleteState::Written);
+
         Ok(())
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            debug_assert_ne!(
-                self.state,
-                CompleteState::Open,
-                "bug: inner is empty, but state is Open"
-            );
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
-
-        // we must return `Err` before setting inner to None; otherwise,
-        // we won't be able to retry `close` in `RetryLayer`.
-        let ret = w
-            .close()
-            .await
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        let ret = if ret.is_file() {
-            self.check(ret.content_length())
-                .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-            ret
-        } else if self.append {
-            let err = Error::new(
-                ErrorKind::Unexpected,
-                "append result does not contain the final content length",
-            )
-            .with_operation("CompleteWriter::close");
-            self.state.transition(CompleteState::Error);
-            return Err(err);
-        } else {
-            let mut builder = ret.into_builder();
-            builder.set_file(self.size);
-            builder.build()
+        // The writer stays in the state while closing, so a failed close can be
+        // retried.
+        let result = match &mut self.state {
+            State::Open(writer) | State::Written(writer) | State::Failed(writer) => {
+                writer.close().await
+            }
+            State::Closed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has been closed or aborted",
+                ));
+            }
         };
-        self.inner = None;
-        self.state.transition(CompleteState::Closed);
+        let result = result.and_then(|metadata| self.check_close(metadata));
 
-        Ok(ret)
+        // Keep the writer when closing failed: `RetryLayer` closes it again.
+        let state = self.take_state();
+        self.state = if result.is_ok() {
+            State::Closed
+        } else {
+            state.failed()
+        };
+        result
     }
 
     async fn abort(&mut self) -> Result<()> {
-        let w = self.inner.as_mut().ok_or_else(|| {
-            Error::new(ErrorKind::Unexpected, "writer has been closed or aborted")
-        })?;
+        let result = match &mut self.state {
+            State::Open(writer) | State::Written(writer) | State::Failed(writer) => {
+                writer.abort().await
+            }
+            State::Closed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer has been closed or aborted",
+                ));
+            }
+        };
 
-        w.abort()
-            .await
-            .inspect_err(|_| self.state.transition(CompleteState::Error))?;
-        self.inner = None;
-        self.state.transition(CompleteState::Closed);
-
-        Ok(())
+        // Keep the writer when aborting failed, so `abort` can be retried.
+        let state = self.take_state();
+        self.state = if result.is_ok() {
+            State::Closed
+        } else {
+            state.failed()
+        };
+        result
     }
 }
 
@@ -665,14 +729,36 @@ mod tests {
 
     struct MockWriter {
         metadata: Metadata,
+        /// Number of `write` calls that fail before one succeeds.
+        write_failures: usize,
+        /// Number of `close` calls that fail before one succeeds.
+        close_failures: usize,
+    }
+
+    impl MockWriter {
+        fn new(metadata: Metadata) -> Self {
+            Self {
+                metadata,
+                write_failures: 0,
+                close_failures: 0,
+            }
+        }
     }
 
     impl oio::Write for MockWriter {
         async fn write(&mut self, _: Buffer) -> Result<()> {
+            if self.write_failures > 0 {
+                self.write_failures -= 1;
+                return Err(Error::new(ErrorKind::Unexpected, "mock write failed"));
+            }
             Ok(())
         }
 
         async fn close(&mut self) -> Result<Metadata> {
+            if self.close_failures > 0 {
+                self.close_failures -= 1;
+                return Err(Error::new(ErrorKind::Unexpected, "mock close failed"));
+            }
             Ok(self.metadata.clone())
         }
 
@@ -771,25 +857,78 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_copy_from_error_is_terminal() {
-        let mut writer = CompleteWriter::new(UnsupportedCopyWriter, false);
+        let mut writer = CompleteWriter::new(Box::new(UnsupportedCopyWriter), false);
 
         let err = writer
             .copy_from("source", OpRead::new(), BytesRange::new(0, Some(8)))
             .await
             .expect_err("copy_from should fail");
         assert_eq!(err.kind(), ErrorKind::Unsupported);
-        assert_eq!(writer.state, CompleteState::Error);
+        assert!(matches!(writer.state, State::Failed(_)));
 
         writer.abort().await.unwrap();
-        assert!(writer.inner.is_none());
+        assert!(matches!(writer.state, State::Closed));
+    }
+
+    #[tokio::test]
+    async fn test_writer_close_is_terminal() -> Result<()> {
+        let mut writer = CompleteWriter::new(
+            Box::new(MockWriter::new(MetadataBuilder::unknown().build())),
+            false,
+        );
+        writer.write(Buffer::from("abc")).await?;
+        writer.close().await?;
+        assert!(matches!(writer.state, State::Closed));
+
+        // A closed writer accepts no more writes and can't be closed or
+        // aborted again.
+        assert!(writer.write(Buffer::from("a")).await.is_err());
+        assert!(writer.close().await.is_err());
+        assert!(writer.abort().await.is_err());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_failed_close_keeps_writer_for_retry() -> Result<()> {
+        let mut inner = MockWriter::new(MetadataBuilder::unknown().build());
+        inner.close_failures = 1;
+        let mut writer = CompleteWriter::new(Box::new(inner), false);
+        writer.write(Buffer::from("abc")).await?;
+
+        let err = writer.close().await.expect_err("first close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(matches!(writer.state, State::Failed(_)));
+
+        // The failed close keeps the writer, so a retry can still close it.
+        let metadata = writer.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 3);
+        assert!(matches!(writer.state, State::Closed));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_records_failure_until_closed_or_aborted() -> Result<()> {
+        let mut inner = MockWriter::new(MetadataBuilder::unknown().build());
+        inner.write_failures = 1;
+        let mut writer = CompleteWriter::new(Box::new(inner), false);
+
+        assert!(writer.write(Buffer::from("abc")).await.is_err());
+        assert!(matches!(writer.state, State::Failed(_)));
+
+        // A later successful write does not clear the recorded failure.
+        writer.write(Buffer::from("abc")).await?;
+        assert!(matches!(writer.state, State::Failed(_)));
+
+        writer.abort().await?;
+        assert!(matches!(writer.state, State::Closed));
+        Ok(())
     }
 
     #[tokio::test]
     async fn test_writer_promotes_unknown_metadata_with_written_size() -> Result<()> {
-        let inner = MockWriter {
-            metadata: MetadataBuilder::unknown().build(),
-        };
-        let mut writer = CompleteWriter::new(inner, false);
+        let inner = MockWriter::new(MetadataBuilder::unknown().build());
+        let mut writer = CompleteWriter::new(Box::new(inner), false);
         writer.write(Buffer::from("abc")).await?;
 
         let metadata = writer.close().await?;
@@ -800,10 +939,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_preserves_explicit_empty_file_length() -> Result<()> {
-        let inner = MockWriter {
-            metadata: MetadataBuilder::file(0).build(),
-        };
-        let mut writer = CompleteWriter::new(inner, false);
+        let inner = MockWriter::new(MetadataBuilder::file(0).build());
+        let mut writer = CompleteWriter::new(Box::new(inner), false);
 
         let metadata = writer.close().await?;
         assert!(metadata.is_file());
@@ -813,10 +950,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_writer_rejects_explicit_zero_after_writing() {
-        let inner = MockWriter {
-            metadata: MetadataBuilder::file(0).build(),
-        };
-        let mut writer = CompleteWriter::new(inner, false);
+        let inner = MockWriter::new(MetadataBuilder::file(0).build());
+        let mut writer = CompleteWriter::new(Box::new(inner), false);
         writer.write(Buffer::from("a")).await.unwrap();
 
         let err = writer
@@ -828,10 +963,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_append_requires_final_content_length() {
-        let inner = MockWriter {
-            metadata: MetadataBuilder::unknown().build(),
-        };
-        let mut writer = CompleteWriter::new(inner, true);
+        let inner = MockWriter::new(MetadataBuilder::unknown().build());
+        let mut writer = CompleteWriter::new(Box::new(inner), true);
         writer.write(Buffer::from("a")).await.unwrap();
 
         let err = writer

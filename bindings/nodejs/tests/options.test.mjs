@@ -24,8 +24,9 @@ const path = 'options-bigint'
 const content = Buffer.from('0123456789abcdef')
 
 // BigInt values that cannot be represented as an unsigned 64-bit integer.
-// Accepting them silently turned -1n into u64::MAX and 1n << 64n into 0n, so
-// reads and writes addressed the wrong bytes instead of failing.
+// Accepting them silently dropped the sign and the high bits, so -1n became 1
+// and 1n << 64n became 0, and reads and writes addressed the wrong bytes
+// instead of failing.
 const invalidValues = [
   ['negative', -1n],
   ['wider than u64', 1n << 64n],

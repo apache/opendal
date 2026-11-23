@@ -38,6 +38,19 @@ pub struct AzfileConfig {
     pub account_key: Option<String>,
     /// The sas token for azfile.
     pub sas_token: Option<String>,
+    /// The client id of the service principal for Microsoft Entra ID authentication.
+    pub client_id: Option<String>,
+    /// The client secret of the service principal for Microsoft Entra ID authentication.
+    pub client_secret: Option<String>,
+    /// The tenant id of the service principal for Microsoft Entra ID authentication.
+    pub tenant_id: Option<String>,
+    /// The authority host of the service principal for Microsoft Entra ID authentication.
+    ///
+    /// Defaults to `https://login.microsoftonline.com`.
+    pub authority_host: Option<String>,
+    /// Skip signature will skip loading credentials and signing requests.
+    #[serde(default)]
+    pub skip_signature: bool,
 }
 
 impl Debug for AzfileConfig {
@@ -99,7 +112,10 @@ impl opendal_core::Configurator for AzfileConfig {
 
     #[allow(deprecated)]
     fn into_builder(self) -> Self::Builder {
-        AzfileBuilder { config: self }
+        AzfileBuilder {
+            config: self,
+            credential_providers: None,
+        }
     }
 }
 

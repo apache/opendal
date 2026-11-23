@@ -173,11 +173,24 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
          * <p>Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.</p>
          *
          * @deprecated Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
         /**
          * <p>The container name of Azblob service backend.</p>
          */
@@ -218,6 +231,10 @@ public interface ServiceConfig {
          * <p>Skip signature will skip loading credentials and signing requests.</p>
          */
         public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -233,8 +250,17 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
             }
             map.put("container", container);
             if (encryptionAlgorithm != null) {
@@ -257,6 +283,9 @@ public interface ServiceConfig {
             }
             if (skipSignature != null) {
                 map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
             }
             return map;
         }
@@ -401,6 +430,19 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
+        /**
          * <p>The endpoint for azfile.</p>
          */
         public final String endpoint;
@@ -416,6 +458,14 @@ public interface ServiceConfig {
          * <p>The share name for azfile.</p>
          */
         public final @NonNull String shareName;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -431,6 +481,15 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -441,6 +500,12 @@ public interface ServiceConfig {
                 map.put("sas_token", sasToken);
             }
             map.put("share_name", shareName);
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
+            }
             return map;
         }
     }

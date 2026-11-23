@@ -55,6 +55,7 @@ pub struct AzfileCore {
     pub endpoint: String,
     pub share_name: String,
     pub sas_token: Option<String>,
+    pub skip_signature: bool,
     pub signer: Signer<Credential>,
     pub sign_ctx: Context,
 }
@@ -87,6 +88,11 @@ impl AzfileCore {
             // consistent with azdls and azblob
             HeaderValue::from_static("2022-11-02"),
         );
+
+        // x-ms-version must be set even when signing is skipped.
+        if self.skip_signature {
+            return Ok(Request::from_parts(parts, body));
+        }
 
         self.signer(ctx)
             .sign(&mut parts, None)
@@ -680,6 +686,7 @@ mod tests {
                 endpoint: "https://acc.file.core.windows.net".to_string(),
                 share_name: "share".to_string(),
                 sas_token: normalize_sas_token(sas_token).map(str::to_string),
+                skip_signature: false,
                 signer: Signer::new(
                     Context::new(),
                     StaticCredentialProvider::new_shared_key("acc", "a2V5"),

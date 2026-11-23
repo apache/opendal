@@ -691,10 +691,16 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
             }
         }
         Expr::Path(ExprPath { path, .. }) => {
-            if let Some(ident) = path.get_ident().map(ToString::to_string)
-                && let Some(rest) = ident.strip_prefix("has_")
-            {
-                return Ok(format!("Requires `{rest}`"));
+            if let Some(ident) = path.get_ident().map(ToString::to_string) {
+                if ident == "can_presign" {
+                    return Ok(
+                        "Requires `account_key` (with `account_name`), `sas_token`, or `credential_provider_chain` with `skip_signature` disabled"
+                            .to_string(),
+                    );
+                }
+                if let Some(rest) = ident.strip_prefix("has_") {
+                    return Ok(format!("Requires `{rest}`"));
+                }
             }
             bail!(
                 "{}: unsupported capability boolean expression; add an explicit mapping in dev/src/generate/capabilities_docs.rs",

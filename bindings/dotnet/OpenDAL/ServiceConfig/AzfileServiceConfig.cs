@@ -37,6 +37,18 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? AccountName { get; init; }
         /// <summary>
+        /// The authority host of the service principal for Microsoft Entra ID authentication. Defaults to `https://login.microsoftonline.com`.
+        /// </summary>
+        public string? AuthorityHost { get; init; }
+        /// <summary>
+        /// The client id of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? ClientId { get; init; }
+        /// <summary>
+        /// The client secret of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? ClientSecret { get; init; }
+        /// <summary>
         /// The endpoint for azfile.
         /// </summary>
         public string? Endpoint { get; init; }
@@ -52,6 +64,14 @@ namespace OpenDAL.ServiceConfig
         /// The share name for azfile.
         /// </summary>
         public string? ShareName { get; init; }
+        /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
+        /// <summary>
+        /// The tenant id of the service principal for Microsoft Entra ID authentication.
+        /// </summary>
+        public string? TenantId { get; init; }
 
         public string Scheme => "azfile";
 
@@ -65,6 +85,18 @@ namespace OpenDAL.ServiceConfig
             if (AccountName is not null)
             {
                 map["account_name"] = Utilities.ToOptionString(AccountName);
+            }
+            if (AuthorityHost is not null)
+            {
+                map["authority_host"] = Utilities.ToOptionString(AuthorityHost);
+            }
+            if (ClientId is not null)
+            {
+                map["client_id"] = Utilities.ToOptionString(ClientId);
+            }
+            if (ClientSecret is not null)
+            {
+                map["client_secret"] = Utilities.ToOptionString(ClientSecret);
             }
             if (Endpoint is not null)
             {
@@ -81,6 +113,14 @@ namespace OpenDAL.ServiceConfig
             if (ShareName is not null)
             {
                 map["share_name"] = Utilities.ToOptionString(ShareName);
+            }
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
+            }
+            if (TenantId is not null)
+            {
+                map["tenant_id"] = Utilities.ToOptionString(TenantId);
             }
             return map;
         }

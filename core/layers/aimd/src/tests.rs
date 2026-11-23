@@ -26,92 +26,51 @@ use super::*;
 
 #[test]
 fn invalid_configuration_is_rejected() {
+    let builder = AimdLayer::builder();
     let mut configs = vec![
-        AimdConfig {
-            initial_rate: 0.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            min_rate: -1.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            initial_rate: 6000.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            min_rate: 3000.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            decrease_factor: 1.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            additive_increment: 0.0,
-            ..Default::default()
-        },
-        AimdConfig {
-            burst: 0,
-            ..Default::default()
-        },
-        AimdConfig {
-            window: Duration::ZERO,
-            ..Default::default()
-        },
-        AimdConfig {
-            window: Duration::MAX,
-            ..Default::default()
-        },
-        AimdConfig {
-            min_rate: f64::MIN_POSITIVE,
-            ..Default::default()
-        },
+        builder.clone().initial_rate(0.0),
+        builder.clone().min_rate(-1.0),
+        builder.clone().initial_rate(6000.0),
+        builder.clone().initial_rate(2000.0).min_rate(3000.0),
+        builder.clone().min_rate(10.0).max_rate(1.0),
+        builder.clone().decrease_factor(1.0),
+        builder.clone().additive_increment(0.0),
+        builder.clone().burst(0),
+        builder.clone().window(Duration::ZERO),
+        builder.clone().window(Duration::MAX),
+        builder.clone().min_rate(f64::MIN_POSITIVE),
     ];
     for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         configs.extend([
-            AimdConfig {
-                initial_rate: value,
-                ..Default::default()
-            },
-            AimdConfig {
-                min_rate: value,
-                ..Default::default()
-            },
-            AimdConfig {
-                max_rate: value,
-                ..Default::default()
-            },
-            AimdConfig {
-                additive_increment: value,
-                ..Default::default()
-            },
-            AimdConfig {
-                decrease_factor: value,
-                ..Default::default()
-            },
+            builder.clone().initial_rate(value),
+            builder.clone().min_rate(value),
+            builder.clone().max_rate(value),
+            builder.clone().additive_increment(value),
+            builder.clone().decrease_factor(value),
         ]);
     }
     for config in configs {
-        assert_eq!(
-            AimdLayer::new(config).unwrap_err().kind(),
-            ErrorKind::ConfigInvalid
-        );
+        assert_eq!(config.build().unwrap_err().kind(), ErrorKind::ConfigInvalid);
     }
 }
 
-fn layer() -> AimdLayer {
-    AimdLayer::new(AimdConfig {
-        initial_rate: 0.001,
-        min_rate: 0.001,
-        max_rate: 100.0,
-        additive_increment: 10.0,
-        burst: 1,
-        window: Duration::from_secs(3600),
-        ..Default::default()
-    })
-    .unwrap()
-    .with_sleep(|_| std::future::pending::<()>())
+#[test]
+fn implicit_initial_rate_respects_the_configured_range() {
+    let layer = AimdLayer::builder().max_rate(10.0).build().unwrap();
+    assert_eq!(layer.buckets.read.rate(), 10.0);
+    let layer = AimdLayer::builder().min_rate(3000.0).build().unwrap();
+    assert_eq!(layer.buckets.read.rate(), 3000.0);
+}
+
+fn builder() -> AimdLayerBuilder {
+    AimdLayer::builder()
+        .initial_rate(0.001)
+        .min_rate(0.001)
+        .max_rate(100.0)
+        .additive_increment(10.0)
+        .burst(1)
+        .window(Duration::from_secs(3600))
+        .with_sleep(|_| std::future::pending::<()>())
 }
 
 #[derive(Clone, Default)]
@@ -130,7 +89,7 @@ impl HttpTransport for CountingTransport {
 #[test]
 fn unmarked_and_presign_requests_bypass_admission() {
     block_on(async {
-        let layer = layer();
+        let layer = builder().build().unwrap();
         let counting = CountingTransport::default();
         let transport = AimdTransport {
             inner: HttpTransporter::new(counting.clone()),
@@ -158,7 +117,7 @@ fn unmarked_and_presign_requests_bypass_admission() {
 #[test]
 fn every_operation_uses_its_expected_budget() {
     block_on(async {
-        let layer = layer();
+        let layer = builder().build().unwrap();
         let transport = AimdTransport {
             inner: HttpTransporter::new(CountingTransport::default()),
             buckets: layer.buckets.clone(),
@@ -199,7 +158,7 @@ fn every_operation_uses_its_expected_budget() {
 #[test]
 fn memory_operations_are_not_paced() {
     block_on(async {
-        let layer = layer();
+        let layer = builder().build().unwrap();
         layer.buckets.read.acquire(&*layer.sleep).await;
         layer.buckets.write.acquire(&*layer.sleep).await;
         let op = Operator::new(opendal_core::services::Memory::default())
@@ -215,11 +174,14 @@ fn cloned_layers_and_context_replay_share_request_admission() {
     block_on(async {
         let sleeps = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let calls = sleeps.clone();
-        let layer = layer().with_sleep(move |duration| {
-            assert!(duration > Duration::ZERO);
-            calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            std::future::pending::<()>()
-        });
+        let layer = builder()
+            .with_sleep(move |duration| {
+                assert!(duration > Duration::ZERO);
+                calls.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                std::future::pending::<()>()
+            })
+            .build()
+            .unwrap();
         let counting = CountingTransport::default();
         let context =
             OperationContext::new().with_http_transport(HttpTransporter::new(counting.clone()));
@@ -284,14 +246,13 @@ fn cloned_layers_and_context_replay_share_request_admission() {
 
 #[tokio::test]
 async fn default_timer_wakes_request_admission() {
-    let start = std::time::Instant::now();
-    let layer = AimdLayer::new(AimdConfig {
-        initial_rate: 100.0,
-        max_rate: 100.0,
-        burst: 1,
-        ..Default::default()
-    })
-    .unwrap();
+    let start = opendal_core::raw::Instant::now();
+    let layer = AimdLayer::builder()
+        .initial_rate(100.0)
+        .max_rate(100.0)
+        .burst(1)
+        .build()
+        .unwrap();
     let counting = CountingTransport::default();
     let context =
         OperationContext::new().with_http_transport(HttpTransporter::new(counting.clone()));

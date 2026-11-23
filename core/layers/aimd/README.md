@@ -8,31 +8,40 @@ copy, compose, create_dir, rename, and restore), delete, and list.
 ## Usage
 
 Enable the facade feature `layers-aimd` and use
-`opendal::layers::{AimdConfig, AimdLayer}`. With split crates, add
+`opendal::layers::AimdLayer`. With split crates, add
 `opendal-layer-aimd` alongside `opendal-core`:
 
 ```rust
 use opendal_core::{Operator, Result};
-use opendal_layer_aimd::{AimdConfig, AimdLayer};
+use opendal_layer_aimd::AimdLayer;
 
 fn configure(operator: Operator) -> Result<Operator> {
-    let aimd = AimdLayer::new(AimdConfig {
-        initial_rate: 100.0,
-        min_rate: 1.0,
-        max_rate: 1000.0,
-        additive_increment: 10.0,
-        burst: 10,
-        ..Default::default()
-    })?;
+    let aimd = AimdLayer::builder()
+        .max_rate(10.0)
+        .initial_rate(2.0)
+        .additive_increment(1.0)
+        .burst(1)
+        .build()?;
 
     Ok(operator.layer(aimd))
 }
 ```
 
+This example starts each category at 2 requests/s and grows by 1 request/s per
+active, unthrottled window up to 10 requests/s. A burst of 1 admits one request
+immediately. If you set only the rate bounds, the initial rate defaults to 2000
+clamped to those bounds. Burst capacity and additive increment have independent
+defaults.
+
 Add AIMD before retry so it observes each attempt's errors. AIMD does not own
 retries, modify errors, or replace bandwidth and concurrency limits. Place a
 bandwidth throttle outside AIMD so locally generated `RateLimited` errors do
 not reduce the backend budget.
+
+When using an HTTP concurrency limit, add `ConcurrentLimitLayer` first, then
+`AimdLayer`, then `RetryLayer`. Requests then wait for AIMD admission before
+acquiring an HTTP concurrency permit. To exclude this wait from HTTP latency
+metrics, also add the HTTP metrics layer before AIMD.
 
 Cloning a layer shares its budgets across operators. Construct separate layers
 for independent quotas. Each category receives the configured rate and burst;
@@ -71,11 +80,11 @@ Waiters use a FIFO queue. Cancelling a waiter removes its queue position without
 leaving token debt, and rate changes update pending waits. Buckets start full;
 only a request admitted to the next transport consumes a token. The layer does
 not spawn background tasks. Waiting uses Tokio timers by default and requires
-an active Tokio runtime with time enabled. Use `AimdLayer::with_sleep` to supply
-a function that accepts a `Duration` and returns a future completing after that
-duration. A custom sleep allows admission to run without a Tokio runtime;
-synchronization uses asyncband. Rate calculations use `std::time::Instant`,
-so replacing sleep does not replace the controller's clock.
+an active Tokio runtime with time enabled. Use `with_sleep` on the builder to
+supply a function that accepts a `Duration` and returns a future completing
+after that duration. A custom sleep allows admission to run without a Tokio
+runtime. Rate calculations use the platform's monotonic clock independently of
+the sleep function.
 
 Services sign requests before transport admission. Bound operation duration
 when a queue could outlive the service's signature validity period. Configure

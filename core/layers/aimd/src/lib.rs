@@ -21,11 +21,10 @@
 #![deny(missing_docs)]
 
 use std::fmt::{Debug, Formatter};
-use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use opendal_core::raw::{BoxedStaticFuture, Layer, MaybeSend, Operation, Servicer};
+use opendal_core::raw::{BoxedStaticFuture, Layer, Operation, Servicer};
 use opendal_core::{Buffer, HttpBody, HttpTransport, HttpTransporter, OperationContext, Result};
 
 mod bucket;
@@ -33,7 +32,8 @@ mod config;
 mod service;
 
 use bucket::Bucket;
-pub use config::AimdConfig;
+use config::AimdConfig;
+pub use config::AimdLayerBuilder;
 
 /// Adaptively pace HTTP storage requests using additive increase and
 /// multiplicative decrease (AIMD).
@@ -63,13 +63,15 @@ pub use config::AimdConfig;
 /// from each attempt. Add layers that produce local rate-limit errors, such as
 /// a bandwidth throttle, outside it to avoid treating those errors as backend
 /// congestion. An inner layer that consumes errors can hide feedback.
+/// Add a layer that limits HTTP concurrency before AIMD so queued requests
+/// wait for admission before acquiring an HTTP concurrency permit.
 ///
 /// Clones share all four budgets, including across operators and context
 /// replacement. Separately constructed layers have independent budgets. Choose
 /// sharing boundaries that match the backend's quota scope; this layer does not
 /// discover quotas or coordinate across processes.
 ///
-/// Waiting uses Tokio timers by default; [`Self::with_sleep`] replaces the timer.
+/// Waiting uses Tokio timers by default. Use [`AimdLayerBuilder::with_sleep`] to supply a timer.
 /// Pacing happens after the service builds and signs a request. Bound operation
 /// duration when queued requests could outlive a backend's signature validity period. This layer
 /// limits dispatches to the next transport, not redirects or retries hidden
@@ -92,57 +94,17 @@ impl Debug for AimdLayer {
 }
 
 impl AimdLayer {
-    /// Create four independent budgets with the same configuration.
-    ///
-    /// Waiting requires a Tokio runtime with time enabled unless replaced with
-    /// [`Self::with_sleep`]. Constructing the layer does not require a runtime.
-    ///
-    /// Returns [`opendal_core::ErrorKind::ConfigInvalid`] if a numeric parameter
-    /// is non-finite or nonpositive, rates are not ordered, the decrease factor
-    /// is not in `(0, 1)`, burst or window is zero, or a timer cannot represent
-    /// the window or the interval at the minimum rate.
-    pub fn new(config: AimdConfig) -> Result<Self> {
-        config.validate()?;
-        Ok(Self {
-            sleep: Arc::new(|duration| Box::pin(tokio::time::sleep(duration))),
-            buckets: Arc::new(Buckets {
-                read: Arc::new(Bucket::new(config.clone())),
-                write: Arc::new(Bucket::new(config.clone())),
-                delete: Arc::new(Bucket::new(config.clone())),
-                list: Arc::new(Bucket::new(config)),
-            }),
-        })
-    }
-
-    /// Replace the function that creates timers for admission waits.
-    ///
-    /// The function must return a nonblocking future that completes after the
-    /// supplied duration. Waiting may be cancelled when feedback changes or a
-    /// request is dropped, so dropping the future must safely cancel the wait.
-    /// The future must be `Send` on non-Wasm targets.
-    ///
-    /// This replaces Tokio timers without changing the shared budgets. Rate
-    /// calculations still use [`std::time::Instant`]; replacing sleep does not
-    /// replace the clock or enable virtual-time control of the controller.
-    ///
-    /// ```
-    /// use opendal_layer_aimd::AimdLayer;
-    ///
-    /// let layer = AimdLayer::default().with_sleep(tokio::time::sleep);
-    /// ```
-    pub fn with_sleep<F, Fut>(mut self, sleep: F) -> Self
-    where
-        F: Fn(Duration) -> Fut + Send + Sync + 'static,
-        Fut: Future<Output = ()> + MaybeSend + 'static,
-    {
-        self.sleep = Arc::new(move |duration| Box::pin(sleep(duration)));
-        self
+    /// Configure the rates, burst capacity, feedback window, and admission timer.
+    pub fn builder() -> AimdLayerBuilder {
+        AimdLayerBuilder::default()
     }
 }
 
 impl Default for AimdLayer {
     fn default() -> Self {
-        Self::new(AimdConfig::default()).expect("default AIMD configuration is valid")
+        Self::builder()
+            .build()
+            .expect("default AIMD configuration is valid")
     }
 }
 

@@ -280,7 +280,7 @@ impl<T: oio::Compose> oio::Compose for Observed<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AimdConfig;
+    use crate::AimdLayer;
     use oio::List;
     use std::time::Duration;
 
@@ -294,10 +294,11 @@ mod tests {
 
     #[tokio::test]
     async fn deferred_errors_preserve_retry_status_and_feed_the_budget() {
-        let bucket = Arc::new(Bucket::new(AimdConfig {
-            window: Duration::from_millis(10),
-            ..Default::default()
-        }));
+        let layer = AimdLayer::builder()
+            .window(Duration::from_millis(10))
+            .build()
+            .unwrap();
+        let bucket = layer.buckets.list.clone();
         let mut lister = Observed {
             inner: LimitedLister,
             bucket: bucket.clone(),

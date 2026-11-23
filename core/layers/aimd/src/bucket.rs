@@ -15,9 +15,10 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use opendal_core::raw::Instant;
 use std::future::Future;
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use asyncband::event::ManualResetEvent;
 use asyncband::mutex::Mutex as AsyncMutex;
@@ -71,11 +72,11 @@ impl State {
 }
 
 impl Bucket {
-    pub(crate) fn new(config: AimdConfig) -> Self {
+    pub(crate) fn new(config: AimdConfig, initial_rate: f64) -> Self {
         let now = Instant::now();
         Self {
             state: Mutex::new(State {
-                rate: config.initial_rate,
+                rate: initial_rate,
                 tokens: f64::from(config.burst),
                 last_refill: now,
                 window_start: now,
@@ -158,7 +159,6 @@ mod tests {
 
     fn config() -> AimdConfig {
         AimdConfig {
-            initial_rate: 4.0,
             min_rate: 1.0,
             max_rate: 8.0,
             additive_increment: 2.0,
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn active_windows_grow_empty_windows_do_not_and_bounds_hold() {
         let config = config();
-        let mut state = Bucket::new(config.clone()).state.into_inner().unwrap();
+        let mut state = Bucket::new(config.clone(), 4.0).state.into_inner().unwrap();
         let mut now = state.window_start;
         for expected in [6.0, 8.0, 8.0] {
             state.active = true;
@@ -199,7 +199,7 @@ mod tests {
 
     #[test]
     fn only_rate_limited_errors_trigger_decrease() {
-        let bucket = Bucket::new(config());
+        let bucket = Bucket::new(config(), 4.0);
         bucket.observe::<()>(&Err(
             Error::new(ErrorKind::Unexpected, "retryable").set_temporary()
         ));
@@ -220,7 +220,7 @@ mod tests {
             (true, 2.0, Duration::from_millis(300)),
             (false, 6.0, Duration::from_millis(100)),
         ] {
-            let mut state = Bucket::new(config.clone()).state.into_inner().unwrap();
+            let mut state = Bucket::new(config.clone(), 4.0).state.into_inner().unwrap();
             state.tokens = 0.0;
             state.active = true;
             state.throttled = throttled;
@@ -236,11 +236,13 @@ mod tests {
     #[test]
     fn fifo_admission_and_cancellation_leave_no_token_debt() {
         block_on(async {
-            let bucket = Bucket::new(AimdConfig {
-                initial_rate: 0.001,
-                min_rate: 0.001,
-                ..config()
-            });
+            let bucket = Bucket::new(
+                AimdConfig {
+                    min_rate: 0.001,
+                    ..config()
+                },
+                0.001,
+            );
             bucket.acquire(|_| std::future::pending::<()>()).await;
             let mut head = Box::pin(bucket.acquire(|_| std::future::pending::<()>()));
             let mut cancelled = Box::pin(bucket.acquire(|_| std::future::pending::<()>()));

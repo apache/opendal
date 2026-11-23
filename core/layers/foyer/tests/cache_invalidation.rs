@@ -17,28 +17,39 @@
 
 use foyer::{HybridCache, HybridCacheBuilder, RecoverMode};
 use futures::StreamExt;
-use opendal_core::raw::{Service, oio};
+use opendal_core::raw::{
+    OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite, RpCreateDir,
+    RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
+};
 use opendal_core::services::Memory;
-use opendal_core::{ErrorKind, Operator};
+use opendal_core::{
+    Buffer, Builder, Capability, Error, ErrorKind, Metadata, OperationContext, Operator, Result,
+};
 use opendal_layer_foyer::{Deleter, FoyerKey, FoyerLayer, FoyerService, FoyerValue, Writer};
 use opendal_service_fs::Fs;
 use std::ops::Range;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 async fn cached_fs(dir: &tempfile::TempDir) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
     cached_fs_with_limit(dir, 0..usize::MAX).await
 }
 
-async fn cached_memory_with_limit(
-    size_limit: Range<usize>,
-) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
-    let cache = HybridCacheBuilder::new()
+async fn memory_cache() -> HybridCache<FoyerKey, FoyerValue> {
+    HybridCacheBuilder::new()
         .memory(1024 * 1024)
         .with_shards(1)
         .storage()
         .with_recover_mode(RecoverMode::None)
         .build()
         .await
-        .unwrap();
+        .unwrap()
+}
+
+async fn cached_memory_with_limit(
+    size_limit: Range<usize>,
+) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
+    let cache = memory_cache().await;
     let op = Operator::new(Memory::default())
         .unwrap()
         .layer(FoyerLayer::new(cache.clone()).with_size_limit(size_limit));
@@ -49,14 +60,7 @@ async fn cached_fs_with_limit(
     dir: &tempfile::TempDir,
     size_limit: Range<usize>,
 ) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
-    let cache = HybridCacheBuilder::new()
-        .memory(1024 * 1024)
-        .with_shards(1)
-        .storage()
-        .with_recover_mode(RecoverMode::None)
-        .build()
-        .await
-        .unwrap();
+    let cache = memory_cache().await;
     let op = Operator::new(Fs::default().root(dir.path().to_str().unwrap()))
         .unwrap()
         .layer(FoyerLayer::new(cache.clone()).with_size_limit(size_limit));
@@ -322,6 +326,202 @@ async fn aborted_write_keeps_cached_entry() {
 
     assert!(cache.contains(&key));
     assert_eq!(op.read("k").await.unwrap().to_vec(), b"old");
+}
+
+#[derive(Debug, Default)]
+struct CloseFaultBuilder {
+    fail_next_close: bool,
+    pending_next_close: bool,
+}
+
+impl Builder for CloseFaultBuilder {
+    type Config = ();
+
+    fn build(self) -> Result<impl Service> {
+        Ok(CloseFaultService {
+            inner: Arc::new(Memory::default().build()?),
+            fail_next_close: Arc::new(AtomicBool::new(self.fail_next_close)),
+            pending_next_close: Arc::new(AtomicBool::new(self.pending_next_close)),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct CloseFaultService {
+    inner: Servicer,
+    fail_next_close: Arc<AtomicBool>,
+    pending_next_close: Arc<AtomicBool>,
+}
+
+struct CloseFaultWriter {
+    inner: oio::Writer,
+    fail_next_close: Arc<AtomicBool>,
+    pending_next_close: Arc<AtomicBool>,
+}
+
+impl oio::Write for CloseFaultWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        if self.pending_next_close.swap(false, Ordering::SeqCst) {
+            std::future::pending::<()>().await;
+        }
+        if self.fail_next_close.swap(false, Ordering::SeqCst) {
+            return Err(Error::new(ErrorKind::Unexpected, "injected close failure").set_temporary());
+        }
+        self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
+impl Service for CloseFaultService {
+    type Reader = oio::Reader;
+    type Writer = CloseFaultWriter;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        Ok(CloseFaultWriter {
+            inner: self.inner.write(ctx, path, args)?,
+            fail_next_close: self.fail_next_close.clone(),
+            pending_next_close: self.pending_next_close.clone(),
+        })
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        self.inner.delete(ctx)
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
+    }
+}
+
+#[tokio::test]
+async fn retried_close_caches_buffered_write() {
+    let cache = memory_cache().await;
+    let op = Operator::new(CloseFaultBuilder {
+        fail_next_close: true,
+        ..Default::default()
+    })
+    .unwrap()
+    .layer(FoyerLayer::new(cache.clone()));
+    let key = unversioned_key("key");
+
+    let mut writer = op.writer("key").await.unwrap();
+    writer.write("hello").await.unwrap();
+    let err = writer.close().await.unwrap_err();
+    assert!(err.is_temporary());
+    assert_eq!(err.message(), "injected close failure");
+    writer.close().await.unwrap();
+
+    assert!(cache.contains(&key));
+    assert_eq!(op.read("key").await.unwrap().to_vec(), b"hello");
+}
+
+#[tokio::test]
+async fn cancelled_close_preserves_buffered_write_for_retry() {
+    let cache = memory_cache().await;
+    let op = Operator::new(CloseFaultBuilder {
+        pending_next_close: true,
+        ..Default::default()
+    })
+    .unwrap()
+    .layer(FoyerLayer::new(cache.clone()));
+
+    let mut writer = op.writer("key").await.unwrap();
+    writer.write("hello").await.unwrap();
+    {
+        let close = writer.close();
+        futures::pin_mut!(close);
+        assert!(futures::poll!(&mut close).is_pending());
+    }
+    writer.close().await.unwrap();
+
+    assert_eq!(op.read("key").await.unwrap().to_vec(), b"hello");
+}
+
+#[allow(deprecated)]
+#[tokio::test]
+async fn recursive_delete_does_not_serve_cached_descendants() {
+    let (op, cache) = cached_memory_with_limit(0..usize::MAX).await;
+    let entries = [("dir/a", "v1"), ("dir/sub/b", "v2"), ("dir2/c", "v3")];
+
+    for (path, value) in entries {
+        op.write(path, value).await.unwrap();
+    }
+    for (path, value) in entries {
+        assert_eq!(op.read(path).await.unwrap().to_vec(), value.as_bytes());
+    }
+
+    op.remove_all("dir/").await.unwrap();
+
+    for path in ["dir/a", "dir/sub/b"] {
+        assert_eq!(op.read(path).await.unwrap_err().kind(), ErrorKind::NotFound);
+        assert!(!cache.contains(&unversioned_key(path)));
+    }
+    assert_eq!(op.read("dir2/c").await.unwrap().to_vec(), b"v3");
 }
 
 #[test]

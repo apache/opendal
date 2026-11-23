@@ -23,6 +23,7 @@ use opendal_core::raw::oio;
 
 use crate::FoyerKey;
 use crate::Inner;
+use crate::error::extract_err;
 
 #[doc(hidden)]
 pub struct Deleter<D> {
@@ -32,6 +33,7 @@ pub struct Deleter<D> {
     /// the cache but not marked deleted, since the object may still exist
     /// under a newer version.
     pub(crate) evict_keys: Vec<FoyerKey>,
+    pub(crate) recursive: bool,
     pub(crate) inner: Arc<Inner>,
 }
 
@@ -41,6 +43,7 @@ impl<D> Deleter<D> {
             deleter,
             keys: vec![],
             evict_keys: vec![],
+            recursive: false,
             inner,
         }
     }
@@ -49,6 +52,7 @@ impl<D> Deleter<D> {
 impl<D: oio::Delete> oio::Delete for Deleter<D> {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         self.deleter.delete(path, args.clone()).await?;
+        self.recursive |= args.recursive();
         let key = FoyerKey {
             path: path.to_string(),
             version: args.version().map(|v| v.to_string()),
@@ -66,6 +70,12 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
     }
 
     async fn close(&mut self) -> Result<()> {
+        if self.recursive {
+            // Foyer only supports removing exact keys or clearing the cache.
+            // Clear both memory and storage so no cached descendant or object
+            // version can survive the recursive delete.
+            self.inner.cache.clear().await.map_err(extract_err)?;
+        }
         {
             let mut deleted_keys = self
                 .inner

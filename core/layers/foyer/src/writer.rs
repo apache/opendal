@@ -88,8 +88,10 @@ impl<W: oio::Write> oio::Write for Writer<W> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let buffer = self.buf.take().collect();
         let metadata = self.w.close().await?;
+        // Keep the buffer intact until close succeeds so a failed or
+        // cancelled attempt can be retried without caching an empty object.
+        let buffer = self.buf.take().collect();
         let key = FoyerKey {
             path: self.path.clone(),
             version: metadata.version().map(|v| v.to_string()),

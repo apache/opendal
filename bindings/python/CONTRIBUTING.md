@@ -115,7 +115,9 @@ makes it easy to ensure your code meets our quality standards.
 The documentation is built with [Zensical](https://zensical.org/), which reads the
 existing `mkdocs.yml`. The example notebooks under `docs/examples/` are converted to
 Markdown with `nbconvert` before the site is built; the generated `.md` files are not
-tracked by Git.
+tracked by Git. After installing the local binding with `just install-dev`, run
+`just test-notebooks` to execute every cookbook notebook. The notebooks use local
+storage and memory and run without storage credentials.
 
 ```shell
 # Build the docs into site/

@@ -37,6 +37,8 @@ Released and published to [RubyGems](https://rubygems.org/gems/opendal).
 
 ## Installation
 
+The Ruby binding requires Ruby 3.3 or later.
+
 ```shell
 gem install opendal
 ```

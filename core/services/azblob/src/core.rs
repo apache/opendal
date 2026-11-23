@@ -213,7 +213,7 @@ impl AzblobCore {
             "{}/{}/{}",
             self.endpoint,
             self.container,
-            percent_encode_path(&build_abs_path(&self.root, path))
+            percent_encode_path(&build_absolute_path(&self.root, path))
         )
     }
 
@@ -825,7 +825,7 @@ impl AzblobCore {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&format!("{}/{}", self.endpoint, self.container))
             .push("restype", "container")
             .push("comp", "list");
@@ -1333,10 +1333,13 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        // Azure answers a missing, expired or invalid credential with 401
+        // (e.g. `InvalidAuthenticationInfo`) and an insufficient one with 403.
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -1472,6 +1475,18 @@ mod error_tests {
     use super::*;
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetBlob")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn append_blob_initialization_preserves_condition_and_retryability() {
         let conditional = ErrorContext::new(ServiceOperation("PutBlob"))
             .with_if_not_exists(true)
@@ -1487,5 +1502,22 @@ mod error_tests {
             parse_azblob_error_code(raced, "BlobAlreadyExists", StatusCode::CONFLICT),
             Some((ErrorKind::Conflict, true))
         );
+    }
+
+    #[test]
+    fn unauthorized_and_forbidden_are_permission_denied() {
+        for (status, code) in [
+            (StatusCode::UNAUTHORIZED, "InvalidAuthenticationInfo"),
+            (StatusCode::FORBIDDEN, "AuthorizationPermissionMismatch"),
+        ] {
+            let resp = Response::builder()
+                .status(status)
+                .header("x-ms-error-code", code)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetBlob")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
     }
 }

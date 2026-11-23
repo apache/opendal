@@ -45,9 +45,15 @@ impl WebdavLister {
 
 impl oio::PageList for WebdavLister {
     async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+        // PROPFIND enumerates a collection. Resolve a partial name in its parent.
+        let directory = if self.path.ends_with('/') {
+            self.path.as_str()
+        } else {
+            get_parent(&self.path)
+        };
         let resp = self
             .core
-            .webdav_list(&self.ctx, &self.path, &self.args)
+            .webdav_list(&self.ctx, directory, &self.args)
             .await?;
 
         // jfrog artifactory's webdav services have some strange behavior.
@@ -62,7 +68,7 @@ impl oio::PageList for WebdavLister {
 
         let bs = if resp.status().is_success() {
             resp.into_body()
-        } else if resp.status() == StatusCode::NOT_FOUND && self.path.ends_with('/') {
+        } else if resp.status() == StatusCode::NOT_FOUND {
             ctx.done = true;
             return Ok(());
         } else {
@@ -90,10 +96,14 @@ impl oio::PageList for WebdavLister {
 
             let decoded_path = percent_decode_path(&path);
             let normalized_path = if self.core.root != decoded_path {
-                build_rel_path(&self.core.root, &decoded_path)
+                build_relative_path(&self.core.root, &decoded_path)
             } else {
                 "/".to_owned()
             };
+
+            if directory != self.path && !normalized_path.starts_with(&self.path) {
+                continue;
+            }
 
             // HACKS! HACKS! HACKS!
             //

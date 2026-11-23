@@ -1089,6 +1089,10 @@ public interface ServiceConfig {
          */
         public final String atomicWriteDir;
         /**
+         * <p>Bypass the page cache for file reads and writes on Linux. Defaults to <code>false</code>.</p>
+         */
+        public final Boolean directIo;
+        /**
          * <p>root dir for backend</p>
          */
         public final String root;
@@ -1103,6 +1107,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (atomicWriteDir != null) {
                 map.put("atomic_write_dir", atomicWriteDir);
+            }
+            if (directIo != null) {
+                map.put("direct_io", String.valueOf(directIo));
             }
             if (root != null) {
                 map.put("root", root);
@@ -2990,6 +2997,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -3023,6 +3038,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);
@@ -3532,6 +3550,20 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
+         * <p>Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration acquireTimeout;
+        /**
+         * <p>Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration connectTimeout;
+        /**
+         * <p>Directory for the SSH control socket.</p>
+         * <p>The SSH client creates a temporary directory holding the control socket here.
+         * Defaults to <code>$XDG_STATE_HOME</code> or <code>$HOME/.local/state</code>, falling back to the current directory.</p>
+         */
+        public final String controlDirectory;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3566,6 +3598,15 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (acquireTimeout != null) {
+                map.put("acquire_timeout", acquireTimeout.toString());
+            }
+            if (connectTimeout != null) {
+                map.put("connect_timeout", connectTimeout.toString());
+            }
+            if (controlDirectory != null) {
+                map.put("control_directory", controlDirectory);
+            }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));
             }
@@ -4115,6 +4156,14 @@ public interface ServiceConfig {
          */
         public final Boolean disableCreateDir;
         /**
+         * <p>Disable native recursive listing with WebDAV's <code>Depth: infinity</code>.</p>
+         * <p>Set this to <code>true</code> for servers that reject or ignore infinity depth.
+         * With capability simulation enabled, OpenDAL walks the directory tree
+         * using <code>Depth: 1</code> requests instead.</p>
+         * <p>The default is <code>false</code>.</p>
+         */
+        public final Boolean disableDepthInfinity;
+        /**
          * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
          *
          * @deprecated WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support.
@@ -4175,6 +4224,9 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (disableDepthInfinity != null) {
+                map.put("disable_depth_infinity", String.valueOf(disableDepthInfinity));
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));

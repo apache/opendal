@@ -24,6 +24,7 @@ from uuid import uuid4
 
 import pytest
 
+import opendal
 from opendal.exceptions import ConditionNotMatch, NotFound
 
 
@@ -107,7 +108,29 @@ def test_sync_reader_read_sizes(operator):
         reader.seek(2)
         assert reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        reader.tell()
     operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_reader_rejects_negative_seek_set(operator):
+    filename = f"random_file_{str(uuid4())}"
+    operator.write(filename, b"0123456789")
+
+    try:
+        with operator.open(filename, "rb") as reader:
+            assert reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1, 0)
+            assert reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                reader.seek(-1)
+            assert reader.tell() == 3
+
+            assert reader.read() == b"3456789"
+    finally:
+        operator.delete(filename)
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -244,7 +267,71 @@ async def test_async_reader_read_sizes(async_operator):
         await reader.seek(2)
         assert await reader.read() == b"llo, world"
 
+    with pytest.raises(ValueError, match="closed file"):
+        await reader.tell()
     await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_rejects_negative_seek_set(async_operator):
+    filename = f"random_file_{str(uuid4())}"
+    await async_operator.write(filename, b"0123456789")
+
+    try:
+        async with await async_operator.open(filename, "rb") as reader:
+            assert await reader.seek(3) == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1, 0)
+            assert await reader.tell() == 3
+            with pytest.raises(ValueError, match="negative seek value -1"):
+                await reader.seek(-1)
+            assert await reader.tell() == 3
+
+            assert await reader.read() == b"3456789"
+    finally:
+        await async_operator.delete(filename)
+
+
+@pytest.mark.asyncio
+async def test_async_reader_read_buffered_coalesces_chunks():
+    operator = opendal.AsyncOperator("memory")
+    await operator.write("object", b"0123456789")
+
+    async with await operator.open("object", "rb", chunk=2) as reader:
+        assert await reader.read(5) == b"01"
+        assert await reader.read_buffered(5) == b"23456"
+        assert await reader.tell() == 7
+        assert await reader.read_buffered(5) == b"789"
+        assert await reader.read_buffered(5) == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.need_capability("read", "write", "delete")
+async def test_async_reader_read_buffered_range(async_operator):
+    filename = f"read_buffered_{uuid4()}"
+    await async_operator.write(filename, b"0123456789")
+    try:
+        async with await async_operator.open(
+            filename, "rb", offset=2, size=5
+        ) as reader:
+            with pytest.raises(OverflowError):
+                reader.read_buffered(-1)
+            assert await reader.read_buffered(0) == b""
+            assert await reader.tell() == 0
+            assert await reader.read_buffered(2) == b"23"
+            assert await reader.tell() == 2
+            assert await reader.seek(-1, 1) == 1
+            assert await reader.seek(-2, 2) == 3
+            assert await reader.read_buffered(32) == b"56"
+            assert await reader.tell() == 5
+            assert await reader.read_buffered(32) == b""
+            assert await reader.tell() == 5
+
+        with pytest.raises(OSError, match="closed file"):
+            await reader.read_buffered(1)
+    finally:
+        await async_operator.delete(filename)
 
 
 @pytest.mark.asyncio
@@ -362,5 +449,41 @@ def test_sync_readinto_buffer_boundaries(operator):
             assert reader.tell() == 6
             assert reader.readinto(target) == 0
             assert target == b"??abcdef??"
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_empty_buffers(operator):
+    filename = f"readinto_empty_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with operator.open(filename, "rb") as reader:
+            # Zero-length buffers may carry a NULL data pointer; `readinto`
+            # must return 0 instead of panicking.
+            assert reader.readinto(bytearray()) == 0
+            assert reader.readinto(memoryview(bytearray(0))) == 0
+            assert reader.tell() == 0
+
+        with operator.open(filename, "rb") as reader:
+            # A zero-length read at EOF also returns 0 without touching the
+            # buffer pointer.
+            reader.read()
+            assert reader.readinto(bytearray(4)) == 0
+    finally:
+        operator.delete(filename)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_readinto_readonly_empty_buffer(operator):
+    filename = f"readinto_empty_readonly_{uuid4()}"
+    operator.write(filename, b"abcdef")
+    try:
+        with (
+            operator.open(filename, "rb") as reader,
+            pytest.raises(OSError, match="not writable"),
+        ):
+            # A zero-length but readonly buffer is still rejected.
+            reader.readinto(memoryview(b""))
     finally:
         operator.delete(filename)

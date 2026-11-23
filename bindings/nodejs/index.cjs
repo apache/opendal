@@ -27,20 +27,21 @@ class ReadStream extends Readable {
     this.reader = reader
   }
 
-  _read(size) {
-    const buf = Buffer.alloc(size)
-    this.reader
-      .read(buf)
-      .then((s) => {
-        if (s === 0n) {
-          this.push(null)
-        } else {
-          this.push(buf.subarray(0, Number(s)))
-        }
-      })
-      .catch((e) => {
-        this.emit('error', e)
-      })
+  async _read(size) {
+    try {
+      // Node can request size 0 when highWaterMark is 0.
+      const chunk = await this.reader.readChunk(Math.min(Math.max(size, 1), 0xffffffff))
+      if (!this.destroyed) {
+        this.push(chunk)
+      }
+    } catch (error) {
+      this.destroy(error)
+    }
+  }
+
+  _destroy(error, callback) {
+    this.reader = null
+    callback(error)
   }
 }
 
@@ -52,7 +53,8 @@ class BlockingReadStream extends Readable {
 
   _read(size) {
     try {
-      const buf = Buffer.alloc(size)
+      // Node can request size 0 when highWaterMark is 0.
+      const buf = Buffer.alloc(Math.max(size, 1))
       let s = this.reader.read(buf)
       if (s === 0n) {
         this.push(null)

@@ -112,7 +112,7 @@ impl GithubCore {
     }
 
     pub async fn stat(&self, ctx: &OperationContext, path: &str) -> Result<Response<Buffer>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -143,7 +143,7 @@ impl GithubCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -177,7 +177,7 @@ impl GithubCore {
     ) -> Result<Response<Buffer>> {
         let sha = self.get_file_sha(ctx, path).await?;
 
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -231,7 +231,7 @@ impl GithubCore {
             },
         };
 
-        let path = build_abs_path(&self.root, p);
+        let path = build_absolute_path(&self.root, p);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -281,7 +281,7 @@ impl GithubCore {
     }
 
     pub async fn list(&self, ctx: &OperationContext, path: &str) -> Result<ListResponse> {
-        let path = build_abs_path(&self.root, path);
+        let path = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://api.github.com/repos/{}/{}/contents/{}",
@@ -441,6 +441,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 => (ErrorKind::ConditionNotMatch, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
         // https://github.com/apache/opendal/issues/4146
         // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/423
         // We should retry it when we get 423 error.
@@ -474,6 +475,17 @@ mod tests {
     use http::StatusCode;
 
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[tokio::test]
     async fn test_parse_error() {

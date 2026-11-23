@@ -101,11 +101,42 @@ class IOTest < ActiveSupport::TestCase
   end
 
   test "#read raises ArgumentError with -1" do
-    assert_raise(ArgumentError) do |err|
-      @io_read.read(-1)
+    err = assert_raise(ArgumentError) { @io_read.read(-1) }
 
-      assert_equal "negative length -1 given", err.message
-    end
+    assert_equal "negative length -1 given", err.message
+  end
+
+  test "#read with zero size returns an empty string without moving the stream" do
+    buffer = +"héllo"
+
+    assert_equal "", @io_read.read(0)
+    result = @io_read.read(0, buffer)
+    assert_equal "", result
+    assert_same buffer, result
+    assert_equal Encoding::UTF_8, result.encoding
+    assert_equal Encoding::UTF_8, buffer.encoding
+    assert_equal 0, @io_read.pos
+    assert_equal "Sample", @io_read.read(6)
+
+    @io_read.read
+    assert @io_read.eof?
+
+    buffer = +"héllo"
+    result = @io_read.read(0, buffer)
+    assert_equal "", result
+    assert_same buffer, result
+    assert_equal Encoding::UTF_8, result.encoding
+    assert_equal 43, @io_read.pos
+  end
+
+  test "#read with zero size raises on a closed stream" do
+    @io_read.close
+
+    assert_raise(RuntimeError) { @io_read.read(0) }
+  end
+
+  test "#read with zero size raises on a write-only stream" do
+    assert_raise(RuntimeError) { @io_write.read(0) }
   end
 
   test "#read reads to a buffer" do
@@ -120,6 +151,82 @@ class IOTest < ActiveSupport::TestCase
     @io_write.write("This is a sentence.")
     @io_write.close
     assert_equal "This is a sentence.", File.read("#{@root}/sample_write")
+  end
+
+  test "open in append mode appends to existing file" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", "a")
+    io.write("new")
+    io.close
+
+    assert_equal "previousnew", @op.read("log")
+  end
+
+  test "open in append mode accepts integer flags" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", File::WRONLY | File::APPEND)
+    io.write("new")
+    io.close
+
+    assert_equal "previousnew", @op.read("log")
+  end
+
+  test "open in append mode creates missing file" do
+    io = @op.open("created", "a")
+    io.write("data")
+    io.close
+
+    assert_equal "data", @op.read("created")
+  end
+
+  test "open in append mode raises Unsupported without append capability" do
+    op = OpenDal::Operator.new("memory", {})
+    assert_not op.capability.write_can_append
+
+    op.write("log", "previous")
+
+    err = assert_raise(RuntimeError) { op.open("log", "a") }
+    assert_match(/Unsupported/, err.message)
+    assert_equal "previous", op.read("log")
+  end
+
+  test "open in exclusive mode fails when file exists" do
+    @op.write("log", "previous")
+
+    err = assert_raise(RuntimeError) do
+      io = @op.open("log", "wx")
+      io.write("new")
+      io.close
+    end
+
+    assert_match(/ConditionNotMatch/, err.message)
+    assert_equal "previous", @op.read("log")
+  end
+
+  test "open in exclusive mode creates missing file" do
+    io = @op.open("created", "wx")
+    io.write("data")
+    io.close
+
+    assert_equal "data", @op.read("created")
+  end
+
+  test "open in read-write mode raises ArgumentError" do
+    assert_raise(ArgumentError) { @op.open("sample", "r+") }
+    assert_raise(ArgumentError) { @op.open("sample", "w+") }
+    assert_raise(ArgumentError) { @op.open("sample", "a+") }
+  end
+
+  test "open in append mode is not supported for reading" do
+    @op.write("log", "previous")
+
+    io = @op.open("log", "a")
+    err = assert_raise(RuntimeError) { io.read }
+    io.close
+
+    assert_match(/write-only/, err.message)
   end
 
   test "#readline reads a line" do
@@ -159,6 +266,15 @@ class IOTest < ActiveSupport::TestCase
 
   test "#eof? returns" do
     @io_read.read
+    assert @io_read.eof?
+  end
+
+  test "#eof? preserves the stream position" do
+    @io_read.read(1)
+
+    assert_not @io_read.eof?
+    assert_equal 1, @io_read.pos
+    assert_equal "ample data for testing\nA line after title\n", @io_read.read
     assert @io_read.eof?
   end
 

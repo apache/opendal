@@ -238,3 +238,18 @@ SeaweedFS has the following capability differences from S3:
 
 - `write_can_append`: SeaweedFS doesn't support appending to an existing object through the S3 API. Please override it to `false`.
 - Object versioning is per-bucket and off by default. Enable it with `PutBucketVersioning` before relying on the version capabilities, or override them to `false`.
+
+### Copy with metadata replacement
+
+`copy_with_user_metadata`, `copy_with_content_type` and `copy_with_content_language` are enabled for every endpoint. They send `CopyObject` with `x-amz-metadata-directive: REPLACE`, and a multipart copy sets the metadata on `CreateMultipartUpload`.
+
+The behavior tests for these options pass on AWS S3, Garage v2.1.0, SeaweedFS 4.52 and Silo. No known service rejects them so far. The other services in this list, and S3 Express One Zone directory buckets, are not verified. If a service ignores or rejects the directive, override the three capabilities to `false`:
+
+```rust,ignore
+let op = Operator::new(builder)?.layer(CapabilityOverrideLayer::new(|mut cap| {
+    cap.copy_with_user_metadata = false;
+    cap.copy_with_content_type = false;
+    cap.copy_with_content_language = false;
+    cap
+}));
+```

@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::sync::Arc;
 
 use bytes::Buf;
@@ -34,9 +35,9 @@ use crate::*;
 ///
 /// ### Write Multiple Chunks
 ///
-/// Some services support to write multiple chunks of data into given path. Services that doesn't
-/// support write multiple chunks will return [`ErrorKind::Unsupported`] error when calling `write`
-/// at the second time.
+/// Sending multiple chunks to the service requires [`Capability::write_can_multi`].
+/// A writer that accepts only one chunk returns [`ErrorKind::Unsupported`] if it
+/// receives a second chunk. See [`Operator::writer_with`] for buffering options.
 ///
 /// ```
 /// use opendal_core::Operator;
@@ -103,6 +104,15 @@ pub struct Writer {
     inner: WriteGenerator<oio::Writer>,
 }
 
+impl fmt::Debug for Writer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+            .field("chunk", &self.ctx.options().chunk())
+            .field("append", &self.ctx.args().append())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
@@ -115,6 +125,10 @@ impl Writer {
     /// Write [`Buffer`] into writer.
     ///
     /// This operation will write all data in given buffer into writer.
+    ///
+    /// When a single call spans multiple chunks, a failure after the underlying
+    /// writer accepts part of the input returns a persistent error. Call
+    /// [`Writer::abort`] and start a new writer if you need to retry that write.
     ///
     /// ## Examples
     ///
@@ -137,13 +151,7 @@ impl Writer {
     /// }
     /// ```
     pub async fn write(&mut self, bs: impl Into<Buffer>) -> Result<()> {
-        let mut bs = bs.into();
-        while !bs.is_empty() {
-            let n = self.inner.write(bs.clone()).await?;
-            bs.advance(n);
-        }
-
-        Ok(())
+        self.inner.write_all(bs.into()).await
     }
 
     /// Write [`bytes::Buf`] into inner writer.
@@ -194,6 +202,11 @@ impl Writer {
     ///
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.
+    ///
+    /// If a call fails after the underlying writer accepts part of the range,
+    /// retrying the same path, range, and read options resumes after the
+    /// accepted prefix instead of copying it again. Until that retry succeeds
+    /// or [`Writer::abort`] runs, other writes and [`Writer::close`] fail.
     pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
         self.copy_from_options(
             path,
@@ -206,6 +219,11 @@ impl Writer {
     }
 
     /// Copy an existing object range with read conditions and execution options.
+    ///
+    /// A retry with the same path, range, and read options resumes a partially
+    /// accepted copy instead of replaying its accepted prefix. Any other write
+    /// or [`Writer::close`] fails until the retry succeeds or [`Writer::abort`]
+    /// runs.
     pub async fn copy_from_options(
         &mut self,
         path: &str,
@@ -304,15 +322,17 @@ impl Writer {
         BufferSink::new(self.inner)
     }
 
-    /// Convert writer into [`FuturesAsyncWriter`] which implements [`futures::AsyncWrite`],
+    /// Convert this writer into a [`FuturesAsyncWriter`] that implements [`futures::AsyncWrite`].
     ///
-    /// # Notes
+    /// The adapter copies input into a 256 KiB buffer. Writing beyond that buffer
+    /// or calling `flush()` can produce multiple chunks. Sending multiple chunks
+    /// to the service requires [`Capability::write_can_multi`]. Call `close()` to
+    /// commit the write.
     ///
-    /// FuturesAsyncWriter is not a zero-cost abstraction. The underlying writer
-    /// requires an owned [`Buffer`], which involves an extra copy operation.
-    ///
-    /// FuturesAsyncWriter is required to call `close()` to make sure all
-    /// data have been written to the storage.
+    /// When this capability is false, pass the complete [`Buffer`] to
+    /// [`Operator::write`] or to a single [`Writer::write`] call on a default writer.
+    /// To use this adapter with a known payload size, set `chunk(size)` with
+    /// [`Operator::writer_with`] to buffer the full payload in one chunk.
     ///
     /// # Examples
     ///
@@ -362,12 +382,17 @@ impl Writer {
         FuturesAsyncWriter::new(self.inner)
     }
 
-    /// Convert writer into [`FuturesBytesSink`] which implements [`futures::Sink<Bytes>`].
+    /// Convert this writer into a [`FuturesBytesSink`] that implements [`futures::Sink<Bytes>`].
     ///
-    /// # Notes
+    /// The sink passes owned [`bytes::Bytes`] to the underlying writer without copying
+    /// the payload. Sending multiple chunks to the service requires
+    /// [`Capability::write_can_multi`].
     ///
-    /// FuturesBytesSink is a zero-cost abstraction. The underlying writer
-    /// will reuse the Bytes and won't perform any copy operation.
+    /// When this capability is false, pass the complete payload as one
+    /// [`bytes::Bytes`] item on a default writer. You can also pass the full
+    /// [`Buffer`] to [`Operator::write`] or to a single [`Writer::write`] call.
+    /// If you know the payload size in advance, set `chunk(size)` with
+    /// [`Operator::writer_with`] to buffer the full payload in one chunk.
     ///
     /// # Examples
     ///
@@ -426,6 +451,7 @@ mod tests {
     use rand::{Rng, RngExt};
 
     use crate::Operator;
+    use crate::Result;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
@@ -453,6 +479,24 @@ mod tests {
         let buf = op.read(path).await.expect("read to end mut succeed");
 
         assert_eq!(buf.to_bytes(), content);
+    }
+
+    #[tokio::test]
+    async fn test_writer_write_with_chunk_zero() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test_file";
+        let content = vec![b'x'; 4096];
+
+        let mut writer = op.writer_with(path).chunk(0).await?;
+        assert_eq!(writer.ctx.options().chunk(), None);
+        writer.write(content.clone()).await?;
+        writer.close().await?;
+        assert_eq!(op.read(path).await?.to_bytes(), content);
+
+        let content = vec![b'y'; 4096];
+        op.write_with(path, content.clone()).chunk(0).await?;
+        assert_eq!(op.read(path).await?.to_bytes(), content);
+        Ok(())
     }
 
     #[tokio::test]

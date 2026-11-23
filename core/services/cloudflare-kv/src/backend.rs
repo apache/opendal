@@ -214,9 +214,9 @@ impl Service for CloudflareKvBackend {
         path: &str,
         _args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let path = build_abs_path(&self.core.info.root(), path);
+        let path = build_absolute_path(&self.core.info.root(), path);
 
-        if path == build_abs_path(&self.core.info.root(), "") {
+        if path == build_absolute_path(&self.core.info.root(), "") {
             return Ok(RpCreateDir::default());
         }
 
@@ -255,7 +255,7 @@ impl Service for CloudflareKvBackend {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let path = build_abs_path(&self.core.info.root(), path);
+        let path = build_absolute_path(&self.core.info.root(), path);
         let new_path = path.trim_end_matches('/');
 
         let resp = self.core.metadata(ctx, new_path).await?;
@@ -392,7 +392,7 @@ impl Service for CloudflareKvBackend {
 
     fn write(&self, ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: oio::OneShotWriter<CloudflareWriter> = {
-            let path = build_abs_path(&self.core.info.root(), path);
+            let path = build_absolute_path(&self.core.info.root(), path);
             let writer = CloudflareWriter::new(self.core.clone(), ctx.clone(), path);
 
             let w = oio::OneShotWriter::new(writer);
@@ -416,7 +416,7 @@ impl Service for CloudflareKvBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<CloudflareKvLister> = {
-            let path = build_abs_path(&self.core.info.root(), path);
+            let path = build_absolute_path(&self.core.info.root(), path);
 
             let limit = match args.limit() {
                 Some(limit) => {

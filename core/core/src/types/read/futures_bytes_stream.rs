@@ -46,7 +46,7 @@ unsafe impl Sync for FuturesBytesStream {}
 impl FuturesBytesStream {
     /// NOTE: don't allow users to create FuturesStream directly.
     pub(crate) async fn new(ctx: Arc<ReadContext>, range: impl Into<BytesRange>) -> Result<Self> {
-        let stream = BufferStream::create(ctx, range).await?;
+        let stream = BufferStream::create(ctx, range, None).await?;
 
         Ok(FuturesBytesStream {
             stream,
@@ -59,6 +59,9 @@ impl FuturesBytesStream {
     /// Calling this method opens the underlying read request if needed.
     /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
     /// return metadata while opening the read operation.
+    ///
+    /// Dropping this future before it completes does not lose the stream's
+    /// reader; later calls resume the same preparation.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         self.stream.metadata().await
     }
@@ -156,7 +159,7 @@ mod tests {
         )
         .await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,

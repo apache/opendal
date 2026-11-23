@@ -646,7 +646,11 @@ mod tests {
         )
         .unwrap()
         .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
+            OperationContext::new()
+                .with_http_transport(HttpTransporter::new(transport.clone()))
+                .with_executor(opendal_core::Executor::with(
+                    opendal_executor_tokio::TokioExecutor::default(),
+                )),
         );
         let path = "full/train-00000-of-00001.parquet";
         let reader = op.reader_with(path).concurrent(3).gap(0).await.unwrap();

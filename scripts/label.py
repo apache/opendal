@@ -18,6 +18,7 @@
 """Maintain repository labels and classify the current GitHub event."""
 
 import argparse
+import http.client
 import json
 import os
 import re
@@ -28,7 +29,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+MODEL = "@cf/qwen/qwen3.8-27b"
 PR_CATEGORIES = {
     "feat": "Adds a user-facing feature or capability.",
     "fix": "Fixes incorrect behavior, including a downstream compilation regression.",
@@ -84,6 +85,14 @@ def catalog():
         "description": "Contains an explicit incompatible API or behavior change.",
         "color": "d93f0b",
     }
+    labels["ci/nightly"] = {
+        "description": "Automated nightly CI regression or health report.",
+        "color": "b60205",
+    }
+    labels["ci/live-service"] = {
+        "description": "Live external cloud service CI failure.",
+        "color": "fbca04",
+    }
     return labels
 
 
@@ -103,10 +112,28 @@ def request(url, token, method="GET", body=None):
                 return json.loads(payload) if payload else None
         except urllib.error.HTTPError as error:
             if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
-                raise RuntimeError(
-                    f"{method} request failed with HTTP {error.code}"
-                ) from None
+                with error:
+                    detail = http_error_detail(error, token)
+                message = f"{method} request failed with HTTP {error.code}"
+                if detail:
+                    message += f": {detail}"
+                raise RuntimeError(message) from None
+            error.close()
             time.sleep(2**attempt)
+
+
+def http_error_detail(error, token):
+    limit = 500
+    try:
+        # Allow for UTF-8 and a token that straddles the snippet boundary.
+        body = error.read(4 * (limit + len(token))).decode("utf-8", errors="replace")
+    except (OSError, http.client.HTTPException):
+        return ""
+    if token:
+        body = body.replace(token, "*" * len(token))
+    detail = "".join(char if char.isprintable() else " " for char in body[:limit])
+    # Keep legacy GitHub Actions command markers out of the log.
+    return detail.replace("##[", "# [").strip()
 
 
 class GitHub:
@@ -117,10 +144,11 @@ class GitHub:
     def call(self, path, method="GET", body=None):
         return request(self.base + path, self.token, method, body)
 
-    def pages(self, path):
+    def pages(self, path, **query):
         items = []
         for page in range(1, 32):
-            batch = self.call(f"{path}?per_page=100&page={page}")
+            params = urllib.parse.urlencode(dict(query, per_page=100, page=page))
+            batch = self.call(f"{path}?{params}")
             items.extend(batch)
             if len(batch) < 100:
                 return items
@@ -154,7 +182,7 @@ def model_request(item, files):
             if is_pr
             else "Choose unclassified if none of the issue categories apply. "
         )
-        + "Return JSON only. /no_think\nCategories:\n"
+        + "Return JSON only.\nCategories:\n"
         + json.dumps(categories)
         + "\nComponents:\n"
         + json.dumps(components)
@@ -193,14 +221,18 @@ def model_request(item, files):
             {"role": "user", "content": json.dumps(data)},
         ],
         "temperature": 0,
-        "max_tokens": 512,
+        "max_completion_tokens": 512,
+        "chat_template_kwargs": {"enable_thinking": False},
         "response_format": {
             "type": "json_schema",
             "json_schema": {
-                "type": "object",
-                "properties": properties,
-                "required": list(properties),
-                "additionalProperties": False,
+                "name": "label_classification",
+                "schema": {
+                    "type": "object",
+                    "properties": properties,
+                    "required": list(properties),
+                    "additionalProperties": False,
+                },
             },
         },
     }
@@ -223,8 +255,11 @@ def classify(body):
     choice = result["choices"][0]
     if choice["finish_reason"] != "stop":
         raise ValueError("Incomplete model output")
+    content = choice["message"]["content"]
+    if not content:
+        raise ValueError("Workers AI returned no classification content")
     print(json.dumps({"model": MODEL, "usage": result.get("usage")}))
-    return json.loads(choice["message"]["content"])
+    return json.loads(content)
 
 
 def generated_file(path):
@@ -279,18 +314,91 @@ def selected_labels(result, item, files):
     return labels
 
 
+def workflow_run_identity(event, repository_id):
+    run = event.get("workflow_run") or {}
+    if (
+        run.get("conclusion") != "success"
+        or run.get("event") != "pull_request"
+        or (run.get("repository") or {}).get("id") != repository_id
+        or run.get("path") != ".github/workflows/label_pr_signal.yml"
+    ):
+        return None
+    head_id = (run.get("head_repository") or {}).get("id")
+    head_ref = run.get("head_branch")
+    head_sha = run.get("head_sha")
+    if not (head_id and head_ref and head_sha):
+        return None
+    return repository_id, head_id, head_ref, head_sha
+
+
+def matches_pull_request(pull, identity):
+    head = pull["head"]
+    return pull["state"] == "open" and identity == (
+        (pull["base"]["repo"] or {}).get("id"),
+        (head["repo"] or {}).get("id"),
+        head["ref"],
+        head["sha"],
+    )
+
+
+def resolve_pr(github, event, repository_id):
+    identity = workflow_run_identity(event, repository_id)
+    if identity is None:
+        return None
+    run = event["workflow_run"]
+    attached = run.get("pull_requests") or []
+    if len(attached) == 1:
+        number = attached[0].get("number")
+        if type(number) is int and number > 0:
+            pull = github.call(f"/pulls/{number}")
+            if matches_pull_request(pull, identity):
+                return number
+        print("Attached PR no longer matches the workflow run; skipping classification")
+        return None
+
+    # GitHub leaves the attached PR list empty for runs from forks.
+    owner = (run["head_repository"].get("owner") or {}).get("login")
+    if not owner:
+        return None
+    pulls = github.pages("/pulls", state="open", head=f"{owner}:{run['head_branch']}")
+    numbers = {
+        pull["number"]
+        for pull in pulls
+        if type(pull.get("number")) is int
+        and pull["number"] > 0
+        and matches_pull_request(pull, identity)
+    }
+    if len(numbers) == 1:
+        return numbers.pop()
+    if numbers:
+        print("Multiple open PRs match the workflow run; skipping classification")
+    else:
+        print("No open PR matches the workflow run; skipping classification")
+    return None
+
+
 def label_event(github, event, infer=classify, apply=False):
-    payload = event.get("pull_request") or event.get("issue")
-    if not payload or payload["state"] != "open":
-        return
-    number = payload["number"]
+    issue = event.get("issue")
+    if issue and issue["state"] == "open":
+        label_item(github, issue["number"], infer, apply)
+
+
+def label_pr(github, event, repository_id, number, infer=classify, apply=False):
+    identity = workflow_run_identity(event, repository_id)
+    if identity is not None and type(number) is int and number > 0:
+        label_item(github, number, infer, apply, expected_pr=identity)
+
+
+def label_item(github, number, infer, apply, expected_pr=None):
     item = github.call(f"/issues/{number}")
-    if item["state"] != "open":
+    is_pr = expected_pr is not None
+    if item["state"] != "open" or is_pr != ("pull_request" in item):
         return
     files = []
-    head = None
-    if "pull_request" in item:
-        head = github.call(f"/pulls/{number}")["head"]["sha"]
+    if is_pr:
+        if not matches_pull_request(github.call(f"/pulls/{number}"), expected_pr):
+            print("PR no longer matches the workflow run; skipping classification")
+            return
         files = github.pages(f"/pulls/{number}/files")
     result = infer(model_request(item, files))
     current = github.call(f"/issues/{number}")
@@ -300,8 +408,8 @@ def label_event(github, event, infer=classify, apply=False):
     ):
         print("Item changed during classification; skipping this result")
         return
-    if head and github.call(f"/pulls/{number}")["head"]["sha"] != head:
-        print("PR head changed during classification; skipping this result")
+    if is_pr and not matches_pull_request(github.call(f"/pulls/{number}"), expected_pr):
+        print("PR changed during classification; skipping this result")
         return
     selected = selected_labels(result, current, files)
     existing = {label["name"] for label in current["labels"]}
@@ -309,7 +417,7 @@ def label_event(github, event, infer=classify, apply=False):
     removals = sorted(
         label
         for label in existing - selected
-        if head and label in {f"size:{s}" for s in SIZES}
+        if is_pr and label in {f"size:{s}" for s in SIZES}
     )
     print(
         json.dumps(
@@ -328,19 +436,46 @@ def label_event(github, event, infer=classify, apply=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["sync", "event"])
-    parser.add_argument(
-        "--apply",
-        action="store_true",
-        help="Apply classifications; the default is a dry run",
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("sync", help="Create missing repository labels")
+    commands.add_parser("resolve", help="Resolve a PR from a workflow_run event")
+    issue = commands.add_parser("event", help="Classify the issue from an issues event")
+    pr = commands.add_parser(
+        "pr", help="Classify a resolved PR from a workflow_run event"
     )
+    pr.add_argument("number", type=int, help="Resolved PR number")
+    for command in (issue, pr):
+        command.add_argument(
+            "--apply",
+            action="store_true",
+            help="Apply classifications; the default is a dry run",
+        )
     args = parser.parse_args()
+    if args.command == "pr" and args.number <= 0:
+        pr.error("number must be positive")
+
     github = GitHub(os.environ["GITHUB_REPOSITORY"])
     if args.command == "sync":
         sync_labels(github)
-    else:
-        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        return
+
+    event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+    if args.command == "event":
         label_event(github, event, apply=args.apply)
+        return
+
+    repository_id = int(os.environ["GITHUB_REPOSITORY_ID"])
+    if args.command == "pr":
+        label_pr(github, event, repository_id, args.number, apply=args.apply)
+    else:
+        number = resolve_pr(github, event, repository_id)
+        if number is not None:
+            output = f"pr_number={number}"
+            if "GITHUB_OUTPUT" in os.environ:
+                with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+                    stream.write(output + "\n")
+            else:
+                print(output)
 
 
 if __name__ == "__main__":

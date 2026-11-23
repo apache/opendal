@@ -105,5 +105,13 @@ TEST_F(OpendalReaderTest, SeekTest)
     EXPECT_EQ(pos, 0);
     opendal_error_free(err);
 
+    // A negative offset is invalid with OPENDAL_SEEK_SET and must not wrap to u64::MAX.
+    pos = 999;
+    err = opendal_reader_seek(reader, -1, OPENDAL_SEEK_SET, &pos);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_UNEXPECTED);
+    EXPECT_EQ(pos, 0);
+    opendal_error_free(err);
+
     opendal_reader_free(reader);
 }

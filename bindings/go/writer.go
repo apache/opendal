@@ -23,7 +23,11 @@ import (
 	"io"
 	"runtime"
 	"strings"
+	"sync"
 )
+
+// ErrWriterClosed reports that a Writer is used after Close released it.
+var ErrWriterClosed = errors.New("opendal: writer is closed")
 
 // Write writes the given bytes to the specified path and returns the metadata
 // of the written object (such as etag, version, or last modified) as reported
@@ -56,8 +60,14 @@ import (
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) (*Metadata, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(op.inner, path, data, nil)
+		meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(inner, path, data, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +80,7 @@ func (op *Operator) Write(path string, data []byte, opts ...WithWriteFn) (*Metad
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(op.inner, path, data, cOpts)
+	meta, err := ffiOperatorWriteWithMetadata.symbol(op.ctx)(inner, path, data, cOpts)
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -291,7 +301,12 @@ func newOpendalWriteOptions(ctx context.Context, o *writeOptions) (*opendalWrite
 // Note: This example assumes proper error handling and import statements.
 // The trailing slash in "test/" is important to indicate it's a directory.
 func (op *Operator) CreateDir(path string) error {
-	return ffiOperatorCreateDir.symbol(op.ctx)(op.inner, path)
+	inner, release, err := op.acquire()
+	if err != nil {
+		return err
+	}
+	defer release()
+	return ffiOperatorCreateDir.symbol(op.ctx)(inner, path)
 }
 
 // Writer returns a new Writer for the specified path.
@@ -325,16 +340,18 @@ func (op *Operator) CreateDir(path string) error {
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, err := ffiOperatorWriter.symbol(op.ctx)(op.inner, path)
+		inner, err := ffiOperatorWriter.symbol(op.ctx)(opInner, path)
 		if err != nil {
 			return nil, err
 		}
-		writer := &Writer{
-			inner: inner,
-			ctx:   op.ctx,
-		}
-		return writer, nil
+		return &Writer{inner: inner, ctx: op.ctx}, nil
 	}
 
 	o := parseWriteOptions(opts...)
@@ -343,19 +360,21 @@ func (op *Operator) Writer(path string, opts ...WithWriteFn) (*Writer, error) {
 		return nil, err
 	}
 	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorWriterWith.symbol(op.ctx)(op.inner, path, cOpts)
+	inner, err := ffiOperatorWriterWith.symbol(op.ctx)(opInner, path, cOpts)
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
 	}
-	writer := &Writer{
-		inner: inner,
-		ctx:   op.ctx,
-	}
-	return writer, nil
+	return &Writer{inner: inner, ctx: op.ctx}, nil
 }
 
+const copyBufferSize = 256 * 1024
+
 type Writer struct {
+	// mu serializes access to inner. The C writer hands out a &mut to the
+	// underlying Rust writer, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalWriter
 	ctx   context.Context
 }
@@ -388,7 +407,39 @@ type Writer struct {
 //
 // Note: This example assumes proper error handling and import statements.
 func (w *Writer) Write(p []byte) (n int, err error) {
+	if w == nil {
+		return 0, ErrWriterClosed
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.inner == nil {
+		return 0, ErrWriterClosed
+	}
 	return ffiWriterWrite.symbol(w.ctx)(w.inner, p)
+}
+
+// ReadFrom copies data from src to w using one 256 KiB buffer.
+// It returns the number of bytes written and any error. Reading to EOF succeeds.
+// ReadFrom leaves both streams open. Call [Writer.Close] to complete the write
+// and get its metadata. ReadFrom on a closed Writer returns ErrWriterClosed
+// without reading src.
+func (w *Writer) ReadFrom(src io.Reader) (int64, error) {
+	if w == nil {
+		return 0, ErrWriterClosed
+	}
+	w.mu.Lock()
+	closed := w.inner == nil
+	w.mu.Unlock()
+	if closed {
+		return 0, ErrWriterClosed
+	}
+
+	buf := make([]byte, copyBufferSize)
+
+	// Hide WriteTo and ReadFrom to prevent io.CopyBuffer from dispatching to them.
+	reader := struct{ io.Reader }{Reader: src}
+	writer := struct{ io.Writer }{Writer: w}
+	return io.CopyBuffer(writer, reader, buf)
 }
 
 // Close finishes the write and releases the resources associated with the
@@ -402,9 +453,24 @@ func (w *Writer) Write(p []byte) (n int, err error) {
 // Close is a wrapper around the C-binding function
 // `opendal_writer_close_with_metadata`. Which fields of the returned Metadata
 // are populated depends on the service.
+//
+// The first Close returns the write result; it releases the Writer even when
+// the native close fails, so a deferred call cannot leak the handle. Calling
+// Close again is safe and returns ErrWriterClosed without touching the native
+// library. Write and ReadFrom on a closed Writer return ErrWriterClosed.
 func (w *Writer) Close() (*Metadata, error) {
-	defer ffiWriterFree.symbol(w.ctx)(w.inner)
-	meta, err := ffiWriterCloseWithMetadata.symbol(w.ctx)(w.inner)
+	if w == nil {
+		return nil, ErrWriterClosed
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.inner == nil {
+		return nil, ErrWriterClosed
+	}
+	inner := w.inner
+	w.inner = nil
+	defer ffiWriterFree.symbol(w.ctx)(inner)
+	meta, err := ffiWriterCloseWithMetadata.symbol(w.ctx)(inner)
 	if err != nil {
 		return nil, err
 	}
@@ -412,6 +478,7 @@ func (w *Writer) Close() (*Metadata, error) {
 }
 
 var _ io.Writer = (*Writer)(nil)
+var _ io.ReaderFrom = (*Writer)(nil)
 
 var ffiOperatorWriteWithMetadata = newFFI(
 	"opendal_operator_write_with_metadata",

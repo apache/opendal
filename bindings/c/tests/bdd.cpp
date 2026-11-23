@@ -167,6 +167,12 @@ TEST_F(OpendalBddTest, WriteEmptyNullBytes)
     error = opendal_operator_read(this->p, "empty", &read_data);
     EXPECT_EQ(error, nullptr);
     EXPECT_EQ(read_data.len, 0);
+    EXPECT_EQ(read_data.data, nullptr);
+    EXPECT_EQ(read_data.capacity, 0);
+
+    // An empty read result must satisfy the write input contract.
+    error = opendal_operator_write(this->p, "empty-round-trip", &read_data);
+    EXPECT_EQ(error, nullptr);
     opendal_bytes_free(&read_data);
 
     // Cover the separate write_with entry point that shares this validation.
@@ -198,6 +204,7 @@ TEST_F(OpendalBddTest, WriteEmptyNullBytes)
     opendal_bytes_free(&read_data);
 
     EXPECT_EQ(opendal_operator_delete(this->p, "empty"), nullptr);
+    EXPECT_EQ(opendal_operator_delete(this->p, "empty-round-trip"), nullptr);
     EXPECT_EQ(opendal_operator_delete(this->p, "empty-with-options"), nullptr);
     EXPECT_EQ(opendal_operator_delete(this->p, "empty-writer"), nullptr);
 }

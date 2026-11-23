@@ -129,7 +129,9 @@ mod tests {
         std::fs::write(root.join("a.txt"), b"a").unwrap();
         std::fs::write(root.join("dir/b.txt"), b"b").unwrap();
 
-        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap()))
+            .unwrap()
+            .layer(opendal_core::layers::SimulateLayer::default());
 
         let mut paths = op
             .list_with("/")

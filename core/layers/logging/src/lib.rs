@@ -23,14 +23,19 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::sync::Arc;
 
+use futures::StreamExt;
 use log::Level;
 use log::log;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-static LOGGING_TARGET: &str = "opendal::services";
+#[cfg(test)]
+mod tests;
 
-/// `LoggingLayer` records every operation with
+static LOGGING_TARGET: &str = "opendal::services";
+static HTTP_LOGGING_TARGET: &str = "opendal::services::http";
+
+/// `LoggingLayer` records OpenDAL operations and outbound HTTP requests with
 /// [log](https://docs.rs/log/).
 ///
 /// # Logging
@@ -43,6 +48,13 @@ static LOGGING_TARGET: &str = "opendal::services";
 ///   - `failed`: The operation returned an error.
 /// - The default log level for expected errors is `Warn`.
 /// - The default log level for unexpected errors is `Error`.
+///
+/// # HTTP requests
+///
+/// The `opendal::services::http` target reports request starts and received
+/// response status codes at `Debug`. It reports transport and response stream
+/// errors by kind at `Warn` or `Error`. HTTP records include the request method
+/// and service identity. They omit URLs, headers, bodies, and error details.
 ///
 /// # Examples
 ///
@@ -77,7 +89,8 @@ static LOGGING_TARGET: &str = "opendal::services";
 ///
 /// # Logging Interceptor
 ///
-/// You can implement your own logging interceptor to customize the logging behavior.
+/// You can implement your own logging interceptor to customize operation logs.
+/// HTTP records use the `log` facade directly.
 ///
 /// ```no_run
 /// # use opendal_core::raw;
@@ -134,6 +147,14 @@ impl<I: LoggingInterceptor> Layer for LoggingLayer<I> {
     fn apply_service(&self, inner: Servicer) -> Servicer {
         Arc::new(self.layer(inner))
     }
+
+    fn apply_context(&self, service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(LoggingHttpTransport {
+            inner: inner.http_transport().clone(),
+            info: service.info(),
+        });
+        inner.with_http_transport(transport)
+    }
 }
 
 impl<I: LoggingInterceptor> LoggingLayer<I> {
@@ -147,9 +168,66 @@ impl<I: LoggingInterceptor> LoggingLayer<I> {
     }
 }
 
-/// LoggingInterceptor customizes log emission.
+struct LoggingHttpTransport {
+    inner: HttpTransporter,
+    info: ServiceInfo,
+}
+
+impl HttpTransport for LoggingHttpTransport {
+    async fn fetch(&self, request: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let method = request.method().clone();
+        log!(
+            target: HTTP_LOGGING_TARGET,
+            Level::Debug,
+            "service={} name={} method={method}: http::fetch started",
+            self.info.scheme(),
+            self.info.name(),
+        );
+
+        let response = self.inner.fetch(request).await.inspect_err(|err| {
+            log_http_error(&self.info, &method, "failed", err.kind());
+        })?;
+        log!(
+            target: HTTP_LOGGING_TARGET,
+            Level::Debug,
+            "service={} name={} method={method} status={}: http::fetch finished",
+            self.info.scheme(),
+            self.info.name(),
+            response.status().as_u16(),
+        );
+
+        let info = self.info.clone();
+        Ok(response.map(|body| {
+            body.map_inner(|stream| {
+                Box::new(stream.inspect(move |result| {
+                    if let Err(err) = result {
+                        log_http_error(&info, &method, "body failed", err.kind());
+                    }
+                }))
+            })
+        }))
+    }
+}
+
+fn log_http_error(info: &ServiceInfo, method: &http::Method, message: &str, kind: ErrorKind) {
+    let level = if kind == ErrorKind::Unexpected {
+        Level::Error
+    } else {
+        Level::Warn
+    };
+    // Transport error text and sources can contain signed URLs or credentials.
+    log!(
+        target: HTTP_LOGGING_TARGET,
+        level,
+        "service={} name={} method={method} error_kind={kind}: http::fetch {message}",
+        info.scheme(),
+        info.name(),
+    );
+}
+
+/// LoggingInterceptor customizes log emission for OpenDAL operations.
 pub trait LoggingInterceptor: Debug + Clone + Send + Sync + Unpin + 'static {
-    /// Called for every log event.
+    /// Called for every operation log event.
     ///
     /// # Inputs
     ///
@@ -267,7 +345,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     type Lister = LoggingLister<oio::Lister, I>;
     type Deleter = LoggingDeleter<oio::Deleter, I>;
     type Copier = LoggingCopier<oio::Copier, I>;
-    type Composer = oio::Composer;
+    type Composer = LoggingComposer<oio::Composer, I>;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -278,7 +356,28 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.log_start(Operation::Compose, &[("to", to)]);
+        self.inner
+            .compose(ctx, to, args)
+            .map(|c| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", to)],
+                    "created composer",
+                    None,
+                );
+                LoggingComposer::new(self.info.clone(), self.logger.clone(), to, c)
+            })
+            .inspect_err(|err| {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", to)],
+                    "failed",
+                    Some(err),
+                );
+            })
     }
 
     async fn create_dir(
@@ -962,6 +1061,90 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
                         ("copied", &self.copied.to_string()),
                     ],
                     "abort failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+}
+
+#[doc(hidden)]
+pub struct LoggingComposer<C, I: LoggingInterceptor> {
+    info: ServiceInfo,
+    logger: I,
+    to: String,
+
+    composed: usize,
+    inner: C,
+}
+
+impl<C, I: LoggingInterceptor> LoggingComposer<C, I> {
+    fn new(info: ServiceInfo, logger: I, to: &str, inner: C) -> Self {
+        Self {
+            info,
+            logger,
+            to: to.to_string(),
+
+            composed: 0,
+            inner,
+        }
+    }
+}
+
+impl<C: oio::Compose, I: LoggingInterceptor> oio::Compose for LoggingComposer<C, I> {
+    async fn compose(&mut self, from: &str, args: OpRead) -> Result<()> {
+        match self.inner.compose(from, args).await {
+            Ok(()) => {
+                self.composed += 1;
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[
+                        ("to", &self.to),
+                        ("from", from),
+                        ("composed", &self.composed.to_string()),
+                    ],
+                    "accepted source",
+                    None,
+                );
+                Ok(())
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[
+                        ("to", &self.to),
+                        ("from", from),
+                        ("composed", &self.composed.to_string()),
+                    ],
+                    "failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        match self.inner.close().await {
+            Ok(meta) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", &self.to), ("composed", &self.composed.to_string())],
+                    "close succeeded",
+                    None,
+                );
+                Ok(meta)
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Compose,
+                    &[("to", &self.to), ("composed", &self.composed.to_string())],
+                    "close failed",
                     Some(&err),
                 );
                 Err(err)

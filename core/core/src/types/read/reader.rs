@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -108,6 +109,16 @@ struct FetchReadOutput {
     buffer: Buffer,
 }
 
+impl fmt::Debug for Reader {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let options = self.ctx.options();
+        f.debug_struct("Reader")
+            .field("chunk", &options.chunk())
+            .field("concurrent", &options.concurrent())
+            .finish_non_exhaustive()
+    }
+}
+
 impl Reader {
     /// Create a new reader.
     ///
@@ -138,7 +149,18 @@ impl Reader {
     /// This operation is zero-copy, which means it keeps the [`bytes::Bytes`] returned by underlying
     /// storage services without any extra copy or intensive memory allocations.
     pub async fn read(&self, range: impl Into<BytesRange>) -> Result<Buffer> {
-        let bufs: Vec<_> = self.clone().into_stream(range).await?.try_collect().await?;
+        self.read_with_limit(range.into(), None).await
+    }
+
+    pub(crate) async fn read_with_limit(
+        &self,
+        range: BytesRange,
+        limit: Option<u64>,
+    ) -> Result<Buffer> {
+        let bufs: Vec<_> = BufferStream::create(self.ctx.clone(), range, limit)
+            .await?
+            .try_collect()
+            .await?;
         Ok(bufs.into_iter().flatten().collect())
     }
 
@@ -407,7 +429,7 @@ impl Reader {
     /// }
     /// ```
     pub async fn into_stream(self, range: impl Into<BytesRange>) -> Result<BufferStream> {
-        BufferStream::create(self.ctx, range).await
+        BufferStream::create(self.ctx, range, None).await
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -639,7 +661,7 @@ mod tests {
     ) -> Reader {
         let op = Operator::new(services::Memory::default()).unwrap();
         Reader::new(ReadContext::new(
-            op.context().clone(),
+            op.context().with_executor(crate::test_executor()),
             op.service().clone(),
             "test_file".to_string(),
             OpRead::new(),
@@ -776,8 +798,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_reader_read_with_chunk_zero() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
+        let buf = reader.read(..).await.expect("read to end must succeed");
+
+        assert_eq!(buf.to_bytes(), content);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_reader_read_with_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -854,6 +896,8 @@ mod tests {
     #[tokio::test]
     async fn test_reader_read_suffix_with_chunk_and_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
         op.write(path, Buffer::from("HelloWorld")).await?;
 
@@ -963,6 +1007,28 @@ mod tests {
                 content[range.start as usize..range.end as usize]
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_fetch_with_chunk_zero() -> Result<()> {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let path = "test_file";
+
+        let content = gen_fixed_bytes(1024);
+        op.write(path, content.clone())
+            .await
+            .expect("write must succeed");
+
+        let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
+        let bufs = reader
+            .fetch(vec![0..100, 200..300])
+            .await
+            .expect("fetch must succeed");
+
+        assert_eq!(bufs[0].to_bytes(), content[0..100]);
+        assert_eq!(bufs[1].to_bytes(), content[200..300]);
         Ok(())
     }
 

@@ -18,9 +18,6 @@
 name: Service Test Ghac
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -37,16 +34,23 @@ on:
       - "core/services/azure-common/**"
       - "core/services/ghac/**"
       - ".github/workflows/service_test_ghac.yml"
+  workflow_call:
+    inputs:
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: service-test-ghac-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   ghac_v2:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || !github.event.pull_request.head.repo.fork
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     permissions:
+      contents: read
       actions: write
     steps:
       - uses: actions/checkout@v7
@@ -64,6 +68,17 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_SERVICE_V2', 'on');
 
       - name: Test
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        shell: bash
+        working-directory: core
+        run: cargo test behavior --features tests,services-ghac
+        env:
+          OPENDAL_TEST: ghac
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retry Test
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
         shell: bash
         working-directory: core
         run: cargo test behavior --features tests,services-ghac

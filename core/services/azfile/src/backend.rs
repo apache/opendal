@@ -24,17 +24,15 @@ use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZFILE_SCHEME;
 use super::config::AzfileConfig;
 use super::core::X_MS_META_PREFIX;
 use super::core::parse_error;
-use super::core::{AzfileCore, ErrorContext};
+use super::core::{AzfileCore, ErrorContext, normalize_sas_token};
 use super::deleter::AzfileDeleter;
 use super::lister::AzfileLister;
 use super::reader::*;
@@ -192,28 +190,7 @@ impl Builder for AzfileBuilder {
             ),
         }?;
 
-        let mut envs = std::collections::HashMap::new();
-        envs.insert("AZBLOB_ACCOUNT_NAME".to_string(), account_name.clone());
-        envs.insert(
-            "AZURE_STORAGE_ACCOUNT_NAME".to_string(),
-            account_name.clone(),
-        );
-
-        if let Some(v) = &self.config.account_key {
-            envs.insert("AZBLOB_ACCOUNT_KEY".to_string(), v.clone());
-            envs.insert("AZURE_STORAGE_ACCOUNT_KEY".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.sas_token {
-            envs.insert("AZURE_STORAGE_SAS_TOKEN".to_string(), v.clone());
-        }
-
-        let os_env = OsEnv;
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let mut credential = DefaultCredentialProvider::new();
         if let Some(account_key) = self.config.account_key.as_deref() {
@@ -222,7 +199,8 @@ impl Builder for AzfileBuilder {
                 account_key,
             ));
         }
-        if let Some(sas_token) = self.config.sas_token.as_deref() {
+        let sas_token = normalize_sas_token(self.config.sas_token.as_deref());
+        if let Some(sas_token) = sas_token {
             credential = credential.push_front(StaticCredentialProvider::new_sas_token(sas_token));
         }
 
@@ -261,6 +239,7 @@ impl Builder for AzfileBuilder {
                 signer,
                 sign_ctx,
                 share_name: self.config.share_name.clone(),
+                sas_token: sas_token.map(str::to_string),
             }),
         })
     }

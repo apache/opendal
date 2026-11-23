@@ -20,7 +20,13 @@ from uuid import uuid4
 
 import pytest
 
-from opendal.exceptions import IsADirectory, IsSameFile, NotFound
+from opendal.exceptions import (
+    ConditionNotMatch,
+    IsADirectory,
+    IsSameFile,
+    NotFound,
+    Unsupported,
+)
 
 
 @pytest.mark.need_capability("read", "write", "rename")
@@ -104,3 +110,50 @@ def test_sync_rename_overwrite(service_name, operator, async_operator):
     assert operator.read(target_path) == source_content
     operator.delete(target_path)
     operator.delete(source_path)
+
+
+@pytest.mark.need_capability("read", "write", "delete", "rename_with_if_not_exists")
+def test_sync_rename_if_not_exists(operator):
+    source_path = f"random_file_{uuid4()}"
+    target_path = f"random_file_{uuid4()}"
+    source_content = b"source contents"
+    target_content = b"target contents"
+    operator.write(source_path, source_content)
+    operator.write(target_path, target_content)
+    try:
+        with pytest.raises(ConditionNotMatch):
+            operator.rename(source_path, target_path, if_not_exists=True)
+        assert operator.read(source_path) == source_content
+        assert operator.read(target_path) == target_content
+
+        operator.delete(target_path)
+        operator.rename(source_path, target_path, if_not_exists=True)
+        with pytest.raises(NotFound):
+            operator.read(source_path)
+        assert operator.read(target_path) == source_content
+    finally:
+        operator.delete(source_path)
+        operator.delete(target_path)
+
+
+@pytest.mark.need_capability("read", "write", "delete")
+def test_sync_rename_if_not_exists_unsupported(service_name, operator):
+    if service_name not in {"memory", "fs"}:
+        pytest.skip("test requires memory or fs")
+    if operator.capability().rename_with_if_not_exists:
+        pytest.skip("service supports conditional rename")
+
+    source_path = f"random_file_{uuid4()}"
+    target_path = f"random_file_{uuid4()}"
+    source_content = b"source contents"
+    target_content = b"target contents"
+    operator.write(source_path, source_content)
+    operator.write(target_path, target_content)
+    try:
+        with pytest.raises(Unsupported, match="if_not_exists"):
+            operator.rename(source_path, target_path, if_not_exists=True)
+        assert operator.read(source_path) == source_content
+        assert operator.read(target_path) == target_content
+    finally:
+        operator.delete(source_path)
+        operator.delete(target_path)

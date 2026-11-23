@@ -239,7 +239,7 @@ mod tests {
     async fn test_position_writer_with_concurrent_errors() {
         let mut rng = rng();
 
-        let mut w = PositionWriter::new(Executor::default(), TestWrite::new(), 200);
+        let mut w = PositionWriter::new(crate::test_executor(), TestWrite::new(), 200);
         let mut total_size = 0u64;
 
         for _ in 0..1000 {
@@ -300,7 +300,7 @@ mod tests {
     #[tokio::test]
     async fn test_position_writer_surfaces_permanent_error_within_concurrent_window() {
         let concurrent = 8;
-        let mut w = PositionWriter::new(Executor::default(), FailingWrite, concurrent);
+        let mut w = PositionWriter::new(crate::test_executor(), FailingWrite, concurrent);
         let bs = Buffer::from(vec![0u8; 8]);
 
         let mut first_error_at = None;

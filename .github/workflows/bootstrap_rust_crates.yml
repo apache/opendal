@@ -44,7 +44,7 @@ jobs:
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Discover Rust crates
@@ -67,7 +67,7 @@ jobs:
             exit 1
           fi
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
       - name: Audit and bootstrap crates.io packages

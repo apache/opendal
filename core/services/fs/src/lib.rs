@@ -24,6 +24,8 @@ mod backend;
 mod config;
 mod core;
 mod deleter;
+#[cfg(target_os = "linux")]
+mod direct_io;
 mod lister;
 mod reader;
 mod writer;

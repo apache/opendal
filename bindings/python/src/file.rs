@@ -15,24 +15,27 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::io::BufRead;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
+use std::io::{self, BufRead};
 use std::ops::DerefMut;
 use std::sync::Arc;
+use std::sync::Mutex as StdMutex;
 
 use asyncband::mutex::Mutex;
+use asyncband::mutex::OwnedMutexGuard;
+use bytes::Buf;
 use futures::AsyncSeekExt;
+use futures::FutureExt;
 use futures::SinkExt;
 use pyo3::IntoPyObjectExt;
 use pyo3::buffer::PyBuffer;
 use pyo3::exceptions::PyIOError;
 use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
-use pyo3_async_runtimes::tokio::future_into_py;
-use pyo3_async_runtimes::tokio::get_runtime;
 
+use crate::runtime::{check_runtime_process, future_into_py, get_runtime, runtime_is_inherited};
 use crate::*;
 
 /// A file-like object for reading and writing data.
@@ -62,10 +65,18 @@ impl File {
 
 impl Drop for File {
     fn drop(&mut self) {
-        if matches!(self.0, FileState::Writer(_)) {
+        if matches!(self.0, FileState::Closed) {
+            return;
+        }
+        let state = std::mem::replace(&mut self.0, FileState::Closed);
+        if runtime_is_inherited() {
+            // Dropping a blocking reader or pending write can touch Tokio.
+            std::mem::forget(state);
+        } else if matches!(state, FileState::Writer(_)) {
             // Pending operations can own runtime resources even without close.
-            let _guard = get_runtime().enter();
-            drop(std::mem::replace(&mut self.0, FileState::Closed));
+            let runtime = get_runtime().expect("runtime belongs to this process");
+            let _guard = runtime.enter();
+            drop(state);
         }
     }
 }
@@ -109,6 +120,7 @@ impl File {
             }
         };
 
+        check_runtime_process()?;
         let buffer = py
             .detach(|| match size {
                 Some(size) => reader.read_buffer(size),
@@ -157,6 +169,7 @@ impl File {
             }
         };
 
+        check_runtime_process()?;
         let buffer = py
             .detach(|| -> std::io::Result<Vec<u8>> {
                 let mut buffer = Vec::new();
@@ -206,18 +219,37 @@ impl File {
             return Err(PyIOError::new_err("Buffer is not C contiguous."));
         }
 
+        check_runtime_process()?;
         let size = buffer.len_bytes();
+        if size == 0 {
+            return Ok(0);
+        }
         // Wait using owned storage, without exposing the Python buffer to I/O.
         let data = py.detach(|| reader.read_buffer(size))?;
         let len = data.len();
-        let target = buffer.as_mut_slice(py).expect("buffer was validated above");
+        if len == 0 {
+            return Ok(0);
+        }
+        let target = buffer
+            .as_slice_ptr()
+            .ok_or_else(|| PyIOError::new_err("Buffer pointer is null or not C contiguous."))?;
+        assert!(len <= target.len());
         let mut offset = 0;
         for chunk in data {
-            for (dst, src) in target[offset..offset + chunk.len()]
-                .iter()
-                .zip(chunk.iter())
-            {
-                dst.set(*src);
+            // SAFETY: the buffer is writable, C-contiguous, and `as_slice_ptr`
+            // covers `target.len()` elements with `len <= target.len()`, so
+            // writing `chunk.len()` bytes at `offset` stays within the buffer.
+            // `data` is owned storage that cannot overlap the Python buffer.
+            // Callers must not mutate or read the same buffer from another
+            // thread while `readinto` runs (possible under free-threaded
+            // Python). Only the prefix holding `len` bytes is overwritten; the
+            // buffer tail is left untouched.
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    chunk.as_ptr(),
+                    target.as_ptr().cast::<u8>().add(offset),
+                    chunk.len(),
+                );
             }
             offset += chunk.len();
         }
@@ -256,9 +288,10 @@ impl File {
         if len == 0 {
             return Ok(0);
         }
-        py.detach(|| get_runtime().handle().block_on(writer.send(bs)))
+        let runtime = get_runtime()?;
+        py.detach(|| runtime.handle().block_on(writer.send(bs)))
             .map(|_| len)
-            .map_err(|err| PyIOError::new_err(err.to_string()))
+            .map_err(format_pyerr_from_write_error)
     }
 
     /// Change the position of this file to the given byte offset.
@@ -304,37 +337,44 @@ impl File {
         };
 
         let whence = match whence {
-            0 => SeekFrom::Start(pos as u64),
+            0 => SeekFrom::Start(
+                u64::try_from(pos)
+                    .map_err(|_| PyValueError::new_err(format!("negative seek value {pos}")))?,
+            ),
             1 => SeekFrom::Current(pos),
             2 => SeekFrom::End(pos),
             _ => return Err(PyValueError::new_err("invalid whence")),
         };
 
+        check_runtime_process()?;
         py.detach(|| reader.seek(whence))
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
 
     /// Return the current position of this file.
     ///
+    /// In write mode, the position is the number of bytes accepted by the
+    /// writer, including buffered bytes.
+    ///
     /// Returns
     /// -------
     /// int
     ///     The current absolute position.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the file is closed.
     pub fn tell(&mut self, py: Python<'_>) -> PyResult<u64> {
         let reader = match &mut self.0 {
             FileState::Reader(r) => r,
-            FileState::Writer(_) => {
-                return Err(PyIOError::new_err(
-                    "I/O operation failed for reading on write only file.",
-                ));
-            }
+            FileState::Writer(w) => return Ok(w.position()),
             FileState::Closed => {
-                return Err(PyIOError::new_err(
-                    "I/O operation failed for reading on closed file.",
-                ));
+                return Err(PyValueError::new_err("I/O operation on closed file."));
             }
         };
 
+        check_runtime_process()?;
         py.detach(|| reader.stream_position())
             .map_err(|err| PyIOError::new_err(err.to_string()))
     }
@@ -347,10 +387,11 @@ impl File {
     /// -----
     /// A closed file cannot be used for further I/O operations.
     fn close(&mut self, py: Python<'_>) -> PyResult<()> {
+        let runtime = get_runtime()?;
         py.detach(|| {
-            let _guard = get_runtime().enter();
+            let _guard = runtime.enter();
             if let FileState::Writer(w) = &mut self.0 {
-                get_runtime().handle().block_on(w.close())?;
+                runtime.handle().block_on(w.close())?;
             }
             self.0 = FileState::Closed;
             Ok(())
@@ -388,9 +429,10 @@ impl File {
         if matches!(self.0, FileState::Reader(_)) {
             Ok(())
         } else if let FileState::Writer(w) = &mut self.0 {
-            match py.detach(|| get_runtime().handle().block_on(w.flush())) {
+            let runtime = get_runtime()?;
+            match py.detach(|| runtime.handle().block_on(w.flush())) {
                 Ok(_) => Ok(()),
-                Err(e) => Err(std::io::Error::from(e).into()),
+                Err(e) => Err(format_pyerr_from_write_error(e)),
             }
         } else {
             Ok(())
@@ -453,15 +495,159 @@ impl File {
 pub struct AsyncFile(Arc<Mutex<AsyncFileState>>);
 
 enum AsyncFileState {
-    Reader(Box<ocore::FuturesAsyncReader>),
+    Reader(Box<AsyncFileReader>),
     Writer(ocore::BufferSink),
     Closed,
+}
+
+impl AsyncFileState {
+    fn reader_mut(&mut self) -> PyResult<&mut AsyncFileReader> {
+        match self {
+            Self::Reader(reader) => Ok(reader),
+            Self::Writer(_) => Err(PyIOError::new_err(
+                "I/O operation failed for reading on write only file.",
+            )),
+            Self::Closed => Err(PyIOError::new_err(
+                "I/O operation failed for reading on closed file.",
+            )),
+        }
+    }
+}
+
+struct AsyncFileReader {
+    inner: ocore::FuturesAsyncReader,
+    // The core cursor has advanced past these bytes. Keep them until asyncio
+    // accepts the result so a cancelled buffered read can be resumed.
+    unread: ocore::Buffer,
+    deferred_error: Option<io::Error>,
+}
+
+impl AsyncFileReader {
+    async fn read(&mut self, size: Option<usize>) -> io::Result<ocore::Buffer> {
+        if size == Some(0) {
+            return self.inner.read_buffer(0).await;
+        }
+        if self.unread.is_empty() {
+            if let Some(err) = self.deferred_error.take() {
+                return Err(err);
+            }
+            return match size {
+                Some(size) => self.inner.read_buffer(size).await,
+                None => self.inner.read_to_end_buffer().await,
+            };
+        }
+
+        if let Some(size) = size {
+            return Ok(self.unread.split_to(size.min(self.unread.len())));
+        }
+        if self.deferred_error.is_some() {
+            return Ok(std::mem::take(&mut self.unread));
+        }
+        let rest = self.inner.read_to_end_buffer().await?;
+        Ok(Iterator::chain(std::mem::take(&mut self.unread), rest).collect())
+    }
+
+    async fn buffer_ready(&mut self, size: usize) {
+        if self.unread.is_empty() && self.deferred_error.is_none() {
+            match self.inner.read_buffer(size).await {
+                Ok(first) => self.unread = first,
+                Err(err) => self.deferred_error = Some(err),
+            }
+        }
+        if self.unread.is_empty() || self.deferred_error.is_some() {
+            return;
+        }
+
+        // A pending poll leaves the stream in the core reader. Never suspend
+        // after consuming the prefix, even if the next buffer is delayed.
+        let mut len = self.unread.len();
+        let mut parts = Vec::new();
+        while len < size {
+            match self.inner.read_buffer(size - len).now_or_never() {
+                Some(Ok(next)) if !next.is_empty() => {
+                    len += next.len();
+                    if parts.is_empty() {
+                        parts.extend(std::mem::take(&mut self.unread));
+                    }
+                    parts.extend(next);
+                }
+                Some(Err(err)) => {
+                    self.deferred_error = Some(err);
+                    break;
+                }
+                _ => break,
+            }
+        }
+        if !parts.is_empty() {
+            self.unread = parts.into();
+        }
+    }
+
+    async fn position(&mut self) -> io::Result<u64> {
+        Ok(self.inner.stream_position().await? - self.unread.len() as u64)
+    }
+
+    async fn seek(&mut self, mut whence: SeekFrom) -> io::Result<u64> {
+        if let SeekFrom::Current(offset) = whence
+            && !self.unread.is_empty()
+        {
+            let pos = self.position().await?;
+            let target = pos.checked_add_signed(offset).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )
+            })?;
+            whence = SeekFrom::Start(target);
+        }
+        let pos = self.inner.seek(whence).await?;
+        self.unread = ocore::Buffer::new();
+        self.deferred_error = None;
+        Ok(pos)
+    }
+}
+
+#[derive(Default)]
+enum BufferedReadDelivery {
+    #[default]
+    Waiting,
+    Ready(OwnedMutexGuard<AsyncFileState>, usize),
+    Finished,
+}
+
+#[pyclass]
+struct BufferedReadDone(Arc<StdMutex<BufferedReadDelivery>>);
+
+#[pymethods]
+impl BufferedReadDone {
+    fn __call__(&self, future: &Bound<PyAny>) -> PyResult<()> {
+        let cancelled = future.call_method0("cancelled")?.is_truthy()?;
+        let delivery =
+            std::mem::replace(&mut *self.0.lock().unwrap(), BufferedReadDelivery::Finished);
+        if let BufferedReadDelivery::Ready(mut guard, len) = delivery
+            && !cancelled
+        {
+            let reader = guard.reader_mut()?;
+            if len == 0 {
+                reader.deferred_error = None;
+            } else if len == reader.unread.len() {
+                reader.unread = ocore::Buffer::new();
+            } else {
+                reader.unread.advance(len);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl AsyncFile {
     pub fn new_reader(reader: ocore::FuturesAsyncReader) -> Self {
         Self(Arc::new(Mutex::new(AsyncFileState::Reader(Box::new(
-            reader,
+            AsyncFileReader {
+                inner: reader,
+                unread: ocore::Buffer::new(),
+                deferred_error: None,
+            },
         )))))
     }
 
@@ -497,28 +683,78 @@ impl AsyncFile {
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let reader = match guard.deref_mut() {
-                AsyncFileState::Reader(r) => r,
-                AsyncFileState::Writer(_) => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on write only file.",
-                    ));
-                }
-                _ => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on closed file.",
-                    ));
-                }
-            };
-
-            let buffer = match size {
-                Some(size) => reader.read_buffer(size).await,
-                None => reader.read_to_end_buffer().await,
-            }
-            .map_err(|err| PyIOError::new_err(err.to_string()))?;
+            let buffer = guard
+                .reader_mut()?
+                .read(size)
+                .await
+                .map_err(|err| PyIOError::new_err(err.to_string()))?;
 
             Python::attach(|py| buffer_into_py_bytes(py, buffer).map(Bound::unbind))
         })
+    }
+
+    /// Read up to `size` bytes by combining immediately available data.
+    ///
+    /// A positive-sized read waits for the first bytes, then returns when
+    /// more data would require waiting, at EOF, or at the requested limit.
+    /// Keep reading until an empty result to consume the file. A zero-sized
+    /// read returns empty bytes without consuming data or a pending error.
+    ///
+    /// If a read encounters an error after collecting bytes, it returns those
+    /// bytes and the next positive-sized read raises the error. A successful
+    /// seek clears a pending error. Cancelling a pending read preserves the
+    /// file position and any bytes collected for that read.
+    ///
+    /// Parameters
+    /// ----------
+    /// size : int
+    ///     The maximum number of bytes to read. Must be non-negative.
+    ///
+    /// Returns
+    /// -------
+    /// coroutine
+    ///     An awaitable that returns the bytes read from the stream.
+    #[pyo3(signature = (size) -> "collections.abc.Awaitable[bytes]")]
+    pub fn read_buffered<'p>(&'p self, py: Python<'p>, size: usize) -> PyResult<Bound<'p, PyAny>> {
+        if size == 0 {
+            return self.read(py, Some(0));
+        }
+        let state = self.0.clone();
+        let delivery = Arc::new(StdMutex::new(BufferedReadDelivery::Waiting));
+        let callback = BufferedReadDone(delivery.clone());
+        let future = future_into_py(py, async move {
+            let mut guard = state.lock_owned().await;
+            let reader = guard.reader_mut()?;
+            reader.buffer_ready(size).await;
+
+            let len = size.min(reader.unread.len());
+            let result = if len == 0 {
+                if let Some(err) = &reader.deferred_error {
+                    Err(PyIOError::new_err(err.to_string()))
+                } else {
+                    return Python::attach(|py| {
+                        buffer_into_py_bytes(py, ocore::Buffer::new()).map(Bound::unbind)
+                    });
+                }
+            } else {
+                let mut buffer = reader.unread.clone();
+                buffer.truncate(len);
+                Python::attach(|py| buffer_into_py_bytes(py, buffer).map(Bound::unbind))
+            };
+
+            // Keep the file locked until Python either accepts or cancels this
+            // result. If the cancellation callback ran first, leave the data
+            // available for the next operation and release the lock here.
+            if len == 0 || result.is_ok() {
+                let mut delivery = delivery.lock().unwrap();
+                if matches!(*delivery, BufferedReadDelivery::Waiting) {
+                    *delivery = BufferedReadDelivery::Ready(guard, len);
+                }
+            }
+            result
+        })?;
+        future.call_method1("add_done_callback", (callback,))?;
+        Ok(future)
     }
 
     /// Write bytes to this file asynchronously.
@@ -565,7 +801,7 @@ impl AsyncFile {
                 .send(bs)
                 .await
                 .map(|_| len)
-                .map_err(|err| PyIOError::new_err(err.to_string()))
+                .map_err(format_pyerr_from_write_error)
         })
     }
 
@@ -600,7 +836,10 @@ impl AsyncFile {
         let state = self.0.clone();
 
         let whence = match whence {
-            0 => SeekFrom::Start(pos as u64),
+            0 => SeekFrom::Start(
+                u64::try_from(pos)
+                    .map_err(|_| PyValueError::new_err(format!("negative seek value {pos}")))?,
+            ),
             1 => SeekFrom::Current(pos),
             2 => SeekFrom::End(pos),
             _ => return Err(PyValueError::new_err("invalid whence")),
@@ -608,35 +847,29 @@ impl AsyncFile {
 
         future_into_py(py, async move {
             let mut guard = state.lock().await;
-            let reader = match guard.deref_mut() {
-                AsyncFileState::Reader(r) => r,
-                AsyncFileState::Writer(_) => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on write only file.",
-                    ));
-                }
-                _ => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on closed file.",
-                    ));
-                }
-            };
-
-            let pos = reader
+            guard
+                .reader_mut()?
                 .seek(whence)
                 .await
-                .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(pos)
+                .map_err(|err| PyIOError::new_err(err.to_string()))
         })
         .and_then(|pos| pos.into_bound_py_any(py))
     }
 
     /// Return the current position of this file.
     ///
+    /// In write mode, the position is the number of bytes accepted by the
+    /// writer, including buffered bytes.
+    ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that returns the current absolute position.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the file is closed.
     #[pyo3(signature = () -> "collections.abc.Awaitable[int]")]
     pub fn tell<'p>(&'p mut self, py: Python<'p>) -> PyResult<Bound<'p, PyAny>> {
         let state = self.0.clone();
@@ -645,23 +878,16 @@ impl AsyncFile {
             let mut guard = state.lock().await;
             let reader = match guard.deref_mut() {
                 AsyncFileState::Reader(r) => r,
-                AsyncFileState::Writer(_) => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on write only file.",
-                    ));
-                }
-                _ => {
-                    return Err(PyIOError::new_err(
-                        "I/O operation failed for reading on closed file.",
-                    ));
+                AsyncFileState::Writer(w) => return Ok(w.position()),
+                AsyncFileState::Closed => {
+                    return Err(PyValueError::new_err("I/O operation on closed file."));
                 }
             };
 
-            let pos = reader
-                .stream_position()
+            reader
+                .position()
                 .await
-                .map_err(|err| PyIOError::new_err(err.to_string()))?;
-            Ok(pos)
+                .map_err(|err| PyIOError::new_err(err.to_string()))
         })
         .and_then(|pos| pos.into_bound_py_any(py))
     }
@@ -686,8 +912,7 @@ impl AsyncFile {
         })
     }
 
-    // `typing_extensions.Self` because `typing.Self` is 3.11+ and the floor is 3.10.
-    #[pyo3(signature = () -> "collections.abc.Awaitable[typing_extensions.Self]")]
+    #[pyo3(signature = () -> "collections.abc.Awaitable[typing.Self]")]
     fn __aenter__<'a>(slf: PyRef<'a, Self>, py: Python<'a>) -> PyResult<Bound<'a, PyAny>> {
         let slf = slf.into_py_any(py)?;
         future_into_py(py, async move { Ok(slf) })
@@ -697,7 +922,7 @@ impl AsyncFile {
     #[pyo3(signature = (
         exc_type: "type[BaseException] | None",
         exc_value: "BaseException | None",
-        traceback: "types.TracebackType | None") -> "None")]
+        traceback: "types.TracebackType | None") -> "collections.abc.Awaitable[None]")]
     fn __aexit__<'a>(
         &'a mut self,
         py: Python<'a>,
@@ -839,7 +1064,8 @@ mod tests {
     #[test]
     fn test_unclosed_file_drops_pending_input_in_runtime() {
         let op = ocore::Operator::via_iter("memory", []).unwrap();
-        let writer = get_runtime()
+        let runtime = get_runtime().unwrap();
+        let writer = runtime
             .block_on(async { op.writer_with("pending").chunk(256 * 1024).await })
             .unwrap();
         let dropped_in_runtime = Arc::new(AtomicBool::new(false));
@@ -848,7 +1074,7 @@ mod tests {
         let FileState::Writer(sink) = &mut file.0 else {
             unreachable!();
         };
-        get_runtime().block_on(sink.send(data.into())).unwrap();
+        runtime.block_on(sink.send(data.into())).unwrap();
         assert!(!dropped_in_runtime.load(Ordering::SeqCst));
         assert!(tokio::runtime::Handle::try_current().is_err());
         drop(file);

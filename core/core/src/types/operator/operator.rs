@@ -390,6 +390,10 @@ impl Operator {
 
     /// Retrieve the metadata for the specified path.
     ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
+    ///
     /// # Notes
     ///
     /// ## Extra Options
@@ -421,6 +425,10 @@ impl Operator {
     }
 
     /// Retrieve the metadata of the specified path with additional options.
+    ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
     /// # Options
     ///
@@ -467,6 +475,10 @@ impl Operator {
     }
 
     /// Retrieve the metadata of the specified path with additional options.
+    ///
+    /// When checking for a directory, pass a path with a trailing slash, such as `"dir/"`.
+    /// Without the trailing slash, the backend may return metadata with mode
+    /// [`EntryMode::DIR`] or an error with kind [`ErrorKind::NotFound`] for an existing directory.
     ///
     /// # Examples
     ///
@@ -516,7 +528,9 @@ impl Operator {
         path: String,
         opts: options::StatOptions,
     ) -> Result<Metadata> {
-        let rp = srv.stat(&ctx, &path, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_stat_args(srv.info().scheme(), srv.capability(), &args)?;
+        let rp = srv.stat(&ctx, &path, args).await?;
         Ok(rp.into_metadata())
     }
 
@@ -614,13 +628,10 @@ impl Operator {
             .await
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// Use [`FutureRead::limit`] to cap the result and accept EOF after a valid
+    /// starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Options
     ///
@@ -650,13 +661,10 @@ impl Operator {
         )
     }
 
-    /// Read the entire file into bytes from given path with additional options.
+    /// Read the selected bytes from a file with additional options.
     ///
-    /// # Notes
-    ///
-    /// ## Streaming Read
-    ///
-    /// This function reads all content into memory at once. For more precise memory management or to read big file lazily, please use [`Operator::reader`].
+    /// See [`options::ReadOptions::limit`] to cap the result and accept EOF after
+    /// a valid starting byte. Use [`Self::reader`] to read lazily.
     ///
     /// # Examples
     ///
@@ -697,12 +705,38 @@ impl Operator {
             );
         }
 
-        let (range, args, opts) = opts.into();
+        let limit = opts.limit;
+        if limit.is_some() && (opts.chunk.is_some_and(|chunk| chunk != 0) || opts.concurrent > 1) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be combined with chunk or concurrent reads",
+            ));
+        }
+
+        let (mut range, args, opts) = opts.into();
+        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
         let reader = srv.read(&ctx, &path, args.clone())?;
+        if limit == Some(0) || range.size() == Some(0) {
+            return Ok(Buffer::new());
+        }
+
+        if let (Some(limit), BytesRange::Range { offset, size }) = (limit, range) {
+            // A length represented by u64 can never contain a byte at u64::MAX.
+            let available = u64::MAX - offset;
+            if available == 0 {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range starts at or beyond the end of the object",
+                )
+                .with_context("offset", offset));
+            }
+            let size = size.unwrap_or(limit).min(limit).min(available);
+            range = BytesRange::new(offset, Some(size));
+        }
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
-        let r = Reader::new(read_context);
-        let buf = r.read(range).await?;
-        Ok(buf)
+        Reader::new(read_context)
+            .read_with_limit(range, limit)
+            .await
     }
 
     /// Create a new reader of given path.
@@ -809,6 +843,7 @@ impl Operator {
         }
 
         let (args, opts) = options.into();
+        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
         let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         Ok(Reader::new(read_context))
@@ -988,21 +1023,19 @@ impl Operator {
         w.close().await
     }
 
-    /// Create a new writer of given path.
+    /// Create a writer for the specified path.
     ///
-    /// # Notes
+    /// Streaming data in multiple writes to the service requires
+    /// [`Capability::write_can_multi`]. This includes [`FuturesAsyncWriter`]
+    /// when its 256 KiB buffer or calls to `flush()` produce multiple chunks.
     ///
-    /// ## Writer Features
+    /// When this capability is false, pass the complete [`Buffer`] to
+    /// [`Operator::write`] or to a single [`Writer::write`] call. If you know
+    /// the payload size in advance, set `chunk(size)` with [`Operator::writer_with`]
+    /// to buffer the full payload in one chunk.
     ///
-    /// The writer provides several powerful capabilities:
-    /// - Streaming writes for continuous data transfer
-    /// - Automatic multipart upload handling
-    /// - Memory-efficient chunk-based writing
-    ///
-    /// ## Extra Options
-    ///
-    /// [`Operator::writer`] is a simplified version that does not include additional options.
-    /// For advanced features such as `chunk` and `concurrent`, use [`Operator::writer_with`] or [`Operator::writer_options`] instead.
+    /// Use [`Operator::writer_with`] or [`Operator::writer_options`] to set
+    /// chunk size and concurrency.
     ///
     /// # Examples
     ///
@@ -1023,18 +1056,15 @@ impl Operator {
         self.writer_with(path).await
     }
 
-    /// Create a new writer of given path with additional options.
+    /// Create a writer for the specified path with additional options.
     ///
-    /// # Notes
+    /// Streaming data in multiple writes to the service requires
+    /// [`Capability::write_can_multi`]. When this capability is false, pass the
+    /// complete [`Buffer`] to [`Operator::write`] or to a single [`Writer::write`]
+    /// call on a default writer. If you know the payload size in advance, set
+    /// [`chunk(size)`][FutureWriter::chunk] to buffer the full payload in one chunk.
     ///
-    /// ## Writer Features
-    ///
-    /// The writer provides several powerful capabilities:
-    /// - Streaming writes for continuous data transfer
-    /// - Automatic multipart upload handling
-    /// - Memory-efficient chunk-based writing
-    ///
-    /// ## Chunk Size Handling
+    /// # Chunk Size Handling
     ///
     /// Storage services often have specific requirements for chunk sizes:
     /// - Services like `s3` may return `EntityTooSmall` errors for undersized chunks
@@ -1154,6 +1184,7 @@ impl Operator {
 
         let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &args)?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context)?;
         Ok(w)
@@ -1306,8 +1337,10 @@ impl Operator {
             );
         }
 
-        let args = OpCompose::from_options(&srv.capability(), opts)
+        let capability = srv.capability();
+        let args = OpCompose::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_compose_args(srv.info().scheme(), capability, &args)?;
         Composer::create(ctx, srv, to, args)
     }
 
@@ -1347,8 +1380,9 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same and `source_version` is not set,
-    ///   an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and none of `source_version`,
+    ///   `user_metadata`, `content_type` or `content_language` is set, an
+    ///   `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1410,8 +1444,9 @@ impl Operator {
     /// # Notes
     ///
     /// - `from` and `to` must be a file.
-    /// - If `from` and `to` are the same and `source_version` is not set,
-    ///   an `IsSameFile` error will occur.
+    /// - If `from` and `to` are the same and none of `source_version`,
+    ///   `user_metadata`, `content_type` or `content_language` is set, an
+    ///   `IsSameFile` error will occur.
     /// - `copy` is idempotent. For same `from` and `to` input, the result will be the same.
     ///
     /// # Options
@@ -1497,7 +1532,12 @@ impl Operator {
             );
         }
 
-        if from == to && opts.source_version.is_none() {
+        if from == to
+            && opts.source_version.is_none()
+            && opts.user_metadata.is_none()
+            && opts.content_type.is_none()
+            && opts.content_language.is_none()
+        {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copy")
@@ -1543,7 +1583,12 @@ impl Operator {
             );
         }
 
-        if from == to && opts.source_version.is_none() {
+        if from == to
+            && opts.source_version.is_none()
+            && opts.user_metadata.is_none()
+            && opts.content_type.is_none()
+            && opts.content_language.is_none()
+        {
             return Err(
                 Error::new(ErrorKind::IsSameFile, "from and to paths are same")
                     .with_operation("Operator::copier")
@@ -1553,8 +1598,12 @@ impl Operator {
             );
         }
 
-        let args = OpCopy::from_options(&srv.capability(), opts)
+        let capability = srv.capability();
+        let args = OpCopy::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        let scheme = srv.info().scheme();
+        crate::layers::check_copy_metadata_args(scheme, capability, &args)?;
+        crate::layers::check_copy_args(scheme, capability, &args)?;
         Copier::create(ctx, srv, &from, &to, args)
     }
 
@@ -1697,7 +1746,9 @@ impl Operator {
             );
         }
 
-        srv.rename(&ctx, &from, &to, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_rename_args(srv.info().scheme(), srv.capability(), &args)?;
+        srv.rename(&ctx, &from, &to, args).await?;
 
         Ok(())
     }
@@ -1786,7 +1837,9 @@ impl Operator {
             .with_context("path", path));
         }
 
-        srv.restore(&ctx, &path, opts.into()).await?;
+        let args = opts.into();
+        crate::layers::check_restore_args(srv.info().scheme(), srv.capability(), &args)?;
+        srv.restore(&ctx, &path, args).await?;
         Ok(())
     }
 
@@ -1795,6 +1848,9 @@ impl Operator {
     /// # Notes
     ///
     /// - Deleting a file that does not exist is a successful no-op.
+    /// - On the `fs` service, deleting a symbolic link removes the link and
+    ///   leaves its target intact. Use a path without a trailing `/` to delete
+    ///   a dangling link.
     ///
     /// # Examples
     ///
@@ -1817,6 +1873,10 @@ impl Operator {
     ///
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first.
+    /// - With `recursive(true)`, use a trailing slash (for example, `"a/"`) to
+    ///   scope deletion to a directory across services. Prefix matching for
+    ///   paths without a trailing slash is service-specific and can include
+    ///   siblings such as `"ab/"` when deleting `"a"`.
     ///
     /// # Options
     ///
@@ -1833,6 +1893,16 @@ impl Operator {
     ///
     /// # async fn test(op: Operator, version: &str) -> Result<()> {
     /// op.delete_with("path/to/file").version(version).await?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// Recursively delete the `a/` directory:
+    ///
+    /// ```
+    /// # use opendal_core::{Operator, Result};
+    /// # async fn test(op: Operator) -> Result<()> {
+    /// op.delete_with("a/").recursive(true).await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -1855,6 +1925,11 @@ impl Operator {
     /// - Deleting a file that does not exist is a successful no-op, unless a
     ///   condition such as `if_match` fails first. Visit
     ///   [`options::DeleteOptions`] for the conditional delete contract.
+    /// - With [`options::DeleteOptions::recursive`] enabled, use a trailing
+    ///   slash (for example, `"a/"`) to scope deletion to a directory across
+    ///   services. Prefix matching for paths without a trailing slash is
+    ///   service-specific and can include siblings such as `"ab/"` when
+    ///   deleting `"a"`.
     ///
     /// # Examples
     ///
@@ -1974,7 +2049,13 @@ impl Operator {
         Deleter::create(self.context().clone(), self.service().clone())
     }
 
-    /// Remove the path and all nested dirs and files recursively.
+    /// Recursively delete entries at the given path.
+    ///
+    /// A path ending in `/`, such as `"a/"`, is the only portable way to
+    /// scope deletion to a directory and its descendants. Prefix matching for
+    /// paths without a trailing slash is service-specific. For example, `"a"`
+    /// can also match entries under `"ab/"` on prefix-based services such as
+    /// `memory`.
     ///
     /// # Deprecated
     ///
@@ -1985,12 +2066,12 @@ impl Operator {
     ///
     /// Instead of:
     /// ```ignore
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// ```
     ///
     /// Use:
     /// ```ignore
-    /// op.delete_with("path/to/dir").recursive(true).await?;
+    /// op.delete_with("a/").recursive(true).await?;
     /// ```
     ///
     /// # Notes
@@ -2006,7 +2087,7 @@ impl Operator {
     /// # use opendal_core::Operator;
     /// #
     /// # async fn test(op: Operator) -> Result<()> {
-    /// op.remove_all("path/to/dir").await?;
+    /// op.remove_all("a/").await?;
     /// # Ok(())
     /// # }
     /// ```
@@ -2073,7 +2154,7 @@ impl Operator {
     /// ## Options
     ///
     /// See [`options::ListOptions`] for the full set. Common knobs:
-    /// - Traversal: `recursive` (default `false`) toggles depth-first listing under the prefix.
+    /// - Traversal: `recursive` toggles recursive listing under the prefix. A `glob` pattern filters entries and determines how deeply to traverse.
     /// - Pagination: `limit` and `start_after` tune page size and resume positions (backend dependent).
     /// - Versioning: `versions` / `deleted` ask versioned backends to return extra entries.
     ///
@@ -2169,9 +2250,10 @@ impl Operator {
         path: String,
         opts: options::ListOptions,
     ) -> Result<Vec<Entry>> {
-        let args = opts.into();
-        let lister = Lister::create(ctx, srv, &path, args)?;
-        lister.try_collect().await
+        Self::lister_inner(ctx, srv, path, opts)
+            .await?
+            .try_collect()
+            .await
     }
 
     /// Create a streaming lister for entries whose paths start with the given prefix `path`.
@@ -2182,7 +2264,7 @@ impl Operator {
     ///
     /// # Options
     ///
-    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with): traversal (`recursive`), pagination (`limit`, `start_after`), and versioning (`versions`, `deleted`).
+    /// Takes the same [`options::ListOptions`] as [`list_with`](Operator::list_with), including glob filtering, pagination, and versioning.
     ///
     /// # Examples
     ///
@@ -2310,7 +2392,8 @@ impl Operator {
         path: String,
         opts: options::ListOptions,
     ) -> Result<Lister> {
-        let args = opts.into();
+        let args = OpList::from_options(opts)?;
+        crate::layers::check_list_args(srv.info().scheme(), srv.capability(), &args)?;
         Lister::create(ctx, srv, &path, args)
     }
 }
@@ -2561,6 +2644,13 @@ impl Operator {
         path: String,
         (opts, expire): (options::ReadOptions, Duration),
     ) -> Result<PresignedRequest> {
+        if opts.limit.is_some() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be used with presigned reads",
+            ));
+        }
+
         let (range, op_read, _) = opts.into();
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
@@ -2707,6 +2797,7 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &op_write)?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2821,8 +2912,167 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let op_delete = OpDelete::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        crate::layers::check_delete_args(srv.info().scheme(), srv.capability(), &op_delete)?;
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_limit_rejects_chunk_and_concurrency() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let err = op.read_with("missing").limit(0).chunk(2).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        let err = op
+            .read_with("missing")
+            .concurrent(2)
+            .limit(2)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        op.write("file", "data").await?;
+        let buf = op.read_with("file").limit(2).concurrent(1).await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_limit_accepts_zero_chunk() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let buf = op.read_with("file").limit(2).chunk(0).await?;
+        assert_eq!(buf.to_bytes(), "da");
+
+        let buf = op
+            .read_options(
+                "file",
+                options::ReadOptions {
+                    limit: Some(2),
+                    chunk: Some(0),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(buf.to_bytes(), "da");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_limited_read_validates_conditions() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        assert!(!op.info().capability().read_with_if_match);
+
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .limit(0)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let err = op
+            .read_with("missing")
+            .if_match("\"e\"")
+            .range(1..1)
+            .limit(5)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        assert!(op.read_with("missing").limit(0).await?.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_read_at_max_offset() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+
+        let err = op
+            .read_with("file")
+            .range(u64::MAX..)
+            .limit(1)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(
+            op.read_with("file")
+                .range(u64::MAX..)
+                .limit(0)
+                .await?
+                .is_empty()
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_limited_suffix_of_empty_file() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("empty", Buffer::new()).await?;
+
+        let buf = op
+            .read_with("empty")
+            .range(BytesRange::suffix(4))
+            .limit(2)
+            .await?;
+        assert!(buf.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_presign_read_rejects_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        for limit in [0, 2] {
+            let result = op
+                .presign_read_options(
+                    "file",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        limit: Some(limit),
+                        ..Default::default()
+                    },
+                )
+                .await;
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::ConfigInvalid);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_bounded_read_requires_full_length() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let err = op.read_with("file").range(2..6).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(err.message(), "reader got too little data");
+        Ok(())
+    }
+
+    #[cfg(feature = "blocking")]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_blocking_read_options_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("file", "data").await?;
+        let op = blocking::Operator::new(op)?;
+        let buf = tokio::task::spawn_blocking(move || {
+            op.read_options(
+                "file",
+                options::ReadOptions {
+                    range: BytesRange::from(2..),
+                    limit: Some(u64::MAX),
+                    ..Default::default()
+                },
+            )
+        })
+        .await
+        .expect("blocking read task must complete")?;
+        assert_eq!(buf.to_bytes(), "ta");
+        Ok(())
     }
 }

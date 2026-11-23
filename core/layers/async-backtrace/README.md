@@ -1,7 +1,8 @@
 # Apache OpenDAL™ Async Backtrace Layer
 
-`opendal-layer-async-backtrace` records logical stack traces for asynchronous service
-operations with `async-backtrace`.
+`opendal-layer-async-backtrace` records logical stack traces with `async-backtrace`
+for service operations, HTTP requests and response body reads, and tasks submitted
+through the OpenDAL executor.
 
 ## Use through `opendal`
 

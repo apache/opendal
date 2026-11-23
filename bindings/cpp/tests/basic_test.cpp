@@ -19,10 +19,14 @@
 
 #include <ctime>
 #include <random>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include <gmock/gmock.h>
 
 #include "framework/test_framework.hpp"
 
@@ -50,8 +54,6 @@ class OpenDALBasicTest : public ::testing::Test {
 // Scenario: OpenDAL Blocking Operations
 OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   std::string file_path = "test";
-  std::string file_path_copied = "test_copied";
-  std::string file_path_renamed = "test_renamed";
   std::string dir_path = "test_dir/";
   std::string_view data = "abc";
 
@@ -86,10 +88,13 @@ OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
   EXPECT_TRUE(paths.find(list_file_path) != paths.end());
 
-  // remove files
-  op_.Remove(file_path_renamed);
+  // remove files and the empty directory
+  op_.Remove(file_path);
+  op_.Remove(list_file_path);
   op_.Remove(dir_path);
-  EXPECT_FALSE(op_.Exists(file_path_renamed));
+  EXPECT_FALSE(op_.Exists(file_path));
+  EXPECT_FALSE(op_.Exists(list_file_path));
+  EXPECT_FALSE(op_.Exists(dir_path));
 }
 
 OPENDAL_TEST_F(OpenDALTest, ReaderTest) {
@@ -260,28 +265,58 @@ TEST(OpenDALOptionsTest, ListOptions) {
   opendal::Operator op("memory");
   op.CreateDir("list_options/");
   op.CreateDir("list_options/nested/");
-  op.Write("list_options/nested/file", "hello");
+  op.Write("list_options/nested/marker", "hello");
+  op.Write("list_options/nested/result", "hello");
 
   opendal::ListOptions options;
   options.recursive = true;
   options.limit = 16;
-  options.start_after = "list_options/";
-  options.versions = true;
-  options.deleted = true;
+  options.start_after = "list_options/nested/marker";
 
   auto entries = op.List("list_options/", options);
   std::unordered_set<std::string> paths;
   for (const auto &entry : entries) {
     paths.insert(entry.path);
   }
-  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+  EXPECT_THAT(paths,
+              ::testing::UnorderedElementsAre("list_options/nested/result"));
 
   auto lister = op.GetLister("list_options/", options);
   paths.clear();
   for (const auto &entry : lister) {
     paths.insert(entry.path);
   }
-  EXPECT_TRUE(paths.find("list_options/nested/file") != paths.end());
+  EXPECT_THAT(paths,
+              ::testing::UnorderedElementsAre("list_options/nested/result"));
+}
+
+TEST(OpenDALOptionsTest, ListOptionsUnsupportedByService) {
+  using ::testing::HasSubstr;
+  using ::testing::ThrowsMessage;
+
+  opendal::Operator op("dashmap");
+  op.Write("list_unsupported/file", "hello");
+
+  for (bool recursive : {false, true}) {
+    opendal::ListOptions start_after;
+    start_after.start_after = "list_unsupported/file";
+    start_after.recursive = recursive;
+    EXPECT_THAT([&] { op.List("list_unsupported/", start_after); },
+                ThrowsMessage<std::exception>(
+                    HasSubstr("list with the arguments start_after")));
+  }
+
+  opendal::ListOptions versions;
+  versions.versions = true;
+  EXPECT_THAT([&] { op.List("list_unsupported/", versions); },
+              ThrowsMessage<std::exception>(
+                  HasSubstr("list with the arguments versions")));
+
+  opendal::ListOptions deleted;
+  deleted.deleted = true;
+  EXPECT_THAT([&] { op.List("list_unsupported/", deleted); },
+              ThrowsMessage<std::exception>(
+                  HasSubstr("list with the arguments deleted")));
 }
 
 TEST(OpenDALOptionsTest, DeleteOptions) {
@@ -320,6 +355,31 @@ TEST(OpenDALOptionsTest, StatOptions) {
   opendal::StatOptions stat_options;
   auto metadata = op.Stat("stat_options", stat_options);
   EXPECT_EQ(metadata.content_length, 5);
+}
+
+TEST(OpenDALReaderTest, ReadAndReadAtValidateArguments) {
+  opendal::Operator op("memory");
+  op.Write("reader_validation", "hello");
+
+  auto reader = op.GetReader("reader_validation");
+  char buf[4] = {};
+
+  EXPECT_THROW(reader.Read(buf, -1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(buf, -1, 0), std::invalid_argument);
+  EXPECT_THROW(reader.Read(nullptr, 1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(nullptr, 1, 0), std::invalid_argument);
+  EXPECT_THROW(reader.Read(nullptr, -1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(nullptr, -1, 0), std::invalid_argument);
+
+  EXPECT_EQ(reader.Read(nullptr, 0), 0);
+  EXPECT_EQ(reader.Read(buf, 0), 0);
+  EXPECT_EQ(reader.ReadAt(nullptr, 0, 0), 0);
+  EXPECT_EQ(reader.ReadAt(buf, 0, 0), 0);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 0);
+
+  // Reader stays usable after rejected and zero-length reads.
+  EXPECT_EQ(reader.Read(buf, sizeof(buf)), 4);
+  EXPECT_EQ(std::string_view(buf, 4), "hell");
 }
 
 } // namespace opendal::test

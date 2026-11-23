@@ -18,20 +18,17 @@
 name: Integration Spring CI
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
     paths:
       - "integrations/spring/**"
-      - "core/**"
       - ".github/workflows/ci_integration_spring.yml"
+  workflow_call:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ci-integration-spring-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   integration_spring:
@@ -43,7 +40,7 @@ jobs:
         uses: ./.github/actions/setup
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: 25
           distribution: zulu

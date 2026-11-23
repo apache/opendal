@@ -31,6 +31,7 @@ use crate::*;
 pub struct BufferSink {
     state: State,
     buf: Buffer,
+    position: u64,
 }
 
 enum State {
@@ -51,7 +52,21 @@ impl BufferSink {
         BufferSink {
             state: State::Idle(Some(w)),
             buf: Buffer::new(),
+            position: 0,
         }
+    }
+
+    /// Return the number of bytes accepted by the underlying writer.
+    ///
+    /// This includes bytes buffered by the writer and any prefix it accepted
+    /// before returning an error. Bytes still pending in the sink do not count.
+    pub fn position(&self) -> u64 {
+        self.position
+    }
+
+    /// Return whether the sink has been closed.
+    pub(crate) fn is_closed(&self) -> bool {
+        matches!(self.state, State::Idle(None))
     }
 }
 
@@ -63,6 +78,13 @@ impl futures::Sink<Buffer> for BufferSink {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: Buffer) -> Result<()> {
+        if self.is_closed() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink has been closed",
+            ));
+        }
+
         self.buf = item;
         Ok(())
     }
@@ -72,15 +94,16 @@ impl futures::Sink<Buffer> for BufferSink {
         loop {
             match &mut this.state {
                 State::Idle(w) => {
-                    if this.buf.is_empty() {
-                        return Poll::Ready(Ok(()));
-                    }
                     let Some(mut w) = w.take() else {
                         return Poll::Ready(Err(Error::new(
                             ErrorKind::Unexpected,
                             "state invalid: sink has been closed",
                         )));
                     };
+                    if this.buf.is_empty() {
+                        this.state = State::Idle(Some(w));
+                        return Poll::Ready(Ok(()));
+                    }
                     let buf = this.buf.clone();
                     let fut = async move {
                         let res = w.write(buf).await;
@@ -94,6 +117,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     match res {
                         Ok(n) => {
                             this.buf.advance(n);
+                            this.position += n as u64;
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
@@ -141,6 +165,7 @@ impl futures::Sink<Buffer> for BufferSink {
                     match res {
                         Ok(n) => {
                             this.buf.advance(n);
+                            this.position += n as u64;
                         }
                         Err(err) => return Poll::Ready(Err(err)),
                     }
@@ -165,8 +190,44 @@ impl futures::Sink<Buffer> for BufferSink {
 mod tests {
     use std::sync::Arc;
 
+    use futures::SinkExt;
+
     use crate::raw::*;
     use crate::*;
+
+    #[tokio::test]
+    async fn test_sink_rejects_write_and_flush_after_close() {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let mut sink = op
+            .writer("test_sink_rejects_write_and_flush_after_close")
+            .await
+            .unwrap()
+            .into_sink();
+
+        sink.close().await.unwrap();
+
+        let err = sink
+            .feed(Buffer::from("after close"))
+            .await
+            .expect_err("closed sink must reject writes");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink has been closed"),
+            "{}",
+            err.message()
+        );
+
+        let err = sink
+            .flush()
+            .await
+            .expect_err("closed sink must reject flushes");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink has been closed"),
+            "{}",
+            err.message()
+        );
+    }
 
     #[tokio::test]
     async fn test_trait() {

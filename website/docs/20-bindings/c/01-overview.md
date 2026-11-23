@@ -33,8 +33,7 @@ registry distribution; you must compile the shared library yourself.
   create-dir through a single `opendal_operator *`.
 - **Streaming reader and writer** — `opendal_reader` and `opendal_writer` for
   chunk-at-a-time I/O with seek support on the reader.
-- **All services via build flags** — enable individual backends with `-DFEATURES`
-  at CMake time.
+- **Services** — enable additional backends with [`-DFEATURES`](./02-getting-started.md#build-the-library) when running CMake.
 - **C11 compatible** — the header `opendal.h` requires C11 or later (and a C++14
   compiler for the Rust-generated glue).
 - **Explicit memory ownership** — every heap-allocated value has a matching
@@ -43,23 +42,8 @@ registry distribution; you must compile the shared library yourself.
 
 ## Building
 
-Requirements: a C11/C++14 compiler, CMake, and a Rust toolchain.
-
-```shell
-cd bindings/c
-mkdir -p build && cd build
-
-# Build with the default memory + fs services
-cmake ..
-make
-
-# Enable additional services
-cmake .. -DFEATURES="opendal/services-s3,opendal/services-gcs"
-make
-```
-
-The shared library lands in `../../target/debug/` and the header is at
-`bindings/c/include/opendal.h`.
+Follow [Build the library](./02-getting-started.md#build-the-library) for the
+CMake commands and the paths to the library and header.
 
 ## Useful Links
 

@@ -15,8 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+#[cfg(unix)]
 use std::collections::HashMap;
-use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -29,48 +29,29 @@ pub struct FsCore {
     pub capability: Capability,
     pub root: PathBuf,
     pub atomic_write_dir: Option<PathBuf>,
+    pub direct_io: bool,
     pub buf_pool: oio::PooledBuf,
 }
 
 impl FsCore {
-    /// Join a caller-supplied key onto a base directory while keeping the result
-    /// confined to that base.
-    ///
-    /// `normalize_path` (opendal-core) strips leading `/` and empty segments but
-    /// intentionally does NOT resolve `.`/`..`, and `PathBuf::join` is purely
-    /// lexical, so a key such as `../../etc/passwd` would otherwise escape the
-    /// configured `root` at syscall time. The fs backend documents that "all
-    /// operations will happen under this root", so we reject any key whose
-    /// components include a `..` (parent-dir) traversal, a root directory, or a
-    /// path prefix: `PathBuf::join` discards the base when the key is absolute,
-    /// which covers `/etc/passwd` plus the Windows `C:\`, `\\?\` and UNC forms
-    /// that `normalize_path` leaves untouched.
-    pub fn confined_join(base: &Path, path: &str) -> Result<PathBuf> {
-        use std::path::Component;
-        let trimmed = path.trim_end_matches('/');
-        if Path::new(trimmed).components().any(|c| {
-            matches!(
-                c,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        }) {
-            return Err(
-                Error::new(ErrorKind::NotFound, "path escapes the configured root")
-                    .with_context("path", path),
-            );
-        }
-        Ok(base.join(trimmed))
-    }
-
-    /// Join a caller-supplied key onto `self.root`, keeping the result confined.
     #[inline]
     pub fn root_join(&self, path: &str) -> Result<PathBuf> {
-        Self::confined_join(&self.root, path)
+        confined_join(&self.root, path)
     }
 
     // Build write path and ensure the parent dirs created
     pub async fn ensure_write_abs_path(&self, parent: &Path, path: &str) -> Result<PathBuf> {
-        let p = Self::confined_join(parent, path)?;
+        self.ensure_write_abs_path_with(parent, path, new_std_io_error)
+            .await
+    }
+
+    async fn ensure_write_abs_path_with(
+        &self,
+        parent: &Path,
+        path: &str,
+        map_io_error: impl FnOnce(std::io::Error) -> Error,
+    ) -> Result<PathBuf> {
+        let p = confined_join(parent, path)?;
 
         // Create dir before write path.
         //
@@ -91,7 +72,7 @@ impl FsCore {
 
         tokio::fs::create_dir_all(&parent)
             .await
-            .map_err(new_std_io_error)?;
+            .map_err(map_io_error)?;
 
         Ok(p)
     }
@@ -133,79 +114,6 @@ impl FsCore {
         }
 
         Ok(m.build())
-    }
-
-    pub async fn fs_open(&self, path: &str) -> Result<File> {
-        let p = self.root_join(path)?;
-
-        let f = tokio::fs::OpenOptions::new()
-            .read(true)
-            .open(&p)
-            .await
-            .map_err(new_std_io_error)?
-            .into_std()
-            .await;
-
-        Ok(f)
-    }
-
-    pub async fn fs_write(&self, path: &PathBuf, op: &OpWrite) -> Result<tokio::fs::File> {
-        let mut open_options = tokio::fs::OpenOptions::new();
-        if op.if_not_exists() {
-            open_options.create_new(true);
-        } else {
-            open_options.create(true);
-        }
-
-        open_options.write(true);
-
-        if op.append() {
-            open_options.append(true);
-        } else {
-            open_options.truncate(true);
-        }
-
-        let f = open_options
-            .open(path)
-            .await
-            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("OpenForWrite")), err))?;
-
-        Ok(f)
-    }
-
-    /// This function is used to build a tempfile for writing.
-    ///
-    /// We don't care about the OpWrite since every check should be performed on target path directly.
-    pub async fn fs_tempfile_write(
-        &self,
-        path: &str,
-    ) -> Result<(tokio::fs::File, Option<PathBuf>)> {
-        let Some(atomic_write_dir) = self.atomic_write_dir.as_ref() else {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "fs didn't configure atomic_write_dir, but we're still entering the tempfile logic. This might be a bug.",
-            ));
-        };
-
-        let tmp_path = self
-            .ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
-            .await?;
-
-        let mut open_options = tokio::fs::OpenOptions::new();
-
-        // tempfile should always be new file.
-        open_options.create_new(true);
-        open_options.write(true);
-        open_options.truncate(true);
-
-        let f = open_options.open(&tmp_path).await.map_err(|err| {
-            parse_error(
-                ErrorContext::new(ServiceOperation("OpenTemporaryFile")),
-                err,
-            )
-        })?;
-
-        Ok((f, Some(tmp_path)))
     }
 
     pub async fn fs_list(&self, path: &str) -> Result<Option<tokio::fs::ReadDir>> {
@@ -256,13 +164,36 @@ impl FsCore {
         Ok(size)
     }
 
-    pub async fn fs_rename(&self, from: &str, to: &str) -> Result<()> {
+    pub async fn fs_rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
+        #[cfg(not(target_os = "linux"))]
+        if if_not_exists {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "Conditional rename is only supported on Linux",
+            ));
+        }
+
+        let map_path_error = |err| {
+            #[cfg(target_os = "linux")]
+            if if_not_exists {
+                return parse_conditional_rename_directory_error(err, new_std_io_error);
+            }
+            new_std_io_error(err)
+        };
+
         let from = self.root_join(from)?;
-        tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
+        tokio::fs::metadata(&from).await.map_err(map_path_error)?;
 
         let to = self
-            .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
+            .ensure_write_abs_path_with(&self.root, to.trim_end_matches('/'), map_path_error)
             .await?;
+
+        #[cfg(target_os = "linux")]
+        if if_not_exists {
+            return tokio::task::spawn_blocking(move || rename_noreplace(&from, &to))
+                .await
+                .map_err(new_task_join_error)?;
+        }
 
         tokio::fs::rename(from, to)
             .await
@@ -330,6 +261,75 @@ impl FsCore {
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
 
+/// Publish a staged write at `to` without replacing an existing entry.
+///
+/// Returns `ConditionNotMatch` when the destination already exists.
+pub(super) fn publish_staged_file(from: &Path, to: &Path) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    {
+        rename_noreplace(from, to)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // Non-Linux systems lack a rename that fails on an existing
+        // destination. Linking the staged file to `to` creates the destination
+        // atomically and fails with `AlreadyExists` when it is already
+        // present, on both POSIX and Windows. Hard links require both paths on
+        // one filesystem, which the atomic publish already requires for its
+        // rename.
+        std::fs::hard_link(from, to)
+            .map_err(|err| parse_error(ErrorContext::new(ServiceOperation("Rename")), err))?;
+
+        match std::fs::remove_file(from) {
+            // A concurrent cleanup or an unusual filesystem may have removed
+            // the staging entry already; the destination is still published.
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            // The destination was published, but the staging file is orphaned
+            // now. Report it instead of leaking it silently.
+            Err(err) => {
+                Err(new_std_io_error(err).with_context("service_operation", "RemoveStagedFile"))
+            }
+            Ok(()) => Ok(()),
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(super) fn rename_noreplace(from: &Path, to: &Path) -> Result<()> {
+    use rustix::fs::{CWD, RenameFlags, renameat_with};
+    use rustix::io::Errno;
+
+    renameat_with(CWD, from, CWD, to, RenameFlags::NOREPLACE).map_err(|err| match err {
+        Errno::INVAL | Errno::NOSYS | Errno::OPNOTSUPP => Error::new(
+            ErrorKind::Unsupported,
+            "The kernel or filesystem does not support conditional rename",
+        )
+        .set_source(err),
+        _ => parse_conditional_rename_directory_error(err.into(), |err| {
+            parse_error(ErrorContext::new(ServiceOperation("Rename")), err)
+        }),
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn parse_conditional_rename_directory_error(
+    err: std::io::Error,
+    fallback: impl FnOnce(std::io::Error) -> Error,
+) -> Error {
+    use rustix::io::Errno;
+
+    let kind = match err.raw_os_error().map(Errno::from_raw_os_error) {
+        Some(Errno::ISDIR) => ErrorKind::IsADirectory,
+        Some(Errno::NOTDIR) => ErrorKind::NotADirectory,
+        _ => return fallback(err),
+    };
+
+    Error::new(kind, err.kind().to_string())
+        .set_source(err)
+        .with_context("service_operation", "Rename")
+}
+
 /// Context needed to classify an error from this service.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ErrorContext {
@@ -360,6 +360,47 @@ pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn test_conditional_rename_directory_errno_mapping() {
+        use rustix::io::Errno;
+        use std::error::Error as _;
+
+        for (errno, kind) in [
+            (Errno::ISDIR, ErrorKind::IsADirectory),
+            (Errno::NOTDIR, ErrorKind::NotADirectory),
+        ] {
+            let err = parse_conditional_rename_directory_error(errno.into(), new_std_io_error);
+            assert_eq!(err.kind(), kind);
+            assert!(!err.is_temporary());
+            let source = err
+                .source()
+                .unwrap()
+                .downcast_ref::<std::io::Error>()
+                .unwrap();
+            assert_eq!(source.raw_os_error(), Some(errno.raw_os_error()));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_conditional_rename_rejects_non_directory_path_components() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("file"), b"data").unwrap();
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        for (from, to) in [("file/child", "target"), ("file", "file/dir/target")] {
+            let err = op
+                .rename_with(from, to)
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+        }
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn test_fs_backend_copy_preserves_user_metadata() {
@@ -385,37 +426,6 @@ mod tests {
 
         let got = FsCore::get_user_metadata(&dst_path).unwrap();
         assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
-    }
-
-    #[test]
-    fn test_confined_join_rejects_escaping_keys() {
-        let base = Path::new("/data/root");
-        for key in ["../etc/passwd", "a/../../b", "/etc/passwd", "//etc/passwd"] {
-            let err = FsCore::confined_join(base, key).unwrap_err();
-            assert_eq!(
-                err.kind(),
-                ErrorKind::NotFound,
-                "key should be rejected: {key}"
-            );
-        }
-    }
-
-    #[test]
-    fn test_confined_join_allows_normal_keys() {
-        let base = Path::new("/data/root");
-        assert_eq!(
-            FsCore::confined_join(base, "a/b.txt").unwrap(),
-            PathBuf::from("/data/root/a/b.txt")
-        );
-        assert_eq!(
-            FsCore::confined_join(base, "a/b/").unwrap(),
-            PathBuf::from("/data/root/a/b")
-        );
-        // The root path `/` trims to empty and resolves to the base itself.
-        assert_eq!(
-            FsCore::confined_join(base, "/").unwrap(),
-            PathBuf::from("/data/root")
-        );
     }
 
     #[cfg(unix)]
@@ -468,6 +478,107 @@ mod tests {
             "dangling symlink must be listed as Unknown: {modes:?}"
         );
         assert_eq!(modes.get("real"), Some(&EntryMode::FILE));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_dangling_symlink() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::os::unix::fs::symlink("nope.txt", root.join("dangle.txt")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+
+        op.delete("dangle.txt/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+
+        op.delete("dangle.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_removes_symlink_to_dir_and_keeps_target() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("realdir")).unwrap();
+        std::fs::write(root.join("realdir").join("keep"), b"data").unwrap();
+        let dir_link = root.join("linkdir");
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        for (path, recursive) in [("linkdir", false), ("linkdir/", false), ("linkdir/", true)] {
+            std::os::unix::fs::symlink("realdir", &dir_link).unwrap();
+            op.delete_with(path).recursive(recursive).await.unwrap();
+            assert_eq!(
+                std::fs::symlink_metadata(&dir_link).unwrap_err().kind(),
+                std::io::ErrorKind::NotFound
+            );
+            assert_eq!(std::fs::read(root.join("realdir/keep")).unwrap(), b"data");
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_file_symlink_requires_file_path() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        let target = root.join("real.txt");
+        let link = root.join("link.txt");
+        std::fs::write(&target, b"data").unwrap();
+        std::os::unix::fs::symlink("real.txt", &link).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let err = op.delete("link.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(std::fs::symlink_metadata(&link).unwrap().is_symlink());
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+
+        op.delete("link.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(&link).unwrap_err().kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(std::fs::read(&target).unwrap(), b"data");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_symlink_to_dir_as_dir() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+
+        std::fs::create_dir(root.join("real")).unwrap();
+        std::os::unix::fs::symlink("real", root.join("link")).unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        let entries = op.list("/").await.unwrap();
+        let modes: std::collections::HashMap<String, EntryMode> = entries
+            .iter()
+            .map(|e| (e.path().to_string(), e.metadata().mode()))
+            .collect();
+
+        assert_eq!(
+            modes.get("link/"),
+            Some(&EntryMode::DIR),
+            "symlink to a directory must be listed as a directory: {modes:?}"
+        );
+        assert_eq!(modes.get("real/"), Some(&EntryMode::DIR));
     }
 
     #[tokio::test]

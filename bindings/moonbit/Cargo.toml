@@ -33,4 +33,6 @@ name = "opendal_moonbit"
 path = "native/lib.rs"
 
 [dependencies]
-opendal = { version = ">=0", path = "../../core", default-features = false }
+opendal = { version = ">=0", path = "../../core", default-features = false, features = [
+  "auto-simulate",
+] }

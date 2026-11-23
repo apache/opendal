@@ -41,6 +41,7 @@ internal struct OpenDALMetadata
     public IntPtr ContentMd5;
     public IntPtr ContentType;
     public IntPtr ContentEncoding;
+    public IntPtr ContentLanguage;
     public byte LastModifiedHasValue;
     public long LastModifiedSecond;
     public int LastModifiedNanosecond;
@@ -66,6 +67,7 @@ internal struct OpenDALMetadata
             Utilities.ReadNullableUtf8(ContentMd5),
             Utilities.ReadNullableUtf8(ContentType),
             Utilities.ReadNullableUtf8(ContentEncoding),
+            Utilities.ReadNullableUtf8(ContentLanguage),
             LastModifiedHasValue != 0 ? Utilities.ToDateTimeOffset(LastModifiedSecond, LastModifiedNanosecond) : null,
             Utilities.ReadNullableUtf8(ETag),
             Utilities.ReadNullableUtf8(ContentDisposition),
@@ -93,6 +95,7 @@ internal struct OpenDALMetadata
         native.ContentMd5 = writer.Utf8(metadata.ContentMd5);
         native.ContentType = writer.Utf8(metadata.ContentType);
         native.ContentEncoding = writer.Utf8(metadata.ContentEncoding);
+        native.ContentLanguage = writer.Utf8(metadata.ContentLanguage);
         if (metadata.LastModified is { } lastModified)
         {
             native.LastModifiedHasValue = 1;

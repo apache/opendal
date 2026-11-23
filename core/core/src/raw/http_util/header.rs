@@ -25,6 +25,7 @@ use http::HeaderValue;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
@@ -110,8 +111,102 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 /// Parse multipart boundary from header map.
+///
+/// Returns `None` if the `Content-Type` header is missing, has no `boundary`
+/// parameter, or the parameter value is empty or malformed. Quoted parameter
+/// values are scanned with RFC 9110 `quoted-pair` escaping; a `boundary` that
+/// actually uses `quoted-pair` is rejected because `&str` cannot unescape it
+/// and RFC 2046 `bchars` disallows `\`.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    let Some(content_type) = parse_header_to_str(headers, CONTENT_TYPE)? else {
+        return Ok(None);
+    };
+
+    // Skip the media type before the first parameter. A quoted parameter value
+    // may contain `;`, so parameter boundaries must be found while scanning.
+    let Some((_, mut rest)) = content_type.split_once(';') else {
+        return Ok(None);
+    };
+
+    loop {
+        rest = rest.trim_matches([' ', '\t']);
+        if rest.is_empty() {
+            return Ok(None);
+        }
+
+        // A parameter without `=` is malformed for our purposes; skip it.
+        let name_end = rest.find(['=', ';']).unwrap_or(rest.len());
+        if name_end == rest.len() || rest.as_bytes()[name_end] == b';' {
+            rest = &rest[name_end..];
+            let Some(next) = rest.strip_prefix(';') else {
+                return Ok(None);
+            };
+            rest = next;
+            continue;
+        }
+
+        let name = rest[..name_end].trim_matches([' ', '\t']);
+        let is_boundary = name.eq_ignore_ascii_case("boundary");
+        rest = rest[name_end + 1..].trim_start_matches([' ', '\t']);
+
+        let value = if let Some(quoted) = rest.strip_prefix('"') {
+            // RFC 9110 `quoted-pair` lets a backslash escape `"` and `\` inside
+            // a quoted string, so scan for the closing quote instead of
+            // stopping at the first one.
+            let mut value_end = None;
+            let mut escaped = false;
+            for (idx, c) in quoted.char_indices() {
+                if escaped {
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else if c == '"' {
+                    value_end = Some(idx);
+                    break;
+                }
+            }
+
+            // A quote that is never closed, or one only reached through a
+            // dangling `\`, is malformed.
+            let Some(value_end) = value_end else {
+                return Ok(None);
+            };
+            let value = &quoted[..value_end];
+            // A quoted-pair cannot be represented in `&str`, and RFC 2046
+            // `bchars` disallows `\` in boundaries.
+            if is_boundary && value.contains('\\') {
+                return Ok(None);
+            }
+            rest = &quoted[value_end + 1..];
+            value
+        } else {
+            let value_end = rest.find(';').unwrap_or(rest.len());
+            let value = rest[..value_end].trim_end_matches([' ', '\t']);
+            rest = &rest[value_end..];
+            value
+        };
+
+        // Only optional whitespace may follow a parameter value before the
+        // next `;` or the end of the header.
+        rest = rest.trim_start_matches([' ', '\t']);
+        if !rest.is_empty() && !rest.starts_with(';') {
+            // `boundary="abc"garbage` is a malformed boundary parameter.
+            if is_boundary {
+                return Ok(None);
+            }
+            // Skip the malformed parameter instead of stalling on it.
+            rest = rest.find(';').map_or("", |idx| &rest[idx..]);
+        }
+
+        if is_boundary {
+            return Ok((!value.is_empty()).then_some(value));
+        }
+
+        let Some(next) = rest.strip_prefix(';') else {
+            return Ok(None);
+        };
+        rest = next;
+    }
 }
 
 /// Parse header value to string according to name.
@@ -182,6 +277,10 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
 
     if let Some(v) = parse_content_encoding(headers)? {
         m.content_encoding(v);
+    }
+
+    if let Some(v) = parse_header_to_str(headers, CONTENT_LANGUAGE)? {
+        m.content_language(v);
     }
 
     if let Some(v) = parse_etag(headers)? {
@@ -359,7 +458,60 @@ mod tests {
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
+            ("multipart/mixed; boundary=\"batch_123\"", Some("batch_123")),
+            (
+                "multipart/mixed; boundary=batch_123; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch_123\"; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch;123\"; charset=utf-8",
+                Some("batch;123"),
+            ),
+            ("multipart/mixed; BOUNDARY=batch_123", Some("batch_123")),
+            ("multipart/mixed; Boundary=\"batch_123\"", Some("batch_123")),
+            ("multipart/mixed ; boundary = batch_123 ", Some("batch_123")),
+            (
+                "multipart/mixed; charset=\"utf;8\"; boundary=batch_123",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; my_boundary=wrong; boundary=right",
+                Some("right"),
+            ),
+            ("multipart/mixed; boundary=", None),
+            ("multipart/mixed; boundary=\"\"", None),
+            ("multipart/mixed; boundary=\"unclosed", None),
             ("multipart/mixed", None),
+            // A `quoted-pair` in an earlier parameter must not terminate the
+            // quoted string early.
+            (
+                r#"multipart/mixed; note="a\"b;boundary=fake"; boundary=real"#,
+                Some("real"),
+            ),
+            (
+                r#"multipart/mixed; note="trailing\\"; boundary=real"#,
+                Some("real"),
+            ),
+            // A boundary cannot use `quoted-pair`: `&str` cannot unescape it
+            // and RFC 2046 `bchars` disallows `\`.
+            (r#"multipart/mixed; boundary="foo\"bar""#, None),
+            (r#"multipart/mixed; boundary="foo\\bar""#, None),
+            // Nothing but optional whitespace may follow a closing quote.
+            (r#"multipart/mixed; boundary="abc"garbage"#, None),
+            (r#"multipart/mixed; boundary="abc"def; charset=utf-8"#, None),
+            (
+                "multipart/mixed; boundary=\"abc\" \t ; charset=utf-8",
+                Some("abc"),
+            ),
+            // GCS returns unquoted boundaries that contain `=`.
+            (
+                "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
+                Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
         ];
 
         for (input, expected) in cases {
@@ -370,5 +522,25 @@ mod tests {
 
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_missing_content_type() {
+        let headers = HeaderMap::new();
+
+        let actual = parse_multipart_boundary(&headers).expect("parse must success");
+
+        assert_eq!(actual, None)
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_non_utf8_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=\xff").unwrap(),
+        );
+
+        parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
     }
 }

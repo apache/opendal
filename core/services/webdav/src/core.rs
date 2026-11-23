@@ -110,7 +110,7 @@ impl Debug for WebdavCore {
 
 impl WebdavCore {
     pub async fn webdav_stat(&self, ctx: &OperationContext, path: &str) -> Result<Metadata> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         self.webdav_stat_rooted_abs_path(ctx, &path).await
     }
 
@@ -176,7 +176,7 @@ impl WebdavCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Response<HttpBody>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url: String = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::get(&url);
@@ -224,11 +224,10 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::put(&url);
@@ -237,9 +236,7 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, v)
         }
 
-        if let Some(v) = size {
-            req = req.header(header::CONTENT_LENGTH, v)
-        }
+        req = req.header(header::CONTENT_LENGTH, body.len());
 
         if let Some(v) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, v)
@@ -247,6 +244,28 @@ impl WebdavCore {
 
         if let Some(v) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, v)
+        }
+
+        if let Some(etag) = args.if_match() {
+            if let Some(weak) = etag.strip_prefix("W/") {
+                // The DAV If header expects a single entity tag inside the list.
+                let opaque_tag = weak.strip_prefix('"').and_then(|tag| tag.strip_suffix('"'));
+                if !opaque_tag.is_some_and(|tag| {
+                    tag.bytes()
+                        .all(|byte| matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff))
+                }) {
+                    return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
+                }
+                req = req.header("If", format!("([{etag}])"));
+            } else {
+                req = req.header(header::IF_MATCH, etag);
+            }
+        }
+
+        if args.if_not_exists() {
+            req = req.header(header::IF_NONE_MATCH, "*");
+        } else if let Some(etag) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, etag);
         }
 
         let req = req
@@ -272,7 +291,7 @@ impl WebdavCore {
         path: &str,
         user_metadata: &HashMap<String, String>,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPPATCH").uri(&url);
@@ -302,14 +321,19 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpDelete,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::delete(&url);
 
         if let Some(auth) = &self.authorization {
             req = req.header(header::AUTHORIZATION, auth.clone())
+        }
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(header::IF_MATCH, if_match);
         }
 
         let req = req
@@ -330,10 +354,10 @@ impl WebdavCore {
         // Make sure target's dir is exist.
         self.webdav_mkcol(ctx, get_parent(to)).await?;
 
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("COPY").uri(&source_uri);
@@ -361,15 +385,10 @@ impl WebdavCore {
         to: &str,
         if_not_exists: bool,
     ) -> Result<Response<Buffer>> {
-        // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
-        // Make sure target's dir is exist.
-        self.webdav_mkcol(ctx, get_parent(to)).await?;
-
-        let source = build_rooted_abs_path(&self.root, from);
+        let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 
-        let target = build_rooted_abs_path(&self.root, to);
+        let target = build_rooted_absolute_path(&self.root, to);
         let target_uri = format!("{}{}", self.endpoint, percent_encode_path(&target));
 
         let mut req = Request::builder().method("MOVE").uri(&source_uri);
@@ -396,7 +415,7 @@ impl WebdavCore {
         path: &str,
         args: &OpList,
     ) -> Result<Response<Buffer>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let url = format!("{}{}", self.endpoint, percent_encode_path(&path));
 
         let mut req = Request::builder().method("PROPFIND").uri(&url);
@@ -428,7 +447,7 @@ impl WebdavCore {
     ///
     /// We only expose this method to the backend since there are dependencies on input path.
     pub async fn webdav_mkcol(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
         let mut path = path.as_str();
 
         let mut dirs = VecDeque::default();
@@ -1632,6 +1651,17 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::new())
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
     fn test_parse_error_maps_missing_if_match_to_not_found() {
         let resp = Response::builder()
             .status(StatusCode::PRECONDITION_FAILED)
@@ -1706,6 +1736,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR

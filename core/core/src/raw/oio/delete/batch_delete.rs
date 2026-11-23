@@ -38,8 +38,9 @@ pub trait BatchDelete: Send + Sync + Unpin + 'static {
 
     /// delete_batch delete multiple paths at once.
     ///
-    /// - Implementations should make sure that the length of `batch` equals to the return result's length.
-    /// - Implementations should return error no path is deleted.
+    /// Implementations must account for every input path in either
+    /// `succeeded` or `failed`; `BatchDeleter` rejects a result that drops
+    /// or invents paths.
     fn delete_batch(
         &self,
         batch: Vec<(String, OpDelete)>,
@@ -95,16 +96,14 @@ impl<D: BatchDelete> BatchDeleter<D> {
             return Ok(1);
         }
 
+        let batch_len = self.buffer.len();
         let batch = self.buffer.iter().cloned().collect();
         let result = self.inner.delete_batch(batch).await?;
 
-        if result.succeeded.is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "batch delete returned zero successes",
-            ));
-        }
-        if result.succeeded.len() + result.failed.len() != self.buffer.len() {
+        // The backend must account for every input path. A result that
+        // drops or invents paths is a bug, so fail instead of losing
+        // buffered deletes or retrying forever.
+        if result.succeeded.len() + result.failed.len() != batch_len {
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "batch delete result size mismatch",
@@ -117,12 +116,28 @@ impl<D: BatchDelete> BatchDeleter<D> {
             deleted += 1;
         }
 
+        // Failed paths stay queued in the buffer so a later flush retries
+        // them. A permanent error stops the flush with its original kind
+        // and path context; a temporary error only aborts the flush when
+        // nothing was deleted, keeping the whole batch retryable.
+        let mut first_temporary_error = None;
         for (path, op, err) in result.failed {
+            let err = err
+                .with_context("path", path)
+                .with_context("version", op.version().unwrap_or("<latest>"));
             if !err.is_temporary() {
-                return Err(err
-                    .with_context("path", path)
-                    .with_context("version", op.version().unwrap_or("<latest>")));
+                return Err(err);
             }
+            first_temporary_error.get_or_insert(err);
+        }
+
+        if deleted == 0 {
+            return Err(first_temporary_error.unwrap_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "batch delete removed zero buffered paths",
+                )
+            }));
         }
 
         Ok(deleted)
@@ -157,5 +172,221 @@ impl<D: BatchDelete> oio::Delete for BatchDeleter<D> {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+
+    use super::*;
+    use crate::raw::oio::Delete;
+
+    type BatchResponse = Box<dyn Fn(Vec<(String, OpDelete)>) -> BatchDeleteResult + Send + Sync>;
+
+    /// MockBatchDelete replays scripted `delete_batch` responses and records
+    /// calls so tests can assert how `BatchDeleter` retries failed paths.
+    struct MockBatchDelete {
+        delete_batch_calls: Mutex<Vec<Vec<String>>>,
+        delete_once_paths: Mutex<Vec<String>>,
+        responses: Mutex<VecDeque<BatchResponse>>,
+    }
+
+    impl MockBatchDelete {
+        fn new() -> Self {
+            Self {
+                delete_batch_calls: Mutex::new(Vec::new()),
+                delete_once_paths: Mutex::new(Vec::new()),
+                responses: Mutex::new(VecDeque::new()),
+            }
+        }
+
+        fn push_response(
+            &self,
+            respond: impl Fn(Vec<(String, OpDelete)>) -> BatchDeleteResult + Send + Sync + 'static,
+        ) {
+            self.responses.lock().unwrap().push_back(Box::new(respond));
+        }
+    }
+
+    impl BatchDelete for MockBatchDelete {
+        async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+            self.delete_once_paths.lock().unwrap().push(path);
+            Ok(())
+        }
+
+        async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<BatchDeleteResult> {
+            let paths = batch.iter().map(|(path, _)| path.clone()).collect();
+            self.delete_batch_calls.lock().unwrap().push(paths);
+            let respond = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("delete_batch called without a scripted response");
+            Ok(respond(batch))
+        }
+    }
+
+    /// Split a batch by path into `succeeded` and `failed`. Items listed in
+    /// neither are dropped from the result, like a buggy backend would.
+    /// `failed` entries are `(path, kind, temporary)`.
+    fn split(
+        succeeded: Vec<&'static str>,
+        failed: Vec<(&'static str, ErrorKind, bool)>,
+    ) -> impl Fn(Vec<(String, OpDelete)>) -> BatchDeleteResult + Send + Sync {
+        move |batch| {
+            let mut result = BatchDeleteResult::default();
+            for (path, op) in batch {
+                if let Some((_, kind, temporary)) =
+                    failed.iter().find(|(p, ..)| *p == path.as_str())
+                {
+                    result.failed.push((
+                        path,
+                        op,
+                        Error::new(*kind, "delete failed").with_temporary(*temporary),
+                    ));
+                } else if succeeded.iter().any(|p| *p == path) {
+                    result.succeeded.push((path, op));
+                }
+            }
+            result
+        }
+    }
+
+    /// A batch where every item fails permanently must surface the real
+    /// per-object error, not a masked `Unexpected`.
+    #[tokio::test]
+    async fn test_batch_delete_all_failed_permanent() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(split(
+            vec![],
+            vec![
+                ("a", ErrorKind::ConditionNotMatch, false),
+                ("b", ErrorKind::PermissionDenied, false),
+                ("c", ErrorKind::ConditionNotMatch, false),
+            ],
+        ));
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        for path in ["a", "b", "c"] {
+            deleter.delete(path, OpDelete::new()).await.unwrap();
+        }
+        let err = deleter.close().await.unwrap_err();
+
+        assert!(
+            matches!(
+                err.kind(),
+                ErrorKind::ConditionNotMatch | ErrorKind::PermissionDenied
+            ),
+            "permanent batch failure must keep its original kind: {err:?}"
+        );
+        assert!(!err.is_temporary());
+        let rendered = err.to_string();
+        assert!(rendered.contains("path: "), "missing path context: {err}");
+        assert!(rendered.contains("version: <latest>"));
+    }
+
+    /// A batch where every item fails with a temporary error must return a
+    /// temporary error and keep all paths queued, so a retry layer can
+    /// replay the same batch on a later `close`.
+    #[tokio::test]
+    async fn test_batch_delete_all_failed_temporary_retries() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(split(
+            vec![],
+            vec![
+                ("a", ErrorKind::RateLimited, true),
+                ("b", ErrorKind::RateLimited, true),
+            ],
+        ));
+        inner.push_response(split(vec!["a", "b"], vec![]));
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(
+            err.is_temporary(),
+            "temporary batch failure must stay retryable: {err:?}"
+        );
+        assert!(err.to_string().contains("path: "));
+        assert_eq!(deleter.buffer.len(), 2);
+
+        deleter.close().await.unwrap();
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 2);
+        assert!(deleter.buffer.is_empty());
+    }
+
+    /// A result accounting for zero input paths is a backend bug and must
+    /// fail fast instead of looping forever.
+    #[tokio::test]
+    async fn test_batch_delete_empty_result_is_unexpected() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(|_| BatchDeleteResult::default());
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        deleter.delete("a", OpDelete::new()).await.unwrap();
+        deleter.delete("b", OpDelete::new()).await.unwrap();
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 1);
+    }
+
+    /// A permanent per-object error surfaces with its original kind even
+    /// when the rest of the batch succeeded.
+    #[tokio::test]
+    async fn test_batch_delete_partial_failure_permanent() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(split(
+            vec!["a", "b"],
+            vec![("c", ErrorKind::ConditionNotMatch, false)],
+        ));
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        for path in ["a", "b", "c"] {
+            deleter.delete(path, OpDelete::new()).await.unwrap();
+        }
+        let err = deleter.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(err.to_string().contains("path: c"));
+        // "c" stays queued; only the failed path remains in the buffer.
+        assert_eq!(deleter.buffer.len(), 1);
+        assert!(deleter.buffer.iter().all(|(p, _)| p == "c"));
+    }
+
+    /// Temporary per-object errors alongside progress keep the failed
+    /// paths queued, so `close` retries them until the buffer drains.
+    #[tokio::test]
+    async fn test_batch_delete_partial_failure_temporary_retries() {
+        let inner = MockBatchDelete::new();
+        inner.push_response(split(
+            vec!["a"],
+            vec![
+                ("b", ErrorKind::RateLimited, true),
+                ("c", ErrorKind::RateLimited, true),
+            ],
+        ));
+        inner.push_response(split(vec!["b"], vec![("c", ErrorKind::RateLimited, true)]));
+        let mut deleter = BatchDeleter::new(inner, Some(10));
+
+        for path in ["a", "b", "c"] {
+            deleter.delete(path, OpDelete::new()).await.unwrap();
+        }
+        deleter.close().await.unwrap();
+
+        assert_eq!(deleter.inner.delete_batch_calls.lock().unwrap().len(), 2);
+        // "c" drains through the single-object `delete_once` path.
+        assert_eq!(
+            deleter.inner.delete_once_paths.lock().unwrap().as_slice(),
+            &["c"]
+        );
+        assert!(deleter.buffer.is_empty());
     }
 }

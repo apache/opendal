@@ -1,6 +1,7 @@
 # Apache OpenDAL™ Logging Layer
 
-`opendal-layer-logging` records OpenDAL operation lifecycles with the `log` facade.
+`opendal-layer-logging` records OpenDAL operation lifecycles and outbound HTTP
+requests with the `log` facade.
 
 ## Use through `opendal`
 

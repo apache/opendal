@@ -147,6 +147,7 @@ impl Builder for FtpBuilder {
             read: true,
 
             write: true,
+            write_can_empty: true,
             write_can_multi: true,
             write_can_append: true,
 

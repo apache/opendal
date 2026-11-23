@@ -86,6 +86,49 @@ async fn main() {
 }
 ```
 
+### Path resolution
+
+`OpendalStore` forwards every `object_store::path::Path` to the `Operator`,
+which resolves it against the operator's configured `root`: a store path
+`data/test.txt` reaches the service as `<root>/data/test.txt`. The store never
+strips a leading prefix, because any prefix can be a legitimate object key
+inside the root.
+
+When the store is registered with a URL-based registry such as DataFusion's
+`ObjectStoreRegistry`, the registry key contains only the registered URL's
+scheme and authority, so the store receives the full path of each queried URL.
+Keep the prefix in exactly one place to avoid the double-prefixing reported in
+[apache/opendal#7786](https://github.com/apache/opendal/issues/7786):
+
+- Leave the operator `root` unset so queried URLs carry the full path to each
+  object, as `s3://bucket/key` does.
+- Set `root` to the shared prefix and register the store under a URL whose
+  queried paths are relative to it. For services such as `hf://` whose
+  authority does not encode the bucket or repository, configure the repository
+  on the builder and register a dedicated authority (for example
+  `hf://myrepo`) so that `hf://myrepo/file` hands the store a
+  repository-relative `file`.
+
+### Object attributes and renames
+
+`get` and `get_opts` expose the content attributes and user metadata returned
+by the service in `GetResult.attributes`. To retrieve attributes without reading
+the body, use `get_opts` with `GetOptions::with_head(true)`. The `head`
+convenience method returns only `ObjectMeta`.
+
+`rename` and `rename_if_not_exists` use OpenDAL's rename support when the
+operator advertises the requested mode. Otherwise, the integration copies the
+object and deletes the source after a successful copy. The `Create` mode
+requires a conditional rename or conditional copy and returns `NotSupported`
+when the operator supports neither.
+
+### Listing with an offset
+
+`list_with_offset` returns objects whose encoded `object_store::path::Path`
+compares greater than the offset. `OpendalStore` streams the requested prefix
+from the backend and applies this comparison locally. With no prefix, the
+backend listing starts at the operator root.
+
 ### Tune vectored reads
 
 `OpendalStore` coalesces ranges separated by up to 1 MiB by default, matching

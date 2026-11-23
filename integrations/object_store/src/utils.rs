@@ -17,6 +17,7 @@
 
 use futures::Stream;
 use object_store::ObjectMeta;
+use object_store::path::Path;
 use opendal::Metadata;
 use std::future::IntoFuture;
 
@@ -47,6 +48,12 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
             path: path.to_string(),
             source: Box::new(err),
         },
+        // Keep rejected credentials distinguishable from transient failures:
+        // callers that retry on `Generic` would otherwise retry forever.
+        ErrorKind::PermissionDenied => object_store::Error::PermissionDenied {
+            path: path.to_string(),
+            source: Box::new(err),
+        },
         kind => object_store::Error::Generic {
             store: kind.into_static(),
             source: Box::new(err),
@@ -55,9 +62,9 @@ pub fn format_object_store_error(err: opendal::Error, path: &str) -> object_stor
 }
 
 /// Format `opendal::Metadata` to `object_store::ObjectMeta`.
-pub fn format_object_meta(path: &str, meta: &Metadata) -> ObjectMeta {
+pub fn format_object_meta(location: impl Into<Path>, meta: &Metadata) -> ObjectMeta {
     ObjectMeta {
-        location: path.into(),
+        location: location.into(),
         last_modified: meta
             .last_modified()
             .and_then(timestamp_to_datetime)
@@ -147,5 +154,20 @@ mod noop_wrapper {
         pub fn new(item: T) -> Self {
             Self { item }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn permission_denied_maps_to_object_store_permission_denied() {
+        let err = opendal::Error::new(opendal::ErrorKind::PermissionDenied, "token rejected");
+        let err = format_object_store_error(err, "path/to/file");
+        assert!(
+            matches!(&err, object_store::Error::PermissionDenied { path, .. } if path == "path/to/file"),
+            "unexpected error: {err:?}"
+        );
     }
 }

@@ -614,15 +614,15 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                     .observe(labels, MetricValue::HttpConnectionErrorsTotal);
                 Err(err)
             }
-            Ok(resp) if resp.status().is_client_error() || resp.status().is_server_error() => {
-                self.interceptor.observe(
-                    labels.with_status_code(resp.status()),
-                    MetricValue::HttpStatusErrorsTotal,
-                );
-                Ok(resp)
-            }
             Ok(resp) => {
-                guard.defuse();
+                let is_status_error =
+                    resp.status().is_client_error() || resp.status().is_server_error();
+                if is_status_error {
+                    self.interceptor.observe(
+                        labels.clone().with_status_code(resp.status()),
+                        MetricValue::HttpStatusErrorsTotal,
+                    );
+                }
                 self.interceptor.observe(
                     labels.clone(),
                     MetricValue::HttpRequestBytes(req_size as u64),
@@ -645,8 +645,14 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
                         size: 0,
                         start: Instant::now(),
                         succeeded: false,
+                        is_status_error,
+                        polled: false,
                     })
                 });
+                // Defuse only after the response body wrapper takes over the
+                // `http_executing` decrement, so a panic above can't leak the
+                // gauge or double-decrement it.
+                guard.defuse();
 
                 Ok(http::Response::from_parts(parts, body))
             }
@@ -662,6 +668,15 @@ struct MetricsStream<S, I: MetricsIntercept> {
     size: u64,
     start: Instant,
     succeeded: bool,
+    /// Whether the response carried a 4xx/5xx status code.
+    is_status_error: bool,
+    /// Whether the body stream was polled at least once.
+    ///
+    /// Services routinely drop error responses without reading the body, so an
+    /// unread 4xx/5xx body does not indicate a transport failure. Once the
+    /// body has been polled, an unfinished stream means the transfer was cut
+    /// short and counts as a connection error again.
+    polled: bool,
 }
 
 impl<S, I> Stream for MetricsStream<S, I>
@@ -672,6 +687,7 @@ where
     type Item = Result<Buffer>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.polled = true;
         match ready!(self.inner.poll_next_unpin(cx)) {
             Some(Ok(bs)) => {
                 self.size += bs.len() as u64;
@@ -691,7 +707,10 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
         let resp_size = self.size;
         let resp_duration = self.start.elapsed();
 
-        if !self.succeeded {
+        // An unread error response body is normal control flow, not a
+        // connection failure; only a body that was started and never finished
+        // counts as one.
+        if !self.succeeded && (!self.is_status_error || self.polled) {
             self.interceptor
                 .observe(self.labels.clone(), MetricValue::HttpConnectionErrorsTotal);
         }
@@ -734,7 +753,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     type Lister = MetricsWrapper<oio::Lister, I>;
     type Deleter = MetricsWrapper<oio::Deleter, I>;
     type Copier = MetricsWrapper<oio::Copier, I>;
-    type Composer = oio::Composer;
+    type Composer = MetricsWrapper<oio::Composer, I>;
 
     fn info(&self) -> ServiceInfo {
         self.info.clone()
@@ -745,7 +764,34 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let labels = MetricLabels::new(self.info.clone(), Operation::Compose.into_static());
+
+        let start = Instant::now();
+
+        self.interceptor
+            .observe(labels.clone(), MetricValue::OperationExecuting(1));
+        let mut guard =
+            ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
+
+        match self.inner.compose(ctx, to, args) {
+            Ok(composer) => {
+                guard.defuse();
+                Ok(MetricsWrapper::new(
+                    composer,
+                    self.interceptor.clone(),
+                    labels,
+                    start,
+                ))
+            }
+            Err(err) => {
+                self.interceptor.observe(
+                    labels.clone().with_error(err.kind()),
+                    MetricValue::OperationErrorsTotal,
+                );
+                guard.complete();
+                Err(err)
+            }
+        }
     }
 
     async fn create_dir(
@@ -1329,6 +1375,28 @@ impl<R: oio::Delete, I: MetricsIntercept> oio::Delete for MetricsWrapper<R, I> {
     }
 }
 
+impl<C: oio::Compose, I: MetricsIntercept> oio::Compose for MetricsWrapper<C, I> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner
+            .compose(path, args)
+            .await
+            .inspect(|_| {
+                self.size += 1;
+            })
+            .inspect_err(|err| self.record_error(err))
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        let result = self
+            .inner
+            .close()
+            .await
+            .inspect_err(|err| self.record_error(err));
+        self.completed = true;
+        result
+    }
+}
+
 impl<C: oio::Copy, I: MetricsIntercept> oio::Copy for MetricsWrapper<C, I> {
     async fn next(&mut self) -> Result<Option<usize>> {
         self.inner
@@ -1411,6 +1479,15 @@ mod tests {
                 .count()
         }
 
+        fn count_errors_with_kind(&self, name: &str, kind: ErrorKind) -> usize {
+            self.observations
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(l, v)| v.name() == name && l.error == Some(kind))
+                .count()
+        }
+
         fn gauge_value(&self, name: &str) -> isize {
             self.observations
                 .lock()
@@ -1464,12 +1541,11 @@ mod tests {
     }
 
     enum MockFetchBehavior {
-        /// Return a response with the given status code and an empty body.
-        Respond(StatusCode),
+        /// Return a response with the given status code and a body stream that
+        /// yields the given items.
+        Respond(StatusCode, Vec<Result<Buffer>>),
         /// Fail before receiving a response.
         ConnectionError,
-        /// Return HTTP 200 with a body stream that yields the given items.
-        StreamBody(Vec<Result<Buffer>>),
     }
 
     struct MockHttpTransport {
@@ -1483,21 +1559,13 @@ mod tests {
                 MockFetchBehavior::ConnectionError,
             );
             match behavior {
-                MockFetchBehavior::Respond(status) => {
-                    let body = HttpBody::new(stream::empty(), None);
+                MockFetchBehavior::Respond(status, items) => {
+                    let body = HttpBody::new(stream::iter(items), None);
                     let resp = http::Response::builder().status(status).body(body).unwrap();
                     Ok(resp)
                 }
                 MockFetchBehavior::ConnectionError => {
                     Err(Error::new(ErrorKind::Unexpected, "mock connection refused"))
-                }
-                MockFetchBehavior::StreamBody(items) => {
-                    let body = HttpBody::new(stream::iter(items), None);
-                    let resp = http::Response::builder()
-                        .status(StatusCode::OK)
-                        .body(body)
-                        .unwrap();
-                    Ok(resp)
                 }
             }
         }
@@ -1518,7 +1586,11 @@ mod tests {
     }
 
     fn build_http_request() -> http::Request<Buffer> {
-        let mut req = http::Request::new(Buffer::new());
+        build_http_request_with_body(Buffer::new())
+    }
+
+    fn build_http_request_with_body(body: Buffer) -> http::Request<Buffer> {
+        let mut req = http::Request::new(body);
         *req.uri_mut() = "https://example.com/test".parse().unwrap();
         req.extensions_mut().insert(Operation::Read);
         req
@@ -1593,11 +1665,13 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::Respond(StatusCode::NOT_FOUND),
+            MockFetchBehavior::Respond(StatusCode::NOT_FOUND, vec![]),
         );
 
-        let _ = fetcher.fetch(build_http_request()).await;
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
 
+        // The status error is counted as soon as the headers arrive, while
+        // `http_executing` stays elevated until the response body is dropped.
         assert_eq!(
             mock.count_metric_with_status(
                 "opendal_http_status_errors_total",
@@ -1605,7 +1679,12 @@ mod tests {
             ),
             1
         );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+
+        // An unread error body is normal control flow, not a connection error.
+        drop(resp);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
     }
 
     #[tokio::test]
@@ -1613,10 +1692,10 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::Respond(StatusCode::INTERNAL_SERVER_ERROR),
+            MockFetchBehavior::Respond(StatusCode::INTERNAL_SERVER_ERROR, vec![]),
         );
 
-        let _ = fetcher.fetch(build_http_request()).await;
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
 
         assert_eq!(
             mock.count_metric_with_status(
@@ -1625,6 +1704,136 @@ mod tests {
             ),
             1
         );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+
+        // An unread error body is normal control flow, not a connection error.
+        drop(resp);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_records_full_metrics() {
+        let mock = MockInterceptor::default();
+        let response_body = Buffer::from("<Error><Code>NoSuchKey</Code></Error>");
+        let response_size = response_body.len() as u64;
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(StatusCode::NOT_FOUND, vec![Ok(response_body)]),
+        );
+        let request_body = Buffer::from("<Delete><Object><Key>file</Key></Object></Delete>");
+        let request_size = request_body.len() as u64;
+
+        let resp = fetcher
+            .fetch(build_http_request_with_body(request_body))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+
+        // Error responses record the status error and the request metrics just
+        // like successful ones; `http_executing` stays elevated until the
+        // response body is fully consumed or dropped.
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::NOT_FOUND
+            ),
+            1
+        );
+        assert_eq!(
+            mock.get_value_u64("opendal_http_request_bytes"),
+            Some(request_size)
+        );
+        assert!(
+            mock.get_duration_seconds("opendal_http_request_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 1);
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), None);
+
+        let (_, mut body) = resp.into_parts();
+        let buf = body.to_buffer().await.unwrap();
+        assert_eq!(buf.len() as u64, response_size);
+        drop(body);
+
+        assert_eq!(
+            mock.get_value_u64("opendal_http_response_bytes"),
+            Some(response_size)
+        );
+        assert!(
+            mock.get_duration_seconds("opendal_http_response_duration_seconds")
+                .unwrap()
+                > Duration::ZERO
+        );
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_dropped_early_records_metrics() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                vec![Ok(Buffer::from("internal error"))],
+            ),
+        );
+
+        // Services routinely drop error responses without reading the body.
+        // That must still decrement `http_executing` and record the response
+        // metrics observed so far, but it is not a connection error.
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        drop(resp);
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(0));
+        assert!(
+            mock.get_duration_seconds("opendal_http_response_duration_seconds")
+                .is_some()
+        );
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 0);
+        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_http_error_response_body_failure_records_connection_error() {
+        let mock = MockInterceptor::default();
+        let fetcher = build_metrics_http_fetcher(
+            mock.clone(),
+            MockFetchBehavior::Respond(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                vec![
+                    Ok(Buffer::from("partial")),
+                    Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+                ],
+            ),
+        );
+
+        // An error body that was started and then failed mid-read is a real
+        // transfer failure and counts as a connection error.
+        let resp = fetcher.fetch(build_http_request()).await.unwrap();
+        let (_, mut body) = resp.into_parts();
+        let res = body.to_buffer().await;
+        assert!(res.is_err());
+        drop(body);
+
+        assert_eq!(
+            mock.count_metric_with_status(
+                "opendal_http_status_errors_total",
+                StatusCode::INTERNAL_SERVER_ERROR
+            ),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_http_response_bytes"), Some(7));
+        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
         assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
     }
 
@@ -1633,10 +1842,10 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::StreamBody(vec![
-                Ok(Buffer::from("hello")),
-                Ok(Buffer::from(" world")),
-            ]),
+            MockFetchBehavior::Respond(
+                StatusCode::OK,
+                vec![Ok(Buffer::from("hello")), Ok(Buffer::from(" world"))],
+            ),
         );
 
         let resp = fetcher.fetch(build_http_request()).await.unwrap();
@@ -1682,10 +1891,13 @@ mod tests {
         let mock = MockInterceptor::default();
         let fetcher = build_metrics_http_fetcher(
             mock.clone(),
-            MockFetchBehavior::StreamBody(vec![
-                Ok(Buffer::from("partial")),
-                Err(Error::new(ErrorKind::Unexpected, "connection reset")),
-            ]),
+            MockFetchBehavior::Respond(
+                StatusCode::OK,
+                vec![
+                    Ok(Buffer::from("partial")),
+                    Err(Error::new(ErrorKind::Unexpected, "connection reset")),
+                ],
+            ),
         );
 
         let resp = fetcher.fetch(build_http_request()).await.unwrap();
@@ -1715,6 +1927,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while s.next().await.is_some() {}
@@ -1739,6 +1953,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         let _ = s.next().await;
@@ -1766,6 +1982,8 @@ mod tests {
             size: 0,
             start: Instant::now(),
             succeeded: false,
+            is_status_error: false,
+            polled: false,
         };
 
         while let Some(res) = s.next().await {
@@ -1933,6 +2151,317 @@ mod tests {
         assert!(mock.has_metric("opendal_operation_entries_rate"));
         assert_eq!(mock.get_value_u64("opendal_operation_bytes"), None);
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[derive(Debug)]
+    struct MockComposer {
+        compose_results: Mutex<VecDeque<Result<()>>>,
+        close_result: Mutex<Option<Result<Metadata>>>,
+    }
+
+    impl MockComposer {
+        fn ok() -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Ok(()), Ok(())])),
+                close_result: Mutex::new(Some(Ok(MetadataBuilder::file(0).build()))),
+            }
+        }
+
+        fn with_compose_error(kind: ErrorKind) -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Err(Error::new(
+                    kind,
+                    "mock compose error",
+                ))])),
+                close_result: Mutex::new(Some(Ok(MetadataBuilder::file(0).build()))),
+            }
+        }
+
+        fn with_close_error(kind: ErrorKind) -> Self {
+            Self {
+                compose_results: Mutex::new(VecDeque::from([Ok(())])),
+                close_result: Mutex::new(Some(Err(Error::new(kind, "mock close error")))),
+            }
+        }
+    }
+
+    impl oio::Compose for MockComposer {
+        async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            self.compose_results
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "compose not configured")))
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.close_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| Err(Error::new(ErrorKind::Unexpected, "close not configured")))
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockComposeService {
+        info: ServiceInfo,
+        composer: Mutex<Option<MockComposer>>,
+        compose_error: Mutex<Option<Error>>,
+    }
+
+    impl MockComposeService {
+        fn with_composer(composer: MockComposer) -> Self {
+            Self {
+                info: test_info(),
+                composer: Mutex::new(Some(composer)),
+                compose_error: Mutex::new(None),
+            }
+        }
+
+        fn with_compose_error(kind: ErrorKind) -> Self {
+            Self {
+                info: test_info(),
+                composer: Mutex::new(None),
+                compose_error: Mutex::new(Some(Error::new(kind, "mock compose init error"))),
+            }
+        }
+    }
+
+    impl Service for MockComposeService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = MockComposer;
+
+        fn info(&self) -> ServiceInfo {
+            self.info.clone()
+        }
+
+        fn capability(&self) -> Capability {
+            Capability::default()
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<MockComposer> {
+            if let Some(err) = self.compose_error.lock().unwrap().take() {
+                return Err(err);
+            }
+            self.composer
+                .lock()
+                .unwrap()
+                .take()
+                .ok_or_else(|| Error::new(ErrorKind::Unexpected, "composer already taken"))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+    }
+
+    fn build_compose_accessor(
+        mock: MockInterceptor,
+        service: MockComposeService,
+    ) -> MetricsAccessor<MockInterceptor> {
+        let inner: Servicer = Arc::new(service);
+        MetricsAccessor {
+            info: inner.info(),
+            inner,
+            interceptor: mock,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compose_success_records_operation_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::ok()),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src1", OpRead::default())
+            .await
+            .unwrap();
+        oio::Compose::compose(&mut composer, "src2", OpRead::default())
+            .await
+            .unwrap();
+
+        oio::Compose::close(&mut composer).await.unwrap();
+        drop(composer);
+
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+        assert_eq!(mock.get_value_u64("opendal_operation_entries"), Some(2));
+        assert!(mock.has_metric("opendal_operation_entries_rate"));
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_source_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::with_compose_error(
+                ErrorKind::PermissionDenied,
+            )),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        let err = oio::Compose::compose(&mut composer, "src", OpRead::default())
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+        assert_eq!(
+            mock.count_errors_with_kind(
+                "opendal_operation_errors_total",
+                ErrorKind::PermissionDenied
+            ),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        drop(composer);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_close_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::with_close_error(
+                ErrorKind::ConditionNotMatch,
+            )),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src", OpRead::default())
+            .await
+            .unwrap();
+        let err = oio::Compose::close(&mut composer).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        assert_eq!(
+            mock.count_errors_with_kind(
+                "opendal_operation_errors_total",
+                ErrorKind::ConditionNotMatch
+            ),
+            1
+        );
+
+        drop(composer);
+        // `close` marks the wrapper completed, so the drop must not record a
+        // second error.
+        assert_eq!(mock.count_metric("opendal_operation_errors_total"), 1);
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
+    }
+
+    #[tokio::test]
+    async fn test_compose_init_error_preserves_error_and_records_metrics() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_compose_error(ErrorKind::NotFound),
+        );
+        let ctx = OperationContext::default();
+
+        let err = match Service::compose(&accessor, &ctx, "dst", OpCompose::default()) {
+            Ok(_) => panic!("compose init should fail"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        assert_eq!(
+            mock.count_errors_with_kind("opendal_operation_errors_total", ErrorKind::NotFound),
+            1
+        );
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+    }
+
+    #[tokio::test]
+    async fn test_compose_dropped_without_close_decrements_executing() {
+        let mock = MockInterceptor::default();
+        let accessor = build_compose_accessor(
+            mock.clone(),
+            MockComposeService::with_composer(MockComposer::ok()),
+        );
+        let ctx = OperationContext::default();
+
+        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
+
+        oio::Compose::compose(&mut composer, "src1", OpRead::default())
+            .await
+            .unwrap();
+
+        // Dropping an unfinished composer is an aborted operation: the gauge
+        // returns to zero and the aborted operation counts once as an
+        // unexpected error, matching the writer/deleter contract.
+        drop(composer);
+
+        assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        assert_eq!(
+            mock.count_errors_with_kind("opendal_operation_errors_total", ErrorKind::Unexpected),
+            1
+        );
+        assert_eq!(mock.get_value_u64("opendal_operation_entries"), Some(1));
+        assert!(mock.has_metric("opendal_operation_duration_seconds"));
     }
 
     #[test]

@@ -115,14 +115,14 @@ impl OpDelete {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Delete));
             };
@@ -256,16 +256,69 @@ impl OpList {
         Self::default()
     }
 
+    pub(crate) fn from_options(value: options::ListOptions) -> Result<Self> {
+        if let Some(glob) = &value.glob {
+            // CompactValues stores a u16 bitmap and one u16 offset per field.
+            let mut encoded_len = 2 * size_of::<u16>() + glob.len();
+            if let Some(start_after) = &value.start_after {
+                encoded_len += size_of::<u16>() + start_after.len();
+            }
+            if encoded_len > u16::MAX as usize {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "glob and start_after exceed the maximum size of list options",
+                ));
+            }
+        }
+        Ok(value.into())
+    }
+
     /// Return the maximum number of results per request.
     #[inline]
     pub fn limit(&self) -> Option<usize> {
         (self.flags & OP_LIST_HAS_LIMIT != 0).then_some(self.limit)
     }
 
+    /// Remove the per-request result limit.
+    pub fn without_limit(mut self) -> Self {
+        self.flags &= !OP_LIST_HAS_LIMIT;
+        self.limit = 0;
+        self
+    }
+
     /// Return the key after which listing should start.
     #[inline]
     pub fn start_after(&self) -> Option<&str> {
         string_value(&self.values, 0)
+    }
+
+    /// Set the glob pattern for this list operation.
+    ///
+    /// See [`options::ListOptions::glob`] for the pattern contract.
+    ///
+    /// # Panics
+    ///
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_glob(mut self, glob: &str) -> Self {
+        self.values = self.values.replace(1, glob.as_bytes());
+        self
+    }
+
+    /// Return the glob pattern for this list operation.
+    pub fn glob(&self) -> Option<&str> {
+        string_value(&self.values, 1)
+    }
+
+    pub(crate) fn clear_glob(&mut self) {
+        self.values = CompactValues::encode(&[self.values.get(0), None]);
+    }
+
+    pub(crate) fn set_recursive(&mut self, recursive: bool) {
+        if recursive {
+            self.flags |= OP_LIST_RECURSIVE;
+        } else {
+            self.flags &= !OP_LIST_RECURSIVE;
+        }
     }
 
     /// Return whether the list operation is recursive.
@@ -312,7 +365,10 @@ impl From<options::ListOptions> for OpList {
         Self {
             limit: value.limit.unwrap_or_default(),
             flags,
-            values: CompactValues::encode(&[value.start_after.as_deref().map(str::as_bytes)]),
+            values: CompactValues::encode(&[
+                value.start_after.as_deref().map(str::as_bytes),
+                value.glob.as_deref().map(str::as_bytes),
+            ]),
         }
     }
 }
@@ -417,6 +473,11 @@ impl OpRead {
         Self::default()
     }
 
+    /// Return whether both argument sets apply the same source conditions.
+    pub(crate) fn same_read(&self, other: &Self) -> bool {
+        self.values == other.values
+    }
+
     /// Lower compose source `options` against `capability` and freeze them into
     /// service-ready read arguments.
     ///
@@ -437,14 +498,14 @@ impl OpRead {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.version, version, "source version")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "source if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.version, version, "source version")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -617,9 +678,9 @@ impl OpReader {
         self.concurrent
     }
 
-    /// Set the request chunk size.
+    /// Set the request chunk size. A value of `0` clears the chunk size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk.max(1));
+        self.chunk = (chunk != 0).then_some(chunk);
         self
     }
 
@@ -659,7 +720,7 @@ impl From<options::ReadOptions> for (BytesRange, OpRead, OpReader) {
         let range = value.range;
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk,
+            chunk: value.chunk.filter(|&chunk| chunk != 0),
             gap: value.gap,
             prefetch: 0,
         };
@@ -671,7 +732,7 @@ impl From<options::ReaderOptions> for (OpRead, OpReader) {
     fn from(value: options::ReaderOptions) -> Self {
         let reader = OpReader {
             concurrent: value.concurrent.max(1),
-            chunk: value.chunk,
+            chunk: value.chunk.filter(|&chunk| chunk != 0),
             gap: value.gap,
             prefetch: value.prefetch,
         };
@@ -827,12 +888,14 @@ enum WriteField {
     ContentType,
     ContentDisposition,
     ContentEncoding,
+    ContentLanguage,
     CacheControl,
     IfMatch,
     IfNoneMatch,
     IfVersionMatch,
     IfVersionNotMatch,
     UserMetadata,
+    Expires,
 }
 
 impl OpWrite {
@@ -862,14 +925,14 @@ impl OpWrite {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Write));
             };
@@ -888,7 +951,7 @@ impl OpWrite {
         }
 
         let writer = OpWriter {
-            chunk: options.chunk,
+            chunk: options.chunk.filter(|&chunk| chunk != 0),
         };
         let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
         let mut flags = 0;
@@ -898,16 +961,24 @@ impl OpWrite {
         if options.if_not_exists {
             flags |= OP_WRITE_IF_NOT_EXISTS;
         }
+        let expires = options.expires.map(|duration| {
+            let mut bytes = [0; 12];
+            bytes[..8].copy_from_slice(&duration.as_secs().to_le_bytes());
+            bytes[8..].copy_from_slice(&duration.subsec_nanos().to_le_bytes());
+            bytes
+        });
         let fields = [
             options.content_type.as_deref().map(str::as_bytes),
             options.content_disposition.as_deref().map(str::as_bytes),
             options.content_encoding.as_deref().map(str::as_bytes),
+            options.content_language.as_deref().map(str::as_bytes),
             options.cache_control.as_deref().map(str::as_bytes),
             options.if_match.as_deref().map(str::as_bytes),
             options.if_none_match.as_deref().map(str::as_bytes),
             options.if_version_match.as_deref().map(str::as_bytes),
             options.if_version_not_match.as_deref().map(str::as_bytes),
             None,
+            expires.as_ref().map(<[u8; 12]>::as_slice),
         ];
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[WriteField::UserMetadata as usize] =
@@ -954,6 +1025,12 @@ impl OpWrite {
     #[inline]
     pub fn content_encoding(&self) -> Option<&str> {
         string_value(&self.values, WriteField::ContentEncoding as usize)
+    }
+
+    /// Get the Content-Language value.
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        string_value(&self.values, WriteField::ContentLanguage as usize)
     }
 
     /// Get the cache control from option
@@ -1019,6 +1096,28 @@ impl OpWrite {
             .map(UserMetadata::new)
     }
 
+    /// Returns the lifetime requested for the new file.
+    pub fn expires(&self) -> Option<Duration> {
+        self.values.get(WriteField::Expires as usize).map(|bytes| {
+            let (seconds, nanos) = bytes.split_at(8);
+            Duration::new(
+                u64::from_le_bytes(seconds.try_into().expect("encoded seconds")),
+                u32::from_le_bytes(nanos.try_into().expect("encoded nanoseconds")),
+            )
+        })
+    }
+
+    /// Set the Content-Language value.
+    ///
+    /// # Panics
+    /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
+    pub fn with_content_language(mut self, v: &str) -> Self {
+        self.values = self
+            .values
+            .replace(WriteField::ContentLanguage as usize, v.as_bytes());
+        self
+    }
+
     #[doc(hidden)]
     pub fn into_content_type(mut self, value: &str) -> Self {
         self.values = self
@@ -1047,7 +1146,7 @@ impl OpWriter {
         self.chunk
     }
 
-    /// Set the chunk of op.
+    /// Set the writer chunk size. A value of `0` clears the chunk size.
     ///
     /// If chunk is set, the data will be chunked by the underlying writer.
     ///
@@ -1057,7 +1156,7 @@ impl OpWriter {
     /// operations like multipart uploads. So the chunk size may be larger than
     /// the given buffer size.
     pub fn with_chunk(mut self, chunk: usize) -> Self {
-        self.chunk = Some(chunk);
+        self.chunk = (chunk != 0).then_some(chunk);
         self
     }
 }
@@ -1110,14 +1209,14 @@ impl OpCompose {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Compose));
             };
@@ -1269,6 +1368,9 @@ enum CopyField {
     IfVersionMatch,
     IfVersionNotMatch,
     SourceVersion,
+    ContentType,
+    ContentLanguage,
+    UserMetadata,
 }
 
 impl OpCopy {
@@ -1296,14 +1398,14 @@ impl OpCopy {
                 && let Some(version) = metadata.version()
             {
                 (&mut options.if_version_match, version, "if_version_match")
-            } else if let Some(etag) = metadata.etag() {
+            } else if let Some(etag) = metadata.etag().filter(|etag| !etag.starts_with("W/\"")) {
                 (&mut options.if_match, etag, "if_match")
             } else if let Some(version) = metadata.version() {
                 (&mut options.if_version_match, version, "if_version_match")
             } else {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
-                    "if_not_changed metadata contains neither version nor ETag",
+                    "if_not_changed requires a version or a non-weak ETag",
                 )
                 .with_operation(Operation::Copy));
             };
@@ -1321,23 +1423,40 @@ impl OpCopy {
             }
         }
 
+        let user_metadata = options.user_metadata.take().map(sorted_user_metadata);
         let fields = [
             options.if_match.as_deref().map(str::as_bytes),
             options.if_none_match.as_deref().map(str::as_bytes),
             options.if_version_match.as_deref().map(str::as_bytes),
             options.if_version_not_match.as_deref().map(str::as_bytes),
             options.source_version.as_deref().map(str::as_bytes),
+            options.content_type.as_deref().map(str::as_bytes),
+            options.content_language.as_deref().map(str::as_bytes),
+            None,
         ];
+        let mut lengths = fields.map(|value| value.map(<[u8]>::len));
+        lengths[CopyField::UserMetadata as usize] =
+            user_metadata.as_deref().map(user_metadata_encoded_len);
         Ok(Self {
             concurrent: options.concurrent.max(1),
-            chunk: options.chunk,
+            chunk: options.chunk.filter(|&chunk| chunk != 0),
             source_content_length_hint: options.source_content_length_hint,
             flags: if options.if_not_exists {
                 OP_COPY_IF_NOT_EXISTS
             } else {
                 0
             },
-            values: CompactValues::encode(&fields),
+            values: CompactValues::encode_with(&lengths, |field, output| match field {
+                field if field == CopyField::UserMetadata as usize => {
+                    write_user_metadata(
+                        user_metadata.as_deref().expect("present field has a value"),
+                        output,
+                    );
+                }
+                _ => {
+                    output.write(fields[field].expect("present field has a value"));
+                }
+            }),
         })
     }
 
@@ -1388,6 +1507,26 @@ impl OpCopy {
     #[inline]
     pub fn source_version(&self) -> Option<&str> {
         string_value(&self.values, CopyField::SourceVersion as usize)
+    }
+
+    /// Get the replacement destination Content-Type.
+    #[inline]
+    pub fn content_type(&self) -> Option<&str> {
+        string_value(&self.values, CopyField::ContentType as usize)
+    }
+
+    /// Get the replacement destination Content-Language.
+    #[inline]
+    pub fn content_language(&self) -> Option<&str> {
+        string_value(&self.values, CopyField::ContentLanguage as usize)
+    }
+
+    /// Get the replacement destination user metadata.
+    #[inline]
+    pub fn user_metadata(&self) -> Option<UserMetadata<'_>> {
+        self.values
+            .get(CopyField::UserMetadata as usize)
+            .map(UserMetadata::new)
     }
 
     /// Get the concurrent tasks for the copy operation.
@@ -1533,6 +1672,27 @@ mod tests {
     }
 
     #[test]
+    fn raw_chunk_setters_clear_zero() {
+        assert_eq!(OpReader::new().with_chunk(16).with_chunk(0).chunk(), None);
+        assert_eq!(OpWriter::new().with_chunk(16).with_chunk(0).chunk(), None);
+    }
+
+    #[test]
+    fn copy_options_chunk_uses_default_for_zero() {
+        for (chunk, expected) in [(None, None), (Some(0), None), (Some(16), Some(16))] {
+            let args = OpCopy::from_options(
+                &Capability::default(),
+                options::CopyOptions {
+                    chunk,
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            assert_eq!(args.chunk(), expected);
+        }
+    }
+
+    #[test]
     fn read_options_roundtrip() {
         let modified = Timestamp::new(-1, -123).unwrap();
         let unmodified = Timestamp::new(2, 456).unwrap();
@@ -1545,13 +1705,15 @@ mod tests {
             if_modified_since: Some(modified),
             if_unmodified_since: Some(unmodified),
             content_length_hint: Some(42),
+            chunk: Some(0),
             override_content_type: Some("text/plain".to_owned()),
             override_cache_control: Some("no-cache".to_owned()),
             override_content_disposition: Some("attachment".to_owned()),
             ..Default::default()
         };
-        let (_, args, _) = options.into();
+        let (_, args, reader) = options.into();
 
+        assert_eq!(reader.chunk(), None);
         assert_eq!(args.version(), Some("version"));
         assert_eq!(args.if_match(), Some("etag"));
         assert_eq!(args.if_none_match(), Some("other-etag"));
@@ -1568,14 +1730,17 @@ mod tests {
 
     #[test]
     fn write_options_preserve_owned_views() {
+        let expires = Duration::new(u64::MAX, 123_456_789);
         let (args, _) = OpWrite::from_options(
             &Capability::default(),
             options::WriteOptions {
                 append: true,
+                expires: Some(expires),
                 concurrent: 4,
                 content_type: Some("text/plain".to_owned()),
                 content_disposition: Some("attachment".to_owned()),
                 content_encoding: Some("gzip".to_owned()),
+                content_language: Some("en-US".to_owned()),
                 cache_control: Some("no-cache".to_owned()),
                 if_match: Some("etag".to_owned()),
                 if_none_match: Some("other-etag".to_owned()),
@@ -1600,7 +1765,15 @@ mod tests {
         assert_eq!(args.if_version_not_match(), Some("version-not-match"));
         assert!(args.if_not_exists());
         assert_eq!(args.user_metadata().unwrap().get("owner"), Some("opendal"));
+        assert_eq!(args.expires(), Some(expires));
+        assert_eq!(OpWrite::default().expires(), None);
         assert!(args.is_conditional());
+        assert_eq!(args.content_language(), Some("en-US"));
+        assert_eq!(OpWrite::default().content_language(), None);
+        let changed = args.clone().with_content_language("fr-CA, en");
+        assert_eq!(changed.content_language(), Some("fr-CA, en"));
+        assert_eq!(changed.expires(), Some(expires));
+        assert_eq!(args.content_language(), Some("en-US"));
     }
 
     #[test]
@@ -1719,6 +1892,127 @@ mod tests {
     }
 
     #[test]
+    fn if_not_changed_rejects_a_weak_etag_without_a_version() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#);
+        let condition = Some(metadata.build());
+
+        let err = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn if_not_changed_falls_back_to_version_for_a_weak_etag() {
+        let capability = Capability::default();
+        let mut metadata = MetadataBuilder::unknown();
+        metadata.etag(r#"W/"tag""#).version("v1");
+        let condition = Some(metadata.build());
+
+        let (write, _) = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(write.if_match(), None);
+        assert_eq!(write.if_version_match(), Some("v1"));
+
+        let delete = OpDelete::from_options(
+            &capability,
+            options::DeleteOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(delete.if_match(), None);
+        assert_eq!(delete.if_version_match(), Some("v1"));
+
+        let copy = OpCopy::from_options(
+            &capability,
+            options::CopyOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(copy.if_match(), None);
+        assert_eq!(copy.if_version_match(), Some("v1"));
+
+        let compose = OpCompose::from_options(
+            &capability,
+            options::ComposeOptions {
+                if_not_changed: condition.clone(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(compose.if_match(), None);
+        assert_eq!(compose.if_version_match(), Some("v1"));
+
+        let source = OpRead::from_compose_source_options(
+            &capability,
+            options::ComposeSourceOptions {
+                if_not_changed: condition,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(source.if_match(), None);
+        assert_eq!(source.version(), Some("v1"));
+    }
+
+    #[test]
     fn delete_copy_list_and_restore_options_roundtrip() {
         let delete = OpDelete::from_options(
             &Capability::default(),
@@ -1749,6 +2043,23 @@ mod tests {
         assert_eq!(copy.if_version_match(), Some("destination-version"));
         assert_eq!(copy.source_version(), Some("source-version"));
         assert!(copy.is_conditional());
+        assert!(copy.user_metadata().is_none());
+
+        let copy = OpCopy::from_options(
+            &Capability::default(),
+            options::CopyOptions {
+                if_match: Some("etag".to_owned()),
+                content_type: Some("text/plain".to_owned()),
+                content_language: Some("fr-CA, en".to_owned()),
+                user_metadata: Some(HashMap::from([("mtime".to_owned(), "42".to_owned())])),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(copy.if_match(), Some("etag"));
+        assert_eq!(copy.content_type(), Some("text/plain"));
+        assert_eq!(copy.content_language(), Some("fr-CA, en"));
+        assert_eq!(copy.user_metadata().unwrap().get("mtime"), Some("42"));
 
         let list: OpList = options::ListOptions {
             limit: Some(100),
@@ -1756,13 +2067,21 @@ mod tests {
             recursive: true,
             versions: true,
             deleted: true,
+            glob: Some("**/*.jpg".to_owned()),
         }
         .into();
         assert_eq!(list.limit(), Some(100));
         assert_eq!(list.start_after(), Some("marker"));
+        assert_eq!(list.glob(), Some("**/*.jpg"));
         assert!(list.recursive());
         assert!(list.versions());
         assert!(list.deleted());
+
+        let mut list = list.with_glob("é/*.txt");
+        assert_eq!(list.glob(), Some("é/*.txt"));
+        list.clear_glob();
+        assert_eq!(list.glob(), None);
+        assert_eq!(list.start_after(), Some("marker"));
 
         let restore: OpRestore = options::RestoreOptions {
             version: Some("version".to_owned()),

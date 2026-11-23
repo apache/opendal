@@ -5,31 +5,40 @@
 A C binding for OpenDAL, providing blocking access to S3, GCS, Azure Blob, the
 local filesystem, and 50+ more storage backends through a single C API.
 
-We release the OpenDAL C binding independently of the
-[`opendal` crate](https://crates.io/crates/opendal) (Rust core). For updates
-and compatibility, use the C binding version instead of the `opendal` crate
-version.
+The C binding is available as source. Its [Cargo.toml](./Cargo.toml) enables
+the OpenDAL blocking API, and CMake builds the memory and `fs` services
+by default.
 
 **User guide**: https://opendal.apache.org/docs/bindings/c
 
 ## Building
 
-Requirements: C11/C++14 compiler, CMake, Rust toolchain.
+Requirements: C11/C++14 compiler, CMake 3.24 or later, Rust toolchain.
 
 ```shell
 mkdir -p build && cd build
 
 # Default build (memory + fs services)
 cmake ..
-make
-
-# Enable additional services
-cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gcs"
-make
+cmake --build .
 ```
 
-The header is at `include/opendal.h`. The shared library is written to
-`../../target/debug/` after building.
+`FEATURES` is a comma-separated list of Cargo features. Use the
+`opendal/` prefix for service features listed in the [core Cargo.toml](https://github.com/apache/opendal/blob/main/core/Cargo.toml).
+Setting `FEATURES` replaces the default list, so include `opendal/services-fs`
+to retain the `fs` service.
+
+To add S3 and GCS, reconfigure and rebuild from the same build directory:
+
+```shell
+cmake .. -DFEATURES="opendal/services-fs,opendal/services-s3,opendal/services-gcs"
+cmake --build .
+```
+
+Exposing additional Rust layers requires C binding code.
+
+The header is at `include/opendal.h`. The default build writes the shared
+library to `target/debug/` relative to `bindings/c`.
 
 ## Example
 

@@ -23,28 +23,47 @@
 
 pub use opendal_core::*;
 
+/// Runtime executor implementations.
+pub mod executors {
+    #[cfg(all(feature = "executors-compio", not(target_arch = "wasm32")))]
+    pub use opendal_executor_compio::CompioExecutor;
+    #[cfg(feature = "executors-tokio")]
+    pub use opendal_executor_tokio::TokioExecutor;
+}
+
+#[cfg(any(
+    feature = "http-transport-cyper-native-tls",
+    feature = "http-transport-cyper-rustls"
+))]
+pub use opendal_http_transport_cyper::CyperTransport;
+
 #[cfg(feature = "tests")]
 pub extern crate opendal_testkit as tests;
 
 /// Install the global defaults provided by the facade crate.
 ///
 /// This function is safe to call multiple times. It registers enabled services
-/// and installs the default HTTP transport when the corresponding feature is
+/// and installs the default executor and HTTP transport when their features are
 /// enabled.
 ///
-/// # Process-wide HTTP transport
+/// # Process-wide defaults
 ///
 /// When `auto-register-services` is enabled, a process constructor calls this
-/// function before `main`. If a default HTTP transport feature is also enabled,
-/// that transport occupies the process-wide default because
-/// [`HttpTransporter::install_default`] uses first-installed-wins semantics.
+/// function before `main`. The first installed HTTP transport and executor
+/// remain the process-wide defaults.
 ///
 /// Applications that need to install their own process-wide transport should
 /// disable `auto-register-services`, call [`init_default_registry`] explicitly
 /// when URI-based construction is needed, and install the transport themselves.
-/// Per-operator transports can be configured regardless of this setting.
+/// If `auto-register-services` is disabled, call this function to install the
+/// facade defaults, or configure your own defaults with
+/// [`HttpTransporter::install_default`] and [`Executor::install_default`].
+/// Use [`OperationContext`] to configure runtime resources for one operator.
 pub fn install_default() {
     init_default_registry();
+
+    #[cfg(feature = "executors-tokio")]
+    opendal_executor_tokio::install_default();
 
     #[cfg(any(
         feature = "http-transport-reqwest",
@@ -53,6 +72,28 @@ pub fn install_default() {
         feature = "http-transport-reqwest-rustls-no-provider"
     ))]
     opendal_http_transport_reqwest::install_default();
+}
+
+#[cfg(all(
+    test,
+    feature = "auto-register-services",
+    feature = "executors-tokio",
+    not(target_arch = "wasm32")
+))]
+mod default_executor_tests {
+    #[tokio::test]
+    async fn default_executor_runs_concurrent_reads() -> crate::Result<()> {
+        let op = crate::Operator::via_iter("memory", [])?;
+        op.write("file", "abcdefgh").await?;
+        let content = op
+            .read_with("file")
+            .range(0..8)
+            .chunk(2)
+            .concurrent(2)
+            .await?;
+        assert_eq!(content.to_bytes(), "abcdefgh");
+        Ok(())
+    }
 }
 
 /// Initialize the global [`OperatorRegistry`] with enabled services.
@@ -64,8 +105,8 @@ pub fn install_default() {
 ///
 /// Some bindings link `opendal` as a `staticlib`, where `#[ctor::ctor]`
 /// initializers may not be executed due to linker behavior. Those bindings
-/// should call this function explicitly before using `Operator::from_uri` or
-/// `Operator::via_iter`.
+/// should call [`install_default`] explicitly before using `Operator::from_uri`
+/// or `Operator::via_iter`.
 pub fn init_default_registry() {
     static DEFAULT_REGISTRY_INIT: std::sync::Once = std::sync::Once::new();
     DEFAULT_REGISTRY_INIT.call_once(|| init_default_registry_inner(OperatorRegistry::get()));
@@ -446,6 +487,8 @@ pub mod layers {
     pub use opendal_layer_async_backtrace::*;
     #[cfg(feature = "layers-await-tree")]
     pub use opendal_layer_await_tree::*;
+    #[cfg(feature = "layers-cache")]
+    pub use opendal_layer_cache::{CacheDecision, CacheLayer, CachePolicy, CacheReadRequest};
     #[cfg(feature = "layers-capability-check")]
     pub use opendal_layer_capability_check::*;
     #[cfg(feature = "layers-chaos")]
@@ -460,6 +503,8 @@ pub mod layers {
     pub use opendal_layer_fastrace::*;
     #[cfg(feature = "layers-foyer")]
     pub use opendal_layer_foyer::*;
+    #[cfg(feature = "layers-hedge")]
+    pub use opendal_layer_hedge::*;
     #[cfg(feature = "layers-hotpath")]
     pub use opendal_layer_hotpath::*;
     #[cfg(feature = "layers-immutable-index")]
@@ -482,6 +527,8 @@ pub mod layers {
     pub use opendal_layer_retry::*;
     #[cfg(feature = "layers-route")]
     pub use opendal_layer_route::*;
+    #[cfg(feature = "layers-sanity-check")]
+    pub use opendal_layer_sanity_check::*;
     #[cfg(feature = "layers-tail-cut")]
     pub use opendal_layer_tail_cut::*;
     #[cfg(feature = "layers-throttle")]

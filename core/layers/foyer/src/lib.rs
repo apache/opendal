@@ -19,6 +19,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+mod copier;
 mod deleter;
 mod error;
 mod full;
@@ -35,6 +36,7 @@ use foyer::{Code, HybridCache, Result as FoyerResult};
 use opendal_core::raw::*;
 use opendal_core::*;
 
+use copier::FoyerCopier;
 pub use deleter::Deleter;
 pub use writer::Writer;
 
@@ -150,15 +152,27 @@ impl Code for FoyerValue {
 /// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
-/// - `write`: [`FoyerLayer`] caches data after the service completes the write.
+/// - `write`: [`FoyerLayer`] caches data after the service completes the write
+///   when the object's total size stays inside [`FoyerLayer::with_size_limit`].
+///   Writes that end up outside the limit, and append writes whose buffered
+///   chunks do not contain the whole object, invalidate the superseded cache
+///   entry instead. An aborted write leaves the cache untouched.
 /// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
 ///   and caches the entire object if its size is within the configured
 ///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
 /// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
-///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
-///   deleter is closed, so the data remains invalidated if closing the deleter fails.
-/// - Other operations: [`FoyerLayer`] passes operations such as `list`, `copy`,
-///   and `rename` to the service without caching their results.
+///   closes. A failed delete call is not invalidated. Exact-key invalidation happens before the
+///   underlying deleter is closed, so the data remains invalidated if closing the deleter fails.
+///   Recursive deletes also clear the entire cache after the underlying deleter closes, including
+///   when closing fails, because Foyer does not support prefix invalidation and buffered deleters
+///   can allow concurrent reads to refill deleted objects while closing.
+/// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
+///   cache entry for the destination.
+/// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
+///   cache entries for both the source and the destination.
+///
+/// Reads of paths invalidated by copy or rename bypass the cache until a
+/// write through the layer repopulates the corresponding entry.
 ///
 /// # Range Reads
 ///
@@ -262,6 +276,21 @@ pub(crate) struct Inner {
     pub(crate) deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
 }
 
+impl Inner {
+    fn invalidate_unversioned(&self, path: String) {
+        let key = FoyerKey {
+            path,
+            version: None,
+        };
+        let mut deleted_keys = self
+            .deleted_keys
+            .lock()
+            .expect("deleted keys lock poisoned");
+        self.cache.remove(&key);
+        deleted_keys.insert(key);
+    }
+}
+
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct FoyerService {
@@ -329,8 +358,9 @@ impl Service for FoyerService {
         let inner = self.operation_inner(ctx);
         let size_limit = self.size_limit.clone();
         let path = path.to_string();
+        let append = args.append();
         let w = inner.srv.write(&inner.ctx, &path, args)?;
-        Ok(Writer::new(w, path, inner, size_limit))
+        Ok(Writer::new(w, path, inner, size_limit, append))
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -346,7 +376,12 @@ impl Service for FoyerService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args)
+        let copier = self.inner.copy(ctx, from, to, args)?;
+        Ok(Box::new(FoyerCopier::new(
+            copier,
+            to.to_string(),
+            self.operation_inner(ctx),
+        )))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
@@ -373,7 +408,11 @@ impl Service for FoyerService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        self.inner.rename(ctx, from, to, args).await
+        let rp = self.inner.rename(ctx, from, to, args).await?;
+        let inner = self.operation_inner(ctx);
+        inner.invalidate_unversioned(from.to_string());
+        inner.invalidate_unversioned(to.to_string());
+        Ok(rp)
     }
 
     async fn restore(
@@ -396,8 +435,6 @@ impl Service for FoyerService {
     ) -> Result<RpPresign> {
         self.inner.presign(ctx, path, args).await
     }
-
-    // TODO(MrCroxx): Implement copy, rename with foyer cache.
 }
 
 #[cfg(test)]
@@ -406,6 +443,7 @@ mod tests {
         BlockEngineConfig, DeviceBuilder, Error as FoyerError, ErrorKind as FoyerErrorKind,
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
+    use opendal_core::raw::oio::Copy as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::{Buffer, Operator, services::Memory};
@@ -617,6 +655,59 @@ mod tests {
         OperationContext::new()
     }
 
+    struct ChunkedCopier {
+        chunks: std::array::IntoIter<usize, 2>,
+    }
+
+    impl oio::Copy for ChunkedCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(self.chunks.next())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(MetadataBuilder::file(8).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.chunks.by_ref().for_each(drop);
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunked_copy_invalidation_waits_for_completion() {
+        let cache = memory_cache().await;
+        let layer = FoyerLayer::new(cache.clone());
+        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let ctx = OperationContext::new();
+        let current = FoyerKey {
+            path: "destination".to_string(),
+            version: None,
+        };
+        let versioned = FoyerKey {
+            path: current.path.clone(),
+            version: Some("previous".to_string()),
+        };
+        cache.insert(current.clone(), FoyerValue("current".into()));
+        cache.insert(versioned.clone(), FoyerValue("previous".into()));
+        let mut copier = FoyerCopier::new(
+            ChunkedCopier {
+                chunks: [3, 5].into_iter(),
+            },
+            current.path.clone(),
+            service.operation_inner(&ctx),
+        );
+
+        assert_eq!(copier.next().await.unwrap(), Some(3));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), Some(5));
+        assert!(cache.contains(&current));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert!(!cache.contains(&current));
+        assert!(cache.contains(&versioned));
+    }
+
     #[tokio::test]
     async fn test_restore_is_not_supported() {
         let cache = memory_cache().await;
@@ -676,10 +767,15 @@ mod tests {
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
 
         let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
-        let (_, mut stream) = reader.open(BytesRange::from(4_u64..7)).await.unwrap();
+        let range = BytesRange::from(4_u64..12);
+        let (_, mut stream) = reader.open(range).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
 
-        assert_eq!(buffer.to_vec(), b"456");
+        assert_eq!(buffer.to_vec(), b"456789");
+        assert_eq!(
+            reader.read(range).await.unwrap_err().kind(),
+            ErrorKind::Unexpected
+        );
         assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
         assert_eq!(state.read_calls.load(Ordering::Relaxed), 0);
@@ -712,6 +808,45 @@ mod tests {
         let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
         assert_eq!(read_args.version(), Some("v1"));
         assert_eq!(read_args.if_match(), Some("etag-1"));
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_bypasses_full_object_cache() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        // Fill the cache with an unconditional read.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+
+        // A conditional read must not be served from the cache: the cached
+        // entry carries no condition, so only the origin can observe it.
+        let (_, args, _) = options::ReadOptions {
+            if_match: Some("etag-1".to_owned()),
+            ..Default::default()
+        }
+        .into();
+        let reader = service.read(&ctx, "test", args).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
+
+        // Unconditional reads still hit the cache.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"01");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
     }
 
     #[tokio::test]

@@ -115,6 +115,18 @@ pub fn format_pyerr(err: ocore::Error) -> PyErr {
     format_pyerr_impl(&err)
 }
 
+/// Format an error from a file write or flush.
+///
+/// Conditional failures keep their OpenDAL exception so callers can catch
+/// `ConditionNotMatch`. Other failures remain `OSError`, matching raw I/O.
+pub fn format_pyerr_from_write_error(err: ocore::Error) -> PyErr {
+    if err.kind() == ocore::ErrorKind::ConditionNotMatch {
+        format_pyerr_impl(&err)
+    } else {
+        PyIOError::new_err(err.to_string())
+    }
+}
+
 /// Format a std::io::Error into a PyErr, checking if it wraps an OpenDAL error
 pub fn format_pyerr_from_io_error(err: std::io::Error) -> PyErr {
     // Check if this io::Error wraps an OpenDAL error

@@ -24,6 +24,7 @@ use openssh::KnownHosts;
 
 use super::SFTP_SCHEME;
 use super::config::SftpConfig;
+use super::core::Manager;
 use super::core::SftpCore;
 use super::core::is_sftp_protocol_error;
 use super::core::parse_sftp_error;
@@ -46,9 +47,31 @@ use opendal_core::*;
 #[derive(Debug, Default)]
 pub struct SftpBuilder {
     pub(super) config: SftpConfig,
+    pub(super) acquire_timeout: Option<Duration>,
+    pub(super) connect_timeout: Option<Duration>,
 }
 
 impl SftpBuilder {
+    /// Sets the time limit for waiting for a connection pool slot.
+    ///
+    /// Once a slot is available, [`Self::connect_timeout`] applies to connection setup
+    /// and pooled connection health checks. Defaults to 10 seconds. A zero duration
+    /// disables the pool wait limit.
+    pub fn acquire_timeout(mut self, timeout: Duration) -> Self {
+        self.acquire_timeout = Some(timeout);
+        self
+    }
+
+    /// Sets the time limit for each connection setup stage and each pooled connection health check.
+    ///
+    /// The limit applies separately to SSH connection and authentication, SFTP subsystem
+    /// initialization, and root directory initialization. Defaults to 10 seconds.
+    /// A zero duration disables these limits.
+    pub fn connect_timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = Some(timeout);
+        self
+    }
+
     /// set endpoint for sftp backend.
     /// The format is same as `openssh`, using either `[user@]hostname` or `ssh://[user@]hostname[:port]`. A username or port that is specified in the endpoint overrides the one set in the builder (but does not change the builder).
     pub fn endpoint(mut self, endpoint: &str) -> Self {
@@ -110,6 +133,19 @@ impl SftpBuilder {
         self
     }
 
+    /// set control directory for sftp backend.
+    /// The SSH client creates a temporary directory holding the control socket here.
+    /// Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory.
+    pub fn control_directory(mut self, dir: &str) -> Self {
+        self.config.control_directory = if dir.is_empty() {
+            None
+        } else {
+            Some(dir.to_string())
+        };
+
+        self
+    }
+
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -158,6 +194,29 @@ impl Builder for SftpBuilder {
             None => KnownHosts::Strict,
         };
 
+        const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
+        let resolve_timeout = |override_value, configured: Option<SignedDuration>, key| {
+            let timeout = match override_value {
+                Some(timeout) => timeout,
+                None => configured
+                    .map(signed_duration_to_duration)
+                    .transpose()
+                    .map_err(|err| err.with_context("config", key))?
+                    .unwrap_or(DEFAULT_TIMEOUT),
+            };
+            Ok::<_, Error>((!timeout.is_zero()).then_some(timeout))
+        };
+        let acquire_timeout = resolve_timeout(
+            self.acquire_timeout,
+            self.config.acquire_timeout,
+            "acquire_timeout",
+        )?;
+        let connect_timeout = resolve_timeout(
+            self.connect_timeout,
+            self.config.connect_timeout,
+            "connect_timeout",
+        )?;
+
         let info = ServiceInfo::new(SFTP_SCHEME, root.as_str(), "");
         let capability = Capability {
             stat: true,
@@ -185,11 +244,17 @@ impl Builder for SftpBuilder {
         let core = Arc::new(SftpCore::new(
             info,
             capability,
-            endpoint,
-            root,
-            user,
-            self.config.key.clone(),
-            known_hosts_strategy,
+            Manager {
+                endpoint,
+                root,
+                user,
+                key: self.config.key.clone(),
+                known_hosts_strategy,
+                connect_timeout,
+                #[cfg(not(windows))]
+                control_directory: self.config.control_directory.clone(),
+            },
+            acquire_timeout,
         ));
 
         debug!("sftp backend finished: {:?}", self);
@@ -297,16 +362,15 @@ impl Service for SftpBackend {
         let from = from.to_string();
         let to = to.to_string();
         Ok(oio::OneShotCopier::new(async move {
-            let client = backend.core.connect().await?;
-
-            let mut fs = client.fs();
-            fs.set_cwd(&backend.core.root);
-
             if let Some((dir, _)) = to.rsplit_once('/') {
                 backend
                     .create_dir(&ctx, dir, OpCreateDir::default())
                     .await?;
             }
+
+            let client = backend.core.connect().await?;
+            let mut fs = client.fs();
+            fs.set_cwd(&backend.core.root);
 
             let src = fs.canonicalize(&from).await.map_err(parse_sftp_error)?;
             let dst = fs.canonicalize(&to).await.map_err(parse_sftp_error)?;

@@ -21,6 +21,7 @@ The planner scans:
 - `core/Cargo.toml`
 - `core/core/Cargo.toml`
 - `core/testkit/Cargo.toml`
+- `core/executors/*/Cargo.toml`
 - `core/layers/*/Cargo.toml`
 - `core/services/*/Cargo.toml`
 - `integrations/*/Cargo.toml`

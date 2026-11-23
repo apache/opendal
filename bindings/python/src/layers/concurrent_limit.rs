@@ -28,7 +28,7 @@ use opendal::Operator;
 /// allows you to reuse the same layer across multiple operators, ensuring
 /// that the total number of concurrent requests across the entire
 /// application does not exceed the limit.
-#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends = Layer)]
 #[derive(Clone)]
 pub struct ConcurrentLimitLayer(ocore::layers::ConcurrentLimitLayer);
 

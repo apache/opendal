@@ -35,8 +35,9 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     public long? Limit { get; init; }
 
     /// <summary>
-    /// The start_after passes to underlying service to specify the specified key to start listing from.
+    /// Start listing after this key, excluding the key itself.
     /// </summary>
+    /// <seealso cref="Capability.ListWithStartAfter"/>
     public string? StartAfter { get; init; }
 
     /// <summary>
@@ -45,14 +46,22 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
     public bool Recursive { get; init; }
 
     /// <summary>
-    /// Include object versions when supported by the backend; default <see langword="false"/>.
+    /// Include object versions; default <see langword="false"/>.
     /// </summary>
+    /// <seealso cref="Capability.ListWithVersions"/>
     public bool Versions { get; init; }
 
     /// <summary>
-    /// Include delete markers when supported by version-aware backends; default <see langword="false"/>.
+    /// Include delete markers; default <see langword="false"/>.
     /// </summary>
+    /// <seealso cref="Capability.ListWithDeleted"/>
     public bool Deleted { get; init; }
+
+    /// <summary>
+    /// Filter entries with a case-sensitive Unix shell style glob pattern.
+    /// </summary>
+    /// <seealso cref="Capability.ListWithGlob"/>
+    public string? Glob { get; init; }
 
     void IOptions<OpenDALListOptions>.Validate()
     {
@@ -71,6 +80,7 @@ public sealed class ListOptions : IOptions<OpenDALListOptions>
         native.Recursive = Recursive ? (byte)1 : (byte)0;
         native.Versions = Versions ? (byte)1 : (byte)0;
         native.Deleted = Deleted ? (byte)1 : (byte)0;
+        native.Glob = writer.String(Glob);
         return native;
     }
 }
@@ -88,4 +98,5 @@ internal struct OpenDALListOptions
     public byte Recursive;
     public byte Versions;
     public byte Deleted;
+    public IntPtr Glob;
 }

@@ -113,6 +113,27 @@ impl WriteContext {
     }
 }
 
+/// A source copy that has already appended part of its range.
+///
+/// The range, path, and read conditions identify the logical call so that a
+/// retry can resume after the accepted prefix instead of copying it again.
+struct PendingCopy {
+    path: String,
+    args: OpRead,
+    options: OpReader,
+    range: BytesRange,
+    end: u64,
+    /// The next source offset to copy. It advances only after the destination
+    /// accepts the corresponding bytes.
+    offset: u64,
+}
+
+impl PendingCopy {
+    fn matches(&self, path: &str, args: &OpRead, range: BytesRange) -> bool {
+        self.path == path && self.range == range && self.args.same_read(args)
+    }
+}
+
 pub struct WriteGenerator<W> {
     w: W,
 
@@ -125,6 +146,10 @@ pub struct WriteGenerator<W> {
     exact: bool,
     /// Whether the composed writer can copy source ranges directly.
     can_copy_from: bool,
+    /// Whether a logical write stopped after the inner writer accepted part of its input.
+    requires_abort: bool,
+    /// A source copy that stopped after accepting part of its range.
+    pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
 }
 
@@ -141,73 +166,116 @@ impl WriteGenerator<oio::Writer> {
             chunk_size,
             exact,
             can_copy_from,
+            requires_abort: false,
+            pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
     }
 
     /// Allow building from existing oio::Writer for easier testing.
     #[cfg(test)]
-    fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
+    pub(crate) fn new(w: oio::Writer, chunk_size: Option<usize>, exact: bool) -> Self {
         Self {
             w,
             ctx: None,
             chunk_size,
             exact,
             can_copy_from: false,
+            requires_abort: false,
+            pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
     }
 }
 
 impl WriteGenerator<oio::Writer> {
-    /// Write the entire buffer into writer.
-    pub async fn write(&mut self, mut bs: Buffer) -> Result<usize> {
+    /// Write as much of the buffer as the next chunk can accept.
+    pub async fn write(&mut self, bs: Buffer) -> Result<usize> {
+        self.check_writable()?;
+        self.write_chunk(bs).await
+    }
+
+    pub(crate) async fn write_all(&mut self, mut bs: Buffer) -> Result<()> {
+        self.check_writable()?;
+        while !bs.is_empty() {
+            let n = self
+                .write_chunk(bs.clone())
+                .await
+                .map_err(|err| err.with_persistent(self.requires_abort))?;
+            bs.advance(n);
+            // A partial write means the inner writer already accepted a chunk of
+            // this input. Keep the writer abortable if a later chunk fails.
+            self.requires_abort = !bs.is_empty();
+        }
+        Ok(())
+    }
+
+    fn check_writable(&self) -> Result<()> {
+        self.check_not_aborted()?;
+        if self.pending_copy.is_some() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer must be aborted or resume the same copy_from call after a partially accepted copy",
+            )
+            .set_persistent());
+        }
+        Ok(())
+    }
+
+    fn check_not_aborted(&self) -> Result<()> {
+        if self.requires_abort {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer must be aborted after a partially accepted write",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn write_chunk(&mut self, mut bs: Buffer) -> Result<usize> {
+        let size = bs.len();
         let Some(chunk_size) = self.chunk_size else {
-            let size = bs.len();
             self.w.write(bs).await?;
             return Ok(size);
         };
 
-        if self.buffer.len() + bs.len() < chunk_size {
-            let size = bs.len();
+        let buffered = self.buffer.len();
+        if !self.exact {
+            if buffered + size < chunk_size {
+                self.buffer.push(bs);
+            } else {
+                self.flush_buffer(Some(bs)).await?;
+            }
+            return Ok(size);
+        }
+
+        let remaining = if buffered == chunk_size {
+            self.flush_buffer(None).await?;
+            chunk_size
+        } else {
+            chunk_size - buffered
+        };
+
+        if size <= remaining {
             self.buffer.push(bs);
             return Ok(size);
         }
 
-        // Condition:
-        // - exact is false
-        // - buffer + bs is larger than chunk_size.
-        // Action:
-        // - write buffer + bs directly.
-        if !self.exact {
-            let fill_size = bs.len();
-            self.buffer.push(bs);
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
-            return Ok(fill_size);
-        }
-
-        // Condition:
-        // - exact is true: we need write buffer in exact chunk size.
-        // - buffer is larger than chunk_size
-        //   - in exact mode, the size must be chunk_size, use `>=` just for safe coding.
-        // Action:
-        // - write existing buffer in chunk_size to make more rooms for writing data.
-        if self.buffer.len() >= chunk_size {
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
-        }
-
-        // Condition
-        // - exact is true.
-        // - buffer size must lower than chunk_size.
-        // Action:
-        // - write bs to buffer with remaining size.
-        let remaining = chunk_size - self.buffer.len();
+        // Flush a full chunk before accepting any input from this call. A
+        // failed flush leaves only the bytes accepted by earlier calls queued.
         bs.truncate(remaining);
-        let n = bs.len();
-        self.buffer.push(bs);
-        Ok(n)
+        self.flush_buffer(Some(bs)).await?;
+        Ok(remaining)
+    }
+
+    async fn flush_buffer(&mut self, tail: Option<Buffer>) -> Result<()> {
+        let mut pending = self.buffer.clone();
+        if let Some(tail) = tail {
+            pending.push(tail);
+        }
+        self.w.write(pending.collect()).await?;
+        self.buffer.clear();
+        Ok(())
     }
 
     fn reader(&self, path: &str, args: OpRead, options: OpReader) -> Result<Reader> {
@@ -237,11 +305,30 @@ impl WriteGenerator<oio::Writer> {
         let mut stream = reader.into_stream(range).await?;
         while let Some(mut bs) = stream.try_next().await? {
             while !bs.is_empty() {
-                let n = self.write(bs.clone()).await?;
+                // The caller already admitted this copy, and a retry must be
+                // able to continue it even though `pending_copy` is set.
+                let n = self.write_chunk(bs.clone()).await?;
                 bs.advance(n);
+                self.advance_copy_offset(n as u64);
             }
         }
         Ok(())
+    }
+
+    fn advance_copy_offset(&mut self, n: u64) {
+        let copy = self
+            .pending_copy
+            .as_mut()
+            .expect("copy progress must belong to a pending copy");
+        copy.offset += n;
+        debug_assert!(copy.offset <= copy.end);
+    }
+
+    fn copy_offset(&self) -> u64 {
+        self.pending_copy
+            .as_ref()
+            .expect("pending copy must exist")
+            .offset
     }
 
     /// Copy a source range into this writer, using native execution when possible.
@@ -254,6 +341,8 @@ impl WriteGenerator<oio::Writer> {
     ) -> Result<()> {
         const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
+        self.check_not_aborted()?;
+
         if let Some(size) = range.size()
             && size > MAX_COPY_FROM_SIZE
         {
@@ -264,50 +353,101 @@ impl WriteGenerator<oio::Writer> {
             .with_context("size", size));
         }
 
-        let reader = self.reader(path, args.clone(), options.clone())?;
-        let absolute = reader.parse_into_range(range).await?;
-        let size = absolute.end - absolute.start;
-        if size > MAX_COPY_FROM_SIZE {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "copy_from range exceeds the 5 GiB per-call limit",
-            )
-            .with_context("size", size));
+        if let Some(copy) = &self.pending_copy {
+            // Only the identical logical call can continue after the writer
+            // accepted part of its source range. Any other call would append
+            // different bytes after that prefix and invalidate a later retry.
+            if !copy.matches(path, &args, range) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer must be aborted or resume the same copy_from call after a partially accepted copy",
+                )
+                .set_persistent());
+            }
+        } else {
+            let reader = self.reader(path, args.clone(), options.clone())?;
+            let absolute = reader.parse_into_range(range).await?;
+            let size = absolute.end - absolute.start;
+            if size > MAX_COPY_FROM_SIZE {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "copy_from range exceeds the 5 GiB per-call limit",
+                )
+                .with_context("size", size));
+            }
+            if size == 0 {
+                return Ok(());
+            }
+
+            self.pending_copy = Some(Box::new(PendingCopy {
+                path: path.to_string(),
+                args,
+                options,
+                range,
+                end: absolute.end,
+                offset: absolute.start,
+            }));
         }
-        if size == 0 {
+
+        self.drive_copy().await
+    }
+
+    async fn drive_copy(&mut self) -> Result<()> {
+        let (path, args, options, end, mut offset) = {
+            let copy = self
+                .pending_copy
+                .as_ref()
+                .expect("pending copy must exist while driving it");
+            (
+                copy.path.clone(),
+                copy.args.clone(),
+                copy.options.clone(),
+                copy.end,
+                copy.offset,
+            )
+        };
+        let mut remaining = end - offset;
+
+        if remaining == 0 {
+            self.pending_copy = None;
             return Ok(());
         }
 
         let Some(chunk_size) = self.chunk_size.filter(|_| self.can_copy_from) else {
-            return self
-                .stream_range(
-                    path,
-                    args,
-                    options,
-                    BytesRange::new(absolute.start, Some(size)),
-                )
-                .await;
+            self.stream_range(
+                &path,
+                args,
+                options,
+                BytesRange::new(offset, Some(remaining)),
+            )
+            .await?;
+            self.pending_copy = None;
+            return Ok(());
         };
 
-        let mut offset = absolute.start;
-        let mut remaining = size;
-
         if self.buffer.len() >= chunk_size {
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
+            self.flush_buffer(None).await?;
         }
 
         if !self.buffer.is_empty() {
             let boundary_size = (chunk_size as u64 - self.buffer.len() as u64).min(remaining);
             self.stream_range(
-                path,
+                &path,
                 args.clone(),
                 options.clone(),
                 BytesRange::new(offset, Some(boundary_size)),
             )
             .await?;
-            offset += boundary_size;
-            remaining -= boundary_size;
+            offset = self.copy_offset();
+            remaining = end - offset;
+        }
+
+        // Exact chunking keeps a full buffer queued until the next write, so
+        // the boundary fill above can leave `chunk_size` bytes unflushed. Flush
+        // them now so the buffered prefix is not written after the native
+        // copies below.
+        if self.buffer.len() >= chunk_size {
+            self.flush_buffer(None).await?;
         }
 
         while remaining >= chunk_size as u64 {
@@ -317,46 +457,47 @@ impl WriteGenerator<oio::Writer> {
                 remaining
             };
             let part_range = BytesRange::new(offset, Some(part_size));
-            self.w.copy_from(path, args.clone(), part_range).await?;
+            self.w.copy_from(&path, args.clone(), part_range).await?;
             offset += part_size;
             remaining -= part_size;
+            self.advance_copy_offset(part_size);
         }
 
         if remaining > 0 {
             self.stream_range(
-                path,
+                &path,
                 args,
                 options,
                 BytesRange::new(offset, Some(remaining)),
             )
             .await?;
         }
+        self.pending_copy = None;
         Ok(())
     }
 
     /// Finish the write process.
     pub async fn close(&mut self) -> Result<Metadata> {
-        loop {
-            if self.buffer.is_empty() {
-                break;
-            }
-
-            let buf = self.buffer.take().collect();
-            self.w.write(buf).await?;
+        self.check_writable()?;
+        if !self.buffer.is_empty() {
+            self.flush_buffer(None).await?;
         }
-
         self.w.close().await
     }
 
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
+        self.pending_copy = None;
         self.w.abort().await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+
     use asyncband::mutex::Mutex;
     use bytes::Buf;
     use bytes::BufMut;
@@ -409,6 +550,551 @@ mod tests {
         async fn abort(&mut self) -> Result<()> {
             Ok(())
         }
+    }
+
+    #[derive(Debug, Clone, Copy)]
+    struct WriteFaults {
+        fail_on_write: usize,
+        fail_on_copy: usize,
+        pending_on_copy: usize,
+        can_copy_from: bool,
+    }
+
+    impl Default for WriteFaults {
+        fn default() -> Self {
+            Self {
+                fail_on_write: usize::MAX,
+                fail_on_copy: usize::MAX,
+                pending_on_copy: usize::MAX,
+                can_copy_from: true,
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct WriteFaultService {
+        inner: Servicer,
+        faults: WriteFaults,
+        copy_ranges: Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        copy_pending: Arc<AtomicBool>,
+    }
+
+    impl Service for WriteFaultService {
+        type Reader = oio::Reader;
+        type Writer = WriteFault;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                write_can_multi: true,
+                write_multi_min_size: Some(10),
+                write_can_copy_from: self.faults.can_copy_from,
+                ..self.inner.capability()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            unreachable!()
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            Ok(WriteFault {
+                writer: self.inner.write(ctx, path, args)?,
+                source: self.inner.clone(),
+                ctx: ctx.clone(),
+                faults: self.faults,
+                write_attempts: 0,
+                copy_attempts: 0,
+                copy_ranges: self.copy_ranges.clone(),
+                copy_pending: self.copy_pending.clone(),
+            })
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            unreachable!()
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            unreachable!()
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            unreachable!()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            unreachable!()
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            unreachable!()
+        }
+    }
+
+    struct WriteFault {
+        writer: oio::Writer,
+        source: Servicer,
+        ctx: OperationContext,
+        faults: WriteFaults,
+        write_attempts: usize,
+        copy_attempts: usize,
+        copy_ranges: Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        copy_pending: Arc<AtomicBool>,
+    }
+
+    impl Write for WriteFault {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            self.write_attempts += 1;
+            if self.write_attempts == self.faults.fail_on_write {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected flush failure").set_temporary()
+                );
+            }
+            self.writer.write(bs).await
+        }
+
+        async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+            self.copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned")
+                .push(range);
+            self.copy_attempts += 1;
+
+            if self.copy_attempts == self.faults.fail_on_copy {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected copy failure").set_temporary()
+                );
+            }
+            if self.copy_attempts == self.faults.pending_on_copy {
+                self.copy_pending.store(true, Ordering::SeqCst);
+                std::future::pending::<()>().await;
+            }
+
+            let reader = self.source.read(&self.ctx, path, args)?;
+            let (_, bs) = oio::Read::read(&reader, range).await?;
+            self.writer.write(bs).await
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.writer.close().await
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.writer.abort().await
+        }
+    }
+
+    fn with_write_faults(
+        op: &Operator,
+        faults: WriteFaults,
+    ) -> (
+        Operator,
+        Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        Arc<AtomicBool>,
+    ) {
+        let copy_ranges = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let copy_pending = Arc::new(AtomicBool::new(false));
+        let (ctx, inner) = op.clone().into_parts();
+        let op = Operator::from_parts(
+            ctx,
+            Arc::new(WriteFaultService {
+                inner,
+                faults,
+                copy_ranges: copy_ranges.clone(),
+                copy_pending: copy_pending.clone(),
+            }),
+        );
+        (op, copy_ranges, copy_pending)
+    }
+
+    fn with_write_fault(op: &Operator, fail_on_write: usize) -> Operator {
+        with_write_faults(
+            op,
+            WriteFaults {
+                fail_on_write,
+                ..Default::default()
+            },
+        )
+        .0
+    }
+
+    #[tokio::test]
+    async fn test_retry_inexact_write_after_flush_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let mut writer = with_write_fault(&op, 1).writer("target").await?;
+        writer.write("abcde").await?;
+
+        let err = writer
+            .write("0123456789")
+            .await
+            .expect_err("first flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        writer.write("0123456789").await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"abcde0123456789");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_close_after_flush_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let mut writer = with_write_fault(&op, 1).writer("target").await?;
+        writer.write("abcde").await?;
+
+        let err = writer.close().await.expect_err("first flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"abcde");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_copy_from_after_flush_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+        let mut writer = with_write_fault(&op, 1)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("abcdefghij").await?;
+
+        let err = writer
+            .copy_from("source", 0..10)
+            .await
+            .expect_err("first flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        writer.copy_from("source", 0..10).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"abcdefghij0123456789");
+        Ok(())
+    }
+
+    /// A failed native copy part must not make the retry replay the parts that
+    /// already succeeded.
+    #[tokio::test]
+    async fn test_retry_copy_from_resumes_after_native_part_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (op, copy_ranges, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_copy: 2,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        let err = writer
+            .copy_from("source", 0..20)
+            .await
+            .expect_err("second native copy part fails");
+        assert_eq!(err.message(), "injected copy failure");
+
+        let err = writer
+            .write("rejected")
+            .await
+            .expect_err("partial copy rejects unrelated writes");
+        assert!(err.is_persistent());
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![
+                BytesRange::new(0, Some(10)),
+                BytesRange::new(10, Some(10)),
+                BytesRange::new(10, Some(10)),
+            ]
+        );
+        Ok(())
+    }
+
+    /// Dropping a copy future after one native part succeeded must keep the
+    /// accepted prefix and resume at the pending part.
+    #[tokio::test]
+    async fn test_cancelled_copy_from_resumes_after_native_part() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (op, copy_ranges, copy_pending) = with_write_faults(
+            &op,
+            WriteFaults {
+                pending_on_copy: 2,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        {
+            let mut fut = std::pin::pin!(writer.copy_from("source", 0..20));
+            for _ in 0..100 {
+                let _ = futures::poll!(&mut fut);
+                if copy_pending.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+            assert!(
+                copy_pending.load(Ordering::SeqCst),
+                "second native copy part must be pending"
+            );
+        }
+
+        // A partial copy cannot be closed as if it were complete.
+        let err = writer
+            .close()
+            .await
+            .expect_err("partial copy must not close");
+        assert!(err.is_persistent());
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![
+                BytesRange::new(0, Some(10)),
+                BytesRange::new(10, Some(10)),
+                BytesRange::new(10, Some(10)),
+            ]
+        );
+        Ok(())
+    }
+
+    /// A streaming fallback must also resume after a failed chunk without
+    /// replaying source bytes.
+    #[tokio::test]
+    async fn test_retry_copy_from_resumes_after_stream_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijklmnopqrst").await?;
+        let (op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_write: 2,
+                can_copy_from: false,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: (0..30).into(),
+            chunk: Some(5),
+            ..Default::default()
+        };
+
+        let err = writer
+            .copy_from_options("source", options.clone())
+            .await
+            .expect_err("second streamed chunk fails");
+        assert_eq!(err.message(), "injected flush failure");
+
+        writer.copy_from_options("source", options).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"0123456789abcdefghijklmnopqrst"
+        );
+        Ok(())
+    }
+
+    /// Exact chunking may leave a full buffer unflushed when `copy_from` tops it
+    /// up to `chunk_size`. The buffered prefix must still be written before any
+    /// native `copy_from` parts.
+    #[tokio::test]
+    async fn test_exact_copy_from_flushes_full_buffer_before_native_copy() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("XYZ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghij"
+        );
+        Ok(())
+    }
+
+    /// A native `copy_from` following a `write` that filled the buffer to
+    /// exactly `chunk_size` must not overtake the buffered chunk.
+    #[tokio::test]
+    async fn test_exact_copy_from_after_full_buffered_chunk() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("ABCDEFGHIJ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"ABCDEFGHIJ0123456789abcdefghij"
+        );
+        Ok(())
+    }
+
+    /// Consecutive `copy_from` calls with misaligned ranges must preserve call
+    /// order even when a call ends with the buffer holding exactly `chunk_size`
+    /// bytes or a partial tail.
+    #[tokio::test]
+    async fn test_exact_copy_from_consecutive_calls_preserve_order() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijklmnopqrstuv")
+            .await?;
+        let mut writer = with_write_fault(&op, usize::MAX)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        writer.write("XYZ").await?;
+        // Fills the buffered prefix to exactly chunk_size with no bytes left
+        // for the native path, leaving a full buffer queued for the next call.
+        writer.copy_from("source", 0..7).await?;
+        // Starts with the full buffer, then copies a native chunk and a tail
+        // that leaves 3 bytes buffered.
+        writer.copy_from("source", 7..20).await?;
+        // Tops the 3 buffered bytes up to a full chunk, leaving 5 bytes
+        // buffered again.
+        writer.copy_from("source", 20..32).await?;
+        // Fills the 5 buffered bytes to a full chunk, then copies a native
+        // chunk and a tail while that chunk is still queued.
+        writer.copy_from("source", 0..18).await?;
+        writer.write("end").await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghijklmnopqrstuv0123456789abcdefghend"
+        );
+        Ok(())
+    }
+
+    /// Without an explicit `.chunk()`, `copy_from` uses the service's minimum
+    /// multi size in inexact mode; interleaved writes must keep their order.
+    #[tokio::test]
+    async fn test_inexact_copy_from_preserves_order() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let mut writer = with_write_fault(&op, usize::MAX).writer("target").await?;
+        writer.write("XYZ").await?;
+        writer.copy_from("source", 0..20).await?;
+        writer.write("end").await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"XYZ0123456789abcdefghijend"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_retry_exact_write_after_first_flush_failure() -> Result<()> {
+        for (prefix, fail_on_write, expected) in [
+            ("abcde", 1, "abcde0123456789xyz"),
+            ("abcdefghij", 2, "abcdefghij0123456789xyz"),
+        ] {
+            let op = Operator::new(services::Memory::default())?;
+            let mut writer = with_write_fault(&op, fail_on_write)
+                .writer_with("target")
+                .chunk(10)
+                .await?;
+            writer.write(prefix).await?;
+
+            let err = writer
+                .write("0123456789xyz")
+                .await
+                .expect_err("flush fails before accepting any bytes of this call");
+            assert_eq!(err.message(), "injected flush failure");
+            assert!(err.is_temporary());
+            writer.write("0123456789xyz").await?;
+            writer.close().await?;
+
+            assert_eq!(op.read("target").await?.to_vec(), expected.as_bytes());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_sink_position_after_partial_write() -> Result<()> {
+        use futures::SinkExt;
+
+        let op = Operator::new(services::Memory::default())?;
+        let mut sink = with_write_fault(&op, 2)
+            .writer_with("target")
+            .chunk(10)
+            .await?
+            .into_sink();
+
+        let err = sink
+            .send(Buffer::from("abcdefghijklmnopqrstuvwxy"))
+            .await
+            .expect_err("second flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        assert_eq!(sink.position(), 10);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_exact_write_rejects_replay_after_partial_progress() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let mut writer = with_write_fault(&op, 2)
+            .writer_with("target")
+            .chunk(10)
+            .await?;
+        let data = "abcdefghijklmnopqrstuvwxy";
+
+        let err = writer.write(data).await.expect_err("second flush fails");
+        assert_eq!(err.message(), "injected flush failure");
+        assert!(err.is_persistent());
+        assert!(writer.write(data).await.is_err());
+        assert!(writer.close().await.is_err());
+        writer.abort().await?;
+
+        assert!(!op.exists("target").await?);
+        Ok(())
     }
 
     fn setup() {

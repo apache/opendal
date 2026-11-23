@@ -18,7 +18,7 @@
 //! Options module provides options definitions for operations.
 
 use crate::Metadata;
-use crate::raw::Timestamp;
+use crate::raw::{Duration, Timestamp};
 use crate::types::BytesRange;
 use std::collections::HashMap;
 
@@ -53,9 +53,11 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete the target recursively.
     ///
-    /// - If `false`, behaves like the traditional single-object delete.
-    /// - If `true`, all entries under the path (or sharing the prefix for file-like paths)
-    ///   will be removed.
+    /// The default, `false`, deletes a single object. With `true`, a trailing
+    /// slash (for example, `"a/"`) scopes deletion to a directory and its
+    /// descendants across services. Prefix matching for paths without a
+    /// trailing slash is service-specific. On prefix-based services such as
+    /// `memory`, `"a"` also matches entries under `"ab/"`.
     pub recursive: bool,
     /// Delete only when the file at the delete path has this exact ETag.
     ///
@@ -108,15 +110,15 @@ pub struct DeleteOptions {
     ///
     /// Pass metadata previously returned by OpenDAL for the same path.
     /// OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version. Otherwise it derives
-    /// an ETag match when possible. A changed or missing file fails the delete
+    /// conditions and the metadata contains a version. Otherwise it uses a
+    /// non-weak ETag if present. A changed or missing file fails the delete
     /// with [`crate::ErrorKind::ConditionNotMatch`], as does combining this
     /// option with a conflicting `if_match` or `if_version_match` value.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
     /// service does not support the derived primitive condition, and
     /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
-    /// a version nor an ETag.
+    /// a version nor a non-weak ETag.
     pub if_not_changed: Option<Metadata>,
 }
 
@@ -125,21 +127,47 @@ pub struct DeleteOptions {
 /// # Groups
 /// - Traversal: `recursive`.
 /// - Pagination: `limit`, `start_after`.
-/// - Versioning: `versions`, `deleted` (effective on version-aware backends).
-
+/// - Versioning: `versions`, `deleted`.
+///
+/// The operation fails with [`crate::ErrorKind::Unsupported`] when an option
+/// requires a capability that the operator lacks.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
     /// Maximum results per request (backend hint) to control memory and throttling.
     pub limit: Option<usize>,
-    /// The start_after passes to underlying service to specify the specified key
-    /// to start listing from.
+    /// Start listing after this key, excluding the key itself.
+    ///
+    /// Setting this requires [`Capability::list_with_start_after`](crate::Capability::list_with_start_after).
     pub start_after: Option<String>,
     /// Whether to list recursively under the prefix; default `false`.
     pub recursive: bool,
-    /// Include object versions when supported by the backend; default `false`.
+    /// Include object versions; default `false`.
+    ///
+    /// Requires [`Capability::list_with_versions`](crate::Capability::list_with_versions).
     pub versions: bool,
-    /// Include delete markers when supported by version-aware backends; default `false`.
+    /// Include delete markers; default `false`.
+    ///
+    /// Requires [`Capability::list_with_deleted`](crate::Capability::list_with_deleted).
     pub deleted: bool,
+    /// Filter entries with a case-sensitive Unix shell style glob pattern.
+    ///
+    /// The pattern is relative to the listed directory, or to the parent
+    /// directory when the list path is a prefix without a trailing slash.
+    /// Entries must also satisfy the list prefix. The pattern determines which
+    /// depths can match, independently of [`Self::recursive`].
+    ///
+    /// - `*` matches zero or more characters within one path component.
+    /// - `?` matches one Unicode scalar value within one path component.
+    /// - `**` matches zero or more path components and must occupy a whole component.
+    /// - `{a,b}` matches either alternative within a component.
+    /// - `[ab]`, `[a-z]`, and `[!a-z]` match character sets, ranges, and negated sets.
+    /// - A backslash escapes the next character within a component.
+    /// - A trailing slash restricts matches to directories.
+    ///
+    /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Standard operators use native
+    /// glob support when available and otherwise filter entries client-side.
+    /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
+    pub glob: Option<String>,
 }
 
 /// Options for read operations.
@@ -151,7 +179,9 @@ pub struct ListOptions {
 /// [`crate::ErrorKind::ConditionNotMatch`], and a condition the service does
 /// not advertise through its capability returns
 /// [`crate::ErrorKind::Unsupported`]; OpenDAL never silently drops a
-/// condition.
+/// condition. A read with a zero limit or an empty range validates the read
+/// options and capabilities, then returns an empty buffer without accessing
+/// storage or evaluating conditions against the file.
 ///
 /// See the [conditional operation specification][crate::docs::specs::conditional_operations]
 /// for the complete cross-operation contract.
@@ -168,6 +198,18 @@ pub struct ReadOptions {
     ///
     /// The type implements `From<RangeBounds<u64>>`, so users can use `(1024..).into()` instead.
     pub range: BytesRange,
+    /// Return at most this many bytes from the start of the selected range,
+    /// accepting EOF after a valid starting byte.
+    ///
+    /// A non-zero limit on a forward selection starting at or beyond EOF
+    /// returns [`crate::ErrorKind::RangeNotSatisfied`]. A zero limit returns
+    /// an empty buffer after option and capability validation, without
+    /// accessing storage. Without a limit, bounded forward ranges require the
+    /// full requested length.
+    ///
+    /// Setting a limit with a positive `chunk`, with `concurrent` greater
+    /// than one, or when presigning a read returns [`crate::ErrorKind::ConfigInvalid`].
+    pub limit: Option<u64>,
     /// Read the given version of the file instead of the current one.
     ///
     /// This selects which stored version the read returns; it is not a
@@ -268,6 +310,7 @@ pub struct ReadOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -420,6 +463,7 @@ pub struct ReaderOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -678,6 +722,13 @@ pub struct WriteOptions {
     ///
     /// This operation allows specifying the encoding applied to the content being written.
     pub content_encoding: Option<String>,
+    /// Sets Content-Language system metadata on the object being written.
+    ///
+    /// Use a language tag or a comma-separated list of tags, such as `fr-CA, en`.
+    /// Check [`crate::Capability::write_with_content_language`] for support. A
+    /// subsequent stat can retrieve the stored value with [`Metadata::content_language`].
+    /// Services without support may ignore this option.
+    pub content_language: Option<String>,
     /// Sets user metadata for this write request.
     ///
     /// ### Capability
@@ -699,6 +750,17 @@ pub struct WriteOptions {
     /// User metadata provides a way to attach custom metadata to objects during write operations.
     /// This metadata can be retrieved later when reading the object.
     pub user_metadata: Option<HashMap<String, String>>,
+
+    /// Sets how long the new file lives after the write commits.
+    ///
+    /// A supplied duration overrides the service's default TTL. When unset,
+    /// the service uses its usual expiration policy. Services round positive
+    /// durations up to their supported precision.
+    ///
+    /// Returns [`crate::ErrorKind::Unsupported`] when the service does not
+    /// advertise [`crate::Capability::write_with_expires`]. A zero or
+    /// unrepresentable duration returns [`crate::ErrorKind::ConfigInvalid`].
+    pub expires: Option<Duration>,
 
     /// Write only when the file at the write path has this exact ETag.
     ///
@@ -764,15 +826,15 @@ pub struct WriteOptions {
     ///
     /// Pass metadata previously returned by OpenDAL for the same path.
     /// OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version. Otherwise it derives
-    /// an ETag match when possible. A changed or missing file fails the write
+    /// conditions and the metadata contains a version. Otherwise it uses a
+    /// non-weak ETag if present. A changed or missing file fails the write
     /// with [`crate::ErrorKind::ConditionNotMatch`], as does combining this
     /// option with a conflicting `if_match` or `if_version_match` value.
     ///
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
     /// service does not support the derived primitive condition, and
     /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
-    /// a version nor an ETag.
+    /// a version nor a non-weak ETag.
     pub if_not_changed: Option<Metadata>,
 
     /// Sets concurrent write operations for this writer.
@@ -809,6 +871,7 @@ pub struct WriteOptions {
     /// ### Behavior
     ///
     /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - `Some(0)` has the same behavior as `None`
     /// - When chunk size is set:
     ///   - Data will be buffered until reaching chunk size
     ///   - One API call will be made per chunk
@@ -851,11 +914,11 @@ pub struct ComposeSourceOptions {
     /// Compose only when the selected source retains this metadata identity.
     ///
     /// OpenDAL selects the metadata version when the service supports source
-    /// versions. Otherwise it requires the ETag when possible. The operation
+    /// versions. Otherwise it uses a non-weak ETag if present. The operation
     /// returns [`crate::ErrorKind::Unsupported`] when the service does not
     /// support the derived source option, and
     /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
-    /// identity.
+    /// a version nor a non-weak ETag.
     pub if_not_changed: Option<Metadata>,
 }
 
@@ -888,11 +951,11 @@ pub struct ComposeOptions {
     /// Compose only when the destination still has this metadata identity.
     ///
     /// OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version. Otherwise it derives
-    /// an ETag match when possible. The operation returns
+    /// conditions and the metadata contains a version. Otherwise it uses a
+    /// non-weak ETag if present. The operation returns
     /// [`crate::ErrorKind::Unsupported`] when the service does not support the
     /// derived primitive condition, and [`crate::ErrorKind::ConfigInvalid`]
-    /// when the metadata contains neither a version nor an ETag.
+    /// when the metadata contains neither a version nor a non-weak ETag.
     pub if_not_changed: Option<Metadata>,
     /// Maximum number of independent backend composition tasks.
     ///
@@ -983,8 +1046,8 @@ pub struct CopyOptions {
     ///
     /// Pass metadata previously returned by OpenDAL for the destination
     /// path. OpenDAL derives a version match when the service supports version
-    /// conditions and the metadata contains a version. Otherwise it derives
-    /// an ETag match when possible. A changed or missing destination file
+    /// conditions and the metadata contains a version. Otherwise it uses a
+    /// non-weak ETag if present. A changed or missing destination file
     /// fails the copy with [`crate::ErrorKind::ConditionNotMatch`], as does
     /// combining this option with a conflicting `if_match` or
     /// `if_version_match` value.
@@ -992,7 +1055,7 @@ pub struct CopyOptions {
     /// The operation returns [`crate::ErrorKind::Unsupported`] when the
     /// service does not support the derived primitive condition, and
     /// [`crate::ErrorKind::ConfigInvalid`] when the metadata contains neither
-    /// a version nor an ETag.
+    /// a version nor a non-weak ETag.
     pub if_not_changed: Option<Metadata>,
 
     /// Copy from a specific source file version.
@@ -1004,6 +1067,47 @@ pub struct CopyOptions {
     /// Check [`crate::Capability::copy_with_source_version`] before using
     /// this option.
     pub source_version: Option<String>,
+
+    /// Replaces the destination's whole metadata set and stores exactly these
+    /// user metadata entries; every field left unset takes the service default.
+    ///
+    /// Setting this option, [`Self::content_type`] or [`Self::content_language`]
+    /// replaces the destination's whole metadata set. The destination gets exactly the values given here
+    /// and inherits nothing from the source: every field left unset, including
+    /// user metadata, Content-Type, Content-Language and other system metadata
+    /// such as Cache-Control, takes the service default. To change one field
+    /// and keep the others, pass the complete target set. Only these three
+    /// fields can be passed back; other source headers such as Cache-Control,
+    /// Content-Disposition and Content-Encoding reset. Setting any of them also
+    /// allows `from` and `to` to be the same path, which updates metadata
+    /// without rewriting the content. On S3 this is `CopyObject` with
+    /// `x-amz-metadata-directive: REPLACE`.
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_user_metadata`].
+    pub user_metadata: Option<HashMap<String, String>>,
+    /// Replaces the destination's whole metadata set and stores this
+    /// Content-Type; omitted user metadata and other fields take the service
+    /// default.
+    ///
+    /// Follows the same replacement rules as [`Self::user_metadata`].
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_content_type`].
+    pub content_type: Option<String>,
+    /// Replaces the destination's whole metadata set and stores this
+    /// Content-Language; omitted user metadata and other fields take the
+    /// service default.
+    ///
+    /// Use a language tag or a comma-separated list of tags, such as `fr-CA, en`.
+    /// Follows the same replacement rules as [`Self::user_metadata`].
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_content_language`].
+    pub content_language: Option<String>,
 
     /// Asserted complete content length of the source object.
     ///
@@ -1039,6 +1143,7 @@ pub struct CopyOptions {
     /// This is a best-effort execution option. Services that support
     /// server-side segmented copy can use it as the target size for each copy
     /// step. Services that cannot split copy operations can ignore it.
+    /// `Some(0)` has the same behavior as `None`.
     pub chunk: Option<usize>,
 }
 

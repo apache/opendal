@@ -81,24 +81,56 @@ attention and uphold project quality.
   contracts. Flag or reject bloated mock tests that mirror implementation
   details without proving real behavior.
 
-## Helper Functions
+## Optimizing for Reading
 
-- Extract a helper only when it owns a stable, cohesive responsibility, such as
-  a non-trivial invariant or algorithm, shared protocol encoding with identical
-  semantics, a state-machine transition, or a trait or interface boundary.
-- Do not introduce an intermediate type or helper merely to deduplicate a short
-  condition, merge, forwarding step, request parameter, or error mapping.
-  Prefer a few duplicated lines when they keep each operation easier to read
-  and maintain in isolation.
+OpenDAL optimizes code for reading top-to-bottom within a single file or module.
+Local duplication is acceptable—and often preferred—when it keeps call chains
+short and each component self-contained.
+
+### Abstractions and Duplication
+
 - Keep operation-specific validation, lowering, request construction, and
   response handling at the dispatch, request-builder, or response-processing
-  boundary that owns the behavior. A reader should be able to see how one
-  operation maps its options without following a chain of generic helpers.
+  boundary that owns the behavior. A reader should see how one operation maps
+  its options and executes without following a chain of generic helpers or
+  indirection layers.
+- Extract a helper or shared abstraction only when it owns a stable, cohesive
+  responsibility, such as a non-trivial invariant or algorithm, shared protocol
+  encoding with identical semantics, a state-machine transition, or a trait or
+  interface boundary.
+- Do not introduce an intermediate type, wrapper, or helper merely to
+  deduplicate a short condition, merge, forwarding step, request parameter,
+  error mapping, or similar logic across distinct operations, layers, or crates.
+  Prefer self-contained local code over shared abstractions that add cross-file
+  jumps or mode flags.
 - Before sharing code, verify that the call sites have the same contract,
   inputs, failure semantics, and reasons to change. Similar syntax alone does
-  not justify an abstraction.
-- Reuse an existing helper only when it already expresses the same contract. Do
-  not broaden it with operation-specific branches merely to obtain reuse.
+  not justify an abstraction. Reuse an existing helper only when it already
+  expresses the same contract; do not broaden it with operation-specific
+  branches merely to obtain reuse.
+- When cleaning up or refactoring, prioritize removing indirection and traps
+  over deduplicating honest local code:
+  - Remove dead branches, unused trait implementations, single-purpose
+    conversion traits, pass-through shells, unused generics, and transitional
+    trampolines.
+  - Consolidate duplicate implementations only when duplication creates a real
+    reading trap or divergence hazard—for example, an uncalled legacy copy left
+    in a public module that misses bug fixes applied to the live copy, or
+    parallel validation layers on the same request path that drift apart.
+
+### State, Naming, and Comments
+
+- Make state-machine invariants readable in one place. When a type coordinates
+  multiple lifecycle phases and payload fields (especially around `close` /
+  `abort` or async poll states), represent valid states as enum variants that
+  own their payloads rather than loose booleans, `Option`s, and `debug_assert!`
+  checks spread across methods.
+- Leave small, single-screen state structs alone when their invariants are
+  already obvious at a glance; do not add boilerplate enums for symmetry.
+- Keep internal names, visibility, and safety comments aligned with the current
+  code: name wrapped layer services `*Service` (not legacy `*Accessor`), rename
+  types whose responsibility has changed, and keep `unsafe` invariants and doc
+  comments accurate for the exact type they annotate.
 
 ## Documentation Style
 
@@ -258,7 +290,7 @@ When adding or changing a public optional layer:
 3. Add or update the corresponding `layers-*` feature and optional dependency in `core/Cargo.toml`.
 4. Re-export it from the facade when users should access it through `opendal::layers`.
 
-Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward unchanged operations with their context, and report the wrapped stack's capabilities. Context hooks receive the final service stack. Resource wrappers should forward through the previous transport or executor when earlier layers must remain effective.
+Operation wrappers implement `raw::Service`, store the inner `Servicer`, forward unchanged operations with their context, and report the wrapped stack's capabilities. Construct the internal `*Service` wrapper directly inside `Layer::apply_service` and keep it private unless external callers need to name it; avoid leftover `layer()` trampolines and `#[doc(hidden)] pub` service structs. Context hooks receive the final service stack. Resource wrappers should forward through the previous transport or executor when earlier layers must remain effective.
 
 ## Testing Expectations
 

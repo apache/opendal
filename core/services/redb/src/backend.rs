@@ -290,3 +290,83 @@ impl Service for RedbBackend {
         ))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
+    }
+}

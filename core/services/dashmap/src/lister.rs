@@ -50,7 +50,10 @@ impl oio::List for DashmapLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         for (key, metadata) in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_relative_path(&self.root, &key);
+                let mut path = build_relative_path(&self.root, &key);
+                if path.is_empty() {
+                    path = "/".to_string();
+                }
                 let entry = oio::Entry::new(&path, metadata);
                 return Ok(Some(entry));
             }

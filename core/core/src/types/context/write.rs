@@ -284,6 +284,11 @@ impl WriteGenerator<oio::Writer> {
             .ctx
             .as_ref()
             .expect("write context must exist outside tests");
+        crate::layers::check_read_args(
+            ctx.service().info().scheme(),
+            ctx.service().capability(),
+            &args,
+        )?;
         let reader = ctx.service().read(ctx.context(), path, args.clone())?;
         Ok(Reader::new(ReadContext::new(
             ctx.context().clone(),
@@ -346,16 +351,6 @@ impl WriteGenerator<oio::Writer> {
 
         self.check_not_aborted()?;
 
-        if let Some(size) = range.size()
-            && size > MAX_COPY_FROM_SIZE
-        {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "copy_from range exceeds the 5 GiB per-call limit",
-            )
-            .with_context("size", size));
-        }
-
         if let Some(copy) = &self.pending_copy {
             // Only the identical logical call can continue after the writer
             // accepted part of its source range. Any other call would append
@@ -371,11 +366,58 @@ impl WriteGenerator<oio::Writer> {
             let reader = self.reader(path, args.clone(), options.clone())?;
             // A zero limit reads nothing. Opening the reader still validates
             // the read options and capabilities, matching `read_options`.
-            if limit == Some(0) {
+            if limit == Some(0) || range.size() == Some(0) {
                 return Ok(());
             }
 
-            let absolute = reader.parse_into_range(range).await?;
+            // Without a limit, the raw range is the effective copy size. With
+            // a limit, resolve the range first: the limit may keep a range over
+            // 5 GiB or a bounded end past `u64::MAX` within both limits.
+            if limit.is_none()
+                && let Some(size) = range.size()
+                && size > MAX_COPY_FROM_SIZE
+            {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "copy_from range exceeds the 5 GiB per-call limit",
+                )
+                .with_context("size", size));
+            }
+
+            // A length represented by u64 can never contain a byte at u64::MAX.
+            // Match `Operator::read_inner` by clamping a bounded forward range
+            // to the limit and to the bytes addressable from its offset before
+            // resolving it.
+            let planned_range = match (limit, range) {
+                (
+                    Some(limit),
+                    BytesRange::Range {
+                        offset,
+                        size: Some(size),
+                    },
+                ) => {
+                    let available = u64::MAX - offset;
+                    if available == 0 {
+                        return Err(Error::new(
+                            ErrorKind::RangeNotSatisfied,
+                            "range starts at or beyond the end of the object",
+                        )
+                        .with_context("offset", offset));
+                    }
+                    let size = size.min(limit).min(available);
+                    if size > MAX_COPY_FROM_SIZE {
+                        return Err(Error::new(
+                            ErrorKind::RangeNotSatisfied,
+                            "copy_from range exceeds the 5 GiB per-call limit",
+                        )
+                        .with_context("size", size));
+                    }
+                    BytesRange::new(offset, Some(size))
+                }
+                (_, range) => range,
+            };
+
+            let absolute = reader.parse_into_range(planned_range).await?;
             let end = match limit {
                 // A limit bounds the bytes copied from the start of the
                 // selected range. Suffix and open-ended ranges were already
@@ -392,6 +434,16 @@ impl WriteGenerator<oio::Writer> {
                 .with_context("size", size));
             }
             if size == 0 {
+                // An explicit empty range and an empty suffix selection copy
+                // nothing. A non-empty forward selection that starts at or
+                // beyond EOF fails like `read_options` with a limit.
+                if limit.is_some_and(|limit| limit > 0) && !range.is_suffix() {
+                    return Err(Error::new(
+                        ErrorKind::RangeNotSatisfied,
+                        "range starts at or beyond the end of the object",
+                    )
+                    .with_context("offset", absolute.start));
+                }
                 return Ok(());
             }
 
@@ -435,9 +487,12 @@ impl WriteGenerator<oio::Writer> {
         // `parse_into_range` resolves suffix and open-ended ranges against the
         // source length, so their planned parts always stay inside the source.
         // A limited forward bounded range may end past EOF, and only streaming
-        // accepts EOF after a valid starting byte.
+        // accepts EOF after a valid starting byte. A content length hint may be
+        // stale, so a limited read that depends on it must also stream instead
+        // of sending parts past EOF to native copy.
         let bounded_forward = !range.is_suffix() && range.size().is_some();
-        let can_copy_native = self.can_copy_from && (limit.is_none() || !bounded_forward);
+        let can_copy_native = self.can_copy_from
+            && (limit.is_none() || (!bounded_forward && args.content_length_hint().is_none()));
         let Some(chunk_size) = self.chunk_size.filter(|_| can_copy_native) else {
             self.stream_range(
                 &path,
@@ -457,6 +512,7 @@ impl WriteGenerator<oio::Writer> {
 
         if !self.buffer.is_empty() {
             let boundary_size = (chunk_size as u64 - self.buffer.len() as u64).min(remaining);
+            let expected_offset = offset + boundary_size;
             self.stream_range(
                 &path,
                 args.clone(),
@@ -466,6 +522,12 @@ impl WriteGenerator<oio::Writer> {
             )
             .await?;
             offset = self.copy_offset();
+            if offset < expected_offset {
+                // The source ended before the planned boundary. Stop before a
+                // native copy could overtake the prefix still in `self.buffer`.
+                self.pending_copy = None;
+                return Ok(());
+            }
             remaining = end - offset;
         }
 
@@ -586,6 +648,8 @@ mod tests {
         fail_on_copy: usize,
         pending_on_copy: usize,
         can_copy_from: bool,
+        /// Report this content length from `stat` instead of the real one.
+        stat_content_length: Option<u64>,
     }
 
     impl Default for WriteFaults {
@@ -595,6 +659,7 @@ mod tests {
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
                 can_copy_from: true,
+                stat_content_length: None,
             }
         }
     }
@@ -638,7 +703,15 @@ mod tests {
         }
 
         async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-            self.inner.stat(ctx, path, args).await
+            let rp = self.inner.stat(ctx, path, args).await?;
+            Ok(match self.faults.stat_content_length {
+                Some(content_length) => rp.map_metadata(|meta| {
+                    let mut builder = meta.into_builder();
+                    builder.set_file(content_length);
+                    builder.build()
+                }),
+                None => rp,
+            })
         }
 
         fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -1020,6 +1093,393 @@ mod tests {
                 .lock()
                 .expect("copy range lock must not be poisoned"),
             vec![BytesRange::new(0, Some(10))]
+        );
+        Ok(())
+    }
+
+    /// A retry must resume the identical limited call; a different limit must
+    /// not append another prefix to the partially copied destination.
+    #[tokio::test]
+    async fn test_retry_copy_from_rejects_mismatched_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (op, copy_ranges, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_copy: 2,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: BytesRange::suffix(20),
+            limit: Some(20),
+            ..Default::default()
+        };
+
+        let err = writer
+            .copy_from_options("source", options.clone())
+            .await
+            .expect_err("second native copy part fails");
+        assert_eq!(err.message(), "injected copy failure");
+
+        let err = writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    limit: Some(19),
+                    ..options.clone()
+                },
+            )
+            .await
+            .expect_err("a different limit must not resume the copy");
+        assert!(err.is_persistent());
+
+        writer.copy_from_options("source", options).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![
+                BytesRange::new(0, Some(10)),
+                BytesRange::new(10, Some(10)),
+                BytesRange::new(10, Some(10)),
+            ]
+        );
+        Ok(())
+    }
+
+    /// A limited forward selection that starts at or beyond EOF must fail like
+    /// `Operator::read_options`, while an explicit empty selection and an empty
+    /// suffix selection copy nothing.
+    #[tokio::test]
+    async fn test_copy_from_with_limit_at_eof_matches_read_options() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+        op.write("empty", Buffer::new()).await?;
+
+        for (idx, (source, range)) in [
+            ("source", BytesRange::new(10, None)),
+            ("source", BytesRange::new(11, None)),
+            ("source", BytesRange::new(u64::MAX, None)),
+            ("empty", BytesRange::default()),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let options = crate::options::ReadOptions {
+                range,
+                limit: Some(1),
+                ..Default::default()
+            };
+            let read_err = op
+                .read_options(source, options.clone())
+                .await
+                .expect_err("read_options must reject a forward range at EOF");
+            assert_eq!(read_err.kind(), ErrorKind::RangeNotSatisfied, "case {idx}");
+
+            let mut writer = op.writer(&format!("target-{idx}")).await?;
+            let copy_err = writer
+                .copy_from_options(source, options)
+                .await
+                .expect_err("copy_from_options must reject a forward range at EOF");
+            assert_eq!(copy_err.kind(), ErrorKind::RangeNotSatisfied, "case {idx}");
+            writer.abort().await?;
+        }
+
+        for (idx, (source, range)) in [
+            ("source", BytesRange::new(0, Some(0))),
+            ("empty", BytesRange::suffix(1)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let options = crate::options::ReadOptions {
+                range,
+                limit: Some(1),
+                ..Default::default()
+            };
+            assert!(
+                op.read_options(source, options.clone()).await?.is_empty(),
+                "case {idx}"
+            );
+
+            let target = format!("empty-target-{idx}");
+            let mut writer = op.writer(&target).await?;
+            writer.copy_from_options(source, options).await?;
+            writer.close().await?;
+            assert!(op.read(&target).await?.is_empty(), "case {idx}");
+        }
+        Ok(())
+    }
+
+    /// A zero limit copies nothing, but still validates read options,
+    /// capabilities, and retry state like `read_options` does.
+    #[tokio::test]
+    async fn test_copy_from_zero_limit_validates_options() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+
+        // The same-file check runs before the limit.
+        let mut writer = op.writer("source").await?;
+        let err = writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    limit: Some(0),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("copying a file onto itself must fail");
+        assert_eq!(err.kind(), ErrorKind::IsSameFile);
+        writer.abort().await?;
+
+        // A missing source copies nothing.
+        let mut writer = op.writer("target").await?;
+        writer
+            .copy_from_options(
+                "missing",
+                crate::options::ReadOptions {
+                    limit: Some(0),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        writer.close().await?;
+        assert!(op.read("target").await?.is_empty());
+
+        // A zero chunk and single-threaded reads do not conflict with a limit.
+        for options in [
+            crate::options::ReadOptions {
+                limit: Some(0),
+                chunk: Some(0),
+                ..Default::default()
+            },
+            crate::options::ReadOptions {
+                limit: Some(0),
+                concurrent: 1,
+                ..Default::default()
+            },
+        ] {
+            let mut writer = op.writer("zero").await?;
+            writer.copy_from_options("source", options).await?;
+            writer.close().await?;
+            assert!(op.read("zero").await?.is_empty());
+        }
+
+        // A positive chunk or concurrency conflicts with any limit.
+        for options in [
+            crate::options::ReadOptions {
+                limit: Some(0),
+                chunk: Some(2),
+                ..Default::default()
+            },
+            crate::options::ReadOptions {
+                limit: Some(0),
+                concurrent: 2,
+                ..Default::default()
+            },
+        ] {
+            let mut writer = op.writer("zero").await?;
+            let err = writer
+                .copy_from_options("source", options)
+                .await
+                .expect_err("limit conflicts with chunk or concurrent reads");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            writer.abort().await?;
+        }
+
+        // Capability validation runs even when the limit copies nothing, and
+        // does not depend on `CorrectnessCheckLayer` being installed.
+        let bare = Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(services::Memory::default().build()?) as Servicer,
+        );
+        let mut writer = bare.writer("target").await?;
+        let err = writer
+            .copy_from_options(
+                "missing",
+                crate::options::ReadOptions {
+                    limit: Some(0),
+                    if_match: Some("\"e\"".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("unsupported if_match must fail");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        writer.abort().await?;
+        Ok(())
+    }
+
+    /// A limit bounds the effective copy size before the 5 GiB and
+    /// `offset + size` overflow checks, matching `read_options`.
+    #[tokio::test]
+    async fn test_copy_from_applies_limit_before_size_checks() -> Result<()> {
+        const OVER_MAX: u64 = 6 * 1024 * 1024 * 1024;
+
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+
+        for (idx, (range, limit, expected)) in [
+            (
+                BytesRange::new(0, Some(OVER_MAX)),
+                10,
+                b"0123456789".as_slice(),
+            ),
+            (BytesRange::suffix(OVER_MAX), 10, b"0123456789".as_slice()),
+            (BytesRange::new(2, Some(u64::MAX)), 3, b"234".as_slice()),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let target = format!("target-{idx}");
+            let mut writer = op.writer(&target).await?;
+            writer
+                .copy_from_options(
+                    "source",
+                    crate::options::ReadOptions {
+                        range,
+                        limit: Some(limit),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            writer.close().await?;
+            assert_eq!(op.read(&target).await?.to_vec(), expected, "case {idx}");
+        }
+
+        // A zero limit bypasses the size check entirely.
+        for (idx, range) in [
+            BytesRange::new(0, Some(OVER_MAX)),
+            BytesRange::suffix(OVER_MAX),
+            BytesRange::new(u64::MAX - 1, Some(5)),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let target = format!("zero-{idx}");
+            let mut writer = op.writer(&target).await?;
+            writer
+                .copy_from_options(
+                    "source",
+                    crate::options::ReadOptions {
+                        range,
+                        limit: Some(0),
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            writer.close().await?;
+            assert!(op.read(&target).await?.is_empty(), "case {idx}");
+        }
+
+        // An overflowing bounded end fails without a limit, but stays
+        // representable when the limit stops before the overflow.
+        let mut writer = op.writer("overflow").await?;
+        let err = writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    range: BytesRange::new(u64::MAX - 1, Some(5)),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("an unbounded overflow must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        writer.abort().await?;
+
+        let mut writer = op.writer("clamped").await?;
+        let err = writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    range: BytesRange::new(u64::MAX - 1, Some(5)),
+                    limit: Some(1),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("a clamped selection beyond EOF must fail");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        writer.abort().await?;
+        Ok(())
+    }
+
+    /// A boundary fill that reaches EOF early must stop instead of starting a
+    /// native copy while the buffered prefix is still unflushed.
+    #[tokio::test]
+    async fn test_copy_from_boundary_fill_stops_at_early_eof() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123").await?;
+        let (op, copy_ranges, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                stat_content_length: Some(20),
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+        writer.write("XYZ").await?;
+
+        writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    range: BytesRange::suffix(20),
+                    limit: Some(20),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"XYZ0123");
+        assert!(
+            copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned")
+                .is_empty(),
+            "a native copy must not run after the source ends early"
+        );
+        Ok(())
+    }
+
+    /// An overestimated content length hint must not drive native copy parts
+    /// past EOF when a limit is set.
+    #[tokio::test]
+    async fn test_copy_from_with_limit_streams_overestimated_hint() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+        let (op, copy_ranges, _) = with_write_faults(&op, WriteFaults::default());
+        let mut writer = op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: (4_u64..).into(),
+            limit: Some(15),
+            content_length_hint: Some(20),
+            ..Default::default()
+        };
+
+        assert_eq!(
+            op.read_options("source", options.clone()).await?.to_vec(),
+            b"456789"
+        );
+
+        writer.copy_from_options("source", options).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"456789");
+        assert!(
+            copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned")
+                .is_empty(),
+            "a stale content length hint must not use native copy"
         );
         Ok(())
     }

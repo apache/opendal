@@ -226,6 +226,8 @@ impl Writer {
     /// [`options::ReadOptions::limit`] bounds the number of bytes copied from
     /// the start of the selected range and accepts EOF after a valid starting
     /// byte, matching [`Operator::read_options`]. A zero limit copies nothing.
+    /// A non-zero limit on a forward selection that starts at or beyond EOF
+    /// returns [`crate::ErrorKind::RangeNotSatisfied`].
     /// Combining a limit with a positive `chunk` or with `concurrent` greater
     /// than one returns [`ErrorKind::ConfigInvalid`].
     ///

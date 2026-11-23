@@ -43,7 +43,7 @@ public class ExecutorShutdownTest {
     Path tempDir;
 
     @ParameterizedTest
-    @ValueSource(strings = {"blocking", "async", "derived", "streams", "callback", "recreate"})
+    @ValueSource(strings = {"blocking", "async", "derived", "streams", "output_stream_oom", "callback", "recreate"})
     void testJvmExitsAfterClosingOperator(String mode) throws Exception {
         final String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
         final Path java = Paths.get(System.getProperty("java.home"), "bin", executable);
@@ -124,6 +124,11 @@ public class ExecutorShutdownTest {
                         final OutputStream writer = op.createOutputStream("example.txt")) {
                     op.close();
                     writer.write(content);
+                }
+            } else if (args[0].equals("output_stream_oom")) {
+                try (final Operator op = Operator.of("memory", Collections.emptyMap())) {
+                    assertThatThrownBy(() -> op.createOutputStream("example.txt", Integer.MAX_VALUE))
+                            .isInstanceOf(OutOfMemoryError.class);
                 }
             } else if (args[0].equals("callback")) {
                 try (final AsyncOperator op = AsyncOperator.of("memory", Collections.emptyMap())) {

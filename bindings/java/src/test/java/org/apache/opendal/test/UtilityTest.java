@@ -20,14 +20,66 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collection;
+import java.util.concurrent.TimeUnit;
 import org.apache.opendal.OpenDAL;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public class UtilityTest {
+    @TempDir
+    Path tempDir;
+
     @Test
     public void testLoadEnabledServices() {
         final Collection<String> enabledServices = OpenDAL.enabledServices();
-        assertThat(enabledServices).isNotEmpty();
+        assertThat(enabledServices).contains("memory", "fs", "gcs-grpc", "goosefs", "minio", "r2");
+        if (!System.getProperty("os.name").startsWith("Windows")) {
+            assertThat(enabledServices).contains("sftp");
+        }
+    }
+
+    @Test
+    public void testLoadEnabledServicesUnderCheckJni() throws Exception {
+        final String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
+        final Path java = Paths.get(System.getProperty("java.home"), "bin", executable);
+        final Path log = tempDir.resolve("enabled-services-check-jni.log");
+        final Process process = new ProcessBuilder(
+                        java.toString(),
+                        "-Xcheck:jni",
+                        "-Djava.library.path=" + System.getProperty("java.library.path"),
+                        "-cp",
+                        System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")),
+                        EnabledServicesCheck.class.getName())
+                .redirectErrorStream(true)
+                .redirectOutput(log.toFile())
+                .start();
+        final boolean exited;
+        try {
+            exited = process.waitFor(15, TimeUnit.SECONDS);
+        } finally {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+                process.waitFor(5, TimeUnit.SECONDS);
+            }
+        }
+        final String output = new String(Files.readAllBytes(log), StandardCharsets.UTF_8);
+        assertThat(exited).as("JVM must exit cleanly: %s", output).isTrue();
+        assertThat(process.exitValue()).as(output).isZero();
+        assertThat(output).contains("ENABLED_SERVICES_LOADED");
+        assertThat(output).doesNotContain("FATAL ERROR in native method");
+        assertThat(output).doesNotContain("org.apache.opendal.OpenDAL.loadEnabledServices");
+    }
+
+    public static class EnabledServicesCheck {
+        public static void main(String[] args) {
+            final Collection<String> enabledServices = OpenDAL.enabledServices();
+            assertThat(enabledServices).contains("memory", "gcs-grpc", "goosefs", "minio", "r2");
+            System.out.println("ENABLED_SERVICES_LOADED");
+        }
     }
 }

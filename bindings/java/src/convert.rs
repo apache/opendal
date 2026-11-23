@@ -49,9 +49,8 @@ pub(crate) fn jmap_to_hashmap(env: &mut Env, params: &JObject) -> Result<HashMap
             };
             let k = entry.key(env)?;
             let v = entry.value(env)?;
-            // SAFETY: a `java.util.Map<String, String>` only yields String keys and values.
-            let k = unsafe { JString::from_raw(env, k.into_raw()) };
-            let v = unsafe { JString::from_raw(env, v.into_raw()) };
+            let k = cast_map_string(env, k, "key")?;
+            let v = cast_map_string(env, v, "value")?;
             result.insert(k.mutf8_chars(env)?.into(), v.mutf8_chars(env)?.into());
             Ok(true)
         })?;
@@ -61,6 +60,28 @@ pub(crate) fn jmap_to_hashmap(env: &mut Env, params: &JObject) -> Result<HashMap
     }
 
     Ok(result)
+}
+
+fn cast_map_string<'local>(
+    env: &Env<'_>,
+    obj: JObject<'local>,
+    role: &str,
+) -> Result<JString<'local>> {
+    if obj.is_null() {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("map {role} must not be null"),
+        )
+        .into());
+    }
+    env.cast_local::<JString>(obj).map_err(|err| match err {
+        jni::errors::Error::WrongObjectType => Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("map {role} must be java.lang.String"),
+        )
+        .into(),
+        other => other.into(),
+    })
 }
 
 pub(crate) fn hashmap_to_jmap<'a, K: AsRef<str>, V: AsRef<str>>(
@@ -116,8 +137,7 @@ pub(crate) fn read_string_field(
     if result.is_null() {
         Ok(None)
     } else {
-        // SAFETY: the field is declared as `java.lang.String`.
-        let result = unsafe { JString::from_raw(env, result.into_raw()) };
+        let result = env.cast_local::<JString>(result)?;
         Ok(Some(jstring_to_string(env, &result)?))
     }
 }

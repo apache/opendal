@@ -231,3 +231,33 @@ async fn restart_is_unsupported() -> Result<()> {
     })
     .await
 }
+
+#[tokio::test]
+async fn parent_traversal_delete_errors_and_dir_rename() -> Result<()> {
+    with_ftp_client(async |ftp| {
+        ftp.put_file("top.txt", &mut "top".as_bytes())
+            .await
+            .context("STOR top.txt")?;
+        ftp.mkdir("dir").await.context("MKD dir")?;
+        ftp.cwd("dir").await.context("CWD dir")?;
+        ftp.cwd("..").await.context("CWD ..")?;
+        assert_eq!(retrieve(ftp, "top.txt").await?, b"top");
+
+        assert_reply(
+            ftp.rm("missing.txt").await,
+            Status::FileUnavailable,
+            "DELE missing.txt",
+        );
+        assert_reply(ftp.rm("dir").await, Status::FileUnavailable, "DELE dir");
+
+        ftp.put_file("dir/item.txt", &mut "item".as_bytes())
+            .await
+            .context("STOR dir/item.txt")?;
+        ftp.rename("dir/", "dir2/")
+            .await
+            .context("RNFR dir/ + RNTO dir2/")?;
+        assert_eq!(retrieve(ftp, "dir2/item.txt").await?, b"item");
+        Ok(())
+    })
+    .await
+}

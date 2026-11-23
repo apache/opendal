@@ -113,7 +113,10 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 /// Parse multipart boundary from header map.
 ///
 /// Returns `None` if the `Content-Type` header is missing, has no `boundary`
-/// parameter, or the parameter value is empty or malformed.
+/// parameter, or the parameter value is empty or malformed. Quoted parameter
+/// values are scanned with RFC 9110 `quoted-pair` escaping; a `boundary` that
+/// actually uses `quoted-pair` is rejected because `&str` cannot unescape it
+/// and RFC 2046 `bchars` disallows `\`.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
     let Some(content_type) = parse_header_to_str(headers, CONTENT_TYPE)? else {
         return Ok(None);
@@ -143,29 +146,63 @@ pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
         }
 
         let name = rest[..name_end].trim_matches([' ', '\t']);
+        let is_boundary = name.eq_ignore_ascii_case("boundary");
         rest = rest[name_end + 1..].trim_start_matches([' ', '\t']);
 
-        let (value, next) = if let Some(quoted) = rest.strip_prefix('"') {
-            let Some(value_end) = quoted.find('"') else {
+        let value = if let Some(quoted) = rest.strip_prefix('"') {
+            // RFC 9110 `quoted-pair` lets a backslash escape `"` and `\` inside
+            // a quoted string, so scan for the closing quote instead of
+            // stopping at the first one.
+            let mut value_end = None;
+            let mut escaped = false;
+            for (idx, c) in quoted.char_indices() {
+                if escaped {
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else if c == '"' {
+                    value_end = Some(idx);
+                    break;
+                }
+            }
+
+            // A quote that is never closed, or one only reached through a
+            // dangling `\`, is malformed.
+            let Some(value_end) = value_end else {
                 return Ok(None);
             };
             let value = &quoted[..value_end];
-            let next = quoted[value_end + 1..]
-                .split_once(';')
-                .map(|(_, next)| next);
-            (value, next)
+            // A quoted-pair cannot be represented in `&str`, and RFC 2046
+            // `bchars` disallows `\` in boundaries.
+            if is_boundary && value.contains('\\') {
+                return Ok(None);
+            }
+            rest = &quoted[value_end + 1..];
+            value
         } else {
             let value_end = rest.find(';').unwrap_or(rest.len());
             let value = rest[..value_end].trim_end_matches([' ', '\t']);
-            let next = rest[value_end..].strip_prefix(';');
-            (value, next)
+            rest = &rest[value_end..];
+            value
         };
 
-        if name.eq_ignore_ascii_case("boundary") {
+        // Only optional whitespace may follow a parameter value before the
+        // next `;` or the end of the header.
+        rest = rest.trim_start_matches([' ', '\t']);
+        if !rest.is_empty() && !rest.starts_with(';') {
+            // `boundary="abc"garbage` is a malformed boundary parameter.
+            if is_boundary {
+                return Ok(None);
+            }
+            // Skip the malformed parameter instead of stalling on it.
+            rest = rest.find(';').map_or("", |idx| &rest[idx..]);
+        }
+
+        if is_boundary {
             return Ok((!value.is_empty()).then_some(value));
         }
 
-        let Some(next) = next else {
+        let Some(next) = rest.strip_prefix(';') else {
             return Ok(None);
         };
         rest = next;
@@ -449,6 +486,32 @@ mod tests {
             ("multipart/mixed; boundary=\"\"", None),
             ("multipart/mixed; boundary=\"unclosed", None),
             ("multipart/mixed", None),
+            // A `quoted-pair` in an earlier parameter must not terminate the
+            // quoted string early.
+            (
+                r#"multipart/mixed; note="a\"b;boundary=fake"; boundary=real"#,
+                Some("real"),
+            ),
+            (
+                r#"multipart/mixed; note="trailing\\"; boundary=real"#,
+                Some("real"),
+            ),
+            // A boundary cannot use `quoted-pair`: `&str` cannot unescape it
+            // and RFC 2046 `bchars` disallows `\`.
+            (r#"multipart/mixed; boundary="foo\"bar""#, None),
+            (r#"multipart/mixed; boundary="foo\\bar""#, None),
+            // Nothing but optional whitespace may follow a closing quote.
+            (r#"multipart/mixed; boundary="abc"garbage"#, None),
+            (r#"multipart/mixed; boundary="abc"def; charset=utf-8"#, None),
+            (
+                "multipart/mixed; boundary=\"abc\" \t ; charset=utf-8",
+                Some("abc"),
+            ),
+            // GCS returns unquoted boundaries that contain `=`.
+            (
+                "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
+                Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
         ];
 
         for (input, expected) in cases {
@@ -459,5 +522,25 @@ mod tests {
 
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_missing_content_type() {
+        let headers = HeaderMap::new();
+
+        let actual = parse_multipart_boundary(&headers).expect("parse must success");
+
+        assert_eq!(actual, None)
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_non_utf8_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=\xff").unwrap(),
+        );
+
+        parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
     }
 }

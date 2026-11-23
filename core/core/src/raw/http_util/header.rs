@@ -253,16 +253,19 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let content_length = match parse_content_range(headers)? {
+    let content_range = parse_content_range(headers)?;
+    let content_length = match content_range {
         Some(range) => range.size(),
         None => parse_content_length(headers)?,
     };
     let mut m = if mode == EntryMode::FILE {
         MetadataBuilder::file(content_length.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "HTTP response does not contain file content length",
-            )
+            let message = if content_range.is_some() {
+                "HTTP Content-Range header does not specify total file content length"
+            } else {
+                "HTTP response does not contain file content length"
+            };
+            Error::new(ErrorKind::Unexpected, message)
         })?)
     } else {
         MetadataBuilder::dir()
@@ -554,6 +557,7 @@ mod tests {
         let err = parse_into_metadata("file.txt", &headers)
             .expect_err("unknown total size in Content-Range must not fall back to Content-Length");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("Content-Range"));
     }
 
     #[test]

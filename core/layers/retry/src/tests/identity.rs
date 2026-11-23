@@ -168,15 +168,17 @@ async fn reopen_rejects_changed_identity_and_stays_terminal() -> Result<()> {
         let err = oio::ReadStream::read(&mut stream)
             .await
             .expect_err("reopen with changed identity must fail");
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "case={label}");
+        assert_eq!(err.kind(), ErrorKind::Conflict, "case={label}");
         assert!(!err.is_temporary(), "case={label}");
         assert_eq!(opens.lock().unwrap().len(), 2, "case={label}");
 
-        // A later read call must stay failed without reopening again.
+        // A later read call must stay failed without reopening again, preserving the conflict reason.
         let err2 = oio::ReadStream::read(&mut stream)
             .await
             .expect_err("mismatched stream must remain failed");
-        assert_eq!(err2.kind(), ErrorKind::ConditionNotMatch, "case={label}");
+        assert_eq!(err2.kind(), ErrorKind::Conflict, "case={label}");
+        assert!(!err2.is_temporary(), "case={label}");
+        assert_eq!(err2.to_string(), err.to_string(), "case={label}");
         assert_eq!(opens.lock().unwrap().len(), 2, "case={label}");
     }
 
@@ -210,7 +212,7 @@ async fn reopen_rejects_identity_change_before_first_byte() -> Result<()> {
     let err = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("bytes from a newer object must not be returned under the initial RpRead");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Conflict);
     assert!(!err.is_temporary());
     assert_eq!(opens.lock().unwrap().len(), 2);
     Ok(())
@@ -285,7 +287,8 @@ async fn reopen_adopts_identity_after_empty_initial_rp_and_rejects_later_change(
     let err = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("identity change between second and third open must fail");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Conflict);
+    assert!(!err.is_temporary());
     assert_eq!(opens.lock().unwrap().len(), 3);
     Ok(())
 }
@@ -319,14 +322,16 @@ async fn reopen_rejects_midstream_weak_etag_without_version() -> Result<()> {
     let err = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("mid-stream resume with weak etag and no version must fail");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Conflict);
     assert!(!err.is_temporary());
     assert_eq!(opens.lock().unwrap().len(), 1);
 
     let err2 = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("failed stream must remain terminal");
-    assert_eq!(err2.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err2.kind(), ErrorKind::Conflict);
+    assert!(!err2.is_temporary());
+    assert_eq!(err2.to_string(), err.to_string());
     assert_eq!(opens.lock().unwrap().len(), 1);
     Ok(())
 }
@@ -419,7 +424,8 @@ async fn reopen_with_weak_etag_and_version_requires_matching_version_and_no_cont
         let err = oio::ReadStream::read(&mut stream)
             .await
             .expect_err("changed weak etag must fail even when version matches");
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
         assert_eq!(opens.lock().unwrap().len(), 2);
     }
 
@@ -450,7 +456,8 @@ async fn reopen_with_weak_etag_and_version_requires_matching_version_and_no_cont
         let err = oio::ReadStream::read(&mut stream)
             .await
             .expect_err("dropping strong version with weak etag must fail");
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
         assert_eq!(opens.lock().unwrap().len(), 2);
     }
 
@@ -489,7 +496,8 @@ async fn reopen_rejects_weak_etag_after_prior_progress_across_multiple_reopens()
     let err = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("weak etag after prior yielded bytes must fail");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Conflict);
+    assert!(!err.is_temporary());
     assert_eq!(opens.lock().unwrap().len(), 3);
     Ok(())
 }
@@ -556,7 +564,7 @@ async fn reopen_rejects_dropping_strong_etag_when_only_length_and_last_modified_
     let err = oio::ReadStream::read(&mut stream)
         .await
         .expect_err("dropping strong etag must not silently downgrade to length/mtime matching");
-    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    assert_eq!(err.kind(), ErrorKind::Conflict);
     assert!(!err.is_temporary());
     assert_eq!(opens.lock().unwrap().len(), 2);
     Ok(())

@@ -127,7 +127,10 @@ impl Operator {
         path: String,
         options: Option<options::StatOptions>,
     ) -> Result<Metadata> {
-        let options = options.map_or_else(StatOptions::default, StatOptions::from);
+        let options = match options {
+            Some(options) => StatOptions::try_from(options)?,
+            None => StatOptions::default(),
+        };
         let meta = self
             .async_op
             .stat_options(&path, options)
@@ -152,7 +155,10 @@ impl Operator {
         path: String,
         options: Option<options::StatOptions>,
     ) -> Result<Metadata> {
-        let options = options.map_or_else(StatOptions::default, StatOptions::from);
+        let options = match options {
+            Some(options) => StatOptions::try_from(options)?,
+            None => StatOptions::default(),
+        };
         let meta = self
             .blocking_op
             .stat_options(&path, options)

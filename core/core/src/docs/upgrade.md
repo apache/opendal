@@ -125,6 +125,10 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 `raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.
 
+### `raw::oio::FlatLister` removed
+
+`raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
+
 ## Services
 
 ### Redb requires `redb` 5

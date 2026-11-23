@@ -60,19 +60,12 @@ impl CapabilityCheckLayer {
 
 impl Layer for CapabilityCheckLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(CapabilityCheckService { inner })
     }
 }
 
-impl CapabilityCheckLayer {
-    fn layer(&self, inner: Servicer) -> CapabilityCheckService {
-        CapabilityCheckService { inner }
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct CapabilityCheckService {
+struct CapabilityCheckService {
     inner: Servicer,
 }
 

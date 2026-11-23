@@ -257,6 +257,10 @@ export declare class ConcurrentLimitLayer {
    * # Arguments
    *
    * * `permits` - The maximum number of concurrent operations allowed.
+   *
+   * # Errors
+   *
+   * Returns an error if `permits` is not greater than 0.
    */
   constructor(permits: number)
   /**
@@ -267,6 +271,10 @@ export declare class ConcurrentLimitLayer {
    * # Arguments
    *
    * * `v` - The maximum number of concurrent HTTP requests allowed.
+   *
+   * # Errors
+   *
+   * Returns an error if `v` is not greater than 0.
    */
   set httpPermits(v: number)
   /**

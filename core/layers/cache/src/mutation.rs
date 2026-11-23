@@ -49,7 +49,7 @@ impl Write for Mutation<oio::Writer> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.state.begin_mutation(&[self.destination]).await;
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.close().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -72,7 +72,7 @@ impl Copy for Mutation<oio::Copier> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.state.begin_mutation(&[self.destination]).await;
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.close().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -95,7 +95,7 @@ impl Compose for Mutation<oio::Composer> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.state.begin_mutation(&[self.destination]).await;
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.close().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -129,7 +129,7 @@ impl Delete for CacheDeleter {
             subjects.push(subject(&self.source, path, Some(version)));
         }
         let recursive = args.recursive();
-        self.state.begin_mutation(&subjects).await;
+        self.state.begin_mutation(&subjects);
         let result = self.inner.delete(path, args).await;
         if result.is_ok() {
             self.subjects.extend(subjects.iter().copied());
@@ -158,7 +158,7 @@ impl Delete for CacheDeleter {
 
     async fn close(&mut self) -> Result<()> {
         let subjects: Vec<_> = self.subjects.iter().copied().collect();
-        self.state.begin_mutation(&subjects).await;
+        self.state.begin_mutation(&subjects);
         let result = self.inner.close().await;
         if self.recursive {
             self.state.bump_generation().await;

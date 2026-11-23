@@ -59,8 +59,8 @@ use crate::*;
 pub struct Io(RefCell<IoHandle>);
 
 enum FileState {
-    Reader(ocore::blocking::StdReader),
-    Writer(ocore::blocking::StdWriter),
+    Reader(Box<ocore::blocking::StdReader>),
+    Writer(Box<ocore::blocking::StdWriter>),
     Closed,
 }
 
@@ -107,37 +107,37 @@ impl Io {
         let state =
             // Create reader if mode supports reading
             if fmode.contains(FMode::READ) {
-                FileState::Reader(
+                FileState::Reader(Box::new(
                     operator
                         .reader(&path)
                         .map_err(|err| format_magnus_error(ruby, err))?
                         .into_std_read(..)
                         .map_err(|err| format_magnus_error(ruby, err))?,
-                )
+                ))
             } else if fmode.contains(FMode::WRITE) {
                 // Honor the mode's open flags instead of always truncating:
                 // `a` appends and `x` fails when the file already exists. Both
                 // return an `Unsupported` error on services without the
                 // capability instead of silently overwriting data.
-                FileState::Writer(
-                operator
-                    .writer_options(
-                        &path,
-                        ocore::options::WriteOptions {
-                            append: fmode.contains(FMode::APPEND),
-                            if_not_exists: fmode.contains(FMode::EXCLUSIVE),
-                            ..Default::default()
-                        },
-                    )
-                    .map_err(|err| format_magnus_error(ruby, err))?
-                    .into_std_write(),
-            )
-        } else {
-            return Err(Error::new(
-                ruby.exception_arg_error(),
-                "Invalid mode: must open for reading or writing",
-            ));
-        };
+                FileState::Writer(Box::new(
+                    operator
+                        .writer_options(
+                            &path,
+                            ocore::options::WriteOptions {
+                                append: fmode.contains(FMode::APPEND),
+                                if_not_exists: fmode.contains(FMode::EXCLUSIVE),
+                                ..Default::default()
+                            },
+                        )
+                        .map_err(|err| format_magnus_error(ruby, err))?
+                        .into_std_write(),
+                ))
+            } else {
+                return Err(Error::new(
+                    ruby.exception_arg_error(),
+                    "Invalid mode: must open for reading or writing",
+                ));
+            };
 
         Ok(Self(RefCell::new(IoHandle {
             state,

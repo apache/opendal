@@ -83,7 +83,7 @@ impl OtelTraceLayer {
 
 impl Layer for OtelTraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(OtelTraceService { inner })
     }
 
     fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
@@ -95,12 +95,6 @@ impl Layer for OtelTraceLayer {
         });
 
         inner.with_http_transport(transport).with_executor(executor)
-    }
-}
-
-impl OtelTraceLayer {
-    fn layer(&self, inner: Servicer) -> OtelTraceService {
-        OtelTraceService { inner }
     }
 }
 
@@ -145,9 +139,8 @@ impl Execute for OtelTraceExecutor {
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct OtelTraceService {
+struct OtelTraceService {
     inner: Servicer,
 }
 
@@ -310,8 +303,7 @@ impl Service for OtelTraceService {
     }
 }
 
-#[doc(hidden)]
-pub struct OtelTraceWrapper<R> {
+struct OtelTraceWrapper<R> {
     cx: TraceContext,
     inner: R,
 }

@@ -113,6 +113,17 @@ impl ReadContext {
         }
     }
 
+    pub(crate) async fn stat_content_length(&self) -> Result<u64> {
+        let op_stat = OpStat::from_read(self.args());
+
+        Ok(self
+            .srv
+            .stat(&self.ctx, self.path(), op_stat)
+            .await?
+            .into_metadata()
+            .content_length())
+    }
+
     pub(crate) async fn content_length(&self) -> Result<u64> {
         if let Some(v) = self
             .args()
@@ -122,14 +133,67 @@ impl ReadContext {
             return Ok(v);
         }
 
-        let op_stat = OpStat::from_read(self.args());
+        self.stat_content_length().await
+    }
 
-        Ok(self
-            .srv
-            .stat(&self.ctx, self.path(), op_stat)
-            .await?
-            .into_metadata()
-            .content_length())
+    /// Open the first range of a suffix read resolved ahead of time, revalidating
+    /// the object size against `RpRead` metadata or re-stating once on
+    /// `RangeNotSatisfied`.
+    pub(crate) async fn open_revalidated_suffix(
+        &self,
+        reval: &mut SuffixRevalidation,
+        plan_first: impl Fn(Range<u64>) -> Option<BytesRange>,
+    ) -> Result<Option<RevalidatedSuffixOpen>> {
+        let mut retried = false;
+        loop {
+            let full_range = reval.resolved_range();
+            let Some(first_range) = plan_first(full_range.clone()) else {
+                return Ok(None);
+            };
+            match self.reader.open(first_range).await {
+                Ok((rp, reader)) => {
+                    if let Some(actual_len) = rp
+                        .metadata()
+                        .filter(|m| m.is_file())
+                        .map(Metadata::content_length)
+                        && actual_len != reval.expected_len
+                    {
+                        drop(reader);
+                        let expected_len = reval.expected_len;
+                        reval.expected_len = actual_len;
+                        if !retried {
+                            retried = true;
+                            continue;
+                        }
+                        return Err(Error::new(
+                            ErrorKind::Conflict,
+                            "object size changed while resolving suffix read",
+                        )
+                        .set_temporary()
+                        .with_operation(Operation::Read)
+                        .with_context("service", self.srv.info().scheme())
+                        .with_context("path", &self.path)
+                        .with_context("expected_size", expected_len.to_string())
+                        .with_context("actual_size", actual_len.to_string()));
+                    }
+                    return Ok(Some(RevalidatedSuffixOpen {
+                        full_range,
+                        first_range,
+                        rp,
+                        reader,
+                    }));
+                }
+                Err(err) if err.kind() == ErrorKind::RangeNotSatisfied && !retried => {
+                    let new_len = self.stat_content_length().await?;
+                    if new_len == reval.expected_len {
+                        return Err(err);
+                    }
+                    retried = true;
+                    reval.expected_len = new_len;
+                }
+                Err(err) => return Err(err),
+            }
+        }
     }
 
     /// Parse the range into an absolute bounded range.
@@ -170,6 +234,35 @@ impl ReadContext {
     }
 }
 
+/// State required to revalidate a suffix range that was resolved via `stat`
+/// before opening the first read request.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SuffixRevalidation {
+    suffix_size: u64,
+    expected_len: u64,
+}
+
+impl SuffixRevalidation {
+    pub(crate) fn new(suffix_size: u64, expected_len: u64) -> Self {
+        Self {
+            suffix_size,
+            expected_len,
+        }
+    }
+
+    pub(crate) fn resolved_range(&self) -> Range<u64> {
+        let start = self.expected_len.saturating_sub(self.suffix_size);
+        start..self.expected_len
+    }
+}
+
+pub(crate) struct RevalidatedSuffixOpen {
+    pub(crate) full_range: Range<u64>,
+    pub(crate) first_range: BytesRange,
+    pub(crate) rp: RpRead,
+    pub(crate) reader: Box<dyn oio::ReadStreamDyn>,
+}
+
 /// ReadGenerator is used to generate new readers.
 ///
 /// If chunk is None, ReaderGenerator will only return one reader.
@@ -183,6 +276,8 @@ pub struct ReadGenerator {
     ctx: Arc<ReadContext>,
 
     range: BytesRange,
+    suffix_revalidation: Option<SuffixRevalidation>,
+    revalidated_range: Option<Range<u64>>,
     done: bool,
 }
 
@@ -201,8 +296,30 @@ impl ReadGenerator {
         Self {
             ctx,
             range,
+            suffix_revalidation: None,
+            revalidated_range: None,
             done: false,
         }
+    }
+
+    /// Create a new ReadGenerator for a resolved suffix range that should be
+    /// revalidated on its first open.
+    #[inline]
+    pub(crate) fn with_suffix_revalidation(
+        ctx: Arc<ReadContext>,
+        reval: SuffixRevalidation,
+    ) -> Self {
+        Self {
+            ctx,
+            range: reval.resolved_range().into(),
+            suffix_revalidation: Some(reval),
+            revalidated_range: None,
+            done: false,
+        }
+    }
+
+    pub(crate) fn take_revalidated_range(&mut self) -> Option<Range<u64>> {
+        self.revalidated_range.take()
     }
 
     /// Plan the next range to read without advancing the generator.
@@ -255,6 +372,53 @@ impl ReadGenerator {
     /// The generator advances only after `open` succeeds, so a failed or
     /// cancelled open retries the same range instead of skipping it.
     pub async fn next_reader(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
+        if let Some(mut reval) = self.suffix_revalidation {
+            let chunk = self.ctx.options.chunk();
+            let opened = self
+                .ctx
+                .open_revalidated_suffix(&mut reval, |full| {
+                    let remaining = full.end - full.start;
+                    if remaining == 0 {
+                        return None;
+                    }
+                    let read_size = chunk.map_or(remaining, |c| remaining.min(c as u64));
+                    Some(BytesRange::new(full.start, Some(read_size)))
+                })
+                .await;
+
+            match opened {
+                Ok(Some(RevalidatedSuffixOpen {
+                    full_range,
+                    first_range,
+                    rp,
+                    reader,
+                })) => {
+                    let read_size = first_range
+                        .size()
+                        .expect("revalidated suffix range must be bounded");
+                    let remaining = (full_range.end - full_range.start) - read_size;
+                    self.range = BytesRange::new(full_range.start + read_size, Some(remaining));
+                    self.done = remaining == 0;
+                    self.revalidated_range = Some(full_range);
+                    self.suffix_revalidation = None;
+                    self.ctx.observe_read_response(rp);
+                    return Ok(Some(reader));
+                }
+                Ok(None) => {
+                    let full_range = reval.resolved_range();
+                    self.range = full_range.clone().into();
+                    self.revalidated_range = Some(full_range);
+                    self.suffix_revalidation = None;
+                    self.done = true;
+                    return Ok(None);
+                }
+                Err(err) => {
+                    self.suffix_revalidation = Some(reval);
+                    return Err(err);
+                }
+            }
+        }
+
         let Some(planned) = self.plan_next_range() else {
             return Ok(None);
         };

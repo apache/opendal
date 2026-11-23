@@ -466,11 +466,7 @@ impl SimulateReader {
         }
     }
 
-    async fn content_length(&self) -> Result<u64> {
-        if let Some(v) = self.args.content_length_hint() {
-            return Ok(v);
-        }
-
+    async fn stat_content_length(&self) -> Result<u64> {
         let op = options::StatOptions {
             version: self.args.version().map(str::to_owned),
             ..Default::default()
@@ -485,30 +481,119 @@ impl SimulateReader {
             .content_length())
     }
 
-    async fn resolve_range(&self, range: BytesRange) -> Result<BytesRange> {
+    fn suffix_to_range(content_length: u64, size: u64) -> BytesRange {
+        let start = content_length.saturating_sub(size);
+        BytesRange::new(start, Some(content_length - start))
+    }
+
+    fn size_changed_error(&self, expected_size: u64, actual_size: u64) -> Error {
+        Error::new(
+            ErrorKind::Conflict,
+            "object size changed while simulating suffix read",
+        )
+        .set_temporary()
+        .with_operation(Operation::Read)
+        .with_context("service", self.srv.info().scheme())
+        .with_context("path", &self.path)
+        .with_context("expected_size", expected_size.to_string())
+        .with_context("actual_size", actual_size.to_string())
+    }
+}
+
+impl oio::Read for SimulateReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         if !self.simulate_read_with_suffix || !range.is_suffix() {
-            return Ok(range);
+            return self.inner.open(range).await;
         }
 
         let BytesRange::Suffix { size } = range else {
             unreachable!("checked by BytesRange::is_suffix")
         };
 
-        let content_length = self.content_length().await?;
-        let start = content_length.saturating_sub(size);
-        Ok(BytesRange::new(start, Some(content_length - start)))
-    }
-}
+        if let Some(hint) = self.args.content_length_hint() {
+            return self.inner.open(Self::suffix_to_range(hint, size)).await;
+        }
 
-impl oio::Read for SimulateReader {
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let range = self.resolve_range(range).await?;
-        self.inner.open(range).await
+        let mut expected_len = self.stat_content_length().await?;
+        let mut retried = false;
+        loop {
+            let resolved = Self::suffix_to_range(expected_len, size);
+            match self.inner.open(resolved).await {
+                Ok((rp, stream)) => {
+                    if let Some(actual_len) = rp
+                        .metadata()
+                        .filter(|m| m.is_file())
+                        .map(Metadata::content_length)
+                        && actual_len != expected_len
+                    {
+                        drop(stream);
+                        if !retried {
+                            retried = true;
+                            expected_len = actual_len;
+                            continue;
+                        }
+                        return Err(self.size_changed_error(expected_len, actual_len));
+                    }
+                    return Ok((rp, stream));
+                }
+                Err(err) if err.kind() == ErrorKind::RangeNotSatisfied && !retried => {
+                    let new_len = self.stat_content_length().await?;
+                    if new_len == expected_len {
+                        return Err(err);
+                    }
+                    retried = true;
+                    expected_len = new_len;
+                }
+                Err(err) => return Err(err),
+            }
+        }
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let range = self.resolve_range(range).await?;
-        self.inner.read(range).await
+        if !self.simulate_read_with_suffix || !range.is_suffix() {
+            return self.inner.read(range).await;
+        }
+
+        let BytesRange::Suffix { size } = range else {
+            unreachable!("checked by BytesRange::is_suffix")
+        };
+
+        if let Some(hint) = self.args.content_length_hint() {
+            return self.inner.read(Self::suffix_to_range(hint, size)).await;
+        }
+
+        let mut expected_len = self.stat_content_length().await?;
+        let mut retried = false;
+        loop {
+            let resolved = Self::suffix_to_range(expected_len, size);
+            match self.inner.read(resolved).await {
+                Ok((rp, buf)) => {
+                    if let Some(actual_len) = rp
+                        .metadata()
+                        .filter(|m| m.is_file())
+                        .map(Metadata::content_length)
+                        && actual_len != expected_len
+                    {
+                        if !retried {
+                            retried = true;
+                            expected_len = actual_len;
+                            continue;
+                        }
+                        return Err(self.size_changed_error(expected_len, actual_len));
+                    }
+                    return Ok((rp, buf));
+                }
+                Err(err) if err.kind() == ErrorKind::RangeNotSatisfied && !retried => {
+                    let new_len = self.stat_content_length().await?;
+                    if new_len == expected_len {
+                        return Err(err);
+                    }
+                    retried = true;
+                    expected_len = new_len;
+                }
+                Err(err) => return Err(err),
+            }
+        }
     }
 }
 
@@ -1507,6 +1592,334 @@ mod tests {
         assert!(index("data/file.txt") < index("data/"));
         assert!(index("data/nested/deep.txt") < index("data/nested/"));
         assert!(index("data/nested/") < index("data/"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn simulate_reader_revalidates_suffix_when_object_size_changes() -> Result<()> {
+        struct SizeChangingReader {
+            contents: Arc<Mutex<std::collections::VecDeque<bytes::Bytes>>>,
+            emit_metadata: bool,
+        }
+
+        impl oio::StreamRead for SizeChangingReader {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let data = self
+                    .contents
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected open call");
+                let content_range = range.to_content_range(data.len())?;
+                let slice = data.slice(content_range);
+                let rp = if self.emit_metadata {
+                    RpRead::new(MetadataBuilder::file(data.len() as u64).build())
+                } else {
+                    RpRead::default()
+                };
+                Ok((
+                    rp,
+                    Box::new(Buffer::from(slice)) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+        }
+
+        #[derive(Debug)]
+        struct SizeChangingService {
+            stat_lens: Arc<Mutex<std::collections::VecDeque<u64>>>,
+            contents: Arc<Mutex<std::collections::VecDeque<bytes::Bytes>>>,
+            emit_metadata: bool,
+        }
+
+        impl SizeChangingService {
+            fn servicer(
+                stat_lens: impl Into<std::collections::VecDeque<u64>>,
+                contents: impl Into<std::collections::VecDeque<bytes::Bytes>>,
+            ) -> Servicer {
+                Arc::new(Self {
+                    stat_lens: Arc::new(Mutex::new(stat_lens.into())),
+                    contents: Arc::new(Mutex::new(contents.into())),
+                    emit_metadata: true,
+                })
+            }
+
+            fn without_metadata(
+                stat_lens: impl Into<std::collections::VecDeque<u64>>,
+                contents: impl Into<std::collections::VecDeque<bytes::Bytes>>,
+            ) -> Servicer {
+                Arc::new(Self {
+                    stat_lens: Arc::new(Mutex::new(stat_lens.into())),
+                    contents: Arc::new(Mutex::new(contents.into())),
+                    emit_metadata: false,
+                })
+            }
+        }
+
+        impl Service for SizeChangingService {
+            type Reader = oio::StreamReader<SizeChangingReader>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    stat: true,
+                    read: true,
+                    read_with_suffix: false,
+                    ..Default::default()
+                }
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                let len = self
+                    .stat_lens
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected stat call");
+                Ok(RpStat::new(MetadataBuilder::file(len).build()))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Ok(oio::StreamReader::new(SizeChangingReader {
+                    contents: self.contents.clone(),
+                    emit_metadata: self.emit_metadata,
+                }))
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let ctx = OperationContext::new();
+
+        // 1. Growth (8 -> 12) for open() and read(): re-resolves Suffix(4) from 4..8 to 8..12.
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [8],
+            [
+                bytes::Bytes::from_static(b"0123456789AB"),
+                bytes::Bytes::from_static(b"0123456789AB"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, mut stream) = reader.open_dyn(BytesRange::suffix(4)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 12);
+        assert_eq!(stream.read_all_dyn().await?.to_bytes(), &b"89AB"[..]);
+
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [8],
+            [
+                bytes::Bytes::from_static(b"0123456789AB"),
+                bytes::Bytes::from_static(b"0123456789AB"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, buf) = reader.read_dyn(BytesRange::suffix(4)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 12);
+        assert_eq!(buf.to_bytes(), &b"89AB"[..]);
+
+        // 2. Repeated growth (8 -> 12 -> 16) fails with temporary Conflict + context on open() and read().
+        for use_read in [false, true] {
+            let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+                [8],
+                [
+                    bytes::Bytes::from_static(b"0123456789AB"),
+                    bytes::Bytes::from_static(b"0123456789ABCDEF"),
+                ],
+            ));
+            let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+            let err = if use_read {
+                reader
+                    .read_dyn(BytesRange::suffix(4))
+                    .await
+                    .expect_err("repeated size change must fail")
+            } else {
+                reader
+                    .open_dyn(BytesRange::suffix(4))
+                    .await
+                    .err()
+                    .expect("repeated size change must fail")
+            };
+            assert_eq!(err.kind(), ErrorKind::Conflict);
+            assert!(err.is_temporary());
+            let msg = err.to_string();
+            assert!(msg.contains("at read"), "missing operation in {msg}");
+            assert!(msg.contains("path: f"), "missing path in {msg}");
+            assert!(
+                msg.contains("expected_size: 12"),
+                "missing expected_size in {msg}"
+            );
+            assert!(
+                msg.contains("actual_size: 16"),
+                "missing actual_size in {msg}"
+            );
+        }
+
+        // 3. Shrink (12 -> 6) for open() and read(): triggers RangeNotSatisfied, re-stats to 6, returns 2..6.
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [12, 6],
+            [
+                bytes::Bytes::from_static(b"012345"),
+                bytes::Bytes::from_static(b"012345"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, mut stream) = reader.open_dyn(BytesRange::suffix(4)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 6);
+        assert_eq!(stream.read_all_dyn().await?.to_bytes(), &b"2345"[..]);
+
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [12, 6],
+            [
+                bytes::Bytes::from_static(b"012345"),
+                bytes::Bytes::from_static(b"012345"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, buf) = reader.read_dyn(BytesRange::suffix(4)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 6);
+        assert_eq!(buf.to_bytes(), &b"2345"[..]);
+
+        // 4. suffix >= stat_len growth (stat=8, actual=12, Suffix(100)) returns full 12 bytes.
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [8],
+            [
+                bytes::Bytes::from_static(b"0123456789AB"),
+                bytes::Bytes::from_static(b"0123456789AB"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, mut stream) = reader.open_dyn(BytesRange::suffix(100)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 12);
+        assert_eq!(
+            stream.read_all_dyn().await?.to_bytes(),
+            &b"0123456789AB"[..]
+        );
+
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [8],
+            [
+                bytes::Bytes::from_static(b"0123456789AB"),
+                bytes::Bytes::from_static(b"0123456789AB"),
+            ],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, buf) = reader.read_dyn(BytesRange::suffix(100)).await?;
+        assert_eq!(rp.metadata().unwrap().content_length(), 12);
+        assert_eq!(buf.to_bytes(), &b"0123456789AB"[..]);
+
+        // 5. Suffix(0) and empty object succeed with empty payload.
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+            [8],
+            [bytes::Bytes::from_static(b"01234567")],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (_, mut stream) = reader.open_dyn(BytesRange::suffix(0)).await?;
+        assert!(stream.read_all_dyn().await?.is_empty());
+
+        let sim = SimulateLayer::default()
+            .apply_service(SizeChangingService::servicer([0], [bytes::Bytes::new()]));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (_, buf) = reader.read_dyn(BytesRange::suffix(4)).await?;
+        assert!(buf.is_empty());
+
+        // 6. RpRead::default() (no metadata, e.g. PositionReader/Fs) does not false-error.
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::without_metadata(
+            [8],
+            [bytes::Bytes::from_static(b"01234567")],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, mut stream) = reader.open_dyn(BytesRange::suffix(4)).await?;
+        assert!(rp.metadata().is_none());
+        assert_eq!(stream.read_all_dyn().await?.to_bytes(), &b"4567"[..]);
+
+        let sim = SimulateLayer::default().apply_service(SizeChangingService::without_metadata(
+            [8],
+            [bytes::Bytes::from_static(b"01234567")],
+        ));
+        let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+        let (rp, buf) = reader.read_dyn(BytesRange::suffix(4)).await?;
+        assert!(rp.metadata().is_none());
+        assert_eq!(buf.to_bytes(), &b"4567"[..]);
+
+        // 7. RangeNotSatisfied with unchanged re-stat length passes through RangeNotSatisfied.
+        for use_read in [false, true] {
+            let sim = SimulateLayer::default().apply_service(SizeChangingService::servicer(
+                [12, 12],
+                [bytes::Bytes::from_static(b"012345")],
+            ));
+            let reader = sim.read_dyn(&ctx, "f", OpRead::new())?;
+            let err = if use_read {
+                reader
+                    .read_dyn(BytesRange::suffix(4))
+                    .await
+                    .expect_err("unchanged re-stat length must pass through RangeNotSatisfied")
+            } else {
+                reader
+                    .open_dyn(BytesRange::suffix(4))
+                    .await
+                    .err()
+                    .expect("unchanged re-stat length must pass through RangeNotSatisfied")
+            };
+            assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        }
+
         Ok(())
     }
 }

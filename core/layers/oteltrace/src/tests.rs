@@ -175,7 +175,7 @@ fn records_deleter_failures_without_changing_errors() {
         .map(|err| (err.kind(), err.to_string(), err.is_temporary()));
 
     let (results, spans) = collect_spans(async {
-        let service = OtelTraceLayer::new().layer(Arc::new(()));
+        let service = OtelTraceLayer::new().apply_service(Arc::new(()));
         let create = service.delete(&context).map(|_| ());
         let mut deleter = OtelTraceWrapper::new(
             TraceContext::new(),

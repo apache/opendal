@@ -142,7 +142,7 @@ impl TracingLayer {
 
 impl Layer for TracingLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(TracingService { inner })
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -155,12 +155,6 @@ impl Layer for TracingLayer {
         });
 
         inner.with_http_transport(transport).with_executor(executor)
-    }
-}
-
-impl TracingLayer {
-    fn layer(&self, inner: Servicer) -> TracingService {
-        TracingService { inner }
     }
 }
 
@@ -228,9 +222,8 @@ where
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct TracingService {
+struct TracingService {
     inner: Servicer,
 }
 
@@ -345,8 +338,7 @@ impl Service for TracingService {
     }
 }
 
-#[doc(hidden)]
-pub struct TracingWrapper<R> {
+struct TracingWrapper<R> {
     span: Span,
     inner: R,
 }

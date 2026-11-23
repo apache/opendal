@@ -186,6 +186,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_suffix_reads_full_content_with_known_content_length() -> Result<()> {
+        let reader = StreamReader::new(FixedStreamRead {
+            content: Buffer::from("hello"),
+            content_length: Some(5),
+        });
+
+        // A suffix larger than the object resolves to the object size.
+        let (_, buffer) = oio::Read::read(&reader, BytesRange::suffix(100)).await?;
+        assert_eq!(buffer.to_bytes(), "hello");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_suffix_reads_suffix_with_known_content_length() -> Result<()> {
+        let reader = StreamReader::new(FixedStreamRead {
+            content: Buffer::from("llo"),
+            content_length: Some(5),
+        });
+
+        // A suffix smaller than the object resolves to the suffix size.
+        let (_, buffer) = oio::Read::read(&reader, BytesRange::suffix(3)).await?;
+        assert_eq!(buffer.to_bytes(), "llo");
+
+        let truncated = StreamReader::new(FixedStreamRead {
+            content: Buffer::from("lo"),
+            content_length: Some(5),
+        });
+        let err = oio::Read::read(&truncated, BytesRange::suffix(3))
+            .await
+            .expect_err("suffix read should reject a buffer shorter than the suffix");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let oversized = StreamReader::new(FixedStreamRead {
+            content: Buffer::from("ello"),
+            content_length: Some(5),
+        });
+        let err = oio::Read::read(&oversized, BytesRange::suffix(3))
+            .await
+            .expect_err("suffix read should reject a buffer longer than the suffix");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_read_suffix_reads_empty_content_with_known_content_length() -> Result<()> {
+        let reader = StreamReader::new(FixedStreamRead {
+            content: Buffer::new(),
+            content_length: Some(0),
+        });
+
+        let (_, buffer) = oio::Read::read(&reader, BytesRange::suffix(100)).await?;
+        assert!(buffer.is_empty());
+
+        let unexpected = StreamReader::new(FixedStreamRead {
+            content: Buffer::from("h"),
+            content_length: Some(0),
+        });
+        let err = oio::Read::read(&unexpected, BytesRange::suffix(100))
+            .await
+            .expect_err("suffix read should reject data for an empty object");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_read_bounded_rejects_short_data() {
         let reader = StreamReader::new(RangeStreamRead {
             content: Buffer::from("hello"),

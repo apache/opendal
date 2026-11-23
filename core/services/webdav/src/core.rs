@@ -520,16 +520,18 @@ impl WebdavCore {
 
 fn validate_weak_etag(etag: &str) -> Result<()> {
     // RFC 9110 §8.8.3 defines entity-tag = [ weak ] DQUOTE *etagc DQUOTE,
-    // where etagc = %x21 / %x23-7E / obs-text. Also reject `]` because
-    // RFC 4918 §10.4.2 wraps entity-tags in `[...]` and servers such as
-    // Apache mod_dav terminate the bracketed token at the first `]`.
+    // where etagc = %x21 / %x23-7E / obs-text. Also reject `]` and `)` because
+    // RFC 4918 §10.4.2 wraps entity-tags inside `([etag])` and servers such as
+    // Apache mod_dav (`dav_process_if_header()`) scan for `]` and `)` without
+    // quote awareness, terminating the condition list early.
     let opaque_tag = etag
         .strip_prefix("W/")
         .and_then(|weak| weak.strip_prefix('"'))
         .and_then(|tag| tag.strip_suffix('"'));
     if !opaque_tag.is_some_and(|tag| {
-        tag.bytes()
-            .all(|byte| matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff) && byte != b']')
+        tag.bytes().all(|byte| {
+            matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff) && !matches!(byte, b']' | b')')
+        })
     }) {
         return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
     }

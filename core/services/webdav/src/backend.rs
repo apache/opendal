@@ -849,7 +849,13 @@ mod tests {
     async fn invalid_weak_etag_returns_config_invalid_for_put_and_delete() -> Result<()> {
         let (op, transport) = test_operator(true)?;
 
-        for invalid in ["W/\"bad]\"", "W/unquoted", "W/\"a\" \"b\"", "W/\"a"] {
+        for invalid in [
+            "W/\"bad]\"",
+            "W/\"a)b\"",
+            "W/unquoted",
+            "W/\"a\" \"b\"",
+            "W/\"a",
+        ] {
             let err = op
                 .write_with("file.txt", "hello")
                 .if_match(invalid)

@@ -1,9 +1,14 @@
 > **Warning:** Verify conditional writes and deletes against your endpoint before
 > relying on them. In the tested configurations, nginx’s `ngx_http_dav_module`
 > ignored PUT preconditions and `If-Match` on DELETE. Apache `mod_dav_fs` allowed
-> concurrent `If-None-Match: *` creates to succeed. Nextcloud and ownCloud could
-> reuse an ETag after a same-second overwrite, allowing a stale `If-Match` to
-> overwrite or delete newer content.
+> concurrent `If-None-Match: *` creates to succeed and ignores tagged WebDAV `If`
+> preconditions for weak ETags if a reverse proxy rewrites the request path.
+> Nextcloud and ownCloud (SabreDAV) could reuse an ETag after a same-second
+> overwrite, allowing a stale `If-Match` to overwrite or delete newer content;
+> they emit strong ETags by default, and return HTTP 404
+> ([`opendal_core::ErrorKind::NotFound`]) when a caller passes a weak ETag
+> precondition (`if_match` or `if_none_match`) on PUT for a missing target path
+> (use `if_not_exists` for create-only writes).
 >
 > Use [`CapabilityOverrideLayer`][opendal_core::layers::CapabilityOverrideLayer]
 > to disable the affected capabilities. OpenDAL returns
@@ -106,12 +111,28 @@ Each concurrent create trial used eight requests against the same missing path.
 | Server | `if_match` (PUT & DELETE) | `if_none_match` | `if_not_exists` |
 | --- | --- | --- | --- |
 | nginx 1.30.7 with `ngx_http_dav_module` | Ignores both headers and overwrites or deletes the file. | Ignores the condition and overwrites the file. | Ignores the condition. All eight requests succeeded in each trial. |
-| ownCloud 10.16.0 and Nextcloud 35.0.3 (SabreDAV) | Accepts a matching strong ETag and rejects a different one. Both reject the weak form and can reuse a strong ETag on same-second overwrites, allowing a stale match. | Rejects a matching strong ETag. Allows a different ETag or a missing file. | Rejects an existing file and creates a missing one. One request succeeded per trial. Other requests returned HTTP 412 or 423, or HTTP 404 on Nextcloud. |
+| ownCloud 10.16.0 and Nextcloud 35.0.3 (SabreDAV) | Emits strong ETags by default and evaluates tagged WebDAV `If` headers with strong ETag comparison. Accepts a matching strong ETag and rejects a different one or a weak form on existing files. Can reuse a strong ETag on same-second overwrites, allowing a stale match. On a missing target path, a weak ETag on PUT returns HTTP 404 (`ErrorKind::NotFound`). | Rejects a matching strong ETag and allows a different strong ETag or a missing file. A weak ETag on a missing target path returns HTTP 404 (`ErrorKind::NotFound`); a weak form of the current strong ETag allows an overwrite. | Rejects an existing file and creates a missing one. One request succeeded per trial. Other requests returned HTTP 412 or 423, or HTTP 404 on Nextcloud. |
 | Apache HTTP Server 2.4.71 with `mod_dav_fs` | Accepts a matching strong or weak ETag on PUT and DELETE (including nested paths) and rejects a stale tag or missing target. | Rejects a matching strong or weak ETag (including a weak ETag after the server upgrades it to a strong ETag) and allows a different ETag or creation of a missing file. | Rejects an existing file sequentially. All eight requests succeeded in each concurrent trial. |
-| `dav-server` 0.12.0 with `LocalFs` | Accepts a matching strong ETag and rejects a different one. A weak form of the current strong tag returned HTTP 412. | Rejects a matching strong ETag. Allows a different ETag or a missing file. | Rejects an existing file and creates a missing one. One request succeeded and seven returned HTTP 412 per trial. |
+| `dav-server` 0.12.0 with `LocalFs` | Evaluates tagged WebDAV `If` headers with strong ETag comparison. Accepts a matching strong ETag and rejects a different one. A weak form of the current strong tag returned HTTP 412. | Rejects a matching strong ETag and allows a different strong ETag or a missing file. A weak form of the current strong tag allows an overwrite. | Rejects an existing file and creates a missing one. One request succeeded and seven returned HTTP 412 per trial. |
 
-ownCloud, Nextcloud, and `dav-server` also accepted an overwrite when
-`if_none_match` supplied the weak form of a current strong ETag.
+Both SabreDAV (used by ownCloud and Nextcloud) and `dav-server` evaluate tagged
+WebDAV `If` headers using strong ETag comparison. Because SabreDAV emits strong
+ETags by default, standard read-modify-write flows using server-issued strong
+ETags send `If-Match` or `If-None-Match` without a WebDAV `If` header and are
+unaffected. However, when a caller passes a weak ETag (`W/"..."`) in `if_match`
+or `if_none_match` against SabreDAV (ownCloud or Nextcloud) for a missing
+target path, SabreDAV's `Server::checkPreconditions()` deviates from
+[RFC 4918 §10.4.4](https://datatracker.ietf.org/doc/html/rfc4918#section-10.4.4)
+by calling `getNodeForPath($uri)` and returning HTTP 404
+([`opendal_core::ErrorKind::NotFound`] on PUT; conditional DELETE maps HTTP 404
+to [`opendal_core::ErrorKind::ConditionNotMatch`]) instead of evaluating the
+`If` condition on the unmapped URL. Use `if_not_exists` for create-only writes.
+
+For Apache `mod_dav`, the server matches the tagged `<url>` in
+`If: <url> (...)` against the request URL observed by Apache. If a reverse
+proxy rewrites the request path between the client and Apache, Apache ignores
+unmatched tagged lists (fail-open), so `endpoint` must match the server's
+external request URL.
 
 For the nginx deployment above, use `CapabilityOverrideLayer` to disable all
 four conditional write and delete capabilities.

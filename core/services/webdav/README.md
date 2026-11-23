@@ -6,9 +6,13 @@ with Apache OpenDAL™.
 > **Warning:** Verify conditional writes and deletes against your endpoint before
 > relying on them. In the tested configurations, nginx’s `ngx_http_dav_module`
 > ignored PUT preconditions and `If-Match` on DELETE. Apache `mod_dav_fs` allowed
-> concurrent `If-None-Match: *` creates to succeed. Nextcloud and ownCloud could
-> reuse an ETag after a same-second overwrite, allowing a stale `If-Match` to
-> overwrite or delete newer content.
+> concurrent `If-None-Match: *` creates to succeed and ignores tagged WebDAV `If`
+> preconditions for weak ETags if a reverse proxy rewrites the request path.
+> Nextcloud and ownCloud (SabreDAV) could reuse an ETag after a same-second
+> overwrite, allowing a stale `If-Match` to overwrite or delete newer content;
+> they emit strong ETags by default, and return HTTP 404 (`ErrorKind::NotFound`)
+> when a caller passes a weak ETag precondition (`if_match` or `if_none_match`)
+> on PUT for a missing target path (use `if_not_exists` for create-only writes).
 >
 > Use `CapabilityOverrideLayer` to disable the affected capabilities. OpenDAL
 > returns `ErrorKind::Unsupported` before sending a conditional write or delete

@@ -2129,6 +2129,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "338089f42c427b86394a5ee60ff321da23a5c89c9d89514c829687b26359fcff"
 
 [[package]]
+name = "crc32c"
+version = "0.6.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f132a176423ee852e8f0a35d43088d1850966b50745be818a88b76f64b1c6cb"
+dependencies = [
+ "rustc_version",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2824,14 +2833,14 @@ dependencies = [
 
 [[package]]
 name = "dns-lookup"
-version = "3.0.1"
+version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e39034cee21a2f5bbb66ba0e3689819c4bb5d00382a282006e802a7ffa6c41d"
+checksum = "263c0ccfc6b3b6a93e959edad4f985779e76c0b36dbb2e13e3d27c690974adf1"
 dependencies = [
  "cfg-if 1.0.4",
  "libc",
  "socket2 0.6.3",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5053,6 +5062,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "hadoop-native"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5efbb02ecd9d527240824f7007d58727a272b0253a84eef9356cb06e49715fb"
+dependencies = [
+ "base64 0.23.1",
+ "bumpalo",
+ "bytes",
+ "cbc 0.2.0",
+ "chrono",
+ "cipher 0.5.1",
+ "des",
+ "hex",
+ "hmac 0.13.0",
+ "libloading 0.9.0",
+ "log",
+ "md-5 0.11.0",
+ "once_cell",
+ "prost 0.14.3",
+ "rand 0.10.1",
+ "regex",
+ "roxmltree",
+ "socket2 0.6.3",
+ "thiserror 2.0.18",
+ "tokio",
+ "uuid",
+ "whoami",
+]
+
+[[package]]
 name = "half"
 version = "2.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5149,43 +5188,38 @@ dependencies = [
 
 [[package]]
 name = "hdfs-native"
-version = "0.14.6"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fd181084003308224efddf737417832186839ce2882d2468ddad0114cfb3551"
+checksum = "89a1f466ea97a0d46da199e0fcb1683c4bed13b3972e7b19fcad98bc2bd54f90"
 dependencies = [
  "aes 0.9.1",
- "base64 0.22.1",
- "bitflags 2.11.1",
- "bumpalo",
+ "base64 0.23.1",
  "bytes",
- "cbc 0.2.0",
  "chrono",
  "cipher 0.5.1",
  "crc",
+ "crc32c",
  "ctr",
- "des",
  "dns-lookup",
  "futures",
  "g2p",
- "hex",
- "hmac 0.13.0",
- "libc",
- "libloading 0.9.0",
+ "hadoop-native",
  "log",
- "md-5 0.11.0",
  "num-traits",
  "once_cell",
  "prost 0.14.3",
- "prost-types",
  "rand 0.10.1",
  "regex",
+ "reqwest 0.13.5",
  "roxmltree",
+ "serde",
+ "serde_json",
  "socket2 0.6.3",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "url",
  "uuid",
- "whoami",
 ]
 
 [[package]]
@@ -10884,9 +10918,9 @@ dependencies = [
 
 [[package]]
 name = "roxmltree"
-version = "0.21.1"
+version = "0.21.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f1964b10c76125c36f8afe190065a4bf9a87bf324842c05701330bba9f1cacbb"
+checksum = "9da7f59328b09405b181fee1018925fad50f157afb43c0c0f5c522c256dd5907"
 dependencies = [
  "memchr",
 ]
@@ -13136,15 +13170,16 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.18"
+version = "0.7.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ae9cec805b01e8fc3fd2fe289f89149a9b66dd16786abd8b19cfa7b48cb0098"
+checksum = "e464cf451ba96ebfc6f9b6542f17ee8b8956e33f1e40d9690624e59d7a7f8a4b"
 dependencies = [
  "bytes",
  "futures-core",
  "futures-io",
  "futures-sink",
  "futures-util",
+ "libc",
  "pin-project-lite",
  "tokio",
 ]

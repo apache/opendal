@@ -19,7 +19,7 @@
 
 import { assert, test } from 'vitest'
 
-import { ThrottleLayer } from '../index.mjs'
+import { ConcurrentLimitLayer, ThrottleLayer } from '../index.mjs'
 
 function assertInvalidArgument(createLayer, field) {
   let error
@@ -50,5 +50,37 @@ for (const burst of zeroValues) {
 
 test('ThrottleLayer accepts positive bandwidth and burst', () => {
   const layer = new ThrottleLayer(1024, 2048)
+  assert.ok(layer.build())
+})
+
+// A zero-permit semaphore never hands out a permit, so every operation hangs
+// forever, and a negative permit count wraps to usize::MAX and disables the
+// limit instead of failing.
+const invalidPermits = [0, -1]
+
+for (const permits of invalidPermits) {
+  test(`ConcurrentLimitLayer rejects ${permits} permits`, () => {
+    assertInvalidArgument(() => new ConcurrentLimitLayer(permits), 'permits')
+  })
+
+  test(`ConcurrentLimitLayer rejects ${permits} httpPermits`, () => {
+    const layer = new ConcurrentLimitLayer(1024)
+    assertInvalidArgument(() => {
+      layer.httpPermits = permits
+    }, 'httpPermits')
+  })
+}
+
+test('ConcurrentLimitLayer accepts positive permits', () => {
+  const layer = new ConcurrentLimitLayer(1024)
+  layer.httpPermits = 512
+  assert.ok(layer.build())
+})
+
+test('ConcurrentLimitLayer stays usable after a rejected httpPermits', () => {
+  const layer = new ConcurrentLimitLayer(1024)
+  assert.throws(() => {
+    layer.httpPermits = 0
+  })
   assert.ok(layer.build())
 })

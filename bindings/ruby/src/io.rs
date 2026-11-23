@@ -248,7 +248,7 @@ impl Io {
     ///
     /// @param size [Integer, nil] The maximum number of bytes to read. Reads all data when not provided.
     /// @param buffer [String, nil] The output buffer to append to.
-    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<bytes::Bytes>, Error> {
+    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<RString>, Error> {
         let args = scan_args::<(), (Option<Option<i64>>, Option<RString>), (), (), (), ()>(args)?;
         let (option_size, mut option_output_buffer) = args.optional;
         let size = option_size.unwrap_or_default(); // allow nil
@@ -258,22 +258,31 @@ impl Io {
         if let FileState::Reader(reader) = &mut handle.state {
             let buffer: Option<bytes::Bytes> = match size {
                 Some(size) => {
-                    if size <= 0 {
+                    if size < 0 {
                         return Err(Error::new(
                             ruby.exception_arg_error(),
                             format!("negative length {} given", size),
                         ));
                     }
-                    let mut bs = vec![0; size as usize];
-                    let n = reader
-                        .read(&mut bs)
-                        .map_err(|err| format_io_error(ruby, err))?;
-                    if n == 0 && size > 0 {
-                        // when called at end of file, read(positive_integer) returns nil.
-                        None
+                    if size == 0 {
+                        // Ruby returns the given output buffer object for a zero-length read.
+                        if let Some(output_buffer) = option_output_buffer.as_mut() {
+                            output_buffer.drop_bytes(output_buffer.len())?;
+                            return Ok(Some(*output_buffer));
+                        }
+                        Some(bytes::Bytes::new())
                     } else {
-                        bs.truncate(n);
-                        Some(bs.into())
+                        let mut bs = vec![0; size as usize];
+                        let n = reader
+                            .read(&mut bs)
+                            .map_err(|err| format_io_error(ruby, err))?;
+                        if n == 0 {
+                            // when called at end of file, read(positive_integer) returns nil.
+                            None
+                        } else {
+                            bs.truncate(n);
+                            Some(bs.into())
+                        }
                     }
                 }
                 None => {
@@ -292,7 +301,7 @@ impl Io {
                 output_buffer.cat(inner);
             }
 
-            Ok(buffer)
+            Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),

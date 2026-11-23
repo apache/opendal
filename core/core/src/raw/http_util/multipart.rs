@@ -86,15 +86,22 @@ impl<T: Part> Multipart<T> {
             .set_source(err)
         })?;
 
-        let parts = s
-            .split(format!("--{}", self.boundary).as_str())
-            .collect::<Vec<&str>>();
+        let delimiter = format!("--{}", self.boundary);
+        let mut parts = s.split(&delimiter);
 
+        // Ignore the preamble before the first boundary delimiter.
+        parts.next();
         for part in parts {
-            if part.is_empty() || part.starts_with("--") {
+            // The closing delimiter and everything after it are not a part.
+            if part.starts_with("--") {
+                break;
+            }
+            if part.is_empty() {
                 continue;
             }
 
+            // Remove only the CRLF that belongs to the boundary delimiter.
+            let part = part.strip_suffix("\r\n").unwrap_or(part);
             self.parts.push(T::parse(part)?);
         }
 
@@ -469,18 +476,29 @@ impl Part for MixedPart {
             }
         }
 
-        let parts = http_response.split("\r\n\r\n").collect::<Vec<&str>>();
-        let headers_content = parts[0];
-        let body_content = parts.get(1).unwrap_or(&"");
+        let (headers_content, body_content) = http_response
+            .split_once("\r\n\r\n")
+            .unwrap_or((http_response, ""));
         let body_bytes = Buffer::from(body_content.as_bytes().to_vec());
 
         let status_line = headers_content.lines().next().unwrap_or("");
         let status_code = status_line
             .split_whitespace()
             .nth(1)
-            .unwrap_or("")
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart response contains invalid status line",
+                )
+            })?
             .parse::<u16>()
-            .unwrap_or(200);
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart response contains invalid status code",
+                )
+                .set_source(err)
+            })?;
 
         let mut headers = HeaderMap::new();
         for line in headers_content.lines().skip(1) {
@@ -1022,14 +1040,25 @@ Content-Length: 846
             .unwrap();
 
         let part0_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#.as_bytes());
+            concat!(
+                r#"{"kind": "storage#object","id": "example-bucket/obj1/1495822576643790","metadata": {"type": "tabby"}}"#,
+                "\r\n"
+            )
+            .as_bytes(),
+        );
         let part1_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#
-                .as_bytes()
+            concat!(
+                r#"{"kind": "storage#object","id": "example-bucket/obj2/1495822576643790","metadata": {"type": "tuxedo"}}"#,
+                "\r\n"
+            )
+            .as_bytes(),
         );
         let part2_bs = Bytes::from_static(
-            r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#
-                .as_bytes()
+            concat!(
+                r#"{"kind": "storage#object","id": "example-bucket/obj3/1495822576643790","metadata": {"type": "calico"}}"#,
+                "\r\n"
+            )
+            .as_bytes(),
         );
 
         assert_eq!(multipart.parts.len(), 3);
@@ -1066,7 +1095,7 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[0].content.len(), part0_bs.len());
+        assert_eq!(multipart.parts[0].content.to_bytes(), part0_bs);
         assert_eq!(multipart.parts[0].uri, None);
         assert_eq!(multipart.parts[0].method, None);
         assert_eq!(
@@ -1106,7 +1135,7 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[1].content.len(), part1_bs.len());
+        assert_eq!(multipart.parts[1].content.to_bytes(), part1_bs);
         assert_eq!(multipart.parts[1].uri, None);
         assert_eq!(multipart.parts[1].method, None);
         assert_eq!(
@@ -1146,12 +1175,83 @@ Content-Length: 846
 
             h
         });
-        assert_eq!(multipart.parts[2].content.len(), part2_bs.len());
+        assert_eq!(multipart.parts[2].content.to_bytes(), part2_bs);
         assert_eq!(multipart.parts[2].uri, None);
         assert_eq!(multipart.parts[2].method, None);
         assert_eq!(
             multipart.parts[2].status_code,
             Some(StatusCode::from_u16(200).unwrap())
+        );
+    }
+
+    #[test]
+    fn test_multipart_mixed_response_ignores_preamble_and_epilogue() {
+        for preamble in ["batch response preamble\r\n", "\r\n"] {
+            let response = format!(
+                "{preamble}\
+                 --batch\r\n\
+                 Content-Type: application/http\r\n\
+                 \r\n\
+                 HTTP/1.1 202 Accepted\r\n\
+                 \r\n\
+                 first\r\n\
+                 --batch\r\n\
+                 Content-Type: application/http\r\n\
+                 \r\n\
+                 HTTP/1.1 404 Not Found\r\n\
+                 \r\n\
+                 second\r\n\
+                 --batch--\r\n\
+                 batch response epilogue"
+            );
+
+            let multipart: Multipart<MixedPart> = Multipart::new()
+                .with_boundary("batch")
+                .parse(Bytes::from(response))
+                .unwrap();
+
+            assert_eq!(multipart.parts.len(), 2);
+            assert_eq!(multipart.parts[0].status_code, Some(StatusCode::ACCEPTED));
+            assert_eq!(multipart.parts[1].status_code, Some(StatusCode::NOT_FOUND));
+        }
+    }
+
+    #[test]
+    fn test_multipart_mixed_response_rejects_invalid_status_line() {
+        for response in [
+            "",
+            "Content-Type: application/http\r\n\r\n",
+            "Content-Type: application/http\r\n\r\nHTTP/1.1\r\n\r\n",
+            "Content-Type: application/http\r\n\r\nHTTP/1.1 INVALID\r\n\r\n",
+        ] {
+            let err = MixedPart::parse(response)
+                .err()
+                .expect("invalid status line must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+        }
+    }
+
+    #[test]
+    fn test_multipart_mixed_response_preserves_multiline_body() {
+        let response = "--batch\r\n\
+                        Content-Type: application/http\r\n\
+                        \r\n\
+                        HTTP/1.1 200 OK\r\n\
+                        Content-Type: text/plain\r\n\
+                        \r\n\
+                        para1\r\n\r\npara2\r\n\
+                        \r\n\
+                        --batch--\r\n";
+
+        let multipart: Multipart<MixedPart> = Multipart::new()
+            .with_boundary("batch")
+            .parse(Bytes::from_static(response.as_bytes()))
+            .unwrap();
+
+        assert_eq!(multipart.parts.len(), 1);
+        assert_eq!(
+            multipart.parts[0].content.to_bytes(),
+            Bytes::from_static(b"para1\r\n\r\npara2\r\n")
         );
     }
 

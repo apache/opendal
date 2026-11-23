@@ -40,3 +40,6 @@ hdrs = { version = "0.3.3", features = ["async_file"] }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["rt"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

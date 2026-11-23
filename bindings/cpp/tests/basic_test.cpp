@@ -19,7 +19,9 @@
 
 #include <ctime>
 #include <random>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -52,8 +54,6 @@ class OpenDALBasicTest : public ::testing::Test {
 // Scenario: OpenDAL Blocking Operations
 OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   std::string file_path = "test";
-  std::string file_path_copied = "test_copied";
-  std::string file_path_renamed = "test_renamed";
   std::string dir_path = "test_dir/";
   std::string_view data = "abc";
 
@@ -88,10 +88,13 @@ OPENDAL_TEST_F(OpenDALTest, BasicTest) {
   EXPECT_TRUE(paths.find(dir_path) != paths.end());
   EXPECT_TRUE(paths.find(list_file_path) != paths.end());
 
-  // remove files
-  op_.Remove(file_path_renamed);
+  // remove files and the empty directory
+  op_.Remove(file_path);
+  op_.Remove(list_file_path);
   op_.Remove(dir_path);
-  EXPECT_FALSE(op_.Exists(file_path_renamed));
+  EXPECT_FALSE(op_.Exists(file_path));
+  EXPECT_FALSE(op_.Exists(list_file_path));
+  EXPECT_FALSE(op_.Exists(dir_path));
 }
 
 OPENDAL_TEST_F(OpenDALTest, ReaderTest) {
@@ -352,6 +355,31 @@ TEST(OpenDALOptionsTest, StatOptions) {
   opendal::StatOptions stat_options;
   auto metadata = op.Stat("stat_options", stat_options);
   EXPECT_EQ(metadata.content_length, 5);
+}
+
+TEST(OpenDALReaderTest, ReadAndReadAtValidateArguments) {
+  opendal::Operator op("memory");
+  op.Write("reader_validation", "hello");
+
+  auto reader = op.GetReader("reader_validation");
+  char buf[4] = {};
+
+  EXPECT_THROW(reader.Read(buf, -1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(buf, -1, 0), std::invalid_argument);
+  EXPECT_THROW(reader.Read(nullptr, 1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(nullptr, 1, 0), std::invalid_argument);
+  EXPECT_THROW(reader.Read(nullptr, -1), std::invalid_argument);
+  EXPECT_THROW(reader.ReadAt(nullptr, -1, 0), std::invalid_argument);
+
+  EXPECT_EQ(reader.Read(nullptr, 0), 0);
+  EXPECT_EQ(reader.Read(buf, 0), 0);
+  EXPECT_EQ(reader.ReadAt(nullptr, 0, 0), 0);
+  EXPECT_EQ(reader.ReadAt(buf, 0, 0), 0);
+  EXPECT_EQ(reader.Seek(0, std::ios::cur), 0);
+
+  // Reader stays usable after rejected and zero-length reads.
+  EXPECT_EQ(reader.Read(buf, sizeof(buf)), 4);
+  EXPECT_EQ(std::string_view(buf, 4), "hell");
 }
 
 } // namespace opendal::test

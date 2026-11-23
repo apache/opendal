@@ -17,6 +17,8 @@
 
 from typing import Final, final
 
+__all__ = ["Scheme"]
+
 @final
 class Scheme:
     AliyunDrive: Final[Scheme]

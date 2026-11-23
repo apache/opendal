@@ -66,6 +66,10 @@ impl opendal_bytes {
 
     /// Construct a [`opendal_bytes`] from the Rust [`Vec`] of bytes
     pub(crate) fn new(b: Buffer) -> Self {
+        if b.is_empty() {
+            return Self::empty();
+        }
+
         let mut b = std::mem::ManuallyDrop::new(b.to_vec());
         Self {
             data: b.as_mut_ptr(),
@@ -82,10 +86,10 @@ impl opendal_bytes {
                 let bs = &mut *ptr;
                 if !bs.data.is_null() {
                     drop(Vec::from_raw_parts(bs.data, bs.len, bs.capacity));
-                    bs.data = std::ptr::null_mut();
-                    bs.len = 0;
-                    bs.capacity = 0;
                 }
+                bs.data = std::ptr::null_mut();
+                bs.len = 0;
+                bs.capacity = 0;
             }
         }
     }
@@ -1555,5 +1559,45 @@ impl opendal_operator_options {
                 drop(Box::from_raw(ptr));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod bytes_tests {
+    use super::*;
+
+    #[test]
+    fn test_empty_buffer_has_null_data() {
+        let mut bytes = opendal_bytes::new(Buffer::new());
+
+        assert!(bytes.data.is_null());
+        assert_eq!(bytes.len, 0);
+        assert_eq!(bytes.capacity, 0);
+
+        let buffer = bytes.to_buffer().expect("empty bytes should convert");
+        assert!(buffer.is_empty());
+
+        unsafe { opendal_bytes::opendal_bytes_free(&mut bytes) };
+        assert!(bytes.data.is_null());
+        assert_eq!(bytes.len, 0);
+        assert_eq!(bytes.capacity, 0);
+    }
+
+    #[test]
+    fn test_non_empty_buffer_round_trips() {
+        let mut bytes = opendal_bytes::new(Buffer::from("hello"));
+
+        assert!(!bytes.data.is_null());
+        assert_eq!(bytes.len, 5);
+        assert_eq!(
+            unsafe { std::slice::from_raw_parts(bytes.data, bytes.len) },
+            b"hello"
+        );
+        assert_eq!(bytes.to_buffer().unwrap().to_vec(), b"hello");
+
+        unsafe { opendal_bytes::opendal_bytes_free(&mut bytes) };
+        assert!(bytes.data.is_null());
+        assert_eq!(bytes.len, 0);
+        assert_eq!(bytes.capacity, 0);
     }
 }

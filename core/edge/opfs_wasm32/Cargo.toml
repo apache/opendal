@@ -34,6 +34,7 @@ worker = []
 [dependencies]
 futures = { workspace = true, features = ["std", "async-await"] }
 opendal = { path = "../..", default-features = false, features = [
+  "auto-simulate",
   "services-opfs",
 ] }
 wasm-bindgen = "0.2.89"

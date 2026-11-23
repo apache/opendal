@@ -557,7 +557,7 @@ fn generate_options_py(workspace_dir: &Path) -> Result<()> {
     // TypedDict inherits both.
     kwargs_names.push("OpenKwargs".to_string());
     out.push_str(
-        "\n\nclass OpenKwargs(ReadKwargs, WriteKwargs, total=False):\n    \"\"\"Keyword arguments for `Operator.open`.\"\"\"\n",
+        "\n\nclass OpenKwargs(ReadKwargs, WriteKwargs, total=False):\n    \"\"\"Keyword arguments for `Operator.open` and `AsyncOperator.open`.\n\n    The `content_type`, `cache_control`, and `content_disposition` options\n    apply when writing, appending, or creating. Use the operator's `read()`\n    method to supply response header overrides.\n    \"\"\"\n",
     );
 
     out.push_str("\n\n__all__ = [\n");

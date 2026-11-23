@@ -6,8 +6,7 @@ description: Task-oriented recipes for OpenDAL in Python — read, write, stream
 
 # Common tasks
 
-Recipes for the things you actually do with storage. Each works on every
-service. They assume an `op = opendal.Operator(...)` built as in
+These examples assume an `op = opendal.Operator(...)` built as in
 [Getting started](./02-getting-started.md). For full signatures, see the
 [API reference](https://opendal.apache.org/docs/python/).
 
@@ -49,13 +48,26 @@ op.write("path/to/file", b"Hello, World!")
 
 ## Stream a large upload
 
-Open the file in write mode and write incrementally:
+Use `shutil.copyfileobj` to stream a local file to a service that supports
+incremental writes. Use the same chunk size for local reads and OpenDAL writes.
 
 ```python
-with op.open("big.bin", "wb") as f:
-    f.write(first_chunk)
-    f.write(second_chunk)
+import shutil
+
+chunk_size = 8 * 1024 * 1024  # 8 MiB
+
+with open("big.bin", "rb") as src:
+    with op.open("uploads/big.bin", "wb", chunk=chunk_size, concurrent=8) as dst:
+        shutil.copyfileobj(src, dst, length=chunk_size)
 ```
+
+`length` controls how many bytes `copyfileobj` reads at a time. `chunk` sets the
+OpenDAL write chunk size, subject to service limits. On services that support
+parallel uploads, lowering `concurrent` reduces the number of chunks in flight
+and can lower peak memory use at the cost of throughput.
+
+The destination closes when the `with` block exits, even when reading the local
+file raises an exception. Closing can commit the bytes already written.
 
 ## Upload concurrently
 

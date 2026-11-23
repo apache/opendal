@@ -17,6 +17,7 @@
 
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::time::Duration;
 
 use anyhow::Result;
 use futures::StreamExt;
@@ -53,6 +54,18 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_list_with_versions_and_start_after,
             test_list_files_with_deleted
         ))
+    }
+
+    if cap.write && cap.list && cap.delete {
+        tests.extend(async_trials!(op, test_list_non_ascii_prefix));
+    }
+
+    if cap.write && cap.list_with_glob && matches!(op.info().scheme(), "memory" | "fs") {
+        tests.extend(async_trials!(op, test_list_with_glob));
+    }
+
+    if cap.write && cap.list && op.info().scheme() == "redis" {
+        tests.extend(async_trials!(op, test_redis_list_literal_prefix));
     }
 
     if cap.read && !cap.write && cap.list {
@@ -117,6 +130,126 @@ pub async fn test_list_prefix(op: Operator) -> Result<()> {
     assert_eq!(obs[0].metadata().mode(), EntryMode::FILE);
 
     op.delete(&path).await.expect("delete must succeed");
+    Ok(())
+}
+
+/// List entries under a directory whose prefix contains non-ASCII characters.
+pub async fn test_list_non_ascii_prefix(op: Operator) -> Result<()> {
+    let prefix = format!("测试编码文件-{}/", uuid::Uuid::new_v4());
+    let path = format!("{prefix}aaaaaa.jpg");
+    let listing = async {
+        op.write(&path, "data").await?;
+
+        // COS ListObjects can temporarily omit a newly written key. See apache/opendal#7502.
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let mut entries = op.list(&prefix).await?;
+            entries.retain(|entry| entry.path() != prefix);
+            if !entries.is_empty() || tokio::time::Instant::now() >= deadline {
+                return Ok::<_, opendal::Error>(entries);
+            }
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+    }
+    .await;
+
+    let delete_file = op.delete(&path).await;
+    let delete_dir = op.delete(&prefix).await;
+
+    let entries = listing?;
+    delete_file?;
+    delete_dir?;
+    assert_eq!(entries.len(), 1, "expected one file under {prefix:?}");
+    assert_eq!(entries[0].path(), path);
+    assert_eq!(entries[0].metadata().mode(), EntryMode::FILE);
+    Ok(())
+}
+
+/// Glob filters a streamed directory tree and preserves the service cursor.
+pub async fn test_list_with_glob(op: Operator) -> Result<()> {
+    let root = format!("{}/", uuid::Uuid::new_v4());
+    let names = ["a.jpg", "b.png", "nested/c.jpg", "nested/猫.jpg"];
+    for name in names {
+        op.write(&format!("{root}{name}"), "data").await?;
+    }
+
+    let expected = ["a.jpg", "nested/c.jpg", "nested/猫.jpg"];
+    let entries: Vec<Entry> = op
+        .lister_with(&root)
+        .glob("**/?.jpg")
+        .limit(1)
+        .await?
+        .try_collect()
+        .await?;
+    let mut paths: Vec<_> = entries
+        .iter()
+        .map(|entry| entry.path().strip_prefix(&root).unwrap())
+        .collect();
+    paths.sort_unstable();
+    assert_eq!(paths, expected);
+
+    let entries = op.list_with(&root).recursive(true).glob("?.jpg").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [format!("{root}a.jpg")]
+    );
+
+    let entries = op
+        .list_with(&root)
+        .glob("**/?.jpg")
+        .start_after(&format!("{root}nested/c.jpg"))
+        .await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        [format!("{root}nested/猫.jpg")]
+    );
+
+    op.delete_with(&root).recursive(true).await?;
+    Ok(())
+}
+
+/// Listing uses literal prefixes and keeps the same paths across scan pages.
+pub async fn test_redis_list_literal_prefix(op: Operator) -> Result<()> {
+    let base = format!("{}/", uuid::Uuid::new_v4());
+    let prefix = format!("{base}literal[*]?\\/");
+    let paths = ["a.jpg", "empty", "nested/猫.jpg", "nested/other.jpg"];
+    for path in paths {
+        let value = if path == "empty" { "" } else { "data" };
+        op.write(&format!("{prefix}{path}"), value).await?;
+    }
+    let sibling = format!("{base}literal-other/a.jpg");
+    op.write(&sibling, "data").await?;
+
+    let entries = op.list_with(&prefix).limit(1).await?;
+    let mut actual: Vec<_> = entries
+        .iter()
+        .map(|entry| {
+            (
+                entry.path().strip_prefix(&prefix).unwrap(),
+                entry.metadata().mode(),
+                entry.metadata().content_length(),
+            )
+        })
+        .collect();
+    actual.sort_unstable_by_key(|entry| entry.0);
+    assert_eq!(
+        actual,
+        [
+            ("a.jpg", EntryMode::FILE, 4),
+            ("empty", EntryMode::FILE, 0),
+            ("nested/", EntryMode::DIR, 0),
+        ]
+    );
+
+    let entries = op.list_with(&prefix).limit(1).glob("**/?.jpg").await?;
+    let mut actual: Vec<_> = entries
+        .iter()
+        .map(|entry| entry.path().strip_prefix(&prefix).unwrap())
+        .collect();
+    actual.sort_unstable();
+    assert_eq!(actual, ["a.jpg", "nested/猫.jpg"]);
+
+    op.delete_with(&base).recursive(true).await?;
     Ok(())
 }
 
@@ -562,21 +695,21 @@ pub async fn test_list_dir_with_recursive_no_trailing_slash(op: Operator) -> Res
 
 pub async fn test_list_file_with_recursive(op: Operator) -> Result<()> {
     let parent = uuid::Uuid::new_v4().to_string();
-
-    let paths = ["y", "yy"];
-    for path in paths.iter() {
-        if path.ends_with('/') {
-            op.create_dir(&format!("{parent}/{path}")).await?;
-        } else {
-            op.write(&format!("{parent}/{path}"), "test_scan").await?;
-        }
+    for path in ["y", "yy", "other"] {
+        op.write(&format!("{parent}/{path}"), "test_scan").await?;
     }
-    let w = op
-        .lister_with(&format!("{parent}/y"))
+
+    let prefix = format!("{parent}/y");
+    if op.info().scheme() == "webdav" {
+        let entries = op.list(&prefix).await?;
+        let mut paths: Vec<_> = entries.iter().map(Entry::path).collect();
+        paths.sort_unstable();
+        assert_eq!(paths, [prefix.clone(), format!("{parent}/yy")]);
+    }
+
+    let mut actual = op
+        .list_with(&prefix)
         .recursive(true)
-        .await?;
-    let mut actual = w
-        .try_collect::<Vec<_>>()
         .await?
         .into_iter()
         .map(|v| {

@@ -44,7 +44,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout java env
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: 25
@@ -77,7 +77,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout java env
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: 25
@@ -122,19 +122,25 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Check that GCS with rustls and no default provider excludes aws-lc-rs
+      - name: Fetch locked dependencies
+        working-directory: core
+        run: cargo fetch --locked --target x86_64-unknown-linux-gnu
+
+      - name: Check that the no-provider features exclude built-in TLS providers
         shell: bash
         working-directory: core
         run: |
-          tree=$(cargo tree --locked -p opendal \
-            --no-default-features \
-            --features services-gcs,http-transport-reqwest-rustls-no-provider \
-            --edges normal,build \
-            --prefix none)
-          if grep -E '^aws-lc-rs( |$)' <<< "$tree"; then
-            echo "::error::aws-lc-rs is in the dependency tree for services-gcs with http-transport-reqwest-rustls-no-provider"
-            exit 1
-          fi
+          for feature in http-transport-reqwest-rustls-no-provider reqwest-rustls-no-provider-tls; do
+            tree=$(cargo tree --frozen -p opendal \
+              --no-default-features \
+              --features "services-s3,services-azblob,services-gcs,$feature" \
+              --edges normal,build \
+              --prefix none)
+            if grep -E '^(ring|aws-lc-rs|aws-lc-sys)( |$)' <<< "$tree"; then
+              echo "::error::Unexpected TLS crypto provider for $feature"
+              exit 1
+            fi
+          done
 
   build_default_features:
     runs-on: ${{ matrix.os }}
@@ -173,7 +179,7 @@ jobs:
         run: cargo run -p opendal-examples-getting-started
 
   build_all_platforms:
-    if: github.event_name == 'workflow_call'
+    if: github.event_name != 'pull_request'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -186,12 +192,12 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Checkout python env
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Checkout java env
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: 25
@@ -227,6 +233,7 @@ jobs:
             # services-hdfs
             services-http
             services-hf
+            services-hf3fs
             services-ipfs
             services-ipmfs
             services-memcached
@@ -304,12 +311,12 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Checkout python env
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Checkout java env
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: 25
@@ -330,6 +337,27 @@ jobs:
         env:
           # Add rocksdb and java lib path to LD_LIBRARY_PATH
           LD_LIBRARY_PATH: /tmp/rocksdb/lib:${{ env.JAVA_HOME }}/lib/server:${{ env.LD_LIBRARY_PATH }}
+
+  # Catches regressions that only appear without default features, such as
+  # the `not(feature = "auto-simulate")` tests in opendal-core.
+  unit_no_default_features:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+        with:
+          need-nextest: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test
+        working-directory: core
+        run: |
+          cargo nextest run --locked --no-default-features \
+            -p opendal -p opendal-core \
+            --features opendal/auto-register-services,opendal/executors-tokio
 
   doc-test:
     runs-on: ubuntu-latest
@@ -353,12 +381,12 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Checkout python env
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.11"
 
       - name: Checkout java env
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: 25

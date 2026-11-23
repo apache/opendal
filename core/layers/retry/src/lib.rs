@@ -643,6 +643,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             .policy
             .retry(Operation::Read, || self.inner.open(range))
             .await?;
+        let range = resolve_range(range, &rp);
         Ok((
             rp,
             Box::new(RetryReadStream {
@@ -669,6 +670,33 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             self.policy.deposit(Operation::Read);
         }
         Ok(result)
+    }
+}
+
+/// Resolve a range to the bytes that exist in the object when the response
+/// reports the total object size.
+///
+/// A suffix range is relative to the end of the object, and a forward range may
+/// extend past it. An unbounded forward range becomes bounded by the object
+/// size. Clamping makes advancing the range after progress safe: it can never
+/// reopen an empty range at or beyond the end of the object.
+fn resolve_range(range: BytesRange, rp: &RpRead) -> BytesRange {
+    let Some(metadata) = rp.metadata().filter(|metadata| metadata.is_file()) else {
+        return range;
+    };
+    let content_length = metadata.content_length();
+    match range {
+        BytesRange::Range { offset, size } => {
+            let remaining = content_length.saturating_sub(offset);
+            BytesRange::new(
+                offset,
+                Some(size.map_or(remaining, |size| size.min(remaining))),
+            )
+        }
+        BytesRange::Suffix { size } => BytesRange::new(
+            content_length.saturating_sub(size),
+            Some(size.min(content_length)),
+        ),
     }
 }
 
@@ -704,13 +732,32 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
-                            range.advance(read);
-                            read = 0;
-                            if range.size() == Some(0) {
+                            // A completed read stays at EOF across later calls.
+                            if range.size() == Some(read) {
                                 return ((None, range, read), Ok(Buffer::new()));
                             }
+                            if range.is_suffix() && read > 0 {
+                                // Without the object size, the actual suffix length is
+                                // unknown, so advancing it can duplicate bytes that the
+                                // caller has already received.
+                                return (
+                                    (None, range, read),
+                                    Err(Error::new(
+                                        ErrorKind::Unexpected,
+                                        "cannot resume a suffix range after progress without the object size",
+                                    )
+                                    .with_operation("RetryReadStream::read")),
+                                );
+                            }
+                            if !range.is_suffix() {
+                                range.advance(read);
+                                read = 0;
+                            }
                             match reader.open(range).await {
-                                Ok((_, stream)) => stream,
+                                Ok((rp, stream)) => {
+                                    range = resolve_range(range, &rp);
+                                    stream
+                                }
                                 Err(err) => return ((None, range, read), Err(err)),
                             }
                         }
@@ -721,9 +768,14 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                             read += buf.len() as u64;
                             ((Some(stream), range, read), Ok(buf))
                         }
-                        // There are no bytes left to fetch after a bounded range completes.
+                        // There are no bytes left to fetch after the resolved range completes.
                         Err(err) if err.is_temporary() && range.size() == Some(read) => {
                             ((None, range, read), Ok(Buffer::new()))
+                        }
+                        // An unresolved suffix range cannot be advanced safely after
+                        // progress. Preserve the original error and stop retrying.
+                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => {
+                            ((None, range, read), Err(err.set_persistent()))
                         }
                         Err(err) => ((None, range, read), Err(err)),
                     }
@@ -910,6 +962,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
 #[cfg(test)]
 mod tests {
     mod budget;
+    mod range;
 
     use std::sync::Mutex;
 
@@ -1299,14 +1352,15 @@ mod tests {
             .expect("read must succeed");
         assert_eq!(size, 13);
         assert_eq!(content, "Hello, World!".as_bytes());
-        // The error is retryable, we should request it 3 times.
-        assert_eq!(*builder.attempt.lock().unwrap(), 5);
+        // Two retries, then the full read. The temporary error at EOF ends the
+        // stream without another open.
+        assert_eq!(*builder.attempt.lock().unwrap(), 4);
         Ok(())
     }
 
     /// A stream that breaks after its last byte is at EOF, so the layer must end
-    /// the read instead of reopening the empty range left over. `test_retry_read`
-    /// covers the unbounded case, which has no size to stop on and still reopens.
+    /// the read instead of reopening the empty range left over. This applies to
+    /// bounded ranges and to unbounded ranges resolved against the object size.
     #[tokio::test]
     async fn test_retry_read_bounded_range_does_not_reopen_at_eof() -> Result<()> {
         setup();
@@ -1410,14 +1464,7 @@ mod tests {
         let _ = r.read_into(&mut content, ..).await?;
 
         let events = recorder.events.lock().unwrap().clone();
-        assert_eq!(
-            events,
-            vec![
-                (Operation::Read, 1),
-                (Operation::Read, 2),
-                (Operation::Read, 1),
-            ],
-        );
+        assert_eq!(events, vec![(Operation::Read, 1), (Operation::Read, 2)]);
         Ok(())
     }
 
@@ -1455,17 +1502,10 @@ mod tests {
         let buf = oio::ReadStream::read_all(&mut stream).await?;
 
         assert_eq!(buf.to_bytes(), Bytes::from_static(b"Hello, World!"));
-        assert_eq!(*backend.attempt.lock().unwrap(), 5);
+        assert_eq!(*backend.attempt.lock().unwrap(), 4);
 
         let events = recorder.events.lock().unwrap().clone();
-        assert_eq!(
-            events,
-            vec![
-                (Operation::Read, 1),
-                (Operation::Read, 2),
-                (Operation::Read, 1),
-            ],
-        );
+        assert_eq!(events, vec![(Operation::Read, 1), (Operation::Read, 2)]);
         Ok(())
     }
 

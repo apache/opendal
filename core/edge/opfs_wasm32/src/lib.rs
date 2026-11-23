@@ -75,12 +75,12 @@ mod tests {
                 .stat("/myapp/subdir1/subdir2/subdir3/somefile")
                 .await
                 .expect("stat");
-            assert_eq!(stat_rooted, stat_rooted);
+            assert_eq!(stat_rooted, stat);
             let stat = op
                 .stat("myapp/subdir1/subdir2/subdir3/somefile")
                 .await
                 .expect("stat");
-            assert_eq!(stat_rooted, stat_rooted);
+            assert_eq!(stat_rooted, stat);
         }
 
         {
@@ -162,7 +162,7 @@ mod tests {
         let op = new_operator();
         let content = "Content of the file to write";
         let path = "/test_file";
-        let meta = op.write(path, content).await.expect("write");
+        op.write(path, content).await.expect("write");
         let meta = op.write(path, content).await.expect("write");
         assert_eq!(meta.content_length(), content.len() as u64);
         assert!(meta.last_modified().is_none());
@@ -314,7 +314,7 @@ mod tests {
         let op = new_operator();
         let path = "numbers.txt";
         let content = "0123456789";
-        let meta = op.write(path, content).await.expect("write");
+        op.write(path, content).await.expect("write");
         let buffer = op.read_with(path).range(3..5).await.expect("read");
         assert_eq!(buffer.to_bytes(), "34".as_bytes());
         op.delete(path).await.expect("delete");

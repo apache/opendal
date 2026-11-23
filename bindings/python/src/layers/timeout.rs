@@ -50,7 +50,7 @@ fn parse_timeout_secs(name: &str, secs: f64) -> PyResult<Duration> {
 /// -----
 /// A small amount of overhead is added to IO operations to implement the
 /// timeout correctly.
-#[pyclass(module = "opendal.layers", extends = Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends = Layer)]
 #[derive(Clone)]
 pub struct TimeoutLayer(ocore::layers::TimeoutLayer);
 

@@ -26,7 +26,9 @@ impl Operator {
     /// Create a new operator with input builder.
     ///
     /// OpenDAL calls [`Builder::build`] internally and returns a ready-to-use
-    /// [`Operator`].
+    /// [`Operator`]. The default `auto-simulate` Cargo feature installs
+    /// [`SimulateLayer`] automatically. With that feature disabled, use
+    /// [`Operator::layer`] to apply `SimulateLayer` explicitly.
     ///
     /// # Examples
     ///
@@ -41,12 +43,31 @@ impl Operator {
     /// # }
     /// ```
     pub fn new<B: Builder>(ab: B) -> Result<Operator> {
+        Self::from_builder(ab, true)
+    }
+
+    /// Create an operator with client-side glob simulation disabled.
+    ///
+    /// Glob requests still use native service support when available. Otherwise
+    /// they fail with [`ErrorKind::Unsupported`].
+    pub fn new_without_glob_simulation<B: Builder>(ab: B) -> Result<Operator> {
+        Self::from_builder(ab, false)
+    }
+
+    fn from_builder<B: Builder>(ab: B, simulate_glob: bool) -> Result<Operator> {
         let service = Arc::new(ab.build()?) as Servicer;
-        Ok(Operator::from_parts(OperationContext::default(), service)
-            .layer(ErrorContextLayer)
-            .layer(SimulateLayer::default())
-            .layer(CompleteLayer)
-            .layer(CorrectnessCheckLayer))
+        let op =
+            Operator::from_parts(OperationContext::default(), service).layer(ErrorContextLayer);
+        #[cfg(feature = "auto-simulate")]
+        let op = op.layer(SimulateLayer::default());
+        let op = if simulate_glob {
+            // Traverse the service's directory entries before metadata completion
+            // can resolve symbolic links to directories.
+            op.layer(GlobLayer)
+        } else {
+            op
+        };
+        Ok(op.layer(CompleteLayer).layer(CorrectnessCheckLayer))
     }
 
     /// Create a new operator from given config.
@@ -162,5 +183,132 @@ mod tests {
     fn new_returns_finished_operator() {
         let op = Operator::new(services::Memory::default()).expect("memory builder should build");
         assert_eq!(op.info().scheme(), services::MEMORY_SCHEME);
+    }
+
+    #[tokio::test]
+    async fn create_dir_follows_auto_simulate_feature() -> Result<()> {
+        let op = Operator::new(DirectoryMarkerService)?;
+
+        assert_eq!(
+            op.info().capability().create_dir,
+            cfg!(feature = "auto-simulate")
+        );
+        let result = op.create_dir("dir/").await;
+        if cfg!(feature = "auto-simulate") {
+            result?;
+        } else {
+            assert_eq!(result.unwrap_err().kind(), ErrorKind::Unsupported);
+        }
+        Ok(())
+    }
+
+    #[cfg(not(feature = "auto-simulate"))]
+    #[tokio::test]
+    async fn explicit_simulate_layer_enables_create_dir() -> Result<()> {
+        let op = Operator::new(DirectoryMarkerService)?.layer(SimulateLayer::default());
+
+        assert!(op.info().capability().create_dir);
+        op.create_dir("dir/").await
+    }
+
+    #[derive(Debug, Default)]
+    struct DirectoryMarkerService;
+
+    impl Builder for DirectoryMarkerService {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(self)
+        }
+    }
+
+    impl Service for DirectoryMarkerService {
+        type Reader = ();
+        type Writer = oio::OneShotWriter<DirectoryMarkerWriter>;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("directory-marker")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                list: true,
+                write: true,
+                write_can_empty: true,
+                ..Capability::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Service::create_dir(&(), ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            Service::stat(&(), ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            Service::read(&(), ctx, path, args)
+        }
+
+        fn write(&self, _: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
+            assert_eq!(path, "dir/");
+            Ok(oio::OneShotWriter::new(DirectoryMarkerWriter))
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            Service::delete(&(), ctx)
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Ok(())
+        }
+
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            Service::copy(&(), ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            Service::rename(&(), ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            Service::presign(&(), ctx, path, args).await
+        }
+    }
+
+    struct DirectoryMarkerWriter;
+
+    impl oio::OneShotWrite for DirectoryMarkerWriter {
+        async fn write_once(&self, buffer: Buffer) -> Result<Metadata> {
+            assert!(buffer.is_empty());
+            Ok(MetadataBuilder::file(0).build())
+        }
     }
 }

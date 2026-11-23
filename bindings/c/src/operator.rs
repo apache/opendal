@@ -89,7 +89,7 @@ fn build_operator(
     schema: &str,
     map: HashMap<String, String>,
 ) -> core::Result<core::blocking::Operator> {
-    core::init_default_registry();
+    core::install_default();
 
     let op = core::Operator::via_iter(schema, map)?
         .layer(core::layers::RetryLayer::new())
@@ -103,7 +103,7 @@ fn build_operator_with_layers(
     map: HashMap<String, String>,
     layers: *const opendal_operator_layers,
 ) -> core::Result<core::blocking::Operator> {
-    core::init_default_registry();
+    core::install_default();
 
     let mut op = core::Operator::via_iter(schema, map)?;
     if !layers.is_null() {
@@ -1159,6 +1159,7 @@ pub unsafe extern "C" fn opendal_operator_list_with(
             start_after,
             versions: o.versions,
             deleted: o.deleted,
+            glob: None,
         }
     };
     match op.deref().lister_options(path, list_opts) {

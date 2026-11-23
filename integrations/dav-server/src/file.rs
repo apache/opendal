@@ -24,7 +24,7 @@ use dav_server::fs::{DavMetaData, FsResult};
 use dav_server::fs::{FsError, FsFuture};
 use futures::FutureExt;
 use futures::{AsyncReadExt, AsyncSeekExt};
-use opendal_core::{FuturesAsyncReader, Operator, Writer};
+use opendal_core::{ErrorKind, FuturesAsyncReader, Operator, Writer};
 
 use super::metadata::OpendalMetaData;
 use super::utils::*;
@@ -46,6 +46,7 @@ impl Debug for OpendalFile {
                 match &self.state {
                     State::Read(_) => &"read",
                     State::Writing(_) => &"writing",
+                    State::Appending { .. } => &"appending",
                     State::Closed => &"closed",
                     State::Failed => &"failed",
                 },
@@ -57,6 +58,11 @@ impl Debug for OpendalFile {
 enum State {
     Read(Box<FuturesAsyncReader>),
     Writing(Writer),
+    Appending {
+        writer: Writer,
+        offset: u64,
+        written: u64,
+    },
     Closed,
     Failed,
 }
@@ -74,13 +80,37 @@ impl OpendalFile {
                 .map_err(convert_error)?;
             State::Read(Box::new(r))
         } else if options.write {
-            let w = op
+            let mut w = op
                 .writer_with(&path)
                 .append(options.append)
                 .if_not_exists(options.create_new)
                 .await
                 .map_err(convert_error)?;
-            State::Writing(w)
+            if options.append {
+                let offset = if op.info().capability().stat {
+                    match op.stat(&path).await {
+                        Ok(meta) if meta.is_dir() => {
+                            let _ = w.abort().await;
+                            return Err(FsError::Forbidden);
+                        }
+                        Ok(meta) => meta.content_length(),
+                        Err(err) if err.kind() == ErrorKind::NotFound => 0,
+                        Err(err) => {
+                            let _ = w.abort().await;
+                            return Err(convert_error(err));
+                        }
+                    }
+                } else {
+                    0
+                };
+                State::Appending {
+                    writer: w,
+                    offset,
+                    written: 0,
+                }
+            } else {
+                State::Writing(w)
+            }
         } else {
             return Err(FsError::NotImplemented);
         };
@@ -94,14 +124,36 @@ impl OpendalFile {
     }
 
     async fn write(&mut self, buf: impl Buf) -> FsResult<()> {
-        let State::Writing(writer) = &mut self.state else {
-            return Err(FsError::GeneralFailure);
+        let len = buf.remaining() as u64;
+        let (writer, next_append) = match &mut self.state {
+            State::Writing(writer) => (writer, None),
+            State::Appending {
+                writer,
+                offset,
+                written,
+            } => {
+                let next_offset = offset.checked_add(len).ok_or(FsError::GeneralFailure)?;
+                let next_written = written.checked_add(len).ok_or(FsError::GeneralFailure)?;
+                (writer, Some((next_offset, next_written)))
+            }
+            _ => return Err(FsError::GeneralFailure),
         };
 
-        if writer.write_from(buf).await.is_err() {
+        if let Err(err) = writer.write_from(buf).await {
             let _ = writer.abort().await;
             self.state = State::Failed;
-            return Err(FsError::GeneralFailure);
+            return Err(convert_error(err));
+        }
+
+        if let (
+            State::Appending {
+                offset, written, ..
+            },
+            Some((next_offset, next_written)),
+        ) = (&mut self.state, next_append)
+        {
+            *offset = next_offset;
+            *written = next_written;
         }
 
         Ok(())
@@ -148,25 +200,36 @@ impl DavFile for OpendalFile {
 
     fn seek(&mut self, pos: SeekFrom) -> FsFuture<'_, u64> {
         async move {
-            let State::Read(r) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
-            };
-
-            r.seek(pos).await.map_err(|_| FsError::GeneralFailure)
+            match &mut self.state {
+                State::Read(r) => r.seek(pos).await.map_err(|_| FsError::GeneralFailure),
+                State::Appending {
+                    offset, written, ..
+                } => match pos {
+                    // dav-server calls seek(Start(0)) before writing a SabreDAV append PATCH;
+                    // allow it before any bytes are written while returning the append offset.
+                    SeekFrom::Start(0) if *written == 0 => Ok(*offset),
+                    SeekFrom::Start(target) if target == *offset => Ok(*offset),
+                    SeekFrom::Current(0) | SeekFrom::End(0) => Ok(*offset),
+                    _ => Err(FsError::NotImplemented),
+                },
+                State::Writing(_) => Err(FsError::NotImplemented),
+                State::Closed | State::Failed => Err(FsError::GeneralFailure),
+            }
         }
         .boxed()
     }
 
     fn flush(&mut self) -> FsFuture<'_, ()> {
         async move {
-            let State::Writing(writer) = &mut self.state else {
-                return Err(FsError::GeneralFailure);
+            let writer = match &mut self.state {
+                State::Writing(writer) | State::Appending { writer, .. } => writer,
+                _ => return Err(FsError::GeneralFailure),
             };
 
-            if writer.close().await.is_err() {
+            if let Err(err) = writer.close().await {
                 let _ = writer.abort().await;
                 self.state = State::Failed;
-                return Err(FsError::GeneralFailure);
+                return Err(convert_error(err));
             }
 
             self.state = State::Closed;

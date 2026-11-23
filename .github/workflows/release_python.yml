@@ -46,7 +46,7 @@ jobs:
       - name: Prepare release candidate version
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         run: python3 .github/scripts/release_python/prepare.py
-      - uses: PyO3/maturin-action@v1
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           command: sdist
@@ -102,7 +102,7 @@ jobs:
         run: python .github/scripts/release_python/prepare.py
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: PyO3/maturin-action@v1
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           target: "${{ matrix.target }}"
@@ -111,7 +111,7 @@ jobs:
           sccache: true
           manylinux: ${{ matrix.manylinux || 'auto' }}
       - name: Build python 3.14t
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           target: "${{ matrix.target }}"
@@ -140,7 +140,7 @@ jobs:
           merge-multiple: true
           path: bindings/python/dist
       - name: Setup uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - name: Publish to TestPyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         run: |

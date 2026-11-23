@@ -1265,6 +1265,9 @@ impl S3Builder {
                     copy_with_if_not_exists: true,
                     copy_with_if_match: true,
                     copy_with_source_version: !is_s3_express,
+                    copy_with_user_metadata: true,
+                    copy_with_content_type: true,
+                    copy_with_content_language: true,
                     // The min multipart size of S3 is 5 MiB.
                     //
                     // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1598,6 +1601,7 @@ impl Service for S3Backend {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
@@ -1728,6 +1732,8 @@ mod tests {
         outcome: CreateSessionOutcome,
         source_content_length: u64,
         source_version: Option<&'static str>,
+        head_status: StatusCode,
+        put_responses: Arc<Mutex<VecDeque<(StatusCode, Bytes)>>>,
         requests: Arc<Mutex<Vec<CapturedRequest>>>,
     }
 
@@ -1737,6 +1743,8 @@ mod tests {
                 outcome,
                 source_content_length: 1,
                 source_version: None,
+                head_status: StatusCode::OK,
+                put_responses: Arc::new(Mutex::new(VecDeque::new())),
                 requests: Arc::new(Mutex::new(Vec::new())),
             }
         }
@@ -1748,6 +1756,19 @@ mod tests {
 
         fn with_source_version(mut self, source_version: &'static str) -> Self {
             self.source_version = Some(source_version);
+            self
+        }
+
+        fn with_head_status(mut self, head_status: StatusCode) -> Self {
+            self.head_status = head_status;
+            self
+        }
+
+        fn with_put_response(self, status: StatusCode, body: impl Into<Bytes>) -> Self {
+            self.put_responses
+                .lock()
+                .expect("lock poisoned")
+                .push_back((status, body.into()));
             self
         }
 
@@ -1808,6 +1829,9 @@ mod tests {
             }
 
             if req.method() == Method::HEAD {
+                if self.head_status != StatusCode::OK {
+                    return Ok(Self::response(self.head_status, Bytes::new()));
+                }
                 let mut response = Self::response(StatusCode::OK, Bytes::new());
                 response.headers_mut().insert(
                     http::header::CONTENT_LENGTH,
@@ -1863,12 +1887,296 @@ mod tests {
                 ));
             }
 
+            if req.method() == Method::PUT
+                && let Some((status, body)) = self
+                    .put_responses
+                    .lock()
+                    .expect("lock poisoned")
+                    .pop_front()
+            {
+                let mut response = Self::response(status, body);
+                if status.is_success() {
+                    response
+                        .headers_mut()
+                        .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
+                }
+                return Ok(response);
+            }
+
             let mut response = Self::response(StatusCode::OK, Bytes::new());
             response
                 .headers_mut()
                 .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
             Ok(response)
         }
+    }
+
+    fn header_values<'a>(request: &'a CapturedRequest, name: &str) -> Vec<&'a str> {
+        request
+            .headers
+            .get_all(name)
+            .iter()
+            .map(|value| value.to_str().expect("header must be text"))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_append_existing_object_with_if_match() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5);
+        let op = s3_express_operator(transport.clone());
+
+        op.write_with("target", "world")
+            .append(true)
+            .content_type("text/plain")
+            .if_match("\"etag-1\"")
+            .await
+            .expect("conditional append to existing object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+        assert!(!put.headers.contains_key("if-none-match"));
+        assert!(!put.headers.contains_key("content-type"));
+
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>At least one of the pre-conditions you specified did not hold</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport);
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("412 response must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let no_such_key = "<Error><Code>NoSuchKey</Code>\
+            <Message>The specified key does not exist.</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::NOT_FOUND, no_such_key);
+        let op = s3_express_operator(transport);
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("404 NoSuchKey with if_match must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[tokio::test]
+    async fn test_append_existing_object_with_if_not_exists() {
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>At least one of the pre-conditions you specified did not hold</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport.clone());
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_not_exists(true)
+            .await
+            .expect_err("append with if_not_exists on existing object must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
+    }
+
+    #[tokio::test]
+    async fn test_append_new_object_sends_metadata_and_condition_once() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND);
+        let op = s3_express_operator(transport.clone());
+
+        op.write_with("target", "hello")
+            .append(true)
+            .content_type("text/plain")
+            .if_not_exists(true)
+            .await
+            .expect("append creating new object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header(put, "content-type"), "text/plain");
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
+
+        let no_such_key = "<Error><Code>NoSuchKey</Code>\
+            <Message>The specified key does not exist.</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND)
+            .with_put_response(StatusCode::NOT_FOUND, no_such_key);
+        let op = s3_express_operator(transport.clone());
+
+        let err = op
+            .write_with("target", "hello")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("append with if_match on missing object must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+    }
+
+    #[tokio::test]
+    async fn test_append_multi_chunk_applies_condition_only_to_first_append() {
+        const CHUNK_SIZE: usize = 5 * 1024 * 1024;
+        let first_chunk = vec![b'a'; CHUNK_SIZE];
+
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .content_type("text/plain")
+            .if_not_exists(true)
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk.clone())
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let requests = transport.requests();
+        let puts: Vec<_> = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect();
+        assert_eq!(puts.len(), 2);
+        assert_eq!(header(puts[0], constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header(puts[0], "content-type"), "text/plain");
+        assert_eq!(header_values(puts[0], "if-none-match"), vec!["*"]);
+        assert_eq!(
+            header(puts[1], constants::X_AMZ_WRITE_OFFSET_BYTES),
+            CHUNK_SIZE.to_string()
+        );
+        assert!(!puts[1].headers.contains_key("content-type"));
+        assert!(!puts[1].headers.contains_key("if-none-match"));
+
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .if_match("\"etag-0\"")
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk.clone())
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let requests = transport.requests();
+        let puts: Vec<_> = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect();
+        assert_eq!(puts.len(), 2);
+        assert_eq!(header(puts[0], constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header_values(puts[0], "if-match"), vec!["\"etag-0\""]);
+        assert_eq!(
+            header(puts[1], constants::X_AMZ_WRITE_OFFSET_BYTES),
+            (5 + CHUNK_SIZE).to_string()
+        );
+        assert!(!puts[1].headers.contains_key("if-match"));
+
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>unrelated precondition</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::OK, Bytes::new())
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport);
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .if_match("\"etag-0\"")
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk)
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk buffered before close");
+        let err = writer
+            .close()
+            .await
+            .expect_err("second chunk 412 without caller condition must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_put_object_sends_conditional_headers_once() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.write_with("target", "hello")
+            .content_type("text/plain")
+            .if_match("\"etag-1\"")
+            .if_not_exists(true)
+            .await
+            .expect("put object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, "content-type"), "text/plain");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
     }
 
     #[tokio::test]
@@ -2209,6 +2517,37 @@ mod tests {
         assert_eq!(transport.requests().len(), requests.len());
     }
 
+    #[test]
+    fn test_s3_upload_part_copy_sends_zero_content_length() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .build_backend()
+            .unwrap();
+        let request = backend
+            .core
+            .s3_upload_part_copy_request(S3UploadPartCopyRequest {
+                from: "source",
+                to: "target",
+                source_version: None,
+                if_match: None,
+                if_none_match: None,
+                if_modified_since: None,
+                if_unmodified_since: None,
+                upload_id: "upload",
+                part_number: 1,
+                range: (0_u64..5 * 1024 * 1024).into(),
+                operation: Operation::Copy,
+            })
+            .unwrap();
+
+        assert_eq!(
+            request.headers().get(http::header::CONTENT_LENGTH),
+            Some(&HeaderValue::from_static("0"))
+        );
+        assert!(request.body().is_empty());
+    }
+
     #[tokio::test]
     async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
         let source_content_length = 5 * 1024 * 1024 + 1;
@@ -2255,6 +2594,63 @@ mod tests {
             1,
             "session operations in multipart copy must share one session"
         );
+    }
+
+    #[tokio::test]
+    async fn test_s3_copy_replaces_metadata() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "source")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_type("text/plain")
+            .content_language("fr-CA, en")
+            .source_content_length_hint(7)
+            .await
+            .expect("same-key copy with new metadata must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            header(&requests[0], constants::X_AMZ_METADATA_DIRECTIVE),
+            "REPLACE"
+        );
+        assert_eq!(header(&requests[0], "x-amz-meta-mtime"), "42");
+        assert_eq!(header(&requests[0], "content-type"), "text/plain");
+        assert_eq!(header(&requests[0], "content-language"), "fr-CA, en");
+
+        op.copy_with("source", "target")
+            .source_content_length_hint(7)
+            .await
+            .expect("copy must succeed");
+        let requests = transport.requests();
+        assert!(
+            !requests[1]
+                .headers
+                .contains_key(constants::X_AMZ_METADATA_DIRECTIVE)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_multipart_copy_sets_metadata_on_create() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_language("es-MX")
+            .source_content_length_hint(5 * 1024 * 1024 + 1)
+            .chunk(5 * 1024 * 1024)
+            .await
+            .expect("multipart copy must succeed");
+
+        let requests = transport.requests();
+        let create = requests
+            .iter()
+            .find(|request| request.uri.query() == Some("uploads"))
+            .expect("CreateMultipartUpload request must be captured");
+        assert_eq!(header(create, "x-amz-meta-mtime"), "42");
+        assert_eq!(header(create, "content-language"), "es-MX");
     }
 
     #[tokio::test]

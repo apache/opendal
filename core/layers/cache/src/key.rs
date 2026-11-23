@@ -1,0 +1,167 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use sha2::{Digest, Sha256};
+use uuid::Uuid;
+
+use opendal_core::Metadata;
+use opendal_core::raw::{ServiceInfo, build_absolute_path, normalize_root};
+
+pub(crate) type Subject = [u8; 32];
+
+pub(crate) fn subject(info: &ServiceInfo, path: &str, version: Option<&str>) -> Subject {
+    let absolute = build_absolute_path(&normalize_root(&info.root()), path);
+    let name = info.name();
+    let mut hash = Sha256::new();
+    for part in [
+        info.scheme().as_bytes(),
+        name.as_bytes(),
+        absolute.as_bytes(),
+    ] {
+        hash_part(&mut hash, part);
+    }
+    match version {
+        Some(version) => hash_part(&mut hash, version.as_bytes()),
+        None => hash.update(u64::MAX.to_be_bytes()),
+    }
+    hash.finalize().into()
+}
+
+fn digest<'a>(parts: impl IntoIterator<Item = &'a [u8]>) -> [u8; 32] {
+    let mut hash = Sha256::new();
+    for part in parts {
+        hash_part(&mut hash, part);
+    }
+    hash.finalize().into()
+}
+
+fn hash_part(hash: &mut Sha256, part: &[u8]) {
+    hash.update((part.len() as u64).to_be_bytes());
+    hash.update(part);
+}
+
+pub(crate) fn strong_etag(metadata: &Metadata) -> Option<&str> {
+    metadata.etag().filter(|etag| !etag.starts_with("W/\""))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
+pub(crate) enum Tier {
+    Version = 1,
+    Etag,
+    Modified,
+    Nonce,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Identity {
+    pub(crate) tier: Tier,
+    pub(crate) token: [u8; 16],
+}
+
+impl Identity {
+    pub(crate) fn new(metadata: &Metadata) -> Self {
+        Self::verifiable(metadata).unwrap_or_else(|| Self {
+            tier: Tier::Nonce,
+            token: Uuid::new_v4().into_bytes(),
+        })
+    }
+
+    pub(crate) fn verifiable(metadata: &Metadata) -> Option<Self> {
+        let etag = strong_etag(metadata);
+        let (tier, hash) = if let Some(version) = metadata.version() {
+            (
+                Tier::Version,
+                digest([
+                    b"version",
+                    version.as_bytes(),
+                    etag.unwrap_or_default().as_bytes(),
+                ]),
+            )
+        } else if let Some(etag) = etag {
+            (Tier::Etag, digest([b"etag", etag.as_bytes()]))
+        } else {
+            let modified = metadata.last_modified()?;
+            (
+                Tier::Modified,
+                digest([
+                    b"modified",
+                    &modified.into_inner().as_nanosecond().to_be_bytes()[..],
+                    &metadata.content_length().to_be_bytes()[..],
+                ]),
+            )
+        };
+        Some(Self {
+            tier,
+            token: hash[..16].try_into().unwrap(),
+        })
+    }
+}
+
+pub(crate) fn meta_key(generation: u64, subject: &Subject) -> String {
+    format!("v1/meta/{generation:x}/{}", hex(subject))
+}
+
+pub(crate) fn data_prefix(
+    generation: u64,
+    subject: &Subject,
+    identity: Identity,
+    chunk_size: u64,
+) -> String {
+    format!(
+        "v1/data/{generation:x}/{}/{}/{chunk_size:x}",
+        hex(subject),
+        hex(&identity.token)
+    )
+}
+
+fn hex(bytes: &[u8]) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let mut result = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        result.push(DIGITS[(byte >> 4) as usize] as char);
+        result.push(DIGITS[(byte & 15) as usize] as char);
+    }
+    result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::MetadataBuilder;
+
+    #[test]
+    fn v1_keys_keep_version_and_chunk_coordinates() {
+        let info = ServiceInfo::new("s3", "/prefix/", "bucket");
+        let versioned = subject(&info, "object", Some("v1"));
+        let mut metadata = MetadataBuilder::file(30);
+        metadata.etag("\"abc\"");
+        let identity = Identity::new(&metadata.build());
+        assert_eq!(
+            meta_key(42, &versioned),
+            "v1/meta/2a/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3"
+        );
+        assert_eq!(
+            format!("{}/{:x}", data_prefix(42, &versioned, identity, 16), 10),
+            "v1/data/2a/94b1016f87521408a1d701e6c37eb5fbb56798e59cfaa801566cc1525db819e3/c27601d628122b577ca2db462e27d2f4/10/a"
+        );
+        assert_ne!(
+            subject(&info, "object", None),
+            subject(&info, "object", Some(""))
+        );
+    }
+}

@@ -263,6 +263,8 @@ class FsConfig(TypedDict):
     """The service scheme; fixed to `"fs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """tmp dir for atomic write"""
+    direct_io: NotRequired[bool]
+    """Bypass the page cache for file reads and writes on Linux. Defaults to `false`."""
     root: NotRequired[str | os.PathLike[str]]
     """root dir for backend"""
 
@@ -918,6 +920,12 @@ class SftpConfig(TypedDict):
 
     scheme: Required[Literal["sftp"]]
     """The service scheme; fixed to `"sftp"`."""
+    acquire_timeout: NotRequired[str | timedelta]
+    """Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    connect_timeout: NotRequired[str | timedelta]
+    """Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    control_directory: NotRequired[str]
+    """Directory for the SSH control socket.  The SSH client creates a temporary directory holding the control socket here. Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -1045,6 +1053,8 @@ class WebdavConfig(TypedDict):
     """Deprecated: WebDAV copy capability is enabled by default. [Deprecated since 0.57.0] WebDAV copy capability is enabled by default and this option is no longer needed."""
     disable_create_dir: NotRequired[bool]
     """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
+    disable_depth_infinity: NotRequired[bool]
+    """Disable native recursive listing with WebDAV's `Depth: infinity`.  Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead.  The default is `false`."""
     enable_conditional_read: NotRequired[bool]
     """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
     enable_user_metadata: NotRequired[bool]

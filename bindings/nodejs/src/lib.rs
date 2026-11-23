@@ -29,6 +29,7 @@ use napi::bindgen_prelude::*;
 use opendal::options::{
     DeleteOptions, ListOptions, ReadOptions, ReaderOptions, StatOptions, WriteOptions,
 };
+use tokio::sync::Mutex;
 
 use crate::layer::Layer;
 
@@ -245,7 +246,7 @@ impl Operator {
         path: String,
         options: Option<options::ReadOptions>,
     ) -> Result<Buffer> {
-        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
+        let options = ReadOptions::try_from(options.unwrap_or_default())?;
         let res = self
             .async_op
             .read_options(&path, options)
@@ -264,17 +265,18 @@ impl Operator {
         path: String,
         options: Option<options::ReaderOptions>,
     ) -> Result<Reader> {
-        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
+        let options = ReaderOptions::try_from(options.unwrap_or_default())?;
         let r = self
             .async_op
             .reader_options(&path, options)
             .await
             .map_err(format_napi_error)?;
+        let inner = r
+            .into_futures_async_read(std::ops::RangeFull)
+            .await
+            .map_err(format_napi_error)?;
         Ok(Reader {
-            inner: r
-                .into_futures_async_read(std::ops::RangeFull)
-                .await
-                .map_err(format_napi_error)?,
+            inner: Mutex::new(inner),
         })
     }
 
@@ -286,7 +288,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn read_sync(&self, path: String, options: Option<options::ReadOptions>) -> Result<Buffer> {
-        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
+        let options = ReadOptions::try_from(options.unwrap_or_default())?;
         let res = self
             .blocking_op
             .read_options(&path, options)
@@ -304,7 +306,7 @@ impl Operator {
         path: String,
         options: Option<options::ReaderOptions>,
     ) -> Result<BlockingReader> {
-        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
+        let options = ReaderOptions::try_from(options.unwrap_or_default())?;
         let r = self
             .blocking_op
             .reader_options(&path, options)
@@ -336,7 +338,7 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let metadata = self
             .async_op
             .write_options(&path, c, options)
@@ -355,13 +357,15 @@ impl Operator {
         path: String,
         options: Option<options::WriteOptions>,
     ) -> Result<Writer> {
-        let options = options.unwrap_or_default();
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let writer = self
             .async_op
-            .writer_options(&path, options.into())
+            .writer_options(&path, options)
             .await
             .map_err(format_napi_error)?;
-        Ok(Writer(writer))
+        Ok(Writer {
+            inner: Mutex::new(writer),
+        })
     }
 
     /// Write multiple bytes into a path synchronously.
@@ -373,10 +377,10 @@ impl Operator {
         path: String,
         options: Option<options::WriteOptions>,
     ) -> Result<BlockingWriter> {
-        let options = options.unwrap_or_default();
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let writer = self
             .blocking_op
-            .writer_options(&path, options.into())
+            .writer_options(&path, options)
             .map_err(format_napi_error)?;
         Ok(BlockingWriter(writer))
     }
@@ -403,7 +407,7 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let metadata = self
             .blocking_op
             .write_options(&path, c, options)
@@ -716,7 +720,9 @@ impl Operator {
             .await
             .map_err(format_napi_error)?;
 
-        Ok(Lister(l))
+        Ok(Lister {
+            inner: Mutex::new(l),
+        })
     }
 
     /// Create a lister to list entries at given path synchronously.
@@ -1020,21 +1026,93 @@ impl BlockingReader {
 /// manner.
 #[napi]
 pub struct Reader {
-    inner: opendal::FuturesAsyncReader,
+    inner: Mutex<opendal::FuturesAsyncReader>,
 }
 
 #[napi]
 impl Reader {
-    /// # Safety
+    /// Read bytes from this reader into the given buffer.
     ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
-    /// Read bytes from this reader into given buffer.
+    /// Wait for the promise to settle before accessing the buffer again.
     #[napi]
-    pub async unsafe fn read(&mut self, mut buf: Buffer) -> Result<usize> {
-        let buf = buf.as_mut();
-        let n = self.inner.read(buf).await.map_err(format_napi_error)?;
-        Ok(n)
+    pub async fn read(&self, mut buf: Buffer) -> Result<usize> {
+        let mut inner = self.inner.lock().await;
+        inner.read(buf.as_mut()).await.map_err(format_napi_error)
+    }
+
+    /// Read up to `maxBytes` bytes from the same cursor as `read`.
+    ///
+    /// `maxBytes` must be an integer between 1 and 4294967295. The promise
+    /// resolves to a writable Buffer, or `null` at the end of the input.
+    #[napi(ts_return_type = "Promise<Buffer | null>")]
+    pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<ReadChunk>> {
+        // N-API's uint32 conversion truncates and wraps JavaScript numbers.
+        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "maxBytes must be an integer between 1 and 4294967295",
+            ));
+        }
+
+        let chunk = self
+            .inner
+            .lock()
+            .await
+            .read_buffer(max_bytes as usize)
+            .await
+            .map_err(format_napi_error)?;
+        Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))
+    }
+}
+
+// Choose the buffer's backing allocation on the JS thread at Promise resolution.
+pub struct ReadChunk(opendal::Buffer);
+
+impl ToNapiValue for ReadChunk {
+    unsafe fn to_napi_value(env: napi::sys::napi_env, val: Self) -> Result<napi::sys::napi_value> {
+        let mut chunk = val.0;
+        let len = chunk.len();
+        let first = chunk.next().expect("read chunk is nonempty");
+
+        if first.len() == len {
+            drop(chunk);
+            // Shared and static bytes must be copied before JS can mutate them.
+            // A unique slice can still have spare capacity or an offset into
+            // a larger allocation. Only transfer a right-sized Vec to Node.
+            let js_env = napi::Env::from_raw(env);
+            let output = match first.try_into_mut() {
+                Ok(owned) if owned.capacity() == len => {
+                    let data = Vec::from(owned);
+                    if data.capacity() == len {
+                        return unsafe { Buffer::to_napi_value(env, Buffer::from(data)) };
+                    }
+                    BufferSlice::copy_from(&js_env, data)?
+                }
+                Ok(owned) => BufferSlice::copy_from(&js_env, owned)?,
+                Err(shared) => BufferSlice::copy_from(&js_env, shared)?,
+            };
+            return unsafe { <&BufferSlice>::to_napi_value(env, &output) };
+        }
+
+        let mut data = std::ptr::null_mut();
+        let mut result = std::ptr::null_mut();
+        napi::check_status!(unsafe {
+            napi::sys::napi_create_buffer(env, len, &mut data, &mut result)
+        })?;
+        let mut offset = 0;
+        for part in std::iter::once(first).chain(chunk) {
+            // The parts cover exactly `len` bytes. Node owns the destination,
+            // and the new buffer cannot be reached from JS until it is returned.
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    part.as_ptr(),
+                    data.cast::<u8>().add(offset),
+                    part.len(),
+                );
+            }
+            offset += part.len();
+        }
+        Ok(result)
     }
 }
 
@@ -1088,15 +1166,15 @@ impl BlockingWriter {
 /// Writer is designed to write data into a given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Writer(opendal::Writer);
+pub struct Writer {
+    inner: Mutex<opendal::Writer>,
+}
 
 #[napi]
 impl Writer {
-    /// # Safety
-    ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
     /// Write bytes into this writer.
+    ///
+    /// Concurrent calls are serialized in the order they acquire the lock.
     ///
     /// ### Example
     /// ```javascript
@@ -1105,18 +1183,15 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async unsafe fn write(&mut self, content: Either<Buffer, String>) -> Result<()> {
+    pub async fn write(&self, content: Either<Buffer, String>) -> Result<()> {
         let c = match content {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        self.0.write(c).await.map_err(format_napi_error)
+        let mut inner = self.inner.lock().await;
+        inner.write(c).await.map_err(format_napi_error)
     }
 
-    /// # Safety
-    ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
     /// Close this writer.
     ///
     /// ### Example
@@ -1126,28 +1201,28 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async unsafe fn close(&mut self) -> Result<()> {
-        self.0.close().await.map(|_| ()).map_err(format_napi_error)
+    pub async fn close(&self) -> Result<()> {
+        let mut inner = self.inner.lock().await;
+        inner.close().await.map(|_| ()).map_err(format_napi_error)
     }
 }
 
 /// Lister is designed to list entries at a given path in an asynchronous
 /// manner.
 #[napi]
-pub struct Lister(opendal::Lister);
+pub struct Lister {
+    inner: Mutex<opendal::Lister>,
+}
 
 #[napi]
 impl Lister {
-    /// # Safety
+    /// Return the next entry, or `null` when the lister is exhausted.
     ///
-    /// > &mut self in async napi methods should be marked as unsafe
-    ///
-    /// napi will make sure the function is safe, and we didn't do unsafe
-    /// things internally.
+    /// Concurrent calls are serialized, so each entry is returned exactly once.
     #[napi]
-    pub async unsafe fn next(&mut self) -> Result<Option<Entry>> {
-        Ok(self
-            .0
+    pub async fn next(&self) -> Result<Option<Entry>> {
+        let mut inner = self.inner.lock().await;
+        Ok(inner
             .try_next()
             .await
             .map_err(format_napi_error)?

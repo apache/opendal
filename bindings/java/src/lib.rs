@@ -27,11 +27,13 @@ use jni::sys::jlong;
 use opendal::Entry;
 use opendal::EntryMode;
 use opendal::Metadata;
+use opendal::MetadataBuilder;
 use opendal::OperatorInfo;
 use opendal::raw::PresignedRequest;
-use opendal::{Capability, Error, ErrorKind};
+use opendal::{Error, ErrorKind};
 
 mod async_operator;
+mod capability;
 mod convert;
 mod error;
 mod executor;
@@ -75,7 +77,7 @@ fn make_operator_info<'a>(env: &mut Env<'a>, info: OperatorInfo) -> Result<JObje
     let scheme = env.new_string(info.scheme())?;
     let root = env.new_string(info.root())?;
     let name = env.new_string(info.name())?;
-    let capability_obj = make_capability(env, info.capability())?;
+    let capability_obj = capability::make_capability(env, info.capability())?;
 
     let result = env.new_object(
         jni_str!("org/apache/opendal/OperatorInfo"),
@@ -90,62 +92,6 @@ fn make_operator_info<'a>(env: &mut Env<'a>, info: OperatorInfo) -> Result<JObje
         ],
     )?;
     Ok(result)
-}
-
-fn make_capability<'a>(env: &mut Env<'a>, cap: Capability) -> Result<JObject<'a>> {
-    let capability = env.new_object(
-        jni_str!("org/apache/opendal/Capability"),
-        jni_sig!("(ZZZZZZZZZZZZZZZZZZZZZZZZJJZZZZZZZZZZZZZZZZZZZZ)V"),
-        &[
-            JValue::Bool(cap.stat),
-            JValue::Bool(cap.stat_with_if_match),
-            JValue::Bool(cap.stat_with_if_none_match),
-            JValue::Bool(cap.stat_with_if_version_match),
-            JValue::Bool(cap.stat_with_if_version_not_match),
-            JValue::Bool(cap.stat_with_if_modified_since),
-            JValue::Bool(cap.stat_with_if_unmodified_since),
-            JValue::Bool(cap.stat_with_version),
-            JValue::Bool(cap.read),
-            JValue::Bool(cap.read_with_if_match),
-            JValue::Bool(cap.read_with_if_none_match),
-            JValue::Bool(cap.read_with_override_cache_control),
-            JValue::Bool(cap.read_with_override_content_disposition),
-            JValue::Bool(cap.read_with_override_content_type),
-            JValue::Bool(cap.write),
-            JValue::Bool(cap.write_can_multi),
-            JValue::Bool(cap.write_can_append),
-            JValue::Bool(cap.write_with_content_type),
-            JValue::Bool(cap.write_with_content_disposition),
-            JValue::Bool(cap.write_with_cache_control),
-            JValue::Bool(cap.write_with_if_match),
-            JValue::Bool(cap.write_with_if_none_match),
-            JValue::Bool(cap.write_with_if_not_exists),
-            JValue::Bool(cap.write_with_user_metadata),
-            JValue::Long(convert::usize_to_jlong(cap.write_multi_max_size)),
-            JValue::Long(convert::usize_to_jlong(cap.write_multi_min_size)),
-            JValue::Bool(cap.create_dir),
-            JValue::Bool(cap.delete),
-            JValue::Bool(cap.copy),
-            JValue::Bool(cap.rename),
-            JValue::Bool(cap.list),
-            JValue::Bool(cap.list_with_limit),
-            JValue::Bool(cap.list_with_start_after),
-            JValue::Bool(cap.list_with_recursive),
-            JValue::Bool(cap.list_with_versions),
-            JValue::Bool(cap.list_with_deleted),
-            JValue::Bool(cap.presign),
-            JValue::Bool(cap.presign_read),
-            JValue::Bool(cap.presign_stat),
-            JValue::Bool(cap.presign_write),
-            JValue::Bool(cap.shared),
-            JValue::Bool(cap.read_with_version),
-            JValue::Bool(cap.read_with_if_version_match),
-            JValue::Bool(cap.read_with_if_version_not_match),
-            JValue::Bool(cap.read_with_if_modified_since),
-            JValue::Bool(cap.read_with_if_unmodified_since),
-        ],
-    )?;
-    Ok(capability)
 }
 
 fn make_metadata<'a>(env: &mut Env<'a>, metadata: Metadata) -> Result<JObject<'a>> {
@@ -252,6 +198,42 @@ fn make_write_options<'a>(
     })
 }
 
+fn make_delete_options(
+    env: &mut Env,
+    options: &JObject,
+) -> Result<opendal::options::DeleteOptions> {
+    let metadata = env
+        .get_field(
+            options,
+            jni_str!("ifNotChanged"),
+            jni_sig!("Lorg/apache/opendal/Metadata;"),
+        )?
+        .l()?;
+    let if_not_changed = if metadata.is_null() {
+        None
+    } else {
+        // Delete conditions use only the version and ETag from the snapshot.
+        let mut builder = MetadataBuilder::unknown();
+        if let Some(version) = convert::read_string_field(env, &metadata, "version")? {
+            builder.version(version);
+        }
+        if let Some(etag) = convert::read_string_field(env, &metadata, "etag")? {
+            builder.etag(etag);
+        }
+        Some(builder.build())
+    };
+
+    Ok(opendal::options::DeleteOptions {
+        version: convert::read_string_field(env, options, "version")?,
+        recursive: convert::read_bool_field(env, options, "recursive")?,
+        if_match: convert::read_string_field(env, options, "ifMatch")?,
+        if_none_match: convert::read_string_field(env, options, "ifNoneMatch")?,
+        if_version_match: convert::read_string_field(env, options, "ifVersionMatch")?,
+        if_version_not_match: convert::read_string_field(env, options, "ifVersionNotMatch")?,
+        if_not_changed,
+    })
+}
+
 fn make_list_options<'a>(
     env: &mut Env<'a>,
     options: &JObject,
@@ -262,6 +244,7 @@ fn make_list_options<'a>(
         recursive: convert::read_bool_field(env, options, "recursive").unwrap_or_default(),
         versions: convert::read_bool_field(env, options, "versions").unwrap_or_default(),
         deleted: convert::read_bool_field(env, options, "deleted").unwrap_or_default(),
+        ..Default::default()
     })
 }
 

@@ -24,6 +24,7 @@ use oio::List as _;
 use oio::Read as _;
 use oio::ReadStream as _;
 use oio::Write as _;
+use opendal_executor_tokio::TokioExecutor;
 
 use super::*;
 
@@ -288,6 +289,10 @@ async fn exhausted_stream_cannot_reopen_without_a_reservation() -> Result<()> {
 async fn reader_deposit_is_independent_of_chunk_size() -> Result<()> {
     let budget = TestBudget::new(0);
     let op = Operator::new(services::Memory::default())?;
+    let context = op
+        .context()
+        .with_executor(Executor::with(TokioExecutor::default()));
+    let op = op.with_context(context);
     let content = Bytes::from_static(b"0123456789abcdefghijklmnopqrstuvwxyz");
     op.write("file", content.clone()).await?;
     let op = op.layer(RetryLayer::new().with_budget(budget.clone()));
@@ -322,16 +327,19 @@ async fn streaming_eof_and_direct_reads_share_one_deposit() -> Result<()> {
 
     let reader = op.service().read(op.context(), "file", OpRead::default())?;
     let (_, mut stream) = reader.open(BytesRange::default()).await?;
-    assert!(!stream.read().await?.is_empty());
-    assert!(budget.take_events().is_empty());
-
-    let (eof, direct) = futures::join!(stream.read(), reader.read(BytesRange::from(0..7)));
-    assert!(eof?.is_empty());
-    assert_eq!(direct?.1.to_bytes(), Bytes::from_static(b"content"));
+    assert_eq!(
+        stream.read().await?.to_bytes(),
+        Bytes::from_static(b"content")
+    );
     assert_eq!(
         budget.take_events(),
         [BudgetEvent::Deposit(Operation::Read)]
     );
+
+    let (eof, direct) = futures::join!(stream.read(), reader.read(BytesRange::from(0..7)));
+    assert!(eof?.is_empty());
+    assert_eq!(direct?.1.to_bytes(), Bytes::from_static(b"content"));
+    assert!(budget.take_events().is_empty());
 
     let reader = op.service().read(op.context(), "file", OpRead::default())?;
     let (_, mut stream) = reader.open(BytesRange::default()).await?;

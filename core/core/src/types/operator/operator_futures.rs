@@ -337,6 +337,7 @@ impl<F: Future<Output = Result<Buffer>>> FutureRead<F> {
     }
 
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// Pass `0` to use the default read behavior without an explicit chunk size.
     ///
     /// This following example will make opendal read data in 4MiB chunks:
     ///
@@ -512,6 +513,7 @@ impl<F: Future<Output = Result<Reader>>> FutureReader<F> {
     }
 
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// Pass `0` to use the default read behavior without an explicit chunk size.
     ///
     /// This following example will make opendal read data in 4MiB chunks:
     ///
@@ -699,6 +701,7 @@ impl<F: Future<Output = Result<Metadata>>> FutureWrite<F> {
     }
 
     /// Sets chunk size for buffered writes.
+    /// Pass `0` to use the default buffering behavior.
     ///
     /// Refer to [`options::WriteOptions::chunk`] for more details.
     ///
@@ -1041,6 +1044,7 @@ impl<F: Future<Output = Result<Writer>>> FutureWriter<F> {
     }
 
     /// Sets chunk size for buffered writes.
+    /// Pass `0` to use the default buffering behavior.
     ///
     /// Refer to [`options::WriteOptions::chunk`] for more details.
     ///
@@ -1500,6 +1504,15 @@ impl<F: Future<Output = Result<Vec<Entry>>>> FutureList<F> {
         self.args.deleted = v;
         self
     }
+
+    /// Filter entries using a Unix shell style glob pattern.
+    ///
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
+        self
+    }
 }
 
 /// [`Operator::list_with`] and [`Operator::lister_with`] return this future.
@@ -1552,6 +1565,15 @@ impl<F: Future<Output = Result<Lister>>> FutureLister<F> {
     /// capability, the operation fails with [`ErrorKind::Unsupported`].
     pub fn deleted(mut self, v: bool) -> Self {
         self.args.deleted = v;
+        self
+    }
+
+    /// Filter entries using a Unix shell style glob pattern.
+    ///
+    /// See [`options::ListOptions::glob`] for syntax, capability requirements,
+    /// and error behavior.
+    pub fn glob(mut self, v: &str) -> Self {
+        self.args.glob = Some(v.to_string());
         self
     }
 }
@@ -1798,6 +1820,30 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
         self
     }
 
+    /// Replace the destination's user metadata with these entries.
+    ///
+    /// Refer to [`options::CopyOptions::user_metadata`] for the full contract.
+    pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.args.0.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Replace the destination's Content-Type with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_type`] for the full contract.
+    pub fn content_type(mut self, v: &str) -> Self {
+        self.args.0.content_type = Some(v.to_string());
+        self
+    }
+
+    /// Replace the destination's Content-Language with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_language`] for the full contract.
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
+        self
+    }
+
     /// Sets concurrent copy operations for this copy.
     ///
     /// Refer to [`options::CopyOptions::concurrent`] for more details.
@@ -1807,6 +1853,7 @@ impl<F: Future<Output = Result<Metadata>>> FutureCopy<F> {
     }
 
     /// Sets chunk size for segmented copy operations.
+    /// Pass `0` to let the service choose how to copy.
     ///
     /// Refer to [`options::CopyOptions::chunk`] for more details.
     pub fn chunk(mut self, v: usize) -> Self {
@@ -1885,6 +1932,30 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
         self
     }
 
+    /// Replace the destination's user metadata with these entries.
+    ///
+    /// Refer to [`options::CopyOptions::user_metadata`] for the full contract.
+    pub fn user_metadata(mut self, data: impl IntoIterator<Item = (String, String)>) -> Self {
+        self.args.0.user_metadata = Some(HashMap::from_iter(data));
+        self
+    }
+
+    /// Replace the destination's Content-Type with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_type`] for the full contract.
+    pub fn content_type(mut self, v: &str) -> Self {
+        self.args.0.content_type = Some(v.to_string());
+        self
+    }
+
+    /// Replace the destination's Content-Language with this value.
+    ///
+    /// Refer to [`options::CopyOptions::content_language`] for the full contract.
+    pub fn content_language(mut self, v: &str) -> Self {
+        self.args.0.content_language = Some(v.to_string());
+        self
+    }
+
     /// Sets known source content length as a hint for this `copier`.
     ///
     /// Refer to [`options::CopyOptions::source_content_length_hint`] for more details.
@@ -1902,6 +1973,7 @@ impl<F: Future<Output = Result<Copier>>> FutureCopier<F> {
     }
 
     /// Sets chunk size for segmented copy operations.
+    /// Pass `0` to let the service choose how to copy.
     ///
     /// Refer to [`options::CopyOptions::chunk`] for more details.
     pub fn chunk(mut self, v: usize) -> Self {

@@ -68,7 +68,7 @@ impl oio::OneShotWrite for WebdavWriter {
 
         let resp = self
             .core
-            .webdav_put(&self.ctx, &self.path, Some(bs.len() as u64), &self.op, bs)
+            .webdav_put(&self.ctx, &self.path, &self.op, bs)
             .await?;
 
         let status = resp.status();

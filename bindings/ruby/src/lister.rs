@@ -25,12 +25,13 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 
-use magnus::block::Yield;
-
 use magnus::Error;
 use magnus::RModule;
 use magnus::Ruby;
+use magnus::TryConvert;
+use magnus::Value;
 use magnus::method;
+use magnus::prelude::*;
 
 use crate::metadata::Metadata;
 use crate::*;
@@ -85,22 +86,6 @@ impl Entry {
 #[magnus::wrap(class = "OpenDal::Lister", free_immediately, size)]
 pub struct Lister(Arc<Mutex<ocore::blocking::Lister>>);
 
-impl Iterator for Lister {
-    type Item = Entry;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // assumes low contention. also we want an entry eventually
-        if let Ok(mut inner) = self.0.lock() {
-            match inner.next() {
-                Some(Ok(entry)) => Some(Entry(entry)),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
-}
-
 impl Lister {
     /// Creates a new blocking Lister.
     pub fn new(inner: ocore::blocking::Lister) -> Self {
@@ -109,18 +94,45 @@ impl Lister {
 
     /// @yard
     /// @def each
-    /// Returns the next element.
-    /// @return [Entry]
-    fn each(&self) -> Result<Yield<Lister>, Error> {
-        // Magnus handles yielding to Ruby using an unsafe internal function,
-        // so we don’t manage the actual iteration loop ourselves.
-        //
-        // Since Ruby controls when values are pulled from the iterator,
-        // and could potentially call `each` from multiple threads or fibers,
-        // we wrap the underlying lister in `Arc<Mutex<_>>` to ensure thread safety.
-        //
-        // Multi-threaded iteration is rare in Ruby, but this design ensures thread safety.
-        Ok(Yield::Iter(Lister(self.0.clone())))
+    /// Yields each entry to the block, or returns an Enumerator when no block
+    /// is given.
+    /// @return [Enumerator, Lister]
+    /// @raise [RuntimeError] when listing fails on the underlying storage
+    fn each(ruby: &Ruby, rb_self: Value) -> Result<Value, Error> {
+        if !ruby.block_given() {
+            return Ok(rb_self.enumeratorize("each", ()).as_value());
+        }
+
+        let lister: &Self = TryConvert::try_convert(rb_self)?;
+        loop {
+            // Hold the lock only while pulling the next entry so that a `break`
+            // or `return` inside the block never leaves the mutex locked.
+            //
+            // `each` may be called from multiple threads or fibers, so the
+            // underlying lister is wrapped in `Arc<Mutex<_>>`. A poisoned lock
+            // means another fiber panicked while iterating; surface that as an
+            // error rather than silently ending the iteration.
+            let item = lister
+                .0
+                .lock()
+                .map_err(|_| {
+                    Error::new(
+                        ruby.exception_runtime_error(),
+                        "lister lock poisoned by another fiber",
+                    )
+                })?
+                .next();
+            match item {
+                Some(Ok(entry)) => {
+                    let _: Value = ruby.yield_value(Entry(entry))?;
+                }
+                // A storage error is not end-of-iteration: propagate it so it
+                // raises instead of silently returning a truncated listing.
+                Some(Err(err)) => return Err(format_magnus_error(ruby, err)),
+                None => break,
+            }
+        }
+        Ok(rb_self)
     }
 }
 

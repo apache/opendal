@@ -208,7 +208,7 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
                 !matches!(binding.id, "go") || !S3_PROVIDER_PRESETS.contains(&scheme.as_str());
             let enabled = enabled
                 && match support {
-                    None => binding.id != "go" || scheme != "smb",
+                    None => binding.id != "go" || !matches!(scheme.as_str(), "hf3fs" | "smb"),
                     Some(set) => set.contains(&scheme),
                 };
             if !enabled {

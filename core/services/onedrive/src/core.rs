@@ -642,6 +642,12 @@ impl OneDriveCore {
             self.sign(ctx, &mut request).await?;
 
             let response = ctx.http_transport().send(request).await?;
+            if response.status() == StatusCode::TOO_MANY_REQUESTS {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("MonitorCopy")),
+                    response,
+                ));
+            }
             let status: OneDriveMonitorStatus =
                 serde_json::from_reader(response.into_body().reader())
                     .map_err(new_json_deserialize_error)?;
@@ -666,6 +672,12 @@ impl OneDriveCore {
     ) -> Result<()> {
         // We must validate if the source folder exists.
         let response = self.onedrive_get_stat_plain(ctx, source).await?;
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("GetItem")),
+                response,
+            ));
+        }
         if !response.status().is_success() {
             return Err(Error::new(ErrorKind::NotFound, "source not found"));
         }
@@ -945,6 +957,38 @@ mod tests {
     }
 
     #[test]
+    fn too_many_requests_is_temporary_rate_limited() {
+        let body = Buffer::from(
+            r#"{
+                "error": {
+                    "code": "activityLimitReached",
+                    "innerError": {
+                        "code": "throttledRequest",
+                        "innerError": { "code": "quota" }
+                    },
+                    "message": "The request has been throttled",
+                    "retryAfterSeconds": 33,
+                    "@error.X-ClientErrorCode": "quota"
+                }
+            }"#,
+        );
+        let response = Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .header(header::RETRY_AFTER, "33")
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(body)
+            .unwrap();
+
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("DownloadContent")),
+            response,
+        );
+
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_temporary());
+    }
+
+    #[test]
     fn conflict_classification_uses_native_code() {
         let parse_conflict = |code: &str, operation| {
             let body = Buffer::from(format!(r#"{{"error":{{"code":"{code}"}}}}"#));
@@ -1039,6 +1083,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, response: Response<Buffer>) -> Erro
         }
         StatusCode::CONFLICT => (ErrorKind::Unexpected, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE

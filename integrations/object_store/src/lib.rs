@@ -61,6 +61,16 @@
 //! }
 //! ```
 //!
+//! # Path resolution
+//!
+//! `OpendalStore` forwards each [`object_store::path::Path`] to the `Operator`,
+//! which resolves it against its configured `root`; prefixes are never
+//! stripped. When the store is registered with a URL-based registry such as
+//! DataFusion's `ObjectStoreRegistry`, keep the shared prefix in exactly one
+//! place — in the queried URL paths or in the operator `root` — to avoid
+//! double-prefixing. See [`OpendalStore::new`] for the full convention and a
+//! runnable example.
+//!
 //! Use the re-exported future helper when an integration needs the same OpenDAL
 //! future wrapper used by this crate:
 //!

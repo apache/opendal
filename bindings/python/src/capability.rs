@@ -108,9 +108,13 @@ pub struct Capability {
 
     /// If operator supports copy.
     pub copy: bool,
+    /// If copy can require that the target file does not exist.
+    pub copy_with_if_not_exists: bool,
 
     /// If operator supports rename.
     pub rename: bool,
+    /// If rename can require that the target file does not exist.
+    pub rename_with_if_not_exists: bool,
 
     /// If operator supports list.
     pub list: bool,
@@ -179,7 +183,9 @@ impl Capability {
             delete_with_version: capability.delete_with_version,
             delete_with_recursive: capability.delete_with_recursive,
             copy: capability.copy,
+            copy_with_if_not_exists: capability.copy_with_if_not_exists,
             rename: capability.rename,
+            rename_with_if_not_exists: capability.rename_with_if_not_exists,
             list: capability.list,
             list_with_limit: capability.list_with_limit,
             list_with_start_after: capability.list_with_start_after,

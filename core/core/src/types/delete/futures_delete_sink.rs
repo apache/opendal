@@ -32,6 +32,8 @@ pub struct FuturesDeleteSink<T: IntoDeleteInput> {
     _phantom: PhantomData<T>,
 }
 
+// Deleter embeds Capability and is kept inline rather than boxed per sink.
+#[allow(clippy::large_enum_variant)]
 enum State {
     Idle(Option<Deleter>),
     Delete(BoxedStaticFuture<(Deleter, Result<()>)>),
@@ -53,7 +55,11 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match &mut self.state {
-            State::Idle(_) => Poll::Ready(Ok(())),
+            State::Idle(Some(_)) => Poll::Ready(Ok(())),
+            State::Idle(None) => Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "FuturesDeleteSink has been closed or errored",
+            ))),
             State::Delete(fut) => {
                 let (deleter, res) = ready!(fut.as_mut().poll(cx));
                 self.state = State::Idle(Some(deleter));
@@ -61,8 +67,19 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
             }
             State::Close(fut) => {
                 let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(deleter));
-                Poll::Ready(res.map(|_| ()))
+                match res {
+                    Ok(()) => {
+                        self.state = State::Idle(None);
+                        Poll::Ready(Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "FuturesDeleteSink has been closed or errored",
+                        )))
+                    }
+                    Err(err) => {
+                        self.state = State::Idle(Some(deleter));
+                        Poll::Ready(Err(err))
+                    }
+                }
             }
         }
     }
@@ -94,7 +111,13 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(_) => return Poll::Ready(Ok(())),
+                State::Idle(Some(_)) => return Poll::Ready(Ok(())),
+                State::Idle(None) => {
+                    return Poll::Ready(Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "FuturesDeleteSink has been closed or errored",
+                    )));
+                }
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     self.state = State::Idle(Some(deleter));
@@ -103,9 +126,19 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                 }
                 State::Close(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    res?;
-                    continue;
+                    match res {
+                        Ok(()) => {
+                            self.state = State::Idle(None);
+                            return Poll::Ready(Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "FuturesDeleteSink has been closed or errored",
+                            )));
+                        }
+                        Err(err) => {
+                            self.state = State::Idle(Some(deleter));
+                            return Poll::Ready(Err(err));
+                        }
+                    }
                 }
             };
         }
@@ -136,7 +169,11 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                 }
                 State::Close(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
+                    if res.is_ok() {
+                        self.state = State::Idle(None);
+                    } else {
+                        self.state = State::Idle(Some(deleter));
+                    }
                     return Poll::Ready(res);
                 }
             };

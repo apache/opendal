@@ -68,18 +68,6 @@ struct CopyInput<C: BlockCopy> {
     range: BytesRange,
 }
 
-impl<C: BlockCopy> Clone for CopyInput<C> {
-    fn clone(&self) -> Self {
-        Self {
-            copier: self.copier.clone(),
-            executor: self.executor.clone(),
-            block_id: self.block_id,
-            block_number: self.block_number,
-            range: self.range,
-        }
-    }
-}
-
 struct CopiedBlock {
     block_id: Uuid,
     block_number: usize,
@@ -190,23 +178,22 @@ impl<C: BlockCopy> BlockCopier<C> {
             let size = self.block_size.min(source_size - self.next_offset);
             let range = BytesRange::new(self.next_offset, Some(size));
 
+            let block_id = Uuid::new_v4();
             let input = CopyInput {
                 copier: self.copier.clone(),
                 executor: self.executor.clone(),
-                block_id: Uuid::new_v4(),
+                block_id,
                 block_number: self.next_block_number,
                 range,
             };
 
-            loop {
-                match self.tasks.execute(input.clone()).await {
-                    Ok(()) => break,
-                    Err(err) if err.is_temporary() => continue,
-                    Err(err) => return Err(err),
-                }
-            }
+            // Propagate errors to the caller (e.g. RetryLayer) instead of
+            // retrying in place. ConcurrentTasks keeps failed task inputs in
+            // the queue, and this input is rebuilt from next_offset on the
+            // next call, so a retry preserves progress.
+            self.tasks.execute(input).await?;
 
-            self.scheduled_block_ids.push(input.block_id);
+            self.scheduled_block_ids.push(block_id);
             self.next_offset += size;
             self.next_block_number += 1;
             scheduled += 1;
@@ -239,19 +226,13 @@ where
 
         self.fill_tasks(source_size).await?;
 
-        loop {
-            match self.tasks.next().await {
-                Some(Ok(result)) => {
-                    let size = result.size.try_into().map_err(|_| {
-                        Error::new(ErrorKind::Unexpected, "block copy size exceeds usize")
-                    })?;
-                    self.block_ids.push((result.block_number, result.block_id));
-                    return Ok(Some(size));
-                }
-                Some(Err(err)) if err.is_temporary() => continue,
-                Some(Err(err)) => return Err(err),
-                None => break,
-            }
+        if let Some(result) = self.tasks.next().await.transpose()? {
+            let size = result
+                .size
+                .try_into()
+                .map_err(|_| Error::new(ErrorKind::Unexpected, "block copy size exceeds usize"))?;
+            self.block_ids.push((result.block_number, result.block_id));
+            return Ok(Some(size));
         }
 
         if self.block_ids.len() != self.next_block_number {
@@ -328,6 +309,7 @@ mod tests {
 
     use tokio::time::Duration;
     use tokio::time::sleep;
+    use tokio::time::timeout;
 
     use super::*;
     use crate::raw::oio::Copy;
@@ -389,7 +371,7 @@ mod tests {
         let inner = TestCopy {
             state: state.clone(),
         };
-        let mut copier = BlockCopier::new(Executor::default(), inner, None, 0, 2, 2);
+        let mut copier = BlockCopier::new(crate::test_executor(), inner, None, 0, 2, 2);
 
         while copier.next().await?.is_some() {}
 
@@ -406,6 +388,132 @@ mod tests {
         assert!(metadata.is_file());
         assert_eq!(metadata.content_length(), 4);
 
+        Ok(())
+    }
+
+    #[derive(Default)]
+    struct FlakyCopyState {
+        /// Number of `copy_block` calls that should still fail temporarily.
+        failures_remaining: usize,
+        copy_block_calls: usize,
+        ranges: HashMap<Uuid, BytesRange>,
+        completed_ranges: Vec<BytesRange>,
+    }
+
+    /// A BlockCopy that fails `copy_block` temporarily for the first
+    /// `failures` calls and then succeeds.
+    struct FlakyCopy {
+        state: Arc<Mutex<FlakyCopyState>>,
+    }
+
+    impl FlakyCopy {
+        fn new(failures: usize) -> Self {
+            Self {
+                state: Arc::new(Mutex::new(FlakyCopyState {
+                    failures_remaining: failures,
+                    ..Default::default()
+                })),
+            }
+        }
+    }
+
+    impl BlockCopy for FlakyCopy {
+        async fn source_metadata(&self) -> Result<Metadata> {
+            unreachable!()
+        }
+
+        async fn copy_once(&self) -> Result<Metadata> {
+            unreachable!()
+        }
+
+        async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.copy_block_calls += 1;
+            if state.failures_remaining > 0 {
+                state.failures_remaining -= 1;
+                return Err(Error::new(ErrorKind::Unexpected, "503 SlowDown").set_temporary());
+            }
+
+            state.ranges.insert(block_id, range);
+            Ok(())
+        }
+
+        async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.completed_ranges = block_ids
+                .into_iter()
+                .map(|block_id| state.ranges[&block_id])
+                .collect();
+            Ok(MetadataBuilder::file(4).build())
+        }
+
+        async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_temporary_copy_block_error_is_returned_immediately() -> Result<()> {
+        let inner = FlakyCopy::new(usize::MAX);
+        let state = inner.state.clone();
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 1,
+        );
+
+        // A persistent temporary error must surface to the caller (RetryLayer)
+        // instead of spinning inside `next` forever.
+        let err = timeout(Duration::from_secs(10), copier.next())
+            .await
+            .expect("next must not hang on temporary errors")
+            .expect_err("next must propagate the temporary error");
+        assert!(err.is_temporary());
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.copy_block_calls, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_temporary_copy_block_error_retries_without_losing_blocks() -> Result<()> {
+        // Fail the very first copy_block call once, then succeed.
+        let inner = FlakyCopy::new(1);
+        let state = inner.state.clone();
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 2,
+        );
+
+        // Mimic RetryLayer: keep calling next() while it fails temporarily.
+        loop {
+            match timeout(Duration::from_secs(10), copier.next())
+                .await
+                .expect("next must not hang on temporary errors")
+            {
+                Ok(Some(_)) => continue,
+                Ok(None) => break,
+                Err(err) => assert!(err.is_temporary()),
+            }
+        }
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 4);
+
+        let state = state.lock().expect("test state mutex poisoned");
+        // One failed call plus two successful blocks.
+        assert_eq!(state.copy_block_calls, 3);
+        assert_eq!(
+            state.completed_ranges,
+            vec![BytesRange::new(0, Some(2)), BytesRange::new(2, Some(2))]
+        );
         Ok(())
     }
 }

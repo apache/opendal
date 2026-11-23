@@ -51,3 +51,7 @@ jobs:
       - name: Cargo clippy
         working-directory: integrations/unftp-sbe
         run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Cargo test
+        working-directory: integrations/unftp-sbe
+        run: cargo test

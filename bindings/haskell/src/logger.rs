@@ -29,7 +29,9 @@ impl log::Log for HsLogger {
 
     fn log(&self, record: &log::Record) {
         let msg = format!("{}", record.args());
-        let c_str_msg = CString::new(msg).unwrap();
+        // Interior NUL bytes would make CString::new fail and panic across
+        // the FFI boundary; escape them instead of aborting the process.
+        let c_str_msg = CString::new(msg.replace('\0', "\\0")).unwrap_or_default();
         let c_level = match record.level() {
             log::Level::Debug => 0,
             log::Level::Info => 1,

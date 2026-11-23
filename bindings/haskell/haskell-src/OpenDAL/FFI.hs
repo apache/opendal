@@ -139,7 +139,15 @@ foreign import ccall "wrapper"
 
 foreign import ccall "&free_operator" c_free_operator :: FunPtr (Ptr RawOperator -> IO ())
 
-foreign import ccall "free_byteslice" c_free_byteslice :: Ptr CChar -> CSize -> IO ()
+foreign import ccall "free_operator" freeOperator :: Ptr RawOperator -> IO ()
+
+foreign import ccall "free_byteslice" freeByteSlice :: Ptr ByteSlice -> IO ()
+
+foreign import ccall "free_bool" freeBool :: Ptr CBool -> IO ()
+
+foreign import ccall "free_string" freeString :: CString -> IO ()
+
+foreign import ccall "free_metadata" freeMetadata :: Ptr FFIMetadata -> IO ()
 
 foreign import ccall "blocking_read" c_blocking_read :: Ptr RawOperator -> CString -> Ptr (FFIResult ByteSlice) -> IO ()
 
@@ -157,25 +165,28 @@ foreign import ccall "blocking_delete" c_blocking_delete :: Ptr RawOperator -> C
 
 foreign import ccall "blocking_stat" c_blocking_stat :: Ptr RawOperator -> CString -> Ptr (FFIResult FFIMetadata) -> IO ()
 
-foreign import ccall "blocking_list" c_blocking_list :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "blocking_list" c_blocking_list :: Ptr RawOperator -> CString -> Ptr (FFIResult RawLister) -> IO ()
 
-foreign import ccall "blocking_scan" c_blocking_scan :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawLister)) -> IO ()
+foreign import ccall "blocking_scan" c_blocking_scan :: Ptr RawOperator -> CString -> Ptr (FFIResult RawLister) -> IO ()
 
-foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIResult CString) -> IO ()
+foreign import ccall "lister_next" c_lister_next :: Ptr RawLister -> Ptr (FFIResult CChar) -> IO ()
 
 foreign import ccall "&free_lister" c_free_lister :: FunPtr (Ptr RawLister -> IO ())
 
+foreign import ccall "free_lister" freeLister :: Ptr RawLister -> IO ()
 
-foreign import ccall "operator_info" c_operator_info :: Ptr RawOperator -> Ptr (FFIResult CString) -> IO ()
+foreign import ccall "operator_info" c_operator_info :: Ptr RawOperator -> Ptr (FFIResult CChar) -> IO ()
 
-foreign import ccall "blocking_writer" c_blocking_writer :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawWriter)) -> IO ()
+foreign import ccall "blocking_writer" c_blocking_writer :: Ptr RawOperator -> CString -> Ptr (FFIResult RawWriter) -> IO ()
 
-foreign import ccall "blocking_writer_append" c_blocking_writer_append :: Ptr RawOperator -> CString -> Ptr (FFIResult (Ptr RawWriter)) -> IO ()
+foreign import ccall "blocking_writer_append" c_blocking_writer_append :: Ptr RawOperator -> CString -> Ptr (FFIResult RawWriter) -> IO ()
 
 foreign import ccall "writer_write" c_writer_write :: Ptr RawWriter -> Ptr CChar -> CSize -> Ptr (FFIResult ()) -> IO ()
 
 foreign import ccall "writer_close" c_writer_close :: Ptr RawWriter -> Ptr (FFIResult FFIMetadata) -> IO ()
 
 foreign import ccall "&free_writer" c_free_writer :: FunPtr (Ptr RawWriter -> IO ())
+
+foreign import ccall "free_writer" freeWriter :: Ptr RawWriter -> IO ()
 
 foreign import ccall "blocking_remove_all" c_blocking_remove_all :: Ptr RawOperator -> CString -> Ptr (FFIResult ()) -> IO ()

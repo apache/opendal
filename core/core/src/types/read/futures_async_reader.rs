@@ -25,6 +25,7 @@ use std::task::Poll;
 use std::task::ready;
 
 use bytes::Buf;
+use bytes::Bytes;
 use futures::AsyncBufRead;
 use futures::AsyncRead;
 use futures::AsyncSeek;
@@ -49,6 +50,12 @@ pub struct FuturesAsyncReader {
 
     stream: BufferStream,
     buf: Buffer,
+    /// Chunks already read by an unfinished [`Self::read_to_end_buffer`].
+    ///
+    /// `read_to_end_buffer` stages data here and leaves `pos` unchanged until
+    /// it returns, so cancellation or an error keeps the bytes for the next
+    /// read.
+    read_to_end_parts: Vec<Bytes>,
     start: u64,
     range_end: Option<u64>,
     content_length: Option<u64>,
@@ -103,6 +110,7 @@ impl FuturesAsyncReader {
             ctx,
             stream,
             buf: Buffer::new(),
+            read_to_end_parts: Vec::new(),
             start,
             range_end,
             content_length,
@@ -138,6 +146,28 @@ impl FuturesAsyncReader {
 
     async fn next_buffer(&mut self) -> io::Result<Option<Buffer>> {
         futures::future::poll_fn(|cx| self.poll_next_buffer(cx)).await
+    }
+
+    /// Take all unread bytes, including chunks staged by an interrupted
+    /// [`Self::read_to_end_buffer`].
+    fn take_buffered(&mut self) -> Buffer {
+        if self.read_to_end_parts.is_empty() {
+            return std::mem::take(&mut self.buf);
+        }
+
+        let mut pending = std::mem::take(&mut self.read_to_end_parts);
+        let mut parts = Vec::with_capacity(pending.len() + 1);
+        parts.extend(std::mem::take(&mut self.buf));
+        parts.append(&mut pending);
+        Buffer::from(parts)
+    }
+
+    /// Fold chunks staged by an interrupted [`Self::read_to_end_buffer`] back
+    /// into `buf` before another operation consumes or seeks the buffer.
+    fn merge_read_to_end_parts(&mut self) {
+        if !self.read_to_end_parts.is_empty() {
+            self.buf = self.take_buffered();
+        }
     }
 
     fn range_length(&self, end: u64) -> io::Result<u64> {
@@ -195,6 +225,7 @@ impl FuturesAsyncReader {
             return Ok(Buffer::new());
         }
 
+        self.merge_read_to_end_parts();
         while self.buf.is_empty() {
             self.buf = match self.next_buffer().await? {
                 Some(buf) => buf,
@@ -202,12 +233,12 @@ impl FuturesAsyncReader {
             };
         }
 
-        let size = self.buf.len().min(size);
-        let buffer = self.buf.split_to(size);
-        if self.buf.is_empty() {
-            self.buf = Buffer::new();
-        }
-        self.pos += size as u64;
+        let buffer = if size >= self.buf.len() {
+            std::mem::take(&mut self.buf)
+        } else {
+            self.buf.split_to(size)
+        };
+        self.pos += buffer.len() as u64;
         Ok(buffer)
     }
 
@@ -216,40 +247,23 @@ impl FuturesAsyncReader {
     /// This method preserves the underlying buffer storage and only allocates
     /// metadata when multiple buffers must be combined.
     pub async fn read_to_end_buffer(&mut self) -> io::Result<Buffer> {
-        let mut buffer = std::mem::take(&mut self.buf);
-        let current_size = buffer.len();
-        self.pos += current_size as u64;
-        let mut parts = None;
-
         while let Some(next) = self.next_buffer().await? {
-            self.pos += next.len() as u64;
             if next.is_empty() {
                 continue;
             }
-
-            if buffer.is_empty() && parts.is_none() {
-                buffer = next;
-                continue;
-            }
-
-            if parts.is_none() {
-                let mut combined = Vec::new();
-                combined.extend(std::mem::take(&mut buffer));
-                parts = Some(combined);
-            }
-            parts
-                .as_mut()
-                .expect("buffer parts must exist")
-                .extend(next);
+            self.read_to_end_parts.extend(next);
         }
 
-        Ok(parts.map(Buffer::from).unwrap_or(buffer))
+        let buffer = self.take_buffered();
+        self.pos += buffer.len() as u64;
+        Ok(buffer)
     }
 }
 
 impl AsyncBufRead for FuturesAsyncReader {
     fn poll_fill_buf(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<&[u8]>> {
         let this = self.get_mut();
+        this.merge_read_to_end_parts();
         loop {
             if this.buf.has_remaining() {
                 return Poll::Ready(Ok(this.buf.chunk()));
@@ -262,6 +276,7 @@ impl AsyncBufRead for FuturesAsyncReader {
     }
 
     fn consume(mut self: Pin<&mut Self>, amt: usize) {
+        self.merge_read_to_end_parts();
         self.buf.advance(amt);
         // Make sure buf has been dropped before starting new request.
         // Otherwise, we will hold those bytes in memory until next
@@ -281,6 +296,7 @@ impl AsyncRead for FuturesAsyncReader {
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
+        this.merge_read_to_end_parts();
 
         loop {
             if this.buf.remaining() > 0 {
@@ -303,6 +319,7 @@ impl AsyncSeek for FuturesAsyncReader {
         cx: &mut Context<'_>,
         pos: SeekFrom,
     ) -> Poll<io::Result<u64>> {
+        self.merge_read_to_end_parts();
         let new_pos = match pos {
             SeekFrom::Start(pos) => Some(pos),
             SeekFrom::End(pos) => {
@@ -359,6 +376,7 @@ impl AsyncSeek for FuturesAsyncReader {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Arc;
     use std::sync::Mutex;
     use std::sync::atomic::AtomicUsize;
@@ -511,6 +529,73 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy, Debug)]
+    enum ReadStep {
+        Chunk(&'static [u8]),
+        PendingThen(&'static [u8]),
+        Error,
+        End,
+    }
+
+    struct ScriptedReader {
+        steps: Arc<Mutex<VecDeque<ReadStep>>>,
+    }
+
+    impl oio::Read for ScriptedReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            assert_eq!(range, BytesRange::new(0, None));
+            let metadata = MetadataBuilder::file(0).build();
+            Ok((
+                RpRead::new(metadata),
+                Box::new(ScriptedStream {
+                    steps: self.steps.clone(),
+                }),
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            let (rp, mut stream) = self.open(range).await?;
+            Ok((rp, stream.read_all().await?))
+        }
+    }
+
+    struct ScriptedStream {
+        steps: Arc<Mutex<VecDeque<ReadStep>>>,
+    }
+
+    impl oio::ReadStream for ScriptedStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            let step = self
+                .steps
+                .lock()
+                .expect("script mutex must not poison")
+                .pop_front()
+                .expect("scripted stream must have another step");
+
+            match step {
+                ReadStep::Chunk(bytes) => Ok(Buffer::from(Bytes::from_static(bytes))),
+                ReadStep::PendingThen(bytes) => {
+                    let mut polled = false;
+                    futures::future::poll_fn(|cx| {
+                        if polled {
+                            Poll::Ready(Ok(Buffer::from(Bytes::from_static(bytes))))
+                        } else {
+                            polled = true;
+                            cx.waker().wake_by_ref();
+                            Poll::Pending
+                        }
+                    })
+                    .await
+                }
+                ReadStep::Error => Err(Error::new(ErrorKind::Unexpected, "scripted read error")),
+                ReadStep::End => Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "scripted end of stream",
+                )),
+            }
+        }
+    }
+
     fn new_counting_operator() -> (Operator, RequestCounts) {
         new_counting_operator_with_content_length(Bytes::from_static(b"HelloWorld"), 10)
     }
@@ -553,6 +638,26 @@ mod tests {
             options,
             reader,
         ))
+    }
+
+    async fn new_scripted_reader(steps: Vec<ReadStep>) -> FuturesAsyncReader {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, [])
+            .expect("memory operator must be created");
+        let reader: oio::Reader = Box::new(ScriptedReader {
+            steps: Arc::new(Mutex::new(steps.into())),
+        });
+        let ctx = Arc::new(ReadContext::new(
+            op.context().clone(),
+            op.service().clone(),
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+            reader,
+        ));
+
+        FuturesAsyncReader::new(ctx, BytesRange::new(0, None))
+            .await
+            .expect("futures async reader must be created")
     }
 
     #[tokio::test]
@@ -631,7 +736,7 @@ mod tests {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write("test", Buffer::from("HelloWorld")).await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,
@@ -649,6 +754,121 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_to_end_buffer_keeps_bytes_after_cancel() {
+        let mut reader = new_scripted_reader(vec![
+            ReadStep::Chunk(b"ab"),
+            ReadStep::PendingThen(b"cd"),
+            ReadStep::End,
+        ])
+        .await;
+
+        assert!(futures::poll!(Box::pin(reader.read_to_end_buffer())).is_pending());
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"abcd");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_after_cancelled_read_to_end() {
+        let mut reader = new_scripted_reader(vec![
+            ReadStep::Chunk(b"ab"),
+            ReadStep::PendingThen(b"cd"),
+            ReadStep::End,
+        ])
+        .await;
+
+        assert!(futures::poll!(Box::pin(reader.read_to_end_buffer())).is_pending());
+
+        let mut prefix = [0; 3];
+        reader.read_exact(&mut prefix).await.unwrap();
+        assert_eq!(&prefix, b"abc");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 3);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"d");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_keeps_bytes_after_error() {
+        let mut reader = new_scripted_reader(vec![
+            ReadStep::Chunk(b"ab"),
+            ReadStep::Error,
+            ReadStep::Chunk(b"cd"),
+            ReadStep::End,
+        ])
+        .await;
+
+        let err = reader.read_to_end_buffer().await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"abcd");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_keeps_buffered_bytes_after_cancel() {
+        let mut reader = new_scripted_reader(vec![
+            ReadStep::Chunk(b"ab"),
+            ReadStep::PendingThen(b"cd"),
+            ReadStep::End,
+        ])
+        .await;
+
+        let prefix = reader.read_buffer(1).await.unwrap();
+        assert_eq!(prefix.to_vec(), b"a");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 1);
+
+        assert!(futures::poll!(Box::pin(reader.read_to_end_buffer())).is_pending());
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 1);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"bcd");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_keeps_buffered_bytes_after_error() {
+        let mut reader = new_scripted_reader(vec![
+            ReadStep::Chunk(b"ab"),
+            ReadStep::Error,
+            ReadStep::Chunk(b"cd"),
+            ReadStep::End,
+        ])
+        .await;
+
+        let chunk = reader.fill_buf().await.unwrap();
+        assert_eq!(chunk, b"ab");
+        reader.consume_unpin(1);
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 1);
+
+        let err = reader.read_to_end_buffer().await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::Other);
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 1);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"bcd");
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_read_to_end_buffer_empty_scripted_stream() {
+        let mut reader = new_scripted_reader(vec![ReadStep::End]).await;
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert!(buffer.is_empty());
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+
+        let buffer = reader.read_to_end_buffer().await.unwrap();
+        assert!(buffer.is_empty());
+        assert_eq!(reader.seek(SeekFrom::Current(0)).await.unwrap(), 0);
+    }
+
+    #[tokio::test]
     async fn test_futures_async_read_with_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
@@ -657,7 +877,7 @@ mod tests {
         )
         .await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,
@@ -689,7 +909,7 @@ mod tests {
         )
         .await?;
 
-        let ctx = op.context().clone();
+        let ctx = op.context().with_executor(crate::test_executor());
         let srv = op.service().clone();
         let ctx = Arc::new(new_read_context(
             ctx,

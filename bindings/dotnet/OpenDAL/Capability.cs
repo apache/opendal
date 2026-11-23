@@ -94,6 +94,9 @@ public struct Capability
         CopyWithIfVersionMatch = native.copyWithIfVersionMatch != 0;
         CopyWithIfVersionNotMatch = native.copyWithIfVersionNotMatch != 0;
         CopyWithSourceVersion = native.copyWithSourceVersion != 0;
+        CopyWithUserMetadata = native.copyWithUserMetadata != 0;
+        CopyWithContentType = native.copyWithContentType != 0;
+        CopyWithContentLanguage = native.copyWithContentLanguage != 0;
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
@@ -121,6 +124,7 @@ public struct Capability
         ListWithRecursive = native.listWithRecursive != 0;
         ListWithVersions = native.listWithVersions != 0;
         ListWithDeleted = native.listWithDeleted != 0;
+        ListWithGlob = native.listWithGlob != 0;
         Presign = native.presign != 0;
         PresignRead = native.presignRead != 0;
         PresignStat = native.presignStat != 0;
@@ -425,6 +429,21 @@ public struct Capability
     public bool CopyWithSourceVersion { get; private set; }
 
     /// <summary>
+    /// Indicates if copy operations can replace the destination's user metadata.
+    /// </summary>
+    public bool CopyWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    /// </summary>
+    public bool CopyWithContentType { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    /// </summary>
+    public bool CopyWithContentLanguage { get; private set; }
+
+    /// <summary>
     /// Indicates if copy operations can be split into multiple server-side tasks.
     /// </summary>
     public bool CopyCanMulti { get; private set; }
@@ -558,6 +577,11 @@ public struct Capability
     /// Indicates if listing with deleted files included is supported.
     /// </summary>
     public bool ListWithDeleted { get; private set; }
+
+    /// <summary>
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    /// </summary>
+    public bool ListWithGlob { get; private set; }
 
     /// <summary>
     /// Indicates if presigned URL generation is supported.

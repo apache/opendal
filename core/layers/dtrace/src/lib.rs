@@ -20,13 +20,29 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+use std::cell::LazyCell;
 use std::ffi::CString;
 use std::sync::Arc;
+use std::task::Poll;
 
 use bytes::Buf;
+use futures::StreamExt;
+use futures::stream::poll_fn;
 use opendal_core::raw::*;
 use opendal_core::*;
+use probe::probe;
 use probe::probe_lazy;
+
+#[cfg(test)]
+mod tests;
+
+/// Convert a probe argument to a NUL-terminated C string.
+///
+/// OpenDAL paths can contain NUL bytes, which a C string cannot represent. Such
+/// arguments are reported as an empty string instead of panicking.
+fn probe_cstring(value: &str) -> CString {
+    CString::new(value).unwrap_or_default()
+}
 
 /// `DtraceLayer` supports User Statically-Defined Tracing (USDT) on Linux.
 ///
@@ -35,6 +51,9 @@ use probe::probe_lazy;
 ///
 /// For now we have following probes:
 ///
+/// Probe arguments are NUL-terminated C strings. OpenDAL paths can contain NUL
+/// bytes; such paths are reported as an empty string.
+///
 /// ### For Service
 ///
 /// 1. ${operation}_start, arguments: path
@@ -42,18 +61,18 @@ use probe::probe_lazy;
 ///     2. read
 ///     3. write
 ///     4. stat
-///     5. delete
-///     6. list
-///     7. presign
+///     5. list
+///     6. presign
 ///
 /// 2. ${operation}_end, arguments: path
 ///     1. create_dir
 ///     2. read
 ///     3. write
 ///     4. stat
-///     5. delete
-///     6. list
-///     7. presign
+///     5. list
+///     6. presign
+///
+/// `delete_start` and `delete_end` surround deleter creation and take no arguments.
 ///
 /// ### For Reader
 ///
@@ -72,6 +91,33 @@ use probe::probe_lazy;
 /// 7. writer_close_start, arguments: path
 /// 8. writer_close_ok, arguments: path
 /// 9. writer_close_error, arguments: path
+///
+/// ### For Lister
+///
+/// `lister_next_start`, `lister_next_ok`, and `lister_next_error` take the listing
+/// path. `lister_next_ok` covers both an entry and the end of the listing.
+///
+/// ### For Deleter
+///
+/// `deleter_delete_start`, `deleter_delete_ok`, and `deleter_delete_error` take
+/// the path passed to the deleter. `deleter_delete_ok` means the deleter
+/// accepted the request, which may still be buffered.
+///
+/// `deleter_close_start`, `deleter_close_ok`, and `deleter_close_error` take no
+/// arguments and trace the final flush.
+///
+/// ### For HTTP Transport
+///
+/// The `opendal` provider emits these probes for requests through the operator's
+/// [`OperationContext`].
+///
+/// - `http_request_start` fires before the transport fetches the request.
+/// - `http_request_ok` reports the HTTP status code when the transport returns
+///   a response, including responses with 4xx and 5xx status codes.
+/// - `http_request_error` fires when the transport returns an error.
+/// - `http_response_body_chunk` reports the byte length of each streamed chunk.
+/// - `http_response_body_end` fires when the underlying stream reports EOF.
+/// - `http_response_body_error` fires when the underlying stream returns an error.
 ///
 /// Example:
 ///
@@ -139,12 +185,70 @@ impl Layer for DtraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
         Arc::new(self.layer(inner))
     }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let transport = HttpTransporter::new(DtraceHttpTransport {
+            inner: inner.http_transport().clone(),
+        });
+        inner.with_http_transport(transport)
+    }
 }
 
 impl DtraceLayer {
     fn layer(&self, inner: Servicer) -> DTraceService {
         DTraceService { inner }
     }
+}
+
+struct DtraceHttpTransport {
+    inner: HttpTransporter,
+}
+
+macro_rules! http_probe {
+    ($name:ident $(, $arg:expr)*) => {{
+        #[cfg(test)]
+        tests::record_probe(stringify!($name));
+        probe!(opendal, $name $(, $arg)*);
+    }};
+}
+
+impl HttpTransport for DtraceHttpTransport {
+    async fn fetch(&self, request: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        http_probe!(http_request_start);
+        let response = self.inner.fetch(request).await.inspect_err(|_| {
+            http_probe!(http_request_error);
+        })?;
+        http_probe!(http_request_ok, response.status().as_u16());
+
+        Ok(response.map(|body| {
+            body.map_inner(|mut stream| {
+                Box::new(poll_fn(move |cx| {
+                    let result = stream.poll_next_unpin(cx);
+                    match &result {
+                        Poll::Ready(Some(Ok(chunk))) => {
+                            http_probe!(http_response_body_chunk, chunk.len());
+                        }
+                        Poll::Ready(Some(Err(_))) => {
+                            http_probe!(http_response_body_error);
+                        }
+                        Poll::Ready(None) => {
+                            http_probe!(http_response_body_end);
+                        }
+                        Poll::Pending => {}
+                    }
+                    result
+                }))
+            })
+        }))
+    }
+}
+
+macro_rules! operation_probe {
+    ($name:ident $(, $arg:expr)*) => {{
+        #[cfg(test)]
+        tests::record_probe(stringify!($name));
+        probe_lazy!(opendal, $name $(, $arg)*);
+    }};
 }
 
 #[doc(hidden)]
@@ -156,8 +260,8 @@ pub struct DTraceService {
 impl Service for DTraceService {
     type Reader = DtraceLayerWrapper<oio::Reader>;
     type Writer = DtraceLayerWrapper<oio::Writer>;
-    type Lister = oio::Lister;
-    type Deleter = oio::Deleter;
+    type Lister = DtraceLayerWrapper<oio::Lister>;
+    type Deleter = DtraceLayerWrapper<oio::Deleter>;
     type Copier = oio::Copier;
     type Composer = oio::Composer;
 
@@ -179,7 +283,7 @@ impl Service for DTraceService {
         path: &str,
         args: OpCreateDir,
     ) -> Result<RpCreateDir> {
-        let c_path = CString::new(path).unwrap();
+        let c_path = probe_cstring(path);
         probe_lazy!(opendal, create_dir_start, c_path.as_ptr());
         let result = self.inner.create_dir(ctx, path, args).await;
         probe_lazy!(opendal, create_dir_end, c_path.as_ptr());
@@ -187,7 +291,7 @@ impl Service for DTraceService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let c_path = CString::new(path).unwrap();
+        let c_path = probe_cstring(path);
         probe_lazy!(opendal, read_start, c_path.as_ptr());
         let result = self
             .inner
@@ -198,7 +302,7 @@ impl Service for DTraceService {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let c_path = CString::new(path).unwrap();
+        let c_path = probe_cstring(path);
         probe_lazy!(opendal, write_start, c_path.as_ptr());
         let result = self
             .inner
@@ -216,7 +320,7 @@ impl Service for DTraceService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let c_from = CString::new(from).unwrap();
+        let c_from = probe_cstring(from);
         probe_lazy!(opendal, copy_start, c_from.as_ptr());
         let result = self.inner.copy(ctx, from, to, args);
         probe_lazy!(opendal, copy_end, c_from.as_ptr());
@@ -243,7 +347,7 @@ impl Service for DTraceService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let c_path = CString::new(path).unwrap();
+        let c_path = probe_cstring(path);
         probe_lazy!(opendal, stat_start, c_path.as_ptr());
         let result = self.inner.stat(ctx, path, args).await;
         probe_lazy!(opendal, stat_end, c_path.as_ptr());
@@ -251,14 +355,23 @@ impl Service for DTraceService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        self.inner.delete(ctx)
+        operation_probe!(delete_start);
+        let result = self
+            .inner
+            .delete(ctx)
+            .map(|deleter| DtraceLayerWrapper::new(deleter, ""));
+        operation_probe!(delete_end);
+        result
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let c_path = CString::new(path).unwrap();
-        probe_lazy!(opendal, list_start, c_path.as_ptr());
-        let result = self.inner.list(ctx, path, args);
-        probe_lazy!(opendal, list_end, c_path.as_ptr());
+        let c_path = probe_cstring(path);
+        operation_probe!(list_start, c_path.as_ptr());
+        let result = self
+            .inner
+            .list(ctx, path, args)
+            .map(|lister| DtraceLayerWrapper::new(lister, path));
+        operation_probe!(list_end, c_path.as_ptr());
         result
     }
 
@@ -268,7 +381,7 @@ impl Service for DTraceService {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
-        let c_path = CString::new(path).unwrap();
+        let c_path = probe_cstring(path);
         probe_lazy!(opendal, presign_start, c_path.as_ptr());
         let result = self.inner.presign(ctx, path, args).await;
         probe_lazy!(opendal, presign_end, c_path.as_ptr());
@@ -305,8 +418,8 @@ impl<R> DtraceLayerWrapper<R> {
 
 impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        let c_range = CString::new(self.range_label()).unwrap();
+        let c_path = probe_cstring(&self.path);
+        let c_range = probe_cstring(&self.range_label());
         probe_lazy!(
             opendal,
             reader_read_start,
@@ -339,8 +452,8 @@ impl<R: oio::ReadStream> oio::ReadStream for DtraceLayerWrapper<R> {
 
 impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        let c_range = CString::new(range.to_string()).unwrap();
+        let c_path = probe_cstring(&self.path);
+        let c_range = probe_cstring(&range.to_string());
         probe_lazy!(
             opendal,
             reader_read_start,
@@ -378,8 +491,8 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        let c_path = CString::new(self.path.clone()).unwrap();
-        let c_range = CString::new(range.to_string()).unwrap();
+        let c_path = probe_cstring(&self.path);
+        let c_range = probe_cstring(&range.to_string());
         probe_lazy!(
             opendal,
             reader_read_start,
@@ -412,7 +525,7 @@ impl<R: oio::Read> oio::Read for DtraceLayerWrapper<R> {
 
 impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_path = probe_cstring(&self.path);
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
             .write(bs)
@@ -426,7 +539,7 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_path = probe_cstring(&self.path);
         probe_lazy!(opendal, writer_write_start, c_path.as_ptr());
         self.inner
             .copy_from(path, args, range)
@@ -440,7 +553,7 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_path = probe_cstring(&self.path);
         probe_lazy!(opendal, writer_poll_abort_start, c_path.as_ptr());
         self.inner
             .abort()
@@ -454,7 +567,7 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let c_path = CString::new(self.path.clone()).unwrap();
+        let c_path = probe_cstring(&self.path);
         probe_lazy!(opendal, writer_close_start, c_path.as_ptr());
         self.inner
             .close()
@@ -464,6 +577,51 @@ impl<R: oio::Write> oio::Write for DtraceLayerWrapper<R> {
             })
             .inspect_err(|_| {
                 probe_lazy!(opendal, writer_close_error, c_path.as_ptr());
+            })
+    }
+}
+
+impl<R: oio::List> oio::List for DtraceLayerWrapper<R> {
+    async fn next(&mut self) -> Result<Option<oio::Entry>> {
+        let c_path = LazyCell::new(|| probe_cstring(self.path.as_str()));
+        operation_probe!(lister_next_start, c_path.as_ptr());
+        self.inner
+            .next()
+            .await
+            .inspect(|_| {
+                operation_probe!(lister_next_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                operation_probe!(lister_next_error, c_path.as_ptr());
+            })
+    }
+}
+
+impl<R: oio::Delete> oio::Delete for DtraceLayerWrapper<R> {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        let c_path = LazyCell::new(|| probe_cstring(path));
+        operation_probe!(deleter_delete_start, c_path.as_ptr());
+        self.inner
+            .delete(path, args)
+            .await
+            .inspect(|_| {
+                operation_probe!(deleter_delete_ok, c_path.as_ptr());
+            })
+            .inspect_err(|_| {
+                operation_probe!(deleter_delete_error, c_path.as_ptr());
+            })
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        operation_probe!(deleter_close_start);
+        self.inner
+            .close()
+            .await
+            .inspect(|_| {
+                operation_probe!(deleter_close_ok);
+            })
+            .inspect_err(|_| {
+                operation_probe!(deleter_close_error);
             })
     }
 }

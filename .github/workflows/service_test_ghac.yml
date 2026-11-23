@@ -48,7 +48,7 @@ concurrency:
 jobs:
   ghac_v2:
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_call' || !github.event.pull_request.head.repo.fork
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     permissions:
       contents: read
       actions: write

@@ -61,7 +61,7 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
 
       - name: Install Flutter
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
@@ -96,6 +96,6 @@ jobs:
       - name: test
         working-directory: bindings/dart
         run: |
-          dart run tests/opendal_test.dart
+          dart test
           dart run examples/basic.dart
           dart run examples/getting_started.dart

@@ -277,7 +277,7 @@ def _filter_binding_cases(
     cases = [v for v in cases if v["service"] != "aliyun_drive"]
 
     # These fixtures target core services without enabling bindings.
-    cases = [v for v in cases if v["service"] not in ["github", "smb"]]
+    cases = [v for v in cases if v["service"] not in ["github", "hf3fs", "smb"]]
 
     if language == "java":
         cases = [
@@ -474,7 +474,15 @@ def plan(changed_files: list[str], mode: str | None = None) -> dict[str, Any]:
 
     if len(core_cases) > 0:
         jobs["components"]["core"] = True
-        jobs["core"].append({"os": "ubuntu-latest", "cases": core_cases})
+        linux_cases = [v for v in core_cases if v["service"] != "hf3fs"]
+        hf3fs_cases = [v for v in core_cases if v["service"] == "hf3fs"]
+        if linux_cases:
+            jobs["core"].append({"os": "ubuntu-latest", "cases": linux_cases})
+        if hf3fs_cases:
+            # Ubuntu 24.04 Azure runners currently omit rdma_rxe; see
+            # .github/services/hf3fs/README.md for the transition plan before
+            # Ubuntu 22.04 leaves standard support in May 2027.
+            jobs["core"].append({"os": "ubuntu-22.04", "cases": hf3fs_cases})
 
         # fs is the only service tested on Windows core runners.
         if "fs" in [v["service"] for v in core_cases]:

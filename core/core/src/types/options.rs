@@ -53,10 +53,11 @@ pub struct DeleteOptions {
     pub version: Option<String>,
     /// Whether to delete the target recursively.
     ///
-    /// The default, `false`, deletes a single object. With `true`, pass a path
-    /// with a trailing slash, such as `"a/"`, to limit deletion to that directory.
-    /// On prefix-based services such as `memory`, `"a"` also matches entries
-    /// under `"ab/"`.
+    /// The default, `false`, deletes a single object. With `true`, a trailing
+    /// slash (for example, `"a/"`) scopes deletion to a directory and its
+    /// descendants across services. Prefix matching for paths without a
+    /// trailing slash is service-specific. On prefix-based services such as
+    /// `memory`, `"a"` also matches entries under `"ab/"`.
     pub recursive: bool,
     /// Delete only when the file at the delete path has this exact ETag.
     ///
@@ -128,9 +129,8 @@ pub struct DeleteOptions {
 /// - Pagination: `limit`, `start_after`.
 /// - Versioning: `versions`, `deleted`.
 ///
-/// The operation fails with [`crate::ErrorKind::Unsupported`] if `start_after`
-/// is set, `versions` is `true`, or `deleted` is `true` without its corresponding
-/// capability.
+/// The operation fails with [`crate::ErrorKind::Unsupported`] when an option
+/// requires a capability that the operator lacks.
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct ListOptions {
     /// Maximum results per request (backend hint) to control memory and throttling.
@@ -149,6 +149,25 @@ pub struct ListOptions {
     ///
     /// Requires [`Capability::list_with_deleted`](crate::Capability::list_with_deleted).
     pub deleted: bool,
+    /// Filter entries with a case-sensitive Unix shell style glob pattern.
+    ///
+    /// The pattern is relative to the listed directory, or to the parent
+    /// directory when the list path is a prefix without a trailing slash.
+    /// Entries must also satisfy the list prefix. The pattern determines which
+    /// depths can match, independently of [`Self::recursive`].
+    ///
+    /// - `*` matches zero or more characters within one path component.
+    /// - `?` matches one Unicode scalar value within one path component.
+    /// - `**` matches zero or more path components and must occupy a whole component.
+    /// - `{a,b}` matches either alternative within a component.
+    /// - `[ab]`, `[a-z]`, and `[!a-z]` match character sets, ranges, and negated sets.
+    /// - A backslash escapes the next character within a component.
+    /// - A trailing slash restricts matches to directories.
+    ///
+    /// Requires [`Capability::list_with_glob`](crate::Capability::list_with_glob). Standard operators use native
+    /// glob support when available and otherwise filter entries client-side.
+    /// Empty or malformed patterns fail with [`crate::ErrorKind::ConfigInvalid`].
+    pub glob: Option<String>,
 }
 
 /// Options for read operations.
@@ -188,8 +207,11 @@ pub struct ReadOptions {
     /// accessing storage. Without a limit, bounded forward ranges require the
     /// full requested length.
     ///
-    /// Setting a limit with an explicit `chunk`, with `concurrent` greater
+    /// Setting a limit with a positive `chunk`, with `concurrent` greater
     /// than one, or when presigning a read returns [`crate::ErrorKind::ConfigInvalid`].
+    ///
+    /// [`crate::Writer::copy_from_options`] copies at most the same number of
+    /// bytes from the start of the selected range.
     pub limit: Option<u64>,
     /// Read the given version of the file instead of the current one.
     ///
@@ -291,6 +313,7 @@ pub struct ReadOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -443,6 +466,7 @@ pub struct ReaderOptions {
     /// Set `chunk` for the operation.
     ///
     /// OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+    /// `Some(0)` has the same behavior as `None`.
     ///
     /// Refer to the [performance guide](https://github.com/apache/opendal/tree/main/core/core/src/docs/performance)
     /// for more details.
@@ -850,6 +874,7 @@ pub struct WriteOptions {
     /// ### Behavior
     ///
     /// - By default, OpenDAL sets optimal chunk size based on service capabilities
+    /// - `Some(0)` has the same behavior as `None`
     /// - When chunk size is set:
     ///   - Data will be buffered until reaching chunk size
     ///   - One API call will be made per chunk
@@ -1046,6 +1071,47 @@ pub struct CopyOptions {
     /// this option.
     pub source_version: Option<String>,
 
+    /// Replaces the destination's whole metadata set and stores exactly these
+    /// user metadata entries; every field left unset takes the service default.
+    ///
+    /// Setting this option, [`Self::content_type`] or [`Self::content_language`]
+    /// replaces the destination's whole metadata set. The destination gets exactly the values given here
+    /// and inherits nothing from the source: every field left unset, including
+    /// user metadata, Content-Type, Content-Language and other system metadata
+    /// such as Cache-Control, takes the service default. To change one field
+    /// and keep the others, pass the complete target set. Only these three
+    /// fields can be passed back; other source headers such as Cache-Control,
+    /// Content-Disposition and Content-Encoding reset. Setting any of them also
+    /// allows `from` and `to` to be the same path, which updates metadata
+    /// without rewriting the content. On S3 this is `CopyObject` with
+    /// `x-amz-metadata-directive: REPLACE`.
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_user_metadata`].
+    pub user_metadata: Option<HashMap<String, String>>,
+    /// Replaces the destination's whole metadata set and stores this
+    /// Content-Type; omitted user metadata and other fields take the service
+    /// default.
+    ///
+    /// Follows the same replacement rules as [`Self::user_metadata`].
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_content_type`].
+    pub content_type: Option<String>,
+    /// Replaces the destination's whole metadata set and stores this
+    /// Content-Language; omitted user metadata and other fields take the
+    /// service default.
+    ///
+    /// Use a language tag or a comma-separated list of tags, such as `fr-CA, en`.
+    /// Follows the same replacement rules as [`Self::user_metadata`].
+    ///
+    /// The operation returns [`crate::ErrorKind::Unsupported`] when the
+    /// service does not advertise
+    /// [`crate::Capability::copy_with_content_language`].
+    pub content_language: Option<String>,
+
     /// Asserted complete content length of the source object.
     ///
     /// OpenDAL may trust this value without reading source metadata. It can use
@@ -1080,6 +1146,7 @@ pub struct CopyOptions {
     /// This is a best-effort execution option. Services that support
     /// server-side segmented copy can use it as the target size for each copy
     /// step. Services that cannot split copy operations can ignore it.
+    /// `Some(0)` has the same behavior as `None`.
     pub chunk: Option<usize>,
 }
 

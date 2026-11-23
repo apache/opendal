@@ -191,6 +191,12 @@ pub struct Capability {
     pub copy_with_if_version_not_match: bool,
     /// Indicates if copy operations from a specific source version are supported.
     pub copy_with_source_version: bool,
+    /// Indicates if copy operations can replace the destination's user metadata.
+    pub copy_with_user_metadata: bool,
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    pub copy_with_content_type: bool,
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    pub copy_with_content_language: bool,
     /// Indicates if copy operations can be split into multiple server-side tasks.
     pub copy_can_multi: bool,
     /// Maximum size supported for segmented copy tasks.
@@ -249,6 +255,8 @@ pub struct Capability {
     pub list_with_versions: bool,
     /// Indicates if listing with deleted files included is supported.
     pub list_with_deleted: bool,
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    pub list_with_glob: bool,
 
     /// Indicates if presigned URL generation is supported.
     pub presign: bool,

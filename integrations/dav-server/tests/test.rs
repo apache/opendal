@@ -28,13 +28,15 @@ use http::{HeaderValue, Method, Request, Response, StatusCode, header::ETAG};
 use opendal::services::{Fs, Http};
 use opendal::{HttpBody, HttpTransport, HttpTransporter, Operator};
 use opendal_core::raw::{
-    OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite, RpCreateDir,
-    RpPresign, RpRename, RpStat, Service, ServiceInfo, oio,
+    OpCompose, OpCopy, OpCreateDir, OpList, OpPresign, OpRead, OpRename, OpRestore, OpStat,
+    OpWrite, RpCreateDir, RpPresign, RpRename, RpRestore, RpStat, Service, ServiceDyn, ServiceInfo,
+    Servicer, oio,
 };
 use opendal_core::{
     Buffer, Capability, Error, ErrorKind, Metadata, MetadataBuilder, OperationContext,
 };
 use std::fs;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -73,6 +75,110 @@ async fn test_create_dir_nested() {
 
     assert!(op.exists("/a/").await.unwrap());
     assert!(op.exists("/a/b/").await.unwrap());
+}
+
+#[tokio::test]
+async fn test_create_dir_root_is_exists() -> Result<()> {
+    let memory = Operator::new(opendal::services::Memory::default())?;
+    assert!(matches!(
+        OpendalFs::new(memory).create_dir(&DavPath::new("/")?).await,
+        Err(FsError::Exists)
+    ));
+
+    let root = tempfile::tempdir()?;
+    let fs = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    assert!(matches!(
+        OpendalFs::new(fs).create_dir(&DavPath::new("/")?).await,
+        Err(FsError::Exists)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_twice_is_exists() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    let webdavfs = OpendalFs::new(op);
+
+    webdavfs.create_dir(&DavPath::new("/dir")?).await?;
+    assert!(matches!(
+        webdavfs.create_dir(&DavPath::new("/dir")?).await,
+        Err(FsError::Exists)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mkcol_over_existing_file() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.write("foo", "content").await?;
+
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+    for uri in ["/foo", "/foo/"] {
+        let response = dav
+            .handle(
+                Request::builder()
+                    .method("MKCOL")
+                    .uri(uri)
+                    .body(Body::empty())?,
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{uri}");
+    }
+
+    for path in ["/foo", "/foo/"] {
+        assert!(
+            matches!(
+                OpendalFs::new(op.clone())
+                    .create_dir(&DavPath::new(path)?)
+                    .await,
+                Err(FsError::Exists)
+            ),
+            "{path}"
+        );
+    }
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(!op.exists("foo/").await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_under_file_is_rejected() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.write("foo", "content").await?;
+    let webdavfs = OpendalFs::new(op.clone());
+
+    let err = webdavfs
+        .create_dir(&DavPath::new("/foo/child")?)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, FsError::Forbidden | FsError::NotFound),
+        "{err:?}"
+    );
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(!op.exists("foo/child/").await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_over_existing_file_on_fs() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    op.write("foo", "content").await?;
+    let webdavfs = OpendalFs::new(op.clone());
+
+    assert!(matches!(
+        webdavfs.create_dir(&DavPath::new("/foo")?).await,
+        Err(FsError::Exists)
+    ));
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(root.path().join("foo").is_file());
+    Ok(())
 }
 
 #[tokio::test]
@@ -363,6 +469,7 @@ impl Service for AbortTrackingService {
     fn capability(&self) -> Capability {
         Capability {
             write: true,
+            write_can_append: true,
             ..Default::default()
         }
     }
@@ -465,7 +572,10 @@ impl oio::Write for AbortTrackingWriter {
     }
 }
 
-async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<AtomicBool>) {
+async fn open_file_with_failure(
+    failure: Failure,
+    append: bool,
+) -> (Box<dyn DavFile>, Arc<AtomicBool>) {
     let aborted = Arc::new(AtomicBool::new(false));
     let service = AbortTrackingService {
         failure,
@@ -477,6 +587,7 @@ async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<Atom
             &DavPath::new("/failed-upload").unwrap(),
             OpenOptions {
                 write: true,
+                append,
                 ..OpenOptions::default()
             },
         )
@@ -487,33 +598,430 @@ async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<Atom
 
 #[tokio::test]
 async fn test_failed_write_aborts_before_returning() {
-    for write_buf in [false, true] {
-        let (mut file, aborted) = open_file_with_failure(Failure::Write).await;
-        // Exercise the backend write even if the adapter buffers incoming bytes.
-        let body = Bytes::from(vec![1; 1024 * 1024]);
-        let result = if write_buf {
-            file.write_buf(Box::new(body)).await
-        } else {
-            file.write_bytes(body).await
-        };
+    for append in [false, true] {
+        for write_buf in [false, true] {
+            let (mut file, aborted) = open_file_with_failure(Failure::Write, append).await;
+            // Exercise the backend write even if the adapter buffers incoming bytes.
+            let body = Bytes::from(vec![1; 1024 * 1024]);
+            let result = if write_buf {
+                file.write_buf(Box::new(body)).await
+            } else {
+                file.write_bytes(body).await
+            };
 
-        assert!(matches!(result, Err(FsError::GeneralFailure)));
-        assert!(
-            aborted.load(Ordering::Relaxed),
-            "write failure must abort the writer"
-        );
-        assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+            assert!(matches!(result, Err(FsError::GeneralFailure)));
+            assert!(
+                aborted.load(Ordering::Relaxed),
+                "write failure must abort the writer"
+            );
+            assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+            assert!(matches!(
+                file.seek(SeekFrom::Current(0)).await,
+                Err(FsError::GeneralFailure)
+            ));
+        }
     }
 }
 
 #[tokio::test]
 async fn test_failed_close_aborts_before_returning() {
-    let (mut file, aborted) = open_file_with_failure(Failure::Close).await;
-    file.write_bytes(Bytes::from_static(b"body")).await.unwrap();
+    for append in [false, true] {
+        let (mut file, aborted) = open_file_with_failure(Failure::Close, append).await;
+        file.write_bytes(Bytes::from_static(b"body")).await.unwrap();
 
+        assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+        assert!(
+            aborted.load(Ordering::Relaxed),
+            "close failure must abort the writer"
+        );
+        assert!(matches!(
+            file.seek(SeekFrom::Current(0)).await,
+            Err(FsError::GeneralFailure)
+        ));
+    }
+}
+
+/// Wrapper that advertises `rename` but rejects it with `IsADirectory`,
+/// mirroring backends such as `smb` that cannot move directories. It can also
+/// hide one path from `stat` for a single call to simulate a destination
+/// collection appearing between the adapter's existence check and rename.
+#[derive(Debug)]
+struct DirRenameDenyService {
+    inner: Servicer,
+    hidden_path: String,
+    hidden: AtomicBool,
+}
+
+impl Service for DirRenameDenyService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info_dyn()
+    }
+
+    fn capability(&self) -> Capability {
+        let mut capability = self.inner.capability_dyn();
+        capability.rename = true;
+        capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> opendal_core::Result<RpCreateDir> {
+        self.inner.create_dir_dyn(ctx, path, args).await
+    }
+
+    async fn stat(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> opendal_core::Result<RpStat> {
+        if path == self.hidden_path && self.hidden.swap(false, Ordering::Relaxed) {
+            return Err(Error::new(ErrorKind::NotFound, "hidden for test"));
+        }
+        self.inner.stat_dyn(ctx, path, args).await
+    }
+
+    fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> opendal_core::Result<Self::Reader> {
+        self.inner.read_dyn(ctx, path, args)
+    }
+
+    fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> opendal_core::Result<Self::Writer> {
+        self.inner.write_dyn(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> opendal_core::Result<Self::Deleter> {
+        self.inner.delete_dyn(ctx)
+    }
+
+    fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> opendal_core::Result<Self::Lister> {
+        self.inner.list_dyn(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> opendal_core::Result<Self::Copier> {
+        self.inner.copy_dyn(ctx, from, to, args)
+    }
+
+    fn compose(
+        &self,
+        ctx: &OperationContext,
+        to: &str,
+        args: OpCompose,
+    ) -> opendal_core::Result<Self::Composer> {
+        self.inner.compose_dyn(ctx, to, args)
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> opendal_core::Result<RpRename> {
+        Err(Error::new(
+            ErrorKind::IsADirectory,
+            "cannot rename a directory",
+        ))
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> opendal_core::Result<RpRestore> {
+        self.inner.restore_dyn(ctx, path, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> opendal_core::Result<RpPresign> {
+        self.inner.presign_dyn(ctx, path, args).await
+    }
+}
+
+fn deny_dir_rename_op(hidden_path: Option<&str>) -> Operator {
+    let inner = Operator::new(opendal::services::Memory::default())
+        .unwrap()
+        .service()
+        .clone();
+    Operator::from_parts(
+        OperationContext::default(),
+        Arc::new(DirRenameDenyService {
+            inner,
+            hidden_path: hidden_path.unwrap_or_default().to_string(),
+            hidden: AtomicBool::new(hidden_path.is_some()),
+        }),
+    )
+}
+
+#[tokio::test]
+async fn test_collection_move_falls_back_when_backend_denies_dir_rename() -> Result<()> {
+    let webdavfs = OpendalFs::new(deny_dir_rename_op(None));
+
+    // An empty collection falls back to create + delete.
+    webdavfs
+        .create_dir(&DavPath::new("/empty/").unwrap())
+        .await
+        .unwrap();
+    webdavfs
+        .rename(
+            &DavPath::new("/empty/").unwrap(),
+            &DavPath::new("/renamed/").unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        webdavfs.metadata(&DavPath::new("/renamed/")?).await,
+        Ok(metadata) if metadata.is_dir()
+    ));
+
+    // A non-empty collection still reports NotImplemented.
+    webdavfs
+        .create_dir(&DavPath::new("/dir/").unwrap())
+        .await
+        .unwrap();
+    webdavfs.op.write("dir/file", b"x".to_vec()).await?;
+    assert!(matches!(
+        webdavfs
+            .rename(
+                &DavPath::new("/dir/").unwrap(),
+                &DavPath::new("/moved/").unwrap(),
+            )
+            .await,
+        Err(FsError::NotImplemented)
+    ));
+
+    // Moving a missing collection reports NotFound.
+    assert!(matches!(
+        webdavfs
+            .rename(
+                &DavPath::new("/gone/").unwrap(),
+                &DavPath::new("/nowhere/").unwrap(),
+            )
+            .await,
+        Err(FsError::NotFound)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_collection_move_denies_root() -> Result<()> {
+    for op in [
+        deny_dir_rename_op(None),
+        Operator::new(opendal::services::Memory::default()).unwrap(),
+    ] {
+        let webdavfs = OpendalFs::new(op);
+        assert!(matches!(
+            webdavfs
+                .rename(&DavPath::new("/")?, &DavPath::new("/moved/")?)
+                .await,
+            Err(FsError::Forbidden)
+        ));
+        webdavfs
+            .create_dir(&DavPath::new("/dir/").unwrap())
+            .await
+            .unwrap();
+        assert!(matches!(
+            webdavfs
+                .rename(&DavPath::new("/dir/")?, &DavPath::new("/")?)
+                .await,
+            Err(FsError::Forbidden)
+        ));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_collection_move_into_existing_dir_is_exists() -> Result<()> {
+    // `/moved/` exists but is hidden from the first stat, so the adapter's
+    // existence check sees a free destination and only the rename-time
+    // IsADirectory re-check observes it.
+    let webdavfs = OpendalFs::new(deny_dir_rename_op(Some("moved/")));
+    webdavfs
+        .create_dir(&DavPath::new("/dir/").unwrap())
+        .await
+        .unwrap();
+    webdavfs
+        .create_dir(&DavPath::new("/moved/").unwrap())
+        .await
+        .unwrap();
+
+    assert!(matches!(
+        webdavfs
+            .rename(
+                &DavPath::new("/dir/").unwrap(),
+                &DavPath::new("/moved/").unwrap(),
+            )
+            .await,
+        Err(FsError::Exists)
+    ));
+
+    // Neither collection is touched by the refused move.
+    for path in ["/dir/", "/moved/"] {
+        assert!(matches!(
+            webdavfs.metadata(&DavPath::new(path)?).await,
+            Ok(metadata) if metadata.is_dir()
+        ));
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_collection_move_without_backend_rename() -> Result<()> {
+    // Memory has no native rename; the empty-collection move keeps working.
+    let op = Operator::new(opendal::services::Memory::default()).unwrap();
+    let webdavfs = OpendalFs::new(op);
+
+    webdavfs
+        .create_dir(&DavPath::new("/empty/").unwrap())
+        .await
+        .unwrap();
+    webdavfs
+        .rename(
+            &DavPath::new("/empty/").unwrap(),
+            &DavPath::new("/renamed/").unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(
+        webdavfs.metadata(&DavPath::new("/renamed/")?).await,
+        Ok(metadata) if metadata.is_dir()
+    ));
+
+    webdavfs
+        .create_dir(&DavPath::new("/dir/").unwrap())
+        .await
+        .unwrap();
+    webdavfs.op.write("dir/file", b"x".to_vec()).await?;
+    assert!(matches!(
+        webdavfs
+            .rename(
+                &DavPath::new("/dir/").unwrap(),
+                &DavPath::new("/moved/").unwrap(),
+            )
+            .await,
+        Err(FsError::NotImplemented)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_append_seek_and_cursor_accounting() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let builder = Fs::default().root(root.path().to_str().unwrap());
+    let op = Operator::new(builder)?;
+    op.write("append.txt", "abc").await?;
+
+    let webdavfs = OpendalFs::new(op.clone());
+    let path = DavPath::new("/append.txt")?;
+
+    let mut file = webdavfs
+        .open(
+            &path,
+            OpenOptions {
+                write: true,
+                append: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await?;
+
+    // Before writing, Start(0) (used by dav-server), Start(eof), Current(0), and End(0)
+    // all succeed and report the current append offset.
+    assert_eq!(file.seek(SeekFrom::Start(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::End(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::Start(3)).await?, 3);
+
+    // Random seeks away from the append position must fail.
+    assert!(matches!(
+        file.seek(SeekFrom::Start(1)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        file.seek(SeekFrom::Current(-1)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        file.seek(SeekFrom::End(-1)).await,
+        Err(FsError::NotImplemented)
+    ));
+
+    file.write_bytes(Bytes::from_static(b"d")).await?;
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 4);
+    assert_eq!(file.seek(SeekFrom::End(0)).await?, 4);
+    assert_eq!(file.seek(SeekFrom::Start(4)).await?, 4);
+    assert!(matches!(
+        file.seek(SeekFrom::Start(0)).await,
+        Err(FsError::NotImplemented)
+    ));
+
+    file.write_buf(Box::new(Bytes::from_static(b"ef"))).await?;
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 6);
+
+    file.flush().await?;
+    assert!(matches!(
+        file.seek(SeekFrom::Current(0)).await,
+        Err(FsError::GeneralFailure)
+    ));
     assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
-    assert!(
-        aborted.load(Ordering::Relaxed),
-        "close failure must abort the writer"
-    );
+
+    assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
+
+    // Non-append writers reject all seeks (including Start(0)) without modifying the file.
+    let mut writer = webdavfs
+        .open(
+            &path,
+            OpenOptions {
+                write: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await?;
+    assert!(matches!(
+        writer.seek(SeekFrom::Start(0)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        writer.seek(SeekFrom::Start(2)).await,
+        Err(FsError::NotImplemented)
+    ));
+    drop(writer);
+
+    assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
+    Ok(())
 }

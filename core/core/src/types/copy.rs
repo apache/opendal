@@ -31,20 +31,82 @@ use crate::*;
 /// - `Copier` implements `Stream<Item = Result<usize>>`.
 /// - `Some(Ok(n))` means the copy operation made progress by `n` bytes.
 /// - `None` means the copy operation has completed.
+///
+/// A copier completes the copy before it terminates: the inner copier is closed
+/// and its completion response is processed before the stream yields `None`, and
+/// [`Copier::close`] returns the metadata from that response. Aborting or
+/// failing a copier makes it terminal: later [`Copier::next`] calls and stream
+/// polls return `None` without driving the inner copier again, and
+/// [`Copier::close`] fails instead of reporting a result.
 pub struct Copier {
+    /// The inner copier.
+    ///
+    /// This is `None` while the in-flight step in [`Copier::fut`] owns it, and
+    /// after the copy completed or was aborted.
     copier: Option<oio::Copier>,
-    metadata: Option<Metadata>,
+    /// The in-flight step, `Some` only while the state is [`State::InFlight`].
+    ///
+    /// The step owns the inner copier, so a canceled stream poll never drops
+    /// progress the inner copier already made.
+    fut: Option<BoxedStaticFuture<Step>>,
+    /// The current state of this copier.
+    state: State,
+}
 
-    fut: Option<BoxedStaticFuture<(oio::Copier, Result<Option<usize>>)>>,
-    errored: bool,
+/// State of a [`Copier`].
+///
+/// While the copy makes progress the copier alternates between `Idle` and
+/// `InFlight`. `Closed` and `Aborted` end the copy, and `Failed` records that
+/// the copy cannot continue, though the inner copier can still be aborted.
+enum State {
+    /// The inner copier is ready to be advanced.
+    Idle,
+    /// A step is in flight in [`Copier::fut`].
+    InFlight,
+    /// The copy completed and `close_dyn` returned its metadata.
+    Closed(Metadata),
+    /// The copy was aborted by the caller.
+    Aborted,
+    /// The copy, or the final `close_dyn`, failed.
+    Failed,
+}
+
+/// The outcome of one [`advance`] step.
+enum Step {
+    /// The copy made progress by this many bytes and can be advanced again.
+    Progress(oio::Copier, usize),
+    /// The copy completed and the inner copier has been closed.
+    Closed(Metadata),
+    /// Advancing or closing the copy failed.
+    ///
+    /// The copier is kept so the caller can still abort a partially created
+    /// server-side copy.
+    Failed(oio::Copier, Error),
+}
+
+/// Drive one step of `copier`: advance the copy and close it once it completes.
+async fn advance(mut copier: oio::Copier) -> Step {
+    match copier.next_dyn().await {
+        Ok(Some(n)) => Step::Progress(copier, n),
+        Ok(None) => match copier.close_dyn().await {
+            Ok(metadata) => Step::Closed(metadata),
+            Err(err) => Step::Failed(copier, err),
+        },
+        Err(err) => Step::Failed(copier, err),
+    }
 }
 
 impl fmt::Debug for Copier {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Copier")
-            .field("active", &self.copier.is_some())
-            .field("errored", &self.errored)
-            .finish()
+        let state = match &self.state {
+            State::Idle => "idle",
+            State::InFlight => "in_flight",
+            State::Closed(_) => "closed",
+            State::Aborted => "aborted",
+            State::Failed => "failed",
+        };
+
+        f.debug_struct("Copier").field("state", &state).finish()
     }
 }
 
@@ -66,104 +128,433 @@ impl Copier {
 
         Ok(Self {
             copier: Some(copier),
-            metadata: None,
-
             fut: None,
-            errored: false,
+            state: State::Idle,
         })
     }
 
     /// Advance the copy operation by one step.
+    ///
+    /// Returns `None` once the copy completed or the copier became terminal.
     pub async fn next(&mut self) -> Result<Option<usize>> {
-        if self.errored {
-            return Ok(None);
-        }
-
-        let Some(copier) = self.copier.as_mut() else {
-            return Ok(None);
-        };
-
-        match copier.next_dyn().await {
-            Ok(Some(n)) => Ok(Some(n)),
-            Ok(None) => {
-                self.metadata = Some(copier.close_dyn().await?);
-                self.copier = None;
-                Ok(None)
-            }
-            Err(err) => {
-                self.errored = true;
-                Err(err)
-            }
+        match &self.state {
+            // Terminal copiers never drive the inner copier again.
+            State::Closed(_) | State::Aborted | State::Failed => Ok(None),
+            // A step started by a canceled stream poll is awaited instead of
+            // dropped, so the progress it already made is not lost.
+            State::Idle | State::InFlight => self.step().await,
         }
     }
 
     /// Abort the pending copy operation.
+    ///
+    /// Aborting a completed copier is a no-op. After a successful abort, later
+    /// [`Copier::next`] calls and stream polls return `None`, and
+    /// [`Copier::close`] fails.
     pub async fn abort(&mut self) -> Result<()> {
+        match &self.state {
+            // The copy already completed or was aborted, there is nothing left
+            // to abort.
+            State::Closed(_) | State::Aborted => return Ok(()),
+            State::Idle | State::InFlight | State::Failed => {}
+        }
+
+        if matches!(self.state, State::InFlight) {
+            // Await the in-flight step before aborting: the step owns the inner
+            // copier, so aborting without it would silently do nothing. The
+            // step error is not returned here because `abort` reports whether
+            // the server-side copy was cleaned up, and callers retry `abort` on
+            // its own error.
+            let _ = self.step().await;
+        }
+
         let Some(copier) = self.copier.as_mut() else {
             return Ok(());
         };
 
-        copier.abort_dyn().await
+        // Keep the copier when the abort fails: the inner copier is retryable,
+        // so the next `abort` call can clean up the same server-side copy.
+        copier.abort_dyn().await?;
+        self.copier = None;
+        self.state = State::Aborted;
+        Ok(())
     }
 
     /// Close the copier and return metadata from the server-side completion response.
+    ///
+    /// This drives the copy to completion when it has not finished yet.
     pub async fn close(&mut self) -> Result<Metadata> {
-        if self.errored {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "copier has already failed and can't be closed",
-            ));
+        match &self.state {
+            State::Closed(metadata) => return Ok(metadata.clone()),
+            State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "copier has already been aborted and can't be closed",
+                ));
+            }
+            State::Failed => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "copier has already failed and can't be closed",
+                ));
+            }
+            State::Idle | State::InFlight => {}
         }
 
-        if let Some(metadata) = self.metadata.clone() {
-            return Ok(metadata);
+        while self.next().await?.is_some() {}
+
+        match &self.state {
+            State::Closed(metadata) => Ok(metadata.clone()),
+            _ => Ok(MetadataBuilder::unknown().build()),
+        }
+    }
+
+    /// Run one step of the copy and record its outcome.
+    ///
+    /// The step is started in [`Copier::fut`] before awaiting it, so canceling
+    /// the caller's future never drops progress the inner copier already made.
+    async fn step(&mut self) -> Result<Option<usize>> {
+        self.start_step();
+
+        let Some(fut) = self.fut.as_mut() else {
+            // Terminal copiers have no step left to run.
+            return Ok(None);
+        };
+        let step = fut.await;
+        self.fut = None;
+
+        self.apply_step(step)
+    }
+
+    /// Start a step in [`Copier::fut`] unless one is in flight or the copier is
+    /// terminal.
+    fn start_step(&mut self) {
+        if !matches!(self.state, State::Idle) {
+            return;
         }
 
-        while self.metadata.is_none() {
-            match self.next().await? {
-                Some(_) => continue,
-                None => break,
+        // `State::Idle` and `copier` are set together by `apply_step`.
+        let copier = self
+            .copier
+            .take()
+            .expect("copier must be present while idle");
+        self.state = State::InFlight;
+        self.fut = Some(Box::pin(advance(copier)));
+    }
+
+    /// Record the outcome of one step and transition to the matching state.
+    fn apply_step(&mut self, step: Step) -> Result<Option<usize>> {
+        match step {
+            Step::Progress(copier, n) => {
+                self.copier = Some(copier);
+                self.state = State::Idle;
+                Ok(Some(n))
+            }
+            Step::Closed(metadata) => {
+                self.state = State::Closed(metadata);
+                Ok(None)
+            }
+            Step::Failed(copier, err) => {
+                self.copier = Some(copier);
+                self.state = State::Failed;
+                Err(err)
             }
         }
-
-        Ok(self
-            .metadata
-            .clone()
-            .unwrap_or_else(|| MetadataBuilder::unknown().build()))
     }
 }
 
 impl Stream for Copier {
     type Item = Result<usize>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.errored {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = self.get_mut();
+        this.start_step();
+
+        // Terminal copiers have no step left to run.
+        let Some(fut) = this.fut.as_mut() else {
             return Poll::Ready(None);
+        };
+
+        let step = ready!(fut.as_mut().poll(cx));
+        this.fut = None;
+
+        match this.apply_step(step) {
+            Ok(Some(n)) => Poll::Ready(Some(Ok(n))),
+            Ok(None) => Poll::Ready(None),
+            Err(err) => Poll::Ready(Some(Err(err))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    use futures::StreamExt;
+    use futures::TryStreamExt;
+    use futures::poll;
+
+    use super::*;
+
+    /// Content length returned by [`MockCopy::close`].
+    const CLOSE_CONTENT_LENGTH: u64 = 42;
+
+    /// Call counters shared with the mock copier, so tests can assert how often
+    /// each inner operation ran.
+    #[derive(Default)]
+    struct MockCalls {
+        next: AtomicUsize,
+        close: AtomicUsize,
+        abort: AtomicUsize,
+    }
+
+    impl MockCalls {
+        fn next(&self) -> usize {
+            self.next.load(Ordering::Relaxed)
         }
 
-        if let Some(mut copier) = self.copier.take() {
-            let fut = async move {
-                let res = copier.next_dyn().await;
-                (copier, res)
-            };
-            self.fut = Some(Box::pin(fut));
+        fn close(&self) -> usize {
+            self.close.load(Ordering::Relaxed)
         }
 
-        if let Some(fut) = self.fut.as_mut() {
-            let (copier, res) = ready!(fut.as_mut().poll(cx));
-            self.copier = Some(copier);
-            self.fut = None;
+        fn abort(&self) -> usize {
+            self.abort.load(Ordering::Relaxed)
+        }
+    }
 
-            return match res {
-                Ok(Some(n)) => Poll::Ready(Some(Ok(n))),
-                Ok(None) => Poll::Ready(None),
-                Err(err) => {
-                    self.errored = true;
-                    Poll::Ready(Some(Err(err)))
-                }
-            };
+    struct MockCopy {
+        /// Results returned by `next`, in order. A missing entry completes the copy.
+        steps: VecDeque<Result<Option<usize>>>,
+        /// Whether the first `next` call returns `Poll::Pending` once.
+        pending_once: bool,
+        /// Whether `close` fails instead of returning metadata.
+        close_fails: bool,
+        calls: Arc<MockCalls>,
+    }
+
+    impl MockCopy {
+        fn new(
+            calls: &Arc<MockCalls>,
+            steps: impl IntoIterator<Item = Result<Option<usize>>>,
+        ) -> Self {
+            Self {
+                steps: steps.into_iter().collect(),
+                pending_once: false,
+                close_fails: false,
+                calls: calls.clone(),
+            }
+        }
+    }
+
+    impl oio::Copy for MockCopy {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            self.calls.next.fetch_add(1, Ordering::Relaxed);
+
+            if self.pending_once {
+                self.pending_once = false;
+                yield_once().await;
+            }
+
+            self.steps.pop_front().unwrap_or(Ok(None))
         }
 
-        Poll::Ready(None)
+        async fn close(&mut self) -> Result<Metadata> {
+            self.calls.close.fetch_add(1, Ordering::Relaxed);
+
+            if self.close_fails {
+                return Err(Error::new(ErrorKind::Unexpected, "mock close failed"));
+            }
+
+            let mut builder = MetadataBuilder::unknown();
+            builder.set_file(CLOSE_CONTENT_LENGTH);
+            Ok(builder.build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.calls.abort.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    /// Return `Poll::Pending` on the first poll and `Poll::Ready` afterwards.
+    ///
+    /// Lets a test leave a `next` step in flight and cancel the stream poll.
+    async fn yield_once() {
+        let mut yielded = false;
+
+        std::future::poll_fn(move |cx| {
+            if yielded {
+                return Poll::Ready(());
+            }
+
+            yielded = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        })
+        .await;
+    }
+
+    fn mock_copier(mock: MockCopy) -> Copier {
+        Copier {
+            copier: Some(Box::new(mock)),
+            fut: None,
+            state: State::Idle,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_copier_stream_closes_inner_copier_once() {
+        let calls = Arc::new(MockCalls::default());
+        let copier = mock_copier(MockCopy::new(&calls, [Ok(Some(4)), Ok(Some(6)), Ok(None)]));
+
+        // Driving the copier as a stream must complete the copy, not only end
+        // the stream: `close_dyn` is the step that finalizes it.
+        let sizes = copier.try_collect::<Vec<_>>().await.unwrap();
+
+        assert_eq!(sizes, vec![4, 6]);
+        assert_eq!(calls.next(), 3);
+        assert_eq!(calls.close(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_stream_repoll_after_close() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy::new(&calls, [Ok(Some(4)), Ok(None)]));
+
+        let sizes = (&mut copier).try_collect::<Vec<_>>().await.unwrap();
+        assert_eq!(sizes, vec![4]);
+        assert_eq!(calls.next(), 2);
+        assert_eq!(calls.close(), 1);
+
+        // A completed stream stays completed: it returns `None` without driving
+        // the inner copier or closing it again.
+        assert!(matches!(
+            poll!(StreamExt::next(&mut copier)),
+            Poll::Ready(None)
+        ));
+        assert!(copier.next().await.unwrap().is_none());
+        assert_eq!(calls.next(), 2);
+        assert_eq!(calls.close(), 1);
+
+        // `close` reports the metadata returned by `close_dyn`.
+        assert_eq!(
+            copier.close().await.unwrap().content_length(),
+            CLOSE_CONTENT_LENGTH
+        );
+        assert_eq!(calls.close(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_stream_surfaces_close_error() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy {
+            close_fails: true,
+            ..MockCopy::new(&calls, [Ok(None)])
+        });
+
+        let err = (&mut copier).try_collect::<Vec<_>>().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(calls.next(), 1);
+        assert_eq!(calls.close(), 1);
+
+        // A failed close terminates the copier instead of retrying it.
+        assert!(copier.next().await.unwrap().is_none());
+        assert!(matches!(
+            poll!(StreamExt::next(&mut copier)),
+            Poll::Ready(None)
+        ));
+        assert!(copier.close().await.is_err());
+        assert_eq!(calls.next(), 1);
+        assert_eq!(calls.close(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_abort_after_cancelled_poll() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy {
+            pending_once: true,
+            ..MockCopy::new(&calls, [Ok(Some(4))])
+        });
+
+        // Cancel the first poll while the `next` step is in flight.
+        assert!(poll!(StreamExt::next(&mut copier)).is_pending());
+
+        // `abort` must reach the inner copier instead of returning early
+        // because the in-flight step owns it.
+        copier.abort().await.unwrap();
+        assert_eq!(calls.abort(), 1);
+
+        // The aborted copier is terminal.
+        assert!(copier.next().await.unwrap().is_none());
+        assert!(matches!(
+            poll!(StreamExt::next(&mut copier)),
+            Poll::Ready(None)
+        ));
+        assert!(copier.close().await.is_err());
+        assert_eq!(calls.next(), 1);
+        assert_eq!(calls.close(), 0);
+
+        // Aborting again is a no-op.
+        copier.abort().await.unwrap();
+        assert_eq!(calls.abort(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_close_after_cancelled_poll() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy {
+            pending_once: true,
+            ..MockCopy::new(&calls, [Ok(Some(4)), Ok(None)])
+        });
+
+        assert!(poll!(StreamExt::next(&mut copier)).is_pending());
+
+        // `close` resumes the in-flight step, drives the copy to completion and
+        // closes the inner copier.
+        let metadata = copier.close().await.unwrap();
+        assert_eq!(metadata.content_length(), CLOSE_CONTENT_LENGTH);
+        assert_eq!(calls.next(), 2);
+        assert_eq!(calls.close(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_next_after_cancelled_poll() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy {
+            pending_once: true,
+            ..MockCopy::new(&calls, [Ok(Some(4)), Ok(None)])
+        });
+
+        assert!(poll!(StreamExt::next(&mut copier)).is_pending());
+
+        // `next` resumes the in-flight step instead of dropping its progress.
+        assert_eq!(copier.next().await.unwrap(), Some(4));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert_eq!(calls.next(), 2);
+        assert_eq!(calls.close(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_copier_next_cancelled_mid_step() {
+        let calls = Arc::new(MockCalls::default());
+        let mut copier = mock_copier(MockCopy {
+            pending_once: true,
+            ..MockCopy::new(&calls, [Ok(Some(4)), Ok(None)])
+        });
+
+        {
+            // Cancel `next` itself while its step is in flight.
+            let mut fut = std::pin::pin!(copier.next());
+            assert!(poll!(&mut fut).is_pending());
+        }
+
+        // Canceled `next` calls keep the in-flight step resumable.
+        assert_eq!(copier.next().await.unwrap(), Some(4));
+        assert_eq!(copier.next().await.unwrap(), None);
+        assert_eq!(calls.next(), 2);
+        assert_eq!(calls.close(), 1);
     }
 }

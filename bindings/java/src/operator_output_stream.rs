@@ -37,12 +37,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
 >(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_construct_write(env, op_ref, path, options)
     })
     .resolve::<ThrowException>()
@@ -50,7 +50,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
 
 fn intern_construct_write(
     env: &mut Env,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString,
     options: JObject,
 ) -> crate::Result<jlong> {

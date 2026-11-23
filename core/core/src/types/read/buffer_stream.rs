@@ -100,6 +100,23 @@ struct ChunkedReadInput {
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
+/// A planned chunk and the chunked reader state after it is scheduled.
+#[derive(Clone, Copy)]
+struct PlannedRange {
+    range: BytesRange,
+    next_offset: u64,
+    next_remaining: Option<u64>,
+}
+
+/// A chunk opened by `prepare_metadata` whose range is not committed yet.
+///
+/// The range advances only after the chunk is successfully scheduled, so a
+/// failed or cancelled read retries this chunk instead of skipping it.
+struct OpenedChunk {
+    input: ChunkedReadInput,
+    planned: PlannedRange,
+}
+
 /// ChunkedReader will read the file in chunks.
 ///
 /// ChunkedReader is good for concurrent read and optimized for throughput.
@@ -107,7 +124,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    opened: Option<ChunkedReadInput>,
+    opened: Option<Box<OpenedChunk>>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -160,14 +177,18 @@ impl ChunkedReader {
         }
 
         if self.opened.is_none() {
-            if let Some(range) = self.next_range() {
+            if let Some(planned) = self.plan_next_range() {
+                let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(ChunkedReadInput {
-                    ctx: self.ctx.clone(),
-                    range,
-                    reader: Some(reader),
-                });
+                self.opened = Some(Box::new(OpenedChunk {
+                    input: ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                        reader: Some(reader),
+                    },
+                    planned,
+                }));
             } else {
                 self.done = true;
             }
@@ -185,47 +206,58 @@ impl ChunkedReader {
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
     }
 
-    /// Generate the next range to read, advancing internal state.
-    fn next_range(&mut self) -> Option<BytesRange> {
+    /// Plan the next range to read without advancing chunked reader state.
+    fn plan_next_range(&self) -> Option<PlannedRange> {
         if self.remaining == Some(0) {
             return None;
         }
 
-        let next_offset = self.offset;
-        let next_size = match self.remaining {
-            None => {
-                self.remaining = Some(0);
-                None
-            }
+        let (next_size, next_offset, next_remaining) = match self.remaining {
+            None => (None, self.offset, Some(0)),
             Some(remaining) => {
                 let read_size = self
                     .ctx
                     .options()
                     .chunk()
                     .map_or(remaining, |chunk| remaining.min(chunk as u64));
-                self.offset += read_size;
-                self.remaining = Some(remaining - read_size);
-                Some(read_size)
+                (
+                    Some(read_size),
+                    self.offset + read_size,
+                    Some(remaining - read_size),
+                )
             }
         };
 
-        Some(BytesRange::new(next_offset, next_size))
+        Some(PlannedRange {
+            range: BytesRange::new(self.offset, next_size),
+            next_offset,
+            next_remaining,
+        })
+    }
+
+    /// Advance chunked reader state after the planned range is scheduled.
+    fn commit_range(&mut self, planned: PlannedRange) {
+        self.offset = planned.next_offset;
+        self.remaining = planned.next_remaining;
     }
 }
 
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(input) = self.opened.take() {
+            if let Some(opened) = self.opened.take() {
+                let OpenedChunk { input, planned } = *opened;
                 self.tasks.execute(input).await?;
-            } else if let Some(range) = self.next_range() {
+                self.commit_range(planned);
+            } else if let Some(planned) = self.plan_next_range() {
                 self.tasks
                     .execute(ChunkedReadInput {
                         ctx: self.ctx.clone(),
-                        range,
+                        range: planned.range,
                         reader: None,
                     })
                     .await?;
+                self.commit_range(planned);
             } else {
                 self.done = true;
                 break;
@@ -265,6 +297,13 @@ pub struct BufferStream {
 enum State {
     Idle(Option<TwoWays<StreamingReader, ChunkedReader>>),
     Reading(BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Buffer>)>),
+    /// A metadata preparation future that owns the reader.
+    ///
+    /// Keeping the future in the state preserves the reader and the progress it
+    /// already made when a [`BufferStream::metadata`] future is dropped.
+    PreparingMetadata(
+        BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Metadata>)>,
+    ),
 }
 
 impl BufferStream {
@@ -314,28 +353,41 @@ impl BufferStream {
     /// Calling this method opens the underlying read request if needed.
     /// Returns [`ErrorKind::Unsupported`] if the underlying service doesn't
     /// return metadata while opening the read operation.
+    ///
+    /// Dropping this future before it completes does not lose the stream's
+    /// reader; later calls resume the same preparation.
     pub async fn metadata(&mut self) -> Result<Metadata> {
         if let Some(metadata) = self.ctx.metadata() {
             return Ok(metadata.clone());
         }
 
-        match std::mem::replace(&mut self.state, State::Idle(None)) {
+        match &mut self.state {
             State::Idle(reader) => {
-                let mut reader = reader.expect("reader must exist while idle");
-                let prepared = match &mut reader {
-                    TwoWays::One(v) => v.metadata().await,
-                    TwoWays::Two(v) => v.metadata().await,
+                let mut reader = reader.take().expect("reader must exist while idle");
+                let fut = async move {
+                    let ret = match &mut reader {
+                        TwoWays::One(v) => v.metadata().await,
+                        TwoWays::Two(v) => v.metadata().await,
+                    };
+                    (reader, ret)
                 };
-                self.state = State::Idle(Some(reader));
-                prepared
+                self.state = State::PreparingMetadata(Box::pin(fut));
             }
-            State::Reading(fut) => {
-                self.state = State::Reading(fut);
-                self.ctx.metadata().cloned().ok_or_else(|| {
-                    Error::new(ErrorKind::Unsupported, "read metadata is not available")
-                })
+            State::PreparingMetadata(_) => {}
+            State::Reading(_) => {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "read metadata is not available",
+                ));
             }
         }
+
+        let State::PreparingMetadata(fut) = &mut self.state else {
+            unreachable!("metadata state must be preparing")
+        };
+        let (reader, result) = fut.as_mut().await;
+        self.state = State::Idle(Some(reader));
+        result
     }
 }
 
@@ -356,7 +408,7 @@ impl Stream for BufferStream {
         loop {
             match &mut this.state {
                 State::Idle(reader) => {
-                    let mut reader = reader.take().unwrap();
+                    let mut reader = reader.take().expect("reader must exist while idle");
                     let fut = async move {
                         let ret = reader.read().await;
                         (reader, ret)
@@ -386,6 +438,15 @@ impl Stream for BufferStream {
                         Err(err) => Poll::Ready(Some(Err(err))),
                     };
                 }
+                State::PreparingMetadata(fut) => {
+                    let (reader, result) = ready!(fut.as_mut().poll(cx));
+                    this.state = State::Idle(Some(reader));
+                    match result {
+                        Ok(_) => {}
+                        Err(err) if err.kind() == ErrorKind::Unsupported => {}
+                        Err(err) => return Poll::Ready(Some(Err(err))),
+                    }
+                }
             }
         }
     }
@@ -394,13 +455,77 @@ impl Stream for BufferStream {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
 
     use bytes::Buf;
     use bytes::Bytes;
+    use futures::StreamExt;
     use futures::TryStreamExt;
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::types::read::test_utils::ReadFault;
+    use crate::types::read::test_utils::new_mock_read_context;
+
+    struct PendingOnceReader {
+        content: Bytes,
+        pending: AtomicBool,
+    }
+
+    impl PendingOnceReader {
+        fn new(content: Bytes) -> Self {
+            Self {
+                content,
+                pending: AtomicBool::new(true),
+            }
+        }
+    }
+
+    impl oio::Read for PendingOnceReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            if self.pending.swap(false, Ordering::SeqCst) {
+                let mut polled = false;
+                std::future::poll_fn(|cx| {
+                    if polled {
+                        Poll::Ready(())
+                    } else {
+                        polled = true;
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    }
+                })
+                .await;
+            }
+
+            let start = range.offset() as usize;
+            let size = range.size().expect("range must be bounded") as usize;
+            let metadata = MetadataBuilder::file(self.content.len() as u64).build();
+
+            Ok((
+                RpRead::new(metadata),
+                Box::new(self.content.slice(start..start + size)),
+            ))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            Err(Error::new(ErrorKind::Unsupported, "read is not supported"))
+        }
+    }
+
+    fn new_pending_once_read_context(content: Bytes) -> Arc<ReadContext> {
+        let op = Operator::via_iter(services::MEMORY_SCHEME, []).unwrap();
+        let ctx = op.context().clone();
+        let srv = op.service().clone();
+        Arc::new(ReadContext::new(
+            ctx,
+            srv,
+            "test".to_string(),
+            OpRead::new(),
+            OpReader::new(),
+            Box::new(PendingOnceReader::new(content)),
+        ))
+    }
 
     fn new_read_context(
         ctx: OperationContext,
@@ -434,6 +559,72 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_metadata_cancel_then_metadata() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut metadata = std::pin::pin!(stream.metadata());
+            assert!(futures::poll!(&mut metadata).is_pending());
+        }
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+        assert!(stream.next().await.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_cancel_then_read() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut metadata = std::pin::pin!(stream.metadata());
+            assert!(futures::poll!(&mut metadata).is_pending());
+        }
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+        assert!(stream.next().await.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_metadata_while_reading() -> Result<()> {
+        let ctx = new_pending_once_read_context(Bytes::from_static(b"HelloWorld"));
+        let mut stream = BufferStream::create(ctx, 4..8, None).await?;
+
+        {
+            let mut next = std::pin::pin!(stream.next());
+            assert!(futures::poll!(&mut next).is_pending());
+        }
+
+        let err = stream
+            .metadata()
+            .await
+            .expect_err("metadata must be unavailable while reading");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let buf = stream.next().await.expect("stream must yield a buffer")?;
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"oWor"));
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+        assert!(stream.next().await.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_buffer_stream() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
         op.write(
@@ -455,6 +646,169 @@ mod tests {
         assert_eq!(buf.len(), 4);
         assert_eq!(&buf.to_vec(), "oWor".as_bytes());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_failed_chunk() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_failed_read_range(BytesRange::new(4, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..10, None).await?;
+
+        let mut data = Vec::new();
+        loop {
+            match stream.try_next().await {
+                Ok(Some(buf)) => data.extend_from_slice(&buf.to_vec()),
+                Ok(None) => break,
+                Err(err) if err.is_temporary() => continue,
+                Err(err) => return Err(err),
+            }
+        }
+
+        assert_eq!(data, b"HelloWorld");
+        assert_eq!(
+            fault.read_ranges(),
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(8, Some(2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_metadata_cancel_does_not_skip_chunk() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_pending_open());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+        {
+            let mut metadata = Box::pin(reader.metadata());
+            assert!(futures::poll!(metadata.as_mut()).is_pending());
+        }
+
+        let metadata = reader.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+
+        let data = reader.read_all().await?;
+        assert_eq!(data.to_vec(), b"HelloWorld");
+        assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(0, Some(4)),]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_metadata_cancel_keeps_chunked_reader() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_pending_open());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..10, None).await?;
+
+        {
+            let mut metadata = Box::pin(stream.metadata());
+            assert!(futures::poll!(metadata.as_mut()).is_pending());
+        }
+
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
+
+        let bufs: Vec<Buffer> = stream.try_collect().await?;
+        let data: Buffer = bufs.into_iter().flatten().collect();
+
+        assert_eq!(data.to_vec(), b"HelloWorld");
+        assert_eq!(fault.opened_ranges(), vec![BytesRange::new(0, Some(4))]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_metadata_chunk_after_read_error() -> Result<()> {
+        for concurrent in [1, 2] {
+            let fault =
+                Arc::new(ReadFault::new().with_failed_read_range(BytesRange::new(0, Some(4))));
+            let ctx = Arc::new(new_mock_read_context(
+                b"0123456789",
+                fault.clone(),
+                OpReader::new().with_chunk(4).with_concurrent(concurrent),
+            ));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+            let metadata = reader.metadata().await?;
+            assert_eq!(metadata.content_length(), 10);
+
+            let mut data = Vec::new();
+            loop {
+                match reader.read().await {
+                    Ok(buf) if buf.is_empty() => break,
+                    Ok(buf) => data.extend_from_slice(&buf.to_vec()),
+                    Err(err) if err.is_temporary() => continue,
+                    Err(err) => return Err(err),
+                }
+            }
+
+            assert_eq!(data, b"0123456789", "concurrent={concurrent}");
+            assert_eq!(
+                fault.opened_ranges(),
+                vec![BytesRange::new(0, Some(4))],
+                "concurrent={concurrent}"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_metadata_chunk_after_read_cancel() -> Result<()> {
+        for concurrent in [1, 2] {
+            let fault = Arc::new(ReadFault::new().with_pending_read());
+            let ctx = Arc::new(new_mock_read_context(
+                b"0123456789",
+                fault.clone(),
+                OpReader::new().with_chunk(4).with_concurrent(concurrent),
+            ));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+            let metadata = reader.metadata().await?;
+            assert_eq!(metadata.content_length(), 10);
+
+            {
+                let mut read = Box::pin(reader.read());
+                assert!(
+                    futures::poll!(read.as_mut()).is_pending(),
+                    "first chunk read should stay pending for concurrent={concurrent}"
+                );
+            }
+            fault.release_pending_read();
+
+            let mut data = Vec::new();
+            loop {
+                match reader.read().await {
+                    Ok(buf) if buf.is_empty() => break,
+                    Ok(buf) => data.extend_from_slice(&buf.to_vec()),
+                    Err(err) => return Err(err),
+                }
+            }
+
+            assert_eq!(data, b"0123456789", "concurrent={concurrent}");
+            assert_eq!(
+                fault.opened_ranges(),
+                vec![BytesRange::new(0, Some(4))],
+                "concurrent={concurrent}"
+            );
+        }
         Ok(())
     }
 }

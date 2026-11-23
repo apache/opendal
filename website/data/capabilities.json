@@ -1,0 +1,2258 @@
+{
+  "groups": [
+    {
+      "id": "summary",
+      "label": "Summary",
+      "description": "Core storage operations and concurrency support declared by each service."
+    },
+    {
+      "id": "stat",
+      "label": "Stat",
+      "description": "Metadata retrieval, conditional stat checks, and response header overrides."
+    },
+    {
+      "id": "read",
+      "label": "Read",
+      "description": "Object reads, suffix ranges, conditional reads, versioning, and header overrides."
+    },
+    {
+      "id": "write",
+      "label": "Write",
+      "description": "Single and multipart writes, append, metadata headers, conditional writes, and size limits."
+    },
+    {
+      "id": "list",
+      "label": "List",
+      "description": "Directory and prefix listing, pagination, native recursion, versions, deleted entries, and native glob."
+    },
+    {
+      "id": "delete",
+      "label": "Delete",
+      "description": "Object deletion, native recursive deletion, conditional deletes, versioning, and batch size limits."
+    },
+    {
+      "id": "copy",
+      "label": "Copy",
+      "description": "Server-side copy, segmented multipart copy, conditional copy, and metadata replacement."
+    },
+    {
+      "id": "compose",
+      "label": "Compose",
+      "description": "Server-side object composition from existing source objects."
+    },
+    {
+      "id": "presign",
+      "label": "Presign",
+      "description": "Presigned HTTP URL generation for client-side stat, read, write, and delete."
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "description": "Directory creation, rename, object restoration, and shared operator access."
+    }
+  ],
+  "fields": [
+    {
+      "name": "stat",
+      "short": "stat",
+      "group": "stat",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if the operator supports metadata retrieval operations."
+    },
+    {
+      "name": "stat_with_if_match",
+      "short": "with_if_match",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using If-Match are supported."
+    },
+    {
+      "name": "stat_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using If-None-Match are supported."
+    },
+    {
+      "name": "stat_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using version match are supported."
+    },
+    {
+      "name": "stat_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using version non-match are supported."
+    },
+    {
+      "name": "stat_with_if_modified_since",
+      "short": "with_if_modified_since",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using If-Modified-Since are supported."
+    },
+    {
+      "name": "stat_with_if_unmodified_since",
+      "short": "with_if_unmodified_since",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if conditional stat operations using If-Unmodified-Since are supported."
+    },
+    {
+      "name": "stat_with_override_cache_control",
+      "short": "with_override_cache_control",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if Cache-Control header override is supported during stat operations."
+    },
+    {
+      "name": "stat_with_override_content_disposition",
+      "short": "with_override_content_disposition",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if Content-Disposition header override is supported during stat operations."
+    },
+    {
+      "name": "stat_with_override_content_type",
+      "short": "with_override_content_type",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if Content-Type header override is supported during stat operations."
+    },
+    {
+      "name": "stat_with_version",
+      "short": "with_version",
+      "group": "stat",
+      "kind": "bool",
+      "doc": "Indicates if versions stat operations are supported."
+    },
+    {
+      "name": "read",
+      "short": "read",
+      "group": "read",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if the operator supports read operations."
+    },
+    {
+      "name": "read_with_if_match",
+      "short": "with_if_match",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using If-Match are supported."
+    },
+    {
+      "name": "read_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using If-None-Match are supported."
+    },
+    {
+      "name": "read_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using version match are supported."
+    },
+    {
+      "name": "read_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using version non-match are supported."
+    },
+    {
+      "name": "read_with_if_modified_since",
+      "short": "with_if_modified_since",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using If-Modified-Since are supported."
+    },
+    {
+      "name": "read_with_if_unmodified_since",
+      "short": "with_if_unmodified_since",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if conditional read operations using If-Unmodified-Since are supported."
+    },
+    {
+      "name": "read_with_override_cache_control",
+      "short": "with_override_cache_control",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if Cache-Control header override is supported during read operations."
+    },
+    {
+      "name": "read_with_override_content_disposition",
+      "short": "with_override_content_disposition",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if Content-Disposition header override is supported during read operations."
+    },
+    {
+      "name": "read_with_override_content_type",
+      "short": "with_override_content_type",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if Content-Type header override is supported during read operations."
+    },
+    {
+      "name": "read_with_version",
+      "short": "with_version",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if versions read operations are supported."
+    },
+    {
+      "name": "read_with_suffix",
+      "short": "with_suffix",
+      "group": "read",
+      "kind": "bool",
+      "doc": "Indicates if suffix read operations are supported."
+    },
+    {
+      "name": "write",
+      "short": "write",
+      "group": "write",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if the operator supports write operations."
+    },
+    {
+      "name": "write_can_multi",
+      "short": "can_multi",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if multiple write operations can be performed on the same object."
+    },
+    {
+      "name": "write_can_empty",
+      "short": "can_empty",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if writing empty content is supported."
+    },
+    {
+      "name": "write_can_append",
+      "short": "can_append",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if append operations are supported."
+    },
+    {
+      "name": "write_can_copy_from",
+      "short": "can_copy_from",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if a non-append writer can natively copy source ranges into an in-progress write."
+    },
+    {
+      "name": "write_with_content_type",
+      "short": "with_content_type",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if Content-Type can be specified during write operations."
+    },
+    {
+      "name": "write_with_content_disposition",
+      "short": "with_content_disposition",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if Content-Disposition can be specified during write operations."
+    },
+    {
+      "name": "write_with_content_encoding",
+      "short": "with_content_encoding",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if Content-Encoding can be specified during write operations."
+    },
+    {
+      "name": "write_with_content_language",
+      "short": "with_content_language",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if a write can store Content-Language and a subsequent stat can retrieve it."
+    },
+    {
+      "name": "write_with_cache_control",
+      "short": "with_cache_control",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if Cache-Control can be specified during write operations."
+    },
+    {
+      "name": "write_with_if_match",
+      "short": "with_if_match",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if conditional write operations using If-Match are supported."
+    },
+    {
+      "name": "write_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if conditional write operations using If-None-Match are supported."
+    },
+    {
+      "name": "write_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if conditional write operations using version match are supported."
+    },
+    {
+      "name": "write_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if conditional write operations using version non-match are supported."
+    },
+    {
+      "name": "write_with_if_not_exists",
+      "short": "with_if_not_exists",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if write operations can be conditional on object non-existence."
+    },
+    {
+      "name": "write_with_user_metadata",
+      "short": "with_user_metadata",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if custom user metadata can be attached during write operations."
+    },
+    {
+      "name": "write_with_expires",
+      "short": "with_expires",
+      "group": "write",
+      "kind": "bool",
+      "doc": "Indicates if writes can set a lifetime for the new file."
+    },
+    {
+      "name": "write_multi_max_size",
+      "short": "multi_max_size",
+      "group": "write",
+      "kind": "bytes",
+      "doc": "Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads."
+    },
+    {
+      "name": "write_multi_min_size",
+      "short": "multi_min_size",
+      "group": "write",
+      "kind": "bytes",
+      "doc": "Minimum size required for multipart uploads (except for the last part). For example, AWS S3 requires at least 5MiB per part."
+    },
+    {
+      "name": "write_total_max_size",
+      "short": "total_max_size",
+      "group": "write",
+      "kind": "bytes",
+      "doc": "Maximum total size supported for write operations. For example, Cloudflare D1 has a 1MB total size limit."
+    },
+    {
+      "name": "create_dir",
+      "short": "create_dir",
+      "group": "other",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if directory creation is supported."
+    },
+    {
+      "name": "delete",
+      "short": "delete",
+      "group": "delete",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if delete operations are supported."
+    },
+    {
+      "name": "delete_with_version",
+      "short": "with_version",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if versions delete operations are supported."
+    },
+    {
+      "name": "delete_with_recursive",
+      "short": "with_recursive",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if recursive delete operations are supported."
+    },
+    {
+      "name": "delete_with_if_match",
+      "short": "with_if_match",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if conditional delete operations using If-Match are supported."
+    },
+    {
+      "name": "delete_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if conditional delete operations using If-None-Match are supported."
+    },
+    {
+      "name": "delete_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if conditional delete operations using version match are supported."
+    },
+    {
+      "name": "delete_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "delete",
+      "kind": "bool",
+      "doc": "Indicates if conditional delete operations using version non-match are supported."
+    },
+    {
+      "name": "delete_max_size",
+      "short": "max_size",
+      "group": "delete",
+      "kind": "count",
+      "doc": "Maximum size supported for single delete operations."
+    },
+    {
+      "name": "copy",
+      "short": "copy",
+      "group": "copy",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if copy operations are supported."
+    },
+    {
+      "name": "copy_with_if_not_exists",
+      "short": "with_if_not_exists",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if conditional copy operations with if-not-exists are supported."
+    },
+    {
+      "name": "copy_with_if_match",
+      "short": "with_if_match",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if conditional copy operations with if-match are supported."
+    },
+    {
+      "name": "copy_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if conditional copy operations with if-none-match are supported."
+    },
+    {
+      "name": "copy_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if conditional copy operations using version match are supported."
+    },
+    {
+      "name": "copy_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if conditional copy operations using version non-match are supported."
+    },
+    {
+      "name": "copy_with_source_version",
+      "short": "with_source_version",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if copy operations from a specific source version are supported."
+    },
+    {
+      "name": "copy_with_user_metadata",
+      "short": "with_user_metadata",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if copy operations can replace the destination's user metadata."
+    },
+    {
+      "name": "copy_with_content_type",
+      "short": "with_content_type",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if copy operations can replace the destination's Content-Type."
+    },
+    {
+      "name": "copy_with_content_language",
+      "short": "with_content_language",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if copy operations can replace the destination's Content-Language."
+    },
+    {
+      "name": "copy_can_multi",
+      "short": "can_multi",
+      "group": "copy",
+      "kind": "bool",
+      "doc": "Indicates if copy operations can be split into multiple server-side tasks."
+    },
+    {
+      "name": "copy_multi_max_size",
+      "short": "multi_max_size",
+      "group": "copy",
+      "kind": "bytes",
+      "doc": "Maximum size supported for segmented copy tasks."
+    },
+    {
+      "name": "copy_multi_min_size",
+      "short": "multi_min_size",
+      "group": "copy",
+      "kind": "bytes",
+      "doc": "Minimum size required for segmented copy tasks."
+    },
+    {
+      "name": "compose",
+      "short": "compose",
+      "group": "compose",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if the operator supports composing complete source objects."
+    },
+    {
+      "name": "compose_with_content_type",
+      "short": "with_content_type",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if Content-Type can be specified during composition."
+    },
+    {
+      "name": "compose_with_content_disposition",
+      "short": "with_content_disposition",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if Content-Disposition can be specified during composition."
+    },
+    {
+      "name": "compose_with_content_encoding",
+      "short": "with_content_encoding",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if Content-Encoding can be specified during composition."
+    },
+    {
+      "name": "compose_with_cache_control",
+      "short": "with_cache_control",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if Cache-Control can be specified during composition."
+    },
+    {
+      "name": "compose_with_user_metadata",
+      "short": "with_user_metadata",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if custom user metadata can be attached during composition."
+    },
+    {
+      "name": "compose_with_if_match",
+      "short": "with_if_match",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition supports a destination ETag match condition."
+    },
+    {
+      "name": "compose_with_if_none_match",
+      "short": "with_if_none_match",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition supports a destination ETag non-match condition."
+    },
+    {
+      "name": "compose_with_if_version_match",
+      "short": "with_if_version_match",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition supports a destination version match condition."
+    },
+    {
+      "name": "compose_with_if_version_not_match",
+      "short": "with_if_version_not_match",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition supports a destination version non-match condition."
+    },
+    {
+      "name": "compose_with_if_not_exists",
+      "short": "with_if_not_exists",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition can require a missing destination."
+    },
+    {
+      "name": "compose_with_source_version",
+      "short": "with_source_version",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition can select a specific source version."
+    },
+    {
+      "name": "compose_with_source_if_match",
+      "short": "with_source_if_match",
+      "group": "compose",
+      "kind": "bool",
+      "doc": "Indicates if composition supports a source ETag match condition."
+    },
+    {
+      "name": "restore",
+      "short": "restore",
+      "group": "other",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if restore operations are supported."
+    },
+    {
+      "name": "restore_with_version",
+      "short": "restore_with_version",
+      "group": "other",
+      "kind": "bool",
+      "doc": "Indicates if restoring a specific version is supported."
+    },
+    {
+      "name": "restore_with_if_not_exists",
+      "short": "restore_with_if_not_exists",
+      "group": "other",
+      "kind": "bool",
+      "doc": "Indicates if conditional restore operations using if-not-exists are supported."
+    },
+    {
+      "name": "rename",
+      "short": "rename",
+      "group": "other",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if rename operations are supported."
+    },
+    {
+      "name": "rename_with_if_not_exists",
+      "short": "rename_with_if_not_exists",
+      "group": "other",
+      "kind": "bool",
+      "doc": "Indicates if conditional rename operations with if-not-exists are supported."
+    },
+    {
+      "name": "list",
+      "short": "list",
+      "group": "list",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if list operations are supported."
+    },
+    {
+      "name": "list_with_limit",
+      "short": "with_limit",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if list operations support result limiting."
+    },
+    {
+      "name": "list_with_start_after",
+      "short": "with_start_after",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if list operations support continuation from a specific point."
+    },
+    {
+      "name": "list_with_recursive",
+      "short": "with_recursive",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if recursive listing is supported."
+    },
+    {
+      "name": "list_with_versions",
+      "short": "with_versions",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if listing with versions included is supported."
+    },
+    {
+      "name": "list_with_deleted",
+      "short": "with_deleted",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if listing with deleted files included is supported."
+    },
+    {
+      "name": "list_with_glob",
+      "short": "with_glob",
+      "group": "list",
+      "kind": "bool",
+      "doc": "Indicates if listing with a glob pattern is supported by this service stack."
+    },
+    {
+      "name": "presign",
+      "short": "presign",
+      "group": "presign",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicates if presigned URL generation is supported."
+    },
+    {
+      "name": "presign_read",
+      "short": "read",
+      "group": "presign",
+      "kind": "bool",
+      "doc": "Indicates if presigned URLs for read operations are supported."
+    },
+    {
+      "name": "presign_stat",
+      "short": "stat",
+      "group": "presign",
+      "kind": "bool",
+      "doc": "Indicates if presigned URLs for stat operations are supported."
+    },
+    {
+      "name": "presign_write",
+      "short": "write",
+      "group": "presign",
+      "kind": "bool",
+      "doc": "Indicates if presigned URLs for write operations are supported."
+    },
+    {
+      "name": "presign_delete",
+      "short": "delete",
+      "group": "presign",
+      "kind": "bool",
+      "doc": "Indicates if presigned URLs for delete operations are supported."
+    },
+    {
+      "name": "shared",
+      "short": "shared",
+      "group": "other",
+      "kind": "bool",
+      "summary": true,
+      "doc": "Indicate if the operator supports shared access."
+    }
+  ],
+  "services": [
+    {
+      "name": "aliyun-drive",
+      "scheme": "aliyun-drive",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true
+      },
+      "limits": {
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "100 KiB"
+        }
+      }
+    },
+    {
+      "name": "alluxio",
+      "scheme": "alluxio",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "azblob",
+      "scheme": "azblob",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_if_match": true,
+        "copy_with_if_none_match": true,
+        "copy_with_if_not_exists": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_if_none_match": true,
+        "list": true,
+        "list_with_recursive": true,
+        "presign": "Requires `sas_token`",
+        "presign_read": "Requires `sas_token`",
+        "presign_stat": "Requires `sas_token`",
+        "presign_write": "Requires `sas_token`",
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_content_disposition": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_none_match": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_none_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "4,000 MiB"
+        },
+        "copy_multi_min_size": {
+          "display": "1 B"
+        },
+        "delete_max_size": {
+          "display": "256"
+        }
+      }
+    },
+    {
+      "name": "azdls",
+      "scheme": "azdls",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_multi": true,
+        "write_with_if_none_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      }
+    },
+    {
+      "name": "azfile",
+      "scheme": "azfile",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "write_total_max_size": {
+          "display": "4 MiB"
+        }
+      }
+    },
+    {
+      "name": "b2",
+      "scheme": "b2",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "presign": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_content_type": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "cacache",
+      "scheme": "cacache",
+      "native": {
+        "delete": true,
+        "read": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "cloudflare-kv",
+      "scheme": "cloudflare-kv",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "write": true,
+        "write_can_empty": true
+      },
+      "limits": {
+        "delete_max_size": {
+          "display": "10,000"
+        },
+        "write_total_max_size": {
+          "display": "25 MiB"
+        }
+      }
+    },
+    {
+      "name": "compfs",
+      "scheme": "compfs",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": "Linux only",
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "cos",
+      "scheme": "cos",
+      "native": {
+        "copy": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": true,
+        "delete": true,
+        "delete_with_version": true,
+        "list": true,
+        "list_with_deleted": true,
+        "list_with_recursive": true,
+        "list_with_versions": true,
+        "presign": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "read_with_version": true,
+        "restore": true,
+        "restore_with_version": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_none_match": true,
+        "stat_with_version": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_type": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "1 MiB"
+        }
+      }
+    },
+    {
+      "name": "d1",
+      "scheme": "d1",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      },
+      "limits": {
+        "write_total_max_size": {
+          "display": "1 MB"
+        }
+      }
+    },
+    {
+      "name": "dashmap",
+      "scheme": "dashmap",
+      "native": {
+        "delete": true,
+        "list": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true
+      }
+    },
+    {
+      "name": "dbfs",
+      "scheme": "dbfs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "dropbox",
+      "scheme": "dropbox",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "etcd",
+      "scheme": "etcd",
+      "native": {
+        "delete": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "foundationdb",
+      "scheme": "foundationdb",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "foyer",
+      "scheme": "foyer",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "fs",
+      "scheme": "fs",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "read": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_unmodified_since": true,
+        "rename": true,
+        "rename_with_if_not_exists": "Linux only",
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": "When `direct_io` is disabled",
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": "Unix only"
+      }
+    },
+    {
+      "name": "ftp",
+      "scheme": "ftp",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "gcs",
+      "scheme": "gcs",
+      "native": {
+        "compose": true,
+        "compose_with_cache_control": true,
+        "compose_with_content_disposition": true,
+        "compose_with_content_encoding": true,
+        "compose_with_content_type": true,
+        "compose_with_if_not_exists": true,
+        "compose_with_if_version_match": true,
+        "compose_with_source_version": true,
+        "compose_with_user_metadata": true,
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_if_version_match": true,
+        "copy_with_if_version_not_match": true,
+        "copy_with_source_version": true,
+        "delete": true,
+        "delete_with_if_version_match": true,
+        "delete_with_if_version_not_match": true,
+        "delete_with_version": true,
+        "list": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "list_with_versions": true,
+        "presign": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_none_match": true,
+        "read_with_if_version_match": true,
+        "read_with_if_version_not_match": true,
+        "read_with_suffix": true,
+        "read_with_version": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_version_match": true,
+        "stat_with_if_version_not_match": true,
+        "stat_with_version": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true,
+        "write_with_if_not_exists": true,
+        "write_with_if_version_match": true,
+        "write_with_if_version_not_match": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "~8 EiB",
+          "condition": "64-bit targets (4,095 MiB on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "1 MiB"
+        },
+        "delete_max_size": {
+          "display": "100"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "gcs-grpc",
+      "scheme": "gcs-grpc",
+      "native": {
+        "copy": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": true,
+        "delete": true,
+        "delete_with_version": true,
+        "list": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "read": true,
+        "read_with_suffix": true,
+        "read_with_version": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_version": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      }
+    },
+    {
+      "name": "gdrive",
+      "scheme": "gdrive",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "ghac",
+      "scheme": "ghac",
+      "native": {
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "git",
+      "scheme": "git",
+      "native": {
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true
+      }
+    },
+    {
+      "name": "github",
+      "scheme": "github",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "goosefs",
+      "scheme": "goosefs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
+      "name": "gridfs",
+      "scheme": "gridfs",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "hdfs",
+      "scheme": "hdfs",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": true
+      }
+    },
+    {
+      "name": "hdfs-native",
+      "scheme": "hdfs-native",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": true
+      }
+    },
+    {
+      "name": "hf",
+      "scheme": "hf",
+      "native": {
+        "delete": "Requires `token`",
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": "Requires `token`",
+        "write_can_multi": "Requires `token`"
+      },
+      "limits": {
+        "delete_max_size": {
+          "display": "100"
+        }
+      }
+    },
+    {
+      "name": "hf3fs",
+      "scheme": "hf3fs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
+      "name": "http",
+      "scheme": "http",
+      "native": {
+        "presign": "Anonymous only (no credentials configured)",
+        "presign_read": "Anonymous only (no credentials configured)",
+        "presign_stat": "Anonymous only (no credentials configured)",
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true
+      }
+    },
+    {
+      "name": "ipfs",
+      "scheme": "ipfs",
+      "native": {
+        "list": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true
+      }
+    },
+    {
+      "name": "ipmfs",
+      "scheme": "ipmfs",
+      "native": {
+        "delete": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "koofr",
+      "scheme": "koofr",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "lakefs",
+      "scheme": "lakefs",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "memcached",
+      "scheme": "memcached",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_expires": true
+      }
+    },
+    {
+      "name": "memory",
+      "scheme": "memory",
+      "native": {
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "read": true,
+        "read_with_suffix": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      }
+    },
+    {
+      "name": "mini_moka",
+      "scheme": "mini-moka",
+      "native": {
+        "delete": true,
+        "list": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "moka",
+      "scheme": "moka",
+      "native": {
+        "delete": true,
+        "list": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true
+      }
+    },
+    {
+      "name": "mongodb",
+      "scheme": "mongodb",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "monoiofs",
+      "scheme": "monoiofs",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "read": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": true
+      }
+    },
+    {
+      "name": "mysql",
+      "scheme": "mysql",
+      "native": {
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "obs",
+      "scheme": "obs",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "presign": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_none_match": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_type": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "onedrive",
+      "scheme": "onedrive",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "list_with_start_after": true,
+        "list_with_versions": true,
+        "read": true,
+        "read_with_if_none_match": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_none_match": true,
+        "write": true,
+        "write_with_if_match": true
+      },
+      "limits": {
+        "write_total_max_size": {
+          "display": "250 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "opfs",
+      "scheme": "opfs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true
+      }
+    },
+    {
+      "name": "oss",
+      "scheme": "oss",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "delete_with_version": true,
+        "list": true,
+        "list_with_deleted": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "list_with_versions": true,
+        "presign": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "read_with_version": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_none_match": true,
+        "stat_with_version": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "100 KiB"
+        }
+      }
+    },
+    {
+      "name": "pcloud",
+      "scheme": "pcloud",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "persy",
+      "scheme": "persy",
+      "native": {
+        "delete": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "postgresql",
+      "scheme": "postgresql",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "redb",
+      "scheme": "redb",
+      "native": {
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "redis",
+      "scheme": "redis",
+      "native": {
+        "delete": true,
+        "list": "When `cluster_endpoints` is not set",
+        "list_with_limit": "When `cluster_endpoints` is not set",
+        "list_with_recursive": "When `cluster_endpoints` is not set",
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_expires": true
+      }
+    },
+    {
+      "name": "rocksdb",
+      "scheme": "rocksdb",
+      "native": {
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "s3",
+      "scheme": "s3",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "copy_with_content_language": true,
+        "copy_with_content_type": true,
+        "copy_with_if_match": true,
+        "copy_with_if_not_exists": true,
+        "copy_with_source_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "copy_with_user_metadata": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "list": true,
+        "list_with_deleted": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_limit": true,
+        "list_with_recursive": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_start_after": "Standard S3 buckets (not S3 Express One Zone)",
+        "list_with_versions": "Standard S3 buckets (not S3 Express One Zone)",
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_override_cache_control": true,
+        "read_with_override_content_disposition": true,
+        "read_with_override_content_type": true,
+        "read_with_suffix": true,
+        "read_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_if_not_exists": "Standard S3 buckets (not S3 Express One Zone)",
+        "restore_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_override_cache_control": true,
+        "stat_with_override_content_disposition": true,
+        "stat_with_override_content_type": true,
+        "stat_with_version": "Standard S3 buckets (not S3 Express One Zone)",
+        "write": true,
+        "write_can_append": true,
+        "write_can_copy_from": "When `checksum_algorithm` is not set",
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": "Standard S3 buckets (not S3 Express One Zone)",
+        "write_with_content_language": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "write_total_max_size": {
+          "display": "50,000 GiB",
+          "condition": "64-bit targets (unset on 32-bit)"
+        }
+      }
+    },
+    {
+      "name": "seafile",
+      "scheme": "seafile",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "sftp",
+      "scheme": "sftp",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
+      "name": "sled",
+      "scheme": "sled",
+      "native": {
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "read": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "smb",
+      "scheme": "smb",
+      "native": {
+        "copy": true,
+        "copy_with_if_not_exists": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
+      "name": "sqlite",
+      "scheme": "sqlite",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "read": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "surrealdb",
+      "scheme": "surrealdb",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "swift",
+      "scheme": "swift",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "list": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "presign": "Requires `temp_url_key`",
+        "presign_read": "Requires `temp_url_key`",
+        "presign_stat": "Requires `temp_url_key`",
+        "presign_write": "Requires `temp_url_key`",
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_disposition": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "delete_max_size": {
+          "display": "10,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "tikv",
+      "scheme": "tikv",
+      "native": {
+        "delete": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    },
+    {
+      "name": "tos",
+      "scheme": "tos",
+      "native": {
+        "copy": true,
+        "copy_can_multi": true,
+        "delete": true,
+        "delete_with_version": true,
+        "list": true,
+        "list_with_deleted": true,
+        "list_with_limit": true,
+        "list_with_recursive": true,
+        "list_with_start_after": true,
+        "list_with_versions": true,
+        "presign": true,
+        "presign_delete": true,
+        "presign_read": true,
+        "presign_stat": true,
+        "presign_write": true,
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "read_with_version": true,
+        "shared": true,
+        "stat": true,
+        "stat_with_if_match": true,
+        "stat_with_if_modified_since": true,
+        "stat_with_if_none_match": true,
+        "stat_with_if_unmodified_since": true,
+        "stat_with_version": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_encoding": true,
+        "write_with_content_type": true,
+        "write_with_if_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      },
+      "limits": {
+        "copy_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "copy_multi_min_size": {
+          "display": "5 MiB"
+        },
+        "delete_max_size": {
+          "display": "1,000"
+        },
+        "write_multi_max_size": {
+          "display": "5 GiB",
+          "condition": "64-bit targets (`usize::MAX` on 32-bit)"
+        },
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "upyun",
+      "scheme": "upyun",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_cache_control": true,
+        "write_with_content_type": true
+      },
+      "limits": {
+        "write_multi_max_size": {
+          "display": "50 MiB"
+        },
+        "write_multi_min_size": {
+          "display": "1 MiB"
+        }
+      }
+    },
+    {
+      "name": "vercel-artifacts",
+      "scheme": "vercel-artifacts",
+      "native": {
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true
+      }
+    },
+    {
+      "name": "vercel-blob",
+      "scheme": "vercel-blob",
+      "native": {
+        "copy": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "read_with_suffix": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true
+      },
+      "limits": {
+        "write_multi_min_size": {
+          "display": "5 MiB"
+        }
+      }
+    },
+    {
+      "name": "webdav",
+      "scheme": "webdav",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "delete_with_if_match": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "list_with_recursive": "When `disable_depth_infinity` is disabled",
+        "read": true,
+        "read_with_if_match": true,
+        "read_with_if_modified_since": true,
+        "read_with_if_none_match": true,
+        "read_with_if_unmodified_since": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "rename_with_if_not_exists": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_with_if_match": true,
+        "write_with_if_none_match": true,
+        "write_with_if_not_exists": true,
+        "write_with_user_metadata": true
+      }
+    },
+    {
+      "name": "webhdfs",
+      "scheme": "webhdfs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_append": true,
+        "write_can_multi": "Requires `atomic_write_dir`"
+      }
+    },
+    {
+      "name": "yandex-disk",
+      "scheme": "yandex-disk",
+      "native": {
+        "copy": true,
+        "create_dir": true,
+        "delete": true,
+        "list": true,
+        "list_with_limit": true,
+        "read": true,
+        "read_with_suffix": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true
+      }
+    }
+  ]
+}

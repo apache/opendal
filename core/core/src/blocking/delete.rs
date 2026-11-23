@@ -50,7 +50,10 @@ impl Deleter {
         I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.inner.delete_iter(iter))
+        for entry in iter {
+            self.delete(entry)?;
+        }
+        Ok(())
     }
 
     /// Delete an fallible iterator of paths.
@@ -63,11 +66,69 @@ impl Deleter {
         I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.inner.delete_try_iter(try_iter))
+        for entry in try_iter {
+            self.delete(entry?)?;
+        }
+        Ok(())
     }
 
     /// Close the deleter, this will flush the deleter and wait until all paths are deleted.
     pub fn close(&mut self) -> Result<()> {
         self.handle.block_on(self.inner.close())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Entry;
+    use crate::blocking::Operator;
+    use crate::services;
+
+    fn new_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    fn new_blocking_operator(rt: &tokio::runtime::Runtime) -> Operator {
+        // The guard must not outlive construction, or calls on the operator
+        // would nest a `block_on` inside the entered runtime.
+        let _guard = rt.enter();
+        let op = crate::Operator::new(services::Memory::default()).unwrap();
+        Operator::new(op).unwrap()
+    }
+
+    #[test]
+    fn test_delete_try_iter_accepts_blocking_lister() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        let mut deleter = op.deleter().unwrap();
+        deleter.delete_try_iter(op.lister("dir/").unwrap()).unwrap();
+        deleter.close().unwrap();
+
+        assert!(op.list("dir/").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_delete_try_iter_error_drops_blocking_lister() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        let err = Error::new(ErrorKind::Unexpected, "injected iterator failure");
+        let iter = std::iter::once(Err::<Entry, _>(err)).chain(op.lister("dir/").unwrap());
+
+        let mut deleter = op.deleter().unwrap();
+        let err = deleter.delete_try_iter(iter).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        deleter.close().unwrap();
+
+        assert_eq!(op.list("dir/").unwrap().len(), 2);
     }
 }

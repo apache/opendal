@@ -12,6 +12,13 @@ This service can be used to:
 - [ ] rename
 - [ ] presign
 
+## User metadata
+
+Writes store user metadata with the file and return it in the committed
+metadata. Use `stat` to retrieve user metadata after a write. Overwriting a
+file replaces its user metadata with the new write's map, or clears it when
+the write omits the map.
+
 ## Deleting directories
 
 Deleting a path ending in `/` returns `ErrorKind::Unexpected` if the directory

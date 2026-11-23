@@ -26,7 +26,8 @@ use super::config::FsConfig;
 use super::core::*;
 use super::deleter::FsDeleter;
 use super::lister::FsLister;
-use super::reader::*;
+use super::reader::FsReader;
+use super::writer::FsLazyWriter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
@@ -53,13 +54,23 @@ impl FsBuilder {
     ///
     /// # Notes
     ///
-    /// - When append is enabled, we will not use atomic write
-    ///   to avoid data loss and performance issue.
+    /// - Unconditional append writes directly to the target file without
+    ///   staging.
+    /// - Staged writes with `if_not_exists` publish without replacing an
+    ///   existing destination, through `RENAME_NOREPLACE` on Linux and through
+    ///   a hard link elsewhere. Both need the staging directory and the
+    ///   destination on the same filesystem.
     pub fn atomic_write_dir(mut self, dir: &str) -> Self {
         if !dir.is_empty() {
             self.config.atomic_write_dir = Some(dir.to_string());
         }
 
+        self
+    }
+
+    /// Bypass the page cache for file reads and writes on Linux. Defaults to `false`.
+    pub fn direct_io(mut self, enabled: bool) -> Self {
+        self.config.direct_io = enabled;
         self
     }
 }
@@ -69,6 +80,14 @@ impl Builder for FsBuilder {
 
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", self);
+
+        let direct_io = self.config.direct_io;
+        if direct_io && !cfg!(target_os = "linux") {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "direct_io is only supported on Linux",
+            ));
+        }
 
         let root = match self.config.root.map(PathBuf::from) {
             Some(root) => Ok(root),
@@ -139,10 +158,12 @@ impl Builder for FsBuilder {
                     stat: true,
 
                     read: true,
+                    read_with_if_modified_since: true,
+                    read_with_if_unmodified_since: true,
 
                     write: true,
                     write_can_empty: true,
-                    write_can_append: true,
+                    write_can_append: !direct_io,
                     write_can_multi: true,
                     write_with_if_not_exists: true,
                     #[cfg(unix)]
@@ -158,6 +179,8 @@ impl Builder for FsBuilder {
 
                     copy: true,
                     rename: true,
+                    #[cfg(target_os = "linux")]
+                    rename_with_if_not_exists: true,
 
                     shared: true,
 
@@ -165,6 +188,7 @@ impl Builder for FsBuilder {
                 },
                 root,
                 atomic_write_dir,
+                direct_io,
                 buf_pool: oio::PooledBuf::new(16).with_initial_capacity(256 * 1024),
             }),
         })
@@ -208,14 +232,22 @@ impl Service for FsBackend {
         Ok(RpStat::new(m))
     }
 
-    fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
+    fn read(&self, _ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         Ok(oio::PositionReader::new(FsReader::new(
             self.core.clone(),
             path,
+            args,
         )))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, op: OpWrite) -> Result<Self::Writer> {
+        if self.core.direct_io && op.append() {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "append is not supported with direct_io",
+            ));
+        }
+
         Ok(FsLazyWriter::new(
             self.core.clone(),
             ctx.executor().clone(),
@@ -254,9 +286,9 @@ impl Service for FsBackend {
         _ctx: &OperationContext,
         from: &str,
         to: &str,
-        _args: OpRename,
+        args: OpRename,
     ) -> Result<RpRename> {
-        self.core.fs_rename(from, to).await?;
+        self.core.fs_rename(from, to, args.if_not_exists()).await?;
         Ok(RpRename::default())
     }
 

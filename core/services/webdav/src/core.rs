@@ -224,7 +224,6 @@ impl WebdavCore {
         &self,
         ctx: &OperationContext,
         path: &str,
-        size: Option<u64>,
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
@@ -237,9 +236,7 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, v)
         }
 
-        if let Some(v) = size {
-            req = req.header(header::CONTENT_LENGTH, v)
-        }
+        req = req.header(header::CONTENT_LENGTH, body.len());
 
         if let Some(v) = args.content_type() {
             req = req.header(header::CONTENT_TYPE, v)
@@ -247,6 +244,28 @@ impl WebdavCore {
 
         if let Some(v) = args.content_disposition() {
             req = req.header(header::CONTENT_DISPOSITION, v)
+        }
+
+        if let Some(etag) = args.if_match() {
+            if let Some(weak) = etag.strip_prefix("W/") {
+                // The DAV If header expects a single entity tag inside the list.
+                let opaque_tag = weak.strip_prefix('"').and_then(|tag| tag.strip_suffix('"'));
+                if !opaque_tag.is_some_and(|tag| {
+                    tag.bytes()
+                        .all(|byte| matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff))
+                }) {
+                    return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
+                }
+                req = req.header("If", format!("([{etag}])"));
+            } else {
+                req = req.header(header::IF_MATCH, etag);
+            }
+        }
+
+        if args.if_not_exists() {
+            req = req.header(header::IF_NONE_MATCH, "*");
+        } else if let Some(etag) = args.if_none_match() {
+            req = req.header(header::IF_NONE_MATCH, etag);
         }
 
         let req = req
@@ -366,11 +385,6 @@ impl WebdavCore {
         to: &str,
         if_not_exists: bool,
     ) -> Result<Response<Buffer>> {
-        // Check if source file exists.
-        let _ = self.webdav_stat(ctx, from).await?;
-        // Make sure target's dir is exist.
-        self.webdav_mkcol(ctx, get_parent(to)).await?;
-
         let source = build_rooted_absolute_path(&self.root, from);
         let source_uri = format!("{}{}", self.endpoint, percent_encode_path(&source));
 

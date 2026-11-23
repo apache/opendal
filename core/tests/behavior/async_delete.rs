@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures::TryStreamExt;
 use opendal::layers::CapabilityOverrideLayer;
@@ -198,47 +200,51 @@ pub async fn test_delete_stream(op: Operator) -> Result<()> {
     Ok(())
 }
 
-async fn test_blocking_remove_all_with_objects(
-    op: Operator,
-    parent: String,
-    paths: impl IntoIterator<Item = &'static str>,
-) -> Result<()> {
-    for path in paths {
-        let path = format!("{parent}/{path}");
-        let (content, _) = gen_bytes(op.info().capability());
-        op.write(&path, content).await.expect("write must succeed");
-    }
-
-    op.delete_with(&parent).recursive(true).await?;
-
-    let found = op
-        .lister_with(&format!("{parent}/"))
-        .recursive(true)
-        .await
-        .expect("list must succeed")
-        .try_next()
-        .await
-        .expect("list must succeed")
-        .is_some();
-
-    assert!(!found, "all objects should be removed");
-
-    Ok(())
-}
-
-/// Remove all under a prefix
+/// Remove a directory and its descendants without deleting sibling prefixes.
+#[allow(deprecated)]
 pub async fn test_remove_all_basic(op: Operator) -> Result<()> {
     #[cfg(feature = "services-hf")]
     {
         if op.info().scheme() == services::HF_SCHEME {
-            // Hugging Face only guarantees recursive listing for repository trees,
-            // while this case expects prefix-recursive semantics for a non-directory path.
+            // Hugging Face does not provide a stable recursive delete contract
+            // for repository trees under concurrent commits.
             return Ok(());
         }
     }
 
-    let parent = uuid::Uuid::new_v4().to_string();
-    test_blocking_remove_all_with_objects(op, parent, ["a/b", "a/c", "a/d/e"]).await
+    let base = uuid::Uuid::new_v4();
+    let directory = format!("{base}/a/");
+    let descendants = [format!("{directory}b.txt"), format!("{directory}c/d.txt")];
+    let sibling_file = format!("{base}/ab/e.txt");
+
+    for path in descendants.iter().chain(std::iter::once(&sibling_file)) {
+        TEST_FIXTURE.add_path(path.clone());
+        op.write(path, "recursive delete").await?;
+    }
+
+    assert!(op.exists(&directory).await?, "{directory} should exist");
+    op.remove_all(&directory).await?;
+
+    // COS ListObjects is eventually consistent after deletes, so the removed
+    // directory can stay visible to existence checks that list its prefix.
+    // See apache/opendal#7502.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while op.exists(&directory).await? {
+        assert!(
+            tokio::time::Instant::now() < deadline,
+            "{directory} should be removed"
+        );
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    for path in descendants {
+        assert!(!op.exists(&path).await?, "{path} should be removed");
+    }
+    assert!(
+        op.exists(&sibling_file).await?,
+        "{sibling_file} should remain"
+    );
+
+    Ok(())
 }
 
 /// Remove all under a prefix, while the prefix itself is also an object.
@@ -263,7 +269,24 @@ pub async fn test_remove_all_with_prefix_exists(op: Operator) -> Result<()> {
         .await
         .expect("write must succeed");
 
-    test_blocking_remove_all_with_objects(op, parent, ["a", "a/b", "a/c", "a/b/e"]).await
+    for child in ["a", "a/b", "a/c", "a/b/e"] {
+        let path = format!("{parent}/{child}");
+        let (content, _) = gen_bytes(op.info().capability());
+        op.write(&path, content).await.expect("write must succeed");
+    }
+
+    op.delete_with(&parent).recursive(true).await?;
+
+    let mut lister = op
+        .lister_with(&format!("{parent}/"))
+        .recursive(true)
+        .await?;
+    assert!(
+        lister.try_next().await?.is_none(),
+        "all objects should be removed"
+    );
+
+    Ok(())
 }
 
 pub async fn test_delete_with_version(op: Operator) -> Result<()> {

@@ -70,7 +70,43 @@ pub(crate) fn new_unsupported_error(scheme: &'static str, op: Operation, args: &
     .with_operation(op)
 }
 
-fn check_delete_args(scheme: &'static str, capability: Capability, args: &OpDelete) -> Result<()> {
+// `Operator` runs this check against the effective capability: this layer sits
+// below user layers, so it would miss a `CapabilityOverrideLayer` either way.
+pub(crate) fn check_copy_metadata_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpCopy,
+) -> Result<()> {
+    if args.user_metadata().is_some() && !capability.copy_with_user_metadata {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "user_metadata",
+        ));
+    }
+    if args.content_type().is_some() && !capability.copy_with_content_type {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_type",
+        ));
+    }
+    if args.content_language().is_some() && !capability.copy_with_content_language {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "content_language",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_delete_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpDelete,
+) -> Result<()> {
     if args.version().is_some() && !capability.delete_with_version {
         return Err(new_unsupported_error(scheme, Operation::Delete, "version"));
     }
@@ -119,50 +155,382 @@ impl std::fmt::Debug for CorrectnessService {
 
 impl CorrectnessService {
     fn check_write_args(&self, args: &OpWrite) -> Result<()> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.append() && !capability.write_can_append {
-            return Err(new_unsupported_error(scheme, Operation::Write, "append"));
-        }
-        if args.expires().is_some() && !capability.write_with_expires {
-            return Err(new_unsupported_error(scheme, Operation::Write, "expires"));
-        }
-        if args.if_not_exists() && !capability.write_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_not_exists",
-            ));
-        }
-        if args.if_match().is_some() && !capability.write_with_if_match {
-            return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
-        }
-        if let Some(if_none_match) = args.if_none_match()
-            && !capability.write_with_if_none_match
-        {
-            let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
-            if if_none_match == "*" && capability.write_with_if_not_exists {
-                err = err.with_context("hint", "use if_not_exists instead");
-            }
-            return Err(err);
-        }
-        if args.if_version_match().is_some() && !capability.write_with_if_version_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_version_match",
-            ));
-        }
-        if args.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Write,
-                "if_version_not_match",
-            ));
-        }
-
-        Ok(())
+        check_write_args(self.info().scheme(), self.capability(), args)
     }
+}
+
+// `Operator` runs this check against the effective capability: this layer sits
+// below user layers, so it would miss a `CapabilityOverrideLayer` either way.
+pub(crate) fn check_write_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpWrite,
+) -> Result<()> {
+    if args.append() && !capability.write_can_append {
+        return Err(new_unsupported_error(scheme, Operation::Write, "append"));
+    }
+    if args.expires().is_some() && !capability.write_with_expires {
+        return Err(new_unsupported_error(scheme, Operation::Write, "expires"));
+    }
+    if args.if_not_exists() && !capability.write_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_not_exists",
+        ));
+    }
+    if args.if_match().is_some() && !capability.write_with_if_match {
+        return Err(new_unsupported_error(scheme, Operation::Write, "if_match"));
+    }
+    if let Some(if_none_match) = args.if_none_match()
+        && !capability.write_with_if_none_match
+    {
+        let mut err = new_unsupported_error(scheme, Operation::Write, "if_none_match");
+        if if_none_match == "*" && capability.write_with_if_not_exists {
+            err = err.with_context("hint", "use if_not_exists instead");
+        }
+        return Err(err);
+    }
+    if args.if_version_match().is_some() && !capability.write_with_if_version_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_version_match",
+        ));
+    }
+    if args.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Write,
+            "if_version_not_match",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_read_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpRead,
+) -> Result<()> {
+    if !capability.read_with_version && args.version().is_some() {
+        return Err(new_unsupported_error(scheme, Operation::Read, "version"));
+    }
+    if !capability.read_with_if_match && args.if_match().is_some() {
+        return Err(new_unsupported_error(scheme, Operation::Read, "if_match"));
+    }
+    if !capability.read_with_if_none_match && args.if_none_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Read,
+            "if_none_match",
+        ));
+    }
+    if !capability.read_with_if_version_match && args.if_version_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Read,
+            "if_version_match",
+        ));
+    }
+    if !capability.read_with_if_version_not_match && args.if_version_not_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Read,
+            "if_version_not_match",
+        ));
+    }
+    if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Read,
+            "if_modified_since",
+        ));
+    }
+    if !capability.read_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Read,
+            "if_unmodified_since",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_stat_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpStat,
+) -> Result<()> {
+    if !capability.stat_with_version && args.version().is_some() {
+        return Err(new_unsupported_error(scheme, Operation::Stat, "version"));
+    }
+    if !capability.stat_with_if_match && args.if_match().is_some() {
+        return Err(new_unsupported_error(scheme, Operation::Stat, "if_match"));
+    }
+    if !capability.stat_with_if_none_match && args.if_none_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Stat,
+            "if_none_match",
+        ));
+    }
+    if !capability.stat_with_if_version_match && args.if_version_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Stat,
+            "if_version_match",
+        ));
+    }
+    if !capability.stat_with_if_version_not_match && args.if_version_not_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Stat,
+            "if_version_not_match",
+        ));
+    }
+    if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Stat,
+            "if_modified_since",
+        ));
+    }
+    if !capability.stat_with_if_unmodified_since && args.if_unmodified_since().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Stat,
+            "if_unmodified_since",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_copy_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpCopy,
+) -> Result<()> {
+    if args.if_not_exists() && !capability.copy_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "if_not_exists",
+        ));
+    }
+    if args.if_match().is_some() && !capability.copy_with_if_match {
+        return Err(new_unsupported_error(scheme, Operation::Copy, "if_match"));
+    }
+    if args.if_none_match().is_some() && !capability.copy_with_if_none_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "if_none_match",
+        ));
+    }
+    if args.if_version_match().is_some() && !capability.copy_with_if_version_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "if_version_match",
+        ));
+    }
+    if args.if_version_not_match().is_some() && !capability.copy_with_if_version_not_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "if_version_not_match",
+        ));
+    }
+    if args.source_version().is_some() && !capability.copy_with_source_version {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Copy,
+            "source_version",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_compose_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpCompose,
+) -> Result<()> {
+    if !capability.compose {
+        return Err(new_unsupported_error(scheme, Operation::Compose, ""));
+    }
+    if args.if_not_exists() && !capability.compose_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "if_not_exists",
+        ));
+    }
+    if args.if_match().is_some() && !capability.compose_with_if_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "if_match",
+        ));
+    }
+    if args.if_none_match().is_some() && !capability.compose_with_if_none_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "if_none_match",
+        ));
+    }
+    if args.if_version_match().is_some() && !capability.compose_with_if_version_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "if_version_match",
+        ));
+    }
+    if args.if_version_not_match().is_some() && !capability.compose_with_if_version_not_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "if_version_not_match",
+        ));
+    }
+    if args.content_type().is_some() && !capability.compose_with_content_type {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "content_type",
+        ));
+    }
+    if args.content_disposition().is_some() && !capability.compose_with_content_disposition {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "content_disposition",
+        ));
+    }
+    if args.content_encoding().is_some() && !capability.compose_with_content_encoding {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "content_encoding",
+        ));
+    }
+    if args.cache_control().is_some() && !capability.compose_with_cache_control {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "cache_control",
+        ));
+    }
+    if args.user_metadata().is_some() && !capability.compose_with_user_metadata {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "user_metadata",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_list_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpList,
+) -> Result<()> {
+    if args.start_after().is_some() && !capability.list_with_start_after {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::List,
+            "start_after",
+        ));
+    }
+    if args.versions() && !capability.list_with_versions {
+        return Err(new_unsupported_error(scheme, Operation::List, "versions"));
+    }
+    if args.deleted() && !capability.list_with_deleted {
+        return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
+    }
+    if args.glob().is_some() && !capability.list_with_glob {
+        return Err(new_unsupported_error(scheme, Operation::List, "glob"));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_rename_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpRename,
+) -> Result<()> {
+    if args.if_not_exists() && !capability.rename_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Rename,
+            "if_not_exists",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_restore_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpRestore,
+) -> Result<()> {
+    if !capability.restore {
+        return Err(new_unsupported_error(scheme, Operation::Restore, ""));
+    }
+    if args.version().is_some() && !capability.restore_with_version {
+        return Err(new_unsupported_error(scheme, Operation::Restore, "version"));
+    }
+    if args.if_not_exists() && !capability.restore_with_if_not_exists {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Restore,
+            "if_not_exists",
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn check_compose_source_args(
+    scheme: &'static str,
+    capability: Capability,
+    args: &OpRead,
+) -> Result<()> {
+    if args.version().is_some() && !capability.compose_with_source_version {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "source_version",
+        ));
+    }
+
+    if args.if_match().is_some() && !capability.compose_with_source_if_match {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "source_if_match",
+        ));
+    }
+
+    if args.if_none_match().is_some() || args.if_version_not_match().is_some() {
+        return Err(new_unsupported_error(
+            scheme,
+            Operation::Compose,
+            "source_identity",
+        ));
+    }
+
+    Ok(())
 }
 
 impl Service for CorrectnessService {
@@ -182,49 +550,7 @@ impl Service for CorrectnessService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if !capability.read_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(scheme, Operation::Read, "version"));
-        }
-        if !capability.read_with_if_match && args.if_match().is_some() {
-            return Err(new_unsupported_error(scheme, Operation::Read, "if_match"));
-        }
-        if !capability.read_with_if_none_match && args.if_none_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Read,
-                "if_none_match",
-            ));
-        }
-        if !capability.read_with_if_version_match && args.if_version_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Read,
-                "if_version_match",
-            ));
-        }
-        if !capability.read_with_if_version_not_match && args.if_version_not_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Read,
-                "if_version_not_match",
-            ));
-        }
-        if !capability.read_with_if_modified_since && args.if_modified_since().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Read,
-                "if_modified_since",
-            ));
-        }
-        if !capability.read_with_if_unmodified_since && args.if_unmodified_since().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Read,
-                "if_unmodified_since",
-            ));
-        }
+        check_read_args(self.info().scheme(), self.capability(), &args)?;
 
         self.inner.read(ctx, path, args)
     }
@@ -235,49 +561,7 @@ impl Service for CorrectnessService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if !capability.stat_with_version && args.version().is_some() {
-            return Err(new_unsupported_error(scheme, Operation::Stat, "version"));
-        }
-        if !capability.stat_with_if_match && args.if_match().is_some() {
-            return Err(new_unsupported_error(scheme, Operation::Stat, "if_match"));
-        }
-        if !capability.stat_with_if_none_match && args.if_none_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Stat,
-                "if_none_match",
-            ));
-        }
-        if !capability.stat_with_if_version_match && args.if_version_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Stat,
-                "if_version_match",
-            ));
-        }
-        if !capability.stat_with_if_version_not_match && args.if_version_not_match().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Stat,
-                "if_version_not_match",
-            ));
-        }
-        if !capability.stat_with_if_modified_since && args.if_modified_since().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Stat,
-                "if_modified_since",
-            ));
-        }
-        if !capability.stat_with_if_unmodified_since && args.if_unmodified_since().is_some() {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Stat,
-                "if_unmodified_since",
-            ));
-        }
+        check_stat_args(self.info().scheme(), self.capability(), &args)?;
 
         self.inner.stat(ctx, path, args).await
     }
@@ -295,46 +579,7 @@ impl Service for CorrectnessService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.if_not_exists() && !capability.copy_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "if_not_exists",
-            ));
-        }
-        if args.if_match().is_some() && !capability.copy_with_if_match {
-            return Err(new_unsupported_error(scheme, Operation::Copy, "if_match"));
-        }
-        if args.if_none_match().is_some() && !capability.copy_with_if_none_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "if_none_match",
-            ));
-        }
-        if args.if_version_match().is_some() && !capability.copy_with_if_version_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "if_version_match",
-            ));
-        }
-        if args.if_version_not_match().is_some() && !capability.copy_with_if_version_not_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "if_version_not_match",
-            ));
-        }
-        if args.source_version().is_some() && !capability.copy_with_source_version {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Copy,
-                "source_version",
-            ));
-        }
+        check_copy_args(self.info().scheme(), self.capability(), &args)?;
 
         self.inner.copy(ctx, from, to, args)
     }
@@ -342,79 +587,7 @@ impl Service for CorrectnessService {
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
         let capability = self.capability();
         let scheme = self.info().scheme();
-        if !capability.compose {
-            return Err(new_unsupported_error(scheme, Operation::Compose, ""));
-        }
-        if args.if_not_exists() && !capability.compose_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "if_not_exists",
-            ));
-        }
-        if args.if_match().is_some() && !capability.compose_with_if_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "if_match",
-            ));
-        }
-        if args.if_none_match().is_some() && !capability.compose_with_if_none_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "if_none_match",
-            ));
-        }
-        if args.if_version_match().is_some() && !capability.compose_with_if_version_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "if_version_match",
-            ));
-        }
-        if args.if_version_not_match().is_some() && !capability.compose_with_if_version_not_match {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "if_version_not_match",
-            ));
-        }
-        if args.content_type().is_some() && !capability.compose_with_content_type {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "content_type",
-            ));
-        }
-        if args.content_disposition().is_some() && !capability.compose_with_content_disposition {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "content_disposition",
-            ));
-        }
-        if args.content_encoding().is_some() && !capability.compose_with_content_encoding {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "content_encoding",
-            ));
-        }
-        if args.cache_control().is_some() && !capability.compose_with_cache_control {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "cache_control",
-            ));
-        }
-        if args.user_metadata().is_some() && !capability.compose_with_user_metadata {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Compose,
-                "user_metadata",
-            ));
-        }
+        check_compose_args(scheme, capability, &args)?;
 
         self.inner
             .compose(ctx, to, args)
@@ -422,21 +595,8 @@ impl Service for CorrectnessService {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.start_after().is_some() && !capability.list_with_start_after {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::List,
-                "start_after",
-            ));
-        }
-        if args.versions() && !capability.list_with_versions {
-            return Err(new_unsupported_error(scheme, Operation::List, "versions"));
-        }
-        if args.deleted() && !capability.list_with_deleted {
-            return Err(new_unsupported_error(scheme, Operation::List, "deleted"));
-        }
+        check_list_args(self.info().scheme(), self.capability(), &args)?;
+
         self.inner.list(ctx, path, args)
     }
 
@@ -456,15 +616,7 @@ impl Service for CorrectnessService {
         to: &str,
         args: OpRename,
     ) -> Result<RpRename> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if args.if_not_exists() && !capability.rename_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Rename,
-                "if_not_exists",
-            ));
-        }
+        check_rename_args(self.info().scheme(), self.capability(), &args)?;
 
         self.inner.rename(ctx, from, to, args).await
     }
@@ -475,21 +627,8 @@ impl Service for CorrectnessService {
         path: &str,
         args: OpRestore,
     ) -> Result<RpRestore> {
-        let capability = self.capability();
-        let scheme = self.info().scheme();
-        if !capability.restore {
-            return Err(new_unsupported_error(scheme, Operation::Restore, ""));
-        }
-        if args.version().is_some() && !capability.restore_with_version {
-            return Err(new_unsupported_error(scheme, Operation::Restore, "version"));
-        }
-        if args.if_not_exists() && !capability.restore_with_if_not_exists {
-            return Err(new_unsupported_error(
-                scheme,
-                Operation::Restore,
-                "if_not_exists",
-            ));
-        }
+        check_restore_args(self.info().scheme(), self.capability(), &args)?;
+
         if args.if_not_exists() && args.version().is_none() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -537,34 +676,6 @@ impl<T> CheckWrapper<T> {
     fn check_delete(&self, args: &OpDelete) -> Result<()> {
         check_delete_args(self.scheme, self.capability, args)
     }
-
-    fn check_compose_source(&self, args: &OpRead) -> Result<()> {
-        if args.version().is_some() && !self.capability.compose_with_source_version {
-            return Err(new_unsupported_error(
-                self.scheme,
-                Operation::Compose,
-                "source_version",
-            ));
-        }
-
-        if args.if_match().is_some() && !self.capability.compose_with_source_if_match {
-            return Err(new_unsupported_error(
-                self.scheme,
-                Operation::Compose,
-                "source_if_match",
-            ));
-        }
-
-        if args.if_none_match().is_some() || args.if_version_not_match().is_some() {
-            return Err(new_unsupported_error(
-                self.scheme,
-                Operation::Compose,
-                "source_identity",
-            ));
-        }
-
-        Ok(())
-    }
 }
 
 impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
@@ -580,7 +691,7 @@ impl<T: oio::Delete> oio::Delete for CheckWrapper<T> {
 
 impl<T: oio::Compose> oio::Compose for CheckWrapper<T> {
     async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
-        self.check_compose_source(&args)?;
+        check_compose_source_args(self.scheme, self.capability, &args)?;
         self.inner.compose(path, args).await
     }
 
@@ -592,15 +703,26 @@ impl<T: oio::Compose> oio::Compose for CheckWrapper<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use crate::Capability;
 
     use crate::Metadata;
     use crate::Operator;
     use crate::raw::oio;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct MockService {
         capability: Capability,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl Builder for MockService {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(self)
+        }
     }
 
     impl Service for MockService {
@@ -608,7 +730,7 @@ mod tests {
         type Writer = MockWriter;
         type Lister = ();
         type Deleter = MockDeleter;
-        type Copier = ();
+        type Copier = MockCopier;
         type Composer = MockComposer;
 
         fn info(&self) -> ServiceInfo {
@@ -632,10 +754,12 @@ mod tests {
         }
 
         async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
-            Ok(RpStat::new(MetadataBuilder::unknown().build()))
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(RpStat::new(MetadataBuilder::file(0).build()))
         }
 
         fn read(&self, _ctx: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
             Ok(MockReader)
         }
 
@@ -644,6 +768,7 @@ mod tests {
         }
 
         fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
             Ok(())
         }
 
@@ -652,11 +777,16 @@ mod tests {
         }
 
         fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
-            Ok(())
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(MockCopier)
         }
 
         fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<Self::Composer> {
-            Ok(MockComposer::default())
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(MockComposer {
+                accepted: 0,
+                calls: self.calls.clone(),
+            })
         }
 
         async fn rename(
@@ -666,7 +796,13 @@ mod tests {
             _: &str,
             _: OpRename,
         ) -> Result<RpRename> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
             Ok(RpRename::default())
+        }
+
+        async fn restore(&self, _: &OperationContext, _: &str, _: OpRestore) -> Result<RpRestore> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            Ok(RpRestore::default())
         }
 
         async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
@@ -729,13 +865,30 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
+    struct MockCopier;
+
+    impl oio::Copy for MockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(None)
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
     struct MockComposer {
         accepted: usize,
+        calls: Arc<AtomicUsize>,
     }
 
     impl oio::Compose for MockComposer {
         async fn compose(&mut self, _: &str, _: OpRead) -> Result<()> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
             self.accepted += 1;
             Ok(())
         }
@@ -752,10 +905,215 @@ mod tests {
     }
 
     fn new_test_operator(capability: Capability) -> Operator {
-        let srv = MockService { capability };
+        let srv = MockService {
+            capability,
+            calls: Arc::default(),
+        };
 
         Operator::from_parts(OperationContext::default(), Arc::new(srv))
             .layer(CorrectnessCheckLayer)
+    }
+
+    async fn assert_override_rejects(
+        capability: Capability,
+        overrides: &str,
+        operation: impl AsyncFn(&Operator) -> Result<()>,
+    ) -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(MockService {
+            capability,
+            calls: calls.clone(),
+        })?;
+        let overridden = op
+            .clone()
+            .layer(crate::layers::CapabilityOverrideLayer::from_overrides(
+                overrides,
+            )?);
+
+        let result = operation(&overridden).await;
+        assert_eq!(calls.load(Ordering::Relaxed), 0, "{overrides}");
+        let err = result.expect_err(overrides);
+        assert_eq!(err.kind(), ErrorKind::Unsupported, "{overrides}: {err}");
+
+        operation(&op).await?;
+        assert_eq!(calls.load(Ordering::Relaxed), 1, "{overrides}");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stat_honors_capability_override() -> Result<()> {
+        assert_override_rejects(
+            Capability {
+                stat: true,
+                stat_with_if_match: true,
+                ..Default::default()
+            },
+            "stat_with_if_match=false",
+            async |op| op.stat_with("path").if_match("etag").await.map(drop),
+        )
+        .await?;
+
+        let timestamp = Timestamp::from_second(1)?;
+        assert_override_rejects(
+            Capability {
+                stat: true,
+                stat_with_if_unmodified_since: true,
+                ..Default::default()
+            },
+            "stat_with_if_unmodified_since=false",
+            async |op| {
+                op.stat_with("path")
+                    .if_unmodified_since(timestamp)
+                    .await
+                    .map(drop)
+            },
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_read_and_reader_honor_capability_override() -> Result<()> {
+        let capability = Capability {
+            read: true,
+            read_with_if_match: true,
+            read_with_version: true,
+            ..Default::default()
+        };
+        assert_override_rejects(capability, "read_with_if_match=false", async |op| {
+            op.read_with("path").if_match("etag").await.map(drop)
+        })
+        .await?;
+        assert_override_rejects(capability, "read_with_version=false", async |op| {
+            op.reader_with("path").version("version").await.map(drop)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_copy_and_copier_honor_capability_override() -> Result<()> {
+        let capability = Capability {
+            copy: true,
+            copy_with_if_match: true,
+            copy_with_if_not_exists: true,
+            ..Default::default()
+        };
+        assert_override_rejects(capability, "copy_with_if_match=false", async |op| {
+            op.copy_with("from", "to").if_match("etag").await.map(drop)
+        })
+        .await?;
+        assert_override_rejects(capability, "copy_with_if_not_exists=false", async |op| {
+            op.copier_with("from", "to")
+                .if_not_exists(true)
+                .await
+                .map(drop)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_and_lister_honor_capability_override() -> Result<()> {
+        let capability = Capability {
+            list: true,
+            list_with_glob: true,
+            list_with_start_after: true,
+            list_with_versions: true,
+            list_with_deleted: true,
+            ..Default::default()
+        };
+        assert_override_rejects(capability, "list_with_glob=false", async |op| {
+            op.list_with("path/").glob("*.jpg").await.map(drop)
+        })
+        .await?;
+        assert_override_rejects(capability, "list_with_start_after=false", async |op| {
+            op.lister_with("path/")
+                .start_after("path/key")
+                .await
+                .map(drop)
+        })
+        .await?;
+        assert_override_rejects(capability, "list_with_versions=false", async |op| {
+            op.list_with("path/").versions(true).await.map(drop)
+        })
+        .await?;
+        assert_override_rejects(capability, "list_with_deleted=false", async |op| {
+            op.list_with("path/").deleted(true).await.map(drop)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rename_honors_capability_override() -> Result<()> {
+        assert_override_rejects(
+            Capability {
+                rename: true,
+                rename_with_if_not_exists: true,
+                ..Default::default()
+            },
+            "rename_with_if_not_exists=false",
+            async |op| op.rename_with("from", "to").if_not_exists(true).await,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_restore_honors_capability_override() -> Result<()> {
+        assert_override_rejects(
+            Capability {
+                restore: true,
+                restore_with_version: true,
+                ..Default::default()
+            },
+            "restore_with_version=false",
+            async |op| op.restore_with("path").version("version").await,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compose_destination_honors_capability_override() -> Result<()> {
+        assert_override_rejects(
+            Capability {
+                compose: true,
+                compose_with_if_match: true,
+                ..Default::default()
+            },
+            "compose_with_if_match=false",
+            async |op| op.composer_with("to").if_match("etag").await.map(drop),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compose_source_honors_capability_override() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(MockService {
+            capability: Capability {
+                compose: true,
+                compose_with_source_version: true,
+                ..Default::default()
+            },
+            calls: calls.clone(),
+        })?;
+        let overridden = op
+            .clone()
+            .layer(crate::layers::CapabilityOverrideLayer::from_overrides(
+                "compose_with_source_version=false",
+            )?);
+        let mut composer = overridden.composer("to").await?;
+        let before_source = calls.load(Ordering::Relaxed);
+        let err = composer
+            .compose_with("from")
+            .version("version")
+            .await
+            .expect_err("overridden source version must be rejected");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(calls.load(Ordering::Relaxed), before_source);
+
+        let mut composer = op.composer("to").await?;
+        let before_source = calls.load(Ordering::Relaxed);
+        composer.compose_with("from").version("version").await?;
+        assert_eq!(calls.load(Ordering::Relaxed), before_source + 1);
+        Ok(())
     }
 
     #[tokio::test]
@@ -906,6 +1264,9 @@ mod tests {
         let err = op.list_with("path/").deleted(true).await.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(err.message().contains("deleted"));
+        let err = op.list_with("path/").glob("*.jpg").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.message().contains("glob"));
         assert!(
             op.list_with("path/")
                 .versions(false)
@@ -1009,6 +1370,60 @@ mod tests {
         .content_type("text/plain")
         .await
         .expect("supported compose options must be forwarded");
+    }
+
+    #[tokio::test]
+    async fn test_copy_with_metadata_replacement() {
+        let op = new_test_operator(Capability {
+            copy: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .copy_with("from", "to")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .await
+            .expect_err("user metadata must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .copy_with("from", "to")
+            .content_type("text/plain")
+            .await
+            .expect_err("content type must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .copy_with("from", "to")
+            .content_language("en")
+            .await
+            .expect_err("content language must require a capability");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let op = new_test_operator(Capability {
+            copy: true,
+            copy_with_user_metadata: true,
+            copy_with_content_type: true,
+            copy_with_content_language: true,
+            ..Default::default()
+        });
+
+        let err = op
+            .copy("same", "same")
+            .await
+            .expect_err("a plain copy onto itself must fail");
+        assert_eq!(err.kind(), ErrorKind::IsSameFile);
+
+        op.copy_with("same", "same")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_type("text/plain")
+            .await
+            .expect("replacing metadata in place must be forwarded");
+
+        op.copy_with("same", "same")
+            .content_language("en")
+            .await
+            .expect("replacing content language in place must be forwarded");
     }
 
     #[tokio::test]
@@ -1346,5 +1761,197 @@ mod tests {
         });
         let res = op.rename_with("from", "to").if_not_exists(true).await;
         assert!(res.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_conditional_write_honors_capability_override() {
+        // #8640: a conditional write disabled by an outer capability override
+        // must fail instead of reaching the service.
+        let op = Operator::new(crate::services::Memory::default())
+            .unwrap()
+            .layer(
+                crate::layers::CapabilityOverrideLayer::from_overrides(
+                    "write_with_if_not_exists=false",
+                )
+                .unwrap(),
+            );
+        assert!(!op.info().capability().write_with_if_not_exists);
+
+        let err = op
+            .write_with("new", "data")
+            .if_not_exists(true)
+            .await
+            .expect_err("if_not_exists write must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!op.exists("new").await.unwrap());
+
+        let err = op
+            .writer_with("new")
+            .if_not_exists(true)
+            .await
+            .expect_err("if_not_exists writer must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!op.exists("new").await.unwrap());
+
+        // The same conditional write still works without the override.
+        let op = Operator::new(crate::services::Memory::default()).unwrap();
+        assert!(op.info().capability().write_with_if_not_exists);
+        op.write_with("new", "data")
+            .if_not_exists(true)
+            .await
+            .expect("if_not_exists write must succeed when supported");
+        assert!(op.exists("new").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_conditional_delete_honors_capability_override() {
+        // #8640: the same bypass for deletes; the deleter handle must check too.
+        let op = Operator::new(crate::services::Memory::default())
+            .unwrap()
+            .layer(
+                crate::layers::CapabilityOverrideLayer::from_overrides(
+                    "delete_with_recursive=false",
+                )
+                .unwrap(),
+            );
+        assert!(!op.info().capability().delete_with_recursive);
+
+        op.write("dir/file", "data").await.unwrap();
+        let err = op
+            .delete_with("dir/")
+            .recursive(true)
+            .await
+            .expect_err("recursive delete must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(op.exists("dir/file").await.unwrap());
+
+        let mut deleter = op.deleter().await.unwrap();
+        let err = deleter
+            .delete((
+                "dir/".to_string(),
+                options::DeleteOptions {
+                    recursive: true,
+                    ..Default::default()
+                },
+            ))
+            .await
+            .expect_err("recursive delete via handle must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(op.exists("dir/file").await.unwrap());
+
+        // Without the override, the recursive delete succeeds.
+        let op = Operator::new(crate::services::Memory::default()).unwrap();
+        op.write("dir/file", "data").await.unwrap();
+        op.delete_with("dir/").recursive(true).await.unwrap();
+        assert!(!op.exists("dir/file").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_honors_capability_override() {
+        // #8640 follow-up: presigned writes must validate against the
+        // effective capability, not just the inner service's.
+        let op = new_test_operator(Capability {
+            presign_write: true,
+            write_with_if_match: true,
+            ..Default::default()
+        })
+        .layer(
+            crate::layers::CapabilityOverrideLayer::from_overrides("write_with_if_match=false")
+                .unwrap(),
+        );
+        assert!(!op.info().capability().write_with_if_match);
+
+        let err = op
+            .presign_write_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("presigned write with if_match must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        // Without the override, the presign reaches the service.
+        let op = new_test_operator(Capability {
+            presign_write: true,
+            write_with_if_match: true,
+            ..Default::default()
+        });
+        let err = op
+            .presign_write_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::WriteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+    }
+
+    #[tokio::test]
+    async fn test_presign_delete_honors_capability_override() {
+        // #8640 follow-up: presigned deletes and conditional deletes must
+        // validate against the effective capability.
+        let op = new_test_operator(Capability {
+            delete: true,
+            presign_delete: true,
+            delete_with_if_match: true,
+            ..Default::default()
+        })
+        .layer(
+            crate::layers::CapabilityOverrideLayer::from_overrides("delete_with_if_match=false")
+                .unwrap(),
+        );
+        assert!(!op.info().capability().delete_with_if_match);
+
+        let err = op
+            .presign_delete_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("presigned delete with if_match must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        let err = op
+            .delete_with("path")
+            .if_match("etag")
+            .await
+            .expect_err("conditional delete must fail when overridden off");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("if_match"));
+
+        // Without the override, both reach the service.
+        let op = new_test_operator(Capability {
+            delete: true,
+            presign_delete: true,
+            delete_with_if_match: true,
+            ..Default::default()
+        });
+        let err = op
+            .presign_delete_options(
+                "path",
+                std::time::Duration::from_secs(60),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock service rejects presign");
+        assert!(err.to_string().contains("operation is not supported"));
+        op.delete_with("path").if_match("etag").await.unwrap();
     }
 }

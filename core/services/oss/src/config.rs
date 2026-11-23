@@ -148,7 +148,10 @@ impl opendal_core::Configurator for OssConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        OssBuilder { config: self }
+        OssBuilder {
+            config: self,
+            credential_providers: None,
+        }
     }
 }
 

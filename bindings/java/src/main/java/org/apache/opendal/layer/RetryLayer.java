@@ -31,6 +31,7 @@ import org.apache.opendal.Layer;
  */
 @Builder
 public class RetryLayer extends Layer {
+    private static final Duration MAX_DELAY = Duration.ofNanos(Long.MAX_VALUE);
 
     private final boolean jitter;
 
@@ -45,6 +46,30 @@ public class RetryLayer extends Layer {
 
     @Builder.Default
     private final long maxTimes = 3;
+
+    /**
+     * Creates a retry layer.
+     *
+     * @param jitter whether each delay is randomized
+     * @param factor the multiplier applied to the delay after each failure
+     * @param minDelay the delay before the first retry
+     * @param maxDelay the upper bound of the delay between retries
+     * @param maxTimes the maximum number of retries
+     * @throws IllegalArgumentException if a delay is negative or exceeds {@link Long#MAX_VALUE} nanoseconds
+     */
+    RetryLayer(boolean jitter, float factor, Duration minDelay, Duration maxDelay, long maxTimes) {
+        if (minDelay.isNegative() || minDelay.compareTo(MAX_DELAY) > 0) {
+            throw new IllegalArgumentException("minDelay must be between zero and Long.MAX_VALUE nanoseconds");
+        }
+        if (maxDelay.isNegative() || maxDelay.compareTo(MAX_DELAY) > 0) {
+            throw new IllegalArgumentException("maxDelay must be between zero and Long.MAX_VALUE nanoseconds");
+        }
+        this.jitter = jitter;
+        this.factor = factor;
+        this.minDelay = minDelay;
+        this.maxDelay = maxDelay;
+        this.maxTimes = maxTimes;
+    }
 
     @Override
     protected long layer(long nativeOp) {

@@ -28,15 +28,20 @@ use opendal_core::*;
 use std::sync::Arc;
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::tokio::AsyncRustlsStream;
+use suppaftp::tokio::TransferStream;
 use suppaftp::types::Response;
-use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 
 pub struct FtpReadStream {
+    /// Declared before `_ftp_stream` so the data connection is always closed
+    /// before the control connection returns to the pool.
+    data_stream: Option<TransferStream<AsyncRustlsStream>>,
+
     /// Keep the connection alive while data stream is alive.
     _ftp_stream: bounded::Object<Manager>,
-
-    data_stream: Box<dyn AsyncRead + Sync + Send + Unpin + 'static>,
+    /// Bytes left in the requested range, or `u64::MAX` for an open-ended read.
+    remaining: u64,
     chunk: usize,
     buf: BytesMut,
 }
@@ -59,16 +64,16 @@ impl FtpReadStream {
                 .await
                 .map_err(format_ftp_error)?;
         }
-        let ds = ftp_stream
+        let data_stream = ftp_stream
             .retr_as_stream(path)
             .await
-            .map_err(format_ftp_error)?
-            .take(size as _);
+            .map_err(format_ftp_error)?;
 
         Ok(Self {
-            _ftp_stream: ftp_stream,
+            data_stream: Some(data_stream),
 
-            data_stream: Box::new(ds),
+            _ftp_stream: ftp_stream,
+            remaining: size,
             chunk: 1024 * 1024,
             buf: BytesMut::new(),
         })
@@ -77,12 +82,43 @@ impl FtpReadStream {
 
 impl oio::ReadStream for FtpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
-        self.buf.resize(self.chunk, 0);
-        let n = self
-            .data_stream
+        // A zero-length range never reads from the server. Finish the
+        // transfer without checking the reply: closing the data connection
+        // early makes the server report an aborted transfer even though the
+        // requested range is complete.
+        if self.remaining == 0 {
+            if let Some(data_stream) = self.data_stream.take() {
+                let _ = data_stream.finish().await;
+            }
+            return Ok(Buffer::new());
+        }
+
+        let Some(data_stream) = self.data_stream.as_mut() else {
+            return Ok(Buffer::new());
+        };
+
+        let limit = self.remaining.min(self.chunk as u64) as usize;
+        self.buf.resize(limit, 0);
+        let n = data_stream
             .read(&mut self.buf)
             .await
             .map_err(new_std_io_error)?;
+        self.remaining -= n as u64;
+
+        if n == 0 || self.remaining == 0 {
+            let data_stream = self
+                .data_stream
+                .take()
+                .expect("ftp data stream must be initialized");
+            let result = data_stream.finish().await;
+            // A range-limited read closes the data connection before the
+            // server finishes sending, so its completion reply may report an
+            // aborted transfer even though every requested byte arrived.
+            if n == 0 {
+                result.map_err(format_ftp_error)?;
+            }
+        }
+
         Ok(Buffer::from(self.buf.split_to(n).freeze()))
     }
 }
@@ -147,23 +183,11 @@ impl FtpLazyWriter {
                 }
             }
 
-            let tmp_path = (!self.append).then(|| build_ftp_tmp_path(&self.path));
-            let w = FtpWriter::new(ftp_stream, self.path.clone(), tmp_path);
+            let w = FtpWriter::new(ftp_stream, self.path.clone(), self.append);
             self.inner = Some(w);
         }
 
         Ok(self.inner.as_mut().expect("ftp writer must be initialized"))
-    }
-}
-
-fn build_ftp_tmp_path(path: &str) -> String {
-    let parent = get_parent(path);
-    let tmp_name = build_tmp_path_of(path);
-
-    if parent == "/" {
-        tmp_name
-    } else {
-        format!("{parent}{tmp_name}")
     }
 }
 
@@ -173,10 +197,10 @@ impl oio::Write for FtpLazyWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        match &mut self.inner {
-            Some(w) => w.close().await,
-            None => Ok(MetadataBuilder::unknown().build()),
-        }
+        // Create the inner writer even when nothing was written so that
+        // closing the writer still creates or touches the remote file and
+        // reports its final metadata.
+        self.inner().await?.close().await
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -242,25 +266,5 @@ impl oio::StreamRead for FtpReader {
         let stream = FtpReadStream::new(ftp_stream, path.to_string(), range).await?;
 
         Ok((rp, Box::new(stream) as Box<dyn oio::ReadStreamDyn>))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::build_ftp_tmp_path;
-
-    #[test]
-    fn test_build_ftp_tmp_path() {
-        for path in [
-            "example.txt",
-            "folder/example.txt",
-            "folder/subfolder/deep/example.txt",
-            ".hidden dir/.résumé #%.txt",
-        ] {
-            let tmp_path = build_ftp_tmp_path(path);
-            let (stem, suffix) = tmp_path.rsplit_once('.').unwrap();
-            assert_eq!(stem, path);
-            assert!(!suffix.is_empty() && !suffix.contains('/'), "{tmp_path}");
-        }
     }
 }

@@ -19,8 +19,13 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"runtime"
+	"sync"
 )
+
+// ErrListerClosed reports that a Lister is used after Close released it.
+var ErrListerClosed = errors.New("opendal: lister is closed")
 
 // List returns a Lister to iterate over entries that start with the given path in the parent directory.
 //
@@ -125,6 +130,12 @@ type listOptions struct {
 // Note: Always check lister.Error() after the loop to catch any errors that
 // occurred during iteration.
 func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	o := &listOptions{}
 	for _, opt := range opts {
 		opt(o)
@@ -140,7 +151,7 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 	}
 	ffiListOptionsSetVersions.symbol(op.ctx)(cOpts, o.versions)
 	ffiListOptionsSetDeleted.symbol(op.ctx)(cOpts, o.deleted)
-	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(op.inner, path, cOpts)
+	listerInner, err := ffiOperatorListWith.symbol(op.ctx)(opInner, path, cOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +190,10 @@ func (op *Operator) List(path string, opts ...WithListFn) (*Lister, error) {
 //		fmt.Println(entry.Name())
 //	}
 type Lister struct {
+	// mu serializes access to inner. The C lister hands out a &mut to the
+	// underlying Rust lister, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalLister
 	ctx   context.Context
 	entry *Entry
@@ -187,13 +202,31 @@ type Lister struct {
 
 // This method implements the io.Closer interface. It should be called when
 // the Lister is no longer needed to ensure proper resource cleanup.
+//
+// Close is safe to call more than once; further calls are no-ops returning
+// nil. Next on a closed Lister returns false and Error reports
+// ErrListerClosed.
 func (l *Lister) Close() error {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inner == nil {
+		return nil
+	}
 	ffiListerFree.symbol(l.ctx)(l.inner)
-
+	l.inner = nil
 	return nil
 }
 
+// Error returns the error, if any, that stopped the last Next call.
 func (l *Lister) Error() error {
+	if l == nil {
+		return ErrListerClosed
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.err
 }
 
@@ -233,7 +266,20 @@ func (l *Lister) Error() error {
 //		entry := lister.Entry()
 //		fmt.Println(entry.Name())
 //	}
+//
+// Next on a closed Lister returns false and reports ErrListerClosed through
+// Error.
 func (l *Lister) Next() bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inner == nil {
+		l.err = ErrListerClosed
+		l.entry = nil
+		return false
+	}
 	inner, err := ffiListerNext.symbol(l.ctx)(l.inner)
 	if inner == nil || err != nil {
 		l.err = err
@@ -250,6 +296,11 @@ func (l *Lister) Next() bool {
 // Entry returns the current Entry in the list.
 // Returns nil if there are no more entries
 func (l *Lister) Entry() *Entry {
+	if l == nil {
+		return nil
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
 	return l.entry
 }
 

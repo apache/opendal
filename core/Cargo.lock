@@ -8508,6 +8508,7 @@ dependencies = [
  "monoio",
  "opendal-core",
  "serde",
+ "tempfile",
  "tokio",
 ]
 

@@ -1019,8 +1019,17 @@ impl Operator {
         }
 
         let mut w = Self::writer_inner(ctx, srv, path, opts).await?;
-        w.write(bs).await?;
-        w.close().await
+        if let Err(err) = w.write(bs).await {
+            let _ = w.abort().await;
+            return Err(err);
+        }
+        match w.close().await {
+            Ok(meta) => Ok(meta),
+            Err(err) => {
+                let _ = w.abort().await;
+                Err(err)
+            }
+        }
     }
 
     /// Create a writer for the specified path.
@@ -3062,5 +3071,196 @@ mod tests {
         .expect("blocking read task must complete")?;
         assert_eq!(buf.to_bytes(), "ta");
         Ok(())
+    }
+
+    #[derive(Debug)]
+    struct AbortRecordingService {
+        fail_on_write: Option<usize>,
+        fail_on_close: bool,
+        fail_on_abort: bool,
+        write_calls: Arc<std::sync::atomic::AtomicUsize>,
+        abort_calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    struct AbortRecordingWriter {
+        fail_on_write: Option<usize>,
+        fail_on_close: bool,
+        fail_on_abort: bool,
+        write_calls: Arc<std::sync::atomic::AtomicUsize>,
+        abort_calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl oio::Write for AbortRecordingWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            let attempt = self
+                .write_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                + 1;
+            if self.fail_on_write == Some(attempt) {
+                return Err(Error::new(ErrorKind::Unexpected, "injected write failure"));
+            }
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            if self.fail_on_close {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "injected close failure",
+                ));
+            }
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            self.abort_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            if self.fail_on_abort {
+                return Err(Error::new(ErrorKind::Unexpected, "injected abort failure"));
+            }
+            Ok(())
+        }
+    }
+
+    impl Service for AbortRecordingService {
+        type Reader = ();
+        type Writer = AbortRecordingWriter;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::new("mock", "/", "abort-recording")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                write: true,
+                write_can_multi: true,
+                write_can_empty: true,
+                ..Default::default()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            unreachable!()
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            unreachable!()
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            unreachable!()
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Ok(AbortRecordingWriter {
+                fail_on_write: self.fail_on_write,
+                fail_on_close: self.fail_on_close,
+                fail_on_abort: self.fail_on_abort,
+                write_calls: self.write_calls.clone(),
+                abort_calls: self.abort_calls.clone(),
+            })
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            unreachable!()
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            unreachable!()
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            unreachable!()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            unreachable!()
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            unreachable!()
+        }
+    }
+
+    fn abort_recording_operator(
+        fail_on_write: Option<usize>,
+        fail_on_close: bool,
+        fail_on_abort: bool,
+    ) -> (
+        Operator,
+        Arc<std::sync::atomic::AtomicUsize>,
+        Arc<std::sync::atomic::AtomicUsize>,
+    ) {
+        let write_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let abort_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let op = Operator::from_parts(
+            OperationContext::new(),
+            Arc::new(AbortRecordingService {
+                fail_on_write,
+                fail_on_close,
+                fail_on_abort,
+                write_calls: write_calls.clone(),
+                abort_calls: abort_calls.clone(),
+            }),
+        );
+        (op, write_calls, abort_calls)
+    }
+
+    #[tokio::test]
+    async fn test_write_aborts_on_write_failure() {
+        for fail_on_abort in [false, true] {
+            let (op, write_calls, abort_calls) =
+                abort_recording_operator(Some(2), false, fail_on_abort);
+
+            let err = op
+                .write_options(
+                    "target",
+                    "abcdefghi",
+                    options::WriteOptions {
+                        chunk: Some(4),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .expect_err("second chunk write must fail");
+
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), "injected write failure");
+            assert_eq!(write_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+            assert_eq!(abort_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_write_aborts_on_close_failure() {
+        for fail_on_abort in [false, true] {
+            let (op, write_calls, abort_calls) =
+                abort_recording_operator(None, true, fail_on_abort);
+
+            let err = op
+                .write_options("target", "hello", options::WriteOptions::default())
+                .await
+                .expect_err("close must fail");
+
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+            assert_eq!(err.message(), "injected close failure");
+            assert_eq!(write_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+            assert_eq!(abort_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        }
     }
 }

@@ -123,6 +123,7 @@ struct PendingCopy {
     options: OpReader,
     range: BytesRange,
     limit: Option<u64>,
+    start: u64,
     end: u64,
     /// The next source offset to copy. It advances only after the destination
     /// accepts the corresponding bytes.
@@ -130,6 +131,10 @@ struct PendingCopy {
 }
 
 impl PendingCopy {
+    fn has_accepted_bytes(&self) -> bool {
+        self.offset > self.start
+    }
+
     fn matches(&self, path: &str, args: &OpRead, range: BytesRange, limit: Option<u64>) -> bool {
         self.path == path && self.range == range && self.limit == limit && self.args.same_read(args)
     }
@@ -215,8 +220,9 @@ impl WriteState {
         Ok(())
     }
 
-    fn check_writable(&self) -> Result<()> {
+    fn check_writable(&mut self) -> Result<()> {
         self.check_not_aborted()?;
+        self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
         if self.pending_copy.is_some() {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -349,6 +355,7 @@ impl WriteState {
         const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
         self.check_not_aborted()?;
+        self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
 
         if let Some(copy) = &self.pending_copy {
             // Only the identical logical call can continue after the writer
@@ -452,12 +459,17 @@ impl WriteState {
                 options,
                 range,
                 limit,
+                start: absolute.start,
                 end,
                 offset: absolute.start,
             }));
         }
 
-        self.drive_copy().await
+        let result = self.drive_copy().await;
+        if result.is_err() {
+            self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
+        }
+        result
     }
 
     async fn drive_copy(&mut self) -> Result<()> {
@@ -647,6 +659,7 @@ mod tests {
         fail_on_copy: usize,
         pending_on_copy: usize,
         can_copy_from: bool,
+        read_with_if_match: bool,
         /// Report this content length from `stat` instead of the real one.
         stat_content_length: Option<u64>,
     }
@@ -658,6 +671,7 @@ mod tests {
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
                 can_copy_from: true,
+                read_with_if_match: false,
                 stat_content_length: None,
             }
         }
@@ -688,6 +702,7 @@ mod tests {
                 write_can_multi: true,
                 write_multi_min_size: Some(10),
                 write_can_copy_from: self.faults.can_copy_from,
+                read_with_if_match: self.faults.read_with_if_match,
                 ..self.inner.capability()
             }
         }
@@ -794,6 +809,12 @@ mod tests {
             if self.copy_attempts == self.faults.pending_on_copy {
                 self.copy_pending.store(true, Ordering::SeqCst);
                 std::future::pending::<()>().await;
+            }
+            if args.if_match().is_some() {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    "source etag mismatch",
+                ));
             }
 
             let reader = self.source.read(&self.ctx, path, args)?;
@@ -1578,6 +1599,208 @@ mod tests {
             op.read("target").await?.to_vec(),
             b"XYZ0123456789abcdefghijend"
         );
+        Ok(())
+    }
+
+    /// A bounded-range `copy_from` that fails before accepting any bytes must
+    /// leave the writer usable for subsequent writes, other copies, and close.
+    #[tokio::test]
+    async fn test_copy_from_zero_bytes_error_keeps_writer_usable() -> Result<()> {
+        // Streaming path failing on a missing source with a non-zero offset.
+        let op = Operator::new(services::Memory::default())?;
+        op.write("other", "0123456789").await?;
+        let mut writer = op.writer("target-stream").await?;
+        writer.write("pre:").await?;
+
+        let err = writer
+            .copy_from("missing", 5..15)
+            .await
+            .expect_err("missing source must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        writer.write("mid:").await?;
+        writer.copy_from("other", 0..10).await?;
+        writer.close().await?;
+        assert_eq!(
+            op.read("target-stream").await?.to_vec(),
+            b"pre:mid:0123456789"
+        );
+
+        // Native copy path failing on missing source and ConditionNotMatch.
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                read_with_if_match: true,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target-native").chunk(10).await?;
+
+        let err = writer
+            .copy_from("missing", 0..10)
+            .await
+            .expect_err("missing source must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        let err = writer
+            .copy_from_options(
+                "other",
+                crate::options::ReadOptions {
+                    range: (0..10).into(),
+                    if_match: Some("\"stale-etag\"".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mismatched etag must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        writer.write("abcdefghij").await?;
+        writer.copy_from("other", 0..10).await?;
+        writer.close().await?;
+        assert_eq!(
+            op.read("target-native").await?.to_vec(),
+            b"abcdefghij0123456789"
+        );
+        Ok(())
+    }
+
+    /// Dropping a `copy_from` future before any bytes are accepted must leave
+    /// the writer usable for subsequent writes, other copies, and close.
+    #[tokio::test]
+    async fn test_copy_from_cancelled_before_accepting_bytes_keeps_writer_usable() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        op.write("other", "abcdefghij").await?;
+
+        // Case 1: write() and close() succeed after cancellation at 0 accepted bytes.
+        let (fault_op, _, copy_pending) = with_write_faults(
+            &op,
+            WriteFaults {
+                pending_on_copy: 1,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target-write").chunk(10).await?;
+        {
+            let mut fut = std::pin::pin!(writer.copy_from("source", 0..20));
+            for _ in 0..100 {
+                let _ = futures::poll!(&mut fut);
+                if copy_pending.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+            assert!(
+                copy_pending.load(Ordering::SeqCst),
+                "first native copy part must be pending"
+            );
+        }
+
+        writer.write("fresh-data").await?;
+        writer.close().await?;
+        assert_eq!(op.read("target-write").await?.to_vec(), b"fresh-data");
+
+        // Case 2: copy_from("other") and close() succeed after cancellation at 0 accepted bytes.
+        let (fault_op, _, copy_pending) = with_write_faults(
+            &op,
+            WriteFaults {
+                pending_on_copy: 1,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target-other").chunk(10).await?;
+        {
+            let mut fut = std::pin::pin!(writer.copy_from("source", 0..20));
+            for _ in 0..100 {
+                let _ = futures::poll!(&mut fut);
+                if copy_pending.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+            assert!(
+                copy_pending.load(Ordering::SeqCst),
+                "first native copy part must be pending"
+            );
+        }
+
+        writer.copy_from("other", 0..10).await?;
+        writer.close().await?;
+        assert_eq!(op.read("target-other").await?.to_vec(), b"abcdefghij");
+
+        // Case 3: close() directly succeeds after cancellation at 0 accepted bytes.
+        let (fault_op, _, copy_pending) = with_write_faults(
+            &op,
+            WriteFaults {
+                pending_on_copy: 1,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target-close").chunk(10).await?;
+        writer.write("0123456789").await?;
+        {
+            let mut fut = std::pin::pin!(writer.copy_from("source", 0..20));
+            for _ in 0..100 {
+                let _ = futures::poll!(&mut fut);
+                if copy_pending.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+            assert!(
+                copy_pending.load(Ordering::SeqCst),
+                "first native copy part must be pending"
+            );
+        }
+
+        writer.close().await?;
+        assert_eq!(op.read("target-close").await?.to_vec(), b"0123456789");
+        Ok(())
+    }
+
+    /// Once at least one byte of a `copy_from` call has been accepted, the
+    /// writer must still reject unrelated writes, other `copy_from` calls, and
+    /// `close` until the same `copy_from` is resumed or `abort` runs.
+    #[tokio::test]
+    async fn test_copy_from_partial_accept_still_requires_resume_or_abort() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        op.write("other", "abcdefghij").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_copy: 2,
+                ..Default::default()
+            },
+        );
+
+        let mut writer = fault_op.writer_with("target-abort").chunk(10).await?;
+        let err = writer
+            .copy_from("source", 0..20)
+            .await
+            .expect_err("second native copy part fails after first 10 bytes are accepted");
+        assert_eq!(err.message(), "injected copy failure");
+
+        let err = writer
+            .write("rejected")
+            .await
+            .expect_err("unrelated write must fail after partial copy");
+        assert!(err.is_persistent());
+
+        let err = writer
+            .copy_from("other", 0..10)
+            .await
+            .expect_err("different copy_from must fail after partial copy");
+        assert!(err.is_persistent());
+
+        let err = writer
+            .close()
+            .await
+            .expect_err("close must fail after partial copy");
+        assert!(err.is_persistent());
+
+        writer.abort().await?;
         Ok(())
     }
 

@@ -154,7 +154,9 @@ impl opendal_copier {
 
     /// \brief Abort the pending copy operation, supporting cancellation via `cancel`.
     ///
-    /// Pass NULL for `cancel` to run without cancellation.
+    /// Pass NULL for `cancel` to run without cancellation. If cancelled mid-flight,
+    /// returns `OPENDAL_CANCELLED` and preserves the copier so the caller can retry
+    /// the abort with a fresh cancel token (or NULL) or free it cleanly.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_copier_abort_with_cancel(
         &mut self,

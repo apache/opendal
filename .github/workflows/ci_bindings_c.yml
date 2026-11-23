@@ -67,9 +67,11 @@ jobs:
 
       - name: Clippy Check
         working-directory: "bindings/c"
+        run: cargo clippy --all-targets -- -D warnings
 
-        run: |
-          cargo clippy -- -D warnings
+      - name: Run Rust unit tests
+        working-directory: "bindings/c"
+        run: cargo test
 
       - name: Build C binding
         working-directory: "bindings/c"

@@ -193,10 +193,12 @@ mod tests {
 
     use super::*;
     use crate::copier::opendal_copier;
+    use crate::deleter::opendal_deleter;
     use crate::error::{opendal_code, opendal_error};
     use crate::operator::{
-        opendal_operator, opendal_operator_copier_with_cancel, opendal_operator_read_with_cancel,
-        opendal_operator_reader_with_cancel, opendal_operator_stat_with_cancel,
+        opendal_operator, opendal_operator_copier_with_cancel, opendal_operator_deleter,
+        opendal_operator_read_with_cancel, opendal_operator_reader_with_cancel,
+        opendal_operator_stat_with_cancel,
     };
     use crate::reader::opendal_reader;
     use crate::types::opendal_bytes;
@@ -380,6 +382,22 @@ mod tests {
         gate: Arc<Gate>,
         block_stat: Arc<AtomicBool>,
         block_read: Arc<AtomicBool>,
+        block_delete_close: Arc<AtomicBool>,
+        block_copier_abort: Arc<AtomicBool>,
+        copier_aborted: Arc<AtomicBool>,
+    }
+
+    impl BlockingLayer {
+        fn new(gate: Arc<Gate>) -> Self {
+            Self {
+                gate,
+                block_stat: Arc::new(AtomicBool::new(false)),
+                block_read: Arc::new(AtomicBool::new(false)),
+                block_delete_close: Arc::new(AtomicBool::new(false)),
+                block_copier_abort: Arc::new(AtomicBool::new(false)),
+                copier_aborted: Arc::new(AtomicBool::new(false)),
+            }
+        }
     }
 
     impl raw::Layer for BlockingLayer {
@@ -389,6 +407,9 @@ mod tests {
                 gate: self.gate.clone(),
                 block_stat: self.block_stat.clone(),
                 block_read: self.block_read.clone(),
+                block_delete_close: self.block_delete_close.clone(),
+                block_copier_abort: self.block_copier_abort.clone(),
+                copier_aborted: self.copier_aborted.clone(),
             })
         }
     }
@@ -399,6 +420,36 @@ mod tests {
         gate: Arc<Gate>,
         block_stat: Arc<AtomicBool>,
         block_read: Arc<AtomicBool>,
+        block_delete_close: Arc<AtomicBool>,
+        block_copier_abort: Arc<AtomicBool>,
+        copier_aborted: Arc<AtomicBool>,
+    }
+
+    struct BlockingDeleter {
+        inner: oio::Deleter,
+        pending: Vec<(String, raw::OpDelete)>,
+        gate: Arc<Gate>,
+        block_delete_close: Arc<AtomicBool>,
+    }
+
+    impl oio::Delete for BlockingDeleter {
+        async fn delete(&mut self, path: &str, args: raw::OpDelete) -> core::Result<()> {
+            self.pending.push((path.to_string(), args));
+            Ok(())
+        }
+
+        async fn close(&mut self) -> core::Result<()> {
+            if self.block_delete_close.load(Ordering::SeqCst) {
+                self.gate.signal();
+                std::future::pending::<()>().await;
+            }
+            for (path, args) in self.pending.clone() {
+                self.inner.delete_dyn(&path, args).await?;
+            }
+            self.inner.close_dyn().await?;
+            self.pending.clear();
+            Ok(())
+        }
     }
 
     struct BlockingReader {
@@ -434,6 +485,9 @@ mod tests {
         from: String,
         to: String,
         copied: bool,
+        gate: Arc<Gate>,
+        block_copier_abort: Arc<AtomicBool>,
+        copier_aborted: Arc<AtomicBool>,
     }
 
     impl oio::Copy for TestCopier {
@@ -461,7 +515,12 @@ mod tests {
         }
 
         async fn abort(&mut self) -> core::Result<()> {
+            if self.block_copier_abort.load(Ordering::SeqCst) {
+                self.gate.signal();
+                std::future::pending::<()>().await;
+            }
             self.copied = true;
+            self.copier_aborted.store(true, Ordering::SeqCst);
             Ok(())
         }
     }
@@ -470,7 +529,7 @@ mod tests {
         type Reader = BlockingReader;
         type Writer = oio::Writer;
         type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
+        type Deleter = BlockingDeleter;
         type Copier = TestCopier;
         type Composer = oio::Composer;
 
@@ -530,7 +589,13 @@ mod tests {
         }
 
         fn delete(&self, ctx: &core::OperationContext) -> core::Result<Self::Deleter> {
-            self.inner.delete(ctx)
+            let inner = self.inner.delete(ctx)?;
+            Ok(BlockingDeleter {
+                inner,
+                pending: Vec::new(),
+                gate: self.gate.clone(),
+                block_delete_close: self.block_delete_close.clone(),
+            })
         }
 
         fn list(
@@ -555,6 +620,9 @@ mod tests {
                 from: from.to_string(),
                 to: to.to_string(),
                 copied: false,
+                gate: self.gate.clone(),
+                block_copier_abort: self.block_copier_abort.clone(),
+                copier_aborted: self.copier_aborted.clone(),
             })
         }
 
@@ -604,16 +672,13 @@ mod tests {
             .unwrap();
 
         let gate = Gate::new();
-        let block_stat = Arc::new(AtomicBool::new(false));
-        let block_read = Arc::new(AtomicBool::new(false));
+        let blocking = BlockingLayer::new(gate.clone());
+        let block_stat = blocking.block_stat.clone();
+        let block_read = blocking.block_read.clone();
 
         let op = core::Operator::new(core::services::Memory::default())
             .unwrap()
-            .layer(BlockingLayer {
-                gate: gate.clone(),
-                block_stat: block_stat.clone(),
-                block_read: block_read.clone(),
-            });
+            .layer(blocking);
 
         rt.block_on(async {
             op.write("file.txt", "hello cancellation").await.unwrap();
@@ -843,6 +908,168 @@ mod tests {
 
         unsafe {
             opendal_bytes::opendal_bytes_free(&mut copied);
+            opendal_copier::opendal_copier_free(copier);
+            opendal_operator::opendal_operator_free(c_op);
+        }
+    }
+
+    #[test]
+    fn test_deleter_flush_in_flight_cancel_recovery_with_retry_layer() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let gate = Gate::new();
+        let blocking = BlockingLayer::new(gate.clone());
+        let block_delete_close = blocking.block_delete_close.clone();
+
+        // Match `opendal_operator_new` default layers (`RetryLayer` + `LoggingLayer`).
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(blocking)
+            .layer(core::layers::RetryLayer::new())
+            .layer(core::layers::LoggingLayer::default());
+
+        rt.block_on(async {
+            op.write("del_a.txt", "a").await.unwrap();
+            op.write("del_b.txt", "b").await.unwrap();
+        });
+
+        let c_op = opendal_operator::from_operator(rt.handle().clone(), op.clone());
+        let mut deleter = std::ptr::null_mut();
+        let err = unsafe { opendal_operator_deleter(&*c_op, &mut deleter) };
+        assert!(err.is_null());
+        assert!(!deleter.is_null());
+
+        let path_a = CString::new("del_a.txt").unwrap();
+        let path_b = CString::new("del_b.txt").unwrap();
+        let paths = [path_a.as_ptr(), path_b.as_ptr()];
+        let err = unsafe {
+            opendal_deleter::opendal_deleter_delete_many(&mut *deleter, paths.as_ptr(), paths.len())
+        };
+        assert!(err.is_null());
+
+        // Paths are queued until flush completes.
+        rt.block_on(async {
+            assert!(op.exists("del_a.txt").await.unwrap());
+            assert!(op.exists("del_b.txt").await.unwrap());
+        });
+
+        // Cancel in-flight flush while RetryLayer wraps the deleter.
+        gate.reset();
+        block_delete_close.store(true, Ordering::SeqCst);
+        let tok = opendal_cancel_token::opendal_cancel_token_new();
+        let send_tok = SendCancelPtr(tok);
+        let gate_bg = gate.clone();
+        let t = std::thread::spawn(move || {
+            let send_tok = send_tok;
+            gate_bg.wait();
+            unsafe { opendal_cancel_token::opendal_cancel_token_cancel(send_tok.0) };
+        });
+
+        let err = unsafe { opendal_deleter::opendal_deleter_flush_with_cancel(&mut *deleter, tok) };
+        t.join().unwrap();
+        assert!(!err.is_null());
+        assert_eq!(unsafe { (*err).code() }, opendal_code::OPENDAL_CANCELLED);
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_cancel_token::opendal_cancel_token_free(tok);
+        }
+
+        // Neither path was deleted yet, and the handle must remain usable (not poisoned).
+        rt.block_on(async {
+            assert!(op.exists("del_a.txt").await.unwrap());
+            assert!(op.exists("del_b.txt").await.unwrap());
+        });
+
+        block_delete_close.store(false, Ordering::SeqCst);
+        let err = unsafe { opendal_deleter::opendal_deleter_flush(&mut *deleter) };
+        assert!(err.is_null());
+
+        rt.block_on(async {
+            assert!(!op.exists("del_a.txt").await.unwrap());
+            assert!(!op.exists("del_b.txt").await.unwrap());
+        });
+
+        unsafe {
+            opendal_deleter::opendal_deleter_free(deleter);
+            opendal_operator::opendal_operator_free(c_op);
+        }
+    }
+
+    #[test]
+    fn test_copier_abort_in_flight_cancel_recovery_with_retry_layer() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let gate = Gate::new();
+        let blocking = BlockingLayer::new(gate.clone());
+        let block_copier_abort = blocking.block_copier_abort.clone();
+        let copier_aborted = blocking.copier_aborted.clone();
+
+        // Match `opendal_operator_new` default layers (`RetryLayer` + `LoggingLayer`).
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(blocking)
+            .layer(core::layers::RetryLayer::new())
+            .layer(core::layers::LoggingLayer::default());
+
+        rt.block_on(async {
+            op.write("src.txt", "payload").await.unwrap();
+        });
+
+        let c_op = opendal_operator::from_operator(rt.handle().clone(), op);
+        let src = CString::new("src.txt").unwrap();
+        let dst = CString::new("dst.txt").unwrap();
+        let mut copier = std::ptr::null_mut();
+        let err = unsafe {
+            opendal_operator_copier_with_cancel(
+                &*c_op,
+                src.as_ptr(),
+                dst.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                &mut copier,
+            )
+        };
+        assert!(err.is_null());
+        assert!(!copier.is_null());
+
+        // Cancel in-flight abort while RetryLayer wraps the copier.
+        gate.reset();
+        block_copier_abort.store(true, Ordering::SeqCst);
+        let tok = opendal_cancel_token::opendal_cancel_token_new();
+        let send_tok = SendCancelPtr(tok);
+        let gate_bg = gate.clone();
+        let t = std::thread::spawn(move || {
+            let send_tok = send_tok;
+            gate_bg.wait();
+            unsafe { opendal_cancel_token::opendal_cancel_token_cancel(send_tok.0) };
+        });
+
+        let err = unsafe { opendal_copier::opendal_copier_abort_with_cancel(&mut *copier, tok) };
+        t.join().unwrap();
+        assert!(!err.is_null());
+        assert_eq!(unsafe { (*err).code() }, opendal_code::OPENDAL_CANCELLED);
+        assert!(!copier_aborted.load(Ordering::SeqCst));
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_cancel_token::opendal_cancel_token_free(tok);
+        }
+
+        // Retry abort with a fresh cancel token; RetryLayer must not have poisoned the handle.
+        block_copier_abort.store(false, Ordering::SeqCst);
+        let fresh_tok = opendal_cancel_token::opendal_cancel_token_new();
+        let err =
+            unsafe { opendal_copier::opendal_copier_abort_with_cancel(&mut *copier, fresh_tok) };
+        assert!(err.is_null());
+        assert!(copier_aborted.load(Ordering::SeqCst));
+
+        unsafe {
+            opendal_cancel_token::opendal_cancel_token_free(fresh_tok);
             opendal_copier::opendal_copier_free(copier);
             opendal_operator::opendal_operator_free(c_op);
         }

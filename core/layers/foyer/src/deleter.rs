@@ -70,12 +70,6 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        if self.recursive {
-            // Foyer only supports removing exact keys or clearing the cache.
-            // Clear both memory and storage so no cached descendant or object
-            // version can survive the recursive delete.
-            self.inner.cache.clear().await.map_err(extract_err)?;
-        }
         {
             let mut deleted_keys = self
                 .inner
@@ -91,6 +85,22 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
                 deleted_keys.insert(key.clone());
             }
         }
-        self.deleter.close().await
+        let close_res = self.deleter.close().await;
+        let clear_res = if self.recursive {
+            // Foyer only supports removing exact keys or clearing the cache.
+            // Buffered deleters may not remove objects until close, so clear
+            // afterwards to remove any entries refilled by concurrent reads.
+            // Clear after errors too because close may have partially deleted
+            // objects before returning the error.
+            self.inner.cache.clear().await.map_err(extract_err)
+        } else {
+            Ok(())
+        };
+        if self.recursive && close_res.is_ok() && clear_res.is_ok() {
+            self.recursive = false;
+        }
+        close_res?;
+        clear_res?;
+        Ok(())
     }
 }

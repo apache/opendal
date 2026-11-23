@@ -8377,6 +8377,7 @@ dependencies = [
  "libc",
  "libloading 0.8.9",
  "opendal-core",
+ "opendal-executor-tokio",
  "opendal-service-fs",
  "serde",
  "tempfile",

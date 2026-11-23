@@ -94,10 +94,10 @@ impl oio::Write for Hf3fsWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "3FS writes cannot be rolled back",
-        ))
+        if let Some(inner) = self.inner.as_mut() {
+            inner.abort().await?;
+        }
+        Ok(())
     }
 }
 
@@ -143,5 +143,95 @@ impl oio::PositionWrite for Hf3fsWriteHandle {
             ErrorKind::Unsupported,
             "3FS writes cannot be rolled back",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use oio::Write;
+    use opendal_executor_tokio::TokioExecutor;
+
+    use super::*;
+    use crate::ffi::Api;
+
+    #[tokio::test]
+    async fn unopened_writer_abort_succeeds_without_creating_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let api = Api::noop();
+        let (read, _read_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, true);
+        let (write, _write_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, false);
+        let core = Arc::new(Hf3fsCore {
+            root: dir.path().to_path_buf(),
+            api,
+            read,
+            write,
+        });
+
+        let target = dir.path().join("unopened/file");
+        let mut writer = Hf3fsWriter::new(
+            core,
+            target.clone(),
+            Executor::with(TokioExecutor::default()),
+            OpWrite::new(),
+        );
+        writer.abort().await.unwrap();
+        assert!(!target.exists());
+    }
+
+    #[tokio::test]
+    async fn opened_writer_abort_clears_buffer_cancels_tasks_and_reports_unsupported() {
+        let dir = tempfile::tempdir().unwrap();
+        let api = Api::noop();
+        let (read, _read_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, true);
+        let (write, mut write_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, false);
+        let core = Arc::new(Hf3fsCore {
+            root: dir.path().to_path_buf(),
+            api,
+            read,
+            write,
+        });
+
+        let (options, _) = OpWrite::from_options(
+            &Capability::default(),
+            options::WriteOptions {
+                concurrent: 2,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let target = dir.path().join("opened/file");
+        let mut writer = Hf3fsWriter::new(
+            core,
+            target.clone(),
+            Executor::with(TokioExecutor::default()),
+            options,
+        );
+
+        // First write stays cached in PositionWriter; second write spawns an
+        // async task for the first chunk and caches the second chunk.
+        writer.write(Buffer::from("first")).await.unwrap();
+        writer.write(Buffer::from("second")).await.unwrap();
+
+        let mut pending_req = tokio::time::timeout(Duration::from_secs(5), write_rx.recv())
+            .await
+            .expect("first write should reach driver")
+            .expect("driver channel open");
+        assert!(!pending_req.is_cancelled());
+
+        let err = writer.abort().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        // PositionWriter::abort() cancels its concurrent tasks and clears its
+        // buffered chunk even though native rollback returns Unsupported.
+        tokio::time::timeout(Duration::from_secs(5), pending_req.cancelled())
+            .await
+            .expect("in-flight concurrent write task should be cancelled on abort");
+
+        // Closing after abort must not submit the cleared buffered chunk.
+        writer.close().await.unwrap();
+        assert!(write_rx.try_recv().is_err());
+        assert_eq!(std::fs::read(&target).unwrap(), b"");
     }
 }

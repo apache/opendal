@@ -20,7 +20,8 @@
 use std::time::Duration;
 
 use futures::TryStreamExt;
-use opendal_core::{ErrorKind, Operator};
+use opendal_core::{ErrorKind, Executor, Operator};
+use opendal_executor_tokio::TokioExecutor;
 use opendal_service_hf3fs::Hf3fs;
 
 fn fixture(block_size: usize) -> (tempfile::TempDir, Operator) {
@@ -34,7 +35,11 @@ fn fixture(block_size: usize) -> (tempfile::TempDir, Operator) {
     if let Ok(library) = std::env::var("OPENDAL_HF3FS_LIBRARY_PATH") {
         builder = builder.library_path(&library);
     }
-    (dir, Operator::new(builder).unwrap())
+    let op = Operator::new(builder).unwrap();
+    let context = op
+        .context()
+        .with_executor(Executor::with(TokioExecutor::default()));
+    (dir, op.with_context(context))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

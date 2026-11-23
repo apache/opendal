@@ -29,11 +29,11 @@ mod writer;
 pub use backend::Hf3fsBuilder as Hf3fs;
 pub use config::Hf3fsConfig;
 
-/// URI scheme for the 3FS USRBIO service.
+/// URI scheme for the DeepSeek 3FS (Fire-Flyer File System) USRBIO service.
 pub const HF3FS_SCHEME: &str = "hf3fs";
 
-/// Register 3FS for [`opendal_core::Operator::from_uri`] and
-/// [`opendal_core::Operator::via_iter`].
+/// Register DeepSeek 3FS (Fire-Flyer File System) for
+/// [`opendal_core::Operator::from_uri`] and [`opendal_core::Operator::via_iter`].
 pub fn register_hf3fs_service(registry: &opendal_core::OperatorRegistry) {
     registry.register::<Hf3fs>(HF3FS_SCHEME);
 }

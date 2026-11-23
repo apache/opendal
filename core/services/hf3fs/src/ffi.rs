@@ -18,9 +18,10 @@
 //! Minimal bindings to the public `hf3fs_usrbio.h` ABI.
 //! <https://github.com/deepseek-ai/3FS/blob/22fca04564c7cc230fd8b9523b8b92864e1dad47/src/lib/api/hf3fs_usrbio.h>
 
+use std::collections::HashMap;
 use std::ffi::{CStr, c_char, c_int, c_void};
-use std::path::Path;
-use std::sync::Arc;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use libloading::Library;
 use opendal_core::{Error, ErrorKind, Result};
@@ -60,6 +61,7 @@ pub(crate) struct Cqe {
 pub(crate) struct Api {
     pub extract_mount_point: unsafe extern "C" fn(*mut c_char, c_int, *const c_char) -> c_int,
     pub iovcreate: unsafe extern "C" fn(*mut Iov, *const c_char, usize, usize, c_int) -> c_int,
+    pub iovunlink: unsafe extern "C" fn(*mut Iov),
     pub iovdestroy: unsafe extern "C" fn(*mut Iov),
     pub iorcreate4: unsafe extern "C" fn(
         *mut Ior,
@@ -87,18 +89,35 @@ pub(crate) struct Api {
     pub submit_ios: unsafe extern "C" fn(*const Ior) -> c_int,
     pub wait_for_ios:
         unsafe extern "C" fn(*const Ior, *mut Cqe, c_int, c_int, *const libc::timespec) -> c_int,
+    #[cfg(not(test))]
     _library: Library,
+    #[cfg(test)]
+    _library: Option<Library>,
 }
+
+static LOADED_APIS: OnceLock<Mutex<HashMap<PathBuf, Arc<Api>>>> = OnceLock::new();
 
 impl Api {
     pub fn load(path: &Path) -> Result<Arc<Self>> {
-        // The configured library must implement the public 3FS C ABI. Keep it
-        // loaded for every registered file, ring, and outstanding buffer.
+        let key = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+        let cache = LOADED_APIS.get_or_init(|| Mutex::new(HashMap::new()));
+        let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(api) = cache.get(&key) {
+            return Ok(api.clone());
+        }
+
+        // Pin the native DSO for the process lifetime because libhf3fs registers
+        // process-global Folly logger factories and FD tables on load.
         let load = || unsafe {
-            let library = Library::new(path)?;
+            let library = libloading::os::unix::Library::open(
+                Some(path),
+                libc::RTLD_NOW | libc::RTLD_LOCAL | libc::RTLD_NODELETE,
+            )?;
+            let library = Library::from(library);
             Ok::<_, libloading::Error>(Self {
                 extract_mount_point: *library.get(b"hf3fs_extract_mount_point\0")?,
                 iovcreate: *library.get(b"hf3fs_iovcreate\0")?,
+                iovunlink: *library.get(b"hf3fs_iovunlink\0")?,
                 iovdestroy: *library.get(b"hf3fs_iovdestroy\0")?,
                 iorcreate4: *library.get(b"hf3fs_iorcreate4\0")?,
                 iordestroy: *library.get(b"hf3fs_iordestroy\0")?,
@@ -107,15 +126,98 @@ impl Api {
                 prep_io: *library.get(b"hf3fs_prep_io\0")?,
                 submit_ios: *library.get(b"hf3fs_submit_ios\0")?,
                 wait_for_ios: *library.get(b"hf3fs_wait_for_ios\0")?,
+                #[cfg(not(test))]
                 _library: library,
+                #[cfg(test)]
+                _library: Some(library),
             })
         };
-        load().map(Arc::new).map_err(|e| {
+        let api = load().map(Arc::new).map_err(|e| {
             Error::new(
                 ErrorKind::ConfigInvalid,
                 "failed to load 3FS USRBIO library",
             )
             .set_source(e)
+        })?;
+        cache.insert(key, api.clone());
+        Ok(api)
+    }
+
+    #[cfg(test)]
+    pub fn noop() -> Arc<Self> {
+        unsafe extern "C" fn extract_mount_point(
+            _: *mut c_char,
+            _: c_int,
+            _: *const c_char,
+        ) -> c_int {
+            -1
+        }
+        unsafe extern "C" fn iovcreate(
+            _: *mut Iov,
+            _: *const c_char,
+            _: usize,
+            _: usize,
+            _: c_int,
+        ) -> c_int {
+            -libc::ENOSYS
+        }
+        unsafe extern "C" fn iovunlink(_: *mut Iov) {}
+        unsafe extern "C" fn iovdestroy(_: *mut Iov) {}
+        unsafe extern "C" fn iorcreate4(
+            _: *mut Ior,
+            _: *const c_char,
+            _: c_int,
+            _: bool,
+            _: c_int,
+            _: c_int,
+            _: c_int,
+            _: u64,
+        ) -> c_int {
+            -libc::ENOSYS
+        }
+        unsafe extern "C" fn iordestroy(_: *mut Ior) {}
+        unsafe extern "C" fn reg_fd(_: c_int, _: u64) -> c_int {
+            0
+        }
+        unsafe extern "C" fn dereg_fd(_: c_int) {}
+        unsafe extern "C" fn prep_io(
+            _: *const Ior,
+            _: *const Iov,
+            _: bool,
+            _: *mut c_void,
+            _: c_int,
+            _: usize,
+            _: u64,
+            _: *const c_void,
+        ) -> c_int {
+            -libc::ENOSYS
+        }
+        unsafe extern "C" fn submit_ios(_: *const Ior) -> c_int {
+            -libc::ENOSYS
+        }
+        unsafe extern "C" fn wait_for_ios(
+            _: *const Ior,
+            _: *mut Cqe,
+            _: c_int,
+            _: c_int,
+            _: *const libc::timespec,
+        ) -> c_int {
+            -libc::ENOSYS
+        }
+
+        Arc::new(Self {
+            extract_mount_point,
+            iovcreate,
+            iovunlink,
+            iovdestroy,
+            iorcreate4,
+            iordestroy,
+            reg_fd,
+            dereg_fd,
+            prep_io,
+            submit_ios,
+            wait_for_ios,
+            _library: None,
         })
     }
 

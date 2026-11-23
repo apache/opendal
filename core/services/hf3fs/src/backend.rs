@@ -17,7 +17,7 @@
 
 use std::ffi::CString;
 use std::os::unix::ffi::OsStrExt;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use opendal_core::raw::*;
@@ -30,7 +30,8 @@ use crate::ffi::Api;
 use crate::reader::Hf3fsReader;
 use crate::writer::Hf3fsWriter;
 
-/// Access 3FS through USRBIO for data and the mounted filesystem for metadata.
+/// Access DeepSeek's 3FS (Fire-Flyer File System) through USRBIO for data and
+/// the mounted filesystem for metadata.
 ///
 /// Requires Linux, a running 3FS FUSE client, and its compatible USRBIO shared
 /// library. The root must already exist. Reads retain shared memory while space
@@ -104,6 +105,9 @@ impl Builder for Hf3fsBuilder {
                 "3FS root must be a directory",
             ));
         }
+        let root_str = root
+            .to_str()
+            .ok_or_else(|| Error::new(ErrorKind::ConfigInvalid, "3FS root must be valid UTF-8"))?;
         let api = Api::load(Path::new(
             self.config
                 .library_path
@@ -115,11 +119,7 @@ impl Builder for Hf3fsBuilder {
         let mount = api.mount_point(&c_root)?;
         let read = IoDriver::start(api.clone(), mount.clone(), depth, block_size, true)?;
         let write = IoDriver::start(api.clone(), mount, depth, block_size, false)?;
-        let metadata = Arc::new(
-            opendal_service_fs::Fs::default()
-                .root(&root.to_string_lossy())
-                .build()?,
-        );
+        let metadata = Arc::new(opendal_service_fs::Fs::default().root(root_str).build()?);
         Ok(Hf3fsBackend {
             core: Arc::new(Hf3fsCore {
                 root,
@@ -141,19 +141,7 @@ pub(crate) struct Hf3fsCore {
 
 impl Hf3fsCore {
     pub fn path(&self, path: &str) -> Result<PathBuf> {
-        let path = Path::new(path.trim_end_matches('/'));
-        if path.components().any(|c| {
-            matches!(
-                c,
-                Component::ParentDir | Component::RootDir | Component::Prefix(_)
-            )
-        }) {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "path escapes the configured root",
-            ));
-        }
-        Ok(self.root.join(path))
+        confined_join(&self.root, path)
     }
 }
 
@@ -260,5 +248,118 @@ impl Service for Hf3fsBackend {
         args: OpRename,
     ) -> Result<RpRename> {
         self.metadata.rename(ctx, from, to, args).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::symlink;
+
+    use super::*;
+
+    #[test]
+    fn builder_rejects_invalid_config_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_str().unwrap();
+
+        let err = Hf3fsBuilder::default().build().err().unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = Hf3fsBuilder::default()
+            .root("relative/path")
+            .build()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let file = dir.path().join("not-a-dir");
+        std::fs::write(&file, b"data").unwrap();
+        let err = Hf3fsBuilder::default()
+            .root(file.to_str().unwrap())
+            .build()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        for builder in [
+            Hf3fsBuilder::default().root(root).queue_depth(0),
+            Hf3fsBuilder::default()
+                .root(root)
+                .queue_depth(i32::MAX as usize),
+            Hf3fsBuilder::default().root(root).block_size(0),
+            Hf3fsBuilder::default()
+                .root(root)
+                .queue_depth(4)
+                .block_size(isize::MAX as usize / 2),
+        ] {
+            let err = builder.build().err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn builder_rejects_non_utf8_canonical_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let raw_dir = dir.path().join(OsStr::from_bytes(b"dir-\xff"));
+        std::fs::create_dir(&raw_dir).unwrap();
+        let utf8_link = dir.path().join("utf8-link");
+        symlink(&raw_dir, &utf8_link).unwrap();
+
+        let err = Hf3fsBuilder::default()
+            .root(utf8_link.to_str().unwrap())
+            .build()
+            .err()
+            .unwrap();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn config_from_uri_parses_root_and_options() {
+        let uri = OperatorUri::new(
+            "hf3fs:///mnt/3fs/data",
+            [
+                ("queue_depth".to_string(), "16".to_string()),
+                ("block_size".to_string(), "65536".to_string()),
+                (
+                    "library_path".to_string(),
+                    "/opt/3fs/libhf3fs_api_shared.so".to_string(),
+                ),
+            ],
+        )
+        .unwrap();
+        let cfg = Hf3fsConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.root.as_deref(), Some("/mnt/3fs/data"));
+        assert_eq!(cfg.queue_depth, Some(16));
+        assert_eq!(cfg.block_size, Some(65536));
+        assert_eq!(
+            cfg.library_path.as_deref(),
+            Some("/opt/3fs/libhf3fs_api_shared.so")
+        );
+    }
+
+    #[test]
+    fn core_path_confines_paths_to_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let api = Api::noop();
+        let (read, _read_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, true);
+        let (write, _write_rx, _) = IoDriver::for_test(api.clone(), 2, 4096, false);
+        let core = Hf3fsCore {
+            root: dir.path().to_path_buf(),
+            api,
+            read,
+            write,
+        };
+
+        assert_eq!(core.path("").unwrap(), dir.path());
+        assert_eq!(core.path("/").unwrap(), dir.path());
+        assert_eq!(core.path("a/b/c").unwrap(), dir.path().join("a/b/c"));
+        assert_eq!(core.path("a/b/").unwrap(), dir.path().join("a/b"));
+
+        for invalid in ["../escape", "a/../../escape", "/absolute"] {
+            let err = core.path(invalid).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound, "path: {invalid}");
+        }
     }
 }

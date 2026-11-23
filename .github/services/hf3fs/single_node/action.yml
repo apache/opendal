@@ -25,7 +25,7 @@ runs:
       id: cache
       with:
         path: ${{ runner.temp }}/3fs
-        key: hf3fs-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
+        key: hf3fs-runtime-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
     - name: Prepare 3FS
       shell: bash
       env:
@@ -35,19 +35,19 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       with:
         path: ${{ runner.temp }}/3fs
-        key: hf3fs-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
+        key: hf3fs-runtime-ubuntu22-${{ hashFiles('.github/services/hf3fs/single_node/setup.sh') }}
     - name: Start 3FS
       shell: bash
       run: |
-        source_dir="$RUNNER_TEMP/3fs"
+        runtime_dir="$RUNNER_TEMP/3fs"
         cluster="$RUNNER_TEMP/hf3fs-cluster"
         sed -i '/\[ib_devices\]/a device_filter = ["opendal_rxe"]' \
-          "$source_dir"/tests/fuse/config/*launcher.toml "$source_dir"/tests/fuse/config/admin_cli.toml
-        sed -i "s/start_level = 'NONE'/start_level = 'WARN'/" "$source_dir"/tests/fuse/config/*.toml
+          "$runtime_dir"/tests/fuse/config/*launcher.toml "$runtime_dir"/tests/fuse/config/admin_cli.toml
+        sed -i "s/start_level = 'NONE'/start_level = 'WARN'/" "$runtime_dir"/tests/fuse/config/*.toml
         sudo systemd-run --unit=opendal-hf3fs --uid="$(id -u)" \
           --working-directory="$RUNNER_TEMP" \
           --property=LimitMEMLOCK=infinity --property=TimeoutStopSec=10s \
-          bash "$source_dir/tests/fuse/run.sh" "$source_dir/build/bin" "$cluster"
+          bash "$runtime_dir/tests/fuse/run.sh" "$runtime_dir/bin" "$cluster"
         for _ in $(seq 1 120); do
           if mountpoint -q "$cluster/mnt" && [[ -d "$cluster/mnt/test" ]]; then
             break
@@ -61,7 +61,7 @@ runs:
         mountpoint "$cluster/mnt"
         test -d "$cluster/mnt/test"
         echo "OPENDAL_HF3FS_ROOT=$cluster/mnt/test" >> "$GITHUB_ENV"
-        echo "OPENDAL_HF3FS_LIBRARY_PATH=$source_dir/build/src/lib/api/libhf3fs_api_shared.so" >> "$GITHUB_ENV"
+        echo "OPENDAL_HF3FS_LIBRARY_PATH=$runtime_dir/lib/libhf3fs_api_shared.so" >> "$GITHUB_ENV"
         echo "OPENDAL_DISABLE_RANDOM_ROOT=true" >> "$GITHUB_ENV"
         echo "RUST_TEST_THREADS=2" >> "$GITHUB_ENV"
     - name: Test USRBIO

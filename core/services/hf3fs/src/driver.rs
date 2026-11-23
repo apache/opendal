@@ -18,7 +18,7 @@
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::fd::AsRawFd;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use bytes::Bytes;
@@ -65,6 +65,8 @@ struct Pool {
     slots: Mutex<Slots>,
     available: Condvar,
     permits: Arc<Semaphore>,
+    #[cfg(test)]
+    _backing: Option<Box<[u8]>>,
 }
 
 // The mapping is stable. Each slot has one owner until I/O completes;
@@ -89,6 +91,9 @@ impl Pool {
         if result < 0 {
             return Err(new_std_io_error(std::io::Error::from_raw_os_error(-result)));
         }
+        // Unlink the POSIX shared-memory name immediately after registration so
+        // crashes or fatal-error quarantine cannot leave orphaned /dev/shm files.
+        unsafe { (api.iovunlink)(&mut iov) };
         Ok(Arc::new(Self {
             available: Condvar::new(),
             api,
@@ -100,7 +105,31 @@ impl Pool {
                 free: (0..count).collect(),
                 retained: 0,
             }),
+            #[cfg(test)]
+            _backing: None,
         }))
+    }
+}
+
+#[cfg(test)]
+impl Pool {
+    fn in_memory(api: Arc<Api>, depth: usize, block_size: usize) -> Arc<Self> {
+        let mut backing = vec![0u8; depth * block_size].into_boxed_slice();
+        let mut iov: Iov = unsafe { std::mem::zeroed() };
+        iov.base = backing.as_mut_ptr();
+        Arc::new(Self {
+            available: Condvar::new(),
+            api,
+            iov,
+            block_size,
+            retain_limit: depth,
+            permits: Arc::new(Semaphore::new(depth)),
+            slots: Mutex::new(Slots {
+                free: (0..depth).collect(),
+                retained: 0,
+            }),
+            _backing: Some(backing),
+        })
     }
 }
 
@@ -160,12 +189,23 @@ impl Drop for Slot {
     }
 }
 
-struct Request {
+pub(crate) struct Request {
     file: Arc<RegisteredFile>,
     offset: usize,
     size: usize,
     slot: Option<Slot>,
     reply: oneshot::Sender<Result<(usize, Option<Slot>)>>,
+}
+
+#[cfg(test)]
+impl Request {
+    pub(crate) fn is_cancelled(&self) -> bool {
+        self.reply.is_closed()
+    }
+
+    pub(crate) async fn cancelled(&mut self) {
+        self.reply.closed().await;
+    }
 }
 
 struct Pending {
@@ -179,6 +219,7 @@ pub(crate) struct IoDriver {
     pub block_size: usize,
     read: bool,
     write_pool: Option<Arc<Pool>>,
+    failure: Arc<OnceLock<String>>,
 }
 
 impl IoDriver {
@@ -191,22 +232,24 @@ impl IoDriver {
     ) -> Result<Self> {
         let (tx, rx) = mpsc::channel(depth);
         let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
+        let failure = Arc::new(OnceLock::new());
+        let worker_failure = failure.clone();
         std::thread::Builder::new()
             .name(if read { "hf3fs-read" } else { "hf3fs-write" }.into())
-            .spawn(
-                move || match Worker::new(api, &mount, depth, block_size, read, rx) {
+            .spawn(move || {
+                match Worker::new(api, &mount, depth, block_size, read, rx, worker_failure) {
                     Ok(mut worker) => {
                         if ready_tx.send(Ok(worker.pool.clone())).is_ok()
                             && let Err(error) = worker.run()
                         {
-                            worker.failure = error.to_string();
+                            let _ = worker.failure.set(error.to_string());
                         }
                     }
                     Err(error) => {
                         let _ = ready_tx.send(Err(error));
                     }
-                },
-            )
+                }
+            })
             .map_err(new_std_io_error)?;
         let pool = ready_rx.recv().map_err(|e| {
             Error::new(ErrorKind::Unexpected, "USRBIO driver initialization failed").set_source(e)
@@ -216,7 +259,40 @@ impl IoDriver {
             block_size,
             read,
             write_pool: (!read).then_some(pool),
+            failure,
         })
+    }
+
+    fn stopped_error(&self) -> Error {
+        Error::new(
+            ErrorKind::Unexpected,
+            self.failure
+                .get()
+                .map_or("USRBIO driver stopped", String::as_str),
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(
+        api: Arc<Api>,
+        depth: usize,
+        block_size: usize,
+        read: bool,
+    ) -> (Self, mpsc::Receiver<Request>, Arc<OnceLock<String>>) {
+        let (tx, rx) = mpsc::channel(depth);
+        let failure = Arc::new(OnceLock::new());
+        let write_pool = (!read).then(|| Pool::in_memory(api, depth, block_size));
+        (
+            Self {
+                tx,
+                block_size,
+                read,
+                write_pool,
+                failure: failure.clone(),
+            },
+            rx,
+            failure,
+        )
     }
 
     pub async fn submit(
@@ -251,7 +327,7 @@ impl IoDriver {
                 .clone()
                 .acquire_owned()
                 .await
-                .map_err(|_| Error::new(ErrorKind::Unexpected, "USRBIO driver stopped"))?;
+                .map_err(|_| self.stopped_error())?;
             let index = pool.slots.lock().unwrap().free.pop().expect("write slot");
             let slot = Slot {
                 pool: pool.clone(),
@@ -283,14 +359,23 @@ impl IoDriver {
                 reply,
             })
             .await
-            .map_err(|_| Error::new(ErrorKind::Unexpected, "USRBIO driver stopped"))?;
+            .map_err(|_| self.stopped_error())?;
         // Read overflow copies run on the caller, leaving the driver free to
         // submit and reap other requests.
-        let (size, slot) = result
-            .await
-            .map_err(|_| Error::new(ErrorKind::Unexpected, "USRBIO driver stopped"))??;
+        let (size, slot) = result.await.map_err(|_| self.stopped_error())??;
         Ok((size, slot.map_or_else(Buffer::new, Slot::into_buffer)))
     }
+}
+
+pub(crate) fn ring_entries(depth: usize) -> i32 {
+    // Submission entries retire in order, even when I/O completes out of
+    // order. Leave headroom for delayed entries without raising the I/O limit.
+    // Clamp strictly below i32::MAX because upstream computes `entries + 1` in
+    // signed 32-bit arithmetic.
+    depth
+        .saturating_mul(64)
+        .saturating_add(1)
+        .min((i32::MAX - 1) as usize) as i32
 }
 
 struct Worker {
@@ -301,7 +386,7 @@ struct Worker {
     rx: mpsc::Receiver<Request>,
     pending: Vec<Option<Pending>>,
     active: usize,
-    failure: String,
+    failure: Arc<OnceLock<String>>,
 }
 
 impl Worker {
@@ -312,20 +397,16 @@ impl Worker {
         block_size: usize,
         read: bool,
         rx: mpsc::Receiver<Request>,
+        failure: Arc<OnceLock<String>>,
     ) -> Result<Self> {
         let pool = Pool::new(api.clone(), mount, depth, block_size, read)?;
         let mut ring = unsafe { std::mem::zeroed() };
-        // Submission entries retire in order, even when I/O completes out of
-        // order. Leave headroom for delayed entries without raising the I/O limit.
-        let entries = depth
-            .saturating_mul(64)
-            .saturating_add(1)
-            .min(i32::MAX as usize);
+        let entries = ring_entries(depth);
         let result = unsafe {
             (api.iorcreate4)(
                 &mut ring,
                 mount.as_ptr(),
-                entries as i32,
+                entries,
                 read,
                 // Complete requests independently instead of waiting for a batch.
                 -1,
@@ -345,7 +426,7 @@ impl Worker {
             rx,
             pending: (0..depth * 2).map(|_| None).collect(),
             active: 0,
-            failure: "USRBIO driver stopped with pending I/O".into(),
+            failure,
         })
     }
 
@@ -418,8 +499,11 @@ impl Worker {
                     self.rx.try_recv().ok()
                 };
                 let Some(request) = request else { break };
+                let active_before = self.active;
                 waiting = self.prepare(request);
-                prepared = true;
+                if self.active > active_before {
+                    prepared = true;
+                }
                 if waiting.is_some() {
                     break;
                 }
@@ -451,20 +535,25 @@ impl Worker {
             }
             // Give callers just woken by completions a brief chance to refill the queue.
             let poll = self.read && self.active < self.depth && Instant::now() < refill_until;
-            let deadline = (SystemTime::now() + Duration::from_micros(100))
-                .duration_since(UNIX_EPOCH)
-                .unwrap();
-            let timeout = libc::timespec {
-                tv_sec: deadline.as_secs() as _,
-                tv_nsec: deadline.subsec_nanos() as _,
+            let timeout = if poll || self.active == self.depth {
+                None
+            } else {
+                let deadline = (SystemTime::now() + Duration::from_micros(100))
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default();
+                Some(libc::timespec {
+                    tv_sec: deadline.as_secs() as _,
+                    tv_nsec: deadline.subsec_nanos() as _,
+                })
             };
+            let timeout_ptr = timeout.as_ref().map_or(std::ptr::null(), |t| t as *const _);
             let count = unsafe {
                 (self.pool.api.wait_for_ios)(
                     self.ring.as_ref().unwrap(),
                     cqes.as_mut_ptr(),
                     cqes.len() as i32,
                     i32::from(!poll),
-                    &timeout,
+                    timeout_ptr,
                 )
             };
             if poll && count == 0 {
@@ -517,15 +606,50 @@ impl Drop for Worker {
             // USRBIO has no cancellation fence. On a fatal driver error, native
             // I/O may still touch these resources: quarantine them until exit.
             // Dropping a caller future alone never enters this path.
+            let message = self
+                .failure
+                .get()
+                .map_or("USRBIO driver stopped with pending I/O", String::as_str);
             for pending in self.pending.iter_mut().filter_map(Option::take) {
                 let _ = pending
                     .request
                     .reply
-                    .send(Err(Error::new(ErrorKind::Unexpected, self.failure.clone())));
+                    .send(Err(Error::new(ErrorKind::Unexpected, message)));
                 std::mem::forget((pending.request.file, pending.slot));
             }
             // The ring's native allocation remains live; leaked slots retain
             // the shared mapping and library needed by the in-flight requests.
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ring_entries_stays_below_i32_max() {
+        assert_eq!(ring_entries(1), 65);
+        assert_eq!(ring_entries(32), 2049);
+        assert_eq!(ring_entries(i32::MAX as usize - 1), i32::MAX - 1);
+        assert_eq!(ring_entries(usize::MAX), i32::MAX - 1);
+        assert!(ring_entries(usize::MAX).checked_add(1).is_some());
+    }
+
+    #[tokio::test]
+    async fn stopped_driver_surfaces_shared_fatal_error() {
+        let api = Api::noop();
+        let (driver, rx, failure) = IoDriver::for_test(api.clone(), 2, 4096, true);
+        let file = RegisteredFile::new(api, tempfile::tempfile().unwrap()).unwrap();
+
+        let _ = failure.set("simulated fatal USRBIO submit error".to_string());
+        drop(rx);
+
+        let err = driver.submit(file, 0, 16, None).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.to_string()
+                .contains("simulated fatal USRBIO submit error")
+        );
     }
 }

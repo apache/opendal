@@ -20,12 +20,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::Hf3fs;
 
-/// Configuration for 3FS USRBIO access on Linux.
+/// Configuration for DeepSeek's 3FS (Fire-Flyer File System) USRBIO access on Linux.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 #[non_exhaustive]
 pub struct Hf3fsConfig {
-    /// Existing absolute directory on a mounted 3FS instance. Required.
+    /// Existing absolute directory on a mounted DeepSeek 3FS (Fire-Flyer File System) instance. Required.
     pub root: Option<String>,
     /// USRBIO shared library path. Defaults to `libhf3fs_api_shared.so`.
     pub library_path: Option<String>,

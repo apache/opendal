@@ -471,6 +471,9 @@ def plan(changed_files: list[str], mode: str | None = None) -> dict[str, Any]:
         if linux_cases:
             jobs["core"].append({"os": "ubuntu-latest", "cases": linux_cases})
         if hf3fs_cases:
+            # Ubuntu 24.04 Azure runners currently omit rdma_rxe; see
+            # .github/services/hf3fs/README.md for the transition plan before
+            # Ubuntu 22.04 leaves standard support in May 2027.
             jobs["core"].append({"os": "ubuntu-22.04", "cases": hf3fs_cases})
 
         # fs is the only service tested on Windows core runners.

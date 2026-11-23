@@ -1,7 +1,8 @@
-# Apache OpenDAL™ 3FS Service
+# Apache OpenDAL™ DeepSeek 3FS Service
 
-`Hf3fs` reads and writes through the 3FS USRBIO shared-memory interface. Metadata
-operations use the mounted filesystem. It requires Linux, a running 3FS FUSE
+`Hf3fs` accesses DeepSeek's 3FS (Fire-Flyer File System) by reading and writing
+through the 3FS USRBIO shared-memory interface while using the mounted
+filesystem for metadata operations. It requires Linux, a running 3FS FUSE
 client, and a compatible `libhf3fs_api_shared.so` implementing the public
 [`hf3fs_usrbio.h` API](https://github.com/deepseek-ai/3FS/blob/main/src/lib/api/hf3fs_usrbio.h).
 The library is loaded at runtime; building OpenDAL does not require a 3FS SDK.

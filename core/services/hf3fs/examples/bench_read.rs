@@ -22,7 +22,9 @@ use std::time::Instant;
 #[cfg(target_os = "linux")]
 use futures::TryStreamExt;
 #[cfg(target_os = "linux")]
-use opendal_core::{Operator, Result};
+use opendal_core::{Executor, Operator, Result};
+#[cfg(target_os = "linux")]
+use opendal_executor_tokio::TokioExecutor;
 #[cfg(target_os = "linux")]
 use opendal_service_hf3fs::Hf3fs;
 
@@ -41,8 +43,13 @@ async fn main() -> Result<()> {
     if let Ok(library) = std::env::var("OPENDAL_HF3FS_LIBRARY_PATH") {
         builder = builder.library_path(&library);
     }
+    let executor = Executor::with(TokioExecutor::default());
     let hf3fs = Operator::new(builder)?;
+    let hf3fs_ctx = hf3fs.context().with_executor(executor.clone());
+    let hf3fs = hf3fs.with_context(hf3fs_ctx);
     let fs = Operator::new(opendal_service_fs::Fs::default().root(root))?;
+    let fs_ctx = fs.context().with_executor(executor);
+    let fs = fs.with_context(fs_ctx);
     fs.write("data", vec![0x5a; 64 * 1024 * 1024]).await?;
 
     for concurrent in [1, 16] {

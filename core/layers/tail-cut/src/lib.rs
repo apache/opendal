@@ -134,8 +134,9 @@ impl TailCutLayerBuilder {
     /// Panics if window is greater than 120 seconds.
     pub fn window(mut self, window: Duration) -> Self {
         assert!(
-            window <= Duration::from_secs(120),
-            "window must be <= 120 seconds"
+            window <= Duration::from_millis(MAX_WINDOW_MS),
+            "window must be <= {} seconds",
+            MAX_WINDOW_MS / 1000
         );
         self.window = window;
         self
@@ -576,12 +577,14 @@ impl<R> TailCutWrapper<R> {
     /// the inner future ever returns `Poll::Pending`.
     ///
     /// Operations like `Delete::delete` and `Compose::compose` are synchronous
-    /// buffer pushes on batching backends (`BatchDeleter`, `GcsComposer`):
-    /// sampling those instant in-memory completions would flood the lowest
-    /// histogram bucket, pass `min_samples` before any real I/O ran, and
-    /// collapse the deadline toward `min_deadline`. The deadline itself is
-    /// still enforced so real async work (mid-batch flushes, intermediate
-    /// requests) cannot hang.
+    /// buffer pushes on batching backends (`BatchDeleter`, `GcsComposer`), and
+    /// `List::next`, `Write::write`, and `ReadStream::read` complete
+    /// synchronously when they serve buffered pages, buffered chunks, or
+    /// in-memory payloads. Sampling those instant completions would flood the
+    /// lowest histogram bucket, pass `min_samples` before any real I/O ran,
+    /// and collapse the deadline toward `min_deadline`. The deadline itself is
+    /// still enforced so real async work (page fetches, mid-batch flushes,
+    /// network reads, and intermediate requests) cannot hang.
     #[inline]
     async fn with_buffered_io_deadline<F, T>(
         deadline: Option<Duration>,
@@ -658,7 +661,7 @@ impl<F: Future> Future for YieldTrackingFuture<F> {
 impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
         let deadline = self.calculate_deadline_for(Operation::Read, self.size);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -713,7 +716,7 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
 impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
         let deadline = self.calculate_deadline(Operation::Write);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -767,7 +770,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
 impl<R: oio::List> oio::List for TailCutWrapper<R> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         let deadline = self.calculate_deadline(Operation::List);
-        Self::with_io_deadline(
+        Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
@@ -975,7 +978,10 @@ impl SizeBucket {
 }
 
 const SLICE_DURATION_MS: u64 = 10_000; // 10 seconds per slice
-const NUM_SLICES: usize = 12; // 12 slices = 120 seconds total window
+const MAX_WINDOW_MS: u64 = 120_000; // 120 seconds, the largest supported window
+// One spare slice ensures a slice is only recycled after it has fallen
+// outside `window_ms + SLICE_DURATION_MS` for the largest supported window.
+const NUM_SLICES: usize = (MAX_WINDOW_MS / SLICE_DURATION_MS) as usize + 1;
 const NUM_BUCKETS: usize = 17; // 17 buckets covering 1ms to 64s
 
 /// Windowed histogram using lock-free atomic operations.
@@ -983,11 +989,16 @@ struct WindowedHistogram {
     slices: Box<[TimeSlice; NUM_SLICES]>,
     current_idx: AtomicUsize,
     last_rotate: AtomicU64,
+    /// Monotonic anchor for slice timestamps. Slices store elapsed
+    /// milliseconds since this instant, so clock steps cannot move them
+    /// backwards.
+    start: Instant,
 }
 
 impl WindowedHistogram {
     fn new() -> Self {
-        let now = Self::now_ms();
+        let start = Instant::now();
+        let now = Self::now_ms_from(start);
         Self {
             slices: Box::new(std::array::from_fn(|index| {
                 let start_epoch_ms = if index == 0 { now } else { 0 };
@@ -995,14 +1006,28 @@ impl WindowedHistogram {
             })),
             current_idx: AtomicUsize::new(0),
             last_rotate: AtomicU64::new(now),
+            start,
         }
+    }
+
+    /// Milliseconds elapsed since this histogram was created.
+    ///
+    /// The value starts at 1 so that `start_epoch_ms == 0` can exclusively
+    /// mark a slice that is hidden from snapshots.
+    fn now_ms(&self) -> u64 {
+        Self::now_ms_from(self.start)
+    }
+
+    fn now_ms_from(start: Instant) -> u64 {
+        let elapsed = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
+        elapsed.saturating_add(1)
     }
 
     fn record(&self, latency: Duration) {
         self.maybe_rotate();
 
         let bucket_idx = Self::latency_to_bucket(latency);
-        let slice_idx = self.current_idx.load(Ordering::Relaxed);
+        let slice_idx = self.current_idx.load(Ordering::Acquire);
 
         self.slices[slice_idx].buckets[bucket_idx].fetch_add(1, Ordering::Relaxed);
     }
@@ -1036,7 +1061,7 @@ impl WindowedHistogram {
 
     fn snapshot(&self, window: Duration) -> [u64; NUM_BUCKETS] {
         let mut result = [0u64; NUM_BUCKETS];
-        let now_ms = Self::now_ms();
+        let now_ms = self.now_ms();
         let window_ms = window.as_millis() as u64;
 
         for slice in self.slices.iter() {
@@ -1053,26 +1078,45 @@ impl WindowedHistogram {
     }
 
     fn maybe_rotate(&self) {
-        let now = Self::now_ms();
+        let now = self.now_ms();
         let last_rotate = self.last_rotate.load(Ordering::Relaxed);
 
-        if now - last_rotate >= SLICE_DURATION_MS
-            && self
-                .last_rotate
-                .compare_exchange(last_rotate, now, Ordering::Release, Ordering::Relaxed)
-                .is_ok()
-        {
-            let old_idx = self.current_idx.load(Ordering::Relaxed);
-            let new_idx = (old_idx + 1) % NUM_SLICES;
-
-            let new_slice = &self.slices[new_idx];
-            new_slice.start_epoch_ms.store(now, Ordering::Release);
-            for bucket in &new_slice.buckets {
-                bucket.store(0, Ordering::Relaxed);
-            }
-
-            self.current_idx.store(new_idx, Ordering::Release);
+        // A stale `last_rotate`, for example from a concurrent rotation or a
+        // clock that moved backwards, can be newer than `now`. Leave the ring
+        // untouched instead of underflowing or moving `last_rotate` backwards.
+        let Some(elapsed) = now.checked_sub(last_rotate) else {
+            return;
+        };
+        if elapsed < SLICE_DURATION_MS {
+            return;
         }
+
+        if self
+            .last_rotate
+            .compare_exchange(last_rotate, now, Ordering::Release, Ordering::Relaxed)
+            .is_err()
+        {
+            return;
+        }
+
+        self.rotate_slice(now);
+    }
+
+    fn rotate_slice(&self, now: u64) {
+        let old_idx = self.current_idx.load(Ordering::Acquire);
+        let new_idx = (old_idx + 1) % NUM_SLICES;
+
+        let new_slice = &self.slices[new_idx];
+        // Hide the slice before clearing it, so a concurrent `snapshot`
+        // cannot pair the new timestamp with bucket counts from its previous
+        // use.
+        new_slice.start_epoch_ms.store(0, Ordering::Release);
+        for bucket in &new_slice.buckets {
+            bucket.store(0, Ordering::Relaxed);
+        }
+        new_slice.start_epoch_ms.store(now, Ordering::Release);
+
+        self.current_idx.store(new_idx, Ordering::Release);
     }
 
     fn latency_to_bucket(latency: Duration) -> usize {
@@ -1094,11 +1138,6 @@ impl WindowedHistogram {
         } else {
             Duration::from_millis(1u64 << bucket_idx)
         }
-    }
-
-    fn now_ms() -> u64 {
-        // SAFETY: Unless System clock goes backwards before UNIX_EPOCH, this should never fail.
-        u64::try_from(Timestamp::now().into_inner().as_millisecond()).unwrap()
     }
 }
 
@@ -1122,6 +1161,7 @@ impl TimeSlice {
 mod tests {
     use super::*;
     use opendal_core::raw::oio::{Compose, Delete};
+    use std::sync::atomic::AtomicBool;
 
     #[test]
     fn test_latency_to_bucket() {
@@ -1667,5 +1707,328 @@ mod tests {
 
         composer.close().await.unwrap();
         assert_eq!(stats.total_samples(None, layer.config.window), 1);
+    }
+
+    #[test]
+    fn test_maybe_rotate_tolerates_last_rotate_in_the_future() {
+        let hist = WindowedHistogram::new();
+        let ahead = hist.now_ms() + SLICE_DURATION_MS;
+        hist.last_rotate.store(ahead, Ordering::Relaxed);
+
+        let current = hist.current_idx.load(Ordering::Acquire);
+        hist.record(Duration::from_millis(1));
+
+        assert_eq!(
+            hist.current_idx.load(Ordering::Acquire),
+            current,
+            "a local or concurrent clock step must not rotate the ring"
+        );
+        assert_eq!(
+            hist.last_rotate.load(Ordering::Acquire),
+            ahead,
+            "a local or concurrent clock step must not move last_rotate backwards"
+        );
+        assert_eq!(hist.total_samples(Duration::from_secs(60)), 1);
+    }
+
+    #[test]
+    fn test_ring_buffer_covers_maximum_window_plus_one_slice() {
+        assert!(
+            NUM_SLICES as u64 * SLICE_DURATION_MS >= MAX_WINDOW_MS + SLICE_DURATION_MS,
+            "the recycled slice must fall outside window_ms + SLICE_DURATION_MS"
+        );
+    }
+
+    #[test]
+    fn test_active_slice_epoch_does_not_collide_with_hidden_sentinel() {
+        let hist = WindowedHistogram::new();
+        let current = hist.current_idx.load(Ordering::Acquire);
+
+        assert!(
+            hist.slices[current].start_epoch_ms.load(Ordering::Acquire) >= 1,
+            "an active slice must never use the hidden sentinel 0"
+        );
+
+        let hidden = (current + 1) % NUM_SLICES;
+        assert_eq!(
+            hist.slices[hidden].start_epoch_ms.load(Ordering::Acquire),
+            0
+        );
+        hist.slices[hidden].buckets[0].store(7, Ordering::Relaxed);
+        assert_eq!(
+            hist.total_samples(Duration::from_secs(120)),
+            0,
+            "a hidden slice must stay out of snapshots"
+        );
+    }
+
+    #[test]
+    fn test_rotation_hides_slice_before_clearing_buckets() {
+        const STALE: u64 = 1_000_000;
+        const ROUNDS: usize = 2_000;
+
+        let hist = Arc::new(WindowedHistogram::new());
+        let pause = Arc::new(AtomicBool::new(false));
+        let paused = Arc::new(AtomicBool::new(false));
+        let stop = Arc::new(AtomicBool::new(false));
+        let finished = Arc::new(AtomicBool::new(false));
+
+        let observer = {
+            let hist = hist.clone();
+            let pause = pause.clone();
+            let paused = paused.clone();
+            let stop = stop.clone();
+            let finished = finished.clone();
+
+            std::thread::spawn(move || {
+                let mut observed_stale = false;
+                loop {
+                    if stop.load(Ordering::Acquire) {
+                        break;
+                    }
+                    if pause.load(Ordering::Acquire) {
+                        paused.store(true, Ordering::Release);
+                        while pause.load(Ordering::Acquire) && !stop.load(Ordering::Acquire) {
+                            std::hint::spin_loop();
+                        }
+                        paused.store(false, Ordering::Release);
+                        continue;
+                    }
+
+                    let snapshot = hist.snapshot(Duration::from_secs(120));
+                    if snapshot.iter().any(|&count| count >= STALE) {
+                        observed_stale = true;
+                        break;
+                    }
+                }
+                finished.store(true, Ordering::Release);
+                observed_stale
+            })
+        };
+
+        for _ in 0..ROUNDS {
+            if finished.load(Ordering::Acquire) {
+                break;
+            }
+
+            pause.store(true, Ordering::Release);
+            while !paused.load(Ordering::Acquire) && !finished.load(Ordering::Acquire) {
+                std::hint::spin_loop();
+            }
+            if finished.load(Ordering::Acquire) {
+                break;
+            }
+
+            // Reset every slice while the observer is quiescent, so preparing
+            // the next target can never race with a snapshot.
+            for slice in hist.slices.iter() {
+                slice.start_epoch_ms.store(0, Ordering::Release);
+                for bucket in &slice.buckets {
+                    bucket.store(0, Ordering::Relaxed);
+                }
+            }
+
+            pause.store(false, Ordering::Release);
+            while paused.load(Ordering::Acquire) && !finished.load(Ordering::Acquire) {
+                std::hint::spin_loop();
+            }
+            if finished.load(Ordering::Acquire) {
+                break;
+            }
+
+            for _ in 0..(NUM_SLICES - 1) {
+                let next = (hist.current_idx.load(Ordering::Acquire) + 1) % NUM_SLICES;
+                for bucket in &hist.slices[next].buckets {
+                    bucket.store(STALE, Ordering::Relaxed);
+                }
+
+                hist.rotate_slice(hist.now_ms());
+            }
+        }
+
+        stop.store(true, Ordering::Release);
+        pause.store(true, Ordering::Release);
+        while !finished.load(Ordering::Acquire) {
+            std::hint::spin_loop();
+        }
+
+        let observed_stale = observer.join().unwrap();
+        assert!(
+            !observed_stale,
+            "snapshot observed bucket counts from a slice being reused"
+        );
+    }
+
+    /// A paginated lister that serves `page_entries` buffered entries
+    /// synchronously after each async page fetch.
+    struct AsyncPageList {
+        page_entries: usize,
+        pages: usize,
+        delay: Duration,
+        fetched: AtomicUsize,
+    }
+
+    impl oio::PageList for AsyncPageList {
+        async fn next_page(&self, ctx: &mut oio::PageContext) -> Result<()> {
+            let page = self.fetched.fetch_add(1, Ordering::Relaxed);
+            if page >= self.pages {
+                ctx.done = true;
+                return Ok(());
+            }
+
+            tokio::time::sleep(self.delay).await;
+
+            for index in 0..self.page_entries {
+                let path = format!("page-{page}/entry-{index}");
+                ctx.entries
+                    .push_back(oio::Entry::new(&path, MetadataBuilder::file(0).build()));
+            }
+            ctx.done = page + 1 >= self.pages;
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_buffered_entries_do_not_flood_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(10)
+            .min_deadline(Duration::from_millis(10))
+            .max_deadline(Duration::from_secs(1))
+            .build();
+        let stats = layer.stats.stats_for(Operation::List);
+
+        let lister = oio::PageLister::new(AsyncPageList {
+            page_entries: 250,
+            pages: 2,
+            delay: Duration::from_millis(25),
+            fetched: AtomicUsize::new(0),
+        });
+        let mut lister = TailCutWrapper::new(
+            Box::new(lister) as oio::Lister,
+            None,
+            layer.config.clone(),
+            layer.stats.clone(),
+        );
+
+        let mut entries = 0;
+        while oio::List::next(&mut lister)
+            .await
+            .expect("the second page must not be cancelled")
+            .is_some()
+        {
+            entries += 1;
+        }
+
+        assert_eq!(entries, 500);
+        assert_eq!(
+            stats.total_samples(None, layer.config.window),
+            2,
+            "only the two async page fetches should be sampled"
+        );
+    }
+
+    /// A one-shot writer whose only real I/O happens in `close`.
+    struct SlowOneShotWrite {
+        delay: Duration,
+    }
+
+    impl oio::OneShotWrite for SlowOneShotWrite {
+        async fn write_once(&self, _: Buffer) -> Result<Metadata> {
+            tokio::time::sleep(self.delay).await;
+            Ok(MetadataBuilder::file(0).build())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_buffered_write_skips_synchronous_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_millis(10))
+            .max_deadline(Duration::from_secs(1))
+            .build();
+        let stats = layer.stats.stats_for(Operation::Write);
+
+        let writer = oio::OneShotWriter::new(SlowOneShotWrite {
+            delay: Duration::from_millis(25),
+        });
+        let mut writer = TailCutWrapper::new(
+            Box::new(writer) as oio::Writer,
+            None,
+            layer.config.clone(),
+            layer.stats.clone(),
+        );
+
+        oio::Write::write(&mut writer, Buffer::from("hello"))
+            .await
+            .unwrap();
+
+        oio::Write::close(&mut writer)
+            .await
+            .expect("the healthy close must not be cancelled by a buffered write");
+        assert_eq!(
+            stats.total_samples(None, layer.config.window),
+            1,
+            "only the async close should be sampled"
+        );
+    }
+
+    /// A read stream that serves buffered chunks synchronously before one
+    /// async chunk.
+    struct MixedReadStream {
+        buffered_chunks: usize,
+        delay: Duration,
+    }
+
+    impl oio::ReadStream for MixedReadStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            if self.buffered_chunks > 0 {
+                self.buffered_chunks -= 1;
+                return Ok(Buffer::from("chunk"));
+            }
+
+            tokio::time::sleep(self.delay).await;
+            Ok(Buffer::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_buffered_read_stream_chunks_do_not_flood_samples() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(1)
+            .min_deadline(Duration::from_millis(10))
+            .max_deadline(Duration::from_secs(1))
+            .build();
+        let stats = layer.stats.stats_for(Operation::Read);
+
+        let mut stream = TailCutWrapper::new(
+            MixedReadStream {
+                buffered_chunks: 2,
+                delay: Duration::from_millis(25),
+            },
+            None,
+            layer.config.clone(),
+            layer.stats.clone(),
+        );
+
+        for _ in 0..2 {
+            let chunk = oio::ReadStream::read(&mut stream).await.unwrap();
+            assert_eq!(chunk.len(), 5);
+        }
+
+        let eof = oio::ReadStream::read(&mut stream)
+            .await
+            .expect("the healthy read must not be cancelled by buffered chunks");
+        assert!(eof.is_empty());
+        assert_eq!(
+            stats.total_samples(None, layer.config.window),
+            1,
+            "only the async read should be sampled"
+        );
     }
 }

@@ -78,6 +78,110 @@ async fn test_create_dir_nested() {
 }
 
 #[tokio::test]
+async fn test_create_dir_root_is_exists() -> Result<()> {
+    let memory = Operator::new(opendal::services::Memory::default())?;
+    assert!(matches!(
+        OpendalFs::new(memory).create_dir(&DavPath::new("/")?).await,
+        Err(FsError::Exists)
+    ));
+
+    let root = tempfile::tempdir()?;
+    let fs = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    assert!(matches!(
+        OpendalFs::new(fs).create_dir(&DavPath::new("/")?).await,
+        Err(FsError::Exists)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_twice_is_exists() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    let webdavfs = OpendalFs::new(op);
+
+    webdavfs.create_dir(&DavPath::new("/dir")?).await?;
+    assert!(matches!(
+        webdavfs.create_dir(&DavPath::new("/dir")?).await,
+        Err(FsError::Exists)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_mkcol_over_existing_file() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.write("foo", "content").await?;
+
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+    for uri in ["/foo", "/foo/"] {
+        let response = dav
+            .handle(
+                Request::builder()
+                    .method("MKCOL")
+                    .uri(uri)
+                    .body(Body::empty())?,
+            )
+            .await;
+        assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED, "{uri}");
+    }
+
+    for path in ["/foo", "/foo/"] {
+        assert!(
+            matches!(
+                OpendalFs::new(op.clone())
+                    .create_dir(&DavPath::new(path)?)
+                    .await,
+                Err(FsError::Exists)
+            ),
+            "{path}"
+        );
+    }
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(!op.exists("foo/").await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_under_file_is_rejected() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.write("foo", "content").await?;
+    let webdavfs = OpendalFs::new(op.clone());
+
+    let err = webdavfs
+        .create_dir(&DavPath::new("/foo/child")?)
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, FsError::Forbidden | FsError::NotFound),
+        "{err:?}"
+    );
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(!op.exists("foo/child/").await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_create_dir_over_existing_file_on_fs() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    op.write("foo", "content").await?;
+    let webdavfs = OpendalFs::new(op.clone());
+
+    assert!(matches!(
+        webdavfs.create_dir(&DavPath::new("/foo")?).await,
+        Err(FsError::Exists)
+    ));
+
+    assert_eq!(op.read("foo").await?.to_vec().as_slice(), b"content");
+    assert!(root.path().join("foo").is_file());
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_symlink_metadata() -> Result<()> {
     let op = Operator::new(opendal::services::Memory::default())?;
     op.create_dir("dir/").await?;

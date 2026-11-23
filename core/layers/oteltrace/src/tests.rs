@@ -18,6 +18,7 @@
 use std::future;
 use std::iter;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use futures::stream;
 use opendal_service_http::Http;
@@ -216,17 +217,93 @@ fn records_deleter_failures_without_changing_errors() {
 
 #[derive(Clone, Default)]
 struct QueuedExecutor {
-    task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
+    executed_task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
+    submitted_task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
 }
 
 impl Execute for QueuedExecutor {
     fn execute(&self, task: BoxedStaticFuture<()>) {
-        *self.task.lock().unwrap() = Some(task);
+        *self.executed_task.lock().unwrap() = Some(task);
+    }
+
+    fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+        *self.submitted_task.lock().unwrap() = Some(task);
+        Ok(())
     }
 
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
         Some(Box::pin(future::ready(())))
     }
+
+    fn sleep(&self, _duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        Some(Box::pin(future::ready(())))
+    }
+}
+
+#[test]
+fn executor_delegates_fallible_submission_to_inner_executor() {
+    let context = OperationContext::default().with_executor(Executor::with(()));
+    let context = OtelTraceLayer::new().apply_context(Arc::new(()), context);
+
+    let err = context
+        .executor()
+        .inner()
+        .try_execute(Box::pin(async {}))
+        .expect_err("an unconfigured executor must reject the task");
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+}
+
+#[test]
+fn executor_delegates_sleep_to_inner_executor() {
+    let context =
+        OperationContext::default().with_executor(Executor::with(QueuedExecutor::default()));
+    let context = OtelTraceLayer::new().apply_context(Arc::new(()), context);
+
+    assert!(
+        context
+            .executor()
+            .inner()
+            .sleep(Duration::from_millis(1))
+            .is_some(),
+        "the inner executor provides timers"
+    );
+}
+
+#[tokio::test]
+async fn executor_try_execute_propagates_submission_context_to_task() {
+    let inner = QueuedExecutor::default();
+    let context = OperationContext::default().with_executor(Executor::with(inner.clone()));
+    let op = Operator::new(services::Memory::default())
+        .unwrap()
+        .with_context(context)
+        .layer(OtelTraceLayer::new());
+    let executor = op.context().executor().clone().into_inner();
+
+    let provider = SdkTracerProvider::builder().build();
+    let tracer = provider.tracer("test");
+    {
+        let parent = TraceContext::current_with_span(tracer.start("parent"));
+        let expected = parent.span().span_context().clone();
+        let _guard = parent.attach();
+        executor
+            .try_execute(Box::pin(async move {
+                let current = TraceContext::current();
+                assert_eq!(*current.span().span_context(), expected);
+            }))
+            .unwrap();
+    }
+
+    let task = inner
+        .submitted_task
+        .lock()
+        .unwrap()
+        .take()
+        .expect("try_execute should be delegated directly");
+    assert!(
+        inner.executed_task.lock().unwrap().is_none(),
+        "try_execute must not fall back to execute"
+    );
+    task.await;
 }
 
 #[tokio::test]
@@ -251,7 +328,11 @@ async fn executor_propagates_submission_context_to_task() {
         }));
     }
 
-    let task = inner.task.lock().unwrap().take().unwrap();
+    let task = inner.executed_task.lock().unwrap().take().unwrap();
+    assert!(
+        inner.submitted_task.lock().unwrap().is_none(),
+        "execute must not be delegated through try_execute"
+    );
     task.await;
     executor.timeout().unwrap().await;
 }

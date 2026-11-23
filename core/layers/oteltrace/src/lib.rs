@@ -20,6 +20,7 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 use std::sync::Arc;
+use std::time::Duration;
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -130,8 +131,17 @@ impl Execute for OtelTraceExecutor {
         self.inner.execute(Box::pin(task.with_current_context()));
     }
 
+    fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(task.with_current_context()))
+    }
+
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
         self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
     }
 }
 

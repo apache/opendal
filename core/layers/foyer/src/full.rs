@@ -37,7 +37,7 @@ use crate::FoyerValue;
 use crate::Inner;
 use crate::error::{FetchError, extract_err};
 
-pub struct FullReader {
+pub(crate) struct FullReader {
     inner: Arc<Inner>,
     size_limit: std::ops::Range<usize>,
     key: Arc<FoyerKey>,

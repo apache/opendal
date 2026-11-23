@@ -252,16 +252,10 @@ impl<I: RetryInterceptor> RetryLayer<I> {
 
 impl<I: RetryInterceptor> Layer for RetryLayer<I> {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl<I: RetryInterceptor> RetryLayer<I> {
-    fn layer(&self, inner: Servicer) -> RetryService<I> {
-        RetryService {
+        Arc::new(RetryService {
             inner,
             policy: self.policy.clone(),
-        }
+        })
     }
 }
 
@@ -469,8 +463,7 @@ impl RetryInterceptor for DefaultRetryInterceptor {
     }
 }
 
-#[doc(hidden)]
-pub struct RetryService<I: RetryInterceptor> {
+struct RetryService<I: RetryInterceptor> {
     inner: Servicer,
     policy: RetryPolicy<I>,
 }
@@ -624,8 +617,7 @@ impl<I: RetryInterceptor> Service for RetryService<I> {
     }
 }
 
-#[doc(hidden)]
-pub struct RetryReader<R, I> {
+struct RetryReader<R, I> {
     inner: Arc<R>,
     policy: RetryPolicy<I>,
     deposited: Option<Arc<AtomicBool>>,
@@ -823,8 +815,7 @@ impl ReadStreamIdentity {
     }
 }
 
-#[doc(hidden)]
-pub struct RetryReadStream<R, I> {
+struct RetryReadStream<R, I> {
     reader: Arc<R>,
     stream: Option<Box<dyn oio::ReadStreamDyn>>,
     range: BytesRange,
@@ -1045,8 +1036,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
     }
 }
 
-#[doc(hidden)]
-pub struct RetryWrapper<R, I> {
+struct RetryWrapper<R, I> {
     inner: Option<R>,
     policy: RetryPolicy<I>,
     deposited: bool,
@@ -1081,16 +1071,6 @@ impl<R, I: RetryInterceptor> RetryWrapper<R, I> {
             self.deposited = true;
             self.policy.deposit(op);
         }
-    }
-}
-
-impl<R: oio::ReadStream, I: RetryInterceptor> oio::ReadStream for RetryWrapper<R, I> {
-    async fn read(&mut self) -> Result<Buffer> {
-        self.retry(Operation::Read, |mut inner| async move {
-            let result = inner.read().await;
-            (inner, result)
-        })
-        .await
     }
 }
 

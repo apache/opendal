@@ -715,7 +715,9 @@ impl Operator {
         I: IntoIterator<Item = D>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.op.delete_iter(iter))
+        let mut deleter = self.deleter()?;
+        deleter.delete_iter(iter)?;
+        deleter.close()
     }
 
     /// Delete a fallible iterator of paths.
@@ -728,7 +730,9 @@ impl Operator {
         I: IntoIterator<Item = Result<D>>,
         D: IntoDeleteInput,
     {
-        self.handle.block_on(self.op.delete_try_iter(try_iter))
+        let mut deleter = self.deleter()?;
+        deleter.delete_try_iter(try_iter)?;
+        deleter.close()
     }
 
     /// Create a [`blocking::Deleter`] to continuously remove content from
@@ -953,5 +957,56 @@ impl Operator {
 impl From<Operator> for AsyncOperator {
     fn from(val: Operator) -> Self {
         val.op
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services;
+
+    fn new_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    }
+
+    fn new_blocking_operator(rt: &tokio::runtime::Runtime) -> Operator {
+        // The guard must not outlive construction, or calls on the operator
+        // would nest a `block_on` inside the entered runtime.
+        let _guard = rt.enter();
+        let op = AsyncOperator::new(services::Memory::default()).unwrap();
+        Operator::new(op).unwrap()
+    }
+
+    #[test]
+    fn test_delete_try_iter_accepts_blocking_lister() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        op.delete_try_iter(op.lister("dir/").unwrap()).unwrap();
+
+        assert!(op.list("dir/").unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_delete_iter_can_call_blocking_operator() {
+        let rt = new_runtime();
+        let op = new_blocking_operator(&rt);
+        op.write("dir/a", "a").unwrap();
+        op.write("dir/b", "b").unwrap();
+
+        let paths = ["dir/a", "dir/b"];
+        op.delete_iter(paths.iter().map(|path| {
+            assert!(op.exists(path).unwrap(), "{path} must exist before delete");
+            path.to_string()
+        }))
+        .unwrap();
+
+        assert!(!op.exists("dir/a").unwrap());
+        assert!(!op.exists("dir/b").unwrap());
     }
 }

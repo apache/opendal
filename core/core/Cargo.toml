@@ -55,7 +55,7 @@ internal-tokio-rt = ["tokio/rt-multi-thread"]
 # so signing services (s3, gcs, azblob, ...) can load credentials over HTTP.
 # Services that need request signing enable it automatically; it is off by
 # default so local-only services (memory, fs, ...) don't pull in reqsign-core.
-reqsign = ["dep:reqsign-core"]
+reqsign = ["dep:reqsign-core", "dep:jiff-02"]
 
 # Deprecated: memory service is always enabled.
 services-memory = []
@@ -71,7 +71,7 @@ base64 = { workspace = true }
 bytes = { workspace = true }
 futures = { workspace = true, features = ["std", "async-await"] }
 http = { workspace = true }
-jiff = { version = "0.2.28", features = ["serde"] }
+jiff = { version = "1.0.1", features = ["serde"] }
 log = { workspace = true }
 md-5 = "0.11.0"
 percent-encoding = "2"
@@ -84,7 +84,12 @@ url = { workspace = true }
 uuid = { workspace = true, features = ["serde", "v4"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-jiff = { version = "0.2.28", features = ["serde", "js"] }
+jiff = { version = "1.0.1", features = ["serde", "js"] }
+# reqsign-core still uses jiff 0.2, which needs its `js` feature for
+# `Timestamp::now()` on wasm. Keep this shim until reqsign moves to jiff 1.0.
+jiff-02 = { package = "jiff", version = "0.2.28", default-features = false, features = [
+  "js",
+], optional = true }
 tokio = { workspace = true, features = ["time"] }
 uuid = { workspace = true, features = ["serde", "v4", "js"] }
 

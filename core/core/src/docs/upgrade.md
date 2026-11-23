@@ -63,6 +63,20 @@ with `SignedDuration::from_secs(5)` or parse a duration string. The builder
 setters still accept `std::time::Duration`, and string/map configuration still
 accepts duration strings such as `"5s"`.
 
+## `jiff` upgraded to 1.0
+
+OpenDAL now uses `jiff` 1.0. `opendal::raw` re-exports `jiff::SignedDuration`,
+and `opendal::raw::Timestamp` exposes its inner `jiff::Timestamp` through
+`into_inner()` and `From` conversions. If your code uses these types directly,
+upgrade your direct `jiff` dependency to `1.0`. jiff 1.0 requires Rust 1.85,
+which is below OpenDAL's minimum supported Rust version.
+
+`SystemTime::from(opendal::raw::Timestamp)` keeps its signature, but it can
+still panic when the target's `SystemTime` cannot represent the timestamp,
+matching the previous jiff 0.2 conversion. For example, wasm cannot represent
+timestamps before the Unix epoch. Convert a `jiff::Timestamp` directly with
+`SystemTime::try_from(timestamp)` and handle the error.
+
 ## Tokio executor moved to `opendal-executor-tokio`
 
 If you depend directly on `opendal-core`, remove its `executors-tokio` feature

@@ -143,7 +143,7 @@ impl Metadata {
     /// The last modified timestamp of this entry.
     #[getter]
     pub fn last_modified(&self) -> Option<jiff::Timestamp> {
-        self.0.last_modified().map(Into::into)
+        self.0.last_modified().map(utils::timestamp_to_jiff)
     }
 
     /// The version of this entry.

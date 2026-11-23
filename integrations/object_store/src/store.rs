@@ -105,17 +105,6 @@ fn format_reader_options(options: &GetOptions, content_length_hint: Option<u64>)
     }
 }
 
-fn format_stat_options(options: &GetOptions) -> StatOptions {
-    StatOptions {
-        version: options.version.clone(),
-        if_match: options.if_match.clone(),
-        if_none_match: options.if_none_match.clone(),
-        if_modified_since: options.if_modified_since.and_then(datetime_to_timestamp),
-        if_unmodified_since: options.if_unmodified_since.and_then(datetime_to_timestamp),
-        ..Default::default()
-    }
-}
-
 fn format_read_range(range: Option<&GetRange>, size: u64) -> opendal::Result<Range<u64>> {
     match range {
         Some(range) => range
@@ -342,6 +331,12 @@ impl OpendalStore {
         options: &GetOptions,
         err: opendal::Error,
     ) -> object_store::Error {
+        if err.kind() == ErrorKind::IsADirectory {
+            return object_store::Error::NotFound {
+                path: location.to_string(),
+                source: Box::new(err),
+            };
+        }
         if err.kind() == ErrorKind::ConditionNotMatch
             && (options.if_none_match.is_some() || options.if_modified_since.is_some())
         {
@@ -440,6 +435,12 @@ impl OpendalStore {
         }?;
 
         let metadata = stream.metadata().into_send().await?;
+        if metadata.is_dir() {
+            return Err(opendal::Error::new(
+                ErrorKind::NotFound,
+                "path is a directory",
+            ));
+        }
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.clone(), &metadata);
         let read_range = format_read_range(options.range.as_ref(), meta.size)?;
@@ -488,30 +489,45 @@ impl OpendalStore {
         options: &GetOptions,
     ) -> object_store::Result<GetResult> {
         let capability = self.info.capability();
-        // Some services can enforce date conditions on read but do not return
-        // metadata with that read or accept these conditions on stat.
-        let check_locally = !options.head
-            && ((options.if_modified_since.is_some() && !capability.stat_with_if_modified_since)
-                || (options.if_unmodified_since.is_some()
-                    && !capability.stat_with_if_unmodified_since))
-            && (options.if_modified_since.is_none() || capability.read_with_if_modified_since)
-            && (options.if_unmodified_since.is_none() || capability.read_with_if_unmodified_since)
-            && (options.if_match.is_none() || capability.read_with_if_match)
-            && (options.if_none_match.is_none() || capability.read_with_if_none_match);
-        let stat_options = if check_locally {
-            StatOptions {
-                version: options.version.clone(),
-                ..Default::default()
-            }
-        } else {
-            format_stat_options(options)
+        // Forward only preconditions supported natively by stat; evaluate any
+        // remaining preconditions locally against the fetched metadata.
+        let stat_options = StatOptions {
+            version: options.version.clone(),
+            if_match: capability
+                .stat_with_if_match
+                .then(|| options.if_match.clone())
+                .flatten(),
+            if_none_match: capability
+                .stat_with_if_none_match
+                .then(|| options.if_none_match.clone())
+                .flatten(),
+            if_modified_since: capability
+                .stat_with_if_modified_since
+                .then(|| options.if_modified_since.and_then(datetime_to_timestamp))
+                .flatten(),
+            if_unmodified_since: capability
+                .stat_with_if_unmodified_since
+                .then(|| options.if_unmodified_since.and_then(datetime_to_timestamp))
+                .flatten(),
+            ..Default::default()
         };
+        let check_locally = (options.if_match.is_some() && stat_options.if_match.is_none())
+            || (options.if_none_match.is_some() && stat_options.if_none_match.is_none())
+            || (options.if_modified_since.is_some() && stat_options.if_modified_since.is_none())
+            || (options.if_unmodified_since.is_some()
+                && stat_options.if_unmodified_since.is_none());
         let metadata = self
             .inner
             .stat_options(raw_location, stat_options)
             .into_send()
             .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
             .await?;
+        if metadata.is_dir() {
+            return Err(format_object_store_error(
+                opendal::Error::new(ErrorKind::NotFound, "path is a directory"),
+                location.as_ref(),
+            ));
+        }
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.clone(), &metadata);
         if check_locally {
@@ -540,12 +556,30 @@ impl OpendalStore {
             });
         }
 
+        let reader_options = ReaderOptions {
+            version: options.version.clone(),
+            if_match: capability
+                .read_with_if_match
+                .then(|| options.if_match.clone())
+                .flatten(),
+            if_none_match: capability
+                .read_with_if_none_match
+                .then(|| options.if_none_match.clone())
+                .flatten(),
+            if_modified_since: capability
+                .read_with_if_modified_since
+                .then(|| options.if_modified_since.and_then(datetime_to_timestamp))
+                .flatten(),
+            if_unmodified_since: capability
+                .read_with_if_unmodified_since
+                .then(|| options.if_unmodified_since.and_then(datetime_to_timestamp))
+                .flatten(),
+            content_length_hint: Some(meta.size),
+            ..Default::default()
+        };
         let reader = self
             .inner
-            .reader_options(
-                raw_location,
-                format_reader_options(options, Some(meta.size)),
-            )
+            .reader_options(raw_location, reader_options)
             .into_send()
             .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
             .await?;
@@ -655,15 +689,20 @@ impl ObjectStore for OpendalStore {
                 future_write = future_write.if_not_exists(true);
             }
             PutMode::Update(update_version) => {
-                let Some(etag) = update_version.e_tag else {
-                    Err(object_store::Error::NotSupported {
+                if update_version.e_tag.is_none() && update_version.version.is_none() {
+                    return Err(object_store::Error::NotSupported {
                         source: Box::new(opendal::Error::new(
                             opendal::ErrorKind::Unsupported,
-                            "etag is required for conditional put",
+                            "etag or version is required for conditional put",
                         )),
-                    })?
-                };
-                future_write = future_write.if_match(etag.as_str());
+                    });
+                }
+                if let Some(etag) = update_version.e_tag {
+                    future_write = future_write.if_match(etag.as_str());
+                }
+                if let Some(version) = update_version.version {
+                    future_write = future_write.if_version_match(version.as_str());
+                }
             }
         }
         let mut user_metadata = Vec::new();
@@ -3005,5 +3044,580 @@ mod tests {
                 Err(object_store::Error::NotFound { .. })
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn test_directories_return_not_found_on_head_and_get() -> anyhow::Result<()> {
+        let tempdir = tempfile::tempdir()?;
+        let fs_op = Operator::new(services::Fs::default().root(tempdir.path().to_str().unwrap()))?;
+        let fs_store = OpendalStore::new(fs_op.clone());
+        let local_reference =
+            object_store::local::LocalFileSystem::new_with_prefix(tempdir.path())?;
+
+        fs_op.create_dir("empty_dir/").await?;
+        fs_store
+            .put(&Path::from("d/x"), Bytes::from_static(b"hello").into())
+            .await?;
+
+        for dir in [Path::from("d"), Path::from("empty_dir")] {
+            assert!(matches!(
+                local_reference.head(&dir).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+            assert!(matches!(
+                local_reference.get(&dir).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+
+            assert!(matches!(
+                fs_store.head(&dir).await,
+                Err(object_store::Error::NotFound { path, .. }) if path == dir.as_ref()
+            ));
+            assert!(matches!(
+                fs_store.get(&dir).await,
+                Err(object_store::Error::NotFound { path, .. }) if path == dir.as_ref()
+            ));
+            assert!(matches!(
+                fs_store
+                    .get_opts(
+                        &dir,
+                        GetOptions {
+                            head: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await,
+                Err(object_store::Error::NotFound { path, .. }) if path == dir.as_ref()
+            ));
+            // Directory check must run before precondition evaluation.
+            assert!(matches!(
+                fs_store
+                    .get_opts(
+                        &dir,
+                        GetOptions {
+                            if_none_match: Some("*".to_string()),
+                            ..Default::default()
+                        },
+                    )
+                    .await,
+                Err(object_store::Error::NotFound { path, .. }) if path == dir.as_ref()
+            ));
+        }
+
+        let mem_op = Operator::new(services::Memory::default())?;
+        let mem_store = OpendalStore::new(mem_op.clone());
+        mem_op.create_dir("d/").await?;
+        mem_store
+            .put(&Path::from("d/x"), Bytes::from_static(b"hello").into())
+            .await?;
+
+        for dir in [Path::from("d"), Path::default()] {
+            assert!(matches!(
+                mem_store.head(&dir).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+            assert!(matches!(
+                mem_store.get(&dir).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+            assert!(matches!(
+                mem_store
+                    .get_opts(
+                        &dir,
+                        GetOptions {
+                            head: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+        }
+
+        Ok(())
+    }
+
+    mod conditional_write_probe {
+        use super::*;
+        use opendal::raw::oio;
+        use opendal::raw::*;
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct ObservedWriteCondition {
+            pub if_match: Option<String>,
+            pub if_version_match: Option<String>,
+        }
+
+        pub type ObservedWriteConditions = Arc<std::sync::Mutex<Vec<ObservedWriteCondition>>>;
+
+        #[derive(Debug, Clone)]
+        pub struct ConditionalWriteLayer {
+            pub write_with_if_match: bool,
+            pub write_with_if_version_match: bool,
+            pub observed: ObservedWriteConditions,
+        }
+
+        impl Layer for ConditionalWriteLayer {
+            fn apply_service(&self, srv: Servicer) -> Servicer {
+                Arc::new(ConditionalWriteService {
+                    srv,
+                    write_with_if_match: self.write_with_if_match,
+                    write_with_if_version_match: self.write_with_if_version_match,
+                    observed: self.observed.clone(),
+                })
+            }
+        }
+
+        #[derive(Debug)]
+        struct ConditionalWriteService {
+            srv: Servicer,
+            write_with_if_match: bool,
+            write_with_if_version_match: bool,
+            observed: ObservedWriteConditions,
+        }
+
+        impl Service for ConditionalWriteService {
+            type Reader = oio::Reader;
+            type Writer = oio::Writer;
+            type Lister = oio::Lister;
+            type Deleter = oio::Deleter;
+            type Copier = oio::Copier;
+            type Composer = oio::Composer;
+
+            fn info(&self) -> ServiceInfo {
+                self.srv.info()
+            }
+
+            fn capability(&self) -> opendal::Capability {
+                let mut cap = self.srv.capability();
+                cap.write_with_if_match = self.write_with_if_match;
+                cap.write_with_if_version_match = self.write_with_if_version_match;
+                cap
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpCreateDir,
+            ) -> opendal::Result<RpCreateDir> {
+                self.srv.create_dir(ctx, path, args).await
+            }
+
+            async fn stat(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpStat,
+            ) -> opendal::Result<RpStat> {
+                self.srv.stat(ctx, path, args).await
+            }
+
+            fn read(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> opendal::Result<Self::Reader> {
+                self.srv.read(ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> opendal::Result<Self::Writer> {
+                self.observed.lock().unwrap().push(ObservedWriteCondition {
+                    if_match: args.if_match().map(str::to_string),
+                    if_version_match: args.if_version_match().map(str::to_string),
+                });
+                self.srv.write(ctx, path, OpWrite::new())
+            }
+
+            fn delete(&self, ctx: &opendal::OperationContext) -> opendal::Result<Self::Deleter> {
+                self.srv.delete(ctx)
+            }
+
+            fn list(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpList,
+            ) -> opendal::Result<Self::Lister> {
+                self.srv.list(ctx, path, args)
+            }
+
+            fn copy(
+                &self,
+                ctx: &opendal::OperationContext,
+                from: &str,
+                to: &str,
+                args: OpCopy,
+            ) -> opendal::Result<Self::Copier> {
+                self.srv.copy(ctx, from, to, args)
+            }
+
+            async fn rename(
+                &self,
+                ctx: &opendal::OperationContext,
+                from: &str,
+                to: &str,
+                args: OpRename,
+            ) -> opendal::Result<RpRename> {
+                self.srv.rename(ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpPresign,
+            ) -> opendal::Result<RpPresign> {
+                self.srv.presign(ctx, path, args).await
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_put_mode_update_does_not_drop_version() -> anyhow::Result<()> {
+        let location = Path::from("obj");
+
+        // Backend supporting only if_match (e.g. S3): providing version must fail closed.
+        let etag_observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let etag_op = Operator::new(services::Memory::default())?.layer(
+            conditional_write_probe::ConditionalWriteLayer {
+                write_with_if_match: true,
+                write_with_if_version_match: false,
+                observed: etag_observed.clone(),
+            },
+        );
+        let etag_store = OpendalStore::new(etag_op);
+        etag_store
+            .put(&location, Bytes::from_static(b"initial").into())
+            .await?;
+        etag_observed.lock().unwrap().clear();
+
+        let err = etag_store
+            .put_opts(
+                &location,
+                Bytes::from_static(b"overwritten").into(),
+                PutOptions {
+                    mode: PutMode::Update(object_store::UpdateVersion {
+                        e_tag: Some("\"e1\"".to_string()),
+                        version: Some("v1".to_string()),
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, object_store::Error::NotSupported { .. }),
+            "expected NotSupported when version is unsupported, got {err:?}"
+        );
+        assert!(etag_observed.lock().unwrap().is_empty());
+        assert_eq!(
+            etag_store.get(&location).await?.bytes().await?,
+            Bytes::from_static(b"initial")
+        );
+
+        let err = etag_store
+            .put_opts(
+                &location,
+                Bytes::from_static(b"empty-update").into(),
+                PutOptions {
+                    mode: PutMode::Update(object_store::UpdateVersion {
+                        e_tag: None,
+                        version: None,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, object_store::Error::NotSupported { .. }));
+
+        etag_store
+            .put_opts(
+                &location,
+                Bytes::from_static(b"updated-by-etag").into(),
+                PutOptions {
+                    mode: PutMode::Update(object_store::UpdateVersion {
+                        e_tag: Some("\"e1\"".to_string()),
+                        version: None,
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(
+            *etag_observed.lock().unwrap(),
+            vec![conditional_write_probe::ObservedWriteCondition {
+                if_match: Some("\"e1\"".to_string()),
+                if_version_match: None,
+            }]
+        );
+
+        // Backend supporting only if_version_match (e.g. GCS): version-only succeeds,
+        // while combining with unsupported e_tag fails closed.
+        let version_observed = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let version_op = Operator::new(services::Memory::default())?.layer(
+            conditional_write_probe::ConditionalWriteLayer {
+                write_with_if_match: false,
+                write_with_if_version_match: true,
+                observed: version_observed.clone(),
+            },
+        );
+        let version_store = OpendalStore::new(version_op);
+        version_store
+            .put(&location, Bytes::from_static(b"initial").into())
+            .await?;
+        version_observed.lock().unwrap().clear();
+
+        let err = version_store
+            .put_opts(
+                &location,
+                Bytes::from_static(b"overwritten").into(),
+                PutOptions {
+                    mode: PutMode::Update(object_store::UpdateVersion {
+                        e_tag: Some("\"e1\"".to_string()),
+                        version: Some("v1".to_string()),
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+        assert!(matches!(err, object_store::Error::NotSupported { .. }));
+        assert!(version_observed.lock().unwrap().is_empty());
+
+        version_store
+            .put_opts(
+                &location,
+                Bytes::from_static(b"updated-by-version").into(),
+                PutOptions {
+                    mode: PutMode::Update(object_store::UpdateVersion {
+                        e_tag: None,
+                        version: Some("v1".to_string()),
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(
+            *version_observed.lock().unwrap(),
+            vec![conditional_write_probe::ObservedWriteCondition {
+                if_match: None,
+                if_version_match: Some("v1".to_string()),
+            }]
+        );
+
+        Ok(())
+    }
+
+    async fn assert_conditional_get_opts_behavior(
+        store: &OpendalStore,
+        reference: &dyn ObjectStore,
+        location: &Path,
+        payload: &[u8],
+    ) -> anyhow::Result<()> {
+        let meta = store.head(location).await?;
+        let ref_meta = reference.head(location).await?;
+
+        // if_none_match: non-matching concrete ETag succeeds.
+        let opts = GetOptions {
+            if_none_match: Some("\"nope\"".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            store
+                .get_opts(location, opts.clone())
+                .await?
+                .bytes()
+                .await?,
+            payload
+        );
+        assert_eq!(
+            reference.get_opts(location, opts).await?.bytes().await?,
+            payload
+        );
+
+        // if_none_match: wildcard "*" returns NotModified.
+        let opts = GetOptions {
+            if_none_match: Some("*".to_string()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            store.get_opts(location, opts.clone()).await,
+            Err(object_store::Error::NotModified { .. })
+        ));
+        assert!(matches!(
+            reference.get_opts(location, opts).await,
+            Err(object_store::Error::NotModified { .. })
+        ));
+
+        // if_match: non-matching concrete ETag returns Precondition.
+        let opts = GetOptions {
+            if_match: Some("\"nope\"".to_string()),
+            ..Default::default()
+        };
+        assert!(matches!(
+            store.get_opts(location, opts.clone()).await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+        assert!(matches!(
+            reference.get_opts(location, opts).await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+
+        // if_match: wildcard "*" succeeds.
+        let opts = GetOptions {
+            if_match: Some("*".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(
+            store
+                .get_opts(location, opts.clone())
+                .await?
+                .bytes()
+                .await?,
+            payload
+        );
+        assert_eq!(
+            reference.get_opts(location, opts).await?.bytes().await?,
+            payload
+        );
+
+        // Preconditions run before range validation.
+        let opts = GetOptions {
+            if_none_match: Some("*".to_string()),
+            range: Some(GetRange::Bounded(100..200)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            store.get_opts(location, opts.clone()).await,
+            Err(object_store::Error::NotModified { .. })
+        ));
+        assert!(matches!(
+            reference.get_opts(location, opts).await,
+            Err(object_store::Error::NotModified { .. })
+        ));
+
+        let opts = GetOptions {
+            if_match: Some("\"nope\"".to_string()),
+            range: Some(GetRange::Bounded(100..200)),
+            ..Default::default()
+        };
+        assert!(matches!(
+            store.get_opts(location, opts.clone()).await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+        assert!(matches!(
+            reference.get_opts(location, opts).await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+
+        // head: true + if_unmodified_since evaluates locally instead of returning NotSupported.
+        let past_store = meta.last_modified - std::time::Duration::from_secs(1);
+        let past_ref = ref_meta.last_modified - std::time::Duration::from_secs(1);
+        assert!(matches!(
+            store
+                .get_opts(
+                    location,
+                    GetOptions {
+                        head: true,
+                        if_unmodified_since: Some(past_store),
+                        ..Default::default()
+                    },
+                )
+                .await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+        assert!(matches!(
+            reference
+                .get_opts(
+                    location,
+                    GetOptions {
+                        head: true,
+                        if_unmodified_since: Some(past_ref),
+                        ..Default::default()
+                    },
+                )
+                .await,
+            Err(object_store::Error::Precondition { .. })
+        ));
+
+        let head_ok = store
+            .get_opts(
+                location,
+                GetOptions {
+                    head: true,
+                    if_unmodified_since: Some(meta.last_modified),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(head_ok.meta.size, payload.len() as u64);
+
+        assert!(matches!(
+            store
+                .get_opts(
+                    location,
+                    GetOptions {
+                        head: true,
+                        if_modified_since: Some(meta.last_modified),
+                        ..Default::default()
+                    },
+                )
+                .await,
+            Err(object_store::Error::NotModified { .. })
+        ));
+
+        // Unsupported version selector must still fail with NotSupported.
+        assert!(matches!(
+            store
+                .get_opts(
+                    location,
+                    GetOptions {
+                        version: Some("v1".to_string()),
+                        ..Default::default()
+                    },
+                )
+                .await,
+            Err(object_store::Error::NotSupported { .. })
+        ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_conditional_get_opts_fallback_fs_and_memory() -> anyhow::Result<()> {
+        let payload = b"hello conditional world";
+        let location = Path::from("cond.txt");
+
+        let tempdir = tempfile::tempdir()?;
+        let fs_op = Operator::new(services::Fs::default().root(tempdir.path().to_str().unwrap()))?;
+        let fs_store = OpendalStore::new(fs_op);
+        let local_reference =
+            object_store::local::LocalFileSystem::new_with_prefix(tempdir.path())?;
+        fs_store
+            .put(&location, Bytes::from_static(payload).into())
+            .await?;
+        assert_conditional_get_opts_behavior(&fs_store, &local_reference, &location, payload)
+            .await?;
+
+        let mem_store = OpendalStore::new(Operator::new(services::Memory::default())?);
+        let mem_reference = object_store::memory::InMemory::new();
+        mem_store
+            .put(&location, Bytes::from_static(payload).into())
+            .await?;
+        mem_reference
+            .put(&location, Bytes::from_static(payload).into())
+            .await?;
+        assert_conditional_get_opts_behavior(&mem_store, &mem_reference, &location, payload)
+            .await?;
+
+        Ok(())
     }
 }

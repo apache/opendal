@@ -210,8 +210,14 @@ async fn fetch(
         .version(parts.version);
 
     if !body.is_empty() {
-        let stream = futures::stream::iter(Iterator::map(body, Ok::<_, cyper::Error>));
-        req_builder = req_builder.body(cyper::Body::stream(stream));
+        // `Buffer` is already fully buffered in memory, and cyper can only replay
+        // a `Bytes` body on 307 and 308 redirects; it returns the redirect
+        // response for a stream body. Converting a contiguous `Buffer` is
+        // zero-copy, and only a multi-chunk `Buffer` is copied, so release the
+        // source chunks before sending.
+        let bytes = body.to_bytes();
+        drop(body);
+        req_builder = req_builder.body(cyper::Body::from(bytes));
     }
 
     let mut resp = client.execute(req_builder.build()).await.map_err(|err| {

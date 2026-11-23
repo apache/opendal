@@ -49,14 +49,15 @@ rustls = ["reqwest/rustls"]
 rustls-no-provider = ["reqwest/rustls-no-provider"]
 
 [dependencies]
-bytes = { workspace = true }
 futures = { workspace = true, features = ["std"] }
 http = { workspace = true }
-http-body = "1"
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 reqwest = { version = "0.13.4", features = [
   "stream",
 ], default-features = false }
+
+[dev-dependencies]
+bytes = { workspace = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 tokio = { workspace = true, features = [

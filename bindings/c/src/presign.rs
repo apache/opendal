@@ -21,6 +21,7 @@ use std::time::Duration;
 use ::opendal as core;
 use opendal::raw::PresignedRequest as ocorePresignedRequest;
 
+use crate::cancel::{block_on_cancellable, opendal_cancel_token, CancellableError};
 use crate::error::opendal_error;
 use crate::operator::opendal_operator;
 use crate::types::{
@@ -86,7 +87,7 @@ impl opendal_presigned_request_inner {
 }
 
 unsafe fn make_presign_result(
-    result: core::Result<ocorePresignedRequest>,
+    result: Result<ocorePresignedRequest, CancellableError<core::Error>>,
     req_out: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
     assert!(!req_out.is_null());
@@ -101,7 +102,7 @@ unsafe fn make_presign_result(
         }
         Err(e) => {
             std::ptr::write(req_out, std::ptr::null_mut());
-            opendal_error::new(e)
+            opendal_error::from_cancellable(e)
         }
     }
 }
@@ -126,14 +127,14 @@ pub unsafe extern "C" fn opendal_operator_presign_read(
     expire_secs: u64,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
-    assert!(!path.is_null());
-    assert!(!req.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
-    let duration = Duration::from_secs(expire_secs);
-
-    make_presign_result(op.presign_read(path, duration), req)
+    opendal_operator_presign_read_with_cancel(
+        op,
+        path,
+        expire_secs,
+        std::ptr::null(),
+        std::ptr::null(),
+        req,
+    )
 }
 
 /// \brief Presign a read operation with options.
@@ -150,10 +151,26 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with(
     opts: *const opendal_read_options,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
+    opendal_operator_presign_read_with_cancel(op, path, expire_secs, opts, std::ptr::null(), req)
+}
+
+/// \brief Presign a read operation with options and optional cancellation.
+///
+/// Pass NULL for `opts` to use defaults, and NULL for `cancel` to run without cancellation.
+/// On cancellation or failure, writes NULL to `*req` and returns an `opendal_error *`
+/// (`OPENDAL_CANCELLED` on cancellation).
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_read_options,
+    cancel: *const opendal_cancel_token,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
 
-    let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
@@ -161,8 +178,14 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with(
     } else {
         (&*opts).into()
     };
+    let cancel_token = opendal_cancel_token::as_inner(cancel);
 
-    make_presign_result(op.presign_read_options(path, duration, opts), req)
+    let res = block_on_cancellable(
+        op.handle(),
+        cancel_token,
+        op.deref().presign_read_options(path, duration, opts),
+    );
+    make_presign_result(res, req)
 }
 
 /// \brief Presign a write operation.
@@ -178,14 +201,14 @@ pub unsafe extern "C" fn opendal_operator_presign_write(
     expire_secs: u64,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
-    assert!(!path.is_null());
-    assert!(!req.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
-    let duration = Duration::from_secs(expire_secs);
-
-    make_presign_result(op.presign_write(path, duration), req)
+    opendal_operator_presign_write_with_cancel(
+        op,
+        path,
+        expire_secs,
+        std::ptr::null(),
+        std::ptr::null(),
+        req,
+    )
 }
 
 /// \brief Presign a write operation with options.
@@ -202,10 +225,26 @@ pub unsafe extern "C" fn opendal_operator_presign_write_with(
     opts: *const opendal_write_options,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
+    opendal_operator_presign_write_with_cancel(op, path, expire_secs, opts, std::ptr::null(), req)
+}
+
+/// \brief Presign a write operation with options and optional cancellation.
+///
+/// Pass NULL for `opts` to use defaults, and NULL for `cancel` to run without cancellation.
+/// On cancellation or failure, writes NULL to `*req` and returns an `opendal_error *`
+/// (`OPENDAL_CANCELLED` on cancellation).
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_write_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_write_options,
+    cancel: *const opendal_cancel_token,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
 
-    let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
@@ -213,8 +252,14 @@ pub unsafe extern "C" fn opendal_operator_presign_write_with(
     } else {
         (&*opts).into()
     };
+    let cancel_token = opendal_cancel_token::as_inner(cancel);
 
-    make_presign_result(op.presign_write_options(path, duration, opts), req)
+    let res = block_on_cancellable(
+        op.handle(),
+        cancel_token,
+        op.deref().presign_write_options(path, duration, opts),
+    );
+    make_presign_result(res, req)
 }
 
 /// \brief Presign a delete operation.
@@ -230,13 +275,14 @@ pub unsafe extern "C" fn opendal_operator_presign_delete(
     expire_secs: u64,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
-    assert!(!path.is_null());
-    assert!(!req.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
-    let duration = Duration::from_secs(expire_secs);
-    make_presign_result(op.presign_delete(path, duration), req)
+    opendal_operator_presign_delete_with_cancel(
+        op,
+        path,
+        expire_secs,
+        std::ptr::null(),
+        std::ptr::null(),
+        req,
+    )
 }
 
 /// \brief Presign a delete operation with options.
@@ -253,10 +299,26 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with(
     opts: *const opendal_delete_options,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
+    opendal_operator_presign_delete_with_cancel(op, path, expire_secs, opts, std::ptr::null(), req)
+}
+
+/// \brief Presign a delete operation with options and optional cancellation.
+///
+/// Pass NULL for `opts` to use defaults, and NULL for `cancel` to run without cancellation.
+/// On cancellation or failure, writes NULL to `*req` and returns an `opendal_error *`
+/// (`OPENDAL_CANCELLED` on cancellation).
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_delete_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_delete_options,
+    cancel: *const opendal_cancel_token,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
 
-    let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
@@ -264,8 +326,14 @@ pub unsafe extern "C" fn opendal_operator_presign_delete_with(
     } else {
         (&*opts).into()
     };
+    let cancel_token = opendal_cancel_token::as_inner(cancel);
 
-    make_presign_result(op.presign_delete_options(path, duration, opts), req)
+    let res = block_on_cancellable(
+        op.handle(),
+        cancel_token,
+        op.deref().presign_delete_options(path, duration, opts),
+    );
+    make_presign_result(res, req)
 }
 
 /// \brief Presign a stat operation.
@@ -281,14 +349,14 @@ pub unsafe extern "C" fn opendal_operator_presign_stat(
     expire_secs: u64,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
-    assert!(!path.is_null());
-    assert!(!req.is_null());
-
-    let op = op.deref();
-    let path = CStr::from_ptr(path).to_str().expect("malformed path");
-    let duration = Duration::from_secs(expire_secs);
-
-    make_presign_result(op.presign_stat(path, duration), req)
+    opendal_operator_presign_stat_with_cancel(
+        op,
+        path,
+        expire_secs,
+        std::ptr::null(),
+        std::ptr::null(),
+        req,
+    )
 }
 
 /// \brief Presign a stat operation with options.
@@ -305,10 +373,26 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with(
     opts: *const opendal_stat_options,
     req: *mut *mut opendal_presigned_request,
 ) -> *mut opendal_error {
+    opendal_operator_presign_stat_with_cancel(op, path, expire_secs, opts, std::ptr::null(), req)
+}
+
+/// \brief Presign a stat operation with options and optional cancellation.
+///
+/// Pass NULL for `opts` to use defaults, and NULL for `cancel` to run without cancellation.
+/// On cancellation or failure, writes NULL to `*req` and returns an `opendal_error *`
+/// (`OPENDAL_CANCELLED` on cancellation).
+#[no_mangle]
+pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
+    op: &opendal_operator,
+    path: *const c_char,
+    expire_secs: u64,
+    opts: *const opendal_stat_options,
+    cancel: *const opendal_cancel_token,
+    req: *mut *mut opendal_presigned_request,
+) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
 
-    let op = op.deref();
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
@@ -316,8 +400,14 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with(
     } else {
         (&*opts).into()
     };
+    let cancel_token = opendal_cancel_token::as_inner(cancel);
 
-    make_presign_result(op.presign_stat_options(path, duration, opts), req)
+    let res = block_on_cancellable(
+        op.handle(),
+        cancel_token,
+        op.deref().presign_stat_options(path, duration, opts),
+    );
+    make_presign_result(res, req)
 }
 
 /// Get the method of the presigned request.

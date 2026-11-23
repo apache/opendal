@@ -33,7 +33,7 @@ use crate::reader::{
 use crate::record::Pointer;
 
 const GENERATION_KEY: &str = "v1/gen";
-const GENERATION_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
+pub(crate) const GENERATION_REFRESH_INTERVAL: Duration = Duration::from_secs(1);
 const NEVER_CHECKED: i64 = i64::MIN;
 const SHARDS: usize = 256;
 

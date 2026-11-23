@@ -21,10 +21,14 @@
 It preserves the source operator's capabilities and leaves conditional reads,
 response overrides, and other operations to the source. Mutations invalidate
 cached metadata, including when an origin error leaves the mutation outcome
-uncertain. Recursive deletes invalidate the cache by advancing a shared
-generation key that each `CacheLayer` instance caches for up to `min(ttl, 1s)`,
-so another process sharing the same cache backend can observe a recursive delete
-up to 1 second later unless `ttl` is zero.
+uncertain. Cross-instance invalidation is bounded by `min(ttl, 1s)`: each
+`CacheLayer` instance caches the shared recursive-delete generation key for up
+to `min(ttl, 1s)`, and a reused `Reader` caches its resolved metadata pointer
+locally for up to `min(ttl, 1s)` across range reads. Another process sharing
+the same cache backend can therefore observe a recursive delete—or, on an
+already-reused `Reader`, a non-recursive mutation—up to `min(ttl, 1s)` later
+unless `ttl` is zero. A newly opened `Reader` checks shared cached metadata
+immediately for non-recursive mutations.
 
 Attach a source retry layer before adding the cache. Retrying a cached stream
 by reopening it after a partial read can mix bytes from different versions.

@@ -22,12 +22,12 @@ use std::time::Duration;
 use futures::future::join_all;
 use opendal_core::options::{ReadOptions, StatOptions};
 use opendal_core::raw::oio::{Read, ReadStream, ReadStreamDyn, Reader};
-use opendal_core::raw::{OpRead, OpStat, RpRead, Service, Servicer, Timestamp};
+use opendal_core::raw::{Instant, OpRead, OpStat, RpRead, Service, Servicer, Timestamp};
 use opendal_core::{Buffer, BytesRange, Error, ErrorKind, Metadata, OperationContext, Result};
 
 use crate::key::{Identity, Subject, Tier, data_prefix, strong_etag};
 use crate::record::Pointer;
-use crate::state::{ColdReadGuard, State};
+use crate::state::{ColdReadGuard, GENERATION_REFRESH_INTERVAL, State};
 
 // Bound both buffered bytes and the number of cache operations per fill. A
 // configured chunk larger than this budget still fills one chunk at a time.
@@ -40,6 +40,12 @@ pub(crate) struct Snapshot {
     pub(crate) epoch: u64,
 }
 
+pub(crate) struct LocalPointer {
+    snapshot: Snapshot,
+    pointer: Pointer,
+    remembered_at: Instant,
+}
+
 #[derive(Clone)]
 pub(crate) struct CachedReader {
     pub(crate) state: Arc<State>,
@@ -50,7 +56,7 @@ pub(crate) struct CachedReader {
     pub(crate) subject: Subject,
     pub(crate) chunk_size: u64,
     pub(crate) ttl: Duration,
-    pub(crate) last_pointer: Arc<RwLock<Option<(Snapshot, Pointer)>>>,
+    pub(crate) last_pointer: Arc<RwLock<Option<LocalPointer>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -185,16 +191,39 @@ impl CachedReader {
             .into_metadata())
     }
 
+    fn local_pointer_window(&self) -> Duration {
+        self.ttl.min(GENERATION_REFRESH_INTERVAL)
+    }
+
     fn local_pointer(&self, snapshot: Snapshot) -> Option<Pointer> {
+        self.local_pointer_at(snapshot, Instant::now())
+    }
+
+    fn local_pointer_at(&self, snapshot: Snapshot, now: Instant) -> Option<Pointer> {
+        let window = self.local_pointer_window();
+        if window.is_zero() {
+            return None;
+        }
         let guard = self.last_pointer.read().unwrap();
-        let (cached_snapshot, pointer) = guard.as_ref()?;
-        (*cached_snapshot == snapshot && pointer.is_fresh(self.ttl, self.args.version()))
-            .then(|| pointer.clone())
+        let cached = guard.as_ref()?;
+        (cached.snapshot == snapshot
+            && now.saturating_duration_since(cached.remembered_at) < window
+            && cached.pointer.is_fresh(self.ttl, self.args.version()))
+        .then(|| cached.pointer.clone())
     }
 
     fn remember_pointer(&self, snapshot: Snapshot, pointer: &Pointer) {
-        if pointer.is_fresh(self.ttl, self.args.version()) {
-            *self.last_pointer.write().unwrap() = Some((snapshot, pointer.clone()));
+        self.remember_pointer_at(snapshot, pointer, Instant::now());
+    }
+
+    fn remember_pointer_at(&self, snapshot: Snapshot, pointer: &Pointer, now: Instant) {
+        if !self.local_pointer_window().is_zero() && pointer.is_fresh(self.ttl, self.args.version())
+        {
+            *self.last_pointer.write().unwrap() = Some(LocalPointer {
+                snapshot,
+                pointer: pointer.clone(),
+                remembered_at: now,
+            });
         }
     }
 
@@ -202,7 +231,7 @@ impl CachedReader {
         let mut guard = self.last_pointer.write().unwrap();
         if guard
             .as_ref()
-            .is_some_and(|(cached_snapshot, _)| *cached_snapshot == snapshot)
+            .is_some_and(|cached| cached.snapshot == snapshot)
         {
             *guard = None;
         }
@@ -1327,5 +1356,155 @@ impl Read for CachedReader {
             return Ok((RpRead::new(stream.into_pointer().metadata), data));
         }
         Err(last_error.into_error())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use opendal_core::services::Memory;
+    use opendal_core::{MetadataBuilder, Operator};
+
+    use crate::CacheLayer;
+    use crate::key::subject;
+
+    fn test_reader(
+        context: OperationContext,
+        source: Servicer,
+        cache: Operator,
+        path: &str,
+        ttl: Duration,
+    ) -> CachedReader {
+        let subject = subject(&source.info(), path, None);
+        CachedReader {
+            state: Arc::new(State::new(cache)),
+            source,
+            context,
+            path: path.to_owned(),
+            args: OpRead::new(),
+            subject,
+            chunk_size: 4,
+            ttl,
+            last_pointer: Arc::new(RwLock::new(None)),
+        }
+    }
+
+    #[test]
+    fn local_pointer_window_is_capped_by_ttl_and_refresh_interval() -> Result<()> {
+        let (ctx, source) = Operator::new(Memory::default())?.into_parts();
+        let cache = Operator::new(Memory::default())?;
+        let snapshot = Snapshot {
+            generation: 0,
+            epoch: 0,
+        };
+        let now = Instant::now();
+
+        // Warm pointer already older than 1s (5m old) within a 10m TTL still
+        // gets a full 1s local reuse window from when this reader remembered it.
+        let five_min_ago = Timestamp::now() - Duration::from_secs(300);
+        let warm_pointer = Pointer::new(MetadataBuilder::file(8).build(), five_min_ago);
+        let reader_10m = test_reader(
+            ctx.clone(),
+            source.clone(),
+            cache.clone(),
+            "obj",
+            Duration::from_secs(600),
+        );
+        reader_10m.remember_pointer_at(snapshot, &warm_pointer, now);
+        assert!(
+            reader_10m
+                .local_pointer_at(snapshot, now + Duration::from_millis(999))
+                .is_some()
+        );
+        assert!(
+            reader_10m
+                .local_pointer_at(snapshot, now + GENERATION_REFRESH_INTERVAL)
+                .is_none()
+        );
+
+        // Short TTL (< 1s) caps local reuse at ttl rather than 1s.
+        let short_ttl = Duration::from_millis(200);
+        let fresh_pointer = Pointer::new(MetadataBuilder::file(8).build(), Timestamp::now());
+        let reader_short =
+            test_reader(ctx.clone(), source.clone(), cache.clone(), "obj", short_ttl);
+        reader_short.remember_pointer_at(snapshot, &fresh_pointer, now);
+        assert!(
+            reader_short
+                .local_pointer_at(snapshot, now + Duration::from_millis(199))
+                .is_some()
+        );
+        assert!(
+            reader_short
+                .local_pointer_at(snapshot, now + short_ttl)
+                .is_none()
+        );
+
+        // Duration::MAX still caps local reuse at GENERATION_REFRESH_INTERVAL.
+        let reader_max = test_reader(
+            ctx.clone(),
+            source.clone(),
+            cache.clone(),
+            "obj",
+            Duration::MAX,
+        );
+        reader_max.remember_pointer_at(snapshot, &fresh_pointer, now);
+        assert!(
+            reader_max
+                .local_pointer_at(snapshot, now + Duration::from_millis(999))
+                .is_some()
+        );
+        assert!(
+            reader_max
+                .local_pointer_at(snapshot, now + GENERATION_REFRESH_INTERVAL)
+                .is_none()
+        );
+
+        // Duration::ZERO never reuses locally.
+        let reader_zero = test_reader(ctx, source, cache, "obj", Duration::ZERO);
+        reader_zero.remember_pointer_at(snapshot, &fresh_pointer, now);
+        assert!(reader_zero.local_pointer_at(snapshot, now).is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn local_pointer_expires_for_cross_instance_invalidation() -> Result<()> {
+        let (ctx, source_svc) = Operator::new(Memory::default())?.into_parts();
+        let source = Operator::from_parts(ctx.clone(), source_svc.clone());
+        let cache = Operator::new(Memory::default())?;
+        source.write("obj", "old-data").await?;
+
+        // Instance A reuses a CachedReader with ttl == Duration::MAX.
+        let reader_a = test_reader(ctx, source_svc, cache.clone(), "obj", Duration::MAX);
+        let (_, first) = reader_a.read(BytesRange::from(0..8)).await?;
+        assert_eq!(first.to_vec(), b"old-data");
+
+        // Instance B shares the same source and cache backend and performs a
+        // non-recursive overwrite, invalidating v1/meta without changing
+        // v1/gen or Instance A's local shard epoch.
+        let op_b = source.layer(
+            CacheLayer::new(cache)?
+                .with_chunk_size(4)
+                .with_ttl(Duration::MAX),
+        );
+        op_b.write("obj", "new-data").await?;
+
+        // Age Instance A's locally remembered pointer past GENERATION_REFRESH_INTERVAL.
+        if let Some(expired) = Instant::now().checked_sub(GENERATION_REFRESH_INTERVAL) {
+            let mut guard = reader_a.last_pointer.write().unwrap();
+            guard
+                .as_mut()
+                .expect("pointer should be cached")
+                .remembered_at = expired;
+        } else {
+            tokio::time::sleep(GENERATION_REFRESH_INTERVAL).await;
+        }
+
+        // The reused Reader must re-read v1/meta and observe Instance B's overwrite.
+        let (_, second) = reader_a.read(BytesRange::from(0..8)).await?;
+        assert_eq!(second.to_vec(), b"new-data");
+
+        Ok(())
     }
 }

@@ -96,10 +96,14 @@ where
 /// requests. If a cached stream detects that the source changed after yielding
 /// bytes, restart the whole read and discard the partial result.
 ///
-/// Recursive deletes invalidate entries by advancing a shared generation key
-/// that each `CacheLayer` instance caches for up to `min(ttl, 1s)`, so another
-/// instance sharing the same cache backend can observe a recursive delete up to
-/// 1 second later unless `ttl` is [`Duration::ZERO`].
+/// Cross-instance invalidation is bounded by `min(ttl, 1s)`: each `CacheLayer`
+/// instance caches the shared recursive-delete generation key for up to
+/// `min(ttl, 1s)`, and a reused `Reader` caches its resolved metadata pointer
+/// locally for up to `min(ttl, 1s)` across range reads. Another instance
+/// sharing the same cache backend can therefore observe a recursive delete—or,
+/// on an already-reused `Reader`, a non-recursive mutation—up to `min(ttl, 1s)`
+/// later unless `ttl` is [`Duration::ZERO`]. A newly opened `Reader` checks
+/// shared cached metadata immediately for non-recursive mutations.
 #[derive(Clone)]
 pub struct CacheLayer {
     state: Arc<State>,

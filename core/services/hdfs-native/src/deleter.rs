@@ -32,8 +32,7 @@ impl HdfsNativeDeleter {
 }
 
 impl oio::OneShotDelete for HdfsNativeDeleter {
-    async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
-        self.core.hdfs_delete(&path).await?;
-        Ok(())
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        self.core.hdfs_delete(&path, args.recursive()).await
     }
 }

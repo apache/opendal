@@ -21,16 +21,70 @@ use std::time::Duration;
 
 use pyo3::IntoPyObjectExt;
 use pyo3::exceptions::PyTypeError;
+use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
-use pyo3::types::PyDeltaAccess;
 use pyo3::types::PyDict;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
-use pyo3_async_runtimes::tokio::future_into_py;
 
+use crate::runtime::{check_runtime_process, future_into_py, get_runtime};
 use crate::*;
+
+enum OpenMode {
+    Read,
+    Write,
+    Append,
+    Create,
+}
+
+impl OpenMode {
+    fn parse(mode: &str) -> PyResult<Self> {
+        match mode {
+            "r" | "rb" | "br" => Ok(Self::Read),
+            "w" | "wb" | "bw" => Ok(Self::Write),
+            "a" | "ab" | "ba" => Ok(Self::Append),
+            "x" | "xb" | "bx" => Ok(Self::Create),
+            _ => Err(PyValueError::new_err(format!(
+                "unsupported file mode {mode:?}. Use 'r', 'w', 'a', or 'x' with an optional 'b' for binary I/O"
+            ))),
+        }
+    }
+
+    fn apply_write_options(&self, options: &mut WriteOptions) -> PyResult<()> {
+        match self {
+            Self::Read | Self::Write => {}
+            Self::Append => {
+                if options.append == Some(false) {
+                    return Err(PyValueError::new_err(
+                        "append file mode cannot be combined with append=False",
+                    ));
+                }
+                if options.if_not_exists == Some(true) {
+                    return Err(PyValueError::new_err(
+                        "append file mode cannot be combined with if_not_exists=True",
+                    ));
+                }
+                options.append = Some(true);
+            }
+            Self::Create => {
+                if options.if_not_exists == Some(false) {
+                    return Err(PyValueError::new_err(
+                        "create file mode cannot be combined with if_not_exists=False",
+                    ));
+                }
+                if options.append == Some(true) {
+                    return Err(PyValueError::new_err(
+                        "create file mode cannot be combined with append=True",
+                    ));
+                }
+                options.if_not_exists = Some(true);
+            }
+        }
+        Ok(())
+    }
+}
 
 fn build_operator(scheme: &str, map: HashMap<String, String>) -> PyResult<ocore::Operator> {
     let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
@@ -43,7 +97,7 @@ fn build_blocking_operator(
 ) -> PyResult<ocore::blocking::Operator> {
     let op = ocore::Operator::via_iter(scheme, map).map_err(format_pyerr)?;
 
-    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let runtime = get_runtime()?;
     let _guard = runtime.enter();
     let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
@@ -60,7 +114,7 @@ fn build_blocking_operator_from_uri(
 ) -> PyResult<ocore::blocking::Operator> {
     let op = build_operator_from_uri(uri, map)?;
 
-    let runtime = pyo3_async_runtimes::tokio::get_runtime();
+    let runtime = get_runtime()?;
     let _guard = runtime.enter();
     let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
     Ok(op)
@@ -107,9 +161,18 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     } else if let Ok(i) = value.extract::<i128>() {
         Ok(i.to_string())
     } else if let Ok(delta) = value.cast::<PyDelta>() {
-        let micros = i128::from(delta.get_days()) * 86_400_000_000
-            + i128::from(delta.get_seconds()) * 1_000_000
-            + i128::from(delta.get_microseconds());
+        // Use the base descriptors so the stable ABI reads the stored components
+        // even if a timedelta subclass overrides the attributes.
+        let delta_type = value.py().get_type::<PyDelta>();
+        let component = |name: &str| -> PyResult<i128> {
+            delta_type
+                .getattr(name)?
+                .call_method1("__get__", (delta,))?
+                .extract()
+        };
+        let micros = component("days")? * 86_400_000_000
+            + component("seconds")? * 1_000_000
+            + component("microseconds")?;
         Ok(format!("{micros}us"))
     } else if value.cast::<PyDict>().is_ok() {
         Err(Unsupported::new_err(
@@ -355,7 +418,7 @@ impl Operator {
     pub fn layer(&self, layer: &layers::Layer) -> PyResult<Self> {
         let op = layer.0.layer(self.core.clone().into());
 
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let runtime = get_runtime()?;
         let _guard = runtime.enter();
         let op = ocore::blocking::Operator::new(op).map_err(format_pyerr)?;
         Ok(Self {
@@ -367,16 +430,33 @@ impl Operator {
 
     /// Open a file-like object for the given path.
     ///
-    /// The returning file-like object is a context manager.
+    /// The returned file is a context manager and reads or writes bytes.
+    /// Use `read()` to supply response header overrides when reading.
     ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+    ///     or `"x"` to create a new file. An optional `"b"` can appear before or
+    ///     after the letter. All supported modes are binary; text modes such as
+    ///     `"rt"` raise `ValueError`. Wrap the returned file with
+    ///     `io.TextIOWrapper` to read or write text.
     /// **kwargs
     ///     Additional options for the underlying reader or writer.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the mode is invalid or unsupported, including text (`"t"`) and
+    ///     update (`"+"`) modes, or if the mode conflicts with `append` or
+    ///     `if_not_exists` in `**kwargs`.
+    /// ConditionNotMatch
+    ///     If create mode (`"x"`) targets an existing file. The failure can
+    ///     surface from `write()`, `flush()`, or `close()`.
+    /// Unsupported
+    ///     If the service does not support append or `if_not_exists` writes.
     ///
     /// Returns
     /// -------
@@ -390,6 +470,7 @@ impl Operator {
         mode: String,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<File> {
+        let mode = OpenMode::parse(&mode)?;
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
@@ -403,41 +484,43 @@ impl Operator {
             .transpose()?
             .unwrap_or_default();
 
-        if mode == "rb" {
+        if matches!(mode, OpenMode::Read) {
+            check_runtime_process()?;
             let range = reader_opts.make_range();
             let r = py
                 .detach(move || {
                     let reader = this.reader_options(&path, reader_opts.into())?;
-                    reader.into_std_read(range.to_range())
+                    reader.into_std_read(range)
                 })
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
-        } else if mode == "wb" {
+        } else {
             let mut writer_opts = writer_opts;
+            mode.apply_write_options(&mut writer_opts)?;
             // Keep small writes coalesced without the std::io adapter when
-            // neither the caller nor the service supplies a chunk size.
-            if writer_opts.chunk.is_none()
+            // neither the caller nor the service supplies a nonzero chunk size.
+            if matches!(writer_opts.chunk, None | Some(0))
                 && this.info().capability().write_multi_min_size.is_none()
             {
                 writer_opts.chunk = Some(256 * 1024);
             }
+            let runtime = get_runtime()?;
             let writer = py
                 .detach(move || {
                     let op: ocore::Operator = this.into();
-                    pyo3_async_runtimes::tokio::get_runtime()
+                    runtime
                         .handle()
                         .block_on(op.writer_options(&path, writer_opts.into()))
                 })
                 .map_err(format_pyerr)?;
             Ok(File::new_writer(writer))
-        } else {
-            Err(Unsupported::new_err(format!(
-                "OpenDAL doesn't support mode: {mode}"
-            )))
         }
     }
 
-    /// Read the entire contents of a file at the given path.
+    /// Read all or a selected range of bytes from a file.
+    ///
+    /// A positive `prefetch` cannot be combined with `content_type`,
+    /// `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
     ///
     /// Parameters
     /// ----------
@@ -454,23 +537,23 @@ impl Operator {
     /// offset : int, optional
     ///     The offset of the file.
     /// prefetch : int, optional
-    ///     The number of bytes to prefetch.
+    ///     The number of completed chunks to buffer during concurrent reads.
     /// size : int, optional
     ///     The size of the file.
     /// if_match : str, optional
     ///     The ETag of the file.
     /// if_none_match : str, optional
     ///     The ETag of the file.
-    /// if_modified_since : str, optional
+    /// if_modified_since : datetime, optional
     ///     The last modified time of the file.
-    /// if_unmodified_since : str, optional
+    /// if_unmodified_since : datetime, optional
     ///     The last modified time of the file.
     /// content_type : str, optional
-    ///     The content type of the file.
+    ///     The Content-Type response header override, where supported.
     /// cache_control : str, optional
-    ///     The cache control of the file.
+    ///     The Cache-Control response header override, where supported.
     /// content_disposition : str, optional
-    ///     The content disposition of the file.
+    ///     The Content-Disposition response header override, where supported.
     ///
     /// Returns
     /// -------
@@ -528,9 +611,18 @@ impl Operator {
             cache_control,
             content_disposition,
         };
+        let use_prefetch_reader = opts.use_prefetch_reader()?;
+        check_runtime_process()?;
         let this = self.core.clone();
         let buffer = py
-            .detach(move || this.read_options(&path, opts.into()))
+            .detach(move || {
+                if use_prefetch_reader {
+                    let range = opts.make_range();
+                    this.reader_options(&path, opts.into())?.read(range)
+                } else {
+                    this.read_options(&path, opts.into())
+                }
+            })
             .map_err(format_pyerr)?;
 
         Ok(buffer_into_py_bytes(py, buffer)?.into_any())
@@ -615,6 +707,7 @@ impl Operator {
             user_metadata,
         };
 
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.write_options(&path, bs, opts.into()))
             .map(|_| ())
@@ -682,6 +775,7 @@ impl Operator {
             cache_control,
             content_disposition,
         };
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.stat_options(&path, opts.into()))
             .map_err(format_pyerr)
@@ -696,11 +790,24 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn copy(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    /// if_not_exists : bool, optional
+    ///     If True, require `copy_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists. Defaults to False, which allows overwriting.
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
+    pub fn copy(
+        &self,
+        py: Python<'_>,
+        source: PathBuf,
+        target: PathBuf,
+        if_not_exists: Option<bool>,
+    ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
-        py.detach(move || this.copy(&source, &target))
+        let opts = CopyOptions { if_not_exists };
+        py.detach(move || this.copy_options(&source, &target, opts.into()))
             .map(|_| ())
             .map_err(format_pyerr)
     }
@@ -713,11 +820,25 @@ impl Operator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
-    pub fn rename(&self, py: Python<'_>, source: PathBuf, target: PathBuf) -> PyResult<()> {
+    /// if_not_exists : bool, optional
+    ///     If True, require `rename_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists, leaving both files unchanged. Defaults to False,
+    ///     which allows overwriting.
+    #[pyo3(signature = (source, target, *, if_not_exists=None))]
+    pub fn rename(
+        &self,
+        py: Python<'_>,
+        source: PathBuf,
+        target: PathBuf,
+        if_not_exists: Option<bool>,
+    ) -> PyResult<()> {
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
-        py.detach(move || this.rename(&source, &target))
+        let opts = RenameOptions { if_not_exists };
+        py.detach(move || this.rename_options(&source, &target, opts.into()))
             .map_err(format_pyerr)
     }
 
@@ -730,6 +851,7 @@ impl Operator {
     pub fn remove_all(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         use ocore::options::DeleteOptions;
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || {
             this.delete_options(
@@ -756,6 +878,7 @@ impl Operator {
     ///     The path to the directory.
     pub fn create_dir(&self, py: Python<'_>, path: PathBuf) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.create_dir(&path))
             .map_err(format_pyerr)
@@ -788,6 +911,7 @@ impl Operator {
         if_match: Option<String>,
     ) -> PyResult<()> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         if version.is_some() || recursive.is_some() || if_match.is_some() {
             let opts = ocore::options::DeleteOptions {
@@ -824,6 +948,7 @@ impl Operator {
         if paths.is_empty() {
             return Ok(());
         }
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.delete_iter(paths))
             .map_err(format_pyerr)
@@ -842,6 +967,7 @@ impl Operator {
     ///     True if the path exists, False otherwise.
     pub fn exists(&self, py: Python<'_>, path: PathBuf) -> PyResult<bool> {
         let path = path.to_string_lossy().to_string();
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.exists(&path)).map_err(format_pyerr)
     }
@@ -894,6 +1020,7 @@ impl Operator {
             deleted,
         };
 
+        check_runtime_process()?;
         let this = self.core.clone();
         let l = py
             .detach(move || this.lister_options(&path, opts.into()))
@@ -958,6 +1085,7 @@ impl Operator {
     /// Exception
     ///     If the operator is not able to work correctly.
     pub fn check(&self, py: Python<'_>) -> PyResult<()> {
+        check_runtime_process()?;
         let this = self.core.clone();
         py.detach(move || this.check()).map_err(format_pyerr)
     }
@@ -1173,16 +1301,33 @@ impl AsyncOperator {
 
     /// Open an async file-like object for the given path.
     ///
-    /// The returning async file-like object is a context manager.
+    /// The returned file is an async context manager and reads or writes bytes.
+    /// Use `read()` to supply response header overrides when reading.
     ///
     /// Parameters
     /// ----------
     /// path : str
     ///     The path to the file.
     /// mode : str
-    ///     The mode to open the file in. Only "rb" and "wb" are supported.
+    ///     `"r"` to read, `"w"` to write (overwrite by default), `"a"` to append,
+    ///     or `"x"` to create a new file. An optional `"b"` can appear before or
+    ///     after the letter. All supported modes are binary; text modes such as
+    ///     `"rt"` raise `ValueError`. `AsyncFile` writes bytes, so encode text
+    ///     with `str.encode()` and decode reads with `bytes.decode()`.
     /// **kwargs : dict
     ///     Additional options for the underlying reader or writer.
+    ///
+    /// Raises
+    /// ------
+    /// ValueError
+    ///     If the mode is invalid or unsupported, including text (`"t"`) and
+    ///     update (`"+"`) modes, or if the mode conflicts with `append` or
+    ///     `if_not_exists` in `**kwargs`.
+    /// ConditionNotMatch
+    ///     If create mode (`"x"`) targets an existing file. The failure can
+    ///     surface from `write()` or `close()`.
+    /// Unsupported
+    ///     If the service does not support append or `if_not_exists` writes.
     ///
     /// Returns
     /// -------
@@ -1196,6 +1341,7 @@ impl AsyncOperator {
         mode: String,
         kwargs: Option<&Bound<PyDict>>,
     ) -> PyResult<Bound<'p, PyAny>> {
+        let mode = OpenMode::parse(&mode)?;
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
@@ -1210,7 +1356,7 @@ impl AsyncOperator {
             .unwrap_or_default();
 
         future_into_py(py, async move {
-            if mode == "rb" {
+            if matches!(mode, OpenMode::Read) {
                 let range = reader_opts.make_range();
                 let reader = this
                     .reader_options(&path, reader_opts.into())
@@ -1218,15 +1364,16 @@ impl AsyncOperator {
                     .map_err(format_pyerr)?;
 
                 let r = reader
-                    .into_futures_async_read(range.to_range())
+                    .into_futures_async_read(range)
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
-            } else if mode == "wb" {
+            } else {
                 let mut writer_opts = writer_opts;
+                mode.apply_write_options(&mut writer_opts)?;
                 // Keep small writes coalesced when neither the caller nor the
-                // service supplies a chunk size, as the AsyncWrite adapter did.
-                if writer_opts.chunk.is_none()
+                // service supplies a chunk size. The core treats zero as unset.
+                if matches!(writer_opts.chunk, None | Some(0))
                     && this.info().capability().write_multi_min_size.is_none()
                 {
                     writer_opts.chunk = Some(256 * 1024);
@@ -1236,15 +1383,14 @@ impl AsyncOperator {
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_writer(writer))
-            } else {
-                Err(Unsupported::new_err(format!(
-                    "OpenDAL doesn't support mode: {mode}"
-                )))
             }
         })
     }
 
-    /// Read the entire contents of a file at the given path.
+    /// Read all or a selected range of bytes from a file.
+    ///
+    /// A positive `prefetch` cannot be combined with `content_type`,
+    /// `cache_control`, or `content_disposition`. Combining them raises `ValueError`.
     ///
     /// Parameters
     /// ----------
@@ -1261,23 +1407,23 @@ impl AsyncOperator {
     /// offset : int, optional
     ///     The offset of the file.
     /// prefetch : int, optional
-    ///     The number of bytes to prefetch.
+    ///     The number of completed chunks to buffer during concurrent reads.
     /// size : int, optional
     ///     The size of the file.
     /// if_match : str, optional
     ///     The ETag of the file.
     /// if_none_match : str, optional
     ///     The ETag of the file.
-    /// if_modified_since : str, optional
+    /// if_modified_since : datetime, optional
     ///     The last modified time of the file.
-    /// if_unmodified_since : str, optional
+    /// if_unmodified_since : datetime, optional
     ///     The last modified time of the file.
     /// content_type : str, optional
-    ///     The content type of the file.
+    ///     The Content-Type response header override, where supported.
     /// cache_control : str, optional
-    ///     The cache control of the file.
+    ///     The Cache-Control response header override, where supported.
     /// content_disposition : str, optional
-    ///     The content disposition of the file.
+    ///     The Content-Disposition response header override, where supported.
     ///
     /// Returns
     /// -------
@@ -1337,15 +1483,18 @@ impl AsyncOperator {
             content_disposition,
         };
         future_into_py(py, async move {
-            let range = opts.make_range();
-            let res = this
-                .reader_options(&path, opts.into())
-                .await
-                .map_err(format_pyerr)?
-                .read(range.to_range())
-                .await
-                .map_err(format_pyerr)?;
-            Python::attach(|py| buffer_into_py_bytes(py, res).map(Bound::unbind))
+            let buffer = if opts.use_prefetch_reader()? {
+                let range = opts.make_range();
+                this.reader_options(&path, opts.into())
+                    .await
+                    .map_err(format_pyerr)?
+                    .read(range)
+                    .await
+            } else {
+                this.read_options(&path, opts.into()).await
+            }
+            .map_err(format_pyerr)?;
+            Python::attach(|py| buffer_into_py_bytes(py, buffer).map(Bound::unbind))
         })
     }
 
@@ -1523,23 +1672,29 @@ impl AsyncOperator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
+    /// if_not_exists : bool, optional
+    ///     If True, require `copy_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists. Defaults to False, which allows overwriting.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that completes when the copy is finished.
-    #[pyo3(signature = (source, target) -> "collections.abc.Awaitable[None]")]
+    #[pyo3(signature = (source, target, *, if_not_exists=None) -> "collections.abc.Awaitable[None]")]
     pub fn copy<'p>(
         &'p self,
         py: Python<'p>,
         source: PathBuf,
         target: PathBuf,
+        if_not_exists: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        let opts = CopyOptions { if_not_exists };
         future_into_py(py, async move {
-            this.copy(&source, &target)
+            this.copy_options(&source, &target, opts)
                 .await
                 .map(|_| ())
                 .map_err(format_pyerr)
@@ -1554,23 +1709,32 @@ impl AsyncOperator {
     ///     The path to the source file.
     /// target : str
     ///     The path to the target file.
+    /// if_not_exists : bool, optional
+    ///     If True, require `rename_with_if_not_exists` and raise `Unsupported`
+    ///     if the service lacks it. Raise `ConditionNotMatch` if the target
+    ///     already exists, leaving both files unchanged. Defaults to False,
+    ///     which allows overwriting.
     ///
     /// Returns
     /// -------
     /// coroutine
     ///     An awaitable that completes when the rename is finished.
-    #[pyo3(signature = (source, target) -> "collections.abc.Awaitable[None]")]
+    #[pyo3(signature = (source, target, *, if_not_exists=None) -> "collections.abc.Awaitable[None]")]
     pub fn rename<'p>(
         &'p self,
         py: Python<'p>,
         source: PathBuf,
         target: PathBuf,
+        if_not_exists: Option<bool>,
     ) -> PyResult<Bound<'p, PyAny>> {
         let this = self.core.clone();
         let source = source.to_string_lossy().to_string();
         let target = target.to_string_lossy().to_string();
+        let opts = RenameOptions { if_not_exists };
         future_into_py(py, async move {
-            this.rename(&source, &target).await.map_err(format_pyerr)
+            this.rename_options(&source, &target, opts)
+                .await
+                .map_err(format_pyerr)
         })
     }
 
@@ -2130,7 +2294,7 @@ impl AsyncOperator {
     /// Operator
     ///     The blocking operator.
     pub fn to_operator(&self) -> PyResult<Operator> {
-        let runtime = pyo3_async_runtimes::tokio::get_runtime();
+        let runtime = get_runtime()?;
         let _guard = runtime.enter();
         let op = ocore::blocking::Operator::new(self.core.clone()).map_err(format_pyerr)?;
 

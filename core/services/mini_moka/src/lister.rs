@@ -29,10 +29,13 @@ pub struct MiniMokaLister {
 }
 
 impl MiniMokaLister {
-    pub fn new(core: Arc<MiniMokaCore>, root: String, _path: String) -> Self {
+    /// `path` is the absolute listing prefix inside the cache, built by the
+    /// backend with `build_absolute_path`.
+    pub fn new(core: Arc<MiniMokaCore>, root: String, path: String) -> Self {
         let entries: Vec<(String, Metadata)> = core
             .cache
             .iter()
+            .filter(|entry| entry.key().starts_with(path.as_str()))
             .map(|entry| (entry.key().to_string(), entry.value().metadata.clone()))
             .collect();
 
@@ -47,9 +50,12 @@ impl oio::List for MiniMokaLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         match self.entries.next() {
             Some((key, metadata)) => {
-                let rel_path = build_rel_path(&self.root, &key);
+                let mut path = build_relative_path(&self.root, &key);
+                if path.is_empty() {
+                    path = "/".to_string();
+                }
 
-                Ok(Some(oio::Entry::new(&rel_path, metadata)))
+                Ok(Some(oio::Entry::new(&path, metadata)))
             }
             None => Ok(None),
         }

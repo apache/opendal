@@ -26,10 +26,23 @@ on:
       cases:
         required: true
         type: string
+      enable_secrets:
+        required: false
+        type: boolean
+        default: false
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+    secrets:
+      OP_CONNECT_HOST:
+        required: false
+      OP_CONNECT_TOKEN:
+        required: false
 
 concurrency:
-  group: binding_nodejs-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-binding_nodejs-${{ inputs.os }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Prevent parallel cache building in `test` job by building cache in a separate job
@@ -39,12 +52,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # params must be in sync with `test` job
           node-version: "20"
@@ -75,6 +88,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup 1Password Connect
+        if: inputs.enable_secrets
         shell: bash
         run: |
           echo "::add-mask::${{ secrets.OP_CONNECT_HOST }}"
@@ -82,12 +96,12 @@ jobs:
           echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
 
-      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 8
           run_install: false
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           # params must be in sync with `node-cache` job
           node-version: "20"
@@ -99,6 +113,16 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test Core
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        uses: ./.github/actions/test_behavior_binding_nodejs
+        with:
+          setup: ${{ matrix.cases.setup }}
+          service: ${{ matrix.cases.service }}
+          feature: ${{ matrix.cases.feature }}
+
+      - name: Retry Test Core
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
         uses: ./.github/actions/test_behavior_binding_nodejs
         with:
           setup: ${{ matrix.cases.setup }}

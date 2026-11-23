@@ -272,8 +272,21 @@ fn make_op_read() -> OpRead {
     args
 }
 
+fn bench_write_capability() -> Capability {
+    Capability {
+        write: true,
+        write_can_append: true,
+        write_with_if_match: true,
+        write_with_if_none_match: true,
+        write_with_if_version_match: true,
+        write_with_if_version_not_match: true,
+        write_with_if_not_exists: true,
+        ..Default::default()
+    }
+}
+
 fn make_op_write() -> OpWrite {
-    OpWrite::from_options(&Capability::default(), make_write_options())
+    OpWrite::from_options(&bench_write_capability(), make_write_options())
         .expect("options do not contain a logical condition")
         .0
 }
@@ -471,11 +484,12 @@ mod raw_freeze {
 
     #[divan::bench]
     fn compact_write(bencher: Bencher) {
+        let capability = bench_write_capability();
         bencher
             .with_inputs(make_write_options)
             .bench_values(|options| {
                 black_box(
-                    OpWrite::from_options(&Capability::default(), options)
+                    OpWrite::from_options(&capability, options)
                         .expect("options do not contain a logical condition")
                         .0,
                 )

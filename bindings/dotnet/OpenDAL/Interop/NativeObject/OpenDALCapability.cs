@@ -57,6 +57,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentType;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentDisposition;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentEncoding;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeWithContentLanguage;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithCacheControl;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfNoneMatch;
@@ -64,6 +65,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfVersionNotMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithIfNotExists;
     [MarshalAs(UnmanagedType.U1)] internal byte writeWithUserMetadata;
+    [MarshalAs(UnmanagedType.U1)] internal byte writeWithExpires;
     internal nuint writeMultiMaxSize;
     internal nuint writeMultiMinSize;
     internal nuint writeTotalMaxSize;
@@ -83,6 +85,9 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithIfVersionMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithIfVersionNotMatch;
     [MarshalAs(UnmanagedType.U1)] internal byte copyWithSourceVersion;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithUserMetadata;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithContentType;
+    [MarshalAs(UnmanagedType.U1)] internal byte copyWithContentLanguage;
     [MarshalAs(UnmanagedType.U1)] internal byte copyCanMulti;
     internal nuint copyMultiMaxSize;
     internal nuint copyMultiMinSize;
@@ -110,6 +115,7 @@ internal struct OpenDALCapability
     [MarshalAs(UnmanagedType.U1)] internal byte listWithRecursive;
     [MarshalAs(UnmanagedType.U1)] internal byte listWithVersions;
     [MarshalAs(UnmanagedType.U1)] internal byte listWithDeleted;
+    [MarshalAs(UnmanagedType.U1)] internal byte listWithGlob;
     [MarshalAs(UnmanagedType.U1)] internal byte presign;
     [MarshalAs(UnmanagedType.U1)] internal byte presignRead;
     [MarshalAs(UnmanagedType.U1)] internal byte presignStat;

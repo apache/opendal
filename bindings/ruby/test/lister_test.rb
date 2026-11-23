@@ -68,10 +68,50 @@ class ListerTest < ActiveSupport::TestCase
   end
 
   test "lists the directory with start_after" do
-    lister = @op.list("", start_after: "sub/")
+    lister = @op.list("", start_after: "sample")
 
-    lists = lister.map(&:to_h).map { |e| e[:path] }.sort
+    lists = lister.map(&:to_h).map { |e| e[:path] }
 
-    assert_equal ["/", "sample", "sub/"], lists # fs backend doesn't support start_after
+    assert_equal ["sub/"], lists
+  end
+
+  test "#each without a block returns an Enumerator" do
+    enum = @op.list("").each
+
+    assert_kind_of Enumerator, enum
+
+    lists = enum.map { |e| e.to_h[:path] }.sort
+
+    assert_equal ["/", "sample", "sub/"], lists
+  end
+
+  test "#each returns the break value and then the lister" do
+    lister = @op.list("")
+
+    result = lister.each { |e| break e }
+    assert_kind_of OpenDal::Entry, result
+
+    assert_same lister, lister.each { |e| e }
+  end
+
+  test "#each raises instead of truncating the listing on storage errors" do
+    skip "chmod does not restrict root" if Process.euid.zero?
+
+    locked = "#{@root}/locked"
+    Dir.mkdir(locked)
+    File.write("#{locked}/sample", "unreadable")
+    File.chmod(0o000, locked)
+
+    begin
+      lister = @op.list("locked/")
+      err = assert_raise(RuntimeError) { lister.to_a }
+      assert_match(/PermissionDenied/, err.message)
+
+      # The same failure surfaces through the enumerator returned by #each.
+      lister = @op.list("locked/")
+      assert_raise(RuntimeError) { lister.each.next }
+    ensure
+      File.chmod(0o755, locked) if File.exist?(locked)
+    end
   end
 end

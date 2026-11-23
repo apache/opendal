@@ -81,7 +81,7 @@ test-suite opendal-test
     import:           base
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
-    other-modules:    BasicTest, WriterTest, ErrorTest, PerformanceTest
+    other-modules:    BasicTest, WriterTest, ErrorTest, PerformanceTest, ResourceTest
     hs-source-dirs:   test
     build-depends:
         opendal,

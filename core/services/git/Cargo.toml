@@ -25,7 +25,7 @@ edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
-rust-version = { workspace = true }
+rust-version = "1.95"
 version = { workspace = true }
 
 [package.metadata.docs.rs]
@@ -33,7 +33,7 @@ all-features = true
 
 [dependencies]
 bytes = { workspace = true }
-gix = { version = "0.87.1", features = [
+gix = { version = "0.91.0", features = [
   "blocking-http-transport-reqwest-rust-tls",
 ] }
 http = { workspace = true }

@@ -41,12 +41,21 @@ const X_MS_TYPE: &str = "x-ms-type";
 const X_MS_FILE_RENAME_REPLACE_IF_EXISTS: &str = "x-ms-file-rename-replace-if-exists";
 pub const X_MS_META_PREFIX: &str = "x-ms-meta-";
 
+/// Drops the leading `?` of a SAS token and treats an empty token as unset.
+pub(crate) fn normalize_sas_token(token: Option<&str>) -> Option<&str> {
+    token
+        .map(|token| token.trim_start_matches('?'))
+        .filter(|token| !token.is_empty())
+}
+
 pub struct AzfileCore {
     pub info: ServiceInfo,
     pub capability: Capability,
     pub root: String,
     pub endpoint: String,
     pub share_name: String,
+    pub sas_token: Option<String>,
+    pub skip_signature: bool,
     pub signer: Signer<Credential>,
     pub sign_ctx: Context,
 }
@@ -80,6 +89,11 @@ impl AzfileCore {
             HeaderValue::from_static("2022-11-02"),
         );
 
+        // x-ms-version must be set even when signing is skipped.
+        if self.skip_signature {
+            return Ok(Request::from_parts(parts, body));
+        }
+
         self.signer(ctx)
             .sign(&mut parts, None)
             .await
@@ -103,7 +117,7 @@ impl AzfileCore {
         path: &str,
         range: BytesRange,
     ) -> Result<Response<HttpBody>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}",
@@ -134,7 +148,7 @@ impl AzfileCore {
         size: usize,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
         let url = format!(
@@ -187,7 +201,7 @@ impl AzfileCore {
         position: u64,
         body: Buffer,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -223,7 +237,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!(
             "{}/{}/{}",
             self.endpoint,
@@ -247,7 +261,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}/{}?restype=directory",
@@ -267,17 +281,12 @@ impl AzfileCore {
         self.send(ctx, req).await
     }
 
-    pub async fn azfile_rename(
-        &self,
-        ctx: &OperationContext,
-        path: &str,
-        new_path: &str,
-    ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+    pub fn azfile_rename_request(&self, path: &str, new_path: &str) -> Result<Request<Buffer>> {
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
-        let new_p = build_abs_path(&self.root, new_path)
+        let new_p = build_absolute_path(&self.root, new_path)
             .trim_start_matches('/')
             .to_string();
 
@@ -306,22 +315,35 @@ impl AzfileCore {
         // the official document does not mention the URL style path
         // find the solution from the community FAQ and implementation of the Java-SDK
         // ref: https://learn.microsoft.com/en-us/answers/questions/799611/azure-file-service-rest-api(rename)?page=1
-        let source_url = format!(
+        let mut source_url = format!(
             "{}/{}/{}",
             self.endpoint,
             self.share_name,
             percent_encode_path(&p)
         );
+        if let Some(sas_token) = &self.sas_token {
+            source_url = format!("{source_url}?{sas_token}");
+        }
+        let mut source = build_header_value(&source_url)?;
+        source.set_sensitive(self.sas_token.is_some());
 
-        req = req.header(X_MS_FILE_RENAME_SOURCE, &source_url);
+        req = req.header(X_MS_FILE_RENAME_SOURCE, source);
 
         req = req.header(X_MS_FILE_RENAME_REPLACE_IF_EXISTS, "true");
 
-        let req = req
-            .extension(Operation::Rename)
-            .extension(ServiceOperation("Rename"));
+        req.extension(Operation::Rename)
+            .extension(ServiceOperation("Rename"))
+            .body(Buffer::new())
+            .map_err(new_request_build_error)
+    }
 
-        let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
+    pub async fn azfile_rename(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        new_path: &str,
+    ) -> Result<Response<Buffer>> {
+        let req = self.azfile_rename_request(path, new_path)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -331,7 +353,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -360,7 +382,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -387,7 +409,7 @@ impl AzfileCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -416,7 +438,7 @@ impl AzfileCore {
         limit: &Option<usize>,
         continuation: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path)
+        let p = build_absolute_path(&self.root, path)
             .trim_start_matches('/')
             .to_string();
 
@@ -565,6 +587,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
         StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
@@ -649,7 +672,46 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use reqsign_azure_storage::{RequestSigner, StaticCredentialProvider};
+
     use super::*;
+
+    #[test]
+    fn test_rename_source_carries_normalized_sas_token() {
+        let rename_source = |sas_token: Option<&str>| {
+            let core = AzfileCore {
+                info: ServiceInfo::new("azfile", "/", ""),
+                capability: Capability::default(),
+                root: "/".to_string(),
+                endpoint: "https://acc.file.core.windows.net".to_string(),
+                share_name: "share".to_string(),
+                sas_token: normalize_sas_token(sas_token).map(str::to_string),
+                skip_signature: false,
+                signer: Signer::new(
+                    Context::new(),
+                    StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                    RequestSigner::new(),
+                ),
+                sign_ctx: Context::new(),
+            };
+            let req = core.azfile_rename_request("a", "b").expect("must build");
+            let source = &req.headers()[X_MS_FILE_RENAME_SOURCE];
+            (source.to_str().unwrap().to_string(), source.is_sensitive())
+        };
+        let bare = "https://acc.file.core.windows.net/share/a";
+        let signed = "https://acc.file.core.windows.net/share/a?sv=x&sig=y";
+
+        for (sas_token, expected) in [
+            (None, (bare, false)),
+            (Some("sv=x&sig=y"), (signed, true)),
+            (Some("?sv=x&sig=y"), (signed, true)),
+            (Some(""), (bare, false)),
+            (Some("?"), (bare, false)),
+        ] {
+            let (source, sensitive) = rename_source(sas_token);
+            assert_eq!((source.as_str(), sensitive), expected, "{sas_token:?}");
+        }
+    }
 
     fn parse_native_error(operation: &'static str, status: StatusCode, code: &str) -> Error {
         let resp = Response::builder()
@@ -676,6 +738,30 @@ mod tests {
             "LeaseIdMismatchWithFileOperation",
         );
         assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!err.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        // Real Azure Files response observed in Nightly Tier B behavior tests:
+        // GET with a range past EOF returns 416 with x-ms-error-code InvalidRange.
+        let body = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\
+             <Error><Code>InvalidRange</Code>\
+             <Message>The range specified is invalid for the current size of the resource.</Message>\
+             </Error>";
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .header("content-length", "249")
+            .header("content-type", "application/xml")
+            .header("content-range", "bytes */6")
+            .header("server", "Windows-Azure-File/1.0 Microsoft-HTTPAPI/2.0")
+            .header("x-ms-version", "2022-11-02")
+            .header("x-ms-error-code", "InvalidRange")
+            .body(Buffer::from(body.to_string()))
+            .expect("response must build");
+
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetFile")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
         assert!(!err.is_temporary());
     }
 

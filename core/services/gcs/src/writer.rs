@@ -844,7 +844,19 @@ mod tests {
         );
         let core = Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
-            capability: Capability::default(),
+            capability: Capability {
+                write: true,
+                write_can_empty: true,
+                write_can_multi: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+                write_with_content_encoding: true,
+                write_with_user_metadata: true,
+                write_with_if_not_exists: true,
+                write_with_if_version_match: true,
+                write_with_if_version_not_match: true,
+                ..Default::default()
+            },
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
@@ -855,7 +867,7 @@ mod tests {
             skip_signature: true,
         });
         let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
-        let (op, _) = OpWrite::from_options(&Capability::default(), options).unwrap();
+        let (op, _) = OpWrite::from_options(&core.capability, options).unwrap();
         GcsConditionalWriter::new(core, ctx, "object", op)
     }
 

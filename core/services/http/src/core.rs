@@ -58,7 +58,7 @@ impl HttpCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -85,7 +85,19 @@ impl HttpCore {
         }
 
         if !range.is_full() {
-            req = req.header(header::RANGE, range.to_header());
+            let range_header = range.to_header();
+            if range_header.is_empty() {
+                let mut err = Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "range has no valid HTTP Range header representation",
+                )
+                .with_context("offset", range.offset());
+                if let Some(size) = range.size() {
+                    err = err.with_context("size", size);
+                }
+                return Err(err);
+            }
+            req = req.header(header::RANGE, range_header);
         }
 
         let req = req
@@ -107,7 +119,7 @@ impl HttpCore {
     }
 
     pub fn http_head_request(&self, path: &str, args: &OpStat) -> Result<Request<Buffer>> {
-        let p = build_rooted_abs_path(&self.root, path);
+        let p = build_rooted_absolute_path(&self.root, path);
 
         let url = format!("{}{}", self.endpoint, percent_encode_path(&p));
 
@@ -203,6 +215,16 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 mod tests {
     use super::*;
 
+    fn test_core() -> HttpCore {
+        HttpCore {
+            info: ServiceInfo::new("http", "/", ""),
+            capability: Capability::default(),
+            endpoint: "https://example.com".to_string(),
+            root: "/".to_string(),
+            authorization: None,
+        }
+    }
+
     #[test]
     fn test_parse_range_not_satisfiable() {
         let resp = Response::builder()
@@ -212,5 +234,71 @@ mod tests {
 
         let err = parse_error(ErrorContext::new(ServiceOperation("Get")), resp);
         assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+    }
+
+    #[test]
+    fn test_http_get_request_rejects_unrepresentable_range() {
+        let core = test_core();
+        let cases = [
+            BytesRange::new(u64::MAX, Some(2)),
+            BytesRange::new(u64::MAX - 5, Some(10)),
+            BytesRange::new(2, Some(u64::MAX)),
+            BytesRange::new(0, Some(0)),
+            BytesRange::new(5, Some(0)),
+        ];
+
+        for range in cases {
+            let err = core
+                .http_get_request("file.txt", range, &OpRead::default())
+                .expect_err(&format!(
+                    "unrepresentable range {range:?} must be rejected instead of sending empty Range header"
+                ));
+            assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "{range:?}");
+            assert!(!err.is_temporary(), "{range:?}");
+        }
+    }
+
+    #[test]
+    fn test_http_get_request_range_header_boundaries() {
+        let core = test_core();
+
+        for full_range in [BytesRange::from(..), BytesRange::from(0..)] {
+            let req = core
+                .http_get_request("file.txt", full_range, &OpRead::default())
+                .expect("full range request must build");
+            assert!(
+                req.headers().get(header::RANGE).is_none(),
+                "full range {full_range:?} must not set Range header"
+            );
+        }
+
+        let cases = [
+            (
+                BytesRange::new(u64::MAX, Some(1)),
+                "bytes=18446744073709551615-18446744073709551615",
+            ),
+            (
+                BytesRange::new(1, Some(u64::MAX)),
+                "bytes=1-18446744073709551615",
+            ),
+            (
+                BytesRange::new(u64::MAX, None),
+                "bytes=18446744073709551615-",
+            ),
+            (BytesRange::suffix(4), "bytes=-4"),
+        ];
+
+        for (range, expected) in cases {
+            let req = core
+                .http_get_request("file.txt", range, &OpRead::default())
+                .expect("valid range request must build");
+            assert_eq!(
+                req.headers()
+                    .get(header::RANGE)
+                    .and_then(|v| v.to_str().ok()),
+                Some(expected),
+                "{range:?}"
+            );
+        }
     }
 }

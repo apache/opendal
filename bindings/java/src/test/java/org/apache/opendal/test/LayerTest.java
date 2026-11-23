@@ -20,15 +20,52 @@
 package org.apache.opendal.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.sun.net.httpserver.HttpServer;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import lombok.Cleanup;
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Entry;
 import org.apache.opendal.Layer;
+import org.apache.opendal.ListOptions;
+import org.apache.opendal.OpenDALException;
+import org.apache.opendal.Operator;
 import org.apache.opendal.ServiceConfig;
+import org.apache.opendal.WriteOptions;
+import org.apache.opendal.layer.CapabilityCheckLayer;
+import org.apache.opendal.layer.CapabilityOverrideLayer;
+import org.apache.opendal.layer.ChaosLayer;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
+import org.apache.opendal.layer.HedgeLayer;
+import org.apache.opendal.layer.ImmutableIndexLayer;
+import org.apache.opendal.layer.LoggingLayer;
+import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
+import org.apache.opendal.layer.RouteLayer;
+import org.apache.opendal.layer.SanityCheckLayer;
+import org.apache.opendal.layer.TailCutLayer;
+import org.apache.opendal.layer.ThrottleLayer;
+import org.apache.opendal.layer.TimeoutLayer;
+import org.apache.opendal.layer.TimeoutLayer.Operation;
+import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 public class LayerTest {
+    private static final ServiceConfig.Http OFFLINE_HTTP =
+            ServiceConfig.Http.builder().endpoint("http://127.0.0.1:1").build();
+
     @Test
     void testOperatorWithRetryLayer() {
         final ServiceConfig.Memory memory =
@@ -40,6 +77,36 @@ public class LayerTest {
     }
 
     @Test
+    void testAsyncOperatorWithLoggingLayer() {
+        final byte[] content = "logging layer".getBytes(StandardCharsets.UTF_8);
+        try (AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                AsyncOperator layeredOp = op.layer(new LoggingLayer())) {
+            layeredOp.write("file.txt", content).join();
+            assertThat(layeredOp.read("file.txt").join()).containsExactly(content);
+            assertThat(layeredOp.stat("file.txt").join().contentLength).isEqualTo(content.length);
+            layeredOp.delete("file.txt").join();
+            assertThatThrownBy(() -> layeredOp.stat("file.txt").join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+        }
+    }
+
+    @Test
+    void testBlockingOperatorWithLoggingLayer() {
+        final byte[] content = "logging layer".getBytes(StandardCharsets.UTF_8);
+        try (AsyncOperator asyncOp =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                AsyncOperator layeredOp = asyncOp.layer(new LoggingLayer());
+                Operator op = layeredOp.blocking()) {
+            op.write("file.txt", content);
+            assertThat(op.read("file.txt")).containsExactly(content);
+            assertThat(op.stat("file.txt").contentLength).isEqualTo(content.length);
+            op.delete("file.txt");
+            assertThatThrownBy(() -> op.stat("file.txt"))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        }
+    }
+
+    @Test
     void testOperatorWithConcurrentLimitLayer() {
         final ServiceConfig.Memory memory =
                 ServiceConfig.Memory.builder().root("/opendal/").build();
@@ -47,5 +114,550 @@ public class LayerTest {
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(concurrentLimitLayer);
         assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testConcurrentLimitLayerWithDedicatedPermits() throws Exception {
+        final ConcurrentLimitLayer layer = ConcurrentLimitLayer.builder(1)
+                .readPermits(2)
+                .writePermits(3)
+                .listPermits(4)
+                .httpPermits(5)
+                .build();
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(layer);
+
+        final byte[] content = {1, 2, 3};
+        layeredOp.write("file.txt", content).get(5, TimeUnit.SECONDS);
+        assertThat(layeredOp.read("file.txt").get(5, TimeUnit.SECONDS)).containsExactly(content);
+        assertThat(layeredOp.list("").get(5, TimeUnit.SECONDS))
+                .extracting(Entry::getPath)
+                .containsExactly("file.txt");
+        assertThat(layeredOp.stat("file.txt").get(5, TimeUnit.SECONDS).contentLength)
+                .isEqualTo(content.length);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {0, -1, Long.MIN_VALUE})
+    void testConcurrentLimitLayerRejectsNonPositivePermits(long invalid) {
+        assertThatThrownBy(() -> new ConcurrentLimitLayer(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("permits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("permits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).readPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("readPermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).writePermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("writePermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).listPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("listPermits ");
+        assertThatThrownBy(() -> ConcurrentLimitLayer.builder(1).httpPermits(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("httpPermits ");
+    }
+
+    @Test
+    void testCapabilityCheckLayerRejectsUnsupportedWriteContentType() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup
+        final AsyncOperator overriddenOp = op.layer(new CapabilityOverrideLayer("write_with_content_type=false"));
+        @Cleanup final AsyncOperator layeredOp = overriddenOp.layer(new CapabilityCheckLayer());
+
+        final WriteOptions options =
+                WriteOptions.builder().contentType("text/plain").build();
+        assertThatThrownBy(() -> layeredOp.write("file.txt", "hello", options).join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported))
+                .hasMessageContaining("content_type");
+
+        layeredOp.write("file.txt", "hello").join();
+        assertThat(op.stat("file.txt").join().contentLength).isEqualTo(5);
+    }
+
+    @Test
+    void testChaosLayerReadErrorRatioBoundaries() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator noErrors = op.layer(new ChaosLayer(0.0));
+        @Cleanup final AsyncOperator allErrors = op.layer(new ChaosLayer(1.0));
+
+        final byte[] content = {1, 2, 3};
+        op.write("file.txt", content).join();
+        assertThat(noErrors.read("file.txt").join()).containsExactly(content);
+        assertThatThrownBy(() -> allErrors.read("file.txt").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                .hasMessageContaining("I am your chaos!");
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {-0.1, 1.1, Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY})
+    void testChaosLayerRejectsInvalidErrorRatio(double invalid) {
+        assertThatThrownBy(() -> new ChaosLayer(invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("errorRatio ");
+    }
+
+    @Test
+    void testRouteLayerUsesFirstMatchAndFallsBackToInnerOperator() {
+        final ServiceConfig.Memory memory = ServiceConfig.Memory.builder().build();
+        try (final AsyncOperator inner = AsyncOperator.of(memory);
+                final AsyncOperator target = AsyncOperator.of(memory);
+                final RouteLayer layer = RouteLayer.builder()
+                        .route("archive/**", inner)
+                        .route("**/special.txt", target)
+                        .build();
+                final AsyncOperator routed = inner.layer(layer)) {
+            final byte[] firstMatch = {1};
+            final byte[] laterMatch = {2};
+            final byte[] fallback = {3};
+            routed.write("archive/special.txt", firstMatch).join();
+            routed.write("other/special.txt", laterMatch).join();
+            routed.write("fallback.txt", fallback).join();
+
+            assertThat(inner.read("archive/special.txt").join()).containsExactly(firstMatch);
+            assertThat(target.read("other/special.txt").join()).containsExactly(laterMatch);
+            assertThat(inner.read("fallback.txt").join()).containsExactly(fallback);
+            assertThat(routed.read("archive/special.txt").join()).containsExactly(firstMatch);
+            assertThat(routed.read("other/special.txt").join()).containsExactly(laterMatch);
+            assertThat(routed.read("fallback.txt").join()).containsExactly(fallback);
+
+            target.write("archive/special.txt", laterMatch).join();
+            try (final RouteLayer reversed = RouteLayer.builder()
+                            .route("**/special.txt", target)
+                            .route("archive/**", inner)
+                            .build();
+                    final AsyncOperator reversedOp = inner.layer(reversed)) {
+                assertThat(reversedOp.read("archive/special.txt").join()).containsExactly(laterMatch);
+            }
+        }
+    }
+
+    @Test
+    void testRouteLayerRetainsTargetAfterItsHandleCloses() {
+        final ServiceConfig.Memory memory = ServiceConfig.Memory.builder().build();
+        try (final AsyncOperator inner = AsyncOperator.of(memory);
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            final byte[] before = {1};
+            try (final AsyncOperator target = AsyncOperator.of(memory)) {
+                target.write("archive/before.txt", before).join();
+                builder.route("archive/**", target);
+            }
+
+            try (final RouteLayer layer = builder.build();
+                    final AsyncOperator routed = inner.layer(layer)) {
+                layer.close();
+                assertThat(routed.read("archive/before.txt").join()).containsExactly(before);
+
+                final byte[] after = {2};
+                routed.write("archive/after.txt", after).join();
+                assertThat(routed.read("archive/after.txt").join()).containsExactly(after);
+                assertThatThrownBy(() -> inner.stat("archive/after.txt").join())
+                        .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+            }
+        }
+    }
+
+    @Test
+    void testRouteLayerRejectsInvalidGlob() {
+        try (final AsyncOperator target =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            builder.route("archive/[", target);
+            assertThatThrownBy(builder::build)
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.ConfigInvalid))
+                    .hasMessageContaining("invalid route glob pattern")
+                    .hasMessageContaining("archive/[");
+        }
+    }
+
+    @Test
+    void testRouteLayerRejectsClosedTarget() {
+        try (final AsyncOperator target =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final RouteLayer.RouteLayerBuilder builder = RouteLayer.builder()) {
+            target.close();
+            assertThatThrownBy(() -> builder.route("archive/**", target))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("target is closed");
+        }
+    }
+
+    @Test
+    void testSanityCheckLayerListsMemoryEntries() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new SanityCheckLayer());
+
+        op.write("first.txt", "first").join();
+        op.write("second.txt", "second").join();
+        assertThat(layeredOp.list("").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("first.txt", "second.txt");
+    }
+
+    @Test
+    void testHedgeLayerCompletesStatWhileFirstRequestIsStalled() throws Exception {
+        final CountDownLatch releaseFirstResponse = new CountDownLatch(1);
+        final AtomicInteger requests = new AtomicInteger();
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        final ExecutorService handlers = Executors.newFixedThreadPool(2);
+        try {
+            server.setExecutor(handlers);
+            server.createContext("/file", exchange -> {
+                try {
+                    if (requests.incrementAndGet() == 1) {
+                        releaseFirstResponse.await();
+                        return;
+                    }
+                    exchange.getResponseHeaders().set("Content-Length", "7");
+                    exchange.sendResponseHeaders(200, -1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final HedgeLayer hedge = HedgeLayer.builder()
+                    .delay(Duration.ofNanos(Long.MAX_VALUE))
+                    .statDelay(Duration.ofMillis(25))
+                    .build();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(hedge);
+
+            assertThat(layeredOp.stat("file").get(5, TimeUnit.SECONDS).contentLength)
+                    .isEqualTo(7);
+            assertThat(requests.get()).isEqualTo(2);
+        } finally {
+            releaseFirstResponse.countDown();
+            server.stop(0);
+            handlers.shutdownNow();
+        }
+    }
+
+    @Test
+    void testHedgeLayerRejectsInvalidDurations() {
+        for (Duration invalid : Arrays.asList(
+                null, Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> HedgeLayer.builder().delay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("delay ");
+            assertThatThrownBy(() -> HedgeLayer.builder().statDelay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("statDelay ");
+            assertThatThrownBy(() -> HedgeLayer.builder().readDelay(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("readDelay ");
+        }
+    }
+
+    @Test
+    void testHedgeLayerRejectsNegativeMaxHedges() {
+        assertThatThrownBy(() -> HedgeLayer.builder().maxHedges(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("maxHedges ");
+    }
+
+    @Test
+    void testTailCutLayerCancelsSlowTailRequest() throws Exception {
+        final CountDownLatch releaseResponse = new CountDownLatch(1);
+        final AtomicInteger requests = new AtomicInteger();
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        try {
+            server.createContext("/file", exchange -> {
+                try {
+                    if (requests.incrementAndGet() == 6) {
+                        releaseResponse.await();
+                        return;
+                    }
+                    // Keep the HTTP client from reusing warm-up connections on JDK 11.
+                    exchange.getResponseHeaders().set("Connection", "close");
+                    exchange.getResponseHeaders().set("Content-Length", "7");
+                    exchange.sendResponseHeaders(200, -1);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final TailCutLayer tailCut = TailCutLayer.builder()
+                    .percentile(95)
+                    .safetyFactor(1.0)
+                    .minSamples(5)
+                    .minDeadline(Duration.ofMillis(50))
+                    .maxDeadline(Duration.ofMillis(200))
+                    .build();
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(tailCut);
+
+            for (int i = 0; i < 5; i++) {
+                assertThat(layeredOp.stat("file").get(5, TimeUnit.SECONDS).contentLength)
+                        .isEqualTo(7);
+            }
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("cancelled by tail cut");
+        } finally {
+            releaseResponse.countDown();
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void testTailCutLayerRejectsInvalidArguments() {
+        for (int invalid : new int[] {49, 100}) {
+            assertThatThrownBy(() -> TailCutLayer.builder().percentile(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("percentile ");
+        }
+        for (double invalid : new double[] {0.9, 5.1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            assertThatThrownBy(() -> TailCutLayer.builder().safetyFactor(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("safetyFactor ");
+        }
+        final Duration overflowing = Duration.ofNanos(Long.MAX_VALUE).plusNanos(1);
+        for (Duration invalid : Arrays.asList(
+                null, Duration.ofNanos(-1), Duration.ofSeconds(120).plusNanos(1), overflowing)) {
+            assertThatThrownBy(() -> TailCutLayer.builder().window(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("window ");
+        }
+        assertThatThrownBy(() -> TailCutLayer.builder().minSamples(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("minSamples ");
+        for (Duration invalid : Arrays.asList(null, Duration.ofNanos(-1), overflowing)) {
+            assertThatThrownBy(() -> TailCutLayer.builder().minDeadline(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("minDeadline ");
+            assertThatThrownBy(() -> TailCutLayer.builder().maxDeadline(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("maxDeadline ");
+        }
+        assertThatThrownBy(() -> TailCutLayer.builder()
+                        .minDeadline(Duration.ofSeconds(2))
+                        .maxDeadline(Duration.ofSeconds(1))
+                        .build())
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("minDeadline must be less than or equal to maxDeadline");
+    }
+
+    @Test
+    void testImmutableIndexLayerListsHttpKeys() {
+        final String[] keys = {"readme.txt", "docs/guide.txt", "docs/examples/sample.txt", "empty/"};
+        final Layer index = new ImmutableIndexLayer(keys);
+        keys[0] = "changed.txt";
+
+        @Cleanup final AsyncOperator op = AsyncOperator.of(OFFLINE_HTTP);
+        assertThat(op.info.capability.list).isFalse();
+        @Cleanup final AsyncOperator layeredOp = op.layer(index);
+        op.close();
+
+        assertThat(layeredOp.info.capability.list).isTrue();
+        assertThat(layeredOp.info.capability.listWithRecursive).isTrue();
+        assertThat(layeredOp.list("").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("readme.txt", "docs/", "empty/");
+        assertThat(layeredOp.list("docs/").join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("docs/guide.txt", "docs/examples/");
+        assertThat(layeredOp
+                        .list("", ListOptions.builder().recursive(true).build())
+                        .join())
+                .extracting(Entry::getPath)
+                .containsExactlyInAnyOrder("readme.txt", "docs/guide.txt", "docs/examples/sample.txt", "empty/");
+    }
+
+    @Test
+    void testImmutableIndexLayerWithNoKeys() {
+        @Cleanup final AsyncOperator op = AsyncOperator.of(OFFLINE_HTTP);
+        try (AsyncOperator layeredOp = op.layer(new ImmutableIndexLayer())) {
+            assertThat(layeredOp.list("").join()).isEmpty();
+        }
+        assertThatThrownBy(() -> op.list("").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unsupported));
+    }
+
+    @Test
+    void testImmutableIndexLayerRejectsNullKeys() {
+        assertThatThrownBy(() -> new ImmutableIndexLayer((String[]) null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new ImmutableIndexLayer("key", null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"txt, text/plain", "json, application/json"})
+    void testMimeGuessLayer(String extension, String contentType) {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new MimeGuessLayer());
+
+        final String path = "file." + extension;
+        op.write(path, "hello").join();
+        assertThat(op.stat(path).join().contentType).isNull();
+        assertThat(layeredOp.stat(path).join().contentType).isEqualTo(contentType);
+
+        final String layeredPath = "layered." + extension;
+        layeredOp.write(layeredPath, "hello").join();
+        assertThat(op.stat(layeredPath).join().contentType).isEqualTo(contentType);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void testTimeoutLayer(boolean useOperationTimeout) throws Exception {
+        final CountDownLatch releaseResponse = new CountDownLatch(1);
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/file", exchange -> {
+            try {
+                releaseResponse.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        try {
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final Duration timeout = Duration.ofMillis(100);
+            final TimeoutLayer layer = useOperationTimeout
+                    ? new TimeoutLayer().withOperationTimeout(Operation.STAT, timeout)
+                    : new TimeoutLayer().withTimeout(timeout);
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(layer);
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("operation timeout reached");
+        } finally {
+            releaseResponse.countDown();
+            server.stop(0);
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {100, 0})
+    void testTimeoutLayerOverridesOnlyTheSpecifiedOperation(long timeoutMillis) throws Exception {
+        final byte[] content = {1, 2, 3};
+        final CountDownLatch readStarted = new CountDownLatch(1);
+        final CountDownLatch releaseRead = new CountDownLatch(1);
+        final CountDownLatch releaseStat = new CountDownLatch(1);
+        final HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        final ExecutorService handlers = Executors.newFixedThreadPool(2);
+        try {
+            server.setExecutor(handlers);
+            server.createContext("/file", exchange -> {
+                try {
+                    if ("HEAD".equals(exchange.getRequestMethod())) {
+                        releaseStat.await();
+                        return;
+                    }
+                    readStarted.countDown();
+                    releaseRead.await();
+                    exchange.sendResponseHeaders(200, content.length);
+                    exchange.getResponseBody().write(content);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } finally {
+                    exchange.close();
+                }
+            });
+            server.start();
+
+            final ServiceConfig.Http config = ServiceConfig.Http.builder()
+                    .endpoint("http://127.0.0.1:" + server.getAddress().getPort())
+                    .build();
+            final TimeoutLayer.TimeoutLayerBuilder builder = TimeoutLayer.builder()
+                    .operationTimeout(Operation.STAT, Duration.ofSeconds(30))
+                    .operationTimeout(Operation.STAT, Duration.ofMillis(timeoutMillis));
+            final TimeoutLayer layer = builder.build().withTimeout(Duration.ofSeconds(30));
+            builder.operationTimeout(Operation.STAT, Duration.ofSeconds(30));
+            @Cleanup final AsyncOperator op = AsyncOperator.of(config);
+            @Cleanup final AsyncOperator layeredOp = op.layer(layer);
+
+            final CompletableFuture<byte[]> read = layeredOp.read("file");
+            assertThat(readStarted.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThatThrownBy(() -> layeredOp.stat("file").get(5, TimeUnit.SECONDS))
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.Unexpected))
+                    .hasMessageContaining("operation timeout reached");
+            releaseRead.countDown();
+            assertThat(read.get(5, TimeUnit.SECONDS)).containsExactly(content);
+        } finally {
+            releaseRead.countDown();
+            releaseStat.countDown();
+            server.stop(0);
+            handlers.shutdownNow();
+        }
+    }
+
+    @Test
+    void testTimeoutLayerRejectsInvalidDurations() {
+        for (Duration invalid : Arrays.asList(
+                Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> new TimeoutLayer().withTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("timeout ");
+            assertThatThrownBy(() -> new TimeoutLayer().withIoTimeout(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("ioTimeout ");
+            assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(Operation.STAT, invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("timeout ");
+        }
+        assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(null, Duration.ZERO))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("operation");
+        assertThatThrownBy(() -> TimeoutLayer.builder().operationTimeout(Operation.STAT, null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessage("timeout");
+    }
+
+    @Test
+    void testRetryLayerRejectsInvalidDelays() {
+        for (Duration invalid : Arrays.asList(
+                Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> RetryLayer.builder().minDelay(invalid).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("minDelay ");
+            assertThatThrownBy(() -> RetryLayer.builder().maxDelay(invalid).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("maxDelay ");
+        }
+    }
+
+    @Test
+    void testThrottleLayerEnforcesBurst() {
+        @Cleanup
+        final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+        @Cleanup final AsyncOperator layeredOp = op.layer(new ThrottleLayer(0xFFFFFFFFL, 2));
+
+        assertThatThrownBy(() -> layeredOp.write("too-large.txt", "abc").join())
+                .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.RateLimited));
+        layeredOp.write("within-burst.txt", "ab").join();
+        assertThat(op.stat("within-burst.txt").join().contentLength).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(longs = {-1, 0, 0x100000000L})
+    void testThrottleLayerRejectsOutOfRangeArguments(long invalid) {
+        assertThatThrownBy(() -> new ThrottleLayer(invalid, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("bandwidth ");
+        assertThatThrownBy(() -> new ThrottleLayer(1, invalid))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageStartingWith("burst ");
     }
 }

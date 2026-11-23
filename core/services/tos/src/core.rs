@@ -133,6 +133,8 @@ impl TosCore {
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
+
+            parts.headers.remove(HOST);
         }
 
         parts.headers.insert(
@@ -232,7 +234,7 @@ impl TosCore {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -329,7 +331,7 @@ impl TosCore {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}",
@@ -352,7 +354,7 @@ impl TosCore {
     }
 
     pub fn tos_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -440,7 +442,7 @@ impl TosCore {
         path: &str,
         args: &OpDelete,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!(
             "https://{}.{}/{}",
@@ -495,7 +497,7 @@ impl TosCore {
             objects: paths
                 .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, path),
+                    key: build_absolute_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                 })
                 .collect(),
@@ -525,8 +527,8 @@ impl TosCore {
         to: &str,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let source = build_abs_path(&self.root, from);
-        let target = build_abs_path(&self.root, to);
+        let source = build_absolute_path(&self.root, from);
+        let target = build_absolute_path(&self.root, to);
 
         let url = format!(
             "https://{}.{}/{}",
@@ -558,7 +560,7 @@ impl TosCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploads",
@@ -589,8 +591,8 @@ impl TosCore {
         &self,
         input: TosUploadPartCopyRequest<'_>,
     ) -> Result<Request<Buffer>> {
-        let source = build_abs_path(&self.root, input.from);
-        let target = build_abs_path(&self.root, input.to);
+        let source = build_absolute_path(&self.root, input.from);
+        let target = build_absolute_path(&self.root, input.to);
 
         let url = format!(
             "https://{}.{}/{}?partNumber={}&uploadId={}",
@@ -621,7 +623,7 @@ impl TosCore {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -657,7 +659,7 @@ impl TosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -685,7 +687,7 @@ impl TosCore {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url =
             QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
@@ -703,7 +705,7 @@ impl TosCore {
         if let Some(start_after) = start_after
             && (path.is_empty() || path == "/" || start_after.starts_with(path))
         {
-            let start_after = build_abs_path(&self.root, &start_after);
+            let start_after = build_absolute_path(&self.root, &start_after);
             url = url.push("start-after", &percent_encode_query(&start_after));
         }
         if !continuation_token.is_empty() {
@@ -731,7 +733,7 @@ impl TosCore {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url =
             QueryPairsWriter::new(&format!("https://{}.{}", self.bucket, self.endpoint_domain));
@@ -771,7 +773,7 @@ impl TosCore {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploads",
@@ -828,7 +830,7 @@ impl TosCore {
         size: u64,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?partNumber={}&uploadId={}",
@@ -857,7 +859,7 @@ impl TosCore {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -896,7 +898,7 @@ impl TosCore {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "https://{}.{}/{}?uploadId={}",
@@ -1119,6 +1121,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::CONFLICT => (ErrorKind::ConditionNotMatch, true),
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         code if code.is_server_error() => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
@@ -1172,7 +1175,23 @@ pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::task::Context as TaskContext;
+    use std::task::Poll;
+    use std::task::Waker;
+
     use super::*;
+
+    #[test]
+    fn test_parse_error_range_not_satisfiable() {
+        let resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(r#"{"Code":"Requested Range Not Satisfiable","Message":"The requested range is not satisfiable"}"#))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+    }
 
     #[test]
     fn test_parse_error() {
@@ -1225,6 +1244,71 @@ mod tests {
 
         let out: TosError = de::from_reader(bs.reader()).expect("must success");
         assert_eq!(out, TosError::default());
+    }
+
+    /// Poll a future once; these futures resolve without an external runtime.
+    fn poll_once<F: Future>(future: F) -> F::Output {
+        let mut future = std::pin::pin!(future);
+        let mut cx = TaskContext::from_waker(Waker::noop());
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("future requires an external async runtime"),
+        }
+    }
+
+    fn build_core() -> std::sync::Arc<TosCore> {
+        let backend = crate::Tos::default()
+            .bucket("test-bucket")
+            .access_key_id("test-ak")
+            .secret_access_key("test-sk")
+            .build()
+            .expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<crate::backend::TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingTransport {
+        headers: std::sync::Arc<std::sync::Mutex<Vec<http::HeaderMap>>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.headers.lock().unwrap().push(req.headers().clone());
+            // The test only inspects request headers, so it stops before a response
+            // body would require a stream implementation.
+            Err(Error::new(
+                ErrorKind::Unexpected,
+                "request recorded by test transport",
+            ))
+        }
+    }
+
+    #[test]
+    fn test_send_removes_host_header_after_signing() {
+        let transport = RecordingTransport::default();
+        let ctx =
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone()));
+        let core = build_core();
+        let req = core
+            .tos_put_object_request("test", None, &OpWrite::default(), Buffer::new())
+            .expect("request must be valid");
+
+        // The recording transport stops after capturing the request headers.
+        assert!(poll_once(core.send(&ctx, req)).is_err());
+
+        let headers = transport.headers.lock().unwrap();
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers[0].contains_key(http::header::AUTHORIZATION),
+            "request must be signed before it is sent"
+        );
+        assert!(
+            !headers[0].contains_key(HOST),
+            "Host header must be removed after signing"
+        );
     }
 }
 

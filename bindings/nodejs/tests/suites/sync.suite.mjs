@@ -58,28 +58,6 @@ export function run(op) {
       },
     )
 
-    test.runIf(op.capability().read && op.capability().write)('blocking read stream', async () => {
-      let c = generateFixedBytes(3 * 1024 * 1024)
-      const filename = `random_file_${randomUUID()}`
-
-      await op.write(filename, c)
-
-      const r = op.readerSync(filename)
-      const rs = r.createReadStream()
-
-      let chunks = []
-      rs.on('data', (chunk) => {
-        chunks.push(chunk)
-      })
-
-      rs.on('end', () => {
-        const buf = Buffer.concat(chunks)
-        assert.equal(Buffer.compare(buf, c), 0)
-
-        op.deleteSync(filename)
-      })
-    })
-
     test.runIf(op.capability().read && op.capability().write)('blocking write with behavior', () => {
       let c = Buffer.from('hello world')
       const filename = `random_file_${randomUUID()}`
@@ -114,5 +92,32 @@ export function run(op) {
     test.runIf(op.capability().list)('blocking check', () => {
       op.checkSync()
     })
+  })
+
+  const capability = op.capability()
+  describe.runIf(capability.read && capability.write && capability.delete)('blocking read streams', () => {
+    for (const [name, size, highWaterMark] of [
+      ['read with a positive high water mark', 3 * 1024 * 1024, 64 * 1024],
+      ['read with a zero high water mark', 11, 0],
+      ['read an empty object with a zero high water mark', 0, 0],
+    ]) {
+      test.runIf(size > 0 || capability.writeCanEmpty)(name, async ({ onTestFinished }) => {
+        const content = Buffer.alloc(size, 'hello world')
+        const filename = `random_file_${randomUUID()}`
+        await op.write(filename, content)
+        onTestFinished(() => op.deleteSync(filename))
+
+        const stream = op.readerSync(filename).createReadStream({ highWaterMark })
+        const chunks = []
+        for await (const chunk of stream) {
+          chunks.push(chunk)
+        }
+
+        const output = Buffer.concat(chunks)
+        expect(output.length).toBe(content.length)
+        expect(output.equals(content)).toBe(true)
+        expect(stream.readableEnded).toBe(true)
+      })
+    }
   })
 }

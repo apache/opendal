@@ -166,11 +166,15 @@ let entries = op.list_with("dir/").recursive(true).await?;
 ## Delete a file or a whole tree
 
 ```rust
-op.delete("path/to/file").await?;   // single path; idempotent
-op.remove_all("dir/").await?;       // a path and everything under it
+op.delete("path/to/file").await?;
+op.delete_with("a/").recursive(true).await?;
 ```
 
-`delete` succeeds even if the path does not exist.
+`delete` succeeds even if the path does not exist. For recursive deletion,
+use a trailing slash to scope deletion to a directory across services.
+Prefix matching for paths without a trailing slash is service-specific.
+For example, `"a"` can also match entries under `"ab/"` on prefix-based
+services.
 
 ## Delete a specific version
 

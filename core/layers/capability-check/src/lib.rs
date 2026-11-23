@@ -26,19 +26,12 @@ use opendal_core::*;
 
 /// `CapabilityCheckLayer` validates optional operation arguments against service capabilities.
 ///
-/// Similar to `CorrectnessChecker`, this layer verifies selected optional arguments for write,
-/// copy, and list operations against the capabilities of the underlying service. If an argument is
-/// not supported, an error is returned directly.
+/// This opt-in layer rejects selected unsupported write, copy, and compose options, such as
+/// `write_with_content_type`. For list operations, it removes the `limit` hint when the service
+/// does not support it.
 ///
-/// # Notes
-///
-/// There are two main differences between this checker with the `CorrectnessChecker`:
-/// 1. This checker provides additional checks for capabilities like write_with_content_type and
-///    list_with_versions, among others. These capabilities do not affect data integrity, even if
-///    the underlying storage services do not support them.
-///
-/// 2. OpenDAL doesn't apply this checker by default. Users can enable this layer if they want to
-///    enforce stricter requirements.
+/// The default correctness checks validate `start_after`, `versions(true)`, and `deleted(true)`
+/// independently of this layer.
 ///
 /// # Examples
 ///
@@ -67,19 +60,12 @@ impl CapabilityCheckLayer {
 
 impl Layer for CapabilityCheckLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(CapabilityCheckService { inner })
     }
 }
 
-impl CapabilityCheckLayer {
-    fn layer(&self, inner: Servicer) -> CapabilityCheckService {
-        CapabilityCheckService { inner }
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct CapabilityCheckService {
+struct CapabilityCheckService {
     inner: Servicer,
 }
 
@@ -149,6 +135,13 @@ impl Service for CapabilityCheckService {
                 &info,
                 Operation::Write,
                 "content_disposition",
+            ));
+        }
+        if !capability.write_with_content_language && args.content_language().is_some() {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Write,
+                "content_language",
             ));
         }
 
@@ -259,12 +252,11 @@ impl Service for CapabilityCheckService {
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let capability = self.capability();
-        if !capability.list_with_versions && args.versions() {
-            let info = self.info();
-            return Err(new_unsupported_error(&info, Operation::List, "version"));
-        }
-
+        let args = if args.limit().is_some() && !self.capability().list_with_limit {
+            args.without_limit()
+        } else {
+            args
+        };
         self.inner.list(ctx, path, args)
     }
 
@@ -368,7 +360,10 @@ mod tests {
             Ok(())
         }
 
-        fn list(&self, _ctx: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        fn list(&self, _ctx: &OperationContext, _: &str, args: OpList) -> Result<Self::Lister> {
+            assert_eq!(args.limit(), self.capability.list_with_limit.then_some(16));
+            assert_eq!(args.start_after(), Some("path/marker"));
+            assert!(args.recursive());
             Ok(())
         }
 
@@ -432,11 +427,19 @@ mod tests {
             .await;
         assert!(res.is_err());
 
+        let err = op
+            .writer_with("path")
+            .content_language("en")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
         let op = new_test_operator(Capability {
             write: true,
             write_with_content_type: true,
             write_with_cache_control: true,
             write_with_content_disposition: true,
+            write_with_content_language: true,
             ..Default::default()
         });
         let res = op.writer_with("path").content_type("type").await;
@@ -450,24 +453,27 @@ mod tests {
             .content_disposition("disposition")
             .await;
         assert!(res.is_ok());
+
+        let res = op.writer_with("path").content_language("en").await;
+        assert!(res.is_ok());
     }
 
     #[tokio::test]
-    async fn test_list_with() {
-        let op = new_test_operator(Capability {
-            list: true,
-            ..Default::default()
-        });
-        let res = op.list_with("path/").versions(true).await;
-        assert!(res.is_err());
-        assert_eq!(res.unwrap_err().kind(), ErrorKind::Unsupported);
-
-        let op = new_test_operator(Capability {
-            list: true,
-            list_with_versions: true,
-            ..Default::default()
-        });
-        let res = op.lister_with("path/").versions(true).await;
-        assert!(res.is_ok())
+    async fn test_list_limit() -> Result<()> {
+        for list_with_limit in [false, true] {
+            let op = new_test_operator(Capability {
+                list: true,
+                list_with_limit,
+                list_with_start_after: true,
+                list_with_recursive: true,
+                ..Default::default()
+            });
+            op.list_with("path/")
+                .limit(16)
+                .start_after("path/marker")
+                .recursive(true)
+                .await?;
+        }
+        Ok(())
     }
 }

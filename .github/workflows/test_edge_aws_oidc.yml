@@ -1,0 +1,99 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+name: Edge Test AWS OIDC
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "core/Cargo.toml"
+      - "core/Cargo.lock"
+      - "core/core/Cargo.toml"
+      - "core/core/src/**"
+      - "core/layers/**"
+      - "core/testkit/**"
+      - "!core/core/src/docs/**"
+      - "core/edge/s3_aws_assume_role_with_web_identity/**"
+      - "core/services/s3/**"
+      - ".github/workflows/test_edge_aws_oidc.yml"
+  workflow_call:
+    inputs:
+      retry_attempts:
+        required: false
+        type: number
+        default: 1
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: test-edge-aws-oidc-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test_s3_aws_assume_role_with_web_identity:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Setup Rust toolchain
+        uses: ./.github/actions/setup
+      - uses: actions/github-script@v9
+        id: id-token
+        with:
+          script: return await core.getIDToken("sts.amazonaws.com")
+          result-encoding: string
+      - name: Write ID token to file
+        working-directory: core/edge/s3_aws_assume_role_with_web_identity
+        run: echo "${{ steps.id-token.outputs.result }}" > web_identity_token
+
+      - name: Test
+        id: test
+        continue-on-error: ${{ inputs.retry_attempts > 1 }}
+        working-directory: core/edge/s3_aws_assume_role_with_web_identity
+        run: cargo run
+        env:
+          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
+          AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
+          OPENDAL_TEST: s3
+          OPENDAL_S3_ROOT: CI/
+          OPENDAL_S3_BUCKET: opendal-testing
+          OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
+          OPENDAL_S3_REGION: ap-northeast-1
+          RUST_LOG: debug
+
+      - name: Retry Test
+        if: steps.test.outcome == 'failure' && inputs.retry_attempts > 1
+        working-directory: core/edge/s3_aws_assume_role_with_web_identity
+        run: cargo run
+        env:
+          AWS_WEB_IDENTITY_TOKEN_FILE: web_identity_token
+          AWS_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing-assume
+          OPENDAL_TEST: s3
+          OPENDAL_S3_ROOT: CI/
+          OPENDAL_S3_BUCKET: opendal-testing
+          OPENDAL_S3_ROLE_ARN: arn:aws:iam::952853449216:role/opendal-testing
+          OPENDAL_S3_REGION: ap-northeast-1
+          RUST_LOG: debug

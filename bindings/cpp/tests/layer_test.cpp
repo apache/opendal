@@ -71,7 +71,9 @@ OPENDAL_TEST_F(LayerTest, RetryReadSucceedsAfterTransientFailures) {
   MockOperator op(FastRetryOptions(), MockBackendKind::Retryable);
 
   EXPECT_EQ(op.Read("retryable_error"), "Hello, World!");
-  EXPECT_EQ(MockOperator::RetryAttemptCount(), 5U);
+  // Two retries, then the full read. The temporary error at EOF ends the
+  // stream without another open.
+  EXPECT_EQ(MockOperator::RetryAttemptCount(), 4U);
 }
 
 OPENDAL_TEST_F(LayerTest, RetryExhaustsConfiguredMaxTimes) {

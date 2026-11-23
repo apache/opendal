@@ -1,6 +1,7 @@
 # Apache OpenDAL™ DTrace Layer
 
-`opendal-layer-dtrace` emits User Statically-Defined Tracing probes for OpenDAL operations.
+`opendal-layer-dtrace` emits User Statically-Defined Tracing probes for OpenDAL operations,
+outbound HTTP requests, and streamed HTTP response bodies.
 
 ## Use through `opendal`
 

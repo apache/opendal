@@ -92,7 +92,7 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.")]
         public long? DeleteMaxSize { get; init; }
         /// <summary>
-        /// Disable automatic endpoint loading and the environment/profile credential providers. This skips endpoint environment variables and removes the static environment and shared-profile credential slots. Region environment lookup and other credential providers, including AWS container credentials and EC2 instance metadata, remain enabled.
+        /// Disable automatic endpoint loading and ambient environment/profile credential providers. This skips endpoint environment variables and removes the static environment, shared-profile, SSO, web-identity, and external process credential slots. Region environment lookup and compute metadata credential providers, including AWS container credentials and EC2 instance metadata, remain enabled.
         /// </summary>
         public bool? DisableConfigLoad { get; init; }
         /// <summary>

@@ -33,12 +33,13 @@ mod tests {
         };
     }
 
+    #[cfg(not(feature = "worker"))]
     wasm_bindgen_test_configure!(run_in_browser);
+    #[cfg(feature = "worker")]
+    wasm_bindgen_test_configure!(run_in_dedicated_worker);
 
     fn new_operator() -> Operator {
-        Operator::from_config(OpfsConfig::default())
-            .expect("failed to create opfs operator")
-            .finish()
+        Operator::from_config(OpfsConfig::default()).expect("failed to create opfs operator")
     }
 
     #[wasm_bindgen_test]
@@ -74,12 +75,12 @@ mod tests {
                 .stat("/myapp/subdir1/subdir2/subdir3/somefile")
                 .await
                 .expect("stat");
-            assert_eq!(stat_rooted, stat_rooted);
+            assert_eq!(stat_rooted, stat);
             let stat = op
                 .stat("myapp/subdir1/subdir2/subdir3/somefile")
                 .await
                 .expect("stat");
-            assert_eq!(stat_rooted, stat_rooted);
+            assert_eq!(stat_rooted, stat);
         }
 
         {
@@ -161,7 +162,7 @@ mod tests {
         let op = new_operator();
         let content = "Content of the file to write";
         let path = "/test_file";
-        let meta = op.write(path, content).await.expect("write");
+        op.write(path, content).await.expect("write");
         let meta = op.write(path, content).await.expect("write");
         assert_eq!(meta.content_length(), content.len() as u64);
         assert!(meta.last_modified().is_none());
@@ -225,11 +226,95 @@ mod tests {
     }
 
     #[wasm_bindgen_test]
+    async fn test_delete_missing_parent() {
+        let op = new_operator();
+        op.create_dir("delete-missing-parent/")
+            .await
+            .expect("create ancestor");
+        op.delete("delete-missing-parent/missing/deeper/file")
+            .await
+            .expect("delete below missing parent");
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_delete_recursive_directory() {
+        let op = Operator::new(Opfs::default().root("/delete-recursive-directory/"))
+            .expect("create rooted operator");
+        op.write("dir-sibling/file", "keep")
+            .await
+            .expect("write sibling file");
+
+        for path in ["dir", "dir/"] {
+            op.write("dir/nested/file", "delete")
+                .await
+                .expect("write nested file");
+            assert!(op.delete(path).await.is_err());
+            assert!(
+                op.exists("dir/nested/file")
+                    .await
+                    .expect("check nested file")
+            );
+
+            op.delete_with(path)
+                .recursive(true)
+                .await
+                .expect("delete non-empty directory");
+            assert!(!op.exists("dir/").await.expect("check deleted directory"));
+            assert!(op.exists("dir-sibling/file").await.expect("check sibling"));
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_delete_recursive_file_and_missing_paths() {
+        let op = new_operator();
+        let path = "delete-recursive-file/file";
+        op.write(path, "delete").await.expect("write file");
+        op.delete_with(path)
+            .recursive(true)
+            .await
+            .expect("delete file");
+        assert!(!op.exists(path).await.expect("check deleted file"));
+
+        for path in [
+            path,
+            "delete-recursive-file/missing/",
+            "delete-recursive-file/missing/file",
+        ] {
+            op.delete_with(path)
+                .recursive(true)
+                .await
+                .expect("delete missing path");
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_delete_recursive_origin_root() {
+        let op = new_operator();
+        op.write("delete-root/nested/file", "delete")
+            .await
+            .expect("write nested file");
+        op.write("delete-root-file", "delete")
+            .await
+            .expect("write top-level file");
+
+        op.delete_with("/")
+            .recursive(true)
+            .await
+            .expect("delete origin root contents");
+        assert!(op.list("/").await.expect("list origin root").is_empty());
+
+        op.delete_with("/")
+            .recursive(true)
+            .await
+            .expect("delete empty origin root contents");
+    }
+
+    #[wasm_bindgen_test]
     async fn test_write_and_read_with_range() {
         let op = new_operator();
         let path = "numbers.txt";
         let content = "0123456789";
-        let meta = op.write(path, content).await.expect("write");
+        op.write(path, content).await.expect("write");
         let buffer = op.read_with(path).range(3..5).await.expect("read");
         assert_eq!(buffer.to_bytes(), "34".as_bytes());
         op.delete(path).await.expect("delete");

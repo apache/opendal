@@ -15,7 +15,8 @@ Each condition checks one file:
 
 - `stat` and `read` check the file being observed.
 - `write` and `delete` check the file at the operation path.
-- `copy` and `rename` check the destination file.
+- `copy` and `rename` check the destination file. A copy onto its own path,
+  such as a metadata replacement, checks that same file.
 - `restore` checks the file currently stored at the restore path. The selected
   version remains the source of the restore.
 
@@ -33,6 +34,10 @@ which error the operation returns.
 OpenDAL validates conditional options before dispatching an operation. If the
 service does not advertise the required capability, the operation returns
 `Unsupported`. OpenDAL never silently ignores a condition.
+
+A read with a limit of zero or an empty range still validates options and
+capabilities. It returns an empty buffer without accessing storage or evaluating
+conditions against the file.
 
 A service that advertises a conditional capability must implement the exact
 contract for that condition. Separate capability fields do not imply support
@@ -60,7 +65,7 @@ defines one.
 
 ## Behavior when the file does not exist
 
-`stat` and `read` return `NotFound` regardless of the condition.
+`stat` and reads that check the file return `NotFound` regardless of the condition.
 
 For mutations:
 
@@ -85,11 +90,15 @@ metadata previously returned by OpenDAL. OpenDAL lowers it as follows:
 
 1. Use a version match when the operation advertises version matching and the
    metadata contains a version.
-2. Otherwise, use an ETag match when the metadata contains an ETag.
+2. Otherwise, use an ETag match when the metadata contains a non-weak ETag.
 3. Otherwise, use a version match when the metadata contains a version.
-4. Return `ConfigInvalid` when the metadata contains neither identity token.
+4. Return `ConfigInvalid` when the metadata contains neither a version nor a
+   non-weak ETag.
 5. Validate the derived primitive condition normally and return `Unsupported`
    when the operation does not support it.
+
+An HTTP weak ETag such as `W/"abc"` cannot satisfy the strong comparison
+required by [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#section-13.1.1).
 
 An identical explicit equality condition is redundant. A conflicting equality
 condition returns `ConditionNotMatch`. Other accepted conditions combine with
@@ -102,7 +111,7 @@ raw operation arguments contain only the selected primitive equality condition.
 ## Error contract
 
 - A false explicit condition returns `ConditionNotMatch`.
-- `stat` and `read` return `NotFound` when the file does not exist.
+- `stat` and reads that check the file return `NotFound` when the file does not exist.
 - A conflict reported by the service that is unrelated to an explicit OpenDAL
   condition returns `Conflict`.
 - An unavailable condition or condition combination returns `Unsupported`.

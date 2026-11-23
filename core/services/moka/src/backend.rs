@@ -265,9 +265,9 @@ impl Service for MokaBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             // Check the exact path first
@@ -317,7 +317,7 @@ impl Service for MokaBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         let output: MokaWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(MokaWriter::new(self.core.clone(), p, args))
         }?;
 
@@ -339,7 +339,8 @@ impl Service for MokaBackend {
         let output: oio::HierarchyLister<MokaLister> = {
             // For moka, we don't distinguish between files and directories
             // Just return the lister to iterate through all matching keys
-            let lister = MokaLister::new(self.core.clone(), self.root.clone(), path.to_string());
+            let p = build_absolute_path(&self.root, path);
+            let lister = MokaLister::new(self.core.clone(), self.root.clone(), p);
             let lister = oio::HierarchyLister::new(lister, path, args.recursive());
             Ok(lister)
         }?;
@@ -389,6 +390,7 @@ impl Service for MokaBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal_core::raw::oio::{List as _, Write as _};
 
     #[test]
     fn builder_preserves_subsecond_durations() {
@@ -400,5 +402,180 @@ mod tests {
 
         assert_eq!(builder.time_to_live, Some(time_to_live));
         assert_eq!(builder.time_to_idle, Some(time_to_idle));
+    }
+
+    /// Write a file through the raw service so tests exercise `Service::list`
+    /// directly instead of `Operator` (which composes `SimulateLayer` under
+    /// `--all-features` and would mask prefix filtering regressions).
+    async fn write_file<S>(service: &S, ctx: &OperationContext, path: &str) -> Result<()>
+    where
+        S: Service,
+        S::Writer: oio::Write,
+    {
+        let mut writer = service.write(ctx, path, OpWrite::default())?;
+        writer.write(Buffer::from("x")).await?;
+        writer.close().await?;
+        Ok(())
+    }
+
+    async fn list_paths<S>(
+        service: &S,
+        ctx: &OperationContext,
+        path: &str,
+        recursive: bool,
+    ) -> Result<Vec<String>>
+    where
+        S: Service,
+        S::Lister: oio::List,
+    {
+        let args: OpList = options::ListOptions {
+            recursive,
+            ..Default::default()
+        }
+        .into();
+        let mut lister = service.list(ctx, path, args)?;
+
+        let mut paths = Vec::new();
+        while let Some(entry) = lister.next().await? {
+            paths.push(entry.path().to_string());
+        }
+        paths.sort_unstable();
+        Ok(paths)
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix() -> Result<()> {
+        let service = MokaBuilder::default().build()?;
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", true).await?,
+            ["a/1", "a/nested/2"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn recursive_list_only_returns_entries_under_prefix_with_root() -> Result<()> {
+        let service = MokaBuilder::default().root("/sub").build()?;
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", true).await?,
+            ["a/1", "a/nested/2"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", true).await?,
+            ["a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn non_recursive_list_and_root_list_still_work() -> Result<()> {
+        let core = MokaCore {
+            cache: moka::future::Cache::builder().max_capacity(10_000).build(),
+        };
+        let service = MokaBackend::new(core);
+        let ctx = OperationContext::default();
+        for path in ["a/1", "a/nested/2", "ab/1", "b/1"] {
+            write_file(&service, &ctx, path).await?;
+        }
+        // A stored root marker key "" must be reported as the "/" entry.
+        service
+            .core
+            .cache
+            .insert(
+                String::new(),
+                MokaValue {
+                    metadata: MetadataBuilder::dir().build(),
+                    content: Buffer::new(),
+                },
+            )
+            .await;
+
+        assert_eq!(
+            list_paths(&service, &ctx, "a/", false).await?,
+            ["a/1", "a/nested/"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", false).await?,
+            ["/", "a/", "ab/", "b/"]
+        );
+        assert_eq!(
+            list_paths(&service, &ctx, "/", true).await?,
+            ["/", "a/1", "a/nested/2", "ab/1", "b/1"]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
     }
 }

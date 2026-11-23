@@ -32,6 +32,7 @@ use http::Response;
 use http::header::CACHE_CONTROL;
 use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_ENCODING;
+use http::header::CONTENT_LANGUAGE;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
@@ -56,6 +57,7 @@ pub mod constants {
     pub const X_AMZ_COPY_SOURCE_IF_NONE_MATCH: &str = "x-amz-copy-source-if-none-match";
     pub const X_AMZ_COPY_SOURCE_IF_MODIFIED_SINCE: &str = "x-amz-copy-source-if-modified-since";
     pub const X_AMZ_COPY_SOURCE_IF_UNMODIFIED_SINCE: &str = "x-amz-copy-source-if-unmodified-since";
+    pub const X_AMZ_METADATA_DIRECTIVE: &str = "x-amz-metadata-directive";
 
     pub const X_AMZ_SERVER_SIDE_ENCRYPTION: &str = "x-amz-server-side-encryption";
     pub const X_AMZ_SERVER_REQUEST_PAYER: (&str, &str) = ("x-amz-request-payer", "requester");
@@ -180,8 +182,9 @@ impl Debug for S3Core {
 
 impl S3Core {
     fn sign_error(&self, err: reqsign_core::Error) -> Error {
+        let retryable = err.is_retryable();
         if !self.signers.is_express() {
-            return new_request_sign_error(err.into());
+            return new_request_sign_error(err.into()).with_temporary(retryable);
         }
 
         let kind = match err.kind() {
@@ -193,7 +196,6 @@ impl S3Core {
                 ErrorKind::Unexpected
             }
         };
-        let retryable = err.is_retryable();
         Error::new(kind, "failed to sign S3 Express request")
             .with_operation("S3Core::sign")
             .set_source(err)
@@ -420,16 +422,12 @@ impl S3Core {
             req = req.header(CONTENT_ENCODING, encoding);
         }
 
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
+        }
+
         if let Some(cache_control) = args.cache_control() {
             req = req.header(CACHE_CONTROL, cache_control)
-        }
-
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
         }
 
         // Set storage class header
@@ -467,7 +465,7 @@ impl S3Core {
 
 impl S3Core {
     pub fn s3_head_object_request(&self, path: &str, args: OpStat) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -542,7 +540,7 @@ impl S3Core {
         range: BytesRange,
         args: &OpRead,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         // Construct headers to add to the request
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
@@ -638,13 +636,20 @@ impl S3Core {
         args: &OpWrite,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::put(&url);
 
         req = self.insert_metadata_headers(req, size, args);
+
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
 
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
@@ -681,18 +686,32 @@ impl S3Core {
         position: u64,
         size: u64,
         args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
         let mut req = Request::put(&url);
 
-        // Only include full metadata headers when creating a new object via append (position == 0)
-        // For existing objects or subsequent appends, only include content-length
+        // Only include full metadata headers when creating a new object via append (position == 0).
+        // For existing objects or subsequent appends, only include content-length.
         if position == 0 {
             req = self.insert_metadata_headers(req, Some(size), args);
         } else {
             req = req.header(CONTENT_LENGTH, size.to_string());
+        }
+
+        // Apply caller preconditions on the writer's first append regardless of whether
+        // the object already exists (position > 0) or is being created (position == 0).
+        // Subsequent chunks from the same writer omit these headers because the first
+        // append already created the object or updated its ETag.
+        if include_conditions {
+            if let Some(if_match) = args.if_match() {
+                req = req.header(IF_MATCH, if_match);
+            }
+            if args.if_not_exists() {
+                req = req.header(IF_NONE_MATCH, "*");
+            }
         }
 
         req = req.header(constants::X_AMZ_WRITE_OFFSET_BYTES, position.to_string());
@@ -737,7 +756,7 @@ impl S3Core {
     }
 
     pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
 
@@ -794,8 +813,8 @@ impl S3Core {
         source_if_match: Option<&str>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let from = build_abs_path(&self.root, from);
-        let to = build_abs_path(&self.root, to);
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = source_version {
@@ -821,6 +840,25 @@ impl S3Core {
         }
         if let Some(source_if_match) = source_if_match {
             req = req.header(constants::X_AMZ_COPY_SOURCE_IF_MATCH, source_if_match);
+        }
+
+        // Without REPLACE, S3 copies the source metadata and ignores these headers.
+        if args.content_type().is_some()
+            || args.content_language().is_some()
+            || args.user_metadata().is_some()
+        {
+            req = req.header(constants::X_AMZ_METADATA_DIRECTIVE, "REPLACE");
+        }
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
+        }
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value);
+            }
         }
 
         // Set SSE headers.
@@ -893,7 +931,7 @@ impl S3Core {
         delimiter: &str,
         limit: Option<usize>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
@@ -934,7 +972,7 @@ impl S3Core {
         limit: Option<usize>,
         start_after: Option<String>,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let mut url = QueryPairsWriter::new(&self.endpoint);
         url = url.push("list-type", "2");
@@ -983,7 +1021,7 @@ impl S3Core {
         path: &str,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
@@ -1003,6 +1041,10 @@ impl S3Core {
 
         if let Some(content_encoding) = args.content_encoding() {
             req = req.header(CONTENT_ENCODING, content_encoding)
+        }
+
+        if let Some(content_language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, content_language);
         }
 
         // Set storage class header
@@ -1060,12 +1102,26 @@ impl S3Core {
         &self,
         ctx: &OperationContext,
         path: &str,
+        args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!("{}/{}?uploads", self.endpoint, percent_encode_path(&p));
 
         let mut req = Request::post(&url);
+
+        // A multipart copy never inherits source metadata, so set it on creation.
+        if let Some(mime) = args.content_type() {
+            req = req.header(CONTENT_TYPE, mime);
+        }
+        if let Some(language) = args.content_language() {
+            req = req.header(CONTENT_LANGUAGE, language);
+        }
+        if let Some(user_metadata) = args.user_metadata() {
+            for (key, value) in user_metadata {
+                req = req.header(format!("{X_AMZ_META_PREFIX}{key}"), value);
+            }
+        }
 
         // Set storage class header.
         if let Some(v) = &self.default_storage_class {
@@ -1102,8 +1158,8 @@ impl S3Core {
         &self,
         input: S3UploadPartCopyRequest<'_>,
     ) -> Result<Request<Buffer>> {
-        let from = build_abs_path(&self.root, input.from);
-        let to = build_abs_path(&self.root, input.to);
+        let from = build_absolute_path(&self.root, input.from);
+        let to = build_absolute_path(&self.root, input.to);
 
         let source = format!("{}/{}", self.bucket, percent_encode_path(&from));
         let source = if let Some(version) = input.source_version {
@@ -1193,6 +1249,7 @@ impl S3Core {
             .extension(ServiceOperation("UploadPartCopy"))
             .header(constants::X_AMZ_COPY_SOURCE, source)
             .header(constants::X_AMZ_COPY_SOURCE_RANGE, input.range.to_header())
+            .header(CONTENT_LENGTH, 0)
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
@@ -1208,7 +1265,7 @@ impl S3Core {
         body: Buffer,
         checksum: Option<String>,
     ) -> Result<Request<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?partNumber={}&uploadId={}",
@@ -1252,7 +1309,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpWrite,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1304,7 +1361,7 @@ impl S3Core {
         parts: Vec<CompleteMultipartUploadRequestPart>,
         args: &OpCopy,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1351,7 +1408,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1382,7 +1439,7 @@ impl S3Core {
         path: &str,
         upload_id: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
         let url = format!(
             "{}/{}?uploadId={}",
@@ -1419,7 +1476,7 @@ impl S3Core {
             object: paths
                 .iter()
                 .map(|(path, op)| DeleteObjectsRequestObject {
-                    key: build_abs_path(&self.root, path),
+                    key: build_absolute_path(&self.root, path),
                     version_id: op.version().map(|v| v.to_owned()),
                     etag: op.if_match().map(|v| v.to_owned()),
                 })
@@ -1458,7 +1515,7 @@ impl S3Core {
         key_marker: &str,
         version_id_marker: &str,
     ) -> Result<Response<Buffer>> {
-        let p = build_abs_path(&self.root, prefix);
+        let p = build_absolute_path(&self.root, prefix);
 
         let mut url = format!("{}?versions", self.endpoint);
         if !p.is_empty() {
@@ -2213,7 +2270,9 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (mut kind, mut retryable) = match parts.status.as_u16() {
-        403 => (ErrorKind::PermissionDenied, false),
+        // Some S3-compatible services answer a missing or invalid credential
+        // with 401 instead of 403; both mean the request was not authorized.
+        401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
         304 | 412 if ctx.caller_condition => (ErrorKind::ConditionNotMatch, false),
         // Service like R2 could return 499 error with a message like:
@@ -2338,5 +2397,18 @@ mod error_tests {
             parse_s3_error_code(no_condition, "PreconditionFailed"),
             None
         );
+    }
+
+    #[test]
+    fn unauthorized_and_forbidden_are_permission_denied() {
+        for status in [401, 403] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::new())
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
     }
 }

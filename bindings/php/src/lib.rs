@@ -20,11 +20,14 @@ use std::sync::LazyLock;
 
 use ::opendal as od;
 use ext_php_rs::binary::Binary;
+use ext_php_rs::builders::ClassBuilder;
+use ext_php_rs::class::RegisteredClass;
 use ext_php_rs::convert::FromZval;
 use ext_php_rs::exception::PhpException;
 use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
 use ext_php_rs::types::Zval;
+use ext_php_rs::zend::ce;
 
 static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
@@ -195,13 +198,26 @@ impl EntryMode {
     }
 }
 
+#[php_class]
+#[php(name = "OpenDAL\\Exception")]
+pub struct Exception;
+
+fn register_exception(_type: i32, _module_number: i32) -> i32 {
+    // Use the native exception allocator so Zend captures the file, line, and stack trace.
+    let result = ClassBuilder::new(Exception::CLASS_NAME)
+        .extends((ce::exception, "\\Exception"))
+        .registration(|class| Exception::get_metadata().set_ce(class))
+        .register();
+    i32::from(result.is_err())
+}
+
 fn format_php_err(e: od::Error) -> PhpException {
-    // @todo use custom exception, we cannot use custom exception now,
-    // see https://github.com/davidcole1340/ext-php-rs/issues/262
-    PhpException::default(e.to_string())
+    // Zend takes a C string, so escape any NUL bytes in the error context.
+    PhpException::from_class::<Exception>(e.to_string().replace('\0', "\\0"))
 }
 
 #[php_module]
+#[php(startup = register_exception)]
 pub fn get_module(module: ModuleBuilder) -> ModuleBuilder {
     module
         .class::<Operator>()

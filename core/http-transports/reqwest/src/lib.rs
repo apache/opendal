@@ -28,6 +28,7 @@ use std::sync::LazyLock;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
@@ -35,6 +36,7 @@ use opendal_core::HttpBody;
 use opendal_core::HttpRedirect;
 use opendal_core::HttpTransport;
 use opendal_core::HttpTransporter;
+use opendal_core::HttpUri;
 use opendal_core::Result;
 use opendal_core::raw::parse_content_encoding;
 use opendal_core::raw::parse_content_length;
@@ -91,7 +93,7 @@ impl HttpTransport for ReqwestTransport {
         let url = reqwest::Url::parse(target).map_err(|err| {
             Error::new(ErrorKind::Unexpected, "request url is invalid")
                 .with_operation("reqwest::fetch")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .set_source(err)
         })?;
 
@@ -143,23 +145,27 @@ impl HttpTransport for ReqwestTransport {
         let mut resp = req_builder.send().await.map_err(|err| {
             Error::new(ErrorKind::Unexpected, "send http request")
                 .with_operation("reqwest::send")
-                .with_context("url", uri.to_string())
+                .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                 .with_temporary(is_temporary_error(&err))
                 .set_source(err.without_url())
         })?;
 
-        // Get content length from header so that we can check it.
-        //
-        // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit its content length.
-        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
+        // RFC 9110 §8.6: responses to HEAD and 1xx, 204, and 304 responses
+        // never carry a message body. A 304 may still carry the Content-Length
+        // of the selected representation, so it cannot validate the body.
+        let status = resp.status();
+        let is_bodyless = is_head
+            || status == StatusCode::NOT_MODIFIED
+            || status == StatusCode::NO_CONTENT
+            || status.is_informational();
+        let content_length = if is_bodyless || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {
             parse_content_length(resp.headers())?
         };
 
         let mut hr = Response::builder()
-            .status(resp.status())
+            .status(status)
             // Insert uri into response extension so that we can fetch
             // it later.
             .extension(uri.clone());
@@ -193,7 +199,7 @@ impl HttpTransport for ReqwestTransport {
                 .map_err(move |err| {
                     Error::new(ErrorKind::Unexpected, "read data from http response")
                         .with_operation("reqwest::fetch")
-                        .with_context("url", uri.to_string())
+                        .with_context("url", HttpUri::new(uri.to_string()).redacted_uri())
                         .with_temporary(is_temporary_error(&err))
                         .set_source(err.without_url())
                 }),

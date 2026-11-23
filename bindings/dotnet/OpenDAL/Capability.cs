@@ -66,6 +66,7 @@ public struct Capability
         WriteWithContentType = native.writeWithContentType != 0;
         WriteWithContentDisposition = native.writeWithContentDisposition != 0;
         WriteWithContentEncoding = native.writeWithContentEncoding != 0;
+        WriteWithContentLanguage = native.writeWithContentLanguage != 0;
         WriteWithCacheControl = native.writeWithCacheControl != 0;
         WriteWithIfMatch = native.writeWithIfMatch != 0;
         WriteWithIfNoneMatch = native.writeWithIfNoneMatch != 0;
@@ -73,6 +74,7 @@ public struct Capability
         WriteWithIfVersionNotMatch = native.writeWithIfVersionNotMatch != 0;
         WriteWithIfNotExists = native.writeWithIfNotExists != 0;
         WriteWithUserMetadata = native.writeWithUserMetadata != 0;
+        WriteWithExpires = native.writeWithExpires != 0;
         WriteMultiMaxSize = native.writeMultiMaxSize == nuint.MaxValue ? null : native.writeMultiMaxSize;
         WriteMultiMinSize = native.writeMultiMinSize == nuint.MaxValue ? null : native.writeMultiMinSize;
         WriteTotalMaxSize = native.writeTotalMaxSize == nuint.MaxValue ? null : native.writeTotalMaxSize;
@@ -92,6 +94,9 @@ public struct Capability
         CopyWithIfVersionMatch = native.copyWithIfVersionMatch != 0;
         CopyWithIfVersionNotMatch = native.copyWithIfVersionNotMatch != 0;
         CopyWithSourceVersion = native.copyWithSourceVersion != 0;
+        CopyWithUserMetadata = native.copyWithUserMetadata != 0;
+        CopyWithContentType = native.copyWithContentType != 0;
+        CopyWithContentLanguage = native.copyWithContentLanguage != 0;
         CopyCanMulti = native.copyCanMulti != 0;
         CopyMultiMaxSize = native.copyMultiMaxSize == nuint.MaxValue ? null : native.copyMultiMaxSize;
         CopyMultiMinSize = native.copyMultiMinSize == nuint.MaxValue ? null : native.copyMultiMinSize;
@@ -119,6 +124,7 @@ public struct Capability
         ListWithRecursive = native.listWithRecursive != 0;
         ListWithVersions = native.listWithVersions != 0;
         ListWithDeleted = native.listWithDeleted != 0;
+        ListWithGlob = native.listWithGlob != 0;
         Presign = native.presign != 0;
         PresignRead = native.presignRead != 0;
         PresignStat = native.presignStat != 0;
@@ -283,6 +289,11 @@ public struct Capability
     public bool WriteWithContentEncoding { get; private set; }
 
     /// <summary>
+    /// Indicates if a write can store Content-Language and a subsequent stat can retrieve it.
+    /// </summary>
+    public bool WriteWithContentLanguage { get; private set; }
+
+    /// <summary>
     /// Indicates if Cache-Control can be specified during write operations.
     /// </summary>
     public bool WriteWithCacheControl { get; private set; }
@@ -316,6 +327,11 @@ public struct Capability
     /// Indicates if custom user metadata can be attached during write operations.
     /// </summary>
     public bool WriteWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if writes can set a lifetime for the new file.
+    /// </summary>
+    public bool WriteWithExpires { get; private set; }
 
     /// <summary>
     /// Maximum size supported for multipart uploads. For example, AWS S3 supports up to 5GiB per part in multipart uploads.
@@ -411,6 +427,21 @@ public struct Capability
     /// Indicates if copy operations from a specific source version are supported.
     /// </summary>
     public bool CopyWithSourceVersion { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's user metadata.
+    /// </summary>
+    public bool CopyWithUserMetadata { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Type.
+    /// </summary>
+    public bool CopyWithContentType { get; private set; }
+
+    /// <summary>
+    /// Indicates if copy operations can replace the destination's Content-Language.
+    /// </summary>
+    public bool CopyWithContentLanguage { get; private set; }
 
     /// <summary>
     /// Indicates if copy operations can be split into multiple server-side tasks.
@@ -546,6 +577,11 @@ public struct Capability
     /// Indicates if listing with deleted files included is supported.
     /// </summary>
     public bool ListWithDeleted { get; private set; }
+
+    /// <summary>
+    /// Indicates if listing with a glob pattern is supported by this service stack.
+    /// </summary>
+    public bool ListWithGlob { get; private set; }
 
     /// <summary>
     /// Indicates if presigned URL generation is supported.

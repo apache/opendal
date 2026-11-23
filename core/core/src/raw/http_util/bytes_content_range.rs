@@ -72,13 +72,14 @@ impl BytesContentRange {
         self
     }
 
-    /// Get the length that specified by this BytesContentRange, return `None` if range is not known.
+    /// Get the length that specified by this BytesContentRange, return `None` if range is not known
+    /// or the length does not fit in `u64`.
     pub fn len(&self) -> Option<u64> {
         if let (Some(start), Some(end)) = (self.0, self.1) {
             if end < start {
                 Some(0)
             } else {
-                Some(end - start + 1)
+                (end - start).checked_add(1)
             }
         } else {
             None
@@ -90,10 +91,11 @@ impl BytesContentRange {
         self.2
     }
 
-    /// Get the range inclusive of this BytesContentRange, return `None` if range is not known.
+    /// Get the range inclusive of this BytesContentRange, return `None` if range is not known
+    /// or the exclusive end does not fit in `u64`.
     pub fn range(&self) -> Option<Range<u64>> {
         if let (Some(start), Some(end)) = (self.0, self.1) {
-            Some(start..end + 1)
+            end.checked_add(1).map(|end| start..end)
         } else {
             None
         }
@@ -179,7 +181,17 @@ impl FromStr for BytesContentRange {
 
         // Handle size part first.
         if s[1] != "*" {
-            bcr = bcr.with_size(s[1].parse().map_err(parse_int_error)?)
+            let size: u64 = s[1].parse().map_err(parse_int_error)?;
+            // RFC 9110 Section 14.4 requires complete-length to be greater than last-pos.
+            if size <= end {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "header content range is invalid: size is less than or equal to end",
+                )
+                .with_operation("BytesContentRange::from_str")
+                .with_context("value", value));
+            }
+            bcr = bcr.with_size(size);
         };
 
         Ok(bcr)
@@ -267,5 +279,63 @@ mod tests {
         // len() should not underflow when end < start.
         let bcr = BytesContentRange::default().with_range(100, 50);
         assert_eq!(bcr.len(), Some(0));
+    }
+
+    #[test]
+    fn test_bytes_content_range_len_overflow() {
+        // The inclusive range covers all u64 values, so its length does not fit in u64.
+        let bcr = BytesContentRange::default().with_range(0, u64::MAX);
+        assert_eq!(bcr.len(), None);
+
+        // The length is still representable when the range starts after 0.
+        let bcr = BytesContentRange::default().with_range(1, u64::MAX);
+        assert_eq!(bcr.len(), Some(u64::MAX));
+    }
+
+    #[test]
+    fn test_bytes_content_range_range_overflow() {
+        // The exclusive end of the range would be u64::MAX + 1.
+        let bcr = BytesContentRange::default().with_range(10, u64::MAX);
+        assert_eq!(bcr.range(), None);
+    }
+
+    #[test]
+    fn test_bytes_content_range_from_str_max_range() -> Result<()> {
+        let bcr: BytesContentRange = "bytes 0-18446744073709551615/*".parse()?;
+        assert_eq!(bcr.len(), None);
+        assert_eq!(bcr.range(), None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_bytes_content_range_from_str_invalid_size() {
+        // RFC 9110 section 14.4 requires complete-length to be greater than last-pos.
+        let cases = ["bytes 0-10/10", "bytes 0-10/5", "bytes 0-0/0"];
+
+        for input in cases {
+            let result: Result<BytesContentRange> = input.parse();
+            let err = result.expect_err("invalid size must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
+        }
+    }
+
+    #[test]
+    fn test_bytes_content_range_from_str_size_boundaries() -> Result<()> {
+        assert_eq!(
+            "bytes 0-9/10".parse::<BytesContentRange>()?,
+            BytesContentRange::default().with_range(0, 9).with_size(10)
+        );
+        assert_eq!(
+            "bytes 0-0/1".parse::<BytesContentRange>()?,
+            BytesContentRange::default().with_range(0, 0).with_size(1)
+        );
+        // RFC 9110 allows an unsatisfied range with a zero complete-length.
+        assert_eq!(
+            "bytes */0".parse::<BytesContentRange>()?,
+            BytesContentRange::default().with_size(0)
+        );
+
+        Ok(())
     }
 }

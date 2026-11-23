@@ -34,8 +34,20 @@ namespace OpenDAL;
 /// <summary>
 /// Managed wrapper over an OpenDAL native operator handle.
 /// </summary>
+// Options are written to a stack buffer per call and native code reads only
+// what was written, so the buffer does not need zeroing.
+[SkipLocalsInit]
 public partial class Operator : SafeHandle
 {
+    /// <summary>
+    /// Maximum number of targets handed to one native delete call.
+    /// </summary>
+    /// <remarks>
+    /// Matches the largest batch most services accept in one request, so a
+    /// chunk boundary rarely splits a batch.
+    /// </remarks>
+    private const int DeleteManyChunkSize = 1000;
+
     private readonly OperatorInfo info;
 
     private Operator(IntPtr nativeHandle) : base(IntPtr.Zero, true)
@@ -108,24 +120,38 @@ public partial class Operator : SafeHandle
         info = CreateOperatorInfo();
     }
 
-    private static IntPtr Construct(
+    private static unsafe IntPtr Construct(
         string scheme,
         IReadOnlyDictionary<string, string>? options,
         Executor? executor)
     {
-        using var nativeOptionsHandle = CreateConstructorOptionsHandle(options);
+        // Construction is rare, so the pairs always go to native memory,
+        // sized by a writer that only counts.
+        var counter = new NativeOptionsWriter(null, 0);
+        counter.Pairs(options);
+        var size = counter.RequiredCapacity;
+        var buffer = NativeMemory.Alloc((nuint)size);
         var executorAddRefed = false;
         try
         {
+            var writer = new NativeOptionsWriter((byte*)buffer, size);
+            var (_, keys, values, len) = writer.Pairs(options);
+            if (writer.Overflowed)
+            {
+                throw NativeOptionsWriter.Changed();
+            }
             executor?.DangerousAddRef(ref executorAddRefed);
             var result = NativeMethods.operator_construct(
                 scheme,
-                GetOptionsHandle(nativeOptionsHandle),
+                (IntPtr*)keys,
+                (IntPtr*)values,
+                len,
                 executor?.DangerousGetHandle() ?? IntPtr.Zero);
             return ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result);
         }
         finally
         {
+            NativeMemory.Free(buffer);
             if (executorAddRefed)
             {
                 executor!.DangerousRelease();
@@ -155,18 +181,18 @@ public partial class Operator : SafeHandle
     /// <param name="content">Bytes to write.</param>
     /// <param name="options">Additional write options.</param>
     /// <returns>Metadata of the written object.</returns>
-    public Metadata Write(string path, byte[] content, WriteOptions? options = null)
+    public unsafe Metadata Write(string path, byte[] content, WriteOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_write_bytes_with_options(
             this,
             path,
             content,
             (nuint)content.Length,
-            GetOptionsHandle(nativeOptionsHandle)
+            nativeOptions.Pointer
         );
 
         return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
@@ -233,7 +259,7 @@ public partial class Operator : SafeHandle
     /// <exception cref="ObjectDisposedException">The operator or buffer has been disposed.</exception>
     /// <exception cref="InvalidOperationException">The buffer contents were already consumed by a write.</exception>
     /// <exception cref="OpenDALException">Native write fails.</exception>
-    internal Metadata Write(string path, WriteBuffer content, WriteOptions? options = null)
+    internal unsafe Metadata Write(string path, WriteBuffer content, WriteOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
@@ -241,13 +267,13 @@ public partial class Operator : SafeHandle
         var bufferHandle = content.Handle;
         var committedInTail = content.TailWritten;
 
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_write_with_options(
             this,
             path,
             bufferHandle,
             (nuint)committedInTail,
-            GetOptionsHandle(nativeOptionsHandle)
+            nativeOptions.Pointer
         );
 
         if (!result.Error.IsError)
@@ -275,18 +301,19 @@ public partial class Operator : SafeHandle
         ArgumentNullException.ThrowIfNull(content);
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation<Metadata, WriteOptions>(options, DispatchWriteBytesAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata>(DispatchWriteBytesAsync, cancellationToken);
 
-        OpenDALResult DispatchWriteBytesAsync(long context, IntPtr optionsHandle)
+        OpenDALResult DispatchWriteBytesAsync(long context)
         {
             unsafe
             {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
                 return NativeMethods.operator_write_bytes_with_options_async(
                     this,
                     path,
                     content,
                     (nuint)content.Length,
-                    optionsHandle,
+                    nativeOptions.Pointer,
                     &OnWriteCompleted,
                     context
                 );
@@ -358,18 +385,19 @@ public partial class Operator : SafeHandle
         var bufferHandle = content.Handle;
         var committedInTail = content.TailWritten;
 
-        return SubmitAsyncOperation<Metadata, WriteOptions>(options, DispatchWriteBufferAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata>(DispatchWriteBufferAsync, cancellationToken);
 
-        OpenDALResult DispatchWriteBufferAsync(long context, IntPtr optionsHandle)
+        OpenDALResult DispatchWriteBufferAsync(long context)
         {
             unsafe
             {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
                 var result = NativeMethods.operator_write_with_options_async(
                     this,
                     path,
                     bufferHandle,
                     (nuint)committedInTail,
-                    optionsHandle,
+                    nativeOptions.Pointer,
                     &OnWriteCompleted,
                     context
                 );
@@ -468,13 +496,13 @@ public partial class Operator : SafeHandle
     /// <returns>The content as a disposable native buffer.</returns>
     /// <exception cref="ObjectDisposedException">The operator or executor has been disposed.</exception>
     /// <exception cref="OpenDALException">Native read fails.</exception>
-    internal ReadBuffer ReadBuffer(string path, ReadOptions? options = null)
+    internal unsafe ReadBuffer ReadBuffer(string path, ReadOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_read_with_options(
-            this, path, GetOptionsHandle(nativeOptionsHandle));
+            this, path, nativeOptions.Pointer);
 
         return Interop.Buffers.ReadBuffer.FromResult(result);
     }
@@ -504,24 +532,9 @@ public partial class Operator : SafeHandle
         cancellationToken.ThrowIfCancellationRequested();
 
         var context = AsyncStateRegistry.Register<OpenDALReadResult>(out var state);
-        OpenDALResult submit;
-        using (var nativeOptionsHandle = options?.BuildNativeOptionsHandle())
-        {
-            unsafe
-            {
-                submit = NativeMethods.operator_read_with_options_async(
-                    this,
-                    path,
-                    GetOptionsHandle(nativeOptionsHandle),
-                    &OnReadResultRetained,
-                    context
-                );
-            }
-        }
-
         try
         {
-            ThrowIfErrorAndRelease(submit);
+            ThrowIfErrorAndRelease(SubmitReadBufferAsync(path, options, context));
         }
         catch
         {
@@ -532,6 +545,19 @@ public partial class Operator : SafeHandle
         state.BindCancellation(cancellationToken);
         var result = await state.Completion.Task.ConfigureAwait(false);
         return Interop.Buffers.ReadBuffer.FromResult(result);
+    }
+
+    // Async methods cannot hold the stack buffer the options are written to.
+    private unsafe OpenDALResult SubmitReadBufferAsync(string path, ReadOptions? options, long context)
+    {
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        return NativeMethods.operator_read_with_options_async(
+            this,
+            path,
+            nativeOptions.Pointer,
+            &OnReadResultRetained,
+            context
+        );
     }
 
     /// <summary>
@@ -613,13 +639,13 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="options">Additional stat options.</param>
     /// <returns>Metadata of the target path.</returns>
-    public Metadata Stat(string path, StatOptions? options = null)
+    public unsafe Metadata Stat(string path, StatOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
         OpenDALMetadataResult result;
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-        result = NativeMethods.operator_stat_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        result = NativeMethods.operator_stat_with_options(this, path, nativeOptions.Pointer);
 
         return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
     }
@@ -638,16 +664,17 @@ public partial class Operator : SafeHandle
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation<Metadata, StatOptions>(options, SubmitStatAsync, cancellationToken);
+        return SubmitAsyncOperation<Metadata>(SubmitStatAsync, cancellationToken);
 
-        OpenDALResult SubmitStatAsync(long context, IntPtr optionsHandle)
+        OpenDALResult SubmitStatAsync(long context)
         {
             unsafe
             {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
                 return NativeMethods.operator_stat_with_options_async(
                     this,
                     path,
-                    optionsHandle,
+                    nativeOptions.Pointer,
                     &OnStatCompleted,
                     context
                 );
@@ -749,13 +776,13 @@ public partial class Operator : SafeHandle
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="options">Additional list options.</param>
     /// <returns>Listed entries.</returns>
-    public IReadOnlyList<Entry> List(string path, ListOptions? options = null)
+    public unsafe IReadOnlyList<Entry> List(string path, ListOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
         OpenDALEntryListResult result;
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-        result = NativeMethods.operator_list_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        result = NativeMethods.operator_list_with_options(this, path, nativeOptions.Pointer);
 
         return ToValueOrThrowAndRelease<IReadOnlyList<Entry>, OpenDALEntryListResult>(result);
     }
@@ -774,16 +801,17 @@ public partial class Operator : SafeHandle
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation<IReadOnlyList<Entry>, ListOptions>(options, SubmitListAsync, cancellationToken);
+        return SubmitAsyncOperation<IReadOnlyList<Entry>>(SubmitListAsync, cancellationToken);
 
-        OpenDALResult SubmitListAsync(long context, IntPtr optionsHandle)
+        OpenDALResult SubmitListAsync(long context)
         {
             unsafe
             {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
                 return NativeMethods.operator_list_with_options_async(
                     this,
                     path,
-                    optionsHandle,
+                    nativeOptions.Pointer,
                     &OnListCompleted,
                     context
                 );
@@ -816,11 +844,11 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
     /// <param name="options">Additional delete options.</param>
-    public void Delete(string path, DeleteOptions? options = null)
+    public unsafe void Delete(string path, DeleteOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
-        using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-        var result = NativeMethods.operator_delete_with_options(this, path, GetOptionsHandle(nativeOptionsHandle));
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_delete_with_options(this, path, nativeOptions.Pointer);
         ThrowIfErrorAndRelease(result);
     }
 
@@ -835,21 +863,131 @@ public partial class Operator : SafeHandle
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        return SubmitAsyncOperation(options, SubmitDeleteAsync, cancellationToken);
+        return SubmitAsyncOperation(SubmitDeleteAsync, cancellationToken);
 
-        OpenDALResult SubmitDeleteAsync(long context, IntPtr optionsHandle)
+        OpenDALResult SubmitDeleteAsync(long context)
         {
             unsafe
             {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
                 return NativeMethods.operator_delete_with_options_async(
                     this,
                     path,
-                    optionsHandle,
+                    nativeOptions.Pointer,
                     &OnDeleteCompleted,
                     context
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Deletes several paths, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When this method throws, some of the targets may already be
+    /// deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    public void DeleteMany(IEnumerable<DeleteInput> targets)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            DeleteChunk(chunk, offset, nameof(targets));
+            offset += chunk.Length;
+        }
+    }
+
+    /// <summary>
+    /// Deletes several paths asynchronously, batching the deletions where the service supports it.
+    /// </summary>
+    /// <remarks>
+    /// The targets are consumed lazily and deleted chunk by chunk, so a large
+    /// sequence is never held in memory at once. Deleting a missing path
+    /// succeeds. When the task faults or is canceled, some of the targets may
+    /// already be deleted.
+    /// </remarks>
+    /// <param name="targets">
+    /// Paths to delete; a plain path or a listed <see cref="Entry"/> converts to a <see cref="DeleteInput"/>.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when every deletion is applied.</returns>
+    public async Task DeleteManyAsync(IEnumerable<DeleteInput> targets, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(targets);
+
+        long offset = 0;
+        foreach (var chunk in targets.Chunk(DeleteManyChunkSize))
+        {
+            await SubmitDeleteChunkAsync(chunk, offset, nameof(targets), cancellationToken).ConfigureAwait(false);
+            offset += chunk.Length;
+        }
+    }
+
+    private unsafe void DeleteChunk(DeleteInput[] chunk, long offset, string paramName)
+    {
+        using var nativeTargets = NativeOptionsScope.Create(
+            ToPathOptions(chunk, offset, paramName),
+            stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_delete_many(
+            this,
+            nativeTargets.Pointer->Items,
+            nativeTargets.Pointer->Len);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    private Task SubmitDeleteChunkAsync(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName,
+        CancellationToken cancellationToken)
+    {
+        var pathOptions = ToPathOptions(chunk, offset, paramName);
+        return SubmitAsyncOperation(SubmitAsync, cancellationToken);
+
+        OpenDALResult SubmitAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeTargets = NativeOptionsScope.Create(
+                    pathOptions,
+                    stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_delete_many_async(
+                    this,
+                    nativeTargets.Pointer->Items,
+                    nativeTargets.Pointer->Len,
+                    &OnDeleteCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Encodes one chunk of targets; <paramref name="offset"/> is the chunk's
+    /// position in the whole sequence, so a null target is reported by its
+    /// index there.
+    /// </summary>
+    private static PathOptionsArray<OpenDALDeleteOptions> ToPathOptions(
+        DeleteInput[] chunk,
+        long offset,
+        string paramName)
+    {
+        return PathOptionsArray<OpenDALDeleteOptions>.From(
+            chunk,
+            static target => target.Path,
+            static target => target.Options,
+            paramName,
+            offset);
     }
 
     /// <summary>
@@ -894,11 +1032,17 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional copy options.</param>
     /// <returns>Metadata of the copied object at <paramref name="targetPath"/>.</returns>
-    public Metadata Copy(string sourcePath, string targetPath)
+    public unsafe Metadata Copy(string sourcePath, string targetPath, CopyOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
-        var result = NativeMethods.operator_copy(this, sourcePath, targetPath);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_copy_with_options(
+            this,
+            sourcePath,
+            targetPath,
+            nativeOptions.Pointer);
         return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
     }
 
@@ -907,11 +1051,13 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional copy options.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
     /// <returns>A task that resolves with the metadata of the copied object.</returns>
     public Task<Metadata> CopyAsync(
         string sourcePath,
         string targetPath,
+        CopyOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
@@ -922,10 +1068,12 @@ public partial class Operator : SafeHandle
         {
             unsafe
             {
-                return NativeMethods.operator_copy_async(
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_copy_with_options_async(
                     this,
                     sourcePath,
                     targetPath,
+                    nativeOptions.Pointer,
                     &OnCopyCompleted,
                     context
                 );
@@ -938,10 +1086,16 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
-    public void Rename(string sourcePath, string targetPath)
+    /// <param name="options">Additional rename options.</param>
+    public unsafe void Rename(string sourcePath, string targetPath, RenameOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
-        var result = NativeMethods.operator_rename(this, sourcePath, targetPath);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_rename_with_options(
+            this,
+            sourcePath,
+            targetPath,
+            nativeOptions.Pointer);
         ThrowIfErrorAndRelease(result);
     }
 
@@ -950,11 +1104,13 @@ public partial class Operator : SafeHandle
     /// </summary>
     /// <param name="sourcePath">Source path in the configured backend.</param>
     /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional rename options.</param>
     /// <param name="cancellationToken">Cancellation token for the managed task.</param>
     /// <returns>A task that completes when the native callback reports completion.</returns>
     public Task RenameAsync(
         string sourcePath,
         string targetPath,
+        RenameOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
@@ -965,15 +1121,153 @@ public partial class Operator : SafeHandle
         {
             unsafe
             {
-                return NativeMethods.operator_rename_async(
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_rename_with_options_async(
                     this,
                     sourcePath,
                     targetPath,
+                    nativeOptions.Pointer,
                     &OnRenameCompleted,
                     context
                 );
             }
         }
+    }
+
+    /// <summary>
+    /// Restores the file at the specified path from its latest deleted state.
+    /// </summary>
+    /// <remarks>
+    /// Restoring a path that already holds a live file succeeds without changes.
+    /// Check <see cref="Capability.Restore"/> before using this operation.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="options">Additional restore options.</param>
+    public unsafe void Restore(string path, RestoreOptions? options = null)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_restore_with_options(this, path, nativeOptions.Pointer);
+        ThrowIfErrorAndRelease(result);
+    }
+
+    /// <summary>
+    /// Restores the file at the specified path from its latest deleted state asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// Restoring a path that already holds a live file succeeds without changes.
+    /// Check <see cref="Capability.Restore"/> before using this operation.
+    /// </remarks>
+    /// <param name="path">Target path in the configured backend.</param>
+    /// <param name="options">Additional restore options.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that completes when the native callback reports completion.</returns>
+    public Task RestoreAsync(string path, RestoreOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+
+        return SubmitAsyncOperation(SubmitRestoreAsync, cancellationToken);
+
+        OpenDALResult SubmitRestoreAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_restore_with_options_async(
+                    this,
+                    path,
+                    nativeOptions.Pointer,
+                    &OnRestoreCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    /// <summary>
+    /// Composes complete source files into the target path in order.
+    /// </summary>
+    /// <remarks>
+    /// The sources must be non-empty and must not include <paramref name="targetPath"/>.
+    /// Every source file is preserved. Check <see cref="Capability.Compose"/> before
+    /// using this operation.
+    /// </remarks>
+    /// <param name="sources">Ordered source files; a plain path converts to a <see cref="ComposeInput"/>.</param>
+    /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional compose options.</param>
+    /// <returns>Metadata of the composed object at <paramref name="targetPath"/>.</returns>
+    public unsafe Metadata Compose(IEnumerable<ComposeInput> sources, string targetPath, ComposeOptions? options = null)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(sources);
+        using var nativeSources = NativeOptionsScope.Create(
+            ToPathOptions(sources, nameof(sources)),
+            stackalloc byte[NativeOptionsScope.StackSize]);
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+        var result = NativeMethods.operator_compose_with_options(
+            this,
+            nativeSources.Pointer->Items,
+            nativeSources.Pointer->Len,
+            targetPath,
+            nativeOptions.Pointer);
+        return ToValueOrThrowAndRelease<Metadata, OpenDALMetadataResult>(result);
+    }
+
+    /// <summary>
+    /// Composes complete source files into the target path in order asynchronously.
+    /// </summary>
+    /// <remarks>
+    /// The sources must be non-empty and must not include <paramref name="targetPath"/>.
+    /// Every source file is preserved. Check <see cref="Capability.Compose"/> before
+    /// using this operation.
+    /// </remarks>
+    /// <param name="sources">Ordered source files; a plain path converts to a <see cref="ComposeInput"/>.</param>
+    /// <param name="targetPath">Target path in the configured backend.</param>
+    /// <param name="options">Additional compose options.</param>
+    /// <param name="cancellationToken">Cancellation token for the managed task.</param>
+    /// <returns>A task that resolves with the metadata of the composed object.</returns>
+    public Task<Metadata> ComposeAsync(
+        IEnumerable<ComposeInput> sources,
+        string targetPath,
+        ComposeOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(IsInvalid, this);
+        ArgumentNullException.ThrowIfNull(sources);
+        var pathOptions = ToPathOptions(sources, nameof(sources));
+
+        return SubmitAsyncOperation<Metadata>(SubmitComposeAsync, cancellationToken);
+
+        OpenDALResult SubmitComposeAsync(long context)
+        {
+            unsafe
+            {
+                using var nativeSources = NativeOptionsScope.Create(
+                    pathOptions,
+                    stackalloc byte[NativeOptionsScope.StackSize]);
+                using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
+                return NativeMethods.operator_compose_with_options_async(
+                    this,
+                    nativeSources.Pointer->Items,
+                    nativeSources.Pointer->Len,
+                    targetPath,
+                    nativeOptions.Pointer,
+                    &OnComposeCompleted,
+                    context
+                );
+            }
+        }
+    }
+
+    private static PathOptionsArray<OpenDALComposeSourceOptions> ToPathOptions(
+        IEnumerable<ComposeInput> sources,
+        string paramName)
+    {
+        return PathOptionsArray<OpenDALComposeSourceOptions>.From(
+            sources,
+            static source => source.Path,
+            static source => source.Options,
+            paramName);
     }
 
     /// <summary>
@@ -1114,19 +1408,19 @@ public partial class Operator : SafeHandle
     /// Opens a read stream for the specified path.
     /// </summary>
     /// <param name="path">Target path in the configured backend.</param>
-    /// <param name="options">Optional read options.</param>
+    /// <param name="options">Optional read options. <see cref="ReadOptions.Limit"/> applies only to reads that return a buffer.</param>
     /// <returns>A readable stream over the given path.</returns>
-    public OperatorInputStream OpenReadStream(
+    public unsafe OperatorInputStream OpenReadStream(
         string path,
         ReadOptions? options = null)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        using var nativeOptions = options?.BuildNativeOptionsHandle();
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_input_stream_create(
             this,
             path,
-            GetOptionsHandle(nativeOptions)
+            nativeOptions.Pointer
         );
 
         var streamHandle = ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result);
@@ -1145,18 +1439,18 @@ public partial class Operator : SafeHandle
     /// <param name="options">Optional write options.</param>
     /// <param name="bufferSize">Buffer size used by the managed write stream.</param>
     /// <returns>A writable stream over the given path.</returns>
-    public OperatorOutputStream OpenWriteStream(
+    public unsafe OperatorOutputStream OpenWriteStream(
         string path,
         WriteOptions? options = null,
         int bufferSize = OperatorOutputStream.DefaultBufferSize)
     {
         ObjectDisposedException.ThrowIf(IsInvalid, this);
 
-        using var nativeOptions = options?.BuildNativeOptionsHandle();
+        using var nativeOptions = NativeOptionsScope.Create(options, stackalloc byte[NativeOptionsScope.StackSize]);
         var result = NativeMethods.operator_output_stream_create(
             this,
             path,
-            GetOptionsHandle(nativeOptions)
+            nativeOptions.Pointer
         );
 
         var streamHandle = ToValueOrThrowAndRelease<IntPtr, OpenDALOperatorResult>(result);
@@ -1197,16 +1491,6 @@ public partial class Operator : SafeHandle
     }
 
     /// <summary>
-    /// Gets the native options pointer from an optional native options handle.
-    /// </summary>
-    /// <param name="options">Native options handle or <see langword="null"/>.</param>
-    /// <returns>Native options pointer, or <see cref="IntPtr.Zero"/> when options are not provided.</returns>
-    private static IntPtr GetOptionsHandle(NativeOptionsHandle? options)
-    {
-        return options is null ? IntPtr.Zero : options.DangerousGetHandle();
-    }
-
-    /// <summary>
     /// Retrieves operator info from the native layer.
     /// </summary>
     /// <returns>Managed operator info value.</returns>
@@ -1216,25 +1500,6 @@ public partial class Operator : SafeHandle
         var result = NativeMethods.operator_info_get(this);
 
         return ToValueOrThrowAndRelease<OperatorInfo, OpenDALOperatorInfoResult>(result);
-    }
-
-    /// <summary>
-    /// Builds constructor options for operator creation when key/value options are provided.
-    /// </summary>
-    /// <param name="options">Backend options dictionary.</param>
-    /// <returns>Native options handle, or <see langword="null"/> when options are empty.</returns>
-    private static NativeOptionsHandle? CreateConstructorOptionsHandle(IReadOnlyDictionary<string, string>? options)
-    {
-        if (options is null || options.Count == 0)
-        {
-            return null;
-        }
-
-        return NativeOptionsBuilder.BuildNativeOptionsHandle(
-            options,
-            NativeMethods.constructor_option_build,
-            NativeMethods.constructor_option_free
-        );
     }
 
     /// <summary>
@@ -1285,59 +1550,6 @@ public partial class Operator : SafeHandle
         {
             result.Release();
         }
-    }
-
-    /// <summary>
-    /// Submits a native async operation and binds it to a managed task completion source.
-    /// </summary>
-    /// <typeparam name="TOutput">Managed task result type.</typeparam>
-    /// <typeparam name="TOptions">Managed options type.</typeparam>
-    /// <param name="options">Optional managed options for this operation.</param>
-    /// <param name="submit">Submission delegate that invokes the native async API.</param>
-    /// <param name="cancellationToken">Cancellation token for managed task observation.</param>
-    /// <returns>A task completed by the corresponding native callback.</returns>
-    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
-    /// <exception cref="OpenDALException">Native submission returns an immediate error.</exception>
-    internal static Task<TOutput> SubmitAsyncOperation<TOutput, TOptions>(
-        TOptions? options,
-        Func<long, IntPtr, OpenDALResult> submit,
-        CancellationToken cancellationToken)
-        where TOptions : class, IOptions
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var context = AsyncStateRegistry.Register<TOutput>(out var asyncState);
-        try
-        {
-            using var nativeOptionsHandle = options?.BuildNativeOptionsHandle();
-            var submitResult = submit(context, GetOptionsHandle(nativeOptionsHandle));
-            ThrowIfErrorAndRelease(submitResult);
-            asyncState.BindCancellation(cancellationToken);
-            return asyncState.Completion.Task;
-        }
-        catch
-        {
-            AsyncStateRegistry.Unregister(context);
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Submits a native async operation and binds it to a managed task completion source.
-    /// </summary>
-    /// <typeparam name="TOptions">Managed options type.</typeparam>
-    /// <param name="options">Optional managed options for this operation.</param>
-    /// <param name="submit">Submission delegate that invokes the native async API.</param>
-    /// <param name="cancellationToken">Cancellation token for managed task observation.</param>
-    /// <returns>A task completed by the corresponding native callback.</returns>
-    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> is already canceled.</exception>
-    /// <exception cref="OpenDALException">Native submission returns an immediate error.</exception>
-    internal static Task SubmitAsyncOperation<TOptions>(
-        TOptions? options,
-        Func<long, IntPtr, OpenDALResult> submit,
-        CancellationToken cancellationToken)
-        where TOptions : class, IOptions
-    {
-        return SubmitAsyncOperation<bool, TOptions>(options, submit, cancellationToken);
     }
 
     /// <summary>
@@ -1586,6 +1798,28 @@ public partial class Operator : SafeHandle
     private static void OnRenameCompleted(long context, OpenDALResult result)
     {
         CompleteAsyncCallback(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous restore operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Restore completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnRestoreCompleted(long context, OpenDALResult result)
+    {
+        CompleteAsyncCallback(context, result);
+    }
+
+    /// <summary>
+    /// Native callback invoked when an asynchronous compose operation finishes.
+    /// </summary>
+    /// <param name="context">Opaque async state context previously registered by <see cref="AsyncStateRegistry"/>.</param>
+    /// <param name="result">Compose completion result returned by the native layer.</param>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    private static void OnComposeCompleted(long context, OpenDALMetadataResult result)
+    {
+        CompleteAsyncCallback<Metadata, OpenDALMetadataResult>(context, result);
     }
 
     /// <summary>

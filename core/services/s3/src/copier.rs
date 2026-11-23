@@ -68,7 +68,8 @@ pub fn new_s3_copier(
     let concurrent = args.concurrent();
 
     Ok(oio::MultipartCopier::new(
-        (ctx.executor().clone(), capability),
+        ctx.executor().clone(),
+        capability,
         S3Copier {
             core,
             ctx: ctx.clone(),
@@ -249,7 +250,7 @@ impl oio::MultipartCopy for S3Copier {
     async fn initiate_copy(&self) -> Result<String> {
         let resp = self
             .core
-            .s3_initiate_multipart_copy(&self.ctx, &self.to)
+            .s3_initiate_multipart_copy(&self.ctx, &self.to, &self.args)
             .await?;
 
         match resp.status() {

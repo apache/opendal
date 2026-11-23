@@ -23,15 +23,24 @@ use opendal_core::*;
 
 #[derive(Clone, Debug)]
 pub struct PostgresqlCore {
-    pub pool: OnceCell<PgPool>,
-    pub config: PgConnectOptions,
-
-    pub table: String,
-    pub key_field: String,
-    pub value_field: String,
+    pool: OnceCell<PgPool>,
+    config: PgConnectOptions,
+    table: String,
+    key_field: String,
+    value_field: String,
 }
 
 impl PostgresqlCore {
+    pub fn new(config: PgConnectOptions, table: &str, key_field: &str, value_field: &str) -> Self {
+        Self {
+            pool: OnceCell::new(),
+            config,
+            table: quote_identifier(table),
+            key_field: quote_identifier(key_field),
+            value_field: quote_identifier(value_field),
+        }
+    }
+
     async fn get_client(&self) -> Result<&PgPool> {
         self.pool
             .get_or_try_init(|| async {
@@ -45,17 +54,11 @@ impl PostgresqlCore {
     pub async fn get(&self, path: &str) -> Result<Option<Buffer>> {
         let pool = self.get_client().await?;
 
-        // PostgreSQL uses `"` for identifier quote. A quoted identifier is case-sensitive and
-        // can contain special characters.
-        // Read more https://www.postgresql.org/docs/18/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS
-        //
-        // We use:
-        // - formatted, quoted identifiers for trusted table and field configuration
-        // - bind parameters for values to avoid malformed SQL and SQL injection
-        // to ensure correctness. `AssertSqlSafe` records this audit for sqlx.
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
         let value: Option<Vec<u8>> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            r#"SELECT "{}" FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
-            self.value_field, self.table, self.key_field
+            "SELECT {value_field} FROM {table} WHERE {key_field} = $1 LIMIT 1",
         )))
         .bind(path)
         .fetch_optional(pool)
@@ -68,9 +71,11 @@ impl PostgresqlCore {
     pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
         let pool = self.get_client().await?;
 
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
         let value: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
-            r#"SELECT OCTET_LENGTH("{}")::BIGINT FROM "{}" WHERE "{}" = $1 LIMIT 1"#,
-            self.value_field, self.table, self.key_field
+            "SELECT OCTET_LENGTH({value_field})::BIGINT FROM {table} WHERE {key_field} = $1 LIMIT 1",
         )))
         .bind(path)
         .fetch_optional(pool)
@@ -94,10 +99,10 @@ impl PostgresqlCore {
         let key_field = &self.key_field;
         let value_field = &self.value_field;
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
+            "INSERT INTO {table} AS destination ({key_field}, {value_field})
                 VALUES ($1, $2)
-                ON CONFLICT ("{key_field}")
-                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
+                ON CONFLICT ({key_field})
+                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}",
         )))
         .bind(path)
         .bind(value.to_vec())
@@ -111,9 +116,10 @@ impl PostgresqlCore {
     pub async fn delete(&self, path: &str) -> Result<()> {
         let pool = self.get_client().await?;
 
+        let table = &self.table;
+        let key_field = &self.key_field;
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            r#"DELETE FROM "{}" WHERE "{}" = $1"#,
-            self.table, self.key_field
+            "DELETE FROM {table} WHERE {key_field} = $1",
         )))
         .bind(path)
         .execute(pool)
@@ -122,6 +128,107 @@ impl PostgresqlCore {
 
         Ok(())
     }
+
+    pub async fn copy(&self, from: &str, to: &str) -> Result<Metadata> {
+        let pool = self.get_client().await?;
+
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
+        let length: Option<i32> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+            "INSERT INTO {table} AS destination ({key_field}, {value_field})
+                SELECT $2, {value_field} FROM {table} WHERE {key_field} = $1
+                ON CONFLICT ({key_field})
+                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}
+                RETURNING OCTET_LENGTH({value_field})",
+        )))
+        .bind(from)
+        .bind(to)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_postgres_error)?;
+
+        let length =
+            length.ok_or_else(|| Error::new(ErrorKind::NotFound, "kv not found in postgresql"))?;
+        Ok(MetadataBuilder::file(length as u64).build())
+    }
+
+    pub async fn rename(&self, from: &str, to: &str, if_not_exists: bool) -> Result<()> {
+        let pool = self.get_client().await?;
+        let mut tx = if if_not_exists {
+            // A competing destination may commit after the rename statement starts.
+            // Read Committed lets the conflict check see that row in a fresh snapshot.
+            pool.begin_with("BEGIN ISOLATION LEVEL READ COMMITTED")
+                .await
+        } else {
+            pool.begin().await
+        }
+        .map_err(parse_postgres_error)?;
+
+        let table = &self.table;
+        let key_field = &self.key_field;
+        let value_field = &self.value_field;
+        let (source_deleted, destination_written): (bool, bool) =
+            sqlx::query_as(sqlx::AssertSqlSafe(format!(
+                "WITH moved AS (
+                    DELETE FROM {table} WHERE {key_field} = $1 RETURNING {value_field}
+                ), written AS (
+                    INSERT INTO {table} AS destination ({key_field}, {value_field})
+                        SELECT $2, {value_field} FROM moved
+                        ON CONFLICT ({key_field})
+                            DO UPDATE SET {value_field} = EXCLUDED.{value_field}
+                            WHERE NOT $3
+                        RETURNING 1
+                )
+                SELECT EXISTS (SELECT 1 FROM moved), EXISTS (SELECT 1 FROM written)",
+            )))
+            .bind(from)
+            .bind(to)
+            .bind(if_not_exists)
+            .fetch_one(&mut *tx)
+            .await
+            .map_err(parse_postgres_error)?;
+
+        if !source_deleted {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                "kv not found in postgresql",
+            ));
+        }
+        if !destination_written {
+            let error = if if_not_exists {
+                // ON CONFLICT locks the destination even when its WHERE clause
+                // rejects the update. If the destination is absent, a trigger
+                // may have skipped the write.
+                let destination_exists: bool = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+                    "SELECT EXISTS (SELECT 1 FROM {table} WHERE {key_field} = $1)",
+                )))
+                .bind(to)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(parse_postgres_error)?;
+                if destination_exists {
+                    ErrorKind::ConditionNotMatch
+                } else {
+                    ErrorKind::Unexpected
+                }
+            } else {
+                ErrorKind::Unexpected
+            };
+            tx.rollback().await.map_err(parse_postgres_error)?;
+            return Err(Error::new(
+                error,
+                "postgresql rename did not write the destination",
+            ));
+        }
+        tx.commit().await.map_err(parse_postgres_error)
+    }
+}
+
+// PostgreSQL escapes double quotes in identifiers by doubling them. Queries
+// interpolate only these quoted identifiers and bind paths and values.
+fn quote_identifier(identifier: &str) -> String {
+    format!("\"{}\"", identifier.replace('"', "\"\""))
 }
 
 fn parse_postgres_error(err: sqlx::Error) -> Error {

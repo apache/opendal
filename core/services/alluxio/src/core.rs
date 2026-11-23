@@ -49,7 +49,7 @@ impl Debug for AlluxioCore {
 
 impl AlluxioCore {
     pub async fn create_dir(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let r = CreateDirRequest {
             recursive: Some(true),
@@ -88,7 +88,7 @@ impl AlluxioCore {
     }
 
     pub async fn create_file(&self, ctx: &OperationContext, path: &str) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let r = CreateFileRequest {
             recursive: Some(true),
@@ -130,7 +130,7 @@ impl AlluxioCore {
     }
 
     pub(super) async fn open_file(&self, ctx: &OperationContext, path: &str) -> Result<u64> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let req = Request::post(format!(
             "{}/api/v1/paths/{}/open-file",
@@ -162,7 +162,7 @@ impl AlluxioCore {
     }
 
     pub(super) async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let req = Request::post(format!(
             "{}/api/v1/paths/{}/delete",
@@ -192,8 +192,8 @@ impl AlluxioCore {
     }
 
     pub(super) async fn rename(&self, ctx: &OperationContext, path: &str, dst: &str) -> Result<()> {
-        let path = build_rooted_abs_path(&self.root, path);
-        let dst = build_rooted_abs_path(&self.root, dst);
+        let path = build_rooted_absolute_path(&self.root, path);
+        let dst = build_rooted_absolute_path(&self.root, dst);
 
         let req = Request::post(format!(
             "{}/api/v1/paths/{}/rename?dst={}",
@@ -222,7 +222,7 @@ impl AlluxioCore {
     }
 
     pub(super) async fn get_status(&self, ctx: &OperationContext, path: &str) -> Result<FileInfo> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let req = Request::post(format!(
             "{}/api/v1/paths/{}/get-status",
@@ -259,7 +259,7 @@ impl AlluxioCore {
         ctx: &OperationContext,
         path: &str,
     ) -> Result<Vec<FileInfo>> {
-        let path = build_rooted_abs_path(&self.root, path);
+        let path = build_rooted_absolute_path(&self.root, path);
 
         let req = Request::post(format!(
             "{}/api/v1/paths/{}/list-status",

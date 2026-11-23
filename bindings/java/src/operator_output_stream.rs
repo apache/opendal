@@ -21,6 +21,8 @@ use jni::objects::JByteArray;
 use jni::objects::JClass;
 use jni::objects::JObject;
 use jni::objects::JString;
+use jni::sys::jboolean;
+use jni::sys::jint;
 use jni::sys::jlong;
 use opendal::blocking;
 
@@ -36,12 +38,12 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
 >(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
-    op: *mut blocking::Operator,
+    op: *const blocking::Operator,
     path: JString<'local>,
     options: JObject<'local>,
 ) -> jlong {
     env.with_env(|env| {
-        let op_ref = unsafe { &mut *op };
+        let op_ref = unsafe { &*op };
         intern_construct_write(env, op_ref, path, options)
     })
     .resolve::<ThrowException>()
@@ -49,7 +51,7 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_const
 
 fn intern_construct_write(
     env: &mut Env,
-    op: &mut blocking::Operator,
+    op: &blocking::Operator,
     path: JString,
     options: JObject,
 ) -> crate::Result<jlong> {
@@ -69,42 +71,53 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_dispo
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     writer: *mut blocking::Writer,
+    commit: jboolean,
 ) {
     env.with_env(|_env| {
         let mut writer = unsafe { Box::from_raw(writer) };
-        intern_dispose_write(&mut writer)
+        intern_dispose_write(&mut writer, commit)
     })
     .resolve::<ThrowException>()
 }
 
-fn intern_dispose_write(writer: &mut blocking::Writer) -> crate::Result<()> {
-    writer.close()?;
+/// Release the native writer, committing the object only when `commit` is set.
+///
+/// Releasing without `blocking::Writer::close()` drops the writer instead of
+/// closing it, so staged or buffered writes are not committed. `blocking::Writer`
+/// commits on `close` and never on drop, and dropping it inside the runtime
+/// handle keeps the async writer's cleanup in the runtime context.
+fn intern_dispose_write(writer: &mut blocking::Writer, commit: bool) -> crate::Result<()> {
+    if commit {
+        writer.close()?;
+    }
     Ok(())
 }
 
 /// # Safety
 ///
-/// This function should not be called before the Operator is ready.
+/// `writer` must point to a live writer with exclusive access, and `offset` and
+/// `length` must describe a valid range of `content`.
 #[unsafe(no_mangle)]
-pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeBytes<'local>(
+pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_writeByteRange<
+    'local,
+>(
     mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     writer: *mut blocking::Writer,
     content: JByteArray<'local>,
+    offset: jint,
+    length: jint,
 ) {
-    env.with_env(|env| {
-        let writer_ref = unsafe { &mut *writer };
-        intern_write_bytes(env, writer_ref, content)
+    env.with_env(|env| -> crate::Result<()> {
+        let mut owned = vec![0u8; length as usize];
+        // SAFETY: i8 and u8 have the same size, alignment, and valid bit patterns.
+        let bytes =
+            unsafe { std::slice::from_raw_parts_mut(owned.as_mut_ptr().cast(), owned.len()) };
+        // Copy into Rust-owned storage before the writer can retain the buffer.
+        content.get_region(env, offset, bytes)?;
+        let writer = unsafe { &mut *writer };
+        writer.write(owned)?;
+        Ok(())
     })
     .resolve::<ThrowException>()
-}
-
-fn intern_write_bytes(
-    env: &mut Env,
-    writer: &mut blocking::Writer,
-    content: JByteArray,
-) -> crate::Result<()> {
-    let content = env.convert_byte_array(content)?;
-    writer.write(content)?;
-    Ok(())
 }

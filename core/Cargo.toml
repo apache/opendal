@@ -22,6 +22,7 @@ members = [
   "benches/vs_*",
   "core",
   "edge/*",
+  "executors/*",
   "examples/*",
   "fuzz",
   "http-transports/*",
@@ -42,10 +43,12 @@ rust-version = "1.91"
 version = "0.59.5"
 
 [workspace.dependencies]
-asyncband = { version = "0.7.1" }
+asyncband = { version = "0.8.0" }
 base64 = "0.23"
 bytes = "1.10"
+compio = "0.19.1"
 ctor = "1.0.7"
+cyper = { version = "0.9.0", default-features = false }
 futures = { version = "0.3", default-features = false }
 http = "1.4"
 log = { version = "0.4.32" }
@@ -86,9 +89,11 @@ all-features = true
 # configured, install the default HTTP transport. Disable this feature when the
 # application needs to install its own process-wide HTTP transport.
 auto-register-services = ["dep:ctor"]
+auto-simulate = ["opendal-core/auto-simulate"]
 blocking = ["opendal-core/blocking"]
 default = [
   "auto-register-services",
+  "auto-simulate",
   "http-transport-reqwest",
   "executors-tokio",
   "layers-concurrent-limit",
@@ -96,7 +101,18 @@ default = [
   "layers-retry",
   "layers-timeout",
 ]
-executors-tokio = ["opendal-core/executors-tokio"]
+executors-compio = ["dep:opendal-executor-compio"]
+executors-tokio = ["dep:opendal-executor-tokio"]
+# Enable the opt-in Cyper transport with Rustls.
+http-transport-cyper = ["http-transport-cyper-rustls"]
+http-transport-cyper-native-tls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/native-tls",
+]
+http-transport-cyper-rustls = [
+  "dep:opendal-http-transport-cyper",
+  "opendal-http-transport-cyper/rustls",
+]
 # Default http-transport-reqwest transport feature, used for:
 # - install default http transport
 # - feature gate for various of bindings dependency
@@ -117,8 +133,10 @@ http-transport-reqwest-rustls-no-provider = [
   "opendal-http-transport-reqwest/rustls-no-provider",
 ]
 internal-tokio-rt = ["opendal-core/internal-tokio-rt"]
+layers-aimd = ["dep:opendal-layer-aimd"]
 layers-async-backtrace = ["dep:opendal-layer-async-backtrace"]
 layers-await-tree = ["dep:opendal-layer-await-tree"]
+layers-cache = ["dep:opendal-layer-cache"]
 layers-capability-check = ["dep:opendal-layer-capability-check"]
 layers-chaos = ["dep:opendal-layer-chaos"]
 layers-concurrent-limit = ["dep:opendal-layer-concurrent-limit"]
@@ -126,6 +144,7 @@ layers-dtrace = ["dep:opendal-layer-dtrace"]
 layers-fastmetrics = ["dep:opendal-layer-fastmetrics"]
 layers-fastrace = ["dep:opendal-layer-fastrace"]
 layers-foyer = ["dep:opendal-layer-foyer"]
+layers-hedge = ["dep:opendal-layer-hedge"]
 layers-hotpath = ["dep:opendal-layer-hotpath"]
 layers-immutable-index = ["dep:opendal-layer-immutable-index"]
 layers-logging = ["dep:opendal-layer-logging"]
@@ -137,15 +156,13 @@ layers-prometheus = ["dep:opendal-layer-prometheus"]
 layers-prometheus-client = ["dep:opendal-layer-prometheus-client"]
 layers-retry = ["dep:opendal-layer-retry"]
 layers-route = ["dep:opendal-layer-route"]
+layers-sanity-check = ["dep:opendal-layer-sanity-check"]
 layers-tail-cut = ["dep:opendal-layer-tail-cut"]
 layers-throttle = ["dep:opendal-layer-throttle"]
 layers-timeout = ["dep:opendal-layer-timeout"]
 layers-tracing = ["dep:opendal-layer-tracing"]
 # Deprecated since 0.58; Will delete in 0.59.
-reqwest-rustls-no-provider-tls = [
-  "http-transport-reqwest",
-  "http-transport-reqwest-rustls-no-provider",
-]
+reqwest-rustls-no-provider-tls = ["http-transport-reqwest-rustls-no-provider"]
 # Deprecated since 0.58; Will delete in 0.59.
 reqwest-rustls-tls = ["http-transport-reqwest", "http-transport-reqwest-rustls"]
 services-aliyun-drive = ["dep:opendal-service-aliyun-drive"]
@@ -178,6 +195,7 @@ services-gridfs = ["dep:opendal-service-gridfs"]
 services-hdfs = ["dep:opendal-service-hdfs"]
 services-hdfs-native = ["dep:opendal-service-hdfs-native"]
 services-hf = ["dep:opendal-service-hf"]
+services-hf3fs = ["dep:opendal-service-hf3fs"]
 services-http = ["dep:opendal-service-http"]
 services-huggingface = ["services-hf"]
 services-ipfs = ["dep:opendal-service-ipfs"]
@@ -249,15 +267,20 @@ required-features = ["tests"]
 [dependencies]
 ctor = { workspace = true, optional = true }
 opendal-core = { path = "core", version = "0.59.5", default-features = false }
+opendal-executor-tokio = { path = "executors/tokio", version = "0.59.5", optional = true }
+opendal-http-transport-cyper = { path = "http-transports/cyper", version = "0.59.5", optional = true, default-features = false }
 opendal-http-transport-reqwest = { path = "http-transports/reqwest", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-aimd = { path = "layers/aimd", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-async-backtrace = { path = "layers/async-backtrace", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-await-tree = { path = "layers/await-tree", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-cache = { path = "layers/cache", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-capability-check = { path = "layers/capability-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-chaos = { path = "layers/chaos", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-concurrent-limit = { path = "layers/concurrent-limit", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-fastmetrics = { path = "layers/fastmetrics", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-fastrace = { path = "layers/fastrace", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-foyer = { path = "layers/foyer", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-hedge = { path = "layers/hedge", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-hotpath = { path = "layers/hotpath", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-immutable-index = { path = "layers/immutable-index", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-logging = { path = "layers/logging", version = "0.59.5", optional = true, default-features = false }
@@ -270,6 +293,7 @@ opendal-layer-prometheus = { path = "layers/prometheus", version = "0.59.5", opt
 opendal-layer-prometheus-client = { path = "layers/prometheus-client", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-retry = { path = "layers/retry", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-route = { path = "layers/route", version = "0.59.5", optional = true, default-features = false }
+opendal-layer-sanity-check = { path = "layers/sanity-check", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-tail-cut = { path = "layers/tail-cut", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-throttle = { path = "layers/throttle", version = "0.59.5", optional = true, default-features = false }
 opendal-layer-timeout = { path = "layers/timeout", version = "0.59.5", optional = true, default-features = false }
@@ -304,6 +328,7 @@ opendal-service-gridfs = { path = "services/gridfs", version = "0.59.5", optiona
 opendal-service-hdfs = { path = "services/hdfs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-hdfs-native = { path = "services/hdfs-native", version = "0.59.5", optional = true, default-features = false }
 opendal-service-hf = { path = "services/hf", version = "0.59.5", optional = true, default-features = false }
+opendal-service-hf3fs = { path = "services/hf3fs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-http = { path = "services/http", version = "0.59.5", optional = true, default-features = false }
 opendal-service-ipfs = { path = "services/ipfs", version = "0.59.5", optional = true, default-features = false }
 opendal-service-ipmfs = { path = "services/ipmfs", version = "0.59.5", optional = true, default-features = false }
@@ -342,6 +367,9 @@ opendal-service-webhdfs = { path = "services/webhdfs", version = "0.59.5", optio
 opendal-service-yandex-disk = { path = "services/yandex-disk", version = "0.59.5", optional = true, default-features = false }
 opendal-testkit = { path = "testkit", version = "0.59.5", optional = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+opendal-executor-compio = { path = "executors/compio", version = "0.59.5", optional = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 opendal-layer-dtrace = { path = "layers/dtrace", version = "0.59.5", optional = true, default-features = false }
 
@@ -360,6 +388,6 @@ logforth = { workspace = true }
 rand = { workspace = true }
 reqwest = "0.13.2"
 sha2 = { workspace = true }
-size = "0.5"
+size = "0.6"
 tokio = { workspace = true, features = ["fs", "macros", "rt-multi-thread"] }
 uuid = { workspace = true, features = ["serde", "v4"] }

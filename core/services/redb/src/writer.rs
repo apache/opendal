@@ -48,7 +48,7 @@ impl oio::Write for RedbWriter {
         let length = buf.len() as u64;
         self.core.set(&self.path, buf)?;
 
-        let metadata = if self.path.ends_with('/') {
+        let metadata = if self.path.is_empty() || self.path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
             MetadataBuilder::file(length)

@@ -24,6 +24,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
 use std::task::Poll;
+use std::time::Duration;
 
 use futures::Stream;
 use futures::StreamExt;
@@ -141,7 +142,7 @@ impl TracingLayer {
 
 impl Layer for TracingLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(TracingService { inner })
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -157,19 +158,19 @@ impl Layer for TracingLayer {
     }
 }
 
-impl TracingLayer {
-    fn layer(&self, inner: Servicer) -> TracingService {
-        TracingService { inner }
-    }
-}
-
 struct TracingHttpTransport {
     inner: HttpTransporter,
 }
 
 impl HttpTransport for TracingHttpTransport {
     async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
-        let span = span!(Level::DEBUG, "http::fetch", ?req);
+        let span = span!(
+            Level::DEBUG,
+            "http::fetch",
+            method = %req.method(),
+            uri = %HttpUri::new(req.uri().to_string()).redacted_uri(),
+            version = ?req.version(),
+        );
 
         let resp = self.inner.fetch(req).instrument(span.clone()).await?;
 
@@ -190,8 +191,17 @@ impl Execute for TracingExecutor {
             .execute(Box::pin(f.instrument(Span::current())) as BoxedStaticFuture<()>)
     }
 
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(f.instrument(Span::current())))
+    }
+
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
         self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
     }
 }
 
@@ -212,9 +222,8 @@ where
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct TracingService {
+struct TracingService {
     inner: Servicer,
 }
 
@@ -329,8 +338,7 @@ impl Service for TracingService {
     }
 }
 
-#[doc(hidden)]
-pub struct TracingWrapper<R> {
+struct TracingWrapper<R> {
     span: Span,
     inner: R,
 }

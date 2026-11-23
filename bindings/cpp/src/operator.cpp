@@ -19,8 +19,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstdio>
-#include <ctime>
 
 #include "lib.rs.h"
 #include "opendal.hpp"
@@ -204,6 +202,19 @@ std::optional<bool> parse_optional_bool(ffi::OptionalBool &&b) {
   }
 }
 
+std::optional<std::chrono::system_clock::time_point> parse_optional_timestamp(
+    ffi::OptionalTimestamp &&ts) {
+  if (!ts.has_value) {
+    return std::nullopt;
+  }
+
+  auto duration = std::chrono::seconds(ts.seconds) +
+                  std::chrono::nanoseconds(ts.nanoseconds);
+  return std::chrono::system_clock::time_point(
+      std::chrono::duration_cast<std::chrono::system_clock::duration>(
+          duration));
+}
+
 Metadata parse_meta_data(ffi::Metadata &&meta) {
   Metadata metadata;
 
@@ -226,32 +237,8 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
   metadata.is_current = parse_optional_bool(std::move(meta.is_current));
   metadata.is_deleted = meta.is_deleted;
 
-  // Parse last_modified timestamp
-  auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
-  if (last_modified_str.has_value()) {
-    // Parse ISO 8601 string to time_point using strptime to avoid locale lock
-    std::tm tm = {};
-    const char *str = last_modified_str.value().c_str();
-
-    // Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS
-    int year, month, day, hour, minute, second;
-    if (sscanf(str, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute,
-               &second) == 6) {
-      tm.tm_year = year - 1900;  // years since 1900
-      tm.tm_mon = month - 1;     // months since January (0-11)
-      tm.tm_mday = day;
-      tm.tm_hour = hour;
-      tm.tm_min = minute;
-      tm.tm_sec = second;
-      tm.tm_isdst = -1;  // let mktime determine DST
-
-      std::time_t time_t_value = std::mktime(&tm);
-      if (time_t_value != -1) {
-        metadata.last_modified =
-            std::chrono::system_clock::from_time_t(time_t_value);
-      }
-    }
-  }
+  metadata.last_modified =
+      parse_optional_timestamp(std::move(meta.last_modified));
 
   return metadata;
 }
@@ -442,40 +429,43 @@ Writer Operator::GetWriter(std::string_view path, const WriteOptions &options) {
 
 }  // namespace opendal
 opendal::Capability opendal::Operator::Info() {
-  auto op_info = operator_->info();
-  return Capability{
-      .stat = op_info.stat,
-      .stat_with_if_match = op_info.stat_with_if_match,
-      .stat_with_if_none_match = op_info.stat_with_if_none_match,
-      .read = op_info.read,
-      .read_with_if_match = op_info.read_with_if_match,
-      .read_with_if_none_match = op_info.read_with_if_none_match,
-      .read_with_override_cache_control = op_info.read_with_override_cache_control,
-      .read_with_override_content_disposition =
-          op_info.read_with_override_content_disposition,
-      .read_with_override_content_type = op_info.read_with_override_content_type,
-      .write = op_info.write,
-      .write_can_multi = op_info.write_can_multi,
-      .write_can_empty = op_info.write_can_empty,
-      .write_can_append = op_info.write_can_append,
-      .write_with_content_type = op_info.write_with_content_type,
-      .write_with_content_disposition = op_info.write_with_content_disposition,
-      .write_with_cache_control = op_info.write_with_cache_control,
-      .write_multi_max_size = op_info.write_multi_max_size,
-      .write_multi_min_size = op_info.write_multi_min_size,
-      .write_total_max_size = op_info.write_total_max_size,
-      .create_dir = op_info.create_dir,
-      .delete_feature = op_info.delete_feature,
-      .copy = op_info.copy,
-      .rename = op_info.rename,
-      .list = op_info.list,
-      .list_with_limit = op_info.list_with_limit,
-      .list_with_start_after = op_info.list_with_start_after,
-      .list_with_recursive = op_info.list_with_recursive,
-      .presign = op_info.presign,
-      .presign_read = op_info.presign_read,
-      .presign_stat = op_info.presign_stat,
-      .presign_write = op_info.presign_write,
-      .shared = op_info.shared,
-  };
+  const auto op_info = operator_->info();
+  Capability capability{};
+  capability.stat = op_info.stat;
+  capability.stat_with_if_match = op_info.stat_with_if_match;
+  capability.stat_with_if_none_match = op_info.stat_with_if_none_match;
+  capability.read = op_info.read;
+  capability.read_with_if_match = op_info.read_with_if_match;
+  capability.read_with_if_none_match = op_info.read_with_if_none_match;
+  capability.read_with_override_cache_control =
+      op_info.read_with_override_cache_control;
+  capability.read_with_override_content_disposition =
+      op_info.read_with_override_content_disposition;
+  capability.read_with_override_content_type =
+      op_info.read_with_override_content_type;
+  capability.write = op_info.write;
+  capability.write_can_multi = op_info.write_can_multi;
+  capability.write_can_empty = op_info.write_can_empty;
+  capability.write_can_append = op_info.write_can_append;
+  capability.write_with_content_type = op_info.write_with_content_type;
+  capability.write_with_content_disposition =
+      op_info.write_with_content_disposition;
+  capability.write_with_cache_control = op_info.write_with_cache_control;
+  capability.write_multi_max_size = op_info.write_multi_max_size;
+  capability.write_multi_min_size = op_info.write_multi_min_size;
+  capability.write_total_max_size = op_info.write_total_max_size;
+  capability.create_dir = op_info.create_dir;
+  capability.delete_feature = op_info.delete_feature;
+  capability.copy = op_info.copy;
+  capability.rename = op_info.rename;
+  capability.list = op_info.list;
+  capability.list_with_limit = op_info.list_with_limit;
+  capability.list_with_start_after = op_info.list_with_start_after;
+  capability.list_with_recursive = op_info.list_with_recursive;
+  capability.presign = op_info.presign;
+  capability.presign_read = op_info.presign_read;
+  capability.presign_stat = op_info.presign_stat;
+  capability.presign_write = op_info.presign_write;
+  capability.shared = op_info.shared;
+  return capability;
 }

@@ -74,11 +74,15 @@ impl MemoryBackend {
             write_with_content_type: true,
             write_with_content_disposition: true,
             write_with_content_encoding: true,
+            write_with_content_language: true,
             write_with_if_not_exists: true,
+            write_with_user_metadata: true,
             delete: true,
+            delete_with_recursive: true,
             stat: true,
             list: true,
             list_with_recursive: true,
+            list_with_start_after: true,
             ..Default::default()
         };
 
@@ -126,9 +130,9 @@ impl Service for MemoryBackend {
     }
 
     async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.get(&p)? {
@@ -150,7 +154,7 @@ impl Service for MemoryBackend {
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
         Ok(MemoryWriter::new(self.core.clone(), p, args))
     }
 
@@ -162,8 +166,23 @@ impl Service for MemoryBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let p = build_abs_path(&self.root, path);
-        let keys = self.core.scan(&p)?;
+        let p = build_absolute_path(&self.root, path);
+        let start_after = args
+            .start_after()
+            .map(|v| build_absolute_path(&self.root, v));
+        let mut keys = self.core.scan(&p, start_after.as_deref())?;
+
+        // Non-recursive lists fold `d/x` and `d/y` into `d/`. If the marker is `d/` or `d/x`,
+        // `d/y` would still yield `d/`, which sorts at or before the marker, so drop all of `d/`.
+        if !args.recursive()
+            && let Some(marker) = start_after.as_deref()
+            && let Some(rest) = marker.strip_prefix(p.as_str())
+            && let Some(idx) = rest.find('/')
+        {
+            let dir = &marker[..p.len() + idx + 1];
+            keys.retain(|key| !key.starts_with(dir));
+        }
+
         let lister = MemoryLister::new(&self.root, keys);
         let lister = oio::HierarchyLister::new(lister, path, args.recursive());
 
@@ -217,7 +236,7 @@ impl oio::StreamRead for MemoryReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         let backend = &self.backend;
         let path = self.path.as_str();
-        let p = build_abs_path(&backend.root, path);
+        let p = build_absolute_path(&backend.root, path);
 
         let value = match backend.core.get(&p)? {
             Some(value) => value,
@@ -229,15 +248,201 @@ impl oio::StreamRead for MemoryReader {
             }
         };
 
-        let total_size = value.content.len() as u64;
         let content = value
             .content
             .slice(range.to_content_range(value.content.len())?);
-        let metadata = MetadataBuilder::file(total_size);
-        let metadata = metadata.build();
         Ok((
-            RpRead::new(metadata),
+            RpRead::new(value.metadata),
             Box::new(content) as Box<dyn oio::ReadStreamDyn>,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::*;
+
+    #[tokio::test]
+    async fn test_write_content_language_overwrite() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let written = op.write_with(path, "hello").content_language("en").await?;
+        assert_eq!(written.content_language(), Some("en"));
+        assert_eq!(op.stat(path).await?.content_language(), Some("en"));
+
+        op.write(path, "bonjour").await?;
+        assert_eq!(op.stat(path).await?.content_language(), None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_close_and_overwrite_user_metadata() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let mut writer = op
+            .writer_with(path)
+            .user_metadata([("owner".to_string(), "opendal".to_string())])
+            .await?;
+        writer.write("hello").await?;
+        let written = writer.close().await?;
+        assert_eq!(
+            written
+                .user_metadata()
+                .and_then(|metadata| metadata.get("owner")),
+            Some("opendal")
+        );
+
+        op.write_with(path, "bonjour").user_metadata([]).await?;
+        assert!(op.stat(path).await?.user_metadata().unwrap().is_empty());
+
+        op.write(path, "hello again").await?;
+        assert!(op.stat(path).await?.user_metadata().is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_with_start_after() {
+        // (name, path, recursive, start_after, expected)
+        let cases: &[(&str, &str, bool, &str, &[&str])] = &[
+            ("before prefix", "a/d/", true, "0", &["a/d/x", "a/d/y"]),
+            ("at key", "a/", true, "a/2", &["a/d/x", "a/d/y", "a/z"]),
+            ("between keys", "a/d/", true, "a/d/w", &["a/d/x", "a/d/y"]),
+            ("key in folder", "a/", true, "a/d/x", &["a/d/y", "a/z"]),
+            ("after prefix", "a/", true, "a0", &[]),
+            ("folds folders", "a/", false, "a/1", &["a/2", "a/d/", "a/z"]),
+            ("before folder", "a/", false, "a/c", &["a/d/", "a/z"]),
+            ("at folder skips it", "a/", false, "a/d/", &["a/z"]),
+            ("in folder skips it", "a/", false, "a/d/x", &["a/z"]),
+            ("prefix without slash", "a/d", false, "a/d/x", &[]),
+            ("list root", "/", false, "a/2", &["a0", "b/"]),
+            ("list root recursively", "/", true, "a0", &["b/1"]),
+        ];
+
+        for root in ["/", "/root/"] {
+            let op = Operator::new(services::Memory::default().root(root)).unwrap();
+            for path in ["a/1", "a/2", "a/d/x", "a/d/y", "a/z", "a0", "b/1"] {
+                op.write(path, "x").await.unwrap();
+            }
+
+            for &(name, path, recursive, start_after, expected) in cases {
+                let actual: Vec<String> = op
+                    .list_with(path)
+                    .recursive(recursive)
+                    .start_after(start_after)
+                    .await
+                    .unwrap()
+                    .into_iter()
+                    .map(|e| e.path().to_string())
+                    .collect();
+                assert_eq!(actual, expected, "{name} (root {root})");
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                services::Memory::default()
+            } else {
+                services::Memory::default().root(root)
+            };
+            let op = Operator::new(builder)?;
+            #[cfg(not(feature = "auto-simulate"))]
+            let op = op.layer(crate::layers::SimulateLayer::default());
+
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+            assert!(op.list("/").await?.is_empty());
+
+            op.create_dir("/").await?;
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+
+            for entries in [
+                op.list("/").await?,
+                op.list("").await?,
+                op.list_with("/").recursive(true).await?,
+                op.list_with("").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+
+            op.create_dir("a/").await?;
+            op.write("a/b.txt", "hello").await?;
+
+            let flat: Vec<_> = op
+                .list("/")
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                flat,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("a/".to_string(), EntryMode::DIR),
+                ],
+                "root {root}"
+            );
+
+            let recursive: Vec<_> = op
+                .list_with("/")
+                .recursive(true)
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                recursive,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("a/".to_string(), EntryMode::DIR),
+                    ("a/b.txt".to_string(), EntryMode::FILE),
+                ],
+                "root {root}"
+            );
+
+            let sub: Vec<_> = op
+                .list("a/")
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                sub,
+                vec![
+                    ("a/".to_string(), EntryMode::DIR),
+                    ("a/b.txt".to_string(), EntryMode::FILE),
+                ],
+                "root {root}"
+            );
+
+            let after_root: Vec<_> = op
+                .list_with("/")
+                .start_after("/")
+                .await?
+                .into_iter()
+                .map(|e| e.path().to_string())
+                .collect();
+            assert_eq!(after_root, vec!["a/".to_string()], "root {root}");
+
+            op.delete_with("a/").recursive(true).await?;
+            op.delete("/").await?;
+            assert!(op.list("/").await?.is_empty(), "root {root}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stored_as_dir_metadata() -> Result<()> {
+        let srv: crate::raw::Servicer = std::sync::Arc::new(services::Memory::default().build()?);
+        let op = Operator::from_parts(OperationContext::default(), srv)
+            .layer(crate::layers::SimulateLayer::default().with_stat_dir(false));
+        op.create_dir("a/").await?;
+        assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
+        Ok(())
     }
 }

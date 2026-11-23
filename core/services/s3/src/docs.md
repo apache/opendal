@@ -75,16 +75,16 @@ environment, profile, SSO, web identity, or external process providers.
 Configured static credentials retain their higher priority. [`crate::S3::role_arn`]
 continues to use the assembled provider as the source for role assumption, and
 [`crate::S3::credential_provider_chain`] continues to replace the assembled
-chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading
-and the environment/profile credential slots. Region environment lookup and
-other credential providers, including container credentials, remain enabled.
+chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading and
+the environment, profile, SSO, web-identity, and external process credential
+slots. Region environment lookup and compute metadata credential providers,
+including container credentials and EC2 instance metadata, remain enabled.
 
 ## S3 Express One Zone
 
-OpenDAL recognizes valid AWS directory bucket names on AWS endpoints and uses
-the bucket's zonal endpoint automatically. It creates and refreshes `ReadWrite`
-S3 Express sessions through the configured AWS credential provider. No extra
-configuration is required:
+OpenDAL recognizes valid AWS directory bucket names on AWS endpoints and
+automatically uses the bucket's virtual-hosted zonal endpoint. Set the bucket
+name and Region to connect with your configured AWS credentials.
 
 ```rust,no_run
 use opendal_core::Operator;
@@ -103,13 +103,38 @@ fn build_operator() -> Result<Operator> {
 This automatic behavior applies only to AWS endpoints. S3-compatible services
 retain the existing IAM authentication behavior.
 
-An explicit AWS endpoint must match the bucket's derived Zone, Region, and
-partition. OpenDAL rejects unsupported endpoint variants, including dual-stack
-endpoints, with `ConfigInvalid` instead of falling back to general S3 behavior.
+In the standard AWS partition, the zonal endpoint has the form
+`https://<bucket>.s3express-<zone-id>.<region>.amazonaws.com`. You can omit the
+endpoint or supply a matching AWS regional or zonal endpoint. OpenDAL also
+accepts `s3.amazonaws.com` in the standard AWS partition. OpenDAL rejects
+mismatched or unsupported AWS endpoints, including dual-stack endpoints, with
+[`opendal_core::ErrorKind::ConfigInvalid`].
 
-OpenDAL uses the source IAM credentials for `CopyObject`, `UploadPartCopy`, and
-presigned requests because these operations do not accept S3 Express session
-credentials.
+Grant `s3express:CreateSession` on the bucket and allow `ReadWrite` sessions.
+OpenDAL uses the configured AWS credentials to call `CreateSession` and refreshes
+sessions automatically. It signs `CopyObject`, `UploadPartCopy`, and presigned
+requests with the underlying IAM credentials.
+[See the AWS `CreateSession` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateSession.html).
+
+### Directory bucket behavior
+
+- **Listing.** By default, OpenDAL uses `ListObjectsV2` with `/` as the delimiter.
+  AWS accepts only `/` as a delimiter and requires nonempty request prefixes to
+  end in `/`.
+  OpenDAL's default operator filters directory listings for partial prefixes and
+  walks directories for recursive listings, which can require additional requests.
+  Leave `disable_list_objects_v2` unset. Directory buckets do not support
+  `start_after` or guarantee lexicographical order.
+  [See the AWS `ListObjectsV2` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjectsV2.html).
+- **Versioning and restore.** AWS directory buckets do not support S3 Versioning.
+  OpenDAL disables version-specific stat, read, delete, and copy-source options,
+  listing versions or delete markers, and `restore`.
+  [See the AWS `PutBucketVersioning` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutBucketVersioning.html).
+- **Writes.** OpenDAL supports conditional writes with `If-Match` and
+  `If-None-Match: *`, as well as appending to objects in the `EXPRESS_ONEZONE`
+  storage class. The service does not advertise `write_with_content_encoding`
+  for directory buckets.
+  [See the AWS `PutObject` API reference](https://docs.aws.amazon.com/AmazonS3/latest/API/API_PutObject.html).
 
 ## Temporary security credentials
 

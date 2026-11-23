@@ -41,6 +41,7 @@ use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
+use reqsign_core::ProvideCredentialDyn;
 use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
@@ -166,7 +167,7 @@ impl S3Builder {
     ///
     /// The configured profile takes precedence over the `AWS_PROFILE`
     /// environment variable and applies to shared AWS config and credentials
-    /// files and SSO.
+    /// files, SSO, and external process credentials.
     ///
     /// This setting has no effect when [`Self::disable_config_load`] is set or
     /// when [`Self::credential_provider_chain`] replaces the default chain.
@@ -495,13 +496,14 @@ impl S3Builder {
         self
     }
 
-    /// Disable automatic endpoint loading and the environment/profile
+    /// Disable automatic endpoint loading and ambient environment/profile
     /// credential providers.
     ///
     /// This skips endpoint environment variables and removes the static
-    /// environment and shared-profile credential slots. Region environment
-    /// lookup and other credential providers, including AWS container
-    /// credentials and EC2 instance metadata, remain enabled.
+    /// environment, shared-profile, SSO, web-identity, and external process
+    /// credential slots. Region environment lookup and compute metadata
+    /// credential providers, including AWS container credentials and EC2
+    /// instance metadata, remain enabled.
     pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
@@ -929,6 +931,12 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl S3Builder {
+    fn build_backend(self) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
         let S3Builder {
@@ -1059,11 +1067,15 @@ impl Builder for S3Builder {
         // operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut provider = {
+        let mut default_provider = {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
-                builder = builder.no_env().no_profile();
+                builder = builder.no_env().no_profile().no_web_identity();
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    builder = builder.no_sso().no_process();
+                }
             } else if let Some(profile) = config
                 .profile
                 .as_deref()
@@ -1103,7 +1115,7 @@ impl Builder for S3Builder {
                 builder = builder.ecs(ecs);
             }
 
-            ProvideCredentialChain::new().push(builder.build())
+            builder.build()
         };
 
         // Insert static key if user provided.
@@ -1113,17 +1125,20 @@ impl Builder for S3Builder {
             } else {
                 StaticCredentialProvider::new(ak, sk)
             };
-            provider = provider.push_front(static_provider);
+            default_provider = default_provider.push_front(static_provider);
         }
 
-        // Insert assume role provider if user provided.
-        if let Some(role_arn) = &config.role_arn {
+        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
+            credential_providers
+        {
+            Arc::new(chain)
+        } else if let Some(role_arn) = &config.role_arn {
             // The assume-role provider owns its STS signer, so give it a
             // concrete HTTP sender instead of relying on a future operation
             // context.
             let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
             let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, provider, sts_request_signer);
+            let sts_signer = Signer::new(sts_ctx, default_provider, sts_request_signer);
             let mut assume_role_provider =
                 AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
                     .with_region(region.clone())
@@ -1143,18 +1158,13 @@ impl Builder for S3Builder {
                 assume_role_provider = assume_role_provider
                     .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
             }
-            provider = ProvideCredentialChain::new().push(assume_role_provider);
-        }
-
-        // Replace provider if user provide their own.
-        let provider = if let Some(credential_providers) = credential_providers {
-            credential_providers
+            // Use AssumeRole directly so its STS error reaches the signer.
+            Arc::new(assume_role_provider)
         } else {
-            provider
+            Arc::new(default_provider)
         };
 
         let signers = if is_s3_express {
-            let provider = Arc::new(provider);
             let iam_signer = Signer::new(
                 ctx.clone(),
                 provider.clone(),
@@ -1210,6 +1220,7 @@ impl Builder for S3Builder {
                     write_with_content_type: true,
                     write_with_content_disposition: true,
                     write_with_content_encoding: !is_s3_express,
+                    write_with_content_language: true,
                     write_with_if_match: true,
                     write_with_if_not_exists: true,
                     write_with_user_metadata: true,
@@ -1245,6 +1256,9 @@ impl Builder for S3Builder {
                     copy_with_if_not_exists: true,
                     copy_with_if_match: true,
                     copy_with_source_version: !is_s3_express,
+                    copy_with_user_metadata: true,
+                    copy_with_content_type: true,
+                    copy_with_content_language: true,
                     // The min multipart size of S3 is 5 MiB.
                     //
                     // ref: <https://docs.aws.amazon.com/AmazonS3/latest/userguide/qfacts.html>
@@ -1503,7 +1517,7 @@ impl Service for S3Backend {
             quick_xml::de::from_reader(resp.into_body().reader())
                 .map_err(new_xml_deserialize_error)
                 .map_err(Error::set_temporary)?;
-        let abs_path = build_abs_path(&self.core.root, path);
+        let abs_path = build_absolute_path(&self.core.root, path);
 
         if output
             .version
@@ -1578,8 +1592,11 @@ impl Service for S3Backend {
 }
 #[cfg(test)]
 mod tests {
+    use std::collections::VecDeque;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
 
     use bytes::Bytes;
     use http::HeaderMap;
@@ -1587,6 +1604,7 @@ mod tests {
     use http::Method;
     use http::Request;
     use http::Response;
+    use reqsign_core::ProvideCredential;
 
     use super::*;
 
@@ -1705,6 +1723,8 @@ mod tests {
         outcome: CreateSessionOutcome,
         source_content_length: u64,
         source_version: Option<&'static str>,
+        head_status: StatusCode,
+        put_responses: Arc<Mutex<VecDeque<(StatusCode, Bytes)>>>,
         requests: Arc<Mutex<Vec<CapturedRequest>>>,
     }
 
@@ -1714,6 +1734,8 @@ mod tests {
                 outcome,
                 source_content_length: 1,
                 source_version: None,
+                head_status: StatusCode::OK,
+                put_responses: Arc::new(Mutex::new(VecDeque::new())),
                 requests: Arc::new(Mutex::new(Vec::new())),
             }
         }
@@ -1725,6 +1747,19 @@ mod tests {
 
         fn with_source_version(mut self, source_version: &'static str) -> Self {
             self.source_version = Some(source_version);
+            self
+        }
+
+        fn with_head_status(mut self, head_status: StatusCode) -> Self {
+            self.head_status = head_status;
+            self
+        }
+
+        fn with_put_response(self, status: StatusCode, body: impl Into<Bytes>) -> Self {
+            self.put_responses
+                .lock()
+                .expect("lock poisoned")
+                .push_back((status, body.into()));
             self
         }
 
@@ -1785,6 +1820,9 @@ mod tests {
             }
 
             if req.method() == Method::HEAD {
+                if self.head_status != StatusCode::OK {
+                    return Ok(Self::response(self.head_status, Bytes::new()));
+                }
                 let mut response = Self::response(StatusCode::OK, Bytes::new());
                 response.headers_mut().insert(
                     http::header::CONTENT_LENGTH,
@@ -1840,12 +1878,296 @@ mod tests {
                 ));
             }
 
+            if req.method() == Method::PUT
+                && let Some((status, body)) = self
+                    .put_responses
+                    .lock()
+                    .expect("lock poisoned")
+                    .pop_front()
+            {
+                let mut response = Self::response(status, body);
+                if status.is_success() {
+                    response
+                        .headers_mut()
+                        .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
+                }
+                return Ok(response);
+            }
+
             let mut response = Self::response(StatusCode::OK, Bytes::new());
             response
                 .headers_mut()
                 .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
             Ok(response)
         }
+    }
+
+    fn header_values<'a>(request: &'a CapturedRequest, name: &str) -> Vec<&'a str> {
+        request
+            .headers
+            .get_all(name)
+            .iter()
+            .map(|value| value.to_str().expect("header must be text"))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn test_append_existing_object_with_if_match() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5);
+        let op = s3_express_operator(transport.clone());
+
+        op.write_with("target", "world")
+            .append(true)
+            .content_type("text/plain")
+            .if_match("\"etag-1\"")
+            .await
+            .expect("conditional append to existing object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+        assert!(!put.headers.contains_key("if-none-match"));
+        assert!(!put.headers.contains_key("content-type"));
+
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>At least one of the pre-conditions you specified did not hold</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport);
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("412 response must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let no_such_key = "<Error><Code>NoSuchKey</Code>\
+            <Message>The specified key does not exist.</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::NOT_FOUND, no_such_key);
+        let op = s3_express_operator(transport);
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("404 NoSuchKey with if_match must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[tokio::test]
+    async fn test_append_existing_object_with_if_not_exists() {
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>At least one of the pre-conditions you specified did not hold</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport.clone());
+
+        let err = op
+            .write_with("target", "world")
+            .append(true)
+            .if_not_exists(true)
+            .await
+            .expect_err("append with if_not_exists on existing object must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
+    }
+
+    #[tokio::test]
+    async fn test_append_new_object_sends_metadata_and_condition_once() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND);
+        let op = s3_express_operator(transport.clone());
+
+        op.write_with("target", "hello")
+            .append(true)
+            .content_type("text/plain")
+            .if_not_exists(true)
+            .await
+            .expect("append creating new object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header(put, "content-length"), "5");
+        assert_eq!(header(put, "content-type"), "text/plain");
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
+
+        let no_such_key = "<Error><Code>NoSuchKey</Code>\
+            <Message>The specified key does not exist.</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND)
+            .with_put_response(StatusCode::NOT_FOUND, no_such_key);
+        let op = s3_express_operator(transport.clone());
+
+        let err = op
+            .write_with("target", "hello")
+            .append(true)
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("append with if_match on missing object must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+    }
+
+    #[tokio::test]
+    async fn test_append_multi_chunk_applies_condition_only_to_first_append() {
+        const CHUNK_SIZE: usize = 5 * 1024 * 1024;
+        let first_chunk = vec![b'a'; CHUNK_SIZE];
+
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_head_status(StatusCode::NOT_FOUND);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .content_type("text/plain")
+            .if_not_exists(true)
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk.clone())
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let requests = transport.requests();
+        let puts: Vec<_> = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect();
+        assert_eq!(puts.len(), 2);
+        assert_eq!(header(puts[0], constants::X_AMZ_WRITE_OFFSET_BYTES), "0");
+        assert_eq!(header(puts[0], "content-type"), "text/plain");
+        assert_eq!(header_values(puts[0], "if-none-match"), vec!["*"]);
+        assert_eq!(
+            header(puts[1], constants::X_AMZ_WRITE_OFFSET_BYTES),
+            CHUNK_SIZE.to_string()
+        );
+        assert!(!puts[1].headers.contains_key("content-type"));
+        assert!(!puts[1].headers.contains_key("if-none-match"));
+
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5);
+        let op = s3_express_operator(transport.clone());
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .if_match("\"etag-0\"")
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk.clone())
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk must succeed");
+        writer.close().await.expect("close must succeed");
+
+        let requests = transport.requests();
+        let puts: Vec<_> = requests
+            .iter()
+            .filter(|request| request.method == Method::PUT)
+            .collect();
+        assert_eq!(puts.len(), 2);
+        assert_eq!(header(puts[0], constants::X_AMZ_WRITE_OFFSET_BYTES), "5");
+        assert_eq!(header_values(puts[0], "if-match"), vec!["\"etag-0\""]);
+        assert_eq!(
+            header(puts[1], constants::X_AMZ_WRITE_OFFSET_BYTES),
+            (5 + CHUNK_SIZE).to_string()
+        );
+        assert!(!puts[1].headers.contains_key("if-match"));
+
+        let precondition_failed = "<Error><Code>PreconditionFailed</Code>\
+            <Message>unrelated precondition</Message></Error>";
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success)
+            .with_source_content_length(5)
+            .with_put_response(StatusCode::OK, Bytes::new())
+            .with_put_response(StatusCode::PRECONDITION_FAILED, precondition_failed);
+        let op = s3_express_operator(transport);
+
+        let mut writer = op
+            .writer_with("target")
+            .append(true)
+            .chunk(CHUNK_SIZE)
+            .if_match("\"etag-0\"")
+            .await
+            .expect("writer must initialize");
+        writer
+            .write(first_chunk)
+            .await
+            .expect("first chunk must succeed");
+        writer
+            .write("world")
+            .await
+            .expect("second chunk buffered before close");
+        let err = writer
+            .close()
+            .await
+            .expect_err("second chunk 412 without caller condition must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_put_object_sends_conditional_headers_once() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.write_with("target", "hello")
+            .content_type("text/plain")
+            .if_match("\"etag-1\"")
+            .if_not_exists(true)
+            .await
+            .expect("put object must succeed");
+
+        let requests = transport.requests();
+        let put = requests
+            .iter()
+            .find(|request| request.method == Method::PUT)
+            .expect("PUT request must be captured");
+        assert_eq!(header(put, "content-type"), "text/plain");
+        assert_eq!(header_values(put, "if-match"), vec!["\"etag-1\""]);
+        assert_eq!(header_values(put, "if-none-match"), vec!["*"]);
     }
 
     #[tokio::test]
@@ -2186,6 +2508,37 @@ mod tests {
         assert_eq!(transport.requests().len(), requests.len());
     }
 
+    #[test]
+    fn test_s3_upload_part_copy_sends_zero_content_length() {
+        let backend = S3Builder::default()
+            .bucket("test")
+            .region("us-east-1")
+            .build_backend()
+            .unwrap();
+        let request = backend
+            .core
+            .s3_upload_part_copy_request(S3UploadPartCopyRequest {
+                from: "source",
+                to: "target",
+                source_version: None,
+                if_match: None,
+                if_none_match: None,
+                if_modified_since: None,
+                if_unmodified_since: None,
+                upload_id: "upload",
+                part_number: 1,
+                range: (0_u64..5 * 1024 * 1024).into(),
+                operation: Operation::Copy,
+            })
+            .unwrap();
+
+        assert_eq!(
+            request.headers().get(http::header::CONTENT_LENGTH),
+            Some(&HeaderValue::from_static("0"))
+        );
+        assert!(request.body().is_empty());
+    }
+
     #[tokio::test]
     async fn test_s3_express_upload_part_copy_uses_iam_credentials() {
         let source_content_length = 5 * 1024 * 1024 + 1;
@@ -2232,6 +2585,63 @@ mod tests {
             1,
             "session operations in multipart copy must share one session"
         );
+    }
+
+    #[tokio::test]
+    async fn test_s3_copy_replaces_metadata() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "source")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_type("text/plain")
+            .content_language("fr-CA, en")
+            .source_content_length_hint(7)
+            .await
+            .expect("same-key copy with new metadata must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(
+            header(&requests[0], constants::X_AMZ_METADATA_DIRECTIVE),
+            "REPLACE"
+        );
+        assert_eq!(header(&requests[0], "x-amz-meta-mtime"), "42");
+        assert_eq!(header(&requests[0], "content-type"), "text/plain");
+        assert_eq!(header(&requests[0], "content-language"), "fr-CA, en");
+
+        op.copy_with("source", "target")
+            .source_content_length_hint(7)
+            .await
+            .expect("copy must succeed");
+        let requests = transport.requests();
+        assert!(
+            !requests[1]
+                .headers
+                .contains_key(constants::X_AMZ_METADATA_DIRECTIVE)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_s3_multipart_copy_sets_metadata_on_create() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let op = s3_general_operator(transport.clone());
+
+        op.copy_with("source", "target")
+            .user_metadata([("mtime".to_owned(), "42".to_owned())])
+            .content_language("es-MX")
+            .source_content_length_hint(5 * 1024 * 1024 + 1)
+            .chunk(5 * 1024 * 1024)
+            .await
+            .expect("multipart copy must succeed");
+
+        let requests = transport.requests();
+        let create = requests
+            .iter()
+            .find(|request| request.uri.query() == Some("uploads"))
+            .expect("CreateMultipartUpload request must be captured");
+        assert_eq!(header(create, "x-amz-meta-mtime"), "42");
+        assert_eq!(header(create, "content-language"), "es-MX");
     }
 
     #[tokio::test]
@@ -2361,6 +2771,592 @@ mod tests {
             assert_eq!(err.kind(), kind);
             assert_eq!(err.is_temporary(), temporary);
         }
+    }
+
+    #[derive(Debug)]
+    struct FailingOnceCredentialProvider {
+        error: Mutex<Option<reqsign_core::Error>>,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl ProvideCredential for FailingOnceCredentialProvider {
+        type Credential = Credential;
+
+        async fn provide_credential(
+            &self,
+            ctx: &Context,
+        ) -> reqsign_core::Result<Option<Self::Credential>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(err) = self.error.lock().expect("lock poisoned").take() {
+                return Err(err);
+            }
+            StaticCredentialProvider::new("provider-access-key", "provider-secret-key")
+                .provide_credential(ctx)
+                .await
+        }
+    }
+
+    fn s3_general_operator_with_provider(
+        error: reqsign_core::Error,
+        transport: S3ExpressMockTransport,
+    ) -> (Operator, Arc<AtomicUsize>) {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = FailingOnceCredentialProvider {
+            error: Mutex::new(Some(error)),
+            calls: calls.clone(),
+        };
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build_backend()
+            .expect("S3 backend must build");
+        let mut core = Arc::into_inner(backend.core).expect("S3 core must not be shared");
+        core.signers = S3Signers::General(Signer::new(
+            Context::new(),
+            provider,
+            AwsV4Signer::new("s3", "us-west-2"),
+        ));
+        let service = Arc::new(S3Backend {
+            core: Arc::new(core),
+        }) as Servicer;
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
+        (Operator::from_parts(ctx, service), calls)
+    }
+
+    #[tokio::test]
+    async fn test_s3_retryable_credential_error_is_temporary() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let (op, calls) = s3_general_operator_with_provider(
+            reqsign_core::Error::unexpected("failed to send AWS STS AssumeRole request")
+                .set_retryable(true),
+            transport.clone(),
+        );
+
+        let err = op
+            .stat("test")
+            .await
+            .expect_err("credential failure must reach the caller");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(transport.requests().is_empty());
+
+        op.stat("test")
+            .await
+            .expect("retry must load the credential and sign the request");
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(header(&transport.requests()[0], "authorization").contains("provider-access-key/"));
+    }
+
+    #[tokio::test]
+    async fn test_s3_persistent_credential_error_is_not_temporary() {
+        let transport = S3ExpressMockTransport::new(CreateSessionOutcome::Success);
+        let (op, calls) = s3_general_operator_with_provider(
+            reqsign_core::Error::credential_invalid("failed to load signing credential"),
+            transport.clone(),
+        );
+
+        let err = op
+            .stat("test")
+            .await
+            .expect_err("credential failure must reach the caller");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert!(transport.requests().is_empty());
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[derive(Debug)]
+    struct ExpiredSsoSession;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::FileRead for ExpiredSsoSession {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-west-2\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "expired-token",
+                    "expiresAt": "2000-01-01T00:00:00Z",
+                    "refreshToken": "test-refresh-token",
+                    "clientId": "test-client-id",
+                    "clientSecret": "test-client-secret",
+                    "registrationExpiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    impl reqsign_core::HttpSend for ExpiredSsoSession {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            assert_eq!(request.method(), Method::POST);
+            assert_eq!(request.uri(), "https://oidc.us-west-2.amazonaws.com/token");
+            Ok(Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .body(Bytes::new())
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_default_credentials_preserve_retryable_sso_refresh_error() {
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-west-2")
+            .endpoint("https://s3.us-west-2.amazonaws.com")
+            .profile("sso-test")
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                ..Default::default()
+            })
+            .with_file_read(ExpiredSsoSession)
+            .with_http_send(ExpiredSsoSession);
+        let (mut parts, ()) = Request::get("https://example.s3.us-west-2.amazonaws.com/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        let err = backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert!(err.is_retryable(), "{err:?}");
+        assert!(err.to_string().contains("SSO token refresh returned 503"));
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct AmbientCredentialSources {
+        file_reads: Arc<AtomicUsize>,
+        command_calls: Arc<AtomicUsize>,
+        http_calls: Arc<AtomicUsize>,
+    }
+
+    impl reqsign_core::FileRead for AmbientCredentialSources {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            self.file_reads.fetch_add(1, Ordering::SeqCst);
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-east-1\n\
+                 [profile process-test]\n\
+                 credential_process = fake-cred-helper\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "valid-sso-token",
+                    "expiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else if path == std::path::Path::new("test-home/web-identity-token") {
+                "test-web-identity-jwt"
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    impl reqsign_core::CommandExecute for AmbientCredentialSources {
+        async fn command_execute(
+            &self,
+            program: &str,
+            args: &[&str],
+        ) -> reqsign_core::Result<reqsign_core::CommandOutput> {
+            self.command_calls.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(program, "fake-cred-helper");
+            assert!(args.is_empty());
+            Ok(reqsign_core::CommandOutput {
+                status: 0,
+                stdout:
+                    br#"{"Version":1,"AccessKeyId":"process-ak","SecretAccessKey":"process-sk"}"#
+                        .to_vec(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    impl reqsign_core::HttpSend for AmbientCredentialSources {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            self.http_calls.fetch_add(1, Ordering::SeqCst);
+            let host = request.uri().host().unwrap_or_default();
+            let body = if host == "portal.sso.us-east-1.amazonaws.com" {
+                r#"{"roleCredentials":{"accessKeyId":"sso-ak","secretAccessKey":"sso-sk","sessionToken":"sso-token","expiration":4102444800000}}"#
+            } else if host.starts_with("sts.") {
+                "<AssumeRoleWithWebIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">\
+                    <AssumeRoleWithWebIdentityResult>\
+                        <Credentials>\
+                            <AccessKeyId>web-identity-ak</AccessKeyId>\
+                            <SecretAccessKey>web-identity-sk</SecretAccessKey>\
+                            <SessionToken>web-identity-token</SessionToken>\
+                            <Expiration>2099-01-01T00:00:00Z</Expiration>\
+                        </Credentials>\
+                    </AssumeRoleWithWebIdentityResult>\
+                 </AssumeRoleWithWebIdentityResponse>"
+            } else if host == "169.254.170.2" {
+                r#"{"AccessKeyId":"ecs-ak","SecretAccessKey":"ecs-sk","Token":"ecs-token","Expiration":"2099-01-01T00:00:00Z"}"#
+            } else {
+                panic!("unexpected HTTP credential request: {}", request.uri());
+            };
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::from_static(body.as_bytes()))
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_disable_config_load_skips_sso_and_process_credentials() {
+        for (profile, expected_ak, expect_command, expect_http) in [
+            ("sso-test", "sso-ak", 0, 1),
+            ("process-test", "process-ak", 1, 0),
+        ] {
+            let sources = AmbientCredentialSources::default();
+            let enabled_backend = S3Builder::default()
+                .bucket("example")
+                .region("us-east-1")
+                .endpoint("https://s3.us-east-1.amazonaws.com")
+                .profile(profile)
+                .disable_ec2_metadata()
+                .build_backend()
+                .unwrap();
+            let ctx = Context::new()
+                .with_env(reqsign_core::StaticEnv {
+                    home_dir: Some("test-home".into()),
+                    envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
+                })
+                .with_file_read(sources.clone())
+                .with_command_execute(sources.clone())
+                .with_http_send(sources.clone());
+            let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+                .body(())
+                .unwrap()
+                .into_parts();
+            enabled_backend
+                .core
+                .signers
+                .default()
+                .clone()
+                .with_context(ctx)
+                .sign(&mut parts, None)
+                .await
+                .unwrap_or_else(|err| {
+                    panic!("profile {profile} must load without disable_config_load: {err:?}")
+                });
+            let auth = parts
+                .headers
+                .get(http::header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            assert!(
+                auth.contains(&format!("Credential={expected_ak}/")),
+                "{auth}"
+            );
+            assert_eq!(sources.command_calls.load(Ordering::SeqCst), expect_command);
+            assert_eq!(sources.http_calls.load(Ordering::SeqCst), expect_http);
+
+            let disabled_sources = AmbientCredentialSources::default();
+            let disabled_backend = S3Builder::default()
+                .bucket("example")
+                .region("us-east-1")
+                .endpoint("https://s3.us-east-1.amazonaws.com")
+                .profile(profile)
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .build_backend()
+                .unwrap();
+            let ctx = Context::new()
+                .with_env(reqsign_core::StaticEnv {
+                    home_dir: Some("test-home".into()),
+                    envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
+                })
+                .with_file_read(disabled_sources.clone())
+                .with_command_execute(disabled_sources.clone())
+                .with_http_send(disabled_sources.clone());
+            let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+                .body(())
+                .unwrap()
+                .into_parts();
+            let err = disabled_backend
+                .core
+                .signers
+                .default()
+                .clone()
+                .with_context(ctx)
+                .sign(&mut parts, None)
+                .await
+                .expect_err("disable_config_load must not load sso or process credentials");
+            assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+            assert_eq!(disabled_sources.file_reads.load(Ordering::SeqCst), 0);
+            assert_eq!(disabled_sources.command_calls.load(Ordering::SeqCst), 0);
+            assert_eq!(disabled_sources.http_calls.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_skips_web_identity_credentials() {
+        let env = HashMap::from([
+            (
+                "AWS_ROLE_ARN".to_string(),
+                "arn:aws:iam::000000000000:role/web-identity".to_string(),
+            ),
+            (
+                "AWS_WEB_IDENTITY_TOKEN_FILE".to_string(),
+                "test-home/web-identity-token".to_string(),
+            ),
+            ("AWS_REGION".to_string(), "us-east-1".to_string()),
+        ]);
+
+        let sources = AmbientCredentialSources::default();
+        let enabled_backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: env.clone(),
+            })
+            .with_file_read(sources.clone())
+            .with_command_execute(sources.clone())
+            .with_http_send(sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+        enabled_backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect("web identity must load without disable_config_load");
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=web-identity-ak/"), "{auth}");
+        assert_eq!(sources.http_calls.load(Ordering::SeqCst), 1);
+
+        let disabled_sources = AmbientCredentialSources::default();
+        let disabled_backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: env,
+            })
+            .with_file_read(disabled_sources.clone())
+            .with_command_execute(disabled_sources.clone())
+            .with_http_send(disabled_sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = disabled_backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect_err("disable_config_load must not load web identity credentials");
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert_eq!(disabled_sources.file_reads.load(Ordering::SeqCst), 0);
+        assert_eq!(disabled_sources.http_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_keeps_container_credentials_enabled() {
+        let sources = AmbientCredentialSources::default();
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .container_credentials_endpoint("http://169.254.170.2/v2/credentials/test")
+            .build_backend()
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: HashMap::from([
+                    ("AWS_PROFILE".to_string(), "sso-test".to_string()),
+                    (
+                        "AWS_ROLE_ARN".to_string(),
+                        "arn:aws:iam::000000000000:role/web-identity".to_string(),
+                    ),
+                    (
+                        "AWS_WEB_IDENTITY_TOKEN_FILE".to_string(),
+                        "test-home/web-identity-token".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(sources.clone())
+            .with_command_execute(sources.clone())
+            .with_http_send(sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect("container credentials must still load when disable_config_load is set");
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=ecs-ak/"), "{auth}");
+        assert_eq!(sources.file_reads.load(Ordering::SeqCst), 0);
+        assert_eq!(sources.command_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(sources.http_calls.load(Ordering::SeqCst), 1);
+    }
+
+    struct StsErrorResponse {
+        status: StatusCode,
+        body: &'static str,
+    }
+
+    impl HttpTransport for StsErrorResponse {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(request.uri().host(), Some("sts.us-west-2.amazonaws.com"));
+            assert!(request.uri().query().unwrap().contains("Action=AssumeRole"));
+            let body = Buffer::from(self.body);
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_assume_role_preserves_sts_error() {
+        for (status, code, body, temporary) in [
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                "ServiceUnavailable",
+                "<ErrorResponse><Error><Code>ServiceUnavailable</Code>\
+                 <Message>Try again</Message></Error></ErrorResponse>",
+                true,
+            ),
+            (
+                StatusCode::FORBIDDEN,
+                "AccessDenied",
+                "<ErrorResponse><Error><Code>AccessDenied</Code>\
+                 <Message>Forbidden</Message></Error></ErrorResponse>",
+                false,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .disable_config_load()
+                    .disable_ec2_metadata()
+                    .access_key_id("test-access-key")
+                    .secret_access_key("test-secret-key")
+                    .role_arn("arn:aws:iam::000000000000:role/example"),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(StsErrorResponse { status, body })),
+            );
+
+            let err = op.stat("test").await.unwrap_err();
+            assert_eq!(err.is_temporary(), temporary, "{err:?}");
+            let source = std::error::Error::source(&err).unwrap();
+            assert!(source.to_string().contains(code), "{err:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_custom_credential_chain_overrides_assume_role_and_static_keys() {
+        let chain = ProvideCredentialChain::new().push(StaticCredentialProvider::new(
+            "custom-access-key",
+            "custom-secret-key",
+        ));
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .access_key_id("test-access-key")
+                .secret_access_key("test-secret-key")
+                .role_arn("arn:aws:iam::000000000000:role/example")
+                .credential_provider_chain(chain),
+        )
+        .unwrap();
+
+        let request = op
+            .presign_read("test", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        let url = Url::parse(&request.uri().to_string()).unwrap();
+        let credential = url
+            .query_pairs()
+            .find_map(|(key, value)| (key == "X-Amz-Credential").then_some(value))
+            .unwrap();
+        assert_eq!(credential.split('/').next(), Some("custom-access-key"));
     }
 
     #[test]
@@ -2588,7 +3584,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_presign_write_preserves_content_type() {
+    async fn test_presign_write_preserves_content_headers() {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
@@ -2602,6 +3598,7 @@ mod tests {
             &backend.capability(),
             options::WriteOptions {
                 content_type: Some("application/json".to_owned()),
+                content_language: Some("fr-CA".to_owned()),
                 ..Default::default()
             },
         )
@@ -2617,6 +3614,13 @@ mod tests {
         assert_eq!(
             presigned.header().get(http::header::CONTENT_TYPE).unwrap(),
             "application/json"
+        );
+        assert_eq!(
+            presigned
+                .header()
+                .get(http::header::CONTENT_LANGUAGE)
+                .unwrap(),
+            "fr-CA"
         );
     }
 

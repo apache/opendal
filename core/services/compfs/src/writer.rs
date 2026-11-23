@@ -26,6 +26,9 @@ use super::core::{CompfsBuffer, CompfsCore};
 use opendal_core::raw::*;
 use opendal_core::*;
 
+/// Maximum number of slices submitted in one vectored write.
+const MAX_IOV: usize = 1024;
+
 #[derive(Debug)]
 pub struct CompfsWriter {
     core: Arc<CompfsCore>,
@@ -51,7 +54,11 @@ impl oio::Write for CompfsWriter {
         let pos = self
             .core
             .exec(move || async move {
-                buf_try!(@try file.write_vectored_all(compfs_buf).await);
+                for batch in compfs_buf.0.chunks(MAX_IOV) {
+                    buf_try!(@try file
+                        .write_vectored_all(CompfsBuffer(batch.to_vec()))
+                        .await);
+                }
                 Ok(file.position())
             })
             .await?;
@@ -80,5 +87,34 @@ impl oio::Write for CompfsWriter {
             ErrorKind::Unsupported,
             "cannot abort completion-based operations",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bytes::Bytes;
+    use opendal_core::Buffer;
+    use opendal_core::Operator;
+
+    use crate::Compfs;
+
+    #[tokio::test]
+    async fn test_write_buffer_with_more_than_iov_max_chunks() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op = Operator::new(Compfs::default().root(temp_dir.path().to_str().unwrap())).unwrap();
+
+        let chunks = (0..2048)
+            .map(|i| Bytes::from(vec![(i % 251) as u8]))
+            .collect::<Vec<_>>();
+        let mut expected = chunks.iter().flatten().copied().collect::<Vec<_>>();
+
+        let mut writer = op.writer("many-chunks").await.unwrap();
+        writer.write(Buffer::from(chunks)).await.unwrap();
+        writer.write(Bytes::from_static(b"tail")).await.unwrap();
+        writer.close().await.unwrap();
+        expected.extend_from_slice(b"tail");
+
+        let actual = op.read("many-chunks").await.unwrap().to_bytes();
+        assert_eq!(actual.as_ref(), expected.as_slice());
     }
 }

@@ -83,7 +83,10 @@ impl MemcachedBuilder {
         self
     }
 
-    /// Set the default ttl for memcached services.
+    /// Set the default TTL for writes without a per-write expiration.
+    ///
+    /// Positive durations are rounded up to whole seconds and must not exceed
+    /// 30 days. A zero duration disables expiration.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
         self
@@ -117,7 +120,7 @@ impl Builder for MemcachedBuilder {
                 .transpose()?,
         };
         if let Some(ttl) = default_ttl
-            && ttl.as_secs() > MAX_RELATIVE_EXPIRATION_SECS
+            && ttl > Duration::from_secs(MAX_RELATIVE_EXPIRATION_SECS)
         {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -238,6 +241,7 @@ impl MemcachedBackend {
             stat: true,
             write: true,
             write_can_empty: true,
+            write_with_expires: true,
             delete: true,
             shared: true,
             ..Default::default()
@@ -287,9 +291,9 @@ impl Service for MemcachedBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p).await?;
@@ -314,13 +318,13 @@ impl Service for MemcachedBackend {
         Ok(output)
     }
 
-    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        let output: MemcachedWriter = {
-            let p = build_abs_path(&self.root, path);
-            Ok(MemcachedWriter::new(self.core.clone(), p))
-        }?;
-
-        Ok(output)
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let path = build_absolute_path(&self.root, path);
+        Ok(MemcachedWriter::new(
+            self.core.clone(),
+            path,
+            args.expires(),
+        ))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -410,11 +414,16 @@ mod tests {
             .build();
         assert!(ok.is_ok(), "thirty days exactly must still be accepted");
 
-        let err = MemcachedBuilder::default()
-            .endpoint("tcp://127.0.0.1:11211")
-            .default_ttl(thirty_days + Duration::from_secs(1))
-            .build()
-            .expect_err("a ttl over thirty days must be rejected");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        for ttl in [
+            thirty_days + Duration::from_nanos(1),
+            thirty_days + Duration::from_secs(1),
+        ] {
+            let err = MemcachedBuilder::default()
+                .endpoint("tcp://127.0.0.1:11211")
+                .default_ttl(ttl)
+                .build()
+                .expect_err("a ttl over thirty days must be rejected");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
     }
 }

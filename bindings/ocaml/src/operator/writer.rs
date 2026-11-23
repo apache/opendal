@@ -19,8 +19,10 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("writer -> bytes -> (unit, string) Result.t ")]
-pub fn writer_write(writer: &mut Writer, bs: &'static [u8]) -> Result<(), String> {
-    map_res_error(writer.0.write(bs))
+pub fn writer_write(writer: &mut Writer, bs: &[u8]) -> Result<(), String> {
+    // Core may retain the buffer after this call, but `bs` points into the OCaml
+    // heap and can be mutated or moved by the GC. Hand over an owned copy.
+    map_res_error(writer.0.write(bs.to_vec()))
 }
 
 #[ocaml::func]

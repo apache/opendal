@@ -33,3 +33,6 @@ pub use registry::{OperatorFactory, OperatorRegistry};
 
 mod uri;
 pub use uri::{IntoOperatorUri, OperatorUri};
+
+#[cfg(test)]
+mod capability_tests;

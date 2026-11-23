@@ -28,11 +28,13 @@ use redis::IntoConnectionInfo;
 use redis::ProtocolVersion;
 use redis::RedisConnectionInfo;
 use redis::cluster::ClusterClientBuilder;
+use redis::cluster_read_routing::RandomReplicaStrategy;
 
 use super::REDIS_SCHEME;
 use super::config::RedisConfig;
 use super::core::*;
 use super::deleter::RedisDeleter;
+use super::lister::RedisLister;
 use super::reader::*;
 use super::writer::RedisWriter;
 
@@ -74,6 +76,17 @@ impl RedisBuilder {
         if !cluster_endpoints.is_empty() {
             self.config.cluster_endpoints = Some(cluster_endpoints.to_owned());
         }
+        self
+    }
+
+    /// Route read-only commands for `read` and `stat` to Redis Cluster replicas when available.
+    ///
+    /// Defaults to `false`. Enabling this option requires [`Self::cluster_endpoints`].
+    /// Replication lag can cause stale results. For example, `read` or `stat` can
+    /// briefly return `ErrorKind::NotFound` for a just-written key. OpenDAL returns
+    /// a replica miss without retrying on the primary.
+    pub fn read_from_replicas(mut self, enabled: bool) -> Self {
+        self.config.read_from_replicas = enabled;
         self
     }
 
@@ -145,6 +158,20 @@ impl Builder for RedisBuilder {
     type Config = RedisConfig;
 
     fn build(self) -> Result<impl Service> {
+        if self.config.read_from_replicas
+            && self
+                .config
+                .cluster_endpoints
+                .as_deref()
+                .is_none_or(str::is_empty)
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read_from_replicas requires cluster_endpoints",
+            )
+            .with_context("service", REDIS_SCHEME));
+        }
+
         let default_ttl = match self.default_ttl {
             Some(ttl) => Some(ttl),
             None => self
@@ -161,12 +188,15 @@ impl Builder for RedisBuilder {
                 .as_str(),
         );
 
-        if let Some(endpoints) = self.config.cluster_endpoints.clone() {
+        let core = if let Some(endpoints) = self.config.cluster_endpoints.clone() {
             let mut cluster_endpoints: Vec<ConnectionInfo> = Vec::default();
             for endpoint in endpoints.split(',') {
                 cluster_endpoints.push(self.get_connection_info(endpoint.to_string())?);
             }
             let mut client_builder = ClusterClientBuilder::new(cluster_endpoints);
+            if self.config.read_from_replicas {
+                client_builder = client_builder.read_routing_strategy(RandomReplicaStrategy);
+            }
             if let Some(username) = &self.config.username {
                 client_builder = client_builder.username(username.clone());
             }
@@ -175,14 +205,13 @@ impl Builder for RedisBuilder {
             }
             let client = client_builder.build().map_err(format_redis_error)?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoints,
                 None,
                 Some(client),
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
+            )
         } else {
             let endpoint = self
                 .config
@@ -199,15 +228,36 @@ impl Builder for RedisBuilder {
                         .set_source(e)
                 })?;
 
-            Ok(RedisBackend::new(RedisCore::new(
+            RedisCore::new(
                 endpoint,
                 Some(client),
                 None,
                 default_ttl,
                 self.config.connection_pool_max_size,
-            ))
-            .with_normalized_root(root))
-        }
+            )
+        };
+
+        let capability = Capability {
+            read: true,
+            write: true,
+            delete: true,
+            stat: true,
+            // A cluster SCAN cursor only covers the node that issued it.
+            list: self.config.cluster_endpoints.is_none(),
+            list_with_limit: self.config.cluster_endpoints.is_none(),
+            list_with_recursive: self.config.cluster_endpoints.is_none(),
+            write_can_empty: true,
+            write_with_expires: true,
+            shared: true,
+            ..Default::default()
+        };
+
+        Ok(RedisBackend {
+            info: ServiceInfo::new(REDIS_SCHEME, &root, core.addr()),
+            core: Arc::new(core),
+            root,
+            capability,
+        })
     }
 }
 
@@ -288,38 +338,10 @@ pub struct RedisBackend {
     pub(crate) capability: Capability,
 }
 
-impl RedisBackend {
-    fn new(core: RedisCore) -> Self {
-        let info = ServiceInfo::new(REDIS_SCHEME, "/", core.addr());
-        let capability = Capability {
-            read: true,
-            write: true,
-            delete: true,
-            stat: true,
-            write_can_empty: true,
-            shared: true,
-            ..Default::default()
-        };
-
-        Self {
-            core: Arc::new(core),
-            root: "/".to_string(),
-            info,
-            capability,
-        }
-    }
-
-    fn with_normalized_root(mut self, root: String) -> Self {
-        self.info = self.info.with_root(&root);
-        self.root = root;
-        self
-    }
-}
-
 impl Service for RedisBackend {
     type Reader = oio::StreamReader<RedisReader>;
     type Writer = RedisWriter;
-    type Lister = ();
+    type Lister = RedisLister;
     type Deleter = oio::OneShotDeleter<RedisDeleter>;
     type Copier = ();
     type Composer = ();
@@ -345,9 +367,9 @@ impl Service for RedisBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             match self.core.len(&p).await? {
@@ -372,13 +394,9 @@ impl Service for RedisBackend {
         Ok(output)
     }
 
-    fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
-        let output: RedisWriter = {
-            let p = build_abs_path(&self.root, path);
-            Ok(RedisWriter::new(self.core.clone(), p))
-        }?;
-
-        Ok(output)
+    fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        let path = build_absolute_path(&self.root, path);
+        Ok(RedisWriter::new(self.core.clone(), path, args.expires()))
     }
 
     fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -392,11 +410,14 @@ impl Service for RedisBackend {
         Ok(output)
     }
 
-    fn list(&self, _ctx: &OperationContext, _path: &str, _args: OpList) -> Result<Self::Lister> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+    fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        if !self.capability.list {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "listing is unavailable with Redis Cluster endpoints",
+            ));
+        }
+        Ok(RedisLister::new(self.core.clone(), &self.root, path, args))
     }
 
     fn copy(
@@ -435,5 +456,55 @@ impl Service for RedisBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn list_capabilities_depend_on_connection_mode() -> Result<()> {
+        let standalone = RedisBuilder::default().build()?;
+        let capability = standalone.capability();
+        assert!(capability.list && capability.list_with_recursive && capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+
+        let cluster = RedisBuilder::default().cluster_endpoints("redis://localhost:6379");
+        let op = Operator::new(cluster)?;
+        let capability = op.info().capability();
+        assert!(!capability.list);
+        assert!(!capability.list_with_recursive);
+        assert!(!capability.list_with_limit);
+        assert!(!capability.list_with_glob);
+        let err = op
+            .list("/")
+            .await
+            .expect_err("cluster listing is unsupported");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        Ok(())
+    }
+
+    #[test]
+    fn replica_reads_require_cluster_endpoints() {
+        let standalone = RedisBuilder::default()
+            .endpoint("redis://localhost:6379")
+            .read_from_replicas(true);
+        let empty_cluster = RedisConfig {
+            cluster_endpoints: Some(String::new()),
+            read_from_replicas: true,
+            ..Default::default()
+        };
+
+        for builder in [standalone, empty_cluster.into_builder()] {
+            let err = builder
+                .build()
+                .expect_err("replica reads require a cluster");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+            assert_eq!(
+                err.message(),
+                "read_from_replicas requires cluster_endpoints"
+            );
+        }
     }
 }

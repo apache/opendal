@@ -178,7 +178,8 @@ val create_dir :
     Example:
     {[
     match create_dir op "data/subdir/" with
-    | Ok () -> print_endline "Directory created"
+    | Ok true -> print_endline "Directory created"
+    | Ok false -> print_endline "Directory was not created"
     | Error err -> printf "Error: %s\n" err
     ]} *)
 

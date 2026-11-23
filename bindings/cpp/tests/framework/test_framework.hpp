@@ -20,6 +20,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
 #include <random>
@@ -41,7 +42,9 @@
 #include "cppcoro/task.hpp"
 #endif
 
+#ifndef _WIN32
 extern char** environ;
+#endif
 
 namespace opendal::test {
 
@@ -72,7 +75,12 @@ public:
         std::string prefix = "opendal_" + service_name_ + "_";
         std::transform(prefix.begin(), prefix.end(), prefix.begin(), ::tolower);
         
-        for (char** env = environ; *env != nullptr; ++env) {
+#ifdef _WIN32
+        char** environment = _environ;
+#else
+        char** environment = environ;
+#endif
+        for (char** env = environment; env != nullptr && *env != nullptr; ++env) {
             std::string env_var(*env);
             auto eq_pos = env_var.find('=');
             if (eq_pos != std::string::npos) {
@@ -155,12 +163,12 @@ public:
     static std::vector<uint8_t> random_bytes(size_t length = 100) {
         static std::random_device rd;
         static std::mt19937 gen(rd());
-        static std::uniform_int_distribution<uint8_t> dis(0, 255);
+        static std::uniform_int_distribution<unsigned int> dis(0, 255);
         
         std::vector<uint8_t> result;
         result.reserve(length);
         for (size_t i = 0; i < length; ++i) {
-            result.push_back(dis(gen));
+            result.push_back(static_cast<uint8_t>(dis(gen)));
         }
         return result;
     }

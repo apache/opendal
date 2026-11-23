@@ -53,14 +53,24 @@ impl oio::BatchDelete for S3Deleter {
 
         match status {
             StatusCode::NO_CONTENT => Ok(()),
-            // Allow 404 when deleting a non-existing object
+            // Allow 404 when deleting a non-existing object.
             // This is not a standard behavior, only some s3 alike service like GCS XML API do this.
             // ref: <https://cloud.google.com/storage/docs/xml-api/delete-object>
-            StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
-                ErrorKind::ConditionNotMatch,
-                "delete precondition requires a live target",
-            )),
-            StatusCode::NOT_FOUND => Ok(()),
+            // Parse the response first so non-object 404 errors such as NoSuchBucket still surface.
+            StatusCode::NOT_FOUND => {
+                let err = parse_error(error_ctx, resp);
+                if err.kind() != ErrorKind::NotFound {
+                    Err(err)
+                } else if args.if_match().is_some() {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "delete precondition requires a live target",
+                    )
+                    .set_source(err))
+                } else {
+                    Ok(())
+                }
+            }
             _ => Err(parse_error(error_ctx, resp)),
         }
     }
@@ -90,7 +100,7 @@ impl oio::BatchDelete for S3Deleter {
             failed: Vec::with_capacity(errors.len()),
         };
         for (path, op) in batch {
-            let abs_path = build_abs_path(&self.core.root, &path);
+            let abs_path = build_absolute_path(&self.core.root, &path);
             // Assume errors are rare, so lookup and erase is acceptable.
             if let Some(idx) = errors
                 .iter()
@@ -127,4 +137,147 @@ fn parse_delete_objects_result_error(err: DeleteObjectsResultError, conditional:
         err = err.set_temporary();
     }
     err
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error as _;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering;
+
+    use bytes::Bytes;
+    use http::Method;
+    use http::Request;
+    use http::Response;
+    use http::StatusCode;
+    use opendal_core::*;
+
+    use crate::backend::S3Builder;
+
+    const NO_SUCH_BUCKET_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchBucket</Code>
+  <Message>The specified bucket does not exist</Message>
+  <BucketName>missing-bucket</BucketName>
+</Error>"#;
+
+    const NO_SUCH_KEY_XML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+  <Code>NoSuchKey</Code>
+  <Message>The specified key does not exist.</Message>
+  <Key>missing-key</Key>
+</Error>"#;
+
+    #[derive(Clone)]
+    struct StaticDeleteTransport {
+        status: StatusCode,
+        body: &'static str,
+        requests: Arc<AtomicUsize>,
+    }
+
+    impl StaticDeleteTransport {
+        fn new(status: StatusCode, body: &'static str) -> Self {
+            Self {
+                status,
+                body,
+                requests: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+    }
+
+    impl HttpTransport for StaticDeleteTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(req.method(), Method::DELETE);
+            self.requests.fetch_add(1, Ordering::Relaxed);
+
+            let body = Buffer::from(Bytes::from_static(self.body.as_bytes()));
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(body)]),
+                    Some(size),
+                ))
+                .expect("mock response must build"))
+        }
+    }
+
+    fn operator_with_response(
+        status: StatusCode,
+        body: &'static str,
+    ) -> (Operator, Arc<AtomicUsize>) {
+        let transport = StaticDeleteTransport::new(status, body);
+        let requests = transport.requests.clone();
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("missing-bucket")
+                .region("us-east-1")
+                .skip_signature()
+                .disable_config_load()
+                .disable_ec2_metadata(),
+        )
+        .expect("S3 operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)));
+        (op, requests)
+    }
+
+    #[tokio::test]
+    async fn delete_once_surfaces_no_such_bucket_as_config_invalid() {
+        let (op, requests) = operator_with_response(StatusCode::NOT_FOUND, NO_SUCH_BUCKET_XML);
+
+        let err = op
+            .delete("object")
+            .await
+            .expect_err("NoSuchBucket must not be masked as Ok");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+
+        let err = op
+            .delete_with("object")
+            .if_match("\"etag\"")
+            .await
+            .expect_err("NoSuchBucket must not be masked as ConditionNotMatch");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+
+        assert_eq!(requests.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn delete_once_handles_not_found_object_bodies() {
+        for body in [NO_SUCH_KEY_XML, "", "<html>404 Not Found</html>"] {
+            let (op, requests) = operator_with_response(StatusCode::NOT_FOUND, body);
+
+            op.delete("missing")
+                .await
+                .expect("unconditional 404 for missing object should succeed");
+
+            let err = op
+                .delete_with("missing")
+                .if_match("\"etag\"")
+                .await
+                .expect_err("conditional 404 for missing object must fail");
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+            assert!(!err.is_temporary());
+            assert!(err.source().is_some());
+
+            assert_eq!(requests.load(Ordering::Relaxed), 2);
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_once_succeeds_on_no_content() {
+        let (op, requests) = operator_with_response(StatusCode::NO_CONTENT, "");
+
+        op.delete("object")
+            .await
+            .expect("204 delete should succeed");
+        op.delete_with("object")
+            .if_match("\"etag\"")
+            .await
+            .expect("conditional 204 delete should succeed");
+
+        assert_eq!(requests.load(Ordering::Relaxed), 2);
+    }
 }

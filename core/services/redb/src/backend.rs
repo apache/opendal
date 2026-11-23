@@ -198,9 +198,9 @@ impl Service for RedbBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
@@ -227,7 +227,7 @@ impl Service for RedbBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: RedbWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(RedbWriter::new(self.core.clone(), p))
         }?;
 
@@ -246,7 +246,7 @@ impl Service for RedbBackend {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let prefix = build_abs_path(&self.root, path);
+        let prefix = build_absolute_path(&self.root, path);
         let range = self.core.scan(&prefix)?;
         let lister = RedbLister::new(self.root.clone(), prefix, range);
         Ok(oio::HierarchyLister::new(lister, path, args.recursive()))
@@ -288,5 +288,85 @@ impl Service for RedbBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use opendal_core::raw::oio::Write as _;
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
     }
 }

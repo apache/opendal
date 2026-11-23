@@ -43,17 +43,25 @@ pub struct WebdavConfig {
         note = "WebDAV copy capability is enabled by default and this option is no longer needed."
     )]
     pub disable_copy: bool,
-    /// Disable automatic parent directory creation before write operations.
+    /// Disable automatic parent directory creation before write, copy, and rename operations.
     ///
-    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
-    /// This requires PROPFIND support to check directory existence.
+    /// By default, OpenDAL creates missing parent directories using `PROPFIND` and `MKCOL`
+    /// before writing, copying, or renaming files. Enable this option to skip those automatic
+    /// parent directory checks and `MKCOL` calls for servers that do not support `PROPFIND`
+    /// or do not require explicit parent collections (for example, `bazel-remote`).
     ///
-    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-    /// or don't require explicit directory creation. Enable this option to skip
-    /// the MKCOL calls and write files directly.
+    /// Explicit `create_dir` calls are unaffected.
     ///
-    /// Default: false
+    /// Default: `false`
     pub disable_create_dir: bool,
+    /// Disable native recursive listing with WebDAV's `Depth: infinity`.
+    ///
+    /// Set this to `true` for servers that reject or ignore infinity depth.
+    /// With capability simulation enabled, OpenDAL walks the directory tree
+    /// using `Depth: 1` requests instead.
+    ///
+    /// The default is `false`.
+    pub disable_depth_infinity: bool,
     /// Deprecated: WebDAV user metadata capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -94,6 +102,7 @@ impl Default for WebdavConfig {
             root: None,
             disable_copy: false,
             disable_create_dir: false,
+            disable_depth_infinity: false,
             enable_user_metadata: false,
             user_metadata_prefix: None,
             user_metadata_uri: None,
@@ -109,6 +118,7 @@ impl Debug for WebdavConfig {
             .field("username", &self.username)
             .field("root", &self.root)
             .field("disable_create_dir", &self.disable_create_dir)
+            .field("disable_depth_infinity", &self.disable_depth_infinity)
             .field("user_metadata_prefix", &self.user_metadata_prefix)
             .field("user_metadata_uri", &self.user_metadata_uri)
             .finish_non_exhaustive()

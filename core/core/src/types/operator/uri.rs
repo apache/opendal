@@ -78,13 +78,21 @@ impl OperatorUri {
             options.insert(key, value);
         }
 
+        // `Url` reports userinfo in percent-encoded form, so decode it the same
+        // way as `root` and query options.
         let username = if url.username().is_empty() {
             None
         } else {
-            Some(url.username().to_string())
+            Some(
+                percent_decode_str(url.username())
+                    .decode_utf8_lossy()
+                    .into_owned(),
+            )
         };
 
-        let password = url.password().map(|pwd| pwd.to_string());
+        let password = url
+            .password()
+            .map(|encoded| percent_decode_str(encoded).decode_utf8_lossy().into_owned());
 
         let authority = url.host_str().filter(|host| !host.is_empty()).map(|host| {
             if let Some(port) = url.port() {
@@ -336,5 +344,59 @@ mod tests {
         assert_eq!(uri.username(), Some("alice"));
         assert_eq!(uri.password(), Some("secret"));
         assert_eq!(uri.root(), Some("path"));
+    }
+
+    #[test]
+    fn parse_uri_decodes_percent_encoded_userinfo() {
+        let uri = OperatorUri::new(
+            "https://alice%40corp.com:p%40ss%2Fw%3Ard%251@example.com:8443/path%20dir",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.authority(), Some("example.com:8443"));
+        assert_eq!(uri.username(), Some("alice@corp.com"));
+        assert_eq!(uri.password(), Some("p@ss/w:rd%1"));
+        assert_eq!(uri.root(), Some("path dir"));
+    }
+
+    #[test]
+    fn parse_uri_with_password_only_keeps_username_none() {
+        let uri = OperatorUri::new(
+            "https://:only%23pass@example.com/",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.username(), None);
+        assert_eq!(uri.password(), Some("only#pass"));
+        assert_eq!(uri.root(), None);
+    }
+
+    #[test]
+    fn parse_uri_with_empty_password_keeps_username() {
+        // `Url` normalizes `alice:@example.com` to `alice@example.com`, so an
+        // empty password is reported as `None` instead of `Some("")`.
+        let uri = OperatorUri::new(
+            "https://alice:@example.com/",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.username(), Some("alice"));
+        assert_eq!(uri.password(), None);
+    }
+
+    #[test]
+    fn parse_uri_keeps_plain_userinfo_unchanged() {
+        let uri = OperatorUri::new(
+            "https://alice:pl+ain-pass@example.com/share",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        assert_eq!(uri.username(), Some("alice"));
+        assert_eq!(uri.password(), Some("pl+ain-pass"));
+        assert_eq!(uri.root(), Some("share"));
     }
 }

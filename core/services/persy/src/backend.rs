@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::PERSY_SCHEME;
 use super::config::PersyConfig;
@@ -63,23 +64,18 @@ impl Builder for PersyBuilder {
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let segment_name = self.config.segment.ok_or_else(|| {
+        let segment = self.config.segment.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let segment = segment_name.clone();
-
-        let index_name = self.config.index.ok_or_else(|| {
+        let index = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", PERSY_SCHEME)
         })?;
 
-        let index = index_name.clone();
-
         let persy = persy::OpenOptions::new()
             .create(true)
-            .prepare_with(move |p| init(p, &segment_name, &index_name))
             .open(&datafile_path)
             .map_err(|e| {
                 Error::new(ErrorKind::ConfigInvalid, "open db")
@@ -88,33 +84,22 @@ impl Builder for PersyBuilder {
                     .set_source(e)
             })?;
 
-        // This function will only be called on database creation
-        fn init(
-            persy: &persy::Persy,
-            segment_name: &str,
-            index_name: &str,
-        ) -> Result<(), Box<dyn std::error::Error>> {
-            let mut tx = persy.begin()?;
-
-            if !tx.exists_segment(segment_name)? {
-                tx.create_segment(segment_name)?;
-            }
-            if !tx.exists_index(index_name)? {
-                tx.create_index::<String, persy::PersyId>(index_name, persy::ValueMode::Replace)?;
-            }
-
-            let prepared = tx.prepare()?;
-            prepared.commit()?;
-
-            Ok(())
-        }
-
-        Ok(PersyBackend::new(PersyCore {
-            datafile: datafile_path,
+        let core = PersyCore {
+            datafile: datafile_path.clone(),
             segment,
             index,
             persy,
-        }))
+            write_lock: Arc::new(Mutex::new(())),
+        };
+
+        // `persy` only runs the initialization of a datafile while creating it, so an
+        // already existing datafile needs its segment and index created here.
+        core.init().map_err(|err| {
+            err.with_context("service", PERSY_SCHEME)
+                .with_context("datafile", datafile_path)
+        })?;
+
+        Ok(PersyBackend::new(core))
     }
 }
 
@@ -177,9 +162,9 @@ impl Service for PersyBackend {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-        let p = build_abs_path(&self.root, path);
+        let p = build_absolute_path(&self.root, path);
 
-        if p == build_abs_path(&self.root, "") {
+        if p == build_absolute_path(&self.root, "") {
             Ok(RpStat::new(MetadataBuilder::dir().build()))
         } else {
             let bs = self.core.get(&p)?;
@@ -206,7 +191,7 @@ impl Service for PersyBackend {
 
     fn write(&self, _ctx: &OperationContext, path: &str, _: OpWrite) -> Result<Self::Writer> {
         let output: PersyWriter = {
-            let p = build_abs_path(&self.root, path);
+            let p = build_absolute_path(&self.root, path);
             Ok(PersyWriter::new(self.core.clone(), p))
         }?;
 

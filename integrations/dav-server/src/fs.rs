@@ -34,10 +34,17 @@ use super::utils::convert_error;
 
 /// OpendalFs is a `DavFileSystem` implementation for opendal.
 ///
+/// `OpendalFs` omits weak ETags because dav-server emits only strong ETag headers
+/// from filesystem metadata.
+///
+/// OpenDAL metadata has no symbolic-link flag, so
+/// [`hide_symlinks(true)`](dav_server::DavConfig::hide_symlinks) cannot filter
+/// symbolic links through this adapter.
+///
 /// ```
 /// use anyhow::Result;
-/// use dav_server::davpath::DavPath;
-/// use dav_server::fs::DavFileSystem;
+/// use dav_server_opendalfs::dav_server::davpath::DavPath;
+/// use dav_server_opendalfs::dav_server::fs::DavFileSystem;
 /// use dav_server_opendalfs::OpendalFs;
 /// use opendal_core::services::Memory;
 /// use opendal_core::Operator;
@@ -87,6 +94,27 @@ impl OpendalFs {
 
     fn is_dir_path(path: &str) -> bool {
         path.is_empty() || path.ends_with('/')
+    }
+
+    /// Return whether `path` names an existing resource.
+    ///
+    /// A trailing slash may make some services report `NotADirectory` for a
+    /// file, and a missing trailing slash may make them report `IsADirectory`
+    /// for a directory. Both mean this exact path does not exist, so callers
+    /// can check the file and directory forms separately.
+    async fn path_exists(&self, path: &str) -> Result<bool, FsError> {
+        match self.op.stat(path).await {
+            Ok(_) => Ok(true),
+            Err(e)
+                if matches!(
+                    e.kind(),
+                    ErrorKind::NotFound | ErrorKind::NotADirectory | ErrorKind::IsADirectory
+                ) =>
+            {
+                Ok(false)
+            }
+            Err(e) => Err(convert_error(e)),
+        }
     }
 }
 
@@ -140,53 +168,102 @@ impl DavFileSystem for OpendalFs {
         .boxed()
     }
 
+    fn symlink_metadata<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, Box<dyn DavMetaData>> {
+        self.metadata(path)
+    }
+
     fn create_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
-            let path = self.fs_dir_path(path)?;
+            let dir_path = self.fs_dir_path(path)?;
 
-            // check if the parent path is exist.
-            // During MKCOL processing, a server MUST make the Request-URI a member of its parent collection, unless the Request-URI is "/".  If no such ancestor exists, the method MUST fail.
-            // refer to https://datatracker.ietf.org/doc/html/rfc2518#section-8.3.1
-            let parent = Path::new(&path).parent().unwrap();
-            match self
-                .op
-                .exists(format!("{}/", parent.display()).as_str())
-                .await
-            {
-                Ok(exist) => {
-                    if !exist && parent != Path::new("/") {
-                        return Err(FsError::NotFound);
-                    }
-                }
-                Err(e) => {
-                    return Err(convert_error(e));
-                }
+            // The root collection always exists, so MKCOL on it must report
+            // Exists instead of creating another root.
+            if dir_path == "/" {
+                return Err(FsError::Exists);
             }
 
-            let path = path.as_str();
-            // check if the given path is exist (MKCOL on existing collection should fail (RFC2518:8.3.1))
-            let exist = self.op.exists(path).await;
-            match exist {
-                Ok(exist) => match exist {
-                    true => Err(FsError::Exists),
-                    false => {
-                        let res = self.op.create_dir(path).await;
-                        match res {
-                            Ok(_) => Ok(()),
-                            Err(e) => Err(convert_error(e)),
+            let file_path = dir_path.trim_end_matches('/');
+
+            // Check that the parent collection exists. During MKCOL, the
+            // server MUST make the request URI a member of its parent
+            // collection, unless the request URI is "/". If no such ancestor
+            // exists, the method MUST fail.
+            // See https://datatracker.ietf.org/doc/html/rfc4918#section-9.3.1
+            if let Some(parent) = Path::new(&dir_path).parent()
+                && !parent.as_os_str().is_empty()
+            {
+                match self
+                    .op
+                    .exists(format!("{}/", parent.display()).as_str())
+                    .await
+                {
+                    Ok(exist) => {
+                        if !exist {
+                            return Err(FsError::NotFound);
                         }
                     }
-                },
-                Err(e) => Err(convert_error(e)),
+                    Err(e) => {
+                        return Err(convert_error(e));
+                    }
+                }
             }
+
+            // Some backends keep files and directory markers as separate keys,
+            // so "foo" and "foo/" can both exist. MKCOL must fail with Exists
+            // when either form already names a resource (RFC 4918 9.3.1).
+            if self.path_exists(file_path).await? || self.path_exists(&dir_path).await? {
+                return Err(FsError::Exists);
+            }
+
+            self.op.create_dir(&dir_path).await.map_err(convert_error)
         }
         .boxed()
     }
 
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
-            let path = self.fs_dir_path(path)?;
-            self.op.delete(&path).await.map_err(convert_error)
+            let dir_path = self.fs_dir_path(path)?;
+
+            // Removing the root collection is never allowed.
+            if dir_path == "/" {
+                return Err(FsError::Forbidden);
+            }
+
+            let file_path = dir_path.trim_end_matches('/');
+
+            if self.op.info().capability().list {
+                let mut lister = self
+                    .op
+                    .lister_with(dir_path.as_str())
+                    .limit(2)
+                    .await
+                    .map_err(convert_error)?;
+                let mut found = false;
+                while let Some(entry) = lister.next().await {
+                    let entry = entry.map_err(convert_error)?;
+                    if entry.path() == dir_path {
+                        found = true;
+                    } else {
+                        return Err(FsError::Exists);
+                    }
+                }
+                if !found {
+                    // Some services do not yield the directory itself when
+                    // listing an empty directory, while an implicit
+                    // object-store directory disappears as soon as its last
+                    // child is removed during recursive DELETE. Refuse only
+                    // when the path actually names a file, then fall through
+                    // to the idempotent delete of `dir_path`.
+                    if self.op.info().capability().stat
+                        && !self.path_exists(&dir_path).await?
+                        && self.path_exists(file_path).await?
+                    {
+                        return Err(FsError::Forbidden);
+                    }
+                }
+            }
+
+            self.op.delete(&dir_path).await.map_err(convert_error)
         }
         .boxed()
     }
@@ -205,6 +282,12 @@ impl DavFileSystem for OpendalFs {
                 let from_path = self.fs_dir_path(from)?;
                 let to_path = self.fs_dir_path(to)?;
 
+                // Moving the root or onto the root is not a collection move.
+                // Refuse it before it can reach the create_dir + delete below.
+                if from_path == "/" || to_path == "/" {
+                    return Err(FsError::Forbidden);
+                }
+
                 if self
                     .op
                     .exists(to_path.as_str())
@@ -212,6 +295,44 @@ impl DavFileSystem for OpendalFs {
                     .map_err(convert_error)?
                 {
                     return Err(FsError::Exists);
+                }
+
+                // Services with native rename can move a non-empty collection
+                // atomically. Fall back to the empty-collection move when the
+                // service cannot rename this collection. `Operator::rename`
+                // takes file paths, so drop the collection trailing slashes.
+                if self.op.info().capability().rename {
+                    match self
+                        .op
+                        .rename(
+                            from_path.trim_end_matches('/'),
+                            to_path.trim_end_matches('/'),
+                        )
+                        .await
+                    {
+                        Ok(()) => return Ok(()),
+                        Err(e) => match e.kind() {
+                            // The service does not move collections; fall back
+                            // to the empty-collection move below.
+                            ErrorKind::Unsupported | ErrorKind::NotFound => {}
+                            // Some services report IsADirectory when they
+                            // cannot rename directories (smb) and also when
+                            // the destination is an existing directory. If a
+                            // destination collection appeared after the check
+                            // above, refuse the move instead of clobbering it.
+                            ErrorKind::IsADirectory => {
+                                if self
+                                    .op
+                                    .exists(to_path.as_str())
+                                    .await
+                                    .map_err(convert_error)?
+                                {
+                                    return Err(FsError::Exists);
+                                }
+                            }
+                            _ => return Err(convert_error(e)),
+                        },
+                    }
                 }
 
                 let mut lister = self

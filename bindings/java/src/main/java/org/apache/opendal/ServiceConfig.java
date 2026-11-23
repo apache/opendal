@@ -173,11 +173,24 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
          * <p>Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.</p>
          *
          * @deprecated Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints.
          */
         public final Long batchMaxOperations;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
         /**
          * <p>The container name of Azblob service backend.</p>
          */
@@ -218,6 +231,10 @@ public interface ServiceConfig {
          * <p>Skip signature will skip loading credentials and signing requests.</p>
          */
         public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -233,8 +250,17 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
             if (batchMaxOperations != null) {
                 map.put("batch_max_operations", String.valueOf(batchMaxOperations));
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
             }
             map.put("container", container);
             if (encryptionAlgorithm != null) {
@@ -257,6 +283,9 @@ public interface ServiceConfig {
             }
             if (skipSignature != null) {
                 map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
             }
             return map;
         }
@@ -401,6 +430,19 @@ public interface ServiceConfig {
          */
         public final String accountName;
         /**
+         * <p>The authority host of the service principal for Microsoft Entra ID authentication.</p>
+         * <p>Defaults to <code>https://login.microsoftonline.com</code>.</p>
+         */
+        public final String authorityHost;
+        /**
+         * <p>The client id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientId;
+        /**
+         * <p>The client secret of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String clientSecret;
+        /**
          * <p>The endpoint for azfile.</p>
          */
         public final String endpoint;
@@ -416,6 +458,14 @@ public interface ServiceConfig {
          * <p>The share name for azfile.</p>
          */
         public final @NonNull String shareName;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
+        /**
+         * <p>The tenant id of the service principal for Microsoft Entra ID authentication.</p>
+         */
+        public final String tenantId;
 
         @Override
         public String scheme() {
@@ -431,6 +481,15 @@ public interface ServiceConfig {
             if (accountName != null) {
                 map.put("account_name", accountName);
             }
+            if (authorityHost != null) {
+                map.put("authority_host", authorityHost);
+            }
+            if (clientId != null) {
+                map.put("client_id", clientId);
+            }
+            if (clientSecret != null) {
+                map.put("client_secret", clientSecret);
+            }
             if (endpoint != null) {
                 map.put("endpoint", endpoint);
             }
@@ -441,6 +500,12 @@ public interface ServiceConfig {
                 map.put("sas_token", sasToken);
             }
             map.put("share_name", shareName);
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
+            }
+            if (tenantId != null) {
+                map.put("tenant_id", tenantId);
+            }
             return map;
         }
     }
@@ -1089,6 +1154,10 @@ public interface ServiceConfig {
          */
         public final String atomicWriteDir;
         /**
+         * <p>Bypass the page cache for file reads and writes on Linux. Defaults to <code>false</code>.</p>
+         */
+        public final Boolean directIo;
+        /**
          * <p>root dir for backend</p>
          */
         public final String root;
@@ -1103,6 +1172,9 @@ public interface ServiceConfig {
             final HashMap<String, String> map = new HashMap<>();
             if (atomicWriteDir != null) {
                 map.put("atomic_write_dir", atomicWriteDir);
+            }
+            if (directIo != null) {
+                map.put("direct_io", String.valueOf(directIo));
             }
             if (root != null) {
                 map.put("root", root);
@@ -2412,6 +2484,15 @@ public interface ServiceConfig {
          */
         public final String bucket;
         /**
+         * <p>Disable config load so that opendal will not load config from
+         * environment.</p>
+         * <p>For examples:</p>
+         * <ul>
+         * <li>envs like <code>HUAWEI_CLOUD_ACCESS_KEY_ID</code></li>
+         * </ul>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OBS versioning capability is not controlled by service config.</p>
          *
          * @deprecated OBS versioning capability is not controlled by this option and this option is no longer needed.
@@ -2429,6 +2510,20 @@ public interface ServiceConfig {
          * <p>Secret access key for obs.</p>
          */
         public final String secretAccessKey;
+        /**
+         * <p>Security token (a.k.a. session token) for obs.</p>
+         * <p>Temporary credentials sign with <code>access_key_id</code>, <code>secret_access_key</code> and
+         * this token, and the signer attaches the token as the
+         * <code>x-obs-security-token</code> header.</p>
+         * <p>If this field is not set, OpenDAL reads the token from the environment
+         * variable <code>HUAWEI_CLOUD_SECURITY_TOKEN</code> (unless <code>disable_config_load</code> is
+         * enabled).</p>
+         */
+        public final String securityToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -2444,6 +2539,9 @@ public interface ServiceConfig {
             if (bucket != null) {
                 map.put("bucket", bucket);
             }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
             }
@@ -2455,6 +2553,12 @@ public interface ServiceConfig {
             }
             if (secretAccessKey != null) {
                 map.put("secret_access_key", secretAccessKey);
+            }
+            if (securityToken != null) {
+                map.put("security_token", securityToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }
@@ -2601,6 +2705,16 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
+         * <p>Disable loading credentials from ambient sources.</p>
+         * <p>This removes the environment provider and the OSS profile, Alibaba
+         * Cloud shared credentials, Alibaba Cloud CLI config, and
+         * <code>ALIBABA_CLOUD_CREDENTIALS_URI</code> sources. Explicit access keys, OIDC
+         * options that are all set on the builder, and the <code>role_arn</code> AssumeRole
+         * flow remain enabled, and ECS instance RAM role credentials keep loading
+         * from instance metadata.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OSS versioning capability is enabled by default.</p>
          *
          * @deprecated OSS versioning capability is enabled by default and this option is no longer needed.
@@ -2710,6 +2824,9 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (deleteMaxSize != null) {
                 map.put("delete_max_size", String.valueOf(deleteMaxSize));
+            }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
             }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
@@ -2990,6 +3107,14 @@ public interface ServiceConfig {
          */
         public final String password;
         /**
+         * <p>Route read-only commands for <code>read</code> and <code>stat</code> to Redis Cluster replicas when available.</p>
+         * <p>Defaults to <code>false</code>. Enabling this option requires <code>cluster_endpoints</code>.
+         * Replication lag can cause stale results. For example, <code>read</code> or <code>stat</code> can
+         * briefly return <code>ErrorKind::NotFound</code> for a just-written key. OpenDAL returns
+         * a replica miss without retrying on the primary.</p>
+         */
+        public final Boolean readFromReplicas;
+        /**
          * <p>the working directory of the Redis service. Can be &quot;/path/to/dir&quot;</p>
          * <p>default is &quot;/&quot;</p>
          */
@@ -3023,6 +3148,9 @@ public interface ServiceConfig {
             }
             if (password != null) {
                 map.put("password", password);
+            }
+            if (readFromReplicas != null) {
+                map.put("read_from_replicas", String.valueOf(readFromReplicas));
             }
             if (root != null) {
                 map.put("root", root);
@@ -3157,12 +3285,13 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
-         * <p>Disable automatic endpoint loading and the environment/profile
+         * <p>Disable automatic endpoint loading and ambient environment/profile
          * credential providers.</p>
          * <p>This skips endpoint environment variables and removes the static
-         * environment and shared-profile credential slots. Region environment
-         * lookup and other credential providers, including AWS container
-         * credentials and EC2 instance metadata, remain enabled.</p>
+         * environment, shared-profile, SSO, web-identity, and external process
+         * credential slots. Region environment lookup and compute metadata
+         * credential providers, including AWS container credentials and EC2
+         * instance metadata, remain enabled.</p>
          */
         public final Boolean disableConfigLoad;
         /**
@@ -3532,6 +3661,20 @@ public interface ServiceConfig {
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class Sftp implements ServiceConfig {
         /**
+         * <p>Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration acquireTimeout;
+        /**
+         * <p>Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.</p>
+         */
+        public final Duration connectTimeout;
+        /**
+         * <p>Directory for the SSH control socket.</p>
+         * <p>The SSH client creates a temporary directory holding the control socket here.
+         * Defaults to <code>$XDG_STATE_HOME</code> or <code>$HOME/.local/state</code>, falling back to the current directory.</p>
+         */
+        public final String controlDirectory;
+        /**
          * <p>Deprecated: SFTP copy capability is enabled by default.</p>
          *
          * @deprecated SFTP copy capability is enabled by default and this option is no longer needed.
@@ -3566,6 +3709,15 @@ public interface ServiceConfig {
         @Override
         public Map<String, String> configMap() {
             final HashMap<String, String> map = new HashMap<>();
+            if (acquireTimeout != null) {
+                map.put("acquire_timeout", acquireTimeout.toString());
+            }
+            if (connectTimeout != null) {
+                map.put("connect_timeout", connectTimeout.toString());
+            }
+            if (controlDirectory != null) {
+                map.put("control_directory", controlDirectory);
+            }
             if (enableCopy != null) {
                 map.put("enable_copy", String.valueOf(enableCopy));
             }
@@ -3871,7 +4023,7 @@ public interface ServiceConfig {
          * environment.</p>
          * <p>For examples:</p>
          * <ul>
-         * <li>envs like <code>TOS_ACCESS_KEY_ID</code></li>
+         * <li>envs like <code>VOLCENGINE_ACCESS_KEY_ID</code></li>
          * </ul>
          */
         public final Boolean disableConfigLoad;
@@ -4105,15 +4257,23 @@ public interface ServiceConfig {
          */
         public final Boolean disableCopy;
         /**
-         * <p>Disable automatic parent directory creation before write operations.</p>
-         * <p>By default, OpenDAL creates parent directories using MKCOL before writing files.
-         * This requires PROPFIND support to check directory existence.</p>
-         * <p>Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-         * or don't require explicit directory creation. Enable this option to skip
-         * the MKCOL calls and write files directly.</p>
-         * <p>Default: false</p>
+         * <p>Disable automatic parent directory creation before write, copy, and rename operations.</p>
+         * <p>By default, OpenDAL creates missing parent directories using <code>PROPFIND</code> and <code>MKCOL</code>
+         * before writing, copying, or renaming files. Enable this option to skip those automatic
+         * parent directory checks and <code>MKCOL</code> calls for servers that do not support <code>PROPFIND</code>
+         * or do not require explicit parent collections (for example, <code>bazel-remote</code>).</p>
+         * <p>Explicit <code>create_dir</code> calls are unaffected.</p>
+         * <p>Default: <code>false</code></p>
          */
         public final Boolean disableCreateDir;
+        /**
+         * <p>Disable native recursive listing with WebDAV's <code>Depth: infinity</code>.</p>
+         * <p>Set this to <code>true</code> for servers that reject or ignore infinity depth.
+         * With capability simulation enabled, OpenDAL walks the directory tree
+         * using <code>Depth: 1</code> requests instead.</p>
+         * <p>The default is <code>false</code>.</p>
+         */
+        public final Boolean disableDepthInfinity;
         /**
          * <p>Deprecated: WebDAV conditional read capabilities are enabled by default.</p>
          *
@@ -4175,6 +4335,9 @@ public interface ServiceConfig {
             }
             if (disableCreateDir != null) {
                 map.put("disable_create_dir", String.valueOf(disableCreateDir));
+            }
+            if (disableDepthInfinity != null) {
+                map.put("disable_depth_infinity", String.valueOf(disableDepthInfinity));
             }
             if (enableConditionalRead != null) {
                 map.put("enable_conditional_read", String.valueOf(enableConditionalRead));

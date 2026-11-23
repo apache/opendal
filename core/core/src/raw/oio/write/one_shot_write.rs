@@ -54,7 +54,10 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
         match &self.buffer {
             Some(_) => Err(Error::new(
                 ErrorKind::Unsupported,
-                "OneShotWriter doesn't support multiple write",
+                "OneShotWriter doesn't support multiple writes to the same upload. Streaming \
+                 multiple buffers requires Capability::write_can_multi. Pass the complete payload \
+                 as a single buffer to Operator::write or Writer::write, or set \
+                 writer_with(...).chunk(size) to fit the complete payload when its size is known.",
             )),
             None => {
                 self.buffer = Some(bs);
@@ -73,5 +76,33 @@ impl<W: OneShotWrite> oio::Write for OneShotWriter<W> {
     async fn abort(&mut self) -> Result<()> {
         self.buffer = None;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::raw::oio::Write;
+
+    struct TestWriter;
+
+    impl OneShotWrite for TestWriter {
+        async fn write_once(&self, _: Buffer) -> Result<Metadata> {
+            panic!("OneShotWriter should defer writing until close")
+        }
+    }
+
+    #[tokio::test]
+    async fn second_write_returns_single_buffer_guidance() {
+        let mut writer = OneShotWriter::new(TestWriter);
+        writer.write(Buffer::from("first")).await.unwrap();
+
+        let err = writer.write(Buffer::from("second")).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.is_permanent());
+        assert!(err.message().contains("Capability::write_can_multi"));
+        assert!(err.message().contains("Operator::write"));
+        assert!(err.message().contains("Writer::write"));
+        assert!(err.message().contains(".chunk(size)"));
     }
 }

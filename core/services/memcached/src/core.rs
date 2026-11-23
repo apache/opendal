@@ -16,7 +16,7 @@
 // under the License.
 
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use asyncband::pool::ManageObject;
 use asyncband::pool::ObjectStatus;
@@ -231,8 +231,7 @@ pub struct MemcachedCore {
 /// timestamp rather than as an offset from now, so a longer TTL sent verbatim
 /// lands in 1970 and the server stores the item as already expired.
 ///
-/// See the `Expiration times` section of memcached's protocol.txt. The builder
-/// rejects a `default_ttl` above this, so `set` can pass the value through.
+/// See the `Expiration times` section of memcached's protocol.txt.
 pub(super) const MAX_RELATIVE_EXPIRATION_SECS: u64 = 60 * 60 * 24 * 30;
 
 impl MemcachedCore {
@@ -271,19 +270,11 @@ impl MemcachedCore {
         Ok(result.map(Buffer::from))
     }
 
-    pub async fn set(&self, key: &str, value: Buffer) -> Result<()> {
+    pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
+        let expiration = resolve_expiration(expires, self.default_ttl)?;
         let mut conn = self.conn().await?;
-
-        conn.set(
-            &percent_encode_path(key),
-            &value.to_vec(),
-            // The builder rejects anything above MAX_RELATIVE_EXPIRATION_SECS, so
-            // this stays an offset and never lands in memcached's absolute range.
-            self.default_ttl
-                .map(|v| v.as_secs() as u32)
-                .unwrap_or_default(),
-        )
-        .await
+        conn.set(&percent_encode_path(key), &value.to_vec(), expiration)
+            .await
     }
 
     pub async fn delete(&self, key: &str) -> Result<()> {
@@ -293,10 +284,110 @@ impl MemcachedCore {
     }
 }
 
+fn resolve_expiration(expires: Option<Duration>, default_ttl: Option<Duration>) -> Result<u32> {
+    if let Some(expires) = expires {
+        return encode_expiration(expires);
+    }
+
+    match default_ttl {
+        Some(ttl) if !ttl.is_zero() => encode_expiration(ttl),
+        _ => Ok(0),
+    }
+}
+
+fn encode_expiration(expires: Duration) -> Result<u32> {
+    if expires.is_zero() {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "expires must be positive",
+        ));
+    }
+    let seconds = expires.as_nanos().div_ceil(1_000_000_000);
+    let expiration = if seconds <= u128::from(MAX_RELATIVE_EXPIRATION_SECS) {
+        seconds
+    } else {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "system clock is before the Unix epoch",
+                )
+                .set_source(err)
+            })?;
+        u128::from(now.as_secs()) + seconds
+    };
+    u32::try_from(expiration).map_err(|err| {
+        Error::new(
+            ErrorKind::ConfigInvalid,
+            "expires is too large for Memcached",
+        )
+        .set_source(err)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio::net::TcpListener;
+
+    #[test]
+    fn resolve_memcached_expiration() {
+        assert_eq!(resolve_expiration(None, None).unwrap(), 0);
+        assert_eq!(resolve_expiration(None, Some(Duration::ZERO)).unwrap(), 0);
+
+        for ttl in [
+            Duration::from_nanos(1),
+            Duration::from_millis(1),
+            Duration::from_millis(999),
+        ] {
+            assert_eq!(resolve_expiration(None, Some(ttl)).unwrap(), 1);
+        }
+
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_secs(1))).unwrap(),
+            1
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_secs(60))).unwrap(),
+            60
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_millis(1500))).unwrap(),
+            2
+        );
+        assert_eq!(
+            resolve_expiration(Some(Duration::from_secs(60)), Some(Duration::from_nanos(1)))
+                .unwrap(),
+            60
+        );
+
+        let err =
+            resolve_expiration(Some(Duration::ZERO), Some(Duration::from_secs(60))).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn encode_memcached_expiration() {
+        let thirty_days = Duration::from_secs(30 * 24 * 60 * 60);
+        assert_eq!(encode_expiration(Duration::from_millis(1)).unwrap(), 1);
+        assert_eq!(encode_expiration(thirty_days).unwrap(), 2_592_000);
+
+        let now = || {
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        };
+        let before = now();
+        let deadline = encode_expiration(thirty_days + Duration::from_nanos(1)).unwrap();
+        let after = now();
+        assert!((before + 2_592_001..=after + 2_592_001).contains(&u64::from(deadline)));
+
+        let err = encode_expiration(Duration::MAX).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        assert!(!err.is_temporary());
+    }
 
     // regression test for connecting to a webdav server.
     // Because setting up a dedicated behavior test is expensive, we choose to test `SocketStream::connect_tcp` instead.

@@ -15,7 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use opendal_core::raw::{OpDelete, build_abs_path, oio};
+use opendal_core::raw::{OpDelete, build_absolute_path, oio};
 
 use super::core::SqliteCore;
 
@@ -32,7 +32,7 @@ impl SqliteDeleter {
 
 impl oio::OneShotDelete for SqliteDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> opendal_core::Result<()> {
-        let p = build_abs_path(&self.root, &path);
+        let p = build_absolute_path(&self.root, &path);
         self.core.delete(&p).await?;
         Ok(())
     }

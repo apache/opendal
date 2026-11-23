@@ -104,16 +104,16 @@ impl WebdavBuilder {
         self
     }
 
-    /// Disable automatic parent directory creation before write operations.
+    /// Disable automatic parent directory creation before write, copy, and rename operations.
     ///
-    /// By default, OpenDAL creates parent directories using MKCOL before writing files.
-    /// This requires PROPFIND support to check directory existence.
+    /// By default, OpenDAL creates missing parent directories using `PROPFIND` and `MKCOL`
+    /// before writing, copying, or renaming files. Enable this option to skip those automatic
+    /// parent directory checks and `MKCOL` calls for servers that do not support `PROPFIND`
+    /// or do not require explicit parent collections (for example, `bazel-remote`).
     ///
-    /// Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-    /// or don't require explicit directory creation. Enable this option to skip
-    /// the MKCOL calls and write files directly.
+    /// Explicit `create_dir` calls are unaffected.
     ///
-    /// Default: false
+    /// Default: `false`
     pub fn disable_create_dir(mut self, disable: bool) -> Self {
         self.config.disable_create_dir = disable;
         self
@@ -414,7 +414,9 @@ impl Service for WebdavBackend {
         args: OpRename,
     ) -> Result<RpRename> {
         self.core.webdav_stat(ctx, from).await?;
-        self.core.webdav_mkcol(ctx, get_parent(to)).await?;
+        if !self.core.disable_create_dir {
+            self.core.webdav_mkcol(ctx, get_parent(to)).await?;
+        }
         let resp = self
             .core
             .webdav_move(ctx, from, to, args.if_not_exists())
@@ -447,7 +449,102 @@ impl Service for WebdavBackend {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
+    use bytes::Bytes;
+    use futures::stream;
+    use http::Request;
+    use http::Response;
+
     use super::*;
+
+    const FILE_STAT_RESPONSE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<D:multistatus xmlns:D="DAV:">
+  <D:response>
+    <D:href>/src.txt</D:href>
+    <D:propstat>
+      <D:prop>
+        <D:getcontentlength>5</D:getcontentlength>
+        <D:getlastmodified>Sat, 07 May 2022 05:52:22 GMT</D:getlastmodified>
+        <D:resourcetype/>
+      </D:prop>
+      <D:status>HTTP/1.1 200 OK</D:status>
+    </D:propstat>
+  </D:response>
+</D:multistatus>"#;
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct RecordedRequest {
+        method: String,
+        path: String,
+        destination: Option<String>,
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingHttpTransport {
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    }
+
+    impl RecordingHttpTransport {
+        fn requests(&self) -> Vec<RecordedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+
+        fn methods_and_paths(&self) -> Vec<(String, String)> {
+            self.requests()
+                .into_iter()
+                .map(|req| (req.method, req.path))
+                .collect()
+        }
+    }
+
+    impl HttpTransport for RecordingHttpTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let method = req.method().as_str().to_string();
+            let path = req.uri().path().to_string();
+            let destination = req
+                .headers()
+                .get("Destination")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_owned);
+
+            self.requests.lock().unwrap().push(RecordedRequest {
+                method: method.clone(),
+                path: path.clone(),
+                destination,
+            });
+
+            let (status, body) = match (method.as_str(), path.as_str()) {
+                ("PROPFIND", "/src.txt") => (StatusCode::MULTI_STATUS, FILE_STAT_RESPONSE),
+                ("PROPFIND", _) => (StatusCode::NOT_FOUND, ""),
+                ("MKCOL", _) | ("COPY", _) | ("MOVE", _) | ("PUT", _) => (StatusCode::CREATED, ""),
+                _ => (StatusCode::METHOD_NOT_ALLOWED, ""),
+            };
+
+            let data = Bytes::from_static(body.as_bytes());
+            let size = data.len() as u64;
+            Ok(Response::builder()
+                .status(status)
+                .body(HttpBody::new(
+                    stream::iter([Ok(Buffer::from(data))]),
+                    Some(size),
+                ))
+                .unwrap())
+        }
+    }
+
+    fn test_operator(disable_create_dir: bool) -> Result<(Operator, RecordingHttpTransport)> {
+        let transport = RecordingHttpTransport::default();
+        let op = Operator::new(
+            WebdavBuilder::default()
+                .endpoint("http://localhost:8080")
+                .disable_create_dir(disable_create_dir),
+        )?
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
+        );
+        Ok((op, transport))
+    }
 
     #[test]
     fn depth_infinity_is_enabled_by_default() -> Result<()> {
@@ -488,6 +585,119 @@ mod tests {
         let err = service.list(&ctx, "/", args.into()).err().unwrap();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
         assert!(service.list(&ctx, "/", OpList::default()).is_ok());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn copy_creates_parent_dirs_by_default() -> Result<()> {
+        let (op, transport) = test_operator(false)?;
+
+        op.copy("src.txt", "nested/dir/dst.txt").await?;
+
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PROPFIND".to_string(), "/src.txt".to_string()),
+                ("PROPFIND".to_string(), "/nested/dir/".to_string()),
+                ("PROPFIND".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/dir/".to_string()),
+                ("COPY".to_string(), "/src.txt".to_string()),
+            ]
+        );
+        assert_eq!(
+            transport.requests().last().unwrap().destination.as_deref(),
+            Some("http://localhost:8080/nested/dir/dst.txt")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn copy_skips_parent_dir_creation_when_disabled() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.copy("src.txt", "nested/dir/dst.txt").await?;
+
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PROPFIND".to_string(), "/src.txt".to_string()),
+                ("COPY".to_string(), "/src.txt".to_string()),
+            ]
+        );
+        assert_eq!(
+            transport.requests().last().unwrap().destination.as_deref(),
+            Some("http://localhost:8080/nested/dir/dst.txt")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rename_creates_parent_dirs_by_default() -> Result<()> {
+        let (op, transport) = test_operator(false)?;
+
+        op.rename("src.txt", "nested/dir/dst.txt").await?;
+
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PROPFIND".to_string(), "/src.txt".to_string()),
+                ("PROPFIND".to_string(), "/nested/dir/".to_string()),
+                ("PROPFIND".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/dir/".to_string()),
+                ("MOVE".to_string(), "/src.txt".to_string()),
+            ]
+        );
+        assert_eq!(
+            transport.requests().last().unwrap().destination.as_deref(),
+            Some("http://localhost:8080/nested/dir/dst.txt")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rename_skips_parent_dir_creation_when_disabled() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.rename("src.txt", "nested/dir/dst.txt").await?;
+
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PROPFIND".to_string(), "/src.txt".to_string()),
+                ("MOVE".to_string(), "/src.txt".to_string()),
+            ]
+        );
+        assert_eq!(
+            transport.requests().last().unwrap().destination.as_deref(),
+            Some("http://localhost:8080/nested/dir/dst.txt")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_and_explicit_create_dir_respect_disable_create_dir() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+        assert!(op.info().capability().create_dir);
+
+        op.write("nested/dir/dst.txt", "hello").await?;
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![("PUT".to_string(), "/nested/dir/dst.txt".to_string())]
+        );
+
+        op.create_dir("nested/dir/").await?;
+        assert_eq!(
+            transport.methods_and_paths(),
+            vec![
+                ("PUT".to_string(), "/nested/dir/dst.txt".to_string()),
+                ("PROPFIND".to_string(), "/nested/dir/".to_string()),
+                ("PROPFIND".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/".to_string()),
+                ("MKCOL".to_string(), "/nested/dir/".to_string()),
+            ]
+        );
         Ok(())
     }
 }

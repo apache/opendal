@@ -111,8 +111,65 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 /// Parse multipart boundary from header map.
+///
+/// Returns `None` if the `Content-Type` header is missing, has no `boundary`
+/// parameter, or the parameter value is empty or malformed.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    let Some(content_type) = parse_header_to_str(headers, CONTENT_TYPE)? else {
+        return Ok(None);
+    };
+
+    // Skip the media type before the first parameter. A quoted parameter value
+    // may contain `;`, so parameter boundaries must be found while scanning.
+    let Some((_, mut rest)) = content_type.split_once(';') else {
+        return Ok(None);
+    };
+
+    loop {
+        rest = rest.trim_matches([' ', '\t']);
+        if rest.is_empty() {
+            return Ok(None);
+        }
+
+        // A parameter without `=` is malformed for our purposes; skip it.
+        let name_end = rest.find(['=', ';']).unwrap_or(rest.len());
+        if name_end == rest.len() || rest.as_bytes()[name_end] == b';' {
+            rest = &rest[name_end..];
+            let Some(next) = rest.strip_prefix(';') else {
+                return Ok(None);
+            };
+            rest = next;
+            continue;
+        }
+
+        let name = rest[..name_end].trim_matches([' ', '\t']);
+        rest = rest[name_end + 1..].trim_start_matches([' ', '\t']);
+
+        let (value, next) = if let Some(quoted) = rest.strip_prefix('"') {
+            let Some(value_end) = quoted.find('"') else {
+                return Ok(None);
+            };
+            let value = &quoted[..value_end];
+            let next = quoted[value_end + 1..]
+                .split_once(';')
+                .map(|(_, next)| next);
+            (value, next)
+        } else {
+            let value_end = rest.find(';').unwrap_or(rest.len());
+            let value = rest[..value_end].trim_end_matches([' ', '\t']);
+            let next = rest[value_end..].strip_prefix(';');
+            (value, next)
+        };
+
+        if name.eq_ignore_ascii_case("boundary") {
+            return Ok((!value.is_empty()).then_some(value));
+        }
+
+        let Some(next) = next else {
+            return Ok(None);
+        };
+        rest = next;
+    }
 }
 
 /// Parse header value to string according to name.
@@ -364,6 +421,33 @@ mod tests {
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
+            ("multipart/mixed; boundary=\"batch_123\"", Some("batch_123")),
+            (
+                "multipart/mixed; boundary=batch_123; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch_123\"; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch;123\"; charset=utf-8",
+                Some("batch;123"),
+            ),
+            ("multipart/mixed; BOUNDARY=batch_123", Some("batch_123")),
+            ("multipart/mixed; Boundary=\"batch_123\"", Some("batch_123")),
+            ("multipart/mixed ; boundary = batch_123 ", Some("batch_123")),
+            (
+                "multipart/mixed; charset=\"utf;8\"; boundary=batch_123",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; my_boundary=wrong; boundary=right",
+                Some("right"),
+            ),
+            ("multipart/mixed; boundary=", None),
+            ("multipart/mixed; boundary=\"\"", None),
+            ("multipart/mixed; boundary=\"unclosed", None),
             ("multipart/mixed", None),
         ];
 

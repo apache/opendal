@@ -288,11 +288,6 @@ impl WriteState {
             .ctx
             .as_ref()
             .expect("write context must exist outside tests");
-        crate::layers::check_read_args(
-            ctx.service().info().scheme(),
-            ctx.service().capability(),
-            &args,
-        )?;
         let reader = ctx.service().read(ctx.context(), path, args.clone())?;
         Ok(Reader::new(ReadContext::new(
             ctx.context().clone(),
@@ -1297,8 +1292,9 @@ mod tests {
             writer.abort().await?;
         }
 
-        // Capability validation runs even when the limit copies nothing, and
-        // does not depend on `CorrectnessCheckLayer` being installed.
+        // Capability validation runs at `Writer::copy_from_options` even when
+        // the limit copies nothing and on bare operators constructed with
+        // `Operator::from_parts`.
         let bare = Operator::from_parts(
             OperationContext::default(),
             Arc::new(services::Memory::default().build()?) as Servicer,

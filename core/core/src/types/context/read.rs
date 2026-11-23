@@ -115,6 +115,9 @@ impl ReadContext {
 
     pub(crate) async fn stat_content_length(&self) -> Result<u64> {
         let op_stat = OpStat::from_read(self.args());
+        op_stat
+            .check(&self.srv.capability())
+            .map_err(|err| err.with_context("service", self.srv.info().scheme()))?;
 
         Ok(self
             .srv

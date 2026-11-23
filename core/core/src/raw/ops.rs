@@ -57,6 +57,18 @@ fn sorted_user_metadata(value: HashMap<String, String>) -> Vec<(String, String)>
     value
 }
 
+fn new_unsupported_error(op: Operation, args: &str) -> Error {
+    let op = op.into_static();
+
+    Error::new(
+        ErrorKind::Unsupported,
+        format!(
+            "The service does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."
+        ),
+    )
+    .with_operation(op)
+}
+
 /// Arguments for `create` operation.
 ///
 /// The path must be normalized.
@@ -96,12 +108,14 @@ impl OpDelete {
         Self::default()
     }
 
-    /// Lower `options` against `capability` and freeze them into service-ready arguments.
+    /// Lower `options` against `capability`, validate them, and freeze them into service-ready arguments.
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` contains no identity or conflicts
-    /// with an explicit equality condition.
+    /// Returns [`ErrorKind::ConfigInvalid`] or [`ErrorKind::ConditionNotMatch`]
+    /// when `if_not_changed` contains no identity or conflicts with an explicit
+    /// equality condition, and [`ErrorKind::Unsupported`] when `capability`
+    /// does not support an enabled correctness-critical option.
     ///
     /// # Panics
     ///
@@ -147,14 +161,54 @@ impl OpDelete {
             options.if_version_match.as_deref().map(str::as_bytes),
             options.if_version_not_match.as_deref().map(str::as_bytes),
         ];
-        Ok(Self {
+        let args = Self {
             flags: if options.recursive {
                 OP_DELETE_RECURSIVE
             } else {
                 0
             },
             values: CompactValues::encode(&fields),
-        })
+        };
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate correctness-critical delete arguments against `capability`.
+    ///
+    /// [`crate::Operator`] and [`crate::Deleter`] call this via
+    /// [`Self::from_options`]. Layers that dispatch to a service whose
+    /// capability is not reflected in the outer stack (such as routing layers)
+    /// and callers driving [`crate::raw::Service`] directly should call this
+    /// against the target service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set version, recursive, or
+    /// conditional option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.version().is_some() && !capability.delete_with_version {
+            return Err(new_unsupported_error(Operation::Delete, "version"));
+        }
+        if self.recursive() && !capability.delete_with_recursive {
+            return Err(new_unsupported_error(Operation::Delete, "recursive"));
+        }
+        if self.if_match().is_some() && !capability.delete_with_if_match {
+            return Err(new_unsupported_error(Operation::Delete, "if_match"));
+        }
+        if self.if_none_match().is_some() && !capability.delete_with_if_none_match {
+            return Err(new_unsupported_error(Operation::Delete, "if_none_match"));
+        }
+        if self.if_version_match().is_some() && !capability.delete_with_if_version_match {
+            return Err(new_unsupported_error(Operation::Delete, "if_version_match"));
+        }
+        if self.if_version_not_match().is_some() && !capability.delete_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                Operation::Delete,
+                "if_version_not_match",
+            ));
+        }
+
+        Ok(())
     }
 }
 
@@ -256,7 +310,14 @@ impl OpList {
         Self::default()
     }
 
-    pub(crate) fn from_options(value: options::ListOptions) -> Result<Self> {
+    /// Validate `options` against `capability` and freeze them into service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] when `glob` and `start_after`
+    /// exceed the compact encoding limit, and [`ErrorKind::Unsupported`] when
+    /// `capability` does not support an enabled list option.
+    pub fn from_options(capability: &Capability, value: options::ListOptions) -> Result<Self> {
         if let Some(glob) = &value.glob {
             // CompactValues stores a u16 bitmap and one u16 offset per field.
             let mut encoded_len = 2 * size_of::<u16>() + glob.len();
@@ -270,7 +331,38 @@ impl OpList {
                 ));
             }
         }
-        Ok(value.into())
+        let args = Self::from(value);
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate correctness-critical list arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if `start_after`, `versions`,
+    /// `deleted`, or `glob` is set without the matching capability flag.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.start_after().is_some() && !capability.list_with_start_after {
+            return Err(new_unsupported_error(Operation::List, "start_after"));
+        }
+        if self.versions() && !capability.list_with_versions {
+            return Err(new_unsupported_error(Operation::List, "versions"));
+        }
+        if self.deleted() && !capability.list_with_deleted {
+            return Err(new_unsupported_error(Operation::List, "deleted"));
+        }
+        if self.glob().is_some() && !capability.list_with_glob {
+            return Err(new_unsupported_error(Operation::List, "glob"));
+        }
+
+        Ok(())
     }
 
     /// Return the maximum number of results per request.
@@ -406,6 +498,24 @@ impl OpPresign {
     pub fn into_parts(self) -> (Duration, PresignOperation) {
         (self.expire, self.op)
     }
+
+    /// Validate the inner presigned operation arguments against `capability`.
+    ///
+    /// Delegates to [`OpStat::check`], [`OpRead::check`], [`OpWrite::check`],
+    /// or [`OpDelete::check`] for the wrapped operation.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if the wrapped operation specifies an
+    /// option not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        match self.operation() {
+            PresignOperation::Stat(args) => args.check(capability),
+            PresignOperation::Read(_, args) => args.check(capability),
+            PresignOperation::Write(args) => args.check(capability),
+            PresignOperation::Delete(args) => args.check(capability),
+        }
+    }
 }
 
 /// Presign operation used for presign.
@@ -478,18 +588,122 @@ impl OpRead {
         self.values == other.values
     }
 
-    /// Lower compose source `options` against `capability` and freeze them into
-    /// service-ready read arguments.
+    /// Validate read `options` against `capability` and freeze them into
+    /// service-ready arguments.
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` contains no identity or conflicts
-    /// with an explicit source equality condition.
+    /// Returns [`ErrorKind::Unsupported`] when `capability` does not support an
+    /// enabled version or conditional read option.
+    pub fn from_options(
+        capability: &Capability,
+        options: options::ReadOptions,
+    ) -> Result<(BytesRange, Self, OpReader)> {
+        let (range, args, reader) = options.into();
+        args.check(capability)?;
+        Ok((range, args, reader))
+    }
+
+    /// Validate reader `options` against `capability` and freeze them into
+    /// service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] when `capability` does not support an
+    /// enabled version or conditional read option.
+    pub fn from_reader_options(
+        capability: &Capability,
+        options: options::ReaderOptions,
+    ) -> Result<(Self, OpReader)> {
+        let (args, reader) = options.into();
+        args.check(capability)?;
+        Ok((args, reader))
+    }
+
+    /// Validate correctness-critical read arguments against `capability`.
+    ///
+    /// [`crate::Operator`] and [`crate::Writer::copy_from_options`] call this
+    /// via [`Self::from_options`] and [`Self::from_reader_options`]. Layers
+    /// that dispatch to a service whose capability is not reflected in the
+    /// outer stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set version or conditional
+    /// option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if !capability.read_with_version && self.version().is_some() {
+            return Err(new_unsupported_error(Operation::Read, "version"));
+        }
+        if !capability.read_with_if_match && self.if_match().is_some() {
+            return Err(new_unsupported_error(Operation::Read, "if_match"));
+        }
+        if !capability.read_with_if_none_match && self.if_none_match().is_some() {
+            return Err(new_unsupported_error(Operation::Read, "if_none_match"));
+        }
+        if !capability.read_with_if_version_match && self.if_version_match().is_some() {
+            return Err(new_unsupported_error(Operation::Read, "if_version_match"));
+        }
+        if !capability.read_with_if_version_not_match && self.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(
+                Operation::Read,
+                "if_version_not_match",
+            ));
+        }
+        if !capability.read_with_if_modified_since && self.if_modified_since().is_some() {
+            return Err(new_unsupported_error(Operation::Read, "if_modified_since"));
+        }
+        if !capability.read_with_if_unmodified_since && self.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                Operation::Read,
+                "if_unmodified_since",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Validate compose source read arguments against `capability`.
+    ///
+    /// [`crate::Composer`] calls this via
+    /// [`Self::from_compose_source_options`]. Callers driving
+    /// [`crate::raw::oio::Compose`] directly should call this against the
+    /// target service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set source version or
+    /// condition option is not supported for composition by `capability`.
+    pub fn check_compose_source(&self, capability: &Capability) -> Result<()> {
+        if self.version().is_some() && !capability.compose_with_source_version {
+            return Err(new_unsupported_error(Operation::Compose, "source_version"));
+        }
+        if self.if_match().is_some() && !capability.compose_with_source_if_match {
+            return Err(new_unsupported_error(Operation::Compose, "source_if_match"));
+        }
+        if self.if_none_match().is_some() || self.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(Operation::Compose, "source_identity"));
+        }
+
+        Ok(())
+    }
+
+    /// Lower compose source `options` against `capability`, validate them, and
+    /// freeze them into service-ready read arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] or [`ErrorKind::ConditionNotMatch`]
+    /// when `if_not_changed` contains no identity or conflicts with an explicit
+    /// source equality condition, and [`ErrorKind::Unsupported`] when
+    /// `capability` does not support the resulting source options.
     ///
     /// # Panics
     ///
     /// Panics when the compact value block, including its index, exceeds `u16::MAX` bytes.
-    pub(crate) fn from_compose_source_options(
+    pub fn from_compose_source_options(
         capability: &Capability,
         mut options: options::ComposeSourceOptions,
     ) -> Result<Self> {
@@ -523,11 +737,13 @@ impl OpRead {
             }
         }
 
-        Ok(Self::from_read_options(options::ReadOptions {
+        let args = Self::from_read_options(options::ReadOptions {
             version: options.version,
             if_match: options.if_match,
             ..Default::default()
-        }))
+        });
+        args.check_compose_source(capability)?;
+        Ok(args)
     }
 
     /// Returns the content-disposition header that should be sent back by the remote read
@@ -846,6 +1062,63 @@ impl OpStat {
             values: value.values.clone(),
         }
     }
+
+    /// Validate stat `options` against `capability` and freeze them into
+    /// service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] when `capability` does not support an
+    /// enabled version or conditional stat option.
+    pub fn from_options(capability: &Capability, options: options::StatOptions) -> Result<Self> {
+        let args = Self::from(options);
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate correctness-critical stat arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set version or conditional
+    /// option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if !capability.stat_with_version && self.version().is_some() {
+            return Err(new_unsupported_error(Operation::Stat, "version"));
+        }
+        if !capability.stat_with_if_match && self.if_match().is_some() {
+            return Err(new_unsupported_error(Operation::Stat, "if_match"));
+        }
+        if !capability.stat_with_if_none_match && self.if_none_match().is_some() {
+            return Err(new_unsupported_error(Operation::Stat, "if_none_match"));
+        }
+        if !capability.stat_with_if_version_match && self.if_version_match().is_some() {
+            return Err(new_unsupported_error(Operation::Stat, "if_version_match"));
+        }
+        if !capability.stat_with_if_version_not_match && self.if_version_not_match().is_some() {
+            return Err(new_unsupported_error(
+                Operation::Stat,
+                "if_version_not_match",
+            ));
+        }
+        if !capability.stat_with_if_modified_since && self.if_modified_since().is_some() {
+            return Err(new_unsupported_error(Operation::Stat, "if_modified_since"));
+        }
+        if !capability.stat_with_if_unmodified_since && self.if_unmodified_since().is_some() {
+            return Err(new_unsupported_error(
+                Operation::Stat,
+                "if_unmodified_since",
+            ));
+        }
+
+        Ok(())
+    }
 }
 
 impl From<options::StatOptions> for OpStat {
@@ -906,12 +1179,14 @@ impl OpWrite {
         Self::default()
     }
 
-    /// Lower `options` against `capability` and freeze them into service-ready arguments.
+    /// Lower `options` against `capability`, validate them, and freeze them into service-ready arguments.
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` contains no identity or conflicts
-    /// with an explicit equality condition.
+    /// Returns [`ErrorKind::ConfigInvalid`] or [`ErrorKind::ConditionNotMatch`]
+    /// when `if_not_changed` contains no identity or conflicts with an explicit
+    /// equality condition, and [`ErrorKind::Unsupported`] when `capability`
+    /// does not support an enabled correctness-critical write option.
     ///
     /// # Panics
     ///
@@ -998,7 +1273,55 @@ impl OpWrite {
                 }
             }),
         };
+        args.check(capability)?;
         Ok((args, writer))
+    }
+
+    /// Validate correctness-critical write arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set append, expiration, or
+    /// conditional option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.append() && !capability.write_can_append {
+            return Err(new_unsupported_error(Operation::Write, "append"));
+        }
+        if self.expires().is_some() && !capability.write_with_expires {
+            return Err(new_unsupported_error(Operation::Write, "expires"));
+        }
+        if self.if_not_exists() && !capability.write_with_if_not_exists {
+            return Err(new_unsupported_error(Operation::Write, "if_not_exists"));
+        }
+        if self.if_match().is_some() && !capability.write_with_if_match {
+            return Err(new_unsupported_error(Operation::Write, "if_match"));
+        }
+        if let Some(if_none_match) = self.if_none_match()
+            && !capability.write_with_if_none_match
+        {
+            let mut err = new_unsupported_error(Operation::Write, "if_none_match");
+            if if_none_match == "*" && capability.write_with_if_not_exists {
+                err = err.with_context("hint", "use if_not_exists instead");
+            }
+            return Err(err);
+        }
+        if self.if_version_match().is_some() && !capability.write_with_if_version_match {
+            return Err(new_unsupported_error(Operation::Write, "if_version_match"));
+        }
+        if self.if_version_not_match().is_some() && !capability.write_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                Operation::Write,
+                "if_version_not_match",
+            ));
+        }
+
+        Ok(())
     }
 
     /// Get the append from op.
@@ -1190,12 +1513,14 @@ impl OpCompose {
         Self::default()
     }
 
-    /// Lower `options` against `capability` and freeze them into service-ready arguments.
+    /// Lower `options` against `capability`, validate them, and freeze them into service-ready arguments.
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` contains no identity or conflicts
-    /// with an explicit equality condition.
+    /// Returns [`ErrorKind::ConfigInvalid`] or [`ErrorKind::ConditionNotMatch`]
+    /// when `if_not_changed` contains no identity or conflicts with an explicit
+    /// equality condition, and [`ErrorKind::Unsupported`] when `capability`
+    /// does not support composition or an enabled compose option.
     ///
     /// # Panics
     ///
@@ -1249,7 +1574,7 @@ impl OpCompose {
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[ComposeField::UserMetadata as usize] =
             user_metadata.as_deref().map(user_metadata_encoded_len);
-        Ok(Self {
+        let args = Self {
             concurrent: options.concurrent.max(1),
             flags: if options.if_not_exists {
                 OP_COMPOSE_IF_NOT_EXISTS
@@ -1267,7 +1592,71 @@ impl OpCompose {
                     output.write(fields[field].expect("present field has a value"));
                 }
             }),
-        })
+        };
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate compose operation and arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if composition or any set compose
+    /// metadata or conditional option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if !capability.compose {
+            return Err(new_unsupported_error(Operation::Compose, ""));
+        }
+        if self.if_not_exists() && !capability.compose_with_if_not_exists {
+            return Err(new_unsupported_error(Operation::Compose, "if_not_exists"));
+        }
+        if self.if_match().is_some() && !capability.compose_with_if_match {
+            return Err(new_unsupported_error(Operation::Compose, "if_match"));
+        }
+        if self.if_none_match().is_some() && !capability.compose_with_if_none_match {
+            return Err(new_unsupported_error(Operation::Compose, "if_none_match"));
+        }
+        if self.if_version_match().is_some() && !capability.compose_with_if_version_match {
+            return Err(new_unsupported_error(
+                Operation::Compose,
+                "if_version_match",
+            ));
+        }
+        if self.if_version_not_match().is_some() && !capability.compose_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                Operation::Compose,
+                "if_version_not_match",
+            ));
+        }
+        if self.content_type().is_some() && !capability.compose_with_content_type {
+            return Err(new_unsupported_error(Operation::Compose, "content_type"));
+        }
+        if self.content_disposition().is_some() && !capability.compose_with_content_disposition {
+            return Err(new_unsupported_error(
+                Operation::Compose,
+                "content_disposition",
+            ));
+        }
+        if self.content_encoding().is_some() && !capability.compose_with_content_encoding {
+            return Err(new_unsupported_error(
+                Operation::Compose,
+                "content_encoding",
+            ));
+        }
+        if self.cache_control().is_some() && !capability.compose_with_cache_control {
+            return Err(new_unsupported_error(Operation::Compose, "cache_control"));
+        }
+        if self.user_metadata().is_some() && !capability.compose_with_user_metadata {
+            return Err(new_unsupported_error(Operation::Compose, "user_metadata"));
+        }
+
+        Ok(())
     }
 
     /// Get the maximum concurrent composition task count.
@@ -1379,12 +1768,14 @@ impl OpCopy {
         Self::default()
     }
 
-    /// Lower `options` against `capability` and freeze them into service-ready arguments.
+    /// Lower `options` against `capability`, validate them, and freeze them into service-ready arguments.
     ///
     /// # Errors
     ///
-    /// Returns an error when `if_not_changed` contains no identity or conflicts
-    /// with an explicit equality condition.
+    /// Returns [`ErrorKind::ConfigInvalid`] or [`ErrorKind::ConditionNotMatch`]
+    /// when `if_not_changed` contains no identity or conflicts with an explicit
+    /// equality condition, and [`ErrorKind::Unsupported`] when `capability`
+    /// does not support an enabled copy option.
     ///
     /// # Panics
     ///
@@ -1437,7 +1828,7 @@ impl OpCopy {
         let mut lengths = fields.map(|value| value.map(<[u8]>::len));
         lengths[CopyField::UserMetadata as usize] =
             user_metadata.as_deref().map(user_metadata_encoded_len);
-        Ok(Self {
+        let args = Self {
             concurrent: options.concurrent.max(1),
             chunk: options.chunk.filter(|&chunk| chunk != 0),
             source_content_length_hint: options.source_content_length_hint,
@@ -1457,7 +1848,56 @@ impl OpCopy {
                     output.write(fields[field].expect("present field has a value"));
                 }
             }),
-        })
+        };
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate correctness-critical copy arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if any set metadata replacement,
+    /// source version, or conditional option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.user_metadata().is_some() && !capability.copy_with_user_metadata {
+            return Err(new_unsupported_error(Operation::Copy, "user_metadata"));
+        }
+        if self.content_type().is_some() && !capability.copy_with_content_type {
+            return Err(new_unsupported_error(Operation::Copy, "content_type"));
+        }
+        if self.content_language().is_some() && !capability.copy_with_content_language {
+            return Err(new_unsupported_error(Operation::Copy, "content_language"));
+        }
+        if self.if_not_exists() && !capability.copy_with_if_not_exists {
+            return Err(new_unsupported_error(Operation::Copy, "if_not_exists"));
+        }
+        if self.if_match().is_some() && !capability.copy_with_if_match {
+            return Err(new_unsupported_error(Operation::Copy, "if_match"));
+        }
+        if self.if_none_match().is_some() && !capability.copy_with_if_none_match {
+            return Err(new_unsupported_error(Operation::Copy, "if_none_match"));
+        }
+        if self.if_version_match().is_some() && !capability.copy_with_if_version_match {
+            return Err(new_unsupported_error(Operation::Copy, "if_version_match"));
+        }
+        if self.if_version_not_match().is_some() && !capability.copy_with_if_version_not_match {
+            return Err(new_unsupported_error(
+                Operation::Copy,
+                "if_version_not_match",
+            ));
+        }
+        if self.source_version().is_some() && !capability.copy_with_source_version {
+            return Err(new_unsupported_error(Operation::Copy, "source_version"));
+        }
+
+        Ok(())
     }
 
     /// Get if_not_exists flag.
@@ -1586,6 +2026,39 @@ impl OpRename {
     pub fn is_conditional(&self) -> bool {
         self.if_not_exists()
     }
+
+    /// Validate rename `options` against `capability` and freeze them into
+    /// service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] when `if_not_exists` is enabled
+    /// without [`Capability::rename_with_if_not_exists`].
+    pub fn from_options(capability: &Capability, options: options::RenameOptions) -> Result<Self> {
+        let args = Self::from(options);
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate correctness-critical rename arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::Unsupported`] if `if_not_exists` is set without
+    /// [`Capability::rename_with_if_not_exists`].
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.if_not_exists() && !capability.rename_with_if_not_exists {
+            return Err(new_unsupported_error(Operation::Rename, "if_not_exists"));
+        }
+
+        Ok(())
+    }
 }
 
 impl From<options::RenameOptions> for OpRename {
@@ -1627,6 +2100,54 @@ impl OpRestore {
     #[inline]
     pub fn is_conditional(&self) -> bool {
         self.if_not_exists()
+    }
+
+    /// Validate restore `options` against `capability` and freeze them into
+    /// service-ready arguments.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] when `if_not_exists` is set without
+    /// `version`, and [`ErrorKind::Unsupported`] when `capability` does not
+    /// support restore or an enabled restore option.
+    pub fn from_options(capability: &Capability, options: options::RestoreOptions) -> Result<Self> {
+        let args = Self::from(options);
+        args.check(capability)?;
+        Ok(args)
+    }
+
+    /// Validate restore operation and arguments against `capability`.
+    ///
+    /// [`crate::Operator`] calls this via [`Self::from_options`]. Layers that
+    /// dispatch to a service whose capability is not reflected in the outer
+    /// stack (such as routing layers) and callers driving
+    /// [`crate::raw::Service`] directly should call this against the target
+    /// service's capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorKind::ConfigInvalid`] if `if_not_exists` is set without a
+    /// `version`, and [`ErrorKind::Unsupported`] if restore or any set restore
+    /// option is not advertised by `capability`.
+    pub fn check(&self, capability: &Capability) -> Result<()> {
+        if self.if_not_exists() && self.version().is_none() {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "if_not_exists requires a restore version",
+            )
+            .with_operation(Operation::Restore));
+        }
+        if !capability.restore {
+            return Err(new_unsupported_error(Operation::Restore, ""));
+        }
+        if self.version().is_some() && !capability.restore_with_version {
+            return Err(new_unsupported_error(Operation::Restore, "version"));
+        }
+        if self.if_not_exists() && !capability.restore_with_if_not_exists {
+            return Err(new_unsupported_error(Operation::Restore, "if_not_exists"));
+        }
+
+        Ok(())
     }
 }
 
@@ -1732,7 +2253,16 @@ mod tests {
     fn write_options_preserve_owned_views() {
         let expires = Duration::new(u64::MAX, 123_456_789);
         let (args, _) = OpWrite::from_options(
-            &Capability::default(),
+            &Capability {
+                write_can_append: true,
+                write_with_expires: true,
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                write_with_if_version_match: true,
+                write_with_if_version_not_match: true,
+                write_with_if_not_exists: true,
+                ..Default::default()
+            },
             options::WriteOptions {
                 append: true,
                 expires: Some(expires),
@@ -1779,7 +2309,20 @@ mod tests {
     #[test]
     fn compose_options_preserve_owned_views() {
         let args = OpCompose::from_options(
-            &Capability::default(),
+            &Capability {
+                compose: true,
+                compose_with_content_type: true,
+                compose_with_content_disposition: true,
+                compose_with_content_encoding: true,
+                compose_with_cache_control: true,
+                compose_with_if_match: true,
+                compose_with_if_none_match: true,
+                compose_with_if_version_match: true,
+                compose_with_if_version_not_match: true,
+                compose_with_if_not_exists: true,
+                compose_with_user_metadata: true,
+                ..Default::default()
+            },
             options::ComposeOptions {
                 concurrent: 4,
                 content_type: Some("text/plain".to_owned()),
@@ -1819,6 +2362,9 @@ mod tests {
             write_with_if_version_match: true,
             delete_with_if_match: true,
             copy_with_if_match: true,
+            compose: true,
+            compose_with_if_match: true,
+            compose_with_source_if_match: true,
             ..Default::default()
         };
         let (write, _) = OpWrite::from_options(
@@ -1951,7 +2497,15 @@ mod tests {
 
     #[test]
     fn if_not_changed_falls_back_to_version_for_a_weak_etag() {
-        let capability = Capability::default();
+        let capability = Capability {
+            write_with_if_version_match: true,
+            delete_with_if_version_match: true,
+            copy_with_if_version_match: true,
+            compose: true,
+            compose_with_if_version_match: true,
+            compose_with_source_version: true,
+            ..Default::default()
+        };
         let mut metadata = MetadataBuilder::unknown();
         metadata.etag(r#"W/"tag""#).version("v1");
         let condition = Some(metadata.build());
@@ -2015,7 +2569,12 @@ mod tests {
     #[test]
     fn delete_copy_list_and_restore_options_roundtrip() {
         let delete = OpDelete::from_options(
-            &Capability::default(),
+            &Capability {
+                delete_with_version: true,
+                delete_with_recursive: true,
+                delete_with_if_match: true,
+                ..Default::default()
+            },
             options::DeleteOptions {
                 version: Some("version".to_owned()),
                 recursive: true,
@@ -2030,7 +2589,12 @@ mod tests {
         assert!(delete.is_conditional());
 
         let copy = OpCopy::from_options(
-            &Capability::default(),
+            &Capability {
+                copy_with_if_not_exists: true,
+                copy_with_if_version_match: true,
+                copy_with_source_version: true,
+                ..Default::default()
+            },
             options::CopyOptions {
                 if_not_exists: true,
                 if_version_match: Some("destination-version".to_owned()),
@@ -2046,7 +2610,13 @@ mod tests {
         assert!(copy.user_metadata().is_none());
 
         let copy = OpCopy::from_options(
-            &Capability::default(),
+            &Capability {
+                copy_with_if_match: true,
+                copy_with_content_type: true,
+                copy_with_content_language: true,
+                copy_with_user_metadata: true,
+                ..Default::default()
+            },
             options::CopyOptions {
                 if_match: Some("etag".to_owned()),
                 content_type: Some("text/plain".to_owned()),

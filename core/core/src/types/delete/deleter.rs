@@ -110,7 +110,6 @@ impl Deleter {
         let path = normalize_path(&path);
         let op = OpDelete::from_options(&self.capability, options)
             .map_err(|err| err.with_context("service", self.scheme))?;
-        crate::layers::check_delete_args(self.scheme, self.capability, &op)?;
         self.deleter.delete(&path, op).await?;
         Ok(())
     }

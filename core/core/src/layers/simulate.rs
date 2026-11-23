@@ -1184,9 +1184,8 @@ mod tests {
                 ..Default::default()
             })),
         });
-        let op = Operator::from_parts(OperationContext::default(), srv)
-            .layer(SimulateLayer::default())
-            .layer(crate::layers::CorrectnessCheckLayer);
+        let op =
+            Operator::from_parts(OperationContext::default(), srv).layer(SimulateLayer::default());
 
         let entries = op.list_with("/").recursive(true).start_after("a/m").await?;
         let paths: Vec<_> = entries.iter().map(Entry::path).collect();

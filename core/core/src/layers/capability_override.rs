@@ -511,4 +511,384 @@ mod tests {
         let err = CapabilityOverrideLayer::from_overrides("read=1").unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
+
+    #[derive(Debug, Default)]
+    struct CountingService {
+        capability: Capability,
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl Builder for CountingService {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(self)
+        }
+    }
+
+    impl Service for CountingService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = CountingDeleter;
+        type Copier = CopyDone;
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("counting")
+        }
+
+        fn capability(&self) -> Capability {
+            self.capability
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RpCreateDir::default())
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RpStat::new(MetadataBuilder::file(0).build()))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Ok(CountingDeleter {
+                calls: self.calls.clone(),
+            })
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(CopyDone)
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RpRename::default())
+        }
+
+        async fn restore(&self, _: &OperationContext, _: &str, _: OpRestore) -> Result<RpRestore> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RpRestore::default())
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(RpPresign::new(PresignedRequest::new(
+                http::Method::GET,
+                "https://example.com/object".parse().unwrap(),
+                http::HeaderMap::new(),
+            )))
+        }
+    }
+
+    struct CountingDeleter {
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl oio::Delete for CountingDeleter {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn capability_override_enables_options_on_default_operator_stack() -> Result<()> {
+        let calls = Arc::new(AtomicUsize::new(0));
+        // Underlying service reports no conditional/versioned capabilities.
+        let base_cap = Capability {
+            stat: true,
+            read: true,
+            write: true,
+            delete: true,
+            list: true,
+            copy: true,
+            rename: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
+            ..Default::default()
+        };
+
+        // Without override, every unsupported option fails before reaching the service.
+        let base = Operator::new(CountingService {
+            capability: base_cap,
+            calls: calls.clone(),
+        })?;
+        assert_eq!(
+            base.stat_with("a")
+                .if_match("etag")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.reader_with("a")
+                .version("v1")
+                .await
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.writer_with("a")
+                .if_match("etag")
+                .await
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.delete_with("a")
+                .version("v1")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.list_with("a/")
+                .start_after("a/0")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.copy_with("a", "b")
+                .if_not_exists(true)
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.rename_with("a", "b")
+                .if_not_exists(true)
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.restore_with("a")
+                .version("v1")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.presign_stat_with("a", Duration::from_secs(60))
+                .if_match("etag")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            base.presign_read_options(
+                "a",
+                Duration::from_secs(60),
+                options::ReadOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err()
+            .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+
+        // Overriding capabilities to `=true` lets all those operations reach the service
+        // because no bottom `CorrectnessCheckLayer` rejects them against native capability.
+        let enabled = base.layer(CapabilityOverrideLayer::from_overrides(
+            "stat_with_if_match=true,\
+             read_with_version=true,\
+             write_with_if_match=true,\
+             delete_with_version=true,\
+             list_with_start_after=true,\
+             copy_with_if_not_exists=true,\
+             rename_with_if_not_exists=true,\
+             restore=true,\
+             restore_with_version=true",
+        )?);
+
+        enabled.stat_with("a").if_match("etag").await?;
+        let _ = enabled.reader_with("a").version("v1").await?;
+        let _ = enabled.writer_with("a").if_match("etag").await?;
+        enabled.delete_with("a").version("v1").await?;
+        let _ = enabled.lister_with("a/").start_after("a/0").await?;
+        enabled.copy_with("a", "b").if_not_exists(true).await?;
+        enabled.rename_with("a", "b").if_not_exists(true).await?;
+        enabled.restore_with("a").version("v1").await?;
+        let _ = enabled
+            .presign_stat_with("a", Duration::from_secs(60))
+            .if_match("etag")
+            .await?;
+        let _ = enabled
+            .presign_read_options(
+                "a",
+                Duration::from_secs(60),
+                options::ReadOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        assert_eq!(calls.load(Ordering::SeqCst), 10);
+
+        // Re-restricting capabilities to `=false` blocks them again before reaching the service.
+        let restricted = enabled.layer(CapabilityOverrideLayer::from_overrides(
+            "stat_with_if_match=false,\
+             read_with_version=false,\
+             write_with_if_match=false,\
+             delete_with_version=false,\
+             list_with_start_after=false,\
+             copy_with_if_not_exists=false,\
+             rename_with_if_not_exists=false,\
+             restore_with_version=false",
+        )?);
+        let before = calls.load(Ordering::SeqCst);
+        assert_eq!(
+            restricted
+                .stat_with("a")
+                .if_match("etag")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .reader_with("a")
+                .version("v1")
+                .await
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .writer_with("a")
+                .if_match("etag")
+                .await
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .delete_with("a")
+                .version("v1")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .lister_with("a/")
+                .start_after("a/0")
+                .await
+                .err()
+                .unwrap()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .copy_with("a", "b")
+                .if_not_exists(true)
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .rename_with("a", "b")
+                .if_not_exists(true)
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .restore_with("a")
+                .version("v1")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .presign_stat_with("a", Duration::from_secs(60))
+                .if_match("etag")
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(
+            restricted
+                .presign_read_options(
+                    "a",
+                    Duration::from_secs(60),
+                    options::ReadOptions {
+                        version: Some("v1".to_string()),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap_err()
+                .kind(),
+            ErrorKind::Unsupported
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), before);
+
+        Ok(())
+    }
 }

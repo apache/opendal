@@ -692,9 +692,9 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
         }
         Expr::Path(ExprPath { path, .. }) => {
             if let Some(ident) = path.get_ident().map(ToString::to_string) {
-                if ident == "can_presign" {
+                if ident == "azblob_can_presign" {
                     return Ok(
-                        "Requires `account_key` (with `account_name`), `sas_token`, or `credential_provider_chain` with `skip_signature` disabled"
+                        "Requires `sas_token` or a host-style endpoint with `account_key` (and `account_name`), with `skip_signature` disabled"
                             .to_string(),
                     );
                 }
@@ -1203,6 +1203,15 @@ mod tests {
                 .get("write_total_max_size")
                 .map(|l| l.display.as_str()),
             Some("1 MB")
+        );
+
+        let azblob = out.services.iter().find(|s| s.scheme == "azblob").unwrap();
+        assert_eq!(
+            azblob.native.get("presign"),
+            Some(&NativeBoolDoc::Conditional(
+                "Requires `sas_token` or a host-style endpoint with `account_key` (and `account_name`), with `skip_signature` disabled"
+                    .to_string()
+            ))
         );
     }
 

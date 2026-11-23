@@ -388,7 +388,7 @@ impl AzblobBuilder {
         debug!("backend use container {}", container);
 
         let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
+            Some(endpoint) => Ok(endpoint.trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
                 .with_context("service", AZBLOB_SCHEME)),
@@ -507,7 +507,10 @@ impl AzblobBuilder {
             .sas_token
             .as_deref()
             .is_some_and(|token| !token.trim_start_matches('?').is_empty());
-        let has_custom_credential_chain = self.credential_providers.is_some();
+        let is_path_style_endpoint = match endpoint.parse::<http::Uri>() {
+            Ok(uri) => uri.authority().is_none() || !uri.path().trim_matches('/').is_empty(),
+            Err(_) => true,
+        };
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
@@ -532,8 +535,13 @@ impl AzblobBuilder {
             RequestSigner::new().with_service_sas_permissions("racwd"),
         );
 
-        let can_presign = !self.config.skip_signature
-            && (has_shared_key || has_sas_token || has_custom_credential_chain);
+        // SharedKey Service SAS signing in `reqsign-azure-storage` derives the
+        // canonicalized resource from the first URL path segment, which only
+        // matches host-style endpoints (`https://<account>.blob.core.windows.net`).
+        // Path-style endpoints such as Azurite (`http://127.0.0.1:10000/<account>`)
+        // require a pre-generated `sas_token` for presigning.
+        let azblob_can_presign = !self.config.skip_signature
+            && (has_sas_token || (has_shared_key && !is_path_style_endpoint));
 
         let info = ServiceInfo::new(AZBLOB_SCHEME, &root, container);
         let capability = Capability {
@@ -576,10 +584,10 @@ impl AzblobBuilder {
             list: true,
             list_with_recursive: true,
 
-            presign: can_presign,
-            presign_stat: can_presign,
-            presign_read: can_presign,
-            presign_write: can_presign,
+            presign: azblob_can_presign,
+            presign_stat: azblob_can_presign,
+            presign_read: azblob_can_presign,
+            presign_write: azblob_can_presign,
 
             shared: true,
 
@@ -771,6 +779,13 @@ impl Service for AzblobBackend {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
+        if !self.core.capability.presign {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "presign is not supported for the current azblob configuration",
+            ));
+        }
+
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
@@ -890,40 +905,49 @@ mod tests {
     #[tokio::test]
     async fn presign_shared_key_enables_capability_and_generates_service_sas() {
         let key = BASE64_STANDARD.encode([42u8; 64]);
-        let builder = AzblobBuilder::default()
-            .container("test")
-            .endpoint("https://myaccount.blob.core.windows.net")
-            .account_name("myaccount")
-            .account_key(&key);
-        let op = Operator::new(builder).unwrap();
 
-        let cap = op.info().capability();
-        assert!(cap.presign);
-        assert!(cap.presign_stat);
-        assert!(cap.presign_read);
-        assert!(cap.presign_write);
-        assert!(!cap.presign_delete);
-
-        for req in [
-            op.presign_stat("path/to/file.txt", std::time::Duration::from_secs(120))
-                .await
-                .unwrap(),
-            op.presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
-                .await
-                .unwrap(),
-            op.presign_write("path/to/file.txt", std::time::Duration::from_secs(120))
-                .await
-                .unwrap(),
+        for endpoint in [
+            "https://myaccount.blob.core.windows.net",
+            "https://myaccount.blob.core.windows.net/",
         ] {
-            let params = parse_query_params(req.uri());
-            assert_eq!(params.get("sr").map(String::as_str), Some("b"));
-            assert_eq!(params.get("sp").map(String::as_str), Some("racwd"));
-            assert!(params.contains_key("sv"));
-            assert!(params.contains_key("se"));
-            assert!(params.contains_key("sig"));
+            let op = Operator::from_config(AzblobConfig {
+                container: "test".to_string(),
+                endpoint: Some(endpoint.to_string()),
+                account_name: Some("myaccount".to_string()),
+                account_key: Some(key.clone()),
+                ..Default::default()
+            })
+            .unwrap();
+
+            let cap = op.info().capability();
+            assert!(cap.presign);
+            assert!(cap.presign_stat);
+            assert!(cap.presign_read);
+            assert!(cap.presign_write);
+            assert!(!cap.presign_delete);
+
+            for req in [
+                op.presign_stat("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+                op.presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+                op.presign_write("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+            ] {
+                assert_eq!(req.uri().path(), "/test/path/to/file.txt");
+                let params = parse_query_params(req.uri());
+                assert_eq!(params.get("sr").map(String::as_str), Some("b"));
+                assert_eq!(params.get("sp").map(String::as_str), Some("racwd"));
+                assert!(params.contains_key("sv"));
+                assert!(params.contains_key("se"));
+                assert!(params.contains_key("sig"));
+            }
         }
 
-        // SharedKey with account_name inferred from endpoint also enables presign.
+        // SharedKey with account_name inferred from host-style endpoint enables presign.
         let inferred_op = Operator::new(
             AzblobBuilder::default()
                 .container("test")
@@ -933,7 +957,73 @@ mod tests {
         .unwrap();
         assert!(inferred_op.info().capability().presign);
 
-        // Custom credential_provider_chain enables presign.
+        // Path-style endpoints (such as Azurite) must not advertise SharedKey presign
+        // and must reject presign calls with Unsupported instead of emitting invalid URLs.
+        for endpoint in [
+            "http://127.0.0.1:10000/devstoreaccount1",
+            "http://127.0.0.1:10000/devstoreaccount1/",
+        ] {
+            for op in [
+                Operator::new(
+                    AzblobBuilder::default()
+                        .container("test")
+                        .endpoint(endpoint)
+                        .account_name("devstoreaccount1")
+                        .account_key(&key),
+                )
+                .unwrap(),
+                Operator::from_config(AzblobConfig {
+                    container: "test".to_string(),
+                    endpoint: Some(endpoint.to_string()),
+                    account_name: Some("devstoreaccount1".to_string()),
+                    account_key: Some(key.clone()),
+                    ..Default::default()
+                })
+                .unwrap(),
+            ] {
+                let cap = op.info().capability();
+                assert!(!cap.presign);
+                assert!(!cap.presign_stat);
+                assert!(!cap.presign_read);
+                assert!(!cap.presign_write);
+                let err = op
+                    .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unsupported);
+            }
+        }
+
+        // Path-style endpoints with a pre-generated sas_token still support presign.
+        for endpoint in [
+            "http://127.0.0.1:10000/devstoreaccount1",
+            "http://127.0.0.1:10000/devstoreaccount1/",
+        ] {
+            let sas_op = Operator::new(
+                AzblobBuilder::default()
+                    .container("test")
+                    .endpoint(endpoint)
+                    .sas_token("sv=2022-11-02&ss=b&srt=o&sp=r&sig=test"),
+            )
+            .unwrap();
+            let cap = sas_op.info().capability();
+            assert!(cap.presign);
+            assert!(cap.presign_stat);
+            assert!(cap.presign_read);
+            assert!(cap.presign_write);
+            let req = sas_op
+                .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                .await
+                .unwrap();
+            assert_eq!(req.uri().path(), "/devstoreaccount1/test/path/to/file.txt");
+            assert_eq!(
+                parse_query_params(req.uri()).get("sig").map(String::as_str),
+                Some("test")
+            );
+        }
+
+        // Custom credential_provider_chain without explicit SharedKey/SAS must not
+        // advertise presign support because the chain may yield BearerToken credentials.
         let chain = ProvideCredentialChain::new()
             .push(StaticCredentialProvider::new_shared_key("myaccount", &key));
         let custom_op = Operator::new(
@@ -943,12 +1033,16 @@ mod tests {
                 .credential_provider_chain(chain),
         )
         .unwrap();
-        assert!(custom_op.info().capability().presign);
-        let custom_req = custom_op
+        let custom_cap = custom_op.info().capability();
+        assert!(!custom_cap.presign);
+        assert!(!custom_cap.presign_stat);
+        assert!(!custom_cap.presign_read);
+        assert!(!custom_cap.presign_write);
+        let err = custom_op
             .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
             .await
-            .unwrap();
-        assert!(parse_query_params(custom_req.uri()).contains_key("sig"));
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
 
         // Entra ID client credentials alone must not claim presign support.
         let entra_op = Operator::new(

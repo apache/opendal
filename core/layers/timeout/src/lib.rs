@@ -57,11 +57,31 @@ use opendal_core::*;
 /// # Cancellation Safety
 ///
 /// `TimeoutLayer` enforces deadlines by dropping the in-flight future when a
-/// timeout is reached. This can break lower layers that rely on a future being
-/// resolved to restore internal state.
+/// timeout is reached. Lower layers and operation handles must therefore tolerate
+/// dropped futures, and callers still follow each handle's recovery contract
+/// after a timeout:
 ///
-/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time,
-/// please make sure timeout layer is added before retry layer.
+/// - `Writer`: dropping an in-flight `Writer::write` or `Writer::close` future
+///   keeps the handle usable for cleanup, but a streaming or append body may have
+///   already persisted part of that call. Call `Writer::abort` and start a new
+///   writer instead of continuing to write or close, which can duplicate or
+///   corrupt data.
+/// - `Deleter`, `Copier`, and `Lister`: these handles can continue their normal
+///   recovery (for example, retrying `Deleter::close` to flush buffered deletes,
+///   calling `Copier::abort`, or continuing to poll a `Lister`).
+/// - Readers: reopen a read stream after a timed-out or exhausted recovery when
+///   using a retry budget.
+///
+/// When composing `TimeoutLayer` with `RetryLayer`, layer order selects what
+/// the timeout bounds:
+///
+/// - Adding `TimeoutLayer` before `RetryLayer` applies the timeout to each
+///   individual attempt so `RetryLayer` can retry timed-out attempts. Because an
+///   inner `TimeoutLayer` drops the in-flight future on timeout, an outer
+///   `RetryLayer` retrying a timed-out write can similarly replay a partially
+///   written buffer on streaming or append backends.
+/// - Adding `TimeoutLayer` after `RetryLayer` bounds total time across all
+///   retries of one call without losing `RetryLayer` handle state.
 ///
 /// ```no_run
 /// # use std::time::Duration;
@@ -74,11 +94,11 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
-///     // This is fine: each retry attempt is timed out.
-///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
+///     // Time out each retry attempt so RetryLayer can retry it.
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(10)))
 ///     .layer(RetryLayer::default())
-///     // This is wrong: timeout can drop RetryLayer's future before it restores body state.
-///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)));
+///     // Optional outer deadline across all retries of one call.
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(30)));
 /// # Ok(())
 /// # }
 /// ```

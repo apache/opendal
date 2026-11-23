@@ -272,15 +272,16 @@ impl Io {
                         }
                         Some(bytes::Bytes::new())
                     } else {
-                        let mut bs = vec![0; size as usize];
-                        let n = reader
-                            .read(&mut bs)
+                        let mut bs = Vec::new();
+                        reader
+                            .by_ref()
+                            .take(size as u64)
+                            .read_to_end(&mut bs)
                             .map_err(|err| format_io_error(ruby, err))?;
-                        if n == 0 {
+                        if bs.is_empty() {
                             // when called at end of file, read(positive_integer) returns nil.
                             None
                         } else {
-                            bs.truncate(n);
                             Some(bs.into())
                         }
                     }
@@ -294,11 +295,11 @@ impl Io {
                 }
             };
 
-            // when provided the buffer parameter, append read buffer
-            if let (Some(output_buffer), Some(inner)) =
-                (option_output_buffer.as_mut(), buffer.as_ref())
-            {
-                output_buffer.cat(inner);
+            if let Some(output_buffer) = option_output_buffer.as_mut() {
+                match buffer.as_ref() {
+                    Some(inner) => output_buffer.cat(inner),
+                    None => output_buffer.drop_bytes(output_buffer.len())?,
+                }
             }
 
             Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
@@ -315,13 +316,13 @@ impl Io {
     /// Reads a single line from the stream.
     /// @return [String]
     // TODO: extend readline with parameters
-    fn readline(ruby: &Ruby, rb_self: &Self) -> Result<String, Error> {
+    fn readline(ruby: &Ruby, rb_self: &Self) -> Result<RString, Error> {
         let mut handle = rb_self.0.borrow_mut();
 
         if let FileState::Reader(reader) = &mut handle.state {
-            let mut buffer = String::new();
+            let mut buffer = Vec::new();
             let size = reader
-                .read_line(&mut buffer)
+                .read_until(b'\n', &mut buffer)
                 .map_err(|err| format_io_error(ruby, err))?;
             if size == 0 {
                 return Err(Error::new(
@@ -330,7 +331,7 @@ impl Io {
                 ));
             }
 
-            Ok(buffer)
+            Ok(ruby.str_from_slice(&buffer))
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),
@@ -344,13 +345,14 @@ impl Io {
     /// Writes data to the stream.
     /// @param buffer [String]
     /// @return [Integer] the written byte size
-    fn write(ruby: &Ruby, rb_self: &Self, bs: String) -> Result<usize, Error> {
+    fn write(ruby: &Ruby, rb_self: &Self, bs: RString) -> Result<usize, Error> {
         let mut handle = rb_self.0.borrow_mut();
 
         if let FileState::Writer(writer) = &mut handle.state {
-            let bytes_written = bs.len();
+            let bytes = bs.to_bytes();
+            let bytes_written = bytes.len();
             writer
-                .write_all(bs.as_bytes())
+                .write_all(&bytes)
                 .map_err(|err| format_io_error(ruby, err))?;
             Ok(bytes_written)
         } else {
@@ -394,31 +396,49 @@ impl Io {
                     let position = reader
                         .stream_position()
                         .map_err(|err| format_io_error(ruby, err))?;
-                    if offset < 0 && (-offset as u64) > position {
+                    let target = i128::from(position) + i128::from(offset);
+                    if target < 0 {
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
                             "Cannot seek before start of stream.",
                         ));
                     }
-                    (position as i64 + offset) as u64
+                    let target = i64::try_from(target).map_err(|_| {
+                        Error::new(ruby.exception_runtime_error(), "Seek position overflow.")
+                    })?;
+                    target as u64
                 }
                 2 => {
                     // SEEK_END
+                    let current_pos = reader
+                        .stream_position()
+                        .map_err(|err| format_io_error(ruby, err))?;
                     let end_pos = reader
                         .seek(SeekFrom::End(0))
                         .map_err(|err| format_io_error(ruby, err))?;
-                    if offset < 0 && (-offset as u64) > end_pos {
+                    let target = i128::from(end_pos) + i128::from(offset);
+                    if target < 0 {
+                        let _ = reader.seek(SeekFrom::Start(current_pos));
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
                             "Cannot seek before start of stream.",
                         ));
                     }
-                    (end_pos as i64 + offset) as u64
+                    let Ok(target) = i64::try_from(target) else {
+                        let _ = reader.seek(SeekFrom::Start(current_pos));
+                        return Err(Error::new(
+                            ruby.exception_runtime_error(),
+                            "Seek position overflow.",
+                        ));
+                    };
+                    target as u64
                 }
                 _ => return Err(Error::new(ruby.exception_arg_error(), "invalid whence")),
             };
 
-            let _ = reader.seek(std::io::SeekFrom::Start(new_reader_position));
+            reader
+                .seek(SeekFrom::Start(new_reader_position))
+                .map_err(|err| format_io_error(ruby, err))?;
         } else {
             return Err(Error::new(
                 ruby.exception_runtime_error(),

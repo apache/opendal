@@ -334,6 +334,8 @@ struct CloseFaultBuilder {
     fail_next_close: bool,
     pending_next_close: bool,
     recursive_delete: Option<Arc<RecursiveDeleteState>>,
+    buffered_delete: Option<Arc<RecursiveDeleteState>>,
+    stat_gate: Option<(String, Arc<Notify>, Arc<Notify>)>,
 }
 
 impl Builder for CloseFaultBuilder {
@@ -345,6 +347,8 @@ impl Builder for CloseFaultBuilder {
             fail_next_close: Arc::new(AtomicBool::new(self.fail_next_close)),
             pending_next_close: Arc::new(AtomicBool::new(self.pending_next_close)),
             recursive_delete: self.recursive_delete,
+            buffered_delete: self.buffered_delete,
+            stat_gate: self.stat_gate,
         })
     }
 }
@@ -355,6 +359,8 @@ struct CloseFaultService {
     fail_next_close: Arc<AtomicBool>,
     pending_next_close: Arc<AtomicBool>,
     recursive_delete: Option<Arc<RecursiveDeleteState>>,
+    buffered_delete: Option<Arc<RecursiveDeleteState>>,
+    stat_gate: Option<(String, Arc<Notify>, Arc<Notify>)>,
 }
 
 struct CloseFaultWriter {
@@ -393,12 +399,13 @@ struct RecursiveDeleteState {
 struct DelayedRecursiveDeleter {
     inner: oio::Deleter,
     state: Option<Arc<RecursiveDeleteState>>,
+    buffer_all: bool,
     pending: Vec<(String, OpDelete)>,
 }
 
 impl oio::Delete for DelayedRecursiveDeleter {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        if self.state.is_some() && args.recursive() {
+        if self.state.is_some() && (self.buffer_all || args.recursive()) {
             self.pending.push((path.to_string(), args));
             return Ok(());
         }
@@ -452,6 +459,12 @@ impl Service for CloseFaultService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        if let Some((gate_path, started, release)) = &self.stat_gate
+            && path == gate_path
+        {
+            started.notify_one();
+            release.notified().await;
+        }
         self.inner.stat(ctx, path, args).await
     }
 
@@ -468,9 +481,15 @@ impl Service for CloseFaultService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let (state, buffer_all) = if let Some(state) = &self.buffered_delete {
+            (Some(state.clone()), true)
+        } else {
+            (self.recursive_delete.clone(), false)
+        };
         Ok(DelayedRecursiveDeleter {
             inner: self.inner.delete(ctx)?,
-            state: self.recursive_delete.clone(),
+            state,
+            buffer_all,
             pending: vec![],
         })
     }
@@ -634,6 +653,63 @@ async fn recursive_delete_does_not_serve_cached_descendants() {
         assert!(!cache.contains(&unversioned_key(path)));
     }
     assert_eq!(op.read("dir2/c").await.unwrap().to_vec(), b"v3");
+}
+
+#[tokio::test]
+async fn buffered_delete_close_does_not_allow_mid_close_cache_repopulation() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let stat_started = Arc::new(Notify::new());
+    let stat_release = Arc::new(Notify::new());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        stat_gate: Some((
+            "other".to_string(),
+            stat_started.clone(),
+            stat_release.clone(),
+        )),
+        ..Default::default()
+    })
+    .await;
+
+    op.write("target", "v1").await.unwrap();
+    op.write("other", "other-data").await.unwrap();
+    // Clear "other" from cache so reading it triggers a backend stat that we can gate.
+    cache.remove(&unversioned_key("other"));
+    assert!(cache.contains(&unversioned_key("target")));
+
+    let unrelated_read = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("other").await.unwrap() }
+    });
+    stat_started.notified().await;
+
+    // Start a buffered delete of "target"; it pauses inside `deleter.close().await`
+    // before the backend removes "target".
+    let delete_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.delete("target").await.unwrap() }
+    });
+    delete_state.close_started.notified().await;
+
+    // Finish the unrelated read while `deleter.close().await` is still running.
+    stat_release.notify_one();
+    assert_eq!(unrelated_read.await.unwrap().to_vec(), b"other-data");
+
+    // Read "target" before `deleter.close().await` finishes deleting it from backend.
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"v1");
+
+    // Complete backend deletion.
+    delete_state.finish_close.notify_one();
+    delete_task.await.unwrap();
+
+    assert!(
+        !cache.contains(&unversioned_key("target")),
+        "a read during buffered deleter close must not leave stale data cached after close"
+    );
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
 }
 
 #[test]

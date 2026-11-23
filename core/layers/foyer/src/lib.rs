@@ -26,12 +26,9 @@ mod full;
 mod writer;
 
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::{BTreeMap, HashMap},
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use foyer::{Code, HybridCache, Result as FoyerResult};
@@ -152,7 +149,7 @@ impl Code for FoyerValue {
     }
 }
 
-/// Maximum number of invalidated keys remembered by the layer.
+/// Maximum number of idle invalidated keys remembered by the layer.
 ///
 /// The invalidation history is a negative cache, not a correctness requirement:
 /// cache entries are removed as soon as they are invalidated. Bounding the
@@ -160,23 +157,74 @@ impl Code for FoyerValue {
 const MAX_DELETED_KEYS: usize = 1024;
 
 #[derive(Debug, Default)]
-struct ReadGeneration {
-    active: AtomicUsize,
+struct IdleTombstones {
+    next_seq: u64,
+    keys: HashMap<Arc<FoyerKey>, u64>,
+    by_seq: BTreeMap<u64, Arc<FoyerKey>>,
 }
 
-impl ReadGeneration {
-    fn is_active(&self) -> bool {
-        self.active.load(Ordering::Acquire) > 0
+impl IdleTombstones {
+    fn contains(&self, key: &FoyerKey) -> bool {
+        self.keys.contains_key(key)
+    }
+
+    fn insert(&mut self, key: FoyerKey, cache: &HybridCache<FoyerKey, FoyerValue>) {
+        let seq = self.next_seq;
+        self.next_seq += 1;
+
+        let shared_key = Arc::new(key);
+        if let Some(old_seq) = self.keys.insert(shared_key.clone(), seq) {
+            self.by_seq.remove(&old_seq);
+        }
+        self.by_seq.insert(seq, shared_key);
+
+        while self.keys.len() > MAX_DELETED_KEYS {
+            let Some((_, oldest_key)) = self.by_seq.pop_first() else {
+                break;
+            };
+            self.keys.remove(&oldest_key);
+            cache.remove(oldest_key.as_ref());
+        }
+    }
+
+    fn remove(&mut self, key: &FoyerKey) {
+        if let Some(seq) = self.keys.remove(key) {
+            self.by_seq.remove(&seq);
+        }
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.keys.len()
     }
 }
 
-/// Invalidated cache keys.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PinnedKind {
+    /// Invalidated or evicted while older reads of this key were in flight.
+    /// New reads bypass the cache until those reads finish, at which point the
+    /// key is removed from the cache again and released.
+    Invalidate,
+    /// Overwritten by a cacheable write while older reads of this key were in
+    /// flight. New reads can hit the cached entry, while older fetches abort
+    /// cache insertion without evicting the newer value when they finish.
+    Store,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PinnedEntry {
+    epoch: u64,
+    kind: PinnedKind,
+}
+
+/// Invalidated cache keys and in-flight read/delete fences.
 ///
-/// A key stays invalidated while a read that started before its invalidation is
-/// still in flight, so that the read cannot repopulate the cache with stale
-/// data. Once those reads finish, the cache entry is removed again and the
-/// tombstone is released. Invalidations without in-flight reads are retained up
-/// to [`MAX_DELETED_KEYS`] so recently mutated paths keep bypassing the cache
+/// A key stays pinned while reads that started before its invalidation (or a
+/// `Deleter::close` call targeting the key) are still in flight, so racing
+/// cache fills cannot leave stale data behind. Once those reads finish, any
+/// entry they could have inserted is removed and the pin is released.
+/// Invalidations without in-flight reads are retained up to
+/// [`MAX_DELETED_KEYS`] so recently mutated paths keep bypassing the cache
 /// until a write through the layer repopulates them.
 #[derive(Debug, Default)]
 struct DeletedKeys {
@@ -185,94 +233,198 @@ struct DeletedKeys {
 
 #[derive(Debug, Default)]
 struct DeletedKeysState {
-    current: Arc<ReadGeneration>,
-    keys: HashMap<FoyerKey, Option<Arc<ReadGeneration>>>,
-    order: VecDeque<FoyerKey>,
+    epoch: u64,
+    active_reads: HashMap<FoyerKey, BTreeMap<u64, usize>>,
+    pinned: HashMap<FoyerKey, PinnedEntry>,
+    active_deletes: HashMap<FoyerKey, usize>,
+    idle: IdleTombstones,
 }
 
 impl DeletedKeysState {
-    fn enforce_limit(&mut self, cache: &HybridCache<FoyerKey, FoyerValue>) {
-        while self.keys.len() > MAX_DELETED_KEYS {
-            let mut attempts = self.order.len();
-            let mut evicted = false;
-            while attempts > 0 && self.keys.len() > MAX_DELETED_KEYS {
-                attempts -= 1;
-                let Some(key) = self.order.pop_front() else {
-                    break;
-                };
-                let Some(tombstone) = self.keys.get(&key) else {
-                    continue;
-                };
-                if tombstone.as_ref().is_some_and(|g| g.is_active()) {
-                    // A read that started before this invalidation may still
-                    // repopulate the key, so this tombstone cannot be released.
-                    self.order.push_back(key);
-                    continue;
-                }
-                self.keys.remove(&key);
-                cache.remove(&key);
-                evicted = true;
-                break;
-            }
-            if !evicted {
-                break;
+    fn apply_invalidation(
+        &mut self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        keys: &[FoyerKey],
+        evict_keys: &[FoyerKey],
+    ) {
+        for key in evict_keys {
+            self.idle.remove(key);
+            cache.remove(key);
+            if self.active_reads.contains_key(key) {
+                self.epoch += 1;
+                self.pinned.insert(
+                    key.clone(),
+                    PinnedEntry {
+                        epoch: self.epoch,
+                        kind: PinnedKind::Invalidate,
+                    },
+                );
+            } else {
+                self.pinned.remove(key);
             }
         }
+
+        for key in keys {
+            cache.remove(key);
+            if self.active_reads.contains_key(key) {
+                self.idle.remove(key);
+                self.epoch += 1;
+                self.pinned.insert(
+                    key.clone(),
+                    PinnedEntry {
+                        epoch: self.epoch,
+                        kind: PinnedKind::Invalidate,
+                    },
+                );
+            } else {
+                self.pinned.remove(key);
+                self.idle.insert(key.clone(), cache);
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct ReadGuard(Arc<ReadGuardInner>);
+
+impl ReadGuard {
+    fn epoch(&self) -> u64 {
+        self.0.epoch
     }
 }
 
 #[derive(Debug)]
-struct ReadGuard {
+struct ReadGuardInner {
     deleted_keys: Arc<DeletedKeys>,
     cache: HybridCache<FoyerKey, FoyerValue>,
-    generation: Arc<ReadGeneration>,
+    key: FoyerKey,
+    epoch: u64,
 }
 
-impl Drop for ReadGuard {
+impl Drop for ReadGuardInner {
     fn drop(&mut self) {
-        self.deleted_keys.finish_read(&self.cache, &self.generation);
+        self.deleted_keys
+            .finish_read(&self.cache, &self.key, self.epoch);
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct DeleteGuard {
+    deleted_keys: Arc<DeletedKeys>,
+    cache: HybridCache<FoyerKey, FoyerValue>,
+    keys: Vec<FoyerKey>,
+    evict_keys: Vec<FoyerKey>,
+}
+
+impl Drop for DeleteGuard {
+    fn drop(&mut self) {
+        let mut state = self.deleted_keys.lock_state();
+        for key in self.keys.iter().chain(self.evict_keys.iter()) {
+            if let Some(count) = state.active_deletes.get_mut(key) {
+                if *count > 1 {
+                    *count -= 1;
+                } else {
+                    state.active_deletes.remove(key);
+                }
+            }
+        }
+        state.apply_invalidation(&self.cache, &self.keys, &self.evict_keys);
     }
 }
 
 impl DeletedKeys {
-    fn begin_read(self: &Arc<Self>, cache: HybridCache<FoyerKey, FoyerValue>) -> ReadGuard {
-        let state = self.state.lock().expect("deleted keys lock poisoned");
-        state.current.active.fetch_add(1, Ordering::Relaxed);
-        ReadGuard {
-            deleted_keys: self.clone(),
-            cache,
-            generation: state.current.clone(),
-        }
+    fn lock_state(&self) -> MutexGuard<'_, DeletedKeysState> {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    fn finish_read(
-        &self,
+    fn begin_read(
+        self: &Arc<Self>,
         cache: &HybridCache<FoyerKey, FoyerValue>,
-        generation: &Arc<ReadGeneration>,
-    ) {
-        if generation.active.fetch_sub(1, Ordering::AcqRel) != 1 {
+        key: &FoyerKey,
+    ) -> Option<ReadGuard> {
+        let mut state = self.lock_state();
+        if state.active_deletes.contains_key(key)
+            || state.idle.contains(key)
+            || state
+                .pinned
+                .get(key)
+                .is_some_and(|entry| entry.kind == PinnedKind::Invalidate)
+        {
+            return None;
+        }
+
+        let epoch = state.epoch;
+        *state
+            .active_reads
+            .entry(key.clone())
+            .or_default()
+            .entry(epoch)
+            .or_insert(0) += 1;
+
+        Some(ReadGuard(Arc::new(ReadGuardInner {
+            deleted_keys: self.clone(),
+            cache: cache.clone(),
+            key: key.clone(),
+            epoch,
+        })))
+    }
+
+    fn finish_read(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey, epoch: u64) {
+        let mut state = self.lock_state();
+        let Some(epochs) = state.active_reads.get_mut(key) else {
+            return;
+        };
+        let removed_epoch = match epochs.get_mut(&epoch) {
+            Some(count) if *count > 1 => {
+                *count -= 1;
+                false
+            }
+            Some(_) => {
+                epochs.remove(&epoch);
+                true
+            }
+            None => false,
+        };
+
+        let min_active = epochs.first_key_value().map(|(&e, _)| e);
+        if min_active.is_none() {
+            state.active_reads.remove(key);
+        }
+
+        if !removed_epoch || state.pinned.is_empty() {
             return;
         }
 
-        let mut state = self.state.lock().expect("deleted keys lock poisoned");
-        state.keys.retain(|key, tombstone| {
-            let expired = tombstone.as_ref().is_some_and(|g| !g.is_active());
-            if expired {
-                // The last read that could have refilled this entry has
-                // finished. Drop whatever it may have inserted before
-                // releasing the tombstone.
-                cache.remove(key);
-            }
-            !expired
-        });
+        if let Some(min_epoch) = min_active
+            && min_epoch < epoch
+        {
+            return;
+        }
+
+        let expired = state
+            .pinned
+            .get(key)
+            .is_some_and(|entry| min_active.is_none_or(|min_epoch| min_epoch >= entry.epoch));
+        if expired
+            && let Some(entry) = state.pinned.remove(key)
+            && entry.kind == PinnedKind::Invalidate
+        {
+            // The last read that could have refilled this entry has finished.
+            // Drop whatever it may have inserted before releasing the pin.
+            cache.remove(key);
+        }
     }
 
-    fn contains(&self, key: &FoyerKey) -> bool {
-        self.state
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .keys
-            .contains_key(key)
+    fn is_fetch_stale(&self, key: &FoyerKey, fetch_epoch: u64) -> bool {
+        let state = self.lock_state();
+        state.active_deletes.contains_key(key)
+            || state.idle.contains(key)
+            || state
+                .pinned
+                .get(key)
+                .is_some_and(|entry| entry.epoch > fetch_epoch)
     }
 
     fn invalidate(
@@ -281,43 +433,26 @@ impl DeletedKeys {
         keys: &[FoyerKey],
         evict_keys: &[FoyerKey],
     ) {
-        let mut state = self.state.lock().expect("deleted keys lock poisoned");
+        let mut state = self.lock_state();
+        state.apply_invalidation(cache, keys, evict_keys);
+    }
 
-        for key in evict_keys {
-            state.keys.remove(key);
-            cache.remove(key);
+    pub(crate) fn begin_delete(
+        self: &Arc<Self>,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        keys: Vec<FoyerKey>,
+        evict_keys: Vec<FoyerKey>,
+    ) -> DeleteGuard {
+        let mut state = self.lock_state();
+        state.apply_invalidation(cache, &keys, &evict_keys);
+        for key in keys.iter().chain(evict_keys.iter()) {
+            *state.active_deletes.entry(key.clone()).or_insert(0) += 1;
         }
-
-        let generation = state.current.clone();
-        let active = generation.is_active();
-        for key in keys {
-            cache.remove(key);
-            let replace = match state.keys.get(key) {
-                // Keep the earliest in-flight generation so the tombstone
-                // outlives every read that could observe stale data.
-                Some(Some(g)) if g.is_active() => false,
-                _ => true,
-            };
-            if replace {
-                let existed = state
-                    .keys
-                    .insert(key.clone(), active.then(|| generation.clone()))
-                    .is_some();
-                if !existed {
-                    state.order.push_back(key.clone());
-                }
-            }
-        }
-
-        if active {
-            state.current = Arc::new(ReadGeneration::default());
-        }
-        state.enforce_limit(cache);
-        // Forgotten or expired keys leave stale ordering entries behind.
-        // Rebuild the queue occasionally so writes that never invalidate also
-        // keep the auxiliary history bounded.
-        if state.order.len() > MAX_DELETED_KEYS * 2 {
-            state.order = state.keys.keys().cloned().collect();
+        DeleteGuard {
+            deleted_keys: self.clone(),
+            cache: cache.clone(),
+            keys,
+            evict_keys,
         }
     }
 
@@ -328,33 +463,77 @@ impl DeletedKeys {
         value: FoyerValue,
         evict_key: Option<&FoyerKey>,
     ) {
-        let mut state = self.state.lock().expect("deleted keys lock poisoned");
-        state.keys.remove(&key);
-        if let Some(evict_key) = evict_key {
-            state.keys.remove(evict_key);
-            cache.remove(evict_key);
+        let mut state = self.lock_state();
+        state.idle.remove(&key);
+        if state.active_reads.contains_key(&key) {
+            state.epoch += 1;
+            let epoch = state.epoch;
+            state.pinned.insert(
+                key.clone(),
+                PinnedEntry {
+                    epoch,
+                    kind: PinnedKind::Store,
+                },
+            );
+        } else {
+            state.pinned.remove(&key);
         }
+
+        if let Some(evict_key) = evict_key {
+            state.idle.remove(evict_key);
+            cache.remove(evict_key);
+            if state.active_reads.contains_key(evict_key) {
+                state.epoch += 1;
+                let epoch = state.epoch;
+                state.pinned.insert(
+                    evict_key.clone(),
+                    PinnedEntry {
+                        epoch,
+                        kind: PinnedKind::Invalidate,
+                    },
+                );
+            } else {
+                state.pinned.remove(evict_key);
+            }
+        }
+
         cache.insert(key, value);
     }
 
     fn evict(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey) {
-        let mut state = self.state.lock().expect("deleted keys lock poisoned");
-        state.keys.remove(key);
+        let mut state = self.lock_state();
+        state.idle.remove(key);
         cache.remove(key);
+        if state.active_reads.contains_key(key) {
+            state.epoch += 1;
+            let epoch = state.epoch;
+            state.pinned.insert(
+                key.clone(),
+                PinnedEntry {
+                    epoch,
+                    kind: PinnedKind::Invalidate,
+                },
+            );
+        } else {
+            state.pinned.remove(key);
+        }
     }
 
     #[cfg(test)]
     fn len(&self) -> usize {
-        self.state
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .keys
-            .len()
+        let state = self.lock_state();
+        state.idle.len() + state.pinned.len() + state.active_deletes.len()
     }
 
     #[cfg(test)]
     fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    #[cfg(test)]
+    fn auxiliary_len(&self) -> usize {
+        let state = self.lock_state();
+        state.idle.by_seq.len() + state.active_reads.len() + state.active_deletes.len()
     }
 }
 
@@ -692,7 +871,7 @@ mod tests {
     struct MockReadState {
         data: Buffer,
         etag: String,
-        stat_gate: Mutex<Option<Arc<Semaphore>>>,
+        stat_gate: Mutex<Option<(Option<String>, Arc<Semaphore>)>>,
         stat_started: Arc<Semaphore>,
         condition_gate: Mutex<Option<Arc<Semaphore>>>,
         condition_started: Arc<Semaphore>,
@@ -722,7 +901,13 @@ mod tests {
 
         fn gate_stat(&self) -> Arc<Semaphore> {
             let gate = Arc::new(Semaphore::new(0));
-            *self.stat_gate.lock().unwrap() = Some(gate.clone());
+            *self.stat_gate.lock().unwrap() = Some((None, gate.clone()));
+            gate
+        }
+
+        fn gate_stat_for(&self, path: &str) -> Arc<Semaphore> {
+            let gate = Arc::new(Semaphore::new(0));
+            *self.stat_gate.lock().unwrap() = Some((Some(path.to_string()), gate.clone()));
             gate
         }
 
@@ -863,11 +1048,18 @@ mod tests {
             ))
         }
 
-        async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+        async fn stat(&self, _: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
             self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
             *self.state.last_stat_args.lock().unwrap() = Some(args.clone());
 
-            let gate = self.state.stat_gate.lock().unwrap().clone();
+            let gate = {
+                let guard = self.state.stat_gate.lock().unwrap();
+                match guard.as_ref() {
+                    Some((None, gate)) => Some(gate.clone()),
+                    Some((Some(filter), gate)) if filter == path => Some(gate.clone()),
+                    _ => None,
+                }
+            };
             if let Some(gate) = gate {
                 self.state.stat_started.add_permits(1);
                 gate.acquire().await.unwrap().forget();
@@ -1460,7 +1652,7 @@ mod tests {
         let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
         let ctx = OperationContext::new();
 
-        for i in 0..=MAX_DELETED_KEYS {
+        for i in 0..=(MAX_DELETED_KEYS * 2) {
             let path = format!("obj-{i}");
             let mut writer = service.write(&ctx, &path, OpWrite::new()).unwrap();
             writer.write(Buffer::from("value")).await.unwrap();
@@ -1472,10 +1664,30 @@ mod tests {
         }
 
         let len = layer.deleted_keys.len();
+        let aux_len = layer.deleted_keys.auxiliary_len();
         assert!(
             len <= MAX_DELETED_KEYS,
             "deleted key tombstones grew to {len}, expected at most {MAX_DELETED_KEYS}"
         );
+        assert_eq!(
+            aux_len, len,
+            "auxiliary invalidation index grew to {aux_len}, expected {len}"
+        );
+
+        // Repeated write/delete cycles on the same key must not leave stale
+        // ordering entries behind.
+        for _ in 0..=(MAX_DELETED_KEYS * 2) {
+            let mut writer = service.write(&ctx, "reused", OpWrite::new()).unwrap();
+            writer.write(Buffer::from("value")).await.unwrap();
+            writer.close().await.unwrap();
+
+            let mut deleter = service.delete(&ctx).unwrap();
+            deleter.delete("reused", OpDelete::new()).await.unwrap();
+            deleter.close().await.unwrap();
+        }
+
+        assert!(layer.deleted_keys.len() <= MAX_DELETED_KEYS);
+        assert_eq!(layer.deleted_keys.auxiliary_len(), layer.deleted_keys.len());
     }
 
     #[tokio::test]
@@ -1515,6 +1727,274 @@ mod tests {
         assert!(
             layer.deleted_keys.is_empty(),
             "tombstones must be released once the invalidation readers finish"
+        );
+    }
+
+    #[tokio::test]
+    async fn interleaved_invalidation_keeps_older_read_pinned() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("stale-data"));
+        let state = source.state.clone();
+        let gate = state.gate_stat_for("target");
+        let layer = FoyerLayer::new(cache.clone());
+        let service = Arc::new(layer.layer(source));
+        let ctx = OperationContext::new();
+        let inner = service.operation_inner(&ctx);
+
+        // R1 starts reading "target" and pauses inside Foyer's fetch.
+        let r1 = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        state.stat_started.acquire().await.unwrap().forget();
+
+        // An unrelated invalidation followed by a newer read R2 that finishes
+        // must not lose track of R1.
+        inner.invalidate_unversioned("unrelated".to_string());
+        {
+            let reader = service.read(&ctx, "other", OpRead::default()).unwrap();
+            let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+            let _ = stream.read_all().await.unwrap();
+        }
+
+        // Now invalidate "target" while R1 is still in flight.
+        inner.invalidate_unversioned("target".to_string());
+        gate.add_permits(1);
+
+        let buffer = r1.await.unwrap();
+        assert_eq!(buffer.to_vec(), b"stale-data");
+        assert!(
+            !cache.contains(&FoyerKey {
+                path: "target".to_string(),
+                version: None,
+            }),
+            "older read completing after interleaved invalidation must not leave target cached"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelled_read_does_not_repopulate_cache_after_invalidation() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("stale-data"));
+        let state = source.state.clone();
+        let gate = state.gate_stat_for("target");
+        let layer = FoyerLayer::new(cache.clone());
+        let service = Arc::new(layer.layer(source));
+        let ctx = OperationContext::new();
+        let inner = service.operation_inner(&ctx);
+        let target_key = FoyerKey {
+            path: "target".to_string(),
+            version: None,
+        };
+
+        let r1 = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        state.stat_started.acquire().await.unwrap().forget();
+
+        inner.invalidate_unversioned("target".to_string());
+
+        // Cancel the reader future while Foyer's detached fetch is still blocked.
+        r1.abort();
+        let _ = r1.await;
+
+        // Attach a passive waiter to Foyer's inflight before releasing the backend gate
+        // so we deterministically observe the detached fetch finishing.
+        let wait_inflight = cache.get(&target_key);
+        gate.add_permits(1);
+        let _ = wait_inflight.await;
+
+        assert!(
+            !cache.contains(&target_key),
+            "detached fetch from a cancelled read must not repopulate an invalidated key"
+        );
+    }
+
+    #[derive(Debug)]
+    struct GatedMemoryService {
+        inner: Servicer,
+        gate_path: String,
+        stat_started: Arc<Semaphore>,
+        stat_gate: Arc<Semaphore>,
+        stat_done: Arc<Semaphore>,
+        gate_once: AtomicUsize,
+        stat_calls: AtomicUsize,
+    }
+
+    impl Service for GatedMemoryService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.stat_calls.fetch_add(1, Ordering::Relaxed);
+            if path == self.gate_path
+                && self
+                    .gate_once
+                    .compare_exchange(1, 0, Ordering::SeqCst, Ordering::SeqCst)
+                    .is_ok()
+            {
+                struct SignalOnDrop(Arc<Semaphore>);
+                impl Drop for SignalOnDrop {
+                    fn drop(&mut self) {
+                        self.0.add_permits(1);
+                    }
+                }
+                let _signal = SignalOnDrop(self.stat_done.clone());
+                self.stat_started.add_permits(1);
+                self.stat_gate.acquire().await.unwrap().forget();
+            }
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    #[tokio::test]
+    async fn older_read_completing_after_delete_and_write_preserves_new_entry() {
+        let cache = memory_cache().await;
+        let mem: Servicer = Arc::new(Memory::default().build().unwrap());
+        let ctx = OperationContext::new();
+
+        // Populate backend directly so the initial read misses cache and fetches from backend.
+        let mut init_writer = mem.write(&ctx, "target", OpWrite::new()).unwrap();
+        init_writer.write(Buffer::from("old")).await.unwrap();
+        init_writer.close().await.unwrap();
+
+        let stat_started = Arc::new(Semaphore::new(0));
+        let stat_gate = Arc::new(Semaphore::new(0));
+        let stat_done = Arc::new(Semaphore::new(0));
+        let gated = Arc::new(GatedMemoryService {
+            inner: mem,
+            gate_path: "target".to_string(),
+            stat_started: stat_started.clone(),
+            stat_gate: stat_gate.clone(),
+            stat_done: stat_done.clone(),
+            gate_once: AtomicUsize::new(1),
+            stat_calls: AtomicUsize::new(0),
+        });
+        let layer = FoyerLayer::new(cache.clone());
+        let service = Arc::new(layer.layer(gated.clone()));
+        let target_key = FoyerKey {
+            path: "target".to_string(),
+            version: None,
+        };
+
+        let older_read = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        stat_started.acquire().await.unwrap().forget();
+
+        // Delete then write a fresh value while the older read is still in flight.
+        let mut deleter = service.delete(&ctx).unwrap();
+        deleter.delete("target", OpDelete::new()).await.unwrap();
+        deleter.close().await.unwrap();
+
+        let mut writer = service.write(&ctx, "target", OpWrite::new()).unwrap();
+        writer.write(Buffer::from("new")).await.unwrap();
+        writer.close().await.unwrap();
+        assert!(cache.contains(&target_key));
+
+        // Let the older read and its detached fetch task finish completely.
+        stat_gate.add_permits(1);
+        let _ = older_read.await.unwrap();
+        stat_done.acquire().await.unwrap().forget();
+        tokio::task::yield_now().await;
+
+        // The newly written cache entry must remain cached with its fresh value.
+        assert!(
+            cache.contains(&target_key),
+            "older read completing after delete+write must not evict the new cache entry"
+        );
+        let stat_before = gated.stat_calls.load(Ordering::Relaxed);
+        let reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        let fresh = stream.read_all().await.unwrap();
+        assert_eq!(fresh.to_vec(), b"new");
+        assert_eq!(
+            gated.stat_calls.load(Ordering::Relaxed),
+            stat_before,
+            "subsequent read should hit the newly written cache entry"
         );
     }
 

@@ -16,6 +16,8 @@
 // under the License.
 
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 
 use bytes::Buf;
 use constants::X_AMZ_OBJECT_SIZE;
@@ -36,6 +38,7 @@ pub struct S3Writer {
 
     op: OpWrite,
     path: String,
+    appended: AtomicBool,
 }
 
 impl S3Writer {
@@ -45,6 +48,7 @@ impl S3Writer {
             ctx,
             path: path.to_string(),
             op,
+            appended: AtomicBool::new(false),
         }
     }
 
@@ -360,14 +364,20 @@ impl oio::AppendWrite for S3Writer {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
-        let error_ctx = if offset == 0 {
+        let include_conditions = !self.appended.load(Ordering::Relaxed);
+        let error_ctx = if include_conditions {
             self.error_context(ServiceOperation("PutObject"))
         } else {
             ErrorContext::new(ServiceOperation("PutObject"))
         };
-        let req = self
-            .core
-            .s3_append_object_request(&self.path, offset, size, &self.op, body)?;
+        let req = self.core.s3_append_object_request(
+            &self.path,
+            offset,
+            size,
+            &self.op,
+            include_conditions,
+            body,
+        )?;
 
         let resp = self
             .core
@@ -379,8 +389,24 @@ impl oio::AppendWrite for S3Writer {
         let meta = S3Writer::parse_header_into_meta(&self.path, resp.headers())?;
 
         match status {
-            StatusCode::CREATED | StatusCode::OK => Ok(meta),
-            _ => Err(parse_error(error_ctx, resp)),
+            StatusCode::CREATED | StatusCode::OK => {
+                self.appended.store(true, Ordering::Relaxed);
+                Ok(meta)
+            }
+            _ => {
+                let err = parse_error(error_ctx, resp);
+                if include_conditions
+                    && self.op.if_match().is_some()
+                    && err.kind() == ErrorKind::NotFound
+                {
+                    Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "write precondition requires a live target",
+                    ))
+                } else {
+                    Err(err)
+                }
+            }
         }
     }
 }

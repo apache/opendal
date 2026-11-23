@@ -583,7 +583,7 @@ mod tests {
     use futures::StreamExt;
     use futures::executor::block_on;
     use opendal_core::raw::oio::Write as _;
-    use reqsign_core::{Context, ProvideCredentialChain, Signer};
+    use reqsign_core::{Context, ProvideCredentialChain};
     use reqsign_google::RequestSigner;
     use tonic::transport::Endpoint;
 
@@ -600,12 +600,10 @@ mod tests {
             root: "/".to_string(),
             channel_endpoint: Endpoint::from_static("http://127.0.0.1:1"),
             channel: Default::default(),
-            signer: Signer::new(
-                sign_ctx.clone(),
-                ProvideCredentialChain::new(),
-                RequestSigner::new("storage"),
-            ),
             sign_ctx,
+            credential_provider: Arc::new(ProvideCredentialChain::new()),
+            request_signer: Arc::new(RequestSigner::new("storage")),
+            signers: HttpTransportCache::new(),
             skip_signature: true,
         });
         GcsGrpcWriter::new(

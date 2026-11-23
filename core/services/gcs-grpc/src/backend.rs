@@ -19,7 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
-use reqsign_core::{Context, OsEnv, ProvideCredential, ProvideCredentialChain, Signer};
+use reqsign_core::{Context, OsEnv, ProvideCredential, ProvideCredentialChain};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_google::{
     Credential, DefaultCredentialProvider, EnvCredentialProvider, FileCredentialProvider,
@@ -220,11 +220,8 @@ impl GcsGrpcBuilder {
             credential_chain = credential_chain.push_front(custom);
         }
 
-        let signer = Signer::new(
-            ctx.clone(),
-            credential_chain,
-            RequestSigner::new("storage").with_scope(&scope),
-        );
+        let credential_provider = Arc::new(credential_chain);
+        let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
         let capability = Capability {
             stat: true,
             stat_with_version: true,
@@ -262,8 +259,10 @@ impl GcsGrpcBuilder {
                 root,
                 channel_endpoint,
                 channel: Default::default(),
-                signer,
                 sign_ctx: ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 skip_signature: self.config.skip_signature,
             }),
         })
@@ -571,15 +570,7 @@ mod tests {
             .unwrap()
             .into_parts();
 
-        block_on(
-            backend
-                .core
-                .signer
-                .clone()
-                .with_context(ctx)
-                .sign(&mut parts, None),
-        )
-        .unwrap();
+        block_on(backend.core.signer_with_context(ctx).sign(&mut parts, None)).unwrap();
 
         assert_eq!(
             parts
@@ -636,15 +627,7 @@ mod tests {
                 .unwrap()
                 .into_parts();
 
-            block_on(
-                backend
-                    .core
-                    .signer
-                    .clone()
-                    .with_context(ctx)
-                    .sign(&mut parts, None),
-            )
-            .unwrap();
+            block_on(backend.core.signer_with_context(ctx).sign(&mut parts, None)).unwrap();
 
             assert_eq!(
                 parts
@@ -701,15 +684,8 @@ mod tests {
             .unwrap()
             .into_parts();
 
-        let err = block_on(
-            backend
-                .core
-                .signer
-                .clone()
-                .with_context(ctx)
-                .sign(&mut parts, None),
-        )
-        .unwrap_err();
+        let err =
+            block_on(backend.core.signer_with_context(ctx).sign(&mut parts, None)).unwrap_err();
         assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
         assert!(file_read.paths.lock().unwrap().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());

@@ -84,10 +84,7 @@ impl oio::MultipartWrite for S3Writer {
             .core
             .s3_put_object_request(&self.path, Some(size), &self.op, body)?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -154,10 +151,7 @@ impl oio::MultipartWrite for S3Writer {
             checksum.clone(),
         )?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 
@@ -216,10 +210,7 @@ impl oio::MultipartWrite for S3Writer {
                 operation: Operation::Write,
             })?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.iam())
-            .await?;
+        let resp = self.core.send_iam(&self.ctx, req).await?;
         match resp.status() {
             StatusCode::OK => {
                 let (parts, body) = resp.into_parts();
@@ -379,10 +370,7 @@ impl oio::AppendWrite for S3Writer {
             body,
         )?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.default())
-            .await?;
+        let resp = self.core.send(&self.ctx, req).await?;
 
         let status = resp.status();
 

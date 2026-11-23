@@ -18,6 +18,7 @@
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Write;
+use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -42,8 +43,11 @@ use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use quick_xml::de;
+use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
-use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, Signer};
+use reqsign_aws_v4::RequestSigner as AwsV4Signer;
+use reqsign_aws_v4::S3ExpressSessionProvider;
+use reqsign_core::{Context, ErrorKind as ReqsignErrorKind, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -115,10 +119,88 @@ pub struct S3Core {
     pub enable_request_payer: bool,
     pub default_acl: Option<String>,
 
-    pub(crate) signers: S3Signers,
+    pub(crate) signer_spec: S3SignerSpec,
+    pub(crate) signers: HttpTransportCache<S3Signers>,
     pub checksum_algorithm: Option<ChecksumAlgorithm>,
 }
 
+pub(crate) struct S3AssumeRoleConfig {
+    pub(crate) role_arn: String,
+    pub(crate) external_id: Option<String>,
+    pub(crate) role_session_name: Option<String>,
+    pub(crate) duration_seconds: Option<u32>,
+    pub(crate) tags: Option<Vec<(String, String)>>,
+}
+
+pub(crate) struct S3SignerSpec {
+    pub(crate) sign_ctx: Context,
+    pub(crate) base_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub(crate) assume_role: Option<S3AssumeRoleConfig>,
+    pub(crate) region: String,
+    pub(crate) bucket: String,
+    pub(crate) is_express: bool,
+}
+
+impl S3SignerSpec {
+    pub(crate) fn build(&self, ctx: Context) -> S3Signers {
+        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> =
+            if let Some(assume_role) = &self.assume_role {
+                let sts_signer = Signer::new(
+                    ctx.clone(),
+                    self.base_provider.clone(),
+                    AwsV4Signer::new("sts", &self.region),
+                );
+                let mut assume_role_provider =
+                    AssumeRoleCredentialProvider::new(assume_role.role_arn.clone(), sts_signer)
+                        .with_region(self.region.clone())
+                        .with_regional_sts_endpoint();
+
+                if let Some(external_id) = &assume_role.external_id {
+                    assume_role_provider =
+                        assume_role_provider.with_external_id(external_id.clone());
+                }
+                if let Some(role_session_name) = &assume_role.role_session_name {
+                    assume_role_provider =
+                        assume_role_provider.with_role_session_name(role_session_name.clone());
+                }
+                if let Some(duration_seconds) = assume_role.duration_seconds {
+                    assume_role_provider =
+                        assume_role_provider.with_duration_seconds(duration_seconds);
+                }
+                if let Some(tags) = &assume_role.tags {
+                    assume_role_provider = assume_role_provider.with_tags(tags.clone());
+                }
+                // Use AssumeRole directly so its STS error reaches the signer.
+                Arc::new(assume_role_provider)
+            } else {
+                self.base_provider.clone()
+            };
+
+        if self.is_express {
+            let iam = Signer::new(
+                ctx.clone(),
+                provider.clone(),
+                AwsV4Signer::new("s3express", &self.region).with_standard_session_token(),
+            );
+            let session_provider =
+                S3ExpressSessionProvider::new(&self.bucket, provider).with_region(&self.region);
+            let session = Signer::new(
+                ctx,
+                session_provider,
+                AwsV4Signer::new("s3express", &self.region),
+            );
+            S3Signers::Express { iam, session }
+        } else {
+            S3Signers::General(Signer::new(
+                ctx,
+                provider,
+                AwsV4Signer::new("s3", &self.region),
+            ))
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) enum S3Signers {
     General(Signer<Credential>),
     Express {
@@ -141,10 +223,6 @@ impl S3Signers {
         match self {
             Self::General(signer) | Self::Express { iam: signer, .. } => signer,
         }
-    }
-
-    fn is_express(&self) -> bool {
-        matches!(self, Self::Express { .. })
     }
 }
 
@@ -181,9 +259,16 @@ impl Debug for S3Core {
 }
 
 impl S3Core {
+    pub(crate) fn signers(&self, ctx: &OperationContext) -> S3Signers {
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            self.signer_spec
+                .build(self.signer_spec.sign_ctx.clone().with_http_send(transport))
+        })
+    }
+
     fn sign_error(&self, err: reqsign_core::Error) -> Error {
         let retryable = err.is_retryable();
-        if !self.signers.is_express() {
+        if !self.signer_spec.is_express {
             return new_request_sign_error(err.into()).with_temporary(retryable);
         }
 
@@ -215,15 +300,8 @@ impl S3Core {
         // Sign the request with presigned URL
         let (mut parts, body) = req.into_parts();
 
-        self.signers
+        self.signers(ctx)
             .iam()
-            .clone()
-            .with_context(
-                Context::new()
-                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                    .with_http_send(ctx.http_transport().clone())
-                    .with_env(reqsign_core::OsEnv),
-            )
             .sign(&mut parts, Some(duration))
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -239,26 +317,15 @@ impl S3Core {
         Ok(Request::from_parts(parts, body))
     }
 
-    pub async fn send(
+    async fn send_with_signer(
         &self,
         ctx: &OperationContext,
         req: Request<Buffer>,
         signer: &Signer<Credential>,
     ) -> Result<Response<Buffer>> {
-        if self.skip_signature {
-            return ctx.http_transport().send(req).await;
-        }
-
         let (mut parts, body) = req.into_parts();
 
         signer
-            .clone()
-            .with_context(
-                Context::new()
-                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                    .with_http_send(ctx.http_transport().clone())
-                    .with_env(reqsign_core::OsEnv),
-            )
             .sign(&mut parts, None)
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -276,6 +343,32 @@ impl S3Core {
             .await
     }
 
+    pub async fn send(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        if self.skip_signature {
+            return ctx.http_transport().send(req).await;
+        }
+
+        let signers = self.signers(ctx);
+        self.send_with_signer(ctx, req, signers.default()).await
+    }
+
+    pub async fn send_iam(
+        &self,
+        ctx: &OperationContext,
+        req: Request<Buffer>,
+    ) -> Result<Response<Buffer>> {
+        if self.skip_signature {
+            return ctx.http_transport().send(req).await;
+        }
+
+        let signers = self.signers(ctx);
+        self.send_with_signer(ctx, req, signers.iam()).await
+    }
+
     pub async fn fetch(
         &self,
         ctx: &OperationContext,
@@ -287,15 +380,8 @@ impl S3Core {
 
         let (mut parts, body) = req.into_parts();
 
-        self.signers
+        self.signers(ctx)
             .default()
-            .clone()
-            .with_context(
-                Context::new()
-                    .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                    .with_http_send(ctx.http_transport().clone())
-                    .with_env(reqsign_core::OsEnv),
-            )
             .sign(&mut parts, None)
             .await
             .map_err(|err| self.sign_error(err))?;
@@ -752,7 +838,7 @@ impl S3Core {
         args: OpStat,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_head_object_request(path, args)?;
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub fn s3_delete_object_request(&self, path: &str, args: &OpDelete) -> Result<Request<Buffer>> {
@@ -801,7 +887,7 @@ impl S3Core {
         args: &OpDelete,
     ) -> Result<Response<Buffer>> {
         let req = self.s3_delete_object_request(path, args)?;
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_copy_object(
@@ -920,7 +1006,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.iam()).await
+        self.send_iam(ctx, req).await
     }
 
     pub async fn s3_list_objects_v1(
@@ -960,7 +1046,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_list_objects_v2(
@@ -1012,7 +1098,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_initiate_multipart_upload(
@@ -1095,7 +1181,7 @@ impl S3Core {
 
         let req = req.body(Buffer::new()).map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_initiate_multipart_copy(
@@ -1151,7 +1237,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub(crate) fn s3_upload_part_copy_request(
@@ -1350,7 +1436,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_complete_multipart_copy(
@@ -1398,7 +1484,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     /// Abort an on-going multipart upload.
@@ -1429,7 +1515,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     /// Abort an on-going multipart copy.
@@ -1459,7 +1545,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_delete_objects(
@@ -1503,7 +1589,7 @@ impl S3Core {
             .body(Buffer::from(Bytes::from(content)))
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 
     pub async fn s3_list_object_versions(
@@ -1554,7 +1640,7 @@ impl S3Core {
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
 
-        self.send(ctx, req, self.signers.default()).await
+        self.send(ctx, req).await
     }
 }
 

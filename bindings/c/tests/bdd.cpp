@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <limits>
 #include "gtest/gtest.h"
 
 extern "C" {
@@ -417,4 +418,103 @@ TEST_F(OpendalBddTest, OutputParametersAndFailureInitTest)
 
     EXPECT_EQ(opendal_operator_delete(this->p, "meta-write"), nullptr);
     EXPECT_EQ(opendal_operator_delete(this->p, "writer-meta"), nullptr);
+}
+
+TEST_F(OpendalBddTest, OptionStringSelfAliasingSafe)
+{
+    opendal_list_options* list_opts = opendal_list_options_new();
+    ASSERT_NE(list_opts, nullptr);
+    opendal_list_options_set_start_after(list_opts, "dir/file_a");
+    ASSERT_NE(list_opts->start_after, nullptr);
+    opendal_list_options_set_start_after(list_opts, list_opts->start_after);
+    EXPECT_STREQ(list_opts->start_after, "dir/file_a");
+    opendal_list_options_set_start_after(list_opts, list_opts->start_after + 4);
+    EXPECT_STREQ(list_opts->start_after, "file_a");
+    opendal_list_options_set_start_after(list_opts, nullptr);
+    EXPECT_EQ(list_opts->start_after, nullptr);
+    opendal_list_options_free(list_opts);
+
+    opendal_delete_options* del_opts = opendal_delete_options_new();
+    ASSERT_NE(del_opts, nullptr);
+    opendal_delete_options_set_version(del_opts, "v1/rev42");
+    ASSERT_NE(del_opts->version, nullptr);
+    opendal_delete_options_set_version(del_opts, del_opts->version);
+    EXPECT_STREQ(del_opts->version, "v1/rev42");
+    opendal_delete_options_set_version(del_opts, del_opts->version + 3);
+    EXPECT_STREQ(del_opts->version, "rev42");
+    opendal_delete_options_set_version(del_opts, nullptr);
+    EXPECT_EQ(del_opts->version, nullptr);
+    opendal_delete_options_free(del_opts);
+}
+
+TEST_F(OpendalBddTest, NullPointerGuards)
+{
+    EXPECT_EQ(opendal_presigned_request_method(nullptr), nullptr);
+    EXPECT_EQ(opendal_presigned_request_uri(nullptr), nullptr);
+    EXPECT_EQ(opendal_presigned_request_headers(nullptr), nullptr);
+    EXPECT_EQ(opendal_presigned_request_headers_len(nullptr), 0);
+
+    opendal_operator_options_set(nullptr, "root", "/myroot");
+    opendal_operator_options* opts = opendal_operator_options_new();
+    opendal_operator_options_set(opts, nullptr, "/myroot");
+    opendal_operator_options_set(opts, "root", nullptr);
+    opendal_operator_options_free(opts);
+
+    opendal_operator_layers_add_retry(nullptr, true, 2.0f, 1000, 10000, 3);
+    opendal_operator_layers_add_timeout(nullptr, 1000, 2000);
+}
+
+TEST_F(OpendalBddTest, RejectOutOfRangeConditionalTimestamps)
+{
+    const int64_t max_ts = std::numeric_limits<int64_t>::max();
+    const int64_t min_ts = std::numeric_limits<int64_t>::min();
+
+    opendal_stat_options* stat_opts = opendal_stat_options_new();
+    opendal_stat_options_set_if_modified_since(stat_opts, max_ts);
+    opendal_metadata* meta = reinterpret_cast<opendal_metadata*>(0x1);
+    opendal_error* err = opendal_operator_stat_with(this->p, "any", stat_opts, &meta);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_CONFIG_INVALID);
+    EXPECT_EQ(meta, nullptr);
+    opendal_error_free(err);
+
+    opendal_presigned_request* req = reinterpret_cast<opendal_presigned_request*>(0x1);
+    err = opendal_operator_presign_stat_with(this->p, "any", 60, stat_opts, &req);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_CONFIG_INVALID);
+    EXPECT_EQ(req, nullptr);
+    opendal_error_free(err);
+    opendal_stat_options_free(stat_opts);
+
+    opendal_read_options* read_opts = opendal_read_options_new();
+    opendal_read_options_set_if_unmodified_since(read_opts, min_ts);
+    opendal_bytes bytes = {
+        .data = reinterpret_cast<uint8_t*>(0x1),
+        .len = 99,
+        .capacity = 99,
+    };
+    err = opendal_operator_read_with(this->p, "any", read_opts, &bytes);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_CONFIG_INVALID);
+    EXPECT_EQ(bytes.data, nullptr);
+    EXPECT_EQ(bytes.len, 0);
+    opendal_error_free(err);
+
+    req = reinterpret_cast<opendal_presigned_request*>(0x1);
+    err = opendal_operator_presign_read_with(this->p, "any", 60, read_opts, &req);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_CONFIG_INVALID);
+    EXPECT_EQ(req, nullptr);
+    opendal_error_free(err);
+    opendal_read_options_free(read_opts);
+
+    opendal_reader_options* reader_opts = opendal_reader_options_new();
+    opendal_reader_options_set_if_modified_since(reader_opts, max_ts);
+    opendal_reader* reader = reinterpret_cast<opendal_reader*>(0x1);
+    err = opendal_operator_reader_with(this->p, "any", reader_opts, &reader);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_CONFIG_INVALID);
+    EXPECT_EQ(reader, nullptr);
+    opendal_error_free(err);
+    opendal_reader_options_free(reader_opts);
 }

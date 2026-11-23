@@ -206,18 +206,20 @@ impl opendal_list_options {
             return;
         }
 
-        let o = &mut *opts;
-        // Free any previous value.
-        if !o.start_after.is_null() {
-            drop(CString::from_raw(o.start_after));
-            o.start_after = std::ptr::null_mut();
-        }
-        if !start_after.is_null() {
+        // Allocate before freeing the old value so self-aliasing or substring
+        // pointers into `opts->start_after` remain valid while reading.
+        let new_ptr = if start_after.is_null() {
+            std::ptr::null_mut()
+        } else {
             let s = CStr::from_ptr(start_after)
                 .to_str()
-                .expect("malformed start_after")
-                .to_owned();
-            o.start_after = CString::new(s).unwrap().into_raw();
+                .expect("malformed start_after");
+            CString::new(s).unwrap().into_raw()
+        };
+        let o = &mut *opts;
+        let old_ptr = std::mem::replace(&mut o.start_after, new_ptr);
+        if !old_ptr.is_null() {
+            drop(CString::from_raw(old_ptr));
         }
     }
 
@@ -310,17 +312,18 @@ impl opendal_delete_options {
         if opts.is_null() {
             return;
         }
+        // Allocate before freeing the old value so self-aliasing or substring
+        // pointers into `opts->version` remain valid while reading.
+        let new_ptr = if version.is_null() {
+            std::ptr::null_mut()
+        } else {
+            let s = CStr::from_ptr(version).to_str().expect("malformed version");
+            CString::new(s).unwrap().into_raw()
+        };
         let o = &mut *opts;
-        if !o.version.is_null() {
-            drop(CString::from_raw(o.version));
-            o.version = std::ptr::null_mut();
-        }
-        if !version.is_null() {
-            let s = CStr::from_ptr(version)
-                .to_str()
-                .expect("malformed version")
-                .to_owned();
-            o.version = CString::new(s).unwrap().into_raw();
+        let old_ptr = std::mem::replace(&mut o.version, new_ptr);
+        if !old_ptr.is_null() {
+            drop(CString::from_raw(old_ptr));
         }
     }
 
@@ -775,27 +778,46 @@ impl Default for opendal_stat_options {
     }
 }
 
-impl From<&opendal_stat_options> for options::StatOptions {
-    fn from(value: &opendal_stat_options) -> Self {
-        Self {
+fn optional_timestamp(has: bool, millis: i64, field: &str) -> opendal::Result<Option<Timestamp>> {
+    if !has {
+        return Ok(None);
+    }
+    Timestamp::from_millisecond(millis)
+        .map(Some)
+        .map_err(|err| {
+            Error::new(
+                ErrorKind::ConfigInvalid,
+                format!("invalid {field} timestamp '{millis}' ms"),
+            )
+            .set_source(err)
+        })
+}
+
+impl TryFrom<&opendal_stat_options> for options::StatOptions {
+    type Error = Error;
+
+    fn try_from(value: &opendal_stat_options) -> Result<Self, Self::Error> {
+        Ok(Self {
             version: unsafe { optional_cstr(value.version) },
             if_match: unsafe { optional_cstr(value.if_match) },
             if_none_match: unsafe { optional_cstr(value.if_none_match) },
-            if_modified_since: value
-                .has_if_modified_since
-                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
-                .flatten(),
-            if_unmodified_since: value
-                .has_if_unmodified_since
-                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
-                .flatten(),
+            if_modified_since: optional_timestamp(
+                value.has_if_modified_since,
+                value.if_modified_since,
+                "if_modified_since",
+            )?,
+            if_unmodified_since: optional_timestamp(
+                value.has_if_unmodified_since,
+                value.if_unmodified_since,
+                "if_unmodified_since",
+            )?,
             override_content_type: unsafe { optional_cstr(value.override_content_type) },
             override_cache_control: unsafe { optional_cstr(value.override_cache_control) },
             override_content_disposition: unsafe {
                 optional_cstr(value.override_content_disposition)
             },
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -1059,8 +1081,10 @@ impl opendal_read_options {
     }
 }
 
-impl From<&opendal_read_options> for options::ReadOptions {
-    fn from(value: &opendal_read_options) -> Self {
+impl TryFrom<&opendal_read_options> for options::ReadOptions {
+    type Error = Error;
+
+    fn try_from(value: &opendal_read_options) -> Result<Self, Self::Error> {
         let range = if value.offset > 0 || value.has_length {
             let size = if value.has_length {
                 Some(value.length)
@@ -1072,19 +1096,21 @@ impl From<&opendal_read_options> for options::ReadOptions {
             BytesRange::default()
         };
 
-        Self {
+        Ok(Self {
             range,
             version: unsafe { optional_cstr(value.version) },
             if_match: unsafe { optional_cstr(value.if_match) },
             if_none_match: unsafe { optional_cstr(value.if_none_match) },
-            if_modified_since: value
-                .has_if_modified_since
-                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
-                .flatten(),
-            if_unmodified_since: value
-                .has_if_unmodified_since
-                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
-                .flatten(),
+            if_modified_since: optional_timestamp(
+                value.has_if_modified_since,
+                value.if_modified_since,
+                "if_modified_since",
+            )?,
+            if_unmodified_since: optional_timestamp(
+                value.has_if_unmodified_since,
+                value.if_unmodified_since,
+                "if_unmodified_since",
+            )?,
             content_length_hint: value
                 .has_content_length_hint
                 .then_some(value.content_length_hint),
@@ -1097,7 +1123,7 @@ impl From<&opendal_read_options> for options::ReadOptions {
                 optional_cstr(value.override_content_disposition)
             },
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -1297,20 +1323,24 @@ impl opendal_reader_options {
     }
 }
 
-impl From<&opendal_reader_options> for options::ReaderOptions {
-    fn from(value: &opendal_reader_options) -> Self {
-        Self {
+impl TryFrom<&opendal_reader_options> for options::ReaderOptions {
+    type Error = Error;
+
+    fn try_from(value: &opendal_reader_options) -> Result<Self, Self::Error> {
+        Ok(Self {
             version: unsafe { optional_cstr(value.version) },
             if_match: unsafe { optional_cstr(value.if_match) },
             if_none_match: unsafe { optional_cstr(value.if_none_match) },
-            if_modified_since: value
-                .has_if_modified_since
-                .then(|| Timestamp::from_millisecond(value.if_modified_since).ok())
-                .flatten(),
-            if_unmodified_since: value
-                .has_if_unmodified_since
-                .then(|| Timestamp::from_millisecond(value.if_unmodified_since).ok())
-                .flatten(),
+            if_modified_since: optional_timestamp(
+                value.has_if_modified_since,
+                value.if_modified_since,
+                "if_modified_since",
+            )?,
+            if_unmodified_since: optional_timestamp(
+                value.has_if_unmodified_since,
+                value.if_unmodified_since,
+                "if_unmodified_since",
+            )?,
             content_length_hint: value
                 .has_content_length_hint
                 .then_some(value.content_length_hint),
@@ -1319,7 +1349,7 @@ impl From<&opendal_reader_options> for options::ReaderOptions {
             gap: value.has_gap.then_some(value.gap),
             prefetch: value.prefetch,
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -1535,10 +1565,13 @@ impl opendal_operator_options {
     /// ```
     #[no_mangle]
     pub unsafe extern "C" fn opendal_operator_options_set(
-        &mut self,
+        opts: *mut opendal_operator_options,
         key: *const c_char,
         value: *const c_char,
     ) {
+        if opts.is_null() || (*opts).inner.is_null() || key.is_null() || value.is_null() {
+            return;
+        }
         let k = unsafe { std::ffi::CStr::from_ptr(key) }
             .to_str()
             .unwrap()
@@ -1547,7 +1580,7 @@ impl opendal_operator_options {
             .to_str()
             .unwrap()
             .to_string();
-        self.deref_mut().insert(k, v);
+        (*opts).deref_mut().insert(k, v);
     }
 
     /// \brief Free the allocated memory used by [`opendal_operator_options`]
@@ -1599,5 +1632,281 @@ mod bytes_tests {
         assert!(bytes.data.is_null());
         assert_eq!(bytes.len, 0);
         assert_eq!(bytes.capacity, 0);
+    }
+}
+
+#[cfg(test)]
+mod option_tests {
+    use super::*;
+    use crate::error::{opendal_code, opendal_error};
+    use crate::operator::{
+        opendal_operator, opendal_operator_read_with, opendal_operator_reader_with,
+        opendal_operator_stat_with,
+    };
+
+    #[test]
+    fn test_list_options_set_start_after_self_alias_and_substring() {
+        unsafe {
+            // NULL opts is a safe no-op.
+            let initial = CString::new("dir/file_a").unwrap();
+            opendal_list_options::opendal_list_options_set_start_after(
+                std::ptr::null_mut(),
+                initial.as_ptr(),
+            );
+
+            let opts = opendal_list_options::opendal_list_options_new();
+            opendal_list_options::opendal_list_options_set_start_after(opts, initial.as_ptr());
+            assert_eq!(
+                CStr::from_ptr((*opts).start_after).to_str().unwrap(),
+                "dir/file_a"
+            );
+
+            // Self-alias: pass opts->start_after back into setter.
+            let self_ptr = (*opts).start_after;
+            opendal_list_options::opendal_list_options_set_start_after(opts, self_ptr);
+            assert_eq!(
+                CStr::from_ptr((*opts).start_after).to_str().unwrap(),
+                "dir/file_a"
+            );
+
+            // Substring alias: pass a pointer inside opts->start_after back into setter.
+            let sub_ptr = (*opts).start_after.add(4);
+            opendal_list_options::opendal_list_options_set_start_after(opts, sub_ptr);
+            assert_eq!(
+                CStr::from_ptr((*opts).start_after).to_str().unwrap(),
+                "file_a"
+            );
+
+            // NULL unsets the value.
+            opendal_list_options::opendal_list_options_set_start_after(opts, std::ptr::null());
+            assert!((*opts).start_after.is_null());
+
+            opendal_list_options::opendal_list_options_free(opts);
+        }
+    }
+
+    #[test]
+    fn test_delete_options_set_version_self_alias_and_substring() {
+        unsafe {
+            let initial = CString::new("v1/rev42").unwrap();
+            opendal_delete_options::opendal_delete_options_set_version(
+                std::ptr::null_mut(),
+                initial.as_ptr(),
+            );
+
+            let opts = opendal_delete_options::opendal_delete_options_new();
+            opendal_delete_options::opendal_delete_options_set_version(opts, initial.as_ptr());
+            assert_eq!(
+                CStr::from_ptr((*opts).version).to_str().unwrap(),
+                "v1/rev42"
+            );
+
+            // Self-alias: pass opts->version back into setter.
+            let self_ptr = (*opts).version;
+            opendal_delete_options::opendal_delete_options_set_version(opts, self_ptr);
+            assert_eq!(
+                CStr::from_ptr((*opts).version).to_str().unwrap(),
+                "v1/rev42"
+            );
+
+            // Substring alias: pass a pointer inside opts->version back into setter.
+            let sub_ptr = (*opts).version.add(3);
+            opendal_delete_options::opendal_delete_options_set_version(opts, sub_ptr);
+            assert_eq!(CStr::from_ptr((*opts).version).to_str().unwrap(), "rev42");
+
+            // NULL unsets the value.
+            opendal_delete_options::opendal_delete_options_set_version(opts, std::ptr::null());
+            assert!((*opts).version.is_null());
+
+            opendal_delete_options::opendal_delete_options_free(opts);
+        }
+    }
+
+    #[test]
+    fn test_operator_options_set_null_guards() {
+        unsafe {
+            let key = CString::new("root").unwrap();
+            let val = CString::new("/myroot").unwrap();
+
+            // NULL opts must be a no-op without UB.
+            opendal_operator_options::opendal_operator_options_set(
+                std::ptr::null_mut(),
+                key.as_ptr(),
+                val.as_ptr(),
+            );
+
+            // NULL inner must also be a no-op without UB.
+            let mut empty_inner = opendal_operator_options {
+                inner: std::ptr::null_mut(),
+            };
+            opendal_operator_options::opendal_operator_options_set(
+                &mut empty_inner,
+                key.as_ptr(),
+                val.as_ptr(),
+            );
+
+            let opts = opendal_operator_options::opendal_operator_options_new();
+            opendal_operator_options::opendal_operator_options_set(
+                opts,
+                std::ptr::null(),
+                val.as_ptr(),
+            );
+            opendal_operator_options::opendal_operator_options_set(
+                opts,
+                key.as_ptr(),
+                std::ptr::null(),
+            );
+            assert!((*opts).deref().is_empty());
+
+            opendal_operator_options::opendal_operator_options_set(
+                opts,
+                key.as_ptr(),
+                val.as_ptr(),
+            );
+            assert_eq!(
+                (*opts).deref().get("root").map(String::as_str),
+                Some("/myroot")
+            );
+
+            opendal_operator_options::opendal_operator_options_free(opts);
+        }
+    }
+
+    #[test]
+    fn test_out_of_range_conditional_timestamps_rejected() {
+        let valid_ms = 1_700_000_000_000;
+
+        // StatOptions
+        let mut stat = opendal_stat_options {
+            has_if_modified_since: false,
+            if_modified_since: i64::MAX,
+            ..Default::default()
+        };
+        assert!(options::StatOptions::try_from(&stat)
+            .unwrap()
+            .if_modified_since
+            .is_none());
+
+        stat.has_if_modified_since = true;
+        assert_eq!(
+            options::StatOptions::try_from(&stat).unwrap_err().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        stat.if_modified_since = valid_ms;
+        stat.has_if_unmodified_since = true;
+        stat.if_unmodified_since = i64::MIN;
+        assert_eq!(
+            options::StatOptions::try_from(&stat).unwrap_err().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        stat.if_unmodified_since = valid_ms;
+        let parsed = options::StatOptions::try_from(&stat).unwrap();
+        assert_eq!(
+            parsed.if_modified_since,
+            Some(Timestamp::from_millisecond(valid_ms).unwrap())
+        );
+        assert_eq!(
+            parsed.if_unmodified_since,
+            Some(Timestamp::from_millisecond(valid_ms).unwrap())
+        );
+
+        // ReadOptions
+        let mut read = opendal_read_options {
+            has_if_modified_since: true,
+            if_modified_since: i64::MAX,
+            ..Default::default()
+        };
+        assert_eq!(
+            options::ReadOptions::try_from(&read).unwrap_err().kind(),
+            ErrorKind::ConfigInvalid
+        );
+        read.has_if_modified_since = false;
+        read.has_if_unmodified_since = true;
+        read.if_unmodified_since = i64::MIN;
+        assert_eq!(
+            options::ReadOptions::try_from(&read).unwrap_err().kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        // ReaderOptions
+        let mut reader = opendal_reader_options {
+            has_if_modified_since: true,
+            if_modified_since: i64::MAX,
+            ..Default::default()
+        };
+        assert_eq!(
+            options::ReaderOptions::try_from(&reader)
+                .unwrap_err()
+                .kind(),
+            ErrorKind::ConfigInvalid
+        );
+        reader.has_if_modified_since = false;
+        reader.has_if_unmodified_since = true;
+        reader.if_unmodified_since = i64::MIN;
+        assert_eq!(
+            options::ReaderOptions::try_from(&reader)
+                .unwrap_err()
+                .kind(),
+            ErrorKind::ConfigInvalid
+        );
+
+        // End-to-end FFI calls return OPENDAL_CONFIG_INVALID and initialize out params.
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = opendal::Operator::new(opendal::services::Memory::default()).unwrap();
+        runtime
+            .block_on(op.write("test", "hello"))
+            .expect("seed test object");
+        let c_op = opendal_operator::from_operator(runtime.handle().clone(), op);
+        let path = CString::new("test").unwrap();
+
+        unsafe {
+            // Default options succeed on memory backend.
+            let default_stat = opendal_stat_options::default();
+            let mut meta = std::ptr::dangling_mut();
+            let err = opendal_operator_stat_with(&*c_op, path.as_ptr(), &default_stat, &mut meta);
+            assert!(err.is_null());
+            assert!(!meta.is_null());
+            crate::metadata::opendal_metadata::opendal_metadata_free(meta);
+
+            // Out-of-range timestamps must be rejected as ConfigInvalid instead of
+            // being silently dropped and letting the request succeed unconditionally.
+            let bad_stat = opendal_stat_options {
+                has_if_modified_since: true,
+                if_modified_since: i64::MAX,
+                ..Default::default()
+            };
+            let mut meta = std::ptr::dangling_mut();
+            let err = opendal_operator_stat_with(&*c_op, path.as_ptr(), &bad_stat, &mut meta);
+            assert!(!err.is_null());
+            assert_eq!((*err).code(), opendal_code::OPENDAL_CONFIG_INVALID);
+            assert!(meta.is_null());
+            opendal_error::opendal_error_free(err);
+
+            let mut bytes = opendal_bytes {
+                data: std::ptr::dangling_mut(),
+                len: 99,
+                capacity: 99,
+            };
+            let err = opendal_operator_read_with(&*c_op, path.as_ptr(), &read, &mut bytes);
+            assert!(!err.is_null());
+            assert_eq!((*err).code(), opendal_code::OPENDAL_CONFIG_INVALID);
+            assert!(bytes.data.is_null());
+            assert_eq!(bytes.len, 0);
+            opendal_error::opendal_error_free(err);
+
+            let mut reader_ptr = std::ptr::dangling_mut();
+            let err = opendal_operator_reader_with(&*c_op, path.as_ptr(), &reader, &mut reader_ptr);
+            assert!(!err.is_null());
+            assert_eq!((*err).code(), opendal_code::OPENDAL_CONFIG_INVALID);
+            assert!(reader_ptr.is_null());
+            opendal_error::opendal_error_free(err);
+
+            opendal_operator::opendal_operator_free(c_op);
+        }
     }
 }

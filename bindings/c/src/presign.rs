@@ -52,20 +52,40 @@ struct opendal_presigned_request_inner {
 }
 
 impl opendal_presigned_request_inner {
-    fn new(req: ocorePresignedRequest) -> Self {
-        let method = CString::new(req.method().as_str()).unwrap();
-        let uri = CString::new(req.uri().to_string()).unwrap();
+    fn new(req: ocorePresignedRequest) -> core::Result<Self> {
+        let method = CString::new(req.method().as_str()).map_err(|e| {
+            core::Error::new(
+                core::ErrorKind::Unexpected,
+                "presigned request method contains interior nul byte",
+            )
+            .set_source(e)
+        })?;
+        let uri = CString::new(req.uri().to_string()).map_err(|e| {
+            core::Error::new(
+                core::ErrorKind::Unexpected,
+                "presigned request uri contains interior nul byte",
+            )
+            .set_source(e)
+        })?;
 
-        let header_keys: Vec<CString> = req
-            .header()
-            .iter()
-            .map(|(k, _)| CString::new(k.as_str()).unwrap())
-            .collect();
-        let header_values: Vec<CString> = req
-            .header()
-            .iter()
-            .map(|(_, v)| CString::new(v.to_str().unwrap()).unwrap())
-            .collect();
+        let mut header_keys = Vec::with_capacity(req.header().len());
+        let mut header_values = Vec::with_capacity(req.header().len());
+        for (k, v) in req.header().iter() {
+            header_keys.push(CString::new(k.as_str()).map_err(|e| {
+                core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    "presigned request header name contains interior nul byte",
+                )
+                .set_source(e)
+            })?);
+            header_values.push(CString::new(v.as_bytes()).map_err(|e| {
+                core::Error::new(
+                    core::ErrorKind::Unexpected,
+                    "presigned request header value contains interior nul byte",
+                )
+                .set_source(e)
+            })?);
+        }
 
         let headers: Vec<opendal_http_header_pair> = header_keys
             .iter()
@@ -76,13 +96,13 @@ impl opendal_presigned_request_inner {
             })
             .collect();
 
-        Self {
+        Ok(Self {
             method,
             uri,
             headers,
             header_keys,
             header_values,
-        }
+        })
     }
 }
 
@@ -92,14 +112,19 @@ unsafe fn make_presign_result(
 ) -> *mut opendal_error {
     assert!(!req_out.is_null());
     match result {
-        Ok(req) => {
-            let inner = Box::new(opendal_presigned_request_inner::new(req));
-            let presigned_req = Box::new(opendal_presigned_request {
-                inner: Box::into_raw(inner),
-            });
-            std::ptr::write(req_out, Box::into_raw(presigned_req));
-            std::ptr::null_mut()
-        }
+        Ok(req) => match opendal_presigned_request_inner::new(req) {
+            Ok(inner) => {
+                let presigned_req = Box::new(opendal_presigned_request {
+                    inner: Box::into_raw(Box::new(inner)),
+                });
+                std::ptr::write(req_out, Box::into_raw(presigned_req));
+                std::ptr::null_mut()
+            }
+            Err(e) => {
+                std::ptr::write(req_out, std::ptr::null_mut());
+                opendal_error::new(e)
+            }
+        },
         Err(e) => {
             std::ptr::write(req_out, std::ptr::null_mut());
             opendal_error::from_cancellable(e)
@@ -170,13 +195,17 @@ pub unsafe extern "C" fn opendal_operator_presign_read_with_cancel(
 ) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
+    std::ptr::write(req, std::ptr::null_mut());
 
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
         core::options::ReadOptions::default()
     } else {
-        (&*opts).into()
+        match core::options::ReadOptions::try_from(&*opts) {
+            Ok(opts) => opts,
+            Err(e) => return opendal_error::new(e),
+        }
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
 
@@ -392,13 +421,17 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
 ) -> *mut opendal_error {
     assert!(!path.is_null());
     assert!(!req.is_null());
+    std::ptr::write(req, std::ptr::null_mut());
 
     let path = CStr::from_ptr(path).to_str().expect("malformed path");
     let duration = Duration::from_secs(expire_secs);
     let opts = if opts.is_null() {
         core::options::StatOptions::default()
     } else {
-        (&*opts).into()
+        match core::options::StatOptions::try_from(&*opts) {
+            Ok(opts) => opts,
+            Err(e) => return opendal_error::new(e),
+        }
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
 
@@ -415,6 +448,9 @@ pub unsafe extern "C" fn opendal_operator_presign_stat_with_cancel(
 pub unsafe extern "C" fn opendal_presigned_request_method(
     req: *const opendal_presigned_request,
 ) -> *const c_char {
+    if req.is_null() || (*req).inner.is_null() {
+        return std::ptr::null();
+    }
     (*(*req).inner).method.as_ptr()
 }
 
@@ -423,6 +459,9 @@ pub unsafe extern "C" fn opendal_presigned_request_method(
 pub unsafe extern "C" fn opendal_presigned_request_uri(
     req: *const opendal_presigned_request,
 ) -> *const c_char {
+    if req.is_null() || (*req).inner.is_null() {
+        return std::ptr::null();
+    }
     (*(*req).inner).uri.as_ptr()
 }
 
@@ -431,6 +470,9 @@ pub unsafe extern "C" fn opendal_presigned_request_uri(
 pub unsafe extern "C" fn opendal_presigned_request_headers(
     req: *const opendal_presigned_request,
 ) -> *const opendal_http_header_pair {
+    if req.is_null() || (*req).inner.is_null() {
+        return std::ptr::null();
+    }
     (*(*req).inner).headers.as_ptr()
 }
 
@@ -439,6 +481,9 @@ pub unsafe extern "C" fn opendal_presigned_request_headers(
 pub unsafe extern "C" fn opendal_presigned_request_headers_len(
     req: *const opendal_presigned_request,
 ) -> usize {
+    if req.is_null() || (*req).inner.is_null() {
+        return 0;
+    }
     (*(*req).inner).headers.len()
 }
 
@@ -446,7 +491,263 @@ pub unsafe extern "C" fn opendal_presigned_request_headers_len(
 #[no_mangle]
 pub unsafe extern "C" fn opendal_presigned_request_free(req: *mut opendal_presigned_request) {
     if !req.is_null() {
-        drop(Box::from_raw((*req).inner));
+        if !(*req).inner.is_null() {
+            drop(Box::from_raw((*req).inner));
+        }
         drop(Box::from_raw(req));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::opendal_code;
+    use ::opendal::raw::{self, oio};
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct NonAsciiPresignService {
+        inner: raw::Servicer,
+    }
+
+    #[derive(Debug)]
+    struct NonAsciiPresignLayer;
+
+    impl raw::Layer for NonAsciiPresignLayer {
+        fn apply_service(&self, inner: raw::Servicer) -> raw::Servicer {
+            Arc::new(NonAsciiPresignService { inner })
+        }
+    }
+
+    impl raw::Service for NonAsciiPresignService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> raw::ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> core::Capability {
+            let mut cap = self.inner.capability();
+            cap.presign = true;
+            cap.presign_write = true;
+            cap.presign_read = true;
+            cap.presign_stat = true;
+            cap
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpCreateDir,
+        ) -> core::Result<raw::RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpStat,
+        ) -> core::Result<raw::RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpRead,
+        ) -> core::Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpWrite,
+        ) -> core::Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+
+        fn delete(&self, ctx: &core::OperationContext) -> core::Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpList,
+        ) -> core::Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn copy(
+            &self,
+            ctx: &core::OperationContext,
+            from: &str,
+            to: &str,
+            args: raw::OpCopy,
+        ) -> core::Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &core::OperationContext,
+            from: &str,
+            to: &str,
+            args: raw::OpRename,
+        ) -> core::Result<raw::RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        fn compose(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpCompose,
+        ) -> core::Result<Self::Composer> {
+            self.inner.compose(ctx, path, args)
+        }
+
+        async fn presign(
+            &self,
+            _ctx: &core::OperationContext,
+            _path: &str,
+            _args: raw::OpPresign,
+        ) -> core::Result<raw::RpPresign> {
+            let mut headers = http::HeaderMap::new();
+            headers.insert(
+                http::header::CONTENT_DISPOSITION,
+                http::HeaderValue::from_bytes("attachment; filename=\"测试.txt\"".as_bytes())
+                    .unwrap(),
+            );
+            let req = ocorePresignedRequest::new(
+                http::Method::PUT,
+                "https://example.com/object".parse().unwrap(),
+                headers,
+            );
+            Ok(raw::RpPresign::new(req))
+        }
+    }
+
+    #[test]
+    fn test_presign_non_ascii_header_value_does_not_panic() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(NonAsciiPresignLayer);
+        let c_op = opendal_operator::from_operator(runtime.handle().clone(), op);
+        let path = CString::new("test.txt").unwrap();
+
+        unsafe {
+            let mut req: *mut opendal_presigned_request = std::ptr::null_mut();
+            let err = opendal_operator_presign_write(&*c_op, path.as_ptr(), 60, &mut req);
+            assert!(err.is_null());
+            assert!(!req.is_null());
+
+            assert_eq!(
+                CStr::from_ptr(opendal_presigned_request_method(req))
+                    .to_str()
+                    .unwrap(),
+                "PUT"
+            );
+            assert_eq!(
+                CStr::from_ptr(opendal_presigned_request_uri(req))
+                    .to_str()
+                    .unwrap(),
+                "https://example.com/object"
+            );
+            assert_eq!(opendal_presigned_request_headers_len(req), 1);
+
+            let headers = opendal_presigned_request_headers(req);
+            assert!(!headers.is_null());
+            let pair = &*headers;
+            assert_eq!(
+                CStr::from_ptr(pair.key).to_str().unwrap(),
+                "content-disposition"
+            );
+            assert_eq!(
+                CStr::from_ptr(pair.value).to_bytes(),
+                "attachment; filename=\"测试.txt\"".as_bytes()
+            );
+
+            opendal_presigned_request_free(req);
+            opendal_operator::opendal_operator_free(c_op);
+        }
+    }
+
+    #[test]
+    fn test_presigned_request_null_guards() {
+        unsafe {
+            assert!(opendal_presigned_request_method(std::ptr::null()).is_null());
+            assert!(opendal_presigned_request_uri(std::ptr::null()).is_null());
+            assert!(opendal_presigned_request_headers(std::ptr::null()).is_null());
+            assert_eq!(opendal_presigned_request_headers_len(std::ptr::null()), 0);
+            opendal_presigned_request_free(std::ptr::null_mut());
+
+            let req = Box::into_raw(Box::new(opendal_presigned_request {
+                inner: std::ptr::null_mut(),
+            }));
+            assert!(opendal_presigned_request_method(req).is_null());
+            assert!(opendal_presigned_request_uri(req).is_null());
+            assert!(opendal_presigned_request_headers(req).is_null());
+            assert_eq!(opendal_presigned_request_headers_len(req), 0);
+            opendal_presigned_request_free(req);
+        }
+    }
+
+    #[test]
+    fn test_presign_out_of_range_timestamp_returns_config_invalid() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(NonAsciiPresignLayer);
+        let c_op = opendal_operator::from_operator(runtime.handle().clone(), op);
+        let path = CString::new("test.txt").unwrap();
+
+        unsafe {
+            let bad_read = opendal_read_options {
+                has_if_modified_since: true,
+                if_modified_since: i64::MAX,
+                ..Default::default()
+            };
+            let mut req: *mut opendal_presigned_request = std::ptr::dangling_mut();
+            let err =
+                opendal_operator_presign_read_with(&*c_op, path.as_ptr(), 60, &bad_read, &mut req);
+            assert!(!err.is_null());
+            assert_eq!((*err).code(), opendal_code::OPENDAL_CONFIG_INVALID);
+            assert!(req.is_null());
+            opendal_error::opendal_error_free(err);
+
+            let bad_stat = opendal_stat_options {
+                has_if_unmodified_since: true,
+                if_unmodified_since: i64::MIN,
+                ..Default::default()
+            };
+            let mut req: *mut opendal_presigned_request = std::ptr::dangling_mut();
+            let err =
+                opendal_operator_presign_stat_with(&*c_op, path.as_ptr(), 60, &bad_stat, &mut req);
+            assert!(!err.is_null());
+            assert_eq!((*err).code(), opendal_code::OPENDAL_CONFIG_INVALID);
+            assert!(req.is_null());
+            opendal_error::opendal_error_free(err);
+
+            opendal_operator::opendal_operator_free(c_op);
+        }
     }
 }

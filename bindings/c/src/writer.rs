@@ -20,7 +20,7 @@ use std::ffi::c_void;
 use ::opendal as core;
 
 use super::*;
-use crate::cancel::{block_on_cancellable, CancellableError};
+use crate::cancel::block_on_cancellable;
 
 struct WriterInner {
     handle: tokio::runtime::Handle,
@@ -102,11 +102,7 @@ impl opendal_writer {
                 std::ptr::write(size, len);
                 std::ptr::null_mut()
             }
-            Err(CancellableError::Cancelled) => opendal_error::cancelled(),
-            Err(CancellableError::Inner(e)) => opendal_error::new(
-                core::Error::new(core::ErrorKind::Unexpected, "write failed from writer")
-                    .set_source(e),
-            ),
+            Err(e) => opendal_error::from_cancellable(e),
         }
     }
 
@@ -167,10 +163,7 @@ impl opendal_writer {
                 }
                 std::ptr::null_mut()
             }
-            Err(CancellableError::Cancelled) => opendal_error::cancelled(),
-            Err(CancellableError::Inner(e)) => opendal_error::new(
-                core::Error::new(core::ErrorKind::Unexpected, "close writer failed").set_source(e),
-            ),
+            Err(e) => opendal_error::from_cancellable(e),
         }
     }
 
@@ -182,6 +175,202 @@ impl opendal_writer {
                 drop(Box::from_raw((*ptr).inner as *mut WriterInner));
                 drop(Box::from_raw(ptr));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ::opendal::raw::{self, oio};
+    use std::sync::Arc;
+
+    #[derive(Debug)]
+    struct FailingWriteService {
+        inner: raw::Servicer,
+    }
+
+    #[derive(Debug)]
+    struct FailingWriteLayer;
+
+    impl raw::Layer for FailingWriteLayer {
+        fn apply_service(&self, inner: raw::Servicer) -> raw::Servicer {
+            Arc::new(FailingWriteService { inner })
+        }
+    }
+
+    struct FailingWriter;
+
+    impl oio::Write for FailingWriter {
+        async fn write(&mut self, _bs: core::Buffer) -> core::Result<()> {
+            Err(core::Error::new(
+                core::ErrorKind::ConditionNotMatch,
+                "precondition failed on write",
+            ))
+        }
+
+        async fn close(&mut self) -> core::Result<core::Metadata> {
+            Err(core::Error::new(
+                core::ErrorKind::PermissionDenied,
+                "permission denied on close",
+            ))
+        }
+
+        async fn abort(&mut self) -> core::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl raw::Service for FailingWriteService {
+        type Reader = oio::Reader;
+        type Writer = FailingWriter;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> raw::ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> core::Capability {
+            let mut cap = self.inner.capability();
+            cap.write = true;
+            cap.write_can_multi = true;
+            cap
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpCreateDir,
+        ) -> core::Result<raw::RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpStat,
+        ) -> core::Result<raw::RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpRead,
+        ) -> core::Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(
+            &self,
+            _ctx: &core::OperationContext,
+            _path: &str,
+            _args: raw::OpWrite,
+        ) -> core::Result<Self::Writer> {
+            Ok(FailingWriter)
+        }
+
+        fn delete(&self, ctx: &core::OperationContext) -> core::Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpList,
+        ) -> core::Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn copy(
+            &self,
+            ctx: &core::OperationContext,
+            from: &str,
+            to: &str,
+            args: raw::OpCopy,
+        ) -> core::Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &core::OperationContext,
+            from: &str,
+            to: &str,
+            args: raw::OpRename,
+        ) -> core::Result<raw::RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        fn compose(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpCompose,
+        ) -> core::Result<Self::Composer> {
+            self.inner.compose(ctx, path, args)
+        }
+
+        async fn presign(
+            &self,
+            ctx: &core::OperationContext,
+            path: &str,
+            args: raw::OpPresign,
+        ) -> core::Result<raw::RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    #[test]
+    fn test_writer_preserves_backend_error_kinds() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(FailingWriteLayer);
+        let writer = runtime.block_on(op.writer("test")).unwrap();
+        let writer = Box::into_raw(Box::new(opendal_writer::new(
+            runtime.handle().clone(),
+            writer,
+        )));
+
+        let payload = b"hello";
+        let bytes = std::mem::ManuallyDrop::new(opendal_bytes {
+            data: payload.as_ptr() as *mut u8,
+            len: payload.len(),
+            capacity: payload.len(),
+        });
+        let mut written = 99;
+        let err =
+            unsafe { opendal_writer::opendal_writer_write(&mut *writer, &bytes, &mut written) };
+        assert!(!err.is_null());
+        assert_eq!(
+            unsafe { (*err).code() },
+            opendal_code::OPENDAL_CONDITION_NOT_MATCH
+        );
+        assert_eq!(written, 0);
+        unsafe { opendal_error::opendal_error_free(err) };
+
+        let mut meta = std::ptr::dangling_mut();
+        let err = unsafe { opendal_writer::opendal_writer_close_with_metadata(writer, &mut meta) };
+        assert!(!err.is_null());
+        assert_eq!(
+            unsafe { (*err).code() },
+            opendal_code::OPENDAL_PERMISSION_DENIED
+        );
+        assert!(meta.is_null());
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_writer::opendal_writer_free(writer);
         }
     }
 }

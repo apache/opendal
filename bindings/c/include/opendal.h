@@ -1188,7 +1188,7 @@ struct opendal_operator_layers *opendal_operator_layers_new(void);
 /**
  * \brief Add a retry layer.
  */
-void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
+void opendal_operator_layers_add_retry(struct opendal_operator_layers *layers,
                                        bool jitter,
                                        float factor,
                                        uint64_t min_delay_ns,
@@ -1198,7 +1198,7 @@ void opendal_operator_layers_add_retry(struct opendal_operator_layers *self,
 /**
  * \brief Add a timeout layer.
  */
-void opendal_operator_layers_add_timeout(struct opendal_operator_layers *self,
+void opendal_operator_layers_add_timeout(struct opendal_operator_layers *layers,
                                          uint64_t timeout_ns,
                                          uint64_t io_timeout_ns);
 
@@ -3159,7 +3159,7 @@ struct opendal_operator_options *opendal_operator_options_new(void);
  * opendal_operator_options_free(options);
  * ```
  */
-void opendal_operator_options_set(struct opendal_operator_options *self,
+void opendal_operator_options_set(struct opendal_operator_options *opts,
                                   const char *key,
                                   const char *value);
 

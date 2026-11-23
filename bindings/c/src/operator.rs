@@ -563,7 +563,10 @@ pub unsafe extern "C" fn opendal_operator_read_with_cancel(
     let opts = if opts.is_null() {
         core::options::ReadOptions::default()
     } else {
-        (&*opts).into()
+        match core::options::ReadOptions::try_from(&*opts) {
+            Ok(opts) => opts,
+            Err(e) => return opendal_error::new(e),
+        }
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
     match block_on_cancellable(
@@ -675,7 +678,10 @@ pub unsafe extern "C" fn opendal_operator_reader_with_cancel(
     let opts = if opts.is_null() {
         core::options::ReaderOptions::default()
     } else {
-        (&*opts).into()
+        match core::options::ReaderOptions::try_from(&*opts) {
+            Ok(opts) => opts,
+            Err(e) => return opendal_error::new(e),
+        }
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
     match block_on_cancellable(op.handle(), cancel_token, async {
@@ -1116,7 +1122,10 @@ pub unsafe extern "C" fn opendal_operator_stat_with_cancel(
     let opts = if opts.is_null() {
         core::options::StatOptions::default()
     } else {
-        (&*opts).into()
+        match core::options::StatOptions::try_from(&*opts) {
+            Ok(opts) => opts,
+            Err(e) => return opendal_error::new(e),
+        }
     };
     let cancel_token = opendal_cancel_token::as_inner(cancel);
     match block_on_cancellable(

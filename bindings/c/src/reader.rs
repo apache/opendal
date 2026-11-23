@@ -55,6 +55,24 @@ pub struct opendal_reader {
     inner: *mut c_void,
 }
 
+fn reader_io_error(e: std::io::Error, context: &str) -> *mut opendal_error {
+    if e.get_ref().is_some_and(|s| s.is::<core::Error>()) {
+        let err = e
+            .into_inner()
+            .expect("io error inner was checked to be present")
+            .downcast::<core::Error>()
+            .expect("io error inner was checked to be opendal::Error");
+        return opendal_error::new(*err);
+    }
+
+    let kind = match e.kind() {
+        std::io::ErrorKind::NotFound => core::ErrorKind::NotFound,
+        std::io::ErrorKind::PermissionDenied => core::ErrorKind::PermissionDenied,
+        _ => core::ErrorKind::Unexpected,
+    };
+    opendal_error::new(core::Error::new(kind, context).set_source(e))
+}
+
 impl opendal_reader {
     fn deref_mut(&mut self) -> &mut ReaderInner {
         // Safety: the inner should never be null once constructed
@@ -113,10 +131,7 @@ impl opendal_reader {
                 std::ptr::null_mut()
             }
             Err(CancellableError::Cancelled) => opendal_error::cancelled(),
-            Err(CancellableError::Inner(e)) => opendal_error::new(
-                core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
-                    .set_source(e),
-            ),
+            Err(CancellableError::Inner(e)) => reader_io_error(e, "read failed from reader"),
         }
     }
 
@@ -177,10 +192,7 @@ impl opendal_reader {
                 std::ptr::null_mut()
             }
             Err(CancellableError::Cancelled) => opendal_error::cancelled(),
-            Err(CancellableError::Inner(e)) => opendal_error::new(
-                core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
-                    .set_source(e),
-            ),
+            Err(CancellableError::Inner(e)) => reader_io_error(e, "seek failed from reader"),
         }
     }
 
@@ -230,6 +242,284 @@ mod tests {
         unsafe {
             opendal_error::opendal_error_free(err);
             opendal_reader::opendal_reader_free(reader);
+        }
+    }
+
+    #[test]
+    fn test_reader_preserves_not_found_on_read_and_seek() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default()).unwrap();
+        let reader = runtime.block_on(async {
+            op.reader("does_not_exist")
+                .await
+                .unwrap()
+                .into_futures_async_read(core::BytesRange::default())
+                .await
+                .unwrap()
+        });
+        let reader = Box::into_raw(Box::new(opendal_reader::new(
+            runtime.handle().clone(),
+            reader,
+        )));
+
+        let mut buf = [0u8; 16];
+        let mut size = 99;
+        let err = unsafe {
+            opendal_reader::opendal_reader_read(
+                &mut *reader,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut size,
+            )
+        };
+        assert!(!err.is_null());
+        assert_eq!(unsafe { (*err).code() }, opendal_code::OPENDAL_NOT_FOUND);
+        assert_eq!(size, 0);
+        unsafe { opendal_error::opendal_error_free(err) };
+
+        let mut pos = 99;
+        let err = unsafe {
+            opendal_reader::opendal_reader_seek(&mut *reader, 0, OPENDAL_SEEK_END, &mut pos)
+        };
+        assert!(!err.is_null());
+        assert_eq!(unsafe { (*err).code() }, opendal_code::OPENDAL_NOT_FOUND);
+        assert_eq!(pos, 0);
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_reader::opendal_reader_free(reader);
+        }
+    }
+
+    #[test]
+    fn test_reader_preserves_backend_error_kind() {
+        use ::opendal::raw::{self, oio};
+        use std::sync::Arc;
+
+        #[derive(Debug)]
+        struct FailingReadService {
+            inner: raw::Servicer,
+        }
+
+        #[derive(Debug)]
+        struct FailingReadLayer;
+
+        impl raw::Layer for FailingReadLayer {
+            fn apply_service(&self, inner: raw::Servicer) -> raw::Servicer {
+                Arc::new(FailingReadService { inner })
+            }
+        }
+
+        struct FailingReader;
+
+        impl oio::Read for FailingReader {
+            async fn open(
+                &self,
+                _range: core::BytesRange,
+            ) -> core::Result<(raw::RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                Err(core::Error::new(
+                    core::ErrorKind::ConditionNotMatch,
+                    "etag mismatch on read",
+                ))
+            }
+
+            async fn read(
+                &self,
+                _range: core::BytesRange,
+            ) -> core::Result<(raw::RpRead, core::Buffer)> {
+                Err(core::Error::new(
+                    core::ErrorKind::ConditionNotMatch,
+                    "etag mismatch on read",
+                ))
+            }
+        }
+
+        impl raw::Service for FailingReadService {
+            type Reader = FailingReader;
+            type Writer = oio::Writer;
+            type Lister = oio::Lister;
+            type Deleter = oio::Deleter;
+            type Copier = oio::Copier;
+            type Composer = oio::Composer;
+
+            fn info(&self) -> raw::ServiceInfo {
+                self.inner.info()
+            }
+
+            fn capability(&self) -> core::Capability {
+                self.inner.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &core::OperationContext,
+                path: &str,
+                args: raw::OpCreateDir,
+            ) -> core::Result<raw::RpCreateDir> {
+                self.inner.create_dir(ctx, path, args).await
+            }
+
+            async fn stat(
+                &self,
+                _ctx: &core::OperationContext,
+                _path: &str,
+                _args: raw::OpStat,
+            ) -> core::Result<raw::RpStat> {
+                Err(core::Error::new(
+                    core::ErrorKind::PermissionDenied,
+                    "permission denied on stat",
+                ))
+            }
+
+            fn read(
+                &self,
+                _ctx: &core::OperationContext,
+                _path: &str,
+                _args: raw::OpRead,
+            ) -> core::Result<Self::Reader> {
+                Ok(FailingReader)
+            }
+
+            fn write(
+                &self,
+                ctx: &core::OperationContext,
+                path: &str,
+                args: raw::OpWrite,
+            ) -> core::Result<Self::Writer> {
+                self.inner.write(ctx, path, args)
+            }
+
+            fn delete(&self, ctx: &core::OperationContext) -> core::Result<Self::Deleter> {
+                self.inner.delete(ctx)
+            }
+
+            fn list(
+                &self,
+                ctx: &core::OperationContext,
+                path: &str,
+                args: raw::OpList,
+            ) -> core::Result<Self::Lister> {
+                self.inner.list(ctx, path, args)
+            }
+
+            fn copy(
+                &self,
+                ctx: &core::OperationContext,
+                from: &str,
+                to: &str,
+                args: raw::OpCopy,
+            ) -> core::Result<Self::Copier> {
+                self.inner.copy(ctx, from, to, args)
+            }
+
+            async fn rename(
+                &self,
+                ctx: &core::OperationContext,
+                from: &str,
+                to: &str,
+                args: raw::OpRename,
+            ) -> core::Result<raw::RpRename> {
+                self.inner.rename(ctx, from, to, args).await
+            }
+
+            fn compose(
+                &self,
+                ctx: &core::OperationContext,
+                path: &str,
+                args: raw::OpCompose,
+            ) -> core::Result<Self::Composer> {
+                self.inner.compose(ctx, path, args)
+            }
+
+            async fn presign(
+                &self,
+                ctx: &core::OperationContext,
+                path: &str,
+                args: raw::OpPresign,
+            ) -> core::Result<raw::RpPresign> {
+                self.inner.presign(ctx, path, args).await
+            }
+        }
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default())
+            .unwrap()
+            .layer(FailingReadLayer);
+        let reader = runtime.block_on(async {
+            op.reader("test")
+                .await
+                .unwrap()
+                .into_futures_async_read(core::BytesRange::default())
+                .await
+                .unwrap()
+        });
+        let reader = Box::into_raw(Box::new(opendal_reader::new(
+            runtime.handle().clone(),
+            reader,
+        )));
+
+        let mut buf = [0u8; 8];
+        let mut size = 99;
+        let err = unsafe {
+            opendal_reader::opendal_reader_read(
+                &mut *reader,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut size,
+            )
+        };
+        assert!(!err.is_null());
+        assert_eq!(
+            unsafe { (*err).code() },
+            opendal_code::OPENDAL_CONDITION_NOT_MATCH
+        );
+        assert_eq!(size, 0);
+        unsafe { opendal_error::opendal_error_free(err) };
+
+        let mut pos = 99;
+        let err = unsafe {
+            opendal_reader::opendal_reader_seek(&mut *reader, 0, OPENDAL_SEEK_END, &mut pos)
+        };
+        assert!(!err.is_null());
+        assert_eq!(
+            unsafe { (*err).code() },
+            opendal_code::OPENDAL_PERMISSION_DENIED
+        );
+        assert_eq!(pos, 0);
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_reader::opendal_reader_free(reader);
+        }
+    }
+
+    #[test]
+    fn test_reader_io_error_fallback() {
+        unsafe {
+            let err = reader_io_error(
+                std::io::Error::new(std::io::ErrorKind::InvalidInput, "bad seek"),
+                "seek failed",
+            );
+            assert_eq!((*err).code(), opendal_code::OPENDAL_UNEXPECTED);
+            opendal_error::opendal_error_free(err);
+
+            let err = reader_io_error(
+                std::io::Error::new(std::io::ErrorKind::NotFound, "missing"),
+                "read failed",
+            );
+            assert_eq!((*err).code(), opendal_code::OPENDAL_NOT_FOUND);
+            opendal_error::opendal_error_free(err);
+
+            let err = reader_io_error(
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied"),
+                "read failed",
+            );
+            assert_eq!((*err).code(), opendal_code::OPENDAL_PERMISSION_DENIED);
+            opendal_error::opendal_error_free(err);
         }
     }
 }

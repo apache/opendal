@@ -54,7 +54,7 @@ impl fmt::Debug for FuturesAsyncWriter {
 impl FuturesAsyncWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
+    pub(crate) fn new(w: WriteState) -> Self {
         FuturesAsyncWriter {
             sink: BufferSink::new(w),
             buf: oio::FlexBuf::new(256 * 1024),
@@ -170,8 +170,8 @@ mod tests {
     }
 
     fn new_async_writer(writer: RecordingWriter) -> FuturesAsyncWriter {
-        let write_gen = WriteGenerator::new(Box::new(writer), None, false);
-        FuturesAsyncWriter::new(write_gen)
+        let write_state = WriteState::new(Box::new(writer), None, false);
+        FuturesAsyncWriter::new(write_state)
     }
 
     #[tokio::test]
@@ -244,9 +244,9 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).unwrap();
+        let write_state = WriteState::create(ctx).unwrap();
 
-        let v = FuturesAsyncWriter::new(write_gen);
+        let v = FuturesAsyncWriter::new(write_state);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

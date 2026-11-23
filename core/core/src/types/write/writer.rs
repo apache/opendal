@@ -101,7 +101,7 @@ use crate::*;
 pub struct Writer {
     /// Keep a reference to write context in writer.
     ctx: Arc<WriteContext>,
-    inner: WriteGenerator<oio::Writer>,
+    inner: WriteState,
 }
 
 impl fmt::Debug for Writer {
@@ -117,7 +117,7 @@ impl Writer {
     /// Create a new writer from an `oio::Writer`.
     pub(crate) fn new(ctx: WriteContext) -> Result<Self> {
         let ctx = Arc::new(ctx);
-        let inner = WriteGenerator::create(ctx.clone())?;
+        let inner = WriteState::create(ctx.clone())?;
 
         Ok(Self { ctx, inner })
     }

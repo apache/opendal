@@ -215,8 +215,9 @@ async fn handles_paths_with_nul_bytes() -> Result<()> {
 
 #[tokio::test]
 async fn traces_lister_entries_and_end_of_stream() -> Result<()> {
-    let op = Operator::new(services::Memory::default())?.layer(DtraceLayer::new());
-    op.write("dir/file", "data").await?;
+    let base = Operator::new(services::Memory::default())?;
+    base.write("dir/file", "data").await?;
+    let op = base.layer(DtraceLayer::new());
 
     let mut lister = op.lister("dir/").await?;
     assert_eq!(lister.next().await.transpose()?.unwrap().path(), "dir/file");
@@ -231,6 +232,51 @@ async fn traces_lister_entries_and_end_of_stream() -> Result<()> {
                 "lister_next_ok",
                 "lister_next_start",
                 "lister_next_ok",
+            ]
+        );
+    });
+    Ok(())
+}
+
+#[tokio::test]
+async fn traces_service_and_io_operations() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?.layer(DtraceLayer::new());
+
+    op.create_dir("dir/").await?;
+    op.write("dir/file", "data").await?;
+    assert!(op.stat("dir/file").await?.is_file());
+    assert_eq!(op.read("dir/file").await?.to_vec(), b"data");
+    let _ = op.copy("dir/file", "dir/copy").await;
+    let _ = op
+        .presign_read("dir/file", std::time::Duration::from_secs(60))
+        .await;
+
+    PROBES.with_borrow(|probes| {
+        assert_eq!(
+            probes.as_slice(),
+            [
+                "create_dir_start",
+                "create_dir_end",
+                "write_start",
+                "write_end",
+                "writer_write_start",
+                "writer_write_ok",
+                "writer_close_start",
+                "writer_close_ok",
+                "stat_start",
+                "stat_end",
+                "read_start",
+                "read_end",
+                "reader_read_start",
+                "reader_read_ok",
+                "reader_read_start",
+                "reader_read_ok",
+                "reader_read_start",
+                "reader_read_ok",
+                "copy_start",
+                "copy_end",
+                "presign_start",
+                "presign_end",
             ]
         );
     });

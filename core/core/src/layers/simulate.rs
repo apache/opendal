@@ -597,11 +597,48 @@ impl oio::Read for SimulateReader {
     }
 }
 
+/// A directory waiting to be listed.
+///
+/// The initial directory comes from the caller and has not been validated yet.
+/// `oio::Entry` rejects paths whose metadata exceeds the compact block limit,
+/// so materialize it only after listing succeeds and produces entries.
+enum PendingDir {
+    Initial(String),
+    Discovered(oio::Entry),
+}
+
+impl PendingDir {
+    fn path(&self) -> &str {
+        match self {
+            PendingDir::Initial(path) => path,
+            PendingDir::Discovered(entry) => entry.path(),
+        }
+    }
+
+    fn try_into_entry(self) -> Result<oio::Entry> {
+        match self {
+            PendingDir::Initial(path) => {
+                // `oio::Entry` stores `path` inside a `CompactValues` block
+                // bounded by `u16::MAX` bytes (2-byte bitmap + 2-byte offset + path).
+                let encoded_len = 2 * size_of::<u16>() + path.len();
+                if encoded_len > u16::MAX as usize {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "directory path exceeds compact entry metadata limit",
+                    ));
+                }
+                Ok(oio::Entry::with(path, MetadataBuilder::dir().build()))
+            }
+            PendingDir::Discovered(entry) => Ok(entry),
+        }
+    }
+}
+
 // Keep the lister in `next_dir` until its first entry arrives so cancelling
 // `ServicerFlatLister::next` cannot detach the lister from its directory.
 enum NextDir {
-    Directory(oio::Entry),
-    Listing(oio::Entry, oio::Lister),
+    Directory(PendingDir),
+    Listing(PendingDir, oio::Lister),
 }
 
 pub struct ServicerFlatLister {
@@ -615,6 +652,11 @@ pub struct ServicerFlatLister {
 
 impl ServicerFlatLister {
     fn new(ctx: OperationContext, srv: Servicer, path: &str, args: OpList) -> Self {
+        let initial_path = if path.is_empty() {
+            "/".to_string()
+        } else {
+            path.to_string()
+        };
         Self {
             ctx,
             srv,
@@ -625,10 +667,7 @@ impl ServicerFlatLister {
             }
             .into(),
             start_after: args.start_after().map(str::to_owned),
-            next_dir: Some(NextDir::Directory(oio::Entry::new(
-                path,
-                MetadataBuilder::dir().build(),
-            ))),
+            next_dir: Some(NextDir::Directory(PendingDir::Initial(initial_path))),
             active_lister: vec![],
         }
     }
@@ -704,15 +743,18 @@ impl ServicerFlatLister {
                     // empty directory. Yield the exhausted directory in
                     // post-order instead of dropping it. The top-level prefix
                     // itself is not an entry, so an empty prefix stays empty.
-                    None if self.active_lister.is_empty() => return Ok(None),
-                    None => return Ok(Some(de)),
+                    None => match de {
+                        PendingDir::Initial(_) => return Ok(None),
+                        PendingDir::Discovered(entry) => return Ok(Some(entry)),
+                    },
                 };
 
+                let de = de.try_into_entry()?;
                 self.active_lister.push((de.clone(), lister));
 
                 if v.mode().is_dir() {
                     if v.path() != de.path() {
-                        self.next_dir = Some(NextDir::Directory(v));
+                        self.next_dir = Some(NextDir::Directory(PendingDir::Discovered(v)));
                         continue;
                     }
                 } else {
@@ -736,7 +778,7 @@ impl ServicerFlatLister {
                 Err(e) => return Err(e),
                 Ok(Some(v)) if v.mode().is_dir() => {
                     if v.path() != de.path() {
-                        self.next_dir = Some(NextDir::Directory(v));
+                        self.next_dir = Some(NextDir::Directory(PendingDir::Discovered(v)));
                         continue;
                     }
                 }
@@ -849,7 +891,7 @@ mod tests {
         tree: HashMap<String, Vec<(String, bool)>>,
         fail_first_list_on: Option<String>,
         fail_first_next_on: Option<String>,
-        pending_first_next_on: Option<String>,
+        pending_once_on: Option<(String, usize)>,
         list_injected: Mutex<bool>,
         next_injected: Mutex<bool>,
         pending_injected: Mutex<bool>,
@@ -870,12 +912,26 @@ mod tests {
             *used = true;
             first_time
         }
+
+        fn take_pending_call(&self, path: &str) -> Option<usize> {
+            let (target, call) = self.pending_once_on.as_ref()?;
+            if target != path {
+                return None;
+            }
+            let mut used = self.pending_injected.lock().expect("mutex must not poison");
+            if *used {
+                return None;
+            }
+            *used = true;
+            Some(*call)
+        }
     }
 
     struct TreeLister {
         entries: std::vec::IntoIter<(String, bool)>,
         fail_first: bool,
-        pending_first: bool,
+        pending_on_call: Option<usize>,
+        next_calls: usize,
     }
 
     impl TreeLister {
@@ -888,11 +944,8 @@ mod tests {
                     .unwrap_or_default()
                     .into_iter(),
                 fail_first: state.take_fault(&state.fail_first_next_on, &state.next_injected, path),
-                pending_first: state.take_fault(
-                    &state.pending_first_next_on,
-                    &state.pending_injected,
-                    path,
-                ),
+                pending_on_call: state.take_pending_call(path),
+                next_calls: 0,
             }
         }
 
@@ -917,7 +970,11 @@ mod tests {
 
     impl oio::List for TreeLister {
         async fn next(&mut self) -> Result<Option<oio::Entry>> {
-            let mut pending = std::mem::take(&mut self.pending_first);
+            self.next_calls += 1;
+            let mut pending = self.pending_on_call == Some(self.next_calls);
+            if pending {
+                self.pending_on_call = None;
+            }
             poll_fn(move |cx| {
                 if pending {
                     pending = false;
@@ -1287,7 +1344,7 @@ mod tests {
     async fn servicer_flat_lister_preserves_a_directory_when_cancelled() {
         let state = Arc::new(TreeState {
             tree: tree_with_two_dirs(),
-            pending_first_next_on: Some("a/".to_string()),
+            pending_once_on: Some(("a/".to_string(), 1)),
             ..Default::default()
         });
         let srv = Arc::new(MockService {
@@ -1318,6 +1375,61 @@ mod tests {
             paths.push(entry.path().to_string());
         }
         assert_eq!(paths, ["a/one.txt", "a/", "b/two.txt", "b/", "/"]);
+    }
+
+    #[tokio::test]
+    async fn servicer_flat_lister_preserves_an_active_directory_when_cancelled() {
+        let state = Arc::new(TreeState {
+            tree: HashMap::from([
+                ("/".to_string(), vec![("a/".to_string(), true)]),
+                (
+                    "a/".to_string(),
+                    vec![("a/file".to_string(), false), ("a/sub/".to_string(), true)],
+                ),
+                (
+                    "a/sub/".to_string(),
+                    vec![("a/sub/file2".to_string(), false)],
+                ),
+            ]),
+            pending_once_on: Some(("a/sub/".to_string(), 2)),
+            ..Default::default()
+        });
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            tree: Some(state),
+        }) as Servicer;
+        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/", OpList::new());
+
+        let mut paths = Vec::new();
+        while paths.last().map(String::as_str) != Some("a/sub/file2") {
+            let entry = oio::List::next(&mut lister)
+                .await
+                .expect("listing must succeed")
+                .expect("the nested file must be reached");
+            paths.push(entry.path().to_string());
+        }
+
+        let mut next = Box::pin(oio::List::next(&mut lister));
+        poll_fn(|cx| {
+            assert!(
+                next.as_mut().poll(cx).is_pending(),
+                "the injected pending point must be reached"
+            );
+            Poll::Ready(())
+        })
+        .await;
+        drop(next);
+
+        while let Some(entry) = oio::List::next(&mut lister)
+            .await
+            .expect("listing must succeed")
+        {
+            paths.push(entry.path().to_string());
+        }
+        assert_eq!(paths, ["a/file", "a/sub/file2", "a/sub/", "a/", "/"]);
     }
 
     /// The directory is lost when its first `next()` fails.
@@ -1542,6 +1654,86 @@ mod tests {
                 "the top-level prefix {prefix} must not be yielded"
             );
         }
+        Ok(())
+    }
+
+    /// A caller-supplied path at or above the 64 KiB compact metadata block
+    /// limit must not panic in `ServicerFlatLister::new` before reaching the
+    /// underlying service.
+    #[tokio::test]
+    async fn servicer_flat_lister_handles_oversized_caller_path() -> Result<()> {
+        let oversized_dir = format!("{}/", "a".repeat(u16::MAX as usize));
+        let oversized_prefix = format!("{oversized_dir}child");
+
+        // Empty listing for both an oversized directory and an oversized prefix
+        // must complete cleanly without panicking.
+        for path in [&oversized_dir, &oversized_prefix] {
+            let state = Arc::new(TreeState::default());
+            let srv = Arc::new(MockService {
+                capability: Capability {
+                    list: true,
+                    ..Default::default()
+                },
+                tree: Some(state.clone()),
+            }) as Servicer;
+            let op =
+                Operator::from_parts(OperationContext::new(), srv).layer(SimulateLayer::default());
+
+            let entries = op.list_with(path).recursive(true).await?;
+            assert!(entries.is_empty());
+            assert_eq!(
+                state
+                    .listed
+                    .lock()
+                    .expect("mutex must not poison")
+                    .as_slice(),
+                std::slice::from_ref(&oversized_dir)
+            );
+        }
+
+        // A backend error for the oversized directory must propagate cleanly.
+        let state = Arc::new(TreeState {
+            fail_first_list_on: Some(oversized_dir.clone()),
+            ..Default::default()
+        });
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            tree: Some(state),
+        }) as Servicer;
+        let mut lister =
+            ServicerFlatLister::new(OperationContext::new(), srv, &oversized_dir, OpList::new());
+        let err = oio::List::next(&mut lister)
+            .await
+            .expect_err("backend listing error must propagate");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        // Even if a backend returns entries under an oversized directory path,
+        // materializing the top-level directory must return an error instead of
+        // panicking.
+        let state = Arc::new(TreeState {
+            tree: HashMap::from([(
+                oversized_dir.clone(),
+                vec![("child.txt".to_string(), false)],
+            )]),
+            ..Default::default()
+        });
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            tree: Some(state),
+        }) as Servicer;
+        let mut lister =
+            ServicerFlatLister::new(OperationContext::new(), srv, &oversized_dir, OpList::new());
+        let err = oio::List::next(&mut lister)
+            .await
+            .expect_err("oversized directory entry must fail cleanly");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
         Ok(())
     }
 

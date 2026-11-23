@@ -131,3 +131,63 @@ describe('bigint options', () => {
     })
   })
 })
+
+// An unparsable timestamp used to be dropped, so the conditional read, stat,
+// or reader silently ran unconditionally instead of reporting the mistake.
+const invalidTimestamps = ['not-a-date', new Date(0).toUTCString()]
+
+// Return the error a promise rejects with, or undefined when it resolves.
+async function settle(promise) {
+  try {
+    await promise
+    return undefined
+  } catch (err) {
+    return err
+  }
+}
+
+describe('conditional timestamps', () => {
+  const op = new Operator('memory')
+
+  beforeEach(async () => {
+    await op.write(path, content)
+  })
+
+  for (const field of ['ifModifiedSince', 'ifUnmodifiedSince']) {
+    for (const value of invalidTimestamps) {
+      it(`read rejects an invalid ${field} (${value})`, async () => {
+        await expect(op.read(path, { [field]: value })).rejects.toThrowError(`${field} must be an ISO 8601`)
+      })
+
+      it(`readSync rejects an invalid ${field} (${value})`, () => {
+        expect(() => op.readSync(path, { [field]: value })).toThrowError(`${field} must be an ISO 8601`)
+      })
+
+      it(`reader rejects an invalid ${field} (${value})`, async () => {
+        await expect(op.reader(path, { [field]: value })).rejects.toThrowError(`${field} must be an ISO 8601`)
+      })
+
+      it(`readerSync rejects an invalid ${field} (${value})`, () => {
+        expect(() => op.readerSync(path, { [field]: value })).toThrowError(`${field} must be an ISO 8601`)
+      })
+
+      it(`stat rejects an invalid ${field} (${value})`, async () => {
+        await expect(op.stat(path, { [field]: value })).rejects.toThrowError(`${field} must be an ISO 8601`)
+      })
+
+      it(`statSync rejects an invalid ${field} (${value})`, () => {
+        expect(() => op.statSync(path, { [field]: value })).toThrowError(`${field} must be an ISO 8601`)
+      })
+    }
+  }
+
+  it('accepts an ISO 8601 timestamp', async () => {
+    // The memory service does not support conditional reads and stats, so the
+    // option must reach the service instead of being rejected as malformed.
+    const readError = await settle(op.read(path, { ifModifiedSince: '2024-01-01T00:00:00Z' }))
+    expect(String(readError?.message ?? '')).not.toMatch('must be an ISO 8601')
+
+    const statError = await settle(op.stat(path, { ifUnmodifiedSince: '2024-01-01T00:00:00Z' }))
+    expect(String(statError?.message ?? '')).not.toMatch('must be an ISO 8601')
+  })
+})

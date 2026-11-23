@@ -34,25 +34,45 @@ const AUTHORIZATION: &str = "Bearer auth-secret";
 const COOKIE: &str = "session=cookie-secret";
 
 thread_local! {
-    static RECORDS: RefCell<Vec<(Level, String)>> = const { RefCell::new(Vec::new()) };
+    static HTTP_RECORDS: RefCell<Vec<(Level, String)>> = const { RefCell::new(Vec::new()) };
+    static SERVICE_RECORDS: RefCell<Vec<(Level, String)>> = const { RefCell::new(Vec::new()) };
 }
 
 struct RecordingLogger;
 
 impl log::Log for RecordingLogger {
     fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        metadata.target() == "opendal::services::http"
+        matches!(
+            metadata.target(),
+            "opendal::services" | "opendal::services::http"
+        )
     }
 
     fn log(&self, record: &log::Record<'_>) {
-        if self.enabled(record.metadata()) {
-            RECORDS.with_borrow_mut(|records| {
-                records.push((record.level(), record.args().to_string()));
-            });
+        match record.target() {
+            "opendal::services::http" => {
+                HTTP_RECORDS.with_borrow_mut(|records| {
+                    records.push((record.level(), record.args().to_string()));
+                });
+            }
+            "opendal::services" => {
+                SERVICE_RECORDS.with_borrow_mut(|records| {
+                    records.push((record.level(), record.args().to_string()));
+                });
+            }
+            _ => {}
         }
     }
 
     fn flush(&self) {}
+}
+
+fn init_logger() {
+    static INIT_LOGGER: Once = Once::new();
+    INIT_LOGGER.call_once(|| {
+        log::set_logger(&RecordingLogger).unwrap();
+        log::set_max_level(log::LevelFilter::Debug);
+    });
 }
 
 struct FixedTransport(Mutex<Option<Result<Response<HttpBody>>>>);
@@ -69,11 +89,7 @@ impl HttpTransport for FixedTransport {
 }
 
 fn logging_operator(result: Result<Response<HttpBody>>) -> Operator {
-    static INIT_LOGGER: Once = Once::new();
-    INIT_LOGGER.call_once(|| {
-        log::set_logger(&RecordingLogger).unwrap();
-        log::set_max_level(log::LevelFilter::Debug);
-    });
+    init_logger();
     let transport = HttpTransporter::new(FixedTransport(Mutex::new(Some(result))));
     Operator::new(services::Memory::default())
         .unwrap()
@@ -90,7 +106,7 @@ fn signed_request() -> Request<Buffer> {
 }
 
 fn take_http_records() -> Vec<(Level, String)> {
-    let records = RECORDS.take();
+    let records = HTTP_RECORDS.take();
     for (_, message) in &records {
         assert!(message.contains("service=memory"));
         assert!(message.contains("method=PUT"));
@@ -101,6 +117,10 @@ fn take_http_records() -> Vec<(Level, String)> {
         assert!(!message.contains("request payload"));
     }
     records
+}
+
+fn take_service_records() -> Vec<(Level, String)> {
+    SERVICE_RECORDS.take()
 }
 
 #[test]
@@ -262,12 +282,37 @@ impl oio::Compose for MockComposer {
     }
 }
 
-/// Service that only supports `compose`, returning [`MockComposer`].
+/// Copier that reports fixed progress and fails on close on demand.
+#[derive(Debug, Default)]
+struct MockCopier {
+    remaining: Option<usize>,
+    fail_close: bool,
+}
+
+impl oio::Copy for MockCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        Ok(self.remaining.take())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        if self.fail_close {
+            return Err(Error::new(ErrorKind::Unexpected, "mock copy close failed"));
+        }
+        Ok(MetadataBuilder::file(12).build())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Service that supports `compose` and `copy` for logging tests.
 #[derive(Debug, Default)]
 struct MockService {
     fail_init: bool,
     fail_compose: bool,
     fail_close: bool,
+    copy_bytes: Option<usize>,
 }
 
 impl MockService {
@@ -284,7 +329,7 @@ impl Service for MockService {
     type Writer = ();
     type Lister = ();
     type Deleter = ();
-    type Copier = ();
+    type Copier = MockCopier;
     type Composer = MockComposer;
 
     fn info(&self) -> ServiceInfo {
@@ -325,7 +370,10 @@ impl Service for MockService {
     }
 
     fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
-        Self::unsupported()
+        Ok(MockCopier {
+            remaining: self.copy_bytes,
+            fail_close: self.fail_close,
+        })
     }
 
     fn compose(&self, _: &OperationContext, _: &str, _: OpCompose) -> Result<Self::Composer> {
@@ -514,5 +562,164 @@ fn logs_compose_init_failure_and_preserves_error() {
             .as_deref()
             .unwrap_or("")
             .contains("mock init failed")
+    );
+}
+
+#[test]
+fn default_interceptor_logs_expected_error_once_at_debug_level() {
+    init_logger();
+    let operator = Operator::new(services::Memory::default())
+        .unwrap()
+        .layer(LoggingLayer::default());
+
+    let _ = take_service_records();
+    let err = block_on(operator.stat("missing")).expect_err("stat missing path must fail");
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    let records = take_service_records();
+    let [started, failed] = records.as_slice() else {
+        panic!("expected started and failed records without duplicate debug log, got {records:?}");
+    };
+    assert_eq!(started.0, Level::Debug);
+    assert!(started.1.contains("service=memory"));
+    assert!(started.1.contains("path=missing"));
+    assert!(started.1.ends_with(": stat started"));
+
+    assert_eq!(failed.0, Level::Warn);
+    assert!(failed.1.contains("service=memory"));
+    assert!(failed.1.contains("path=missing"));
+    assert!(failed.1.contains(": stat failed "));
+    assert!(failed.1.contains("NotFound"));
+}
+
+#[test]
+fn default_interceptor_logs_unexpected_error_once_and_success_at_debug_level() {
+    init_logger();
+    let srv = LoggingLayer::default().apply_service(Arc::new(MockService {
+        fail_init: true,
+        ..Default::default()
+    }));
+    let ctx = OperationContext::default();
+
+    let _ = take_service_records();
+    let err = match srv.compose(&ctx, "dest", OpCompose::default()) {
+        Err(err) => err,
+        Ok(_) => panic!("compose must fail"),
+    };
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+    let records = take_service_records();
+    let [started, failed] = records.as_slice() else {
+        panic!("expected started and failed records without duplicate debug log, got {records:?}");
+    };
+    assert_eq!(started.0, Level::Debug);
+    assert!(started.1.ends_with(": compose started"));
+    assert_eq!(failed.0, Level::Error);
+    assert!(failed.1.contains(": compose failed "));
+    assert!(failed.1.contains("mock init failed"));
+
+    let operator = Operator::new(services::Memory::default())
+        .unwrap()
+        .layer(LoggingLayer::default());
+    block_on(operator.write("present", "hello")).unwrap();
+    let _ = take_service_records();
+    block_on(operator.stat("present")).unwrap();
+
+    let records = take_service_records();
+    let [started, finished] = records.as_slice() else {
+        panic!("expected started and finished debug records, got {records:?}");
+    };
+    assert_eq!(started.0, Level::Debug);
+    assert!(started.1.ends_with(": stat started"));
+    assert_eq!(finished.0, Level::Debug);
+    assert!(finished.1.ends_with(": stat finished"));
+}
+
+#[test]
+fn logs_copy_close_success() {
+    let interceptor = RecordingInterceptor::default();
+    let srv = layered_service(
+        &interceptor,
+        MockService {
+            copy_bytes: Some(12),
+            ..Default::default()
+        },
+    );
+    let ctx = OperationContext::default();
+
+    let mut copier = srv
+        .copy(&ctx, "src", "dest", OpCopy::default())
+        .expect("copy must succeed");
+    assert_eq!(
+        block_on(copier.next_dyn()).expect("progress step must succeed"),
+        Some(12)
+    );
+    assert_eq!(
+        block_on(copier.next_dyn()).expect("completion step must succeed"),
+        None
+    );
+    let meta = block_on(copier.close_dyn()).expect("close must succeed");
+    assert_eq!(meta.content_length(), 12);
+
+    let events = interceptor.events();
+    assert_eq!(events.len(), 4, "unexpected events: {events:?}");
+    for event in &events {
+        assert_eq!(event.operation, Operation::Copy);
+        assert_context(event, "from", "src");
+        assert_context(event, "to", "dest");
+    }
+
+    assert_eq!(events[0].message, "started");
+    assert_eq!(events[1].message, "created copier");
+    assert_eq!(events[2].message, "finished");
+    assert_context(&events[2], "copied", "12");
+    assert_eq!(events[3].message, "close succeeded");
+    assert_context(&events[3], "copied", "12");
+    assert!(events[3].err.is_none());
+}
+
+#[test]
+fn logs_copy_close_failure_and_preserves_error() {
+    let interceptor = RecordingInterceptor::default();
+    let srv = layered_service(
+        &interceptor,
+        MockService {
+            copy_bytes: Some(12),
+            fail_close: true,
+            ..Default::default()
+        },
+    );
+    let ctx = OperationContext::default();
+
+    let mut copier = srv
+        .copy(&ctx, "src", "dest", OpCopy::default())
+        .expect("copy must succeed");
+    assert_eq!(
+        block_on(copier.next_dyn()).expect("progress step must succeed"),
+        Some(12)
+    );
+    assert_eq!(
+        block_on(copier.next_dyn()).expect("completion step must succeed"),
+        None
+    );
+    let err = block_on(copier.close_dyn()).expect_err("close must fail");
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(err.to_string().contains("mock copy close failed"));
+
+    let events = interceptor.events();
+    let event = events
+        .iter()
+        .find(|event| event.message == "close failed")
+        .expect("a close failed event must be logged");
+    assert_eq!(event.operation, Operation::Copy);
+    assert_context(event, "from", "src");
+    assert_context(event, "to", "dest");
+    assert_context(event, "copied", "12");
+    assert!(
+        event
+            .err
+            .as_deref()
+            .unwrap_or("")
+            .contains("mock copy close failed")
     );
 }

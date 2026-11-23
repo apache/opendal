@@ -1514,10 +1514,8 @@ dependencies = [
 name = "opendal-http-transport-reqwest"
 version = "0.59.5"
 dependencies = [
- "bytes",
  "futures",
  "http",
- "http-body",
  "opendal-core",
  "reqwest",
 ]

@@ -69,7 +69,7 @@ impl SqliteCore {
         Ok(value.map(Buffer::from))
     }
 
-    pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
+    pub async fn get_length(&self, path: &str) -> Result<Option<u64>> {
         let pool = self.get_client().await?;
 
         let value: Option<i64> = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
@@ -83,7 +83,7 @@ impl SqliteCore {
 
         value
             .map(|v| {
-                v.try_into().map_err(|err| {
+                u64::try_from(v).map_err(|err| {
                     Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
                         .set_source(err)
                 })
@@ -107,39 +107,25 @@ impl SqliteCore {
     pub async fn get_range(
         &self,
         path: &str,
-        start: isize,
-        limit: Option<isize>,
+        offset: u64,
+        limit: Option<u64>,
     ) -> Result<Option<(Buffer, u64)>> {
-        let pool = self.get_client().await?;
-        if start < 0 || limit.is_some_and(|v| v < 0) {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range contains negative value",
-            ));
-        }
+        // SQLite BLOB/TEXT values are at most `i32::MAX` bytes and `SUBSTR`
+        // converts its start and length arguments to signed 32-bit integers.
+        // An offset >= `i32::MAX` is therefore always at or past EOF.
+        let Some(start) = offset.checked_add(1).and_then(|v| i32::try_from(v).ok()) else {
+            return Ok(self
+                .get_length(path)
+                .await?
+                .map(|length| (Buffer::new(), length)));
+        };
 
-        let start = start.checked_add(1).ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range start exceeds supported value",
-            )
-        })?;
-        let start: i64 = start.try_into().map_err(|err| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "sqlite range start exceeds supported value",
-            )
-            .set_source(err)
-        })?;
-        let value = match limit {
+        let pool = self.get_client().await?;
+        // Any requested length above `i32::MAX` exceeds SQLite's maximum value
+        // size, so omit the length argument to read through EOF without 32-bit
+        // truncation in `SUBSTR`.
+        let value = match limit.and_then(|v| i32::try_from(v).ok()) {
             Some(limit) => {
-                let limit: i64 = limit.try_into().map_err(|err| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "sqlite range size exceeds supported value",
-                    )
-                    .set_source(err)
-                })?;
                 sqlx::query_as(sqlx::AssertSqlSafe(format!(
                     r#"SELECT SUBSTR(CAST("{}" AS BLOB), $1, $2), LENGTH(CAST("{}" AS BLOB)) FROM "{}" WHERE "{}" = $3 LIMIT 1"#,
                     self.value_field, self.value_field, self.table, self.key_field
@@ -163,7 +149,57 @@ impl SqliteCore {
         };
         let value: Option<(Vec<u8>, i64)> = value.map_err(parse_sqlite_error)?;
 
-        Ok(value.map(|(bs, size)| (Buffer::from(bs), size as u64)))
+        value
+            .map(|(bs, size)| {
+                let size = u64::try_from(size).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
+                        .set_source(err)
+                })?;
+                Ok((Buffer::from(bs), size))
+            })
+            .transpose()
+    }
+
+    pub async fn get_suffix(&self, path: &str, size: u64) -> Result<Option<(Buffer, u64)>> {
+        if size == 0 {
+            return Ok(self
+                .get_length(path)
+                .await?
+                .map(|length| (Buffer::new(), length)));
+        }
+        // SQLite BLOB/TEXT values are at most `i32::MAX` bytes, so any suffix
+        // of `i32::MAX` or more bytes returns the full value.
+        if size >= i32::MAX as u64 {
+            return Ok(self.get(path).await?.map(|bs| {
+                let length = bs.len() as u64;
+                (bs, length)
+            }));
+        }
+
+        let pool = self.get_client().await?;
+        let size = size as i64;
+        // Compute a 1-based start index in `1..=i32::MAX` using 64-bit SQL
+        // arithmetic so `SUBSTR` never receives a negative or out-of-range
+        // 32-bit index.
+        let value: Option<(Vec<u8>, i64)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
+            r#"SELECT SUBSTR(CAST("{}" AS BLOB), MAX(1, LENGTH(CAST("{}" AS BLOB)) - $1 + 1)), LENGTH(CAST("{}" AS BLOB)) FROM "{}" WHERE "{}" = $2 LIMIT 1"#,
+            self.value_field, self.value_field, self.value_field, self.table, self.key_field
+        )))
+        .bind(size)
+        .bind(path)
+        .fetch_optional(pool)
+        .await
+        .map_err(parse_sqlite_error)?;
+
+        value
+            .map(|(bs, total_size)| {
+                let total_size = u64::try_from(total_size).map_err(|err| {
+                    Error::new(ErrorKind::Unexpected, "sqlite value length is invalid")
+                        .set_source(err)
+                })?;
+                Ok((Buffer::from(bs), total_size))
+            })
+            .transpose()
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {

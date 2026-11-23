@@ -7402,6 +7402,7 @@ dependencies = [
  "opendal-service-hdfs",
  "opendal-service-hdfs-native",
  "opendal-service-hf",
+ "opendal-service-hf3fs",
  "opendal-service-http",
  "opendal-service-ipfs",
  "opendal-service-ipmfs",
@@ -8369,6 +8370,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "opendal-service-hf3fs"
+version = "0.59.5"
+dependencies = [
+ "bytes",
+ "futures",
+ "libc",
+ "libloading 0.8.9",
+ "opendal-core",
+ "opendal-executor-tokio",
+ "opendal-service-fs",
+ "serde",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "opendal-service-http"
 version = "0.59.5"
 dependencies = [
@@ -8829,6 +8846,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

@@ -34,7 +34,7 @@ namespace OpenDAL.ServiceConfig
         [System.Obsolete("WebDAV copy capability is enabled by default and this option is no longer needed.")]
         public bool? DisableCopy { get; init; }
         /// <summary>
-        /// Disable automatic parent directory creation before write operations. By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence. Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly. Default: false
+        /// Disable automatic parent directory creation before write, copy, and rename operations. By default, OpenDAL creates missing parent directories using `PROPFIND` and `MKCOL` before writing, copying, or renaming files. Enable this option to skip those automatic parent directory checks and `MKCOL` calls for servers that do not support `PROPFIND` or do not require explicit parent collections (for example, `bazel-remote`). Explicit `create_dir` calls are unaffected. Default: `false`
         /// </summary>
         public bool? DisableCreateDir { get; init; }
         /// <summary>

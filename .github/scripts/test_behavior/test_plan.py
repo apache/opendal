@@ -107,6 +107,19 @@ class BehaviorTestPlan(unittest.TestCase):
         cases = [v["service"] for v in result["core"][0]["cases"]]
         self.assertEqual(cases, ["hdfs_native"])
 
+    def test_hf3fs_uses_ubuntu_22(self):
+        result = plan(["core/services/hf3fs/src/lib.rs"])
+        self.assertEqual(result["core"], [{
+            "os": "ubuntu-22.04",
+            "cases": [{
+                "service": "hf3fs",
+                "feature": "services-hf3fs",
+                "setups": ["single_node"],
+            }],
+        }])
+        for language in ["java", "python", "ruby", "nodejs", "go", "c", "cpp", "dotnet"]:
+            self.assertEqual(result[f"binding_{language}"], [])
+
     def test_group_core_cases_by_service(self):
         cases = [
             {

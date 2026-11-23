@@ -297,6 +297,8 @@ impl oio::ReadStream for RetryableReadStream {
         let mut attempt = self.attempt.lock().unwrap();
         *attempt += 1;
 
+        // Two failures, then the full content, then a failure at EOF. Attempt 5
+        // is only reached if the layer reopens the range it has exhausted.
         match *attempt {
             1 | 2 | 4 => Err(
                 Error::new(ErrorKind::Unexpected, "retryable_error from reader").set_temporary(),

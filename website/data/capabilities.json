@@ -1411,6 +1411,24 @@
       }
     },
     {
+      "name": "hf3fs",
+      "scheme": "hf3fs",
+      "native": {
+        "create_dir": true,
+        "delete": true,
+        "delete_with_recursive": true,
+        "list": true,
+        "read": true,
+        "rename": true,
+        "shared": true,
+        "stat": true,
+        "write": true,
+        "write_can_empty": true,
+        "write_can_multi": true,
+        "write_with_if_not_exists": true
+      }
+    },
+    {
       "name": "http",
       "scheme": "http",
       "native": {

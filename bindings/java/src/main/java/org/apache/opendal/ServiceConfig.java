@@ -4146,13 +4146,13 @@ public interface ServiceConfig {
          */
         public final Boolean disableCopy;
         /**
-         * <p>Disable automatic parent directory creation before write operations.</p>
-         * <p>By default, OpenDAL creates parent directories using MKCOL before writing files.
-         * This requires PROPFIND support to check directory existence.</p>
-         * <p>Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND
-         * or don't require explicit directory creation. Enable this option to skip
-         * the MKCOL calls and write files directly.</p>
-         * <p>Default: false</p>
+         * <p>Disable automatic parent directory creation before write, copy, and rename operations.</p>
+         * <p>By default, OpenDAL creates missing parent directories using <code>PROPFIND</code> and <code>MKCOL</code>
+         * before writing, copying, or renaming files. Enable this option to skip those automatic
+         * parent directory checks and <code>MKCOL</code> calls for servers that do not support <code>PROPFIND</code>
+         * or do not require explicit parent collections (for example, <code>bazel-remote</code>).</p>
+         * <p>Explicit <code>create_dir</code> calls are unaffected.</p>
+         * <p>Default: <code>false</code></p>
          */
         public final Boolean disableCreateDir;
         /**

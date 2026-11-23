@@ -233,6 +233,7 @@ jobs:
             # services-hdfs
             services-http
             services-hf
+            services-hf3fs
             services-ipfs
             services-ipmfs
             services-memcached

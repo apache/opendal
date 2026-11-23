@@ -30,6 +30,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.apache.commons.io.IOUtils;
+import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.OpenDALException;
 import org.apache.opendal.Operator;
 import org.apache.opendal.OperatorInputStream;
@@ -39,6 +40,7 @@ import org.apache.opendal.ReadOptions;
 import org.apache.opendal.ReaderOptions;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.WriteOptions;
+import org.apache.opendal.layer.ThrottleLayer;
 import org.apache.opendal.test.condition.OpenDALExceptionCondition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -266,6 +268,34 @@ public class OperatorInputOutputStreamTest {
             assertThatThrownBy(() -> out.write(new byte[0])).isInstanceOf(IllegalStateException.class);
             assertThatThrownBy(out::flush).isInstanceOf(IllegalStateException.class);
             assertThat(op.read(path)).isEqualTo(new byte[] {42});
+        }
+    }
+
+    @Test
+    void testOutputStreamCloseReleasesWriterWhenFlushFails() throws Exception {
+        try (final AsyncOperator op =
+                AsyncOperator.of(ServiceConfig.Memory.builder().build())) {
+            try (final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4))) {
+                final Operator layeredOp = throttled.blocking();
+                try {
+                    final OperatorOutputStream out = layeredOp.createOutputStream("close-flush-failure");
+                    // The 8 buffered bytes exceed the throttle burst of 4, so the flush
+                    // performed by close() fails with RateLimited.
+                    out.write(new byte[8]);
+
+                    assertThatThrownBy(out::close)
+                            .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+
+                    // The native writer must be released even though flush() failed.
+                    assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+
+                    // Closing again is safe and does not touch the released writer.
+                    out.close();
+                    out.close();
+                } finally {
+                    layeredOp.close();
+                }
+            }
         }
     }
 

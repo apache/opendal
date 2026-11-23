@@ -112,10 +112,39 @@ public class OperatorOutputStream extends OutputStream {
 
     @Override
     public synchronized void close() {
-        if (!writer.isDisposed()) {
-            flush();
-            writer.close();
+        if (writer.isDisposed()) {
+            return;
         }
+        Throwable primary = null;
+        try {
+            flush();
+        } catch (Throwable t) {
+            primary = t;
+        }
+        // Always release the native writer, even when `flush()` failed. Otherwise
+        // the native handle leaks and the stream keeps accepting writes.
+        try {
+            writer.close();
+        } catch (Throwable secondary) {
+            if (primary != null) {
+                primary.addSuppressed(secondary);
+            } else {
+                primary = secondary;
+            }
+        }
+        if (primary != null) {
+            rethrow(primary);
+        }
+    }
+
+    private static void rethrow(Throwable t) {
+        if (t instanceof RuntimeException) {
+            throw (RuntimeException) t;
+        }
+        if (t instanceof Error) {
+            throw (Error) t;
+        }
+        throw new RuntimeException(t);
     }
 
     private void ensureOpen() {

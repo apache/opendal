@@ -17,6 +17,7 @@
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use object_store::MultipartUpload;
 use object_store::ObjectStore;
@@ -37,7 +38,42 @@ struct MultipartUploadState {
     upload: Box<dyn MultipartUpload>,
     pending_parts: BTreeMap<usize, PutPayload>,
     next_part_number: usize,
-    failed: bool,
+    failed: Arc<AtomicBool>,
+    in_flight: Arc<AtomicUsize>,
+}
+
+struct InFlightUpload {
+    failed: Arc<AtomicBool>,
+    in_flight: Arc<AtomicUsize>,
+    succeeded: bool,
+}
+
+impl InFlightUpload {
+    fn new(state: &MultipartUploadState) -> Self {
+        state.in_flight.fetch_add(1, Ordering::SeqCst);
+        Self {
+            failed: state.failed.clone(),
+            in_flight: state.in_flight.clone(),
+            succeeded: false,
+        }
+    }
+
+    fn fail(&self) {
+        self.failed.store(true, Ordering::SeqCst);
+    }
+
+    fn succeed(mut self) {
+        self.succeeded = true;
+    }
+}
+
+impl Drop for InFlightUpload {
+    fn drop(&mut self) {
+        if !self.succeeded {
+            self.failed.store(true, Ordering::SeqCst);
+        }
+        self.in_flight.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 pub struct ObjectStoreWriter {
@@ -122,7 +158,8 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             upload,
             pending_parts: BTreeMap::new(),
             next_part_number: 0,
-            failed: false,
+            failed: Arc::new(AtomicBool::new(false)),
+            in_flight: Arc::new(AtomicUsize::new(0)),
         });
 
         // object_store does not provide a way to get the upload id, so we use a fixed string
@@ -146,7 +183,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         if actual_size != size {
             let mut guard = self.upload.lock().await;
             if let Some(state) = guard.as_mut() {
-                state.failed = true;
+                state.failed.store(true, Ordering::SeqCst);
                 state.pending_parts.clear();
             }
             return Err(Error::new(
@@ -160,14 +197,15 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let state = guard
             .as_mut()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
-        if state.failed {
+        if state.failed.load(Ordering::SeqCst) {
+            state.pending_parts.clear();
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "Multipart upload has failed",
             ));
         }
         if part_number < state.next_part_number || state.pending_parts.contains_key(&part_number) {
-            state.failed = true;
+            state.failed.store(true, Ordering::SeqCst);
             state.pending_parts.clear();
             return Err(
                 Error::new(ErrorKind::Unexpected, "Duplicate multipart part number")
@@ -184,24 +222,32 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             uploads.push(state.upload.put_part(payload));
             state.next_part_number += 1;
         }
-        drop(guard);
-
-        if let Err(err) = try_join_all(uploads).await {
-            let mut guard = self.upload.lock().await;
-            if let Some(state) = guard.as_mut() {
-                state.failed = true;
-                state.pending_parts.clear();
-            }
-            return Err(parse_error(err));
-        }
-
-        Ok(MultipartPart {
+        let multipart_part = MultipartPart {
             part_number,
             // object_store does not expose per-part ETags.
             etag: String::new(),
             checksum: None,
             size: None,
-        })
+        };
+        if uploads.is_empty() {
+            return Ok(multipart_part);
+        }
+        let in_flight = InFlightUpload::new(state);
+        drop(guard);
+
+        match try_join_all(uploads).await {
+            Ok(_) => in_flight.succeed(),
+            Err(err) => {
+                in_flight.fail();
+                let mut guard = self.upload.lock().await;
+                if let Some(state) = guard.as_mut() {
+                    state.pending_parts.clear();
+                }
+                return Err(parse_error(err));
+            }
+        }
+
+        Ok(multipart_part)
     }
 
     async fn complete_part(&self, _upload_id: &str, parts: &[MultipartPart]) -> Result<Metadata> {
@@ -209,7 +255,18 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let state = guard
             .as_mut()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
-        if state.failed {
+        if state.in_flight.load(Ordering::SeqCst) != 0 {
+            state.failed.store(true, Ordering::SeqCst);
+            state.pending_parts.clear();
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "Cannot complete multipart upload with parts in flight",
+            ));
+        }
+        // InFlightUpload marks failure before decrementing the counter. Reading
+        // the counter first also observes a concurrent cancellation.
+        if state.failed.load(Ordering::SeqCst) {
+            state.pending_parts.clear();
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "Cannot complete a failed multipart upload",
@@ -222,7 +279,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
             || !state.pending_parts.is_empty()
             || !part_numbers.iter().copied().eq(0..state.next_part_number)
         {
-            state.failed = true;
+            state.failed.store(true, Ordering::SeqCst);
             state.pending_parts.clear();
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -235,7 +292,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let result = match state.upload.complete().await {
             Ok(result) => result,
             Err(err) => {
-                state.failed = true;
+                state.failed.store(true, Ordering::SeqCst);
                 return Err(parse_error(err));
             }
         };
@@ -249,7 +306,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
         let state = guard
             .as_mut()
             .ok_or_else(|| Error::new(ErrorKind::Unexpected, "Upload not initiated"))?;
-        state.failed = true;
+        state.failed.store(true, Ordering::SeqCst);
         state.pending_parts.clear();
 
         state.upload.abort().await.map_err(parse_error)?;
@@ -261,13 +318,115 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::sync::Mutex as StdMutex;
+    use std::task::Poll;
+
+    use async_trait::async_trait;
     use bytes::Bytes;
-    use futures::join;
-    use object_store::ObjectStoreExt;
+    use futures::channel::oneshot;
+    use futures::future::poll_fn;
+    use futures::{FutureExt, join};
     use object_store::memory::InMemory;
+    use object_store::{ObjectStoreExt, PutResult, UploadPart};
     use opendal::raw::oio::MultipartWrite;
 
     use super::*;
+
+    type PartControl = oneshot::Sender<object_store::Result<()>>;
+
+    #[derive(Debug, Default)]
+    struct ControlledState {
+        parts: Vec<PutPayload>,
+        controls: Vec<Option<PartControl>>,
+        completed: bool,
+        aborted: bool,
+    }
+
+    #[derive(Debug)]
+    struct ControlledUpload {
+        state: Arc<StdMutex<ControlledState>>,
+    }
+
+    #[async_trait]
+    impl MultipartUpload for ControlledUpload {
+        fn put_part(&mut self, data: PutPayload) -> UploadPart {
+            let (tx, rx) = oneshot::channel();
+            let mut state = self.state.lock().unwrap();
+            state.parts.push(data);
+            state.controls.push(Some(tx));
+            drop(state);
+
+            async move { rx.await.expect("part control dropped") }.boxed()
+        }
+
+        async fn complete(&mut self) -> object_store::Result<PutResult> {
+            let mut state = self.state.lock().unwrap();
+            assert!(state.controls.iter().all(|control| control.is_none()));
+            state.completed = true;
+            Ok(PutResult {
+                e_tag: None,
+                version: None,
+                extensions: Default::default(),
+            })
+        }
+
+        async fn abort(&mut self) -> object_store::Result<()> {
+            let mut state = self.state.lock().unwrap();
+            state.aborted = true;
+            state.controls.clear();
+            Ok(())
+        }
+    }
+
+    async fn controlled_writer() -> (ObjectStoreWriter, String, Arc<StdMutex<ControlledState>>) {
+        let writer = ObjectStoreWriter::new(
+            Arc::new(InMemory::new()),
+            "controlled.txt",
+            OpWrite::default(),
+        );
+        let upload_id = writer.initiate_part().await.unwrap();
+        let state = Arc::new(StdMutex::new(ControlledState::default()));
+        writer.upload.lock().await.as_mut().unwrap().upload = Box::new(ControlledUpload {
+            state: state.clone(),
+        });
+        (writer, upload_id, state)
+    }
+
+    async fn poll_once<F: Future + ?Sized>(mut future: Pin<&mut F>) -> Poll<F::Output> {
+        poll_fn(|cx| Poll::Ready(future.as_mut().poll(cx))).await
+    }
+
+    fn finish_part(
+        state: &Arc<StdMutex<ControlledState>>,
+        index: usize,
+        result: object_store::Result<()>,
+    ) {
+        let control = state.lock().unwrap().controls[index].take().unwrap();
+        control.send(result).unwrap();
+    }
+
+    fn completed_content(state: &Arc<StdMutex<ControlledState>>) -> Bytes {
+        let state = state.lock().unwrap();
+        assert!(state.completed);
+        let content = state
+            .parts
+            .iter()
+            .flat_map(|part| part.iter())
+            .flat_map(|bytes| bytes.to_vec())
+            .collect::<Vec<_>>();
+        Bytes::from(content)
+    }
+
+    fn multipart_part(part_number: usize) -> MultipartPart {
+        MultipartPart {
+            part_number,
+            etag: String::new(),
+            checksum: None,
+            size: None,
+        }
+    }
 
     #[tokio::test]
     async fn test_write_part_reversed_completion_preserves_order() {
@@ -325,5 +484,146 @@ mod tests {
 
         let result = store.head(&path).await;
         assert!(matches!(result, Err(object_store::Error::NotFound { .. })));
+    }
+
+    #[tokio::test]
+    async fn test_async_part_completion_can_finish_out_of_order() {
+        let (writer, upload_id, state) = controlled_writer().await;
+        let mut part0 = Box::pin(writer.write_part(&upload_id, 0, 1, Buffer::from("A")));
+        let mut part1 = Box::pin(writer.write_part(&upload_id, 1, 1, Buffer::from("B")));
+
+        assert!(poll_once(part0.as_mut()).await.is_pending());
+        assert!(poll_once(part1.as_mut()).await.is_pending());
+        assert_eq!(state.lock().unwrap().controls.len(), 2);
+
+        finish_part(&state, 1, Ok(()));
+        let part1 = part1.await.unwrap();
+        finish_part(&state, 0, Ok(()));
+        let part0 = part0.await.unwrap();
+        writer
+            .complete_part(&upload_id, &[part1, part0])
+            .await
+            .unwrap();
+
+        assert_eq!(completed_content(&state), Bytes::from_static(b"AB"));
+    }
+
+    #[tokio::test]
+    async fn test_part_failure_poisons_upload_and_allows_abort() {
+        let (writer, upload_id, state) = controlled_writer().await;
+        let mut part0 = Box::pin(writer.write_part(&upload_id, 0, 1, Buffer::from("A")));
+        assert!(poll_once(part0.as_mut()).await.is_pending());
+
+        finish_part(
+            &state,
+            0,
+            Err(object_store::Error::Generic {
+                store: "test",
+                source: std::io::Error::other("part upload failed").into(),
+            }),
+        );
+        assert!(part0.await.is_err());
+        assert!(
+            writer
+                .write_part(&upload_id, 1, 1, Buffer::from("B"))
+                .await
+                .is_err()
+        );
+        assert!(
+            writer
+                .complete_part(&upload_id, &[multipart_part(0)])
+                .await
+                .is_err()
+        );
+
+        writer.abort_part(&upload_id).await.unwrap();
+        assert!(state.lock().unwrap().aborted);
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_write_part_is_rejected() {
+        let store = Arc::new(InMemory::new());
+        let writer = ObjectStoreWriter::new(store, "duplicate.txt", OpWrite::default());
+        let upload_id = writer.initiate_part().await.unwrap();
+        let part0 = writer
+            .write_part(&upload_id, 0, 1, Buffer::from("A"))
+            .await
+            .unwrap();
+
+        assert!(
+            writer
+                .write_part(&upload_id, 0, 1, Buffer::from("A"))
+                .await
+                .is_err()
+        );
+        assert!(writer.complete_part(&upload_id, &[part0]).await.is_err());
+        writer.abort_part(&upload_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_complete_part_rejects_invalid_part_lists() {
+        for (written, completed) in [(2, vec![0]), (2, vec![0, 0, 1]), (1, vec![0, 1])] {
+            let store = Arc::new(InMemory::new());
+            let writer = ObjectStoreWriter::new(store, "invalid.txt", OpWrite::default());
+            let upload_id = writer.initiate_part().await.unwrap();
+            for part_number in 0..written {
+                writer
+                    .write_part(&upload_id, part_number, 1, Buffer::from("A"))
+                    .await
+                    .unwrap();
+            }
+
+            let parts = completed
+                .iter()
+                .copied()
+                .map(multipart_part)
+                .collect::<Vec<_>>();
+            assert!(
+                writer.complete_part(&upload_id, &parts).await.is_err(),
+                "written={written}, completed={completed:?}"
+            );
+            writer.abort_part(&upload_id).await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn test_dropping_write_part_poisons_upload() {
+        let (writer, upload_id, state) = controlled_writer().await;
+        let mut part0 = Box::pin(writer.write_part(&upload_id, 0, 1, Buffer::from("A")));
+        assert!(poll_once(part0.as_mut()).await.is_pending());
+
+        drop(part0);
+        assert!(
+            writer
+                .write_part(&upload_id, 1, 1, Buffer::from("B"))
+                .await
+                .is_err()
+        );
+        assert!(
+            writer
+                .complete_part(&upload_id, &[multipart_part(0)])
+                .await
+                .is_err()
+        );
+        writer.abort_part(&upload_id).await.unwrap();
+        assert!(state.lock().unwrap().aborted);
+    }
+
+    #[tokio::test]
+    async fn test_complete_part_rejects_in_flight_upload() {
+        let (writer, upload_id, state) = controlled_writer().await;
+        let mut part0 = Box::pin(writer.write_part(&upload_id, 0, 1, Buffer::from("A")));
+        assert!(poll_once(part0.as_mut()).await.is_pending());
+
+        assert!(
+            writer
+                .complete_part(&upload_id, &[multipart_part(0)])
+                .await
+                .is_err()
+        );
+        assert!(!state.lock().unwrap().completed);
+
+        drop(part0);
+        writer.abort_part(&upload_id).await.unwrap();
     }
 }

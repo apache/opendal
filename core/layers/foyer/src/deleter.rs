@@ -70,34 +70,33 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        {
-            let mut deleted_keys = self
-                .inner
+        let delete_guard =
+            self.inner
                 .deleted_keys
-                .lock()
-                .expect("deleted keys lock poisoned");
-            for key in &self.evict_keys {
-                self.inner.cache.remove(key);
-                deleted_keys.remove(key);
-            }
-            for key in &self.keys {
-                self.inner.cache.remove(key);
-                deleted_keys.insert(key.clone());
-            }
-        }
+                .begin_delete(&self.inner.cache, &self.keys, &self.evict_keys);
         let close_res = self.deleter.close().await;
         let clear_res = if self.recursive {
             // Foyer only supports removing exact keys or clearing the cache.
             // Buffered deleters may not remove objects until close, so clear
             // afterwards to remove any entries refilled by concurrent reads.
             // Clear after errors too because close may have partially deleted
-            // objects before returning the error.
-            self.inner.cache.clear().await.map_err(extract_err)
+            // objects before returning the error. Downgrade pending `Store`
+            // pins/repairs around `clear()` so completing older reads cannot
+            // resurrect recursively deleted entries.
+            self.inner.deleted_keys.downgrade_stored_pins();
+            let res = self.inner.cache.clear().await.map_err(extract_err);
+            self.inner.deleted_keys.downgrade_stored_pins();
+            res
         } else {
             Ok(())
         };
-        if self.recursive && close_res.is_ok() && clear_res.is_ok() {
-            self.recursive = false;
+        drop(delete_guard);
+        if close_res.is_ok() {
+            self.keys.clear();
+            self.evict_keys.clear();
+            if self.recursive && clear_res.is_ok() {
+                self.recursive = false;
+            }
         }
         close_res?;
         clear_res?;

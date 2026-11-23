@@ -99,32 +99,21 @@ impl<W: oio::Write> oio::Write for Writer<W> {
         let unversioned = self.unversioned_key();
         let cacheable = !self.append && !self.skip_cache && self.size_limit.contains(&buffer.len());
         if cacheable {
-            self.inner.cache.insert(key.clone(), FoyerValue(buffer));
-            let mut deleted_keys = self
-                .inner
+            // On a versioned backend the write produced a new version, so the
+            // unversioned entry still points at the superseded object. Evict it
+            // without marking deleted so a later read can refill it with the
+            // new content.
+            let evict_key = (key != unversioned).then_some(&unversioned);
+            self.inner
                 .deleted_keys
-                .lock()
-                .expect("deleted keys lock poisoned");
-            deleted_keys.remove(&key);
-            if key != unversioned {
-                // On a versioned backend the write produced a new version, so
-                // the unversioned entry still points at the superseded object.
-                // Evict it without marking deleted so a later read can refill
-                // it with the new content.
-                deleted_keys.remove(&unversioned);
-                drop(deleted_keys);
-                self.inner.cache.remove(&unversioned);
-            }
+                .store(&self.inner.cache, key, FoyerValue(buffer), evict_key);
         } else if self.append {
             // Appended bytes are only a suffix of the object, so the cached
             // entry is superseded but the object remains cacheable: evict it
             // and let a later read refill it.
             self.inner
                 .deleted_keys
-                .lock()
-                .expect("deleted keys lock poisoned")
-                .remove(&unversioned);
-            self.inner.cache.remove(&unversioned);
+                .evict(&self.inner.cache, &unversioned);
         } else {
             // The stored object is outside the size limit, so any cached entry
             // is superseded and refill attempts cannot succeed: invalidate it.

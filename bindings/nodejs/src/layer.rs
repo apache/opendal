@@ -17,8 +17,10 @@
 
 use std::time::Duration;
 
+use napi::bindgen_prelude::Error;
 use napi::bindgen_prelude::External;
 use napi::bindgen_prelude::Result;
+use napi::bindgen_prelude::Status;
 
 pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
@@ -460,10 +462,24 @@ impl ThrottleLayer {
     ///
     /// # Notes
     ///
-    /// Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+    /// `bandwidth` and `burst` must be greater than 0. Values that N-API converts
+    /// to 0, such as `NaN`, `Infinity`, and `2 ** 32`, are rejected as well.
     #[napi(constructor)]
-    pub fn new(bandwidth: u32, burst: u32) -> Self {
-        Self { bandwidth, burst }
+    pub fn new(bandwidth: u32, burst: u32) -> Result<Self> {
+        if bandwidth == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "bandwidth must be greater than 0",
+            ));
+        }
+        if burst == 0 {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "burst must be greater than 0",
+            ));
+        }
+
+        Ok(Self { bandwidth, burst })
     }
 
     #[napi]

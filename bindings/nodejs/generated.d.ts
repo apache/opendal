@@ -1002,7 +1002,8 @@ export declare class ThrottleLayer {
    *
    * # Notes
    *
-   * Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+   * `bandwidth` and `burst` must be greater than 0. Values that N-API converts
+   * to 0, such as `NaN`, `Infinity`, and `2 ** 32`, are rejected as well.
    */
   constructor(bandwidth: number, burst: number)
   build(): ExternalObject<Layer>

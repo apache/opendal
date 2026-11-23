@@ -283,7 +283,11 @@ public class OperatorInputOutputStreamTest {
             // performed by close() fails with RateLimited.
             out.write(new byte[8]);
 
-            assertThatThrownBy(out::close).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+            assertThatThrownBy(out::close)
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited))
+                    // close() is the first caller to observe the failed flush, so the
+                    // original exception is rethrown instead of being wrapped.
+                    .hasNoCause();
 
             // A failed close must not publish the object, not even an empty one.
             assertNotExist(layeredOp, path);
@@ -362,8 +366,8 @@ public class OperatorInputOutputStreamTest {
                     new OperatorOutputStream(op, path, WriteOptions.builder().build()) {
                         @Override
                         public synchronized void flush() {
-                            // A subclass can fail without reaching the native writer, so the stream never
-                            // records the failure in its own field.
+                            // A subclass can fail without reaching the native writer, so the
+                            // stream never records this failure in its own field.
                             throw flushFailure;
                         }
                     };
@@ -371,9 +375,8 @@ public class OperatorInputOutputStreamTest {
 
             // Committing here would publish the 8 buffered bytes that never reached the service.
             assertThatThrownBy(out::close)
-                    .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("not committed")
-                    .hasCause(flushFailure);
+                    .as("first failure observed by close()")
+                    .isSameAs(flushFailure);
             assertNotExist(op, path);
 
             // The native writer is released even though the stream never flushed.
@@ -387,12 +390,14 @@ public class OperatorInputOutputStreamTest {
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();
         final String path = "try-with-resources-error";
         final Error flushFailure = new Error("flush failed");
+        final int[] flushes = {0};
         final Throwable[] thrown = new Throwable[1];
         try (final Operator op = Operator.of(fs)) {
             try (final OperatorOutputStream out =
                     new OperatorOutputStream(op, path, 4, WriteOptions.builder().build()) {
                         @Override
                         public synchronized void flush() {
+                            flushes[0]++;
                             throw flushFailure;
                         }
                     }) {
@@ -407,11 +412,66 @@ public class OperatorInputOutputStreamTest {
             // try-with-resources would suppress it into itself and the JVM would replace the
             // failure with IllegalArgumentException: Self-suppression not permitted.
             assertThat(thrown[0]).as("original Error propagates").isSameAs(flushFailure);
+            // The failure was recorded when write() ascended through flush(), so close()
+            // discards without flushing again.
+            assertThat(flushes[0]).as("flush() calls").isEqualTo(1);
             assertThat(thrown[0].getSuppressed()).hasSize(1);
             assertThat(thrown[0].getSuppressed()[0])
                     .isInstanceOf(Error.class)
                     .hasMessageContaining("not committed")
                     .hasCause(flushFailure);
+            assertNotExist(op, path);
+        }
+    }
+
+    @Test
+    void testOutputStreamRecordsFlushOverrideFailureDuringWrite() throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final String path = "write-flush-override-failure";
+        final RuntimeException flushFailure = new RuntimeException("flush failed");
+        final int[] flushes = {0};
+        try (final Operator op = Operator.of(fs)) {
+            final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, 4, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            flushes[0]++;
+                            // Succeed on a later call, so close() flushing again would commit.
+                            if (flushes[0] == 1) {
+                                throw flushFailure;
+                            }
+                            super.flush();
+                        }
+                    };
+            out.write(1);
+            out.write(2);
+            out.write(3);
+            assertThatThrownBy(() -> out.write(4))
+                    .as("flushing the full buffer")
+                    .isSameAs(flushFailure);
+            assertThat(flushes[0]).isEqualTo(1);
+
+            // The failure is recorded even though the override never reached the native writer,
+            // so later writes are rejected instead of overrunning the buffer array or spinning
+            // on a zero-length batch.
+            assertThatThrownBy(() -> out.write(5))
+                    .as("write(int) after failure")
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("not committed")
+                    .hasCause(flushFailure);
+            assertThatThrownBy(() -> out.write(new byte[] {5, 6}))
+                    .as("write(byte[]) after failure")
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasCause(flushFailure);
+
+            // close() discards without flushing again, even though the override would now succeed.
+            assertThatThrownBy(out::close)
+                    .as("close after failure")
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("not committed")
+                    .hasCause(flushFailure);
+            assertThat(flushes[0]).as("flush() calls").isEqualTo(1);
             assertNotExist(op, path);
         }
     }

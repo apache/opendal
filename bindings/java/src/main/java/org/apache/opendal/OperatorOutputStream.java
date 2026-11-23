@@ -59,7 +59,8 @@ public class OperatorOutputStream extends OutputStream {
     private int offset = 0;
 
     /**
-     * The first native write or flush failure, if any.
+     * The first write or flush failure, if any, including a failure thrown by a subclass
+     * override of {@link #flush()} while {@link #write} ascends through it.
      *
      * <p>OpenDAL publishes an object when the native writer is closed. After a failure the native
      * writer may hold only a prefix of the content, so {@link #close()} discards the writer instead
@@ -95,7 +96,12 @@ public class OperatorOutputStream extends OutputStream {
         ensureOpen();
         bytes[offset++] = (byte) b;
         if (offset == bytes.length) {
-            flush();
+            try {
+                flush();
+            } catch (Throwable t) {
+                recordFailure(t);
+                OperatorOutputStream.<RuntimeException>sneakyThrow(t);
+            }
         }
     }
 
@@ -116,7 +122,12 @@ public class OperatorOutputStream extends OutputStream {
                 System.arraycopy(b, off, bytes, offset, count);
                 offset += count;
                 if (offset == bytes.length) {
-                    flush();
+                    try {
+                        flush();
+                    } catch (Throwable t) {
+                        recordFailure(t);
+                        OperatorOutputStream.<RuntimeException>sneakyThrow(t);
+                    }
                 }
             }
             off += count;
@@ -137,10 +148,11 @@ public class OperatorOutputStream extends OutputStream {
         if (writer.isDisposed()) {
             return;
         }
-        // A stream that already reported a failure never commits: the native writer may
-        // hold only a prefix of the content.
-        Throwable primary = failure;
-        if (primary == null) {
+        // A failure recorded by an earlier write() or flush() is already propagating from
+        // the caller, possibly from the try-with-resources body of this very close() call.
+        final Throwable priorFailure = failure;
+        Throwable primary = priorFailure;
+        if (priorFailure == null) {
             try {
                 flush();
             } catch (Throwable t) {
@@ -150,29 +162,46 @@ public class OperatorOutputStream extends OutputStream {
         // Release the native writer even when the stream failed, otherwise the handle
         // leaks and the stream keeps accepting writes. A failed stream is discarded
         // instead of closed, because closing would commit the bytes that did reach the
-        // native writer, possibly truncated.
-        //
-        // Commit only when nothing failed up to this point. `primary` also covers failures
-        // that never reached `writeNative` and therefore never set `failure`, such as a
-        // subclass override of `flush()` or a JNI exception that is neither a
-        // RuntimeException nor an Error.
+        // native writer, possibly truncated. `primary` also covers first failures that
+        // never reached `writeNative`, such as a subclass override of `flush()` or a JNI
+        // exception that is neither a RuntimeException nor an Error.
+        Throwable secondary = null;
         try {
             if (primary == null) {
                 writer.close();
             } else {
                 writer.discard();
             }
-        } catch (Throwable secondary) {
-            if (primary == null) {
-                primary = secondary;
-            } else if (primary != secondary) {
-                primary.addSuppressed(secondary);
-            }
+        } catch (Throwable t) {
+            secondary = t;
+        }
+        if (primary == null) {
+            primary = secondary;
+            secondary = null;
         }
         if (primary == null) {
             return;
         }
-        throwUnrecovered(primary);
+        if (priorFailure == null) {
+            // close() is the first caller to observe this failure, so nobody is propagating
+            // it yet. Rethrow it directly instead of wrapping it: the exact OpenDALException,
+            // Error, or RuntimeException subclass carries the most useful context and cannot
+            // trigger self-suppression.
+            if (secondary != null && secondary != primary) {
+                primary.addSuppressed(secondary);
+            }
+            OperatorOutputStream.<RuntimeException>sneakyThrow(primary);
+            return;
+        }
+        // The caller may already be propagating this exact instance, and try-with-resources
+        // suppresses whatever close() throws into it. The JVM rejects self-suppression with
+        // IllegalArgumentException, so raise a fresh exception and attach the discard failure
+        // to that new exception instead of the one already in flight.
+        final Throwable reopened = unrecovered(priorFailure);
+        if (secondary != null && secondary != reopened) {
+            reopened.addSuppressed(secondary);
+        }
+        OperatorOutputStream.<RuntimeException>sneakyThrow(reopened);
     }
 
     private void flushBuffer() {
@@ -185,11 +214,16 @@ public class OperatorOutputStream extends OutputStream {
     private void writeNative(byte[] source, int off, int len) {
         try {
             writeByteRange(writer.nativeHandle, source, off, len);
-        } catch (RuntimeException | Error e) {
-            if (failure == null) {
-                failure = e;
-            }
-            throw e;
+        } catch (Throwable t) {
+            recordFailure(t);
+            OperatorOutputStream.<RuntimeException>sneakyThrow(t);
+        }
+    }
+
+    /** Keeps the first failure and never clears it, so later calls reject the stream. */
+    private void recordFailure(Throwable t) {
+        if (failure == null) {
+            failure = t;
         }
     }
 
@@ -203,16 +237,25 @@ public class OperatorOutputStream extends OutputStream {
      * exception that keeps the original one as its cause.
      */
     private static void throwUnrecovered(Throwable failure) {
+        OperatorOutputStream.<RuntimeException>sneakyThrow(unrecovered(failure));
+    }
+
+    private static Throwable unrecovered(Throwable failure) {
         if (failure instanceof Error) {
-            throw new Error("OperatorOutputStream failed, the object was not committed", failure);
+            return new Error("OperatorOutputStream failed, the object was not committed", failure);
         }
         if (failure instanceof OpenDALException) {
             final OpenDALException original = (OpenDALException) failure;
             final OpenDALException reopened = new OpenDALException(original.getCode(), original.getMessage());
             reopened.initCause(original);
-            throw reopened;
+            return reopened;
         }
-        throw new IllegalStateException("OperatorOutputStream failed, the object was not committed", failure);
+        return new IllegalStateException("OperatorOutputStream failed, the object was not committed", failure);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void sneakyThrow(Throwable t) throws T {
+        throw (T) t;
     }
 
     private void ensureOpen() {

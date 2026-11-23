@@ -82,11 +82,10 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorOutputStream_dispo
 
 /// Release the native writer, committing the object only when `commit` is set.
 ///
-/// Releasing without `blocking::Writer::close()` discards the writer: OpenDAL
-/// publishes an object on close, so a stream that failed before reaching this
-/// point cannot leave a truncated object behind. `blocking::Writer` commits on
-/// `close` and never on drop, and dropping it inside the runtime handle keeps the
-/// async writer's cleanup in the runtime context.
+/// Releasing without `blocking::Writer::close()` drops the writer instead of
+/// closing it, so staged or buffered writes are not committed. `blocking::Writer`
+/// commits on `close` and never on drop, and dropping it inside the runtime
+/// handle keeps the async writer's cleanup in the runtime context.
 fn intern_dispose_write(writer: &mut blocking::Writer, commit: bool) -> crate::Result<()> {
     if commit {
         writer.close()?;

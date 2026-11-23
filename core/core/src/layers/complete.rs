@@ -34,18 +34,12 @@ impl std::fmt::Debug for CompleteLayer {
 
 impl Layer for CompleteLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl CompleteLayer {
-    fn layer(&self, inner: Servicer) -> CompleteService {
-        CompleteService { inner }
+        Arc::new(CompleteService { inner })
     }
 }
 
 /// Provide complete wrapper for backend.
-pub struct CompleteService {
+struct CompleteService {
     inner: Servicer,
 }
 
@@ -127,8 +121,7 @@ impl Service for CompleteService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-        let metadata = self.inner.stat(ctx, path, args).await?.into_metadata();
-        Ok(RpStat::new(metadata))
+        self.inner.stat(ctx, path, args).await
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
@@ -150,7 +143,7 @@ impl Service for CompleteService {
     }
 }
 
-pub struct CompleteCopier {
+struct CompleteCopier {
     inner: oio::Copier,
     source_content_length_hint: Option<u64>,
     copied: Option<u64>,
@@ -218,7 +211,7 @@ impl oio::Copy for CompleteCopier {
     }
 }
 
-pub struct CompleteLister {
+struct CompleteLister {
     inner: oio::Lister,
     ctx: OperationContext,
     srv: Servicer,
@@ -279,12 +272,12 @@ impl oio::List for CompleteLister {
     }
 }
 
-pub struct CompleteReader<R> {
+struct CompleteReader<R> {
     inner: R,
 }
 
 impl<R> CompleteReader<R> {
-    pub fn new(inner: R) -> Self {
+    fn new(inner: R) -> Self {
         Self { inner }
     }
 }
@@ -425,14 +418,14 @@ impl State {
     }
 }
 
-pub struct CompleteWriter {
+struct CompleteWriter {
     append: bool,
     size: u64,
     state: State,
 }
 
 impl CompleteWriter {
-    pub fn new(inner: oio::Writer, append: bool) -> CompleteWriter {
+    fn new(inner: oio::Writer, append: bool) -> CompleteWriter {
         CompleteWriter {
             append,
             size: 0,

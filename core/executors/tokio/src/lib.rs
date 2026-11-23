@@ -35,6 +35,8 @@ use opendal_core::raw::BoxedStaticFuture;
 ///
 /// On non-`wasm32` targets, [`Execute::try_execute`] returns an error when no
 /// Tokio runtime is active on the current thread instead of panicking.
+/// [`Execute::sleep`] returns `None` when no Tokio runtime is active on the
+/// current thread.
 ///
 /// On `wasm32`, operations that submit background tasks must run inside a
 /// [`tokio::task::LocalSet`] because the executor uses [`tokio::task::spawn_local`].
@@ -70,6 +72,7 @@ impl Execute for TokioExecutor {
     }
 
     fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        tokio::runtime::Handle::try_current().ok()?;
         Some(Box::pin(tokio::time::sleep(duration)))
     }
 }
@@ -128,5 +131,23 @@ mod tests {
             .await
             .expect("task should finish before timeout")
             .expect("task should send completion");
+    }
+
+    #[test]
+    fn test_sleep_outside_tokio_runtime() {
+        let executor = TokioExecutor::default();
+        assert!(executor.sleep(Duration::from_millis(1)).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sleep_inside_tokio_runtime() {
+        let executor = TokioExecutor::default();
+        let sleep = executor
+            .sleep(Duration::from_millis(10))
+            .expect("sleep should return a future inside a Tokio runtime");
+
+        timeout(Duration::from_secs(1), sleep)
+            .await
+            .expect("sleep should finish before timeout");
     }
 }

@@ -33,8 +33,34 @@ pub struct FsLister {
     prefix: String,
     recursive: bool,
     start_after: Option<String>,
-    next_dir: Option<oio::Entry>,
+    next_dir: Option<PendingDir>,
     active: Vec<DirectoryEntries>,
+}
+
+/// A directory waiting to be listed.
+///
+/// The initial directory comes from the caller and has not been validated yet.
+/// `oio::Entry` rejects paths whose metadata exceeds the compact block limit,
+/// so materialize it only after `fs_list` succeeds.
+enum PendingDir {
+    Initial(String),
+    Discovered(oio::Entry),
+}
+
+impl PendingDir {
+    fn path(&self) -> &str {
+        match self {
+            PendingDir::Initial(path) => path,
+            PendingDir::Discovered(entry) => entry.path(),
+        }
+    }
+
+    fn into_entry(self) -> oio::Entry {
+        match self {
+            PendingDir::Initial(path) => oio::Entry::new(&path, MetadataBuilder::dir().build()),
+            PendingDir::Discovered(entry) => entry,
+        }
+    }
 }
 
 enum DirectoryEntries {
@@ -58,7 +84,7 @@ impl FsLister {
             prefix: prefix.to_string(),
             recursive: args.recursive(),
             start_after: args.start_after().map(str::to_owned),
-            next_dir: Some(oio::Entry::new(directory, MetadataBuilder::dir().build())),
+            next_dir: Some(PendingDir::Initial(directory.to_string())),
             active: Vec::new(),
         }
     }
@@ -69,7 +95,7 @@ impl oio::List for FsLister {
         loop {
             if let Some(dir) = &self.next_dir {
                 // A discovered child always has an active parent directory.
-                let discovered_child = !self.active.is_empty();
+                let discovered_child = matches!(dir, PendingDir::Discovered(_));
                 let mut reader = match self.core.fs_list(dir.path()).await {
                     Ok(Some(reader)) => reader,
                     Ok(None) => {
@@ -122,26 +148,30 @@ impl oio::List for FsLister {
                     let mut dir = self.next_dir.take().filter(|_| include_dir);
                     // Unlike other directory paths, "/" is not a prefix of its
                     // children. It can sort between entries in the root.
-                    if dir.as_ref().is_some_and(|entry| entry.path() == "/") {
-                        entries.extend(dir.take());
+                    if dir.as_ref().is_some_and(|dir| dir.path() == "/") {
+                        entries.extend(dir.take().map(PendingDir::into_entry));
                     }
                     entries.sort_unstable_by(|a, b| a.path().cmp(b.path()));
                     self.active
                         .push(DirectoryEntries::Sorted(entries.into_iter()));
                     // A non-root directory sorts before all its descendants.
-                    if dir.is_some() {
-                        return Ok(dir);
+                    if let Some(dir) = dir {
+                        return Ok(Some(dir.into_entry()));
                     }
                 } else {
                     let mut dir = self.next_dir.take().filter(|_| include_dir);
                     // Keep bottom-up ordering for ordinary recursive listings.
-                    let after_children = if self.recursive { dir.take() } else { None };
+                    let after_children = if self.recursive {
+                        dir.take().map(PendingDir::into_entry)
+                    } else {
+                        None
+                    };
                     self.active.push(DirectoryEntries::Streaming {
                         reader,
                         after_children,
                     });
-                    if dir.is_some() {
-                        return Ok(dir);
+                    if let Some(dir) = dir {
+                        return Ok(Some(dir.into_entry()));
                     }
                 }
             }
@@ -166,7 +196,7 @@ impl oio::List for FsLister {
                 continue;
             };
             if self.recursive && entry.mode().is_dir() && entry.path() != "/" {
-                self.next_dir = Some(entry);
+                self.next_dir = Some(PendingDir::Discovered(entry));
             } else {
                 return Ok(Some(entry));
             }
@@ -335,5 +365,51 @@ mod tests {
             direct_resumed.unwrap_err().kind(),
             ErrorKind::PermissionDenied
         );
+    }
+}
+
+#[cfg(test)]
+mod oversized_path {
+    use opendal_core::Operator;
+
+    use crate::Fs;
+
+    #[tokio::test]
+    async fn list_oversized_path_does_not_panic() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new(Fs::default().root(root.path().to_str().unwrap())).unwrap();
+
+        // A path this long cannot fit in the compact metadata block, so listing
+        // must fail before building an entry instead of after a successful lookup.
+        let component = "a".repeat(65531);
+        for path in [format!("{component}/"), format!("{component}/child")] {
+            assert_oversized_list_result(op.list(&path).await);
+            assert_oversized_list_result(op.list_with(&path).recursive(true).await);
+            assert_oversized_list_result(op.list_with(&path).start_after("marker").await);
+            assert_oversized_list_result(
+                op.list_with(&path)
+                    .recursive(true)
+                    .start_after("marker")
+                    .await,
+            );
+        }
+    }
+
+    #[cfg(unix)]
+    fn assert_oversized_list_result(result: opendal_core::Result<Vec<opendal_core::Entry>>) {
+        assert_eq!(
+            result.unwrap_err().kind(),
+            opendal_core::ErrorKind::Unexpected,
+            "oversized path must fail before building an entry"
+        );
+    }
+
+    #[cfg(not(unix))]
+    fn assert_oversized_list_result(result: opendal_core::Result<Vec<opendal_core::Entry>>) {
+        // Windows may reject the path at the OS level or report it as missing.
+        // Either outcome is fine as long as listing does not panic.
+        if let Ok(entries) = result {
+            assert!(entries.is_empty());
+        }
     }
 }

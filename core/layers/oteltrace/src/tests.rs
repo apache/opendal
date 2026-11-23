@@ -217,16 +217,17 @@ fn records_deleter_failures_without_changing_errors() {
 
 #[derive(Clone, Default)]
 struct QueuedExecutor {
-    task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
+    executed_task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
+    submitted_task: Arc<Mutex<Option<BoxedStaticFuture<()>>>>,
 }
 
 impl Execute for QueuedExecutor {
     fn execute(&self, task: BoxedStaticFuture<()>) {
-        *self.task.lock().unwrap() = Some(task);
+        *self.executed_task.lock().unwrap() = Some(task);
     }
 
     fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
-        *self.task.lock().unwrap() = Some(task);
+        *self.submitted_task.lock().unwrap() = Some(task);
         Ok(())
     }
 
@@ -292,7 +293,16 @@ async fn executor_try_execute_propagates_submission_context_to_task() {
             .unwrap();
     }
 
-    let task = inner.task.lock().unwrap().take().unwrap();
+    let task = inner
+        .submitted_task
+        .lock()
+        .unwrap()
+        .take()
+        .expect("try_execute should be delegated directly");
+    assert!(
+        inner.executed_task.lock().unwrap().is_none(),
+        "try_execute must not fall back to execute"
+    );
     task.await;
 }
 
@@ -318,7 +328,11 @@ async fn executor_propagates_submission_context_to_task() {
         }));
     }
 
-    let task = inner.task.lock().unwrap().take().unwrap();
+    let task = inner.executed_task.lock().unwrap().take().unwrap();
+    assert!(
+        inner.submitted_task.lock().unwrap().is_none(),
+        "execute must not be delegated through try_execute"
+    );
     task.await;
     executor.timeout().unwrap().await;
 }

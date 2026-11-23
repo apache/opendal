@@ -351,6 +351,106 @@ public class OperatorInputOutputStreamTest {
         }
     }
 
+    @Test
+    void testOutputStreamCloseDiscardsWhenFlushOverrideFails() throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final String path = "override-flush-failure";
+        final RuntimeException flushFailure = new RuntimeException("flush failed");
+        try (final Operator op = Operator.of(fs)) {
+            final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            // A subclass can fail without reaching the native writer, so the stream never
+                            // records the failure in its own field.
+                            throw flushFailure;
+                        }
+                    };
+            out.write(new byte[8]);
+
+            // Committing here would publish the 8 buffered bytes that never reached the service.
+            assertThatThrownBy(out::close)
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("not committed")
+                    .hasCause(flushFailure);
+            assertNotExist(op, path);
+
+            // The native writer is released even though the stream never flushed.
+            assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Test
+    void testOutputStreamTryWithResourcesKeepsOriginalError() throws Exception {
+        final ServiceConfig.Fs fs =
+                ServiceConfig.Fs.builder().root(tempDir.toString()).build();
+        final String path = "try-with-resources-error";
+        final Error flushFailure = new Error("flush failed");
+        final Throwable[] thrown = new Throwable[1];
+        try (final Operator op = Operator.of(fs)) {
+            try (final OperatorOutputStream out =
+                    new OperatorOutputStream(op, path, 4, WriteOptions.builder().build()) {
+                        @Override
+                        public synchronized void flush() {
+                            throw flushFailure;
+                        }
+                    }) {
+                out.write(new byte[] {1, 2});
+                // Filling the buffer flushes it, which fails.
+                out.write(new byte[] {3, 4});
+            } catch (Throwable t) {
+                thrown[0] = t;
+            }
+
+            // close() must not rethrow the Error the body is already propagating, because
+            // try-with-resources would suppress it into itself and the JVM would replace the
+            // failure with IllegalArgumentException: Self-suppression not permitted.
+            assertThat(thrown[0]).as("original Error propagates").isSameAs(flushFailure);
+            assertThat(thrown[0].getSuppressed()).hasSize(1);
+            assertThat(thrown[0].getSuppressed()[0])
+                    .isInstanceOf(Error.class)
+                    .hasMessageContaining("not committed")
+                    .hasCause(flushFailure);
+            assertNotExist(op, path);
+        }
+    }
+
+    @Test
+    void testOutputStreamRejectsUseAfterBufferedFlushFailure() throws Exception {
+        try (final AsyncOperator op =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4));
+                final Operator layeredOp = throttled.blocking()) {
+            final String path = "buffered-flush-failure";
+            // The buffer is larger than the burst, so filling it and flushing fails while the
+            // offset still points past the end of the buffer.
+            final OperatorOutputStream out = new OperatorOutputStream(
+                    layeredOp, path, 8, WriteOptions.builder().build());
+            out.write(new byte[] {1, 2, 3, 4});
+            assertThatThrownBy(() -> out.write(new byte[] {5, 6, 7, 8}))
+                    .as("flushing the full buffer")
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+
+            // A sticky failure rejects further use instead of overrunning the buffer array or
+            // silently accepting bytes that will never be written.
+            assertThatThrownBy(() -> out.write(1))
+                    .as("write after failure")
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited))
+                    .hasCauseInstanceOf(OpenDALException.class);
+            assertThatThrownBy(out::flush)
+                    .as("flush after failure")
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited))
+                    .hasCauseInstanceOf(OpenDALException.class);
+
+            // Committing an empty writer would publish an empty object, so close() discards.
+            assertThatThrownBy(out::close)
+                    .as("close after failure")
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+            assertNotExist(layeredOp, path);
+        }
+    }
+
     private static void assertNotExist(Operator op, String path) {
         assertThatThrownBy(() -> op.stat(path)).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }

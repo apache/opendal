@@ -139,8 +139,7 @@ public class OperatorOutputStream extends OutputStream {
         }
         // A stream that already reported a failure never commits: the native writer may
         // hold only a prefix of the content.
-        final Throwable earlierFailure = failure;
-        Throwable primary = earlierFailure;
+        Throwable primary = failure;
         if (primary == null) {
             try {
                 flush();
@@ -152,8 +151,13 @@ public class OperatorOutputStream extends OutputStream {
         // leaks and the stream keeps accepting writes. A failed stream is discarded
         // instead of closed, because closing would commit the bytes that did reach the
         // native writer, possibly truncated.
+        //
+        // Commit only when nothing failed up to this point. `primary` also covers failures
+        // that never reached `writeNative` and therefore never set `failure`, such as a
+        // subclass override of `flush()` or a JNI exception that is neither a
+        // RuntimeException nor an Error.
         try {
-            if (failure == null) {
+            if (primary == null) {
                 writer.close();
             } else {
                 writer.discard();
@@ -168,10 +172,7 @@ public class OperatorOutputStream extends OutputStream {
         if (primary == null) {
             return;
         }
-        if (primary == earlierFailure) {
-            throwUnrecovered(primary);
-        }
-        rethrow(primary);
+        throwUnrecovered(primary);
     }
 
     private void flushBuffer() {
@@ -192,27 +193,18 @@ public class OperatorOutputStream extends OutputStream {
         }
     }
 
-    private static void rethrow(Throwable t) {
-        if (t instanceof RuntimeException) {
-            throw (RuntimeException) t;
-        }
-        if (t instanceof Error) {
-            throw (Error) t;
-        }
-        throw new RuntimeException(t);
-    }
-
     /**
-     * Throws an exception for a failure that happened before {@link #close()}.
+     * Throws an exception for a failure that did not commit the object.
      *
-     * <p>The original throwable already reached the caller from the write or flush that failed.
-     * Rethrowing it here would make a try-with-resources statement suppress it into itself, which
-     * the JVM rejects with {@link IllegalArgumentException}, so raise a fresh exception that keeps
-     * the original one as its cause.
+     * <p>The original throwable may already be the exception a try-with-resources statement is
+     * propagating, and that statement suppresses whatever {@link #close()} throws into it.
+     * Suppressing an exception into itself makes the JVM throw
+     * {@link IllegalArgumentException}, which would replace the real failure, so raise a fresh
+     * exception that keeps the original one as its cause.
      */
     private static void throwUnrecovered(Throwable failure) {
         if (failure instanceof Error) {
-            throw (Error) failure;
+            throw new Error("OperatorOutputStream failed, the object was not committed", failure);
         }
         if (failure instanceof OpenDALException) {
             final OpenDALException original = (OpenDALException) failure;
@@ -226,6 +218,13 @@ public class OperatorOutputStream extends OutputStream {
     private void ensureOpen() {
         if (writer.isDisposed()) {
             throw new IllegalStateException("OperatorOutputStream is closed");
+        }
+        // The native writer can no longer receive the buffered bytes, so report the sticky
+        // failure instead of buffering writes that will never be sent. Checking the failure
+        // also keeps a full buffer from overrunning its array when a failed flush left
+        // `offset` at the end of the buffer.
+        if (failure != null) {
+            throwUnrecovered(failure);
         }
     }
 

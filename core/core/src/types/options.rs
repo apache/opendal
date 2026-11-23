@@ -209,6 +209,9 @@ pub struct ReadOptions {
     ///
     /// Setting a limit with a positive `chunk`, with `concurrent` greater
     /// than one, or when presigning a read returns [`crate::ErrorKind::ConfigInvalid`].
+    ///
+    /// [`crate::Writer::copy_from_options`] copies at most the same number of
+    /// bytes from the start of the selected range.
     pub limit: Option<u64>,
     /// Read the given version of the file instead of the current one.
     ///

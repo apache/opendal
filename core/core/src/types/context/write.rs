@@ -122,6 +122,7 @@ struct PendingCopy {
     args: OpRead,
     options: OpReader,
     range: BytesRange,
+    limit: Option<u64>,
     end: u64,
     /// The next source offset to copy. It advances only after the destination
     /// accepts the corresponding bytes.
@@ -129,8 +130,8 @@ struct PendingCopy {
 }
 
 impl PendingCopy {
-    fn matches(&self, path: &str, args: &OpRead, range: BytesRange) -> bool {
-        self.path == path && self.range == range && self.args.same_read(args)
+    fn matches(&self, path: &str, args: &OpRead, range: BytesRange, limit: Option<u64>) -> bool {
+        self.path == path && self.range == range && self.limit == limit && self.args.same_read(args)
     }
 }
 
@@ -300,9 +301,10 @@ impl WriteGenerator<oio::Writer> {
         args: OpRead,
         options: OpReader,
         range: BytesRange,
+        limit: Option<u64>,
     ) -> Result<()> {
         let reader = self.reader(path, args, options)?;
-        let mut stream = reader.into_stream(range).await?;
+        let mut stream = reader.into_stream_with_limit(range, limit).await?;
         while let Some(mut bs) = stream.try_next().await? {
             while !bs.is_empty() {
                 // The caller already admitted this copy, and a retry must be
@@ -338,6 +340,7 @@ impl WriteGenerator<oio::Writer> {
         args: OpRead,
         options: OpReader,
         range: BytesRange,
+        limit: Option<u64>,
     ) -> Result<()> {
         const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
@@ -357,7 +360,7 @@ impl WriteGenerator<oio::Writer> {
             // Only the identical logical call can continue after the writer
             // accepted part of its source range. Any other call would append
             // different bytes after that prefix and invalidate a later retry.
-            if !copy.matches(path, &args, range) {
+            if !copy.matches(path, &args, range, limit) {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
                     "writer must be aborted or resume the same copy_from call after a partially accepted copy",
@@ -366,8 +369,21 @@ impl WriteGenerator<oio::Writer> {
             }
         } else {
             let reader = self.reader(path, args.clone(), options.clone())?;
+            // A zero limit reads nothing. Opening the reader still validates
+            // the read options and capabilities, matching `read_options`.
+            if limit == Some(0) {
+                return Ok(());
+            }
+
             let absolute = reader.parse_into_range(range).await?;
-            let size = absolute.end - absolute.start;
+            let end = match limit {
+                // A limit bounds the bytes copied from the start of the
+                // selected range. Suffix and open-ended ranges were already
+                // resolved against the source length above.
+                Some(limit) => absolute.end.min(absolute.start.saturating_add(limit)),
+                None => absolute.end,
+            };
+            let size = end - absolute.start;
             if size > MAX_COPY_FROM_SIZE {
                 return Err(Error::new(
                     ErrorKind::RangeNotSatisfied,
@@ -384,7 +400,8 @@ impl WriteGenerator<oio::Writer> {
                 args,
                 options,
                 range,
-                end: absolute.end,
+                limit,
+                end,
                 offset: absolute.start,
             }));
         }
@@ -393,7 +410,7 @@ impl WriteGenerator<oio::Writer> {
     }
 
     async fn drive_copy(&mut self) -> Result<()> {
-        let (path, args, options, end, mut offset) = {
+        let (path, args, options, range, end, mut offset, limit) = {
             let copy = self
                 .pending_copy
                 .as_ref()
@@ -402,8 +419,10 @@ impl WriteGenerator<oio::Writer> {
                 copy.path.clone(),
                 copy.args.clone(),
                 copy.options.clone(),
+                copy.range,
                 copy.end,
                 copy.offset,
+                copy.limit,
             )
         };
         let mut remaining = end - offset;
@@ -413,12 +432,19 @@ impl WriteGenerator<oio::Writer> {
             return Ok(());
         }
 
-        let Some(chunk_size) = self.chunk_size.filter(|_| self.can_copy_from) else {
+        // `parse_into_range` resolves suffix and open-ended ranges against the
+        // source length, so their planned parts always stay inside the source.
+        // A limited forward bounded range may end past EOF, and only streaming
+        // accepts EOF after a valid starting byte.
+        let bounded_forward = !range.is_suffix() && range.size().is_some();
+        let can_copy_native = self.can_copy_from && (limit.is_none() || !bounded_forward);
+        let Some(chunk_size) = self.chunk_size.filter(|_| can_copy_native) else {
             self.stream_range(
                 &path,
                 args,
                 options,
                 BytesRange::new(offset, Some(remaining)),
+                limit.map(|_| remaining),
             )
             .await?;
             self.pending_copy = None;
@@ -436,6 +462,7 @@ impl WriteGenerator<oio::Writer> {
                 args.clone(),
                 options.clone(),
                 BytesRange::new(offset, Some(boundary_size)),
+                limit.map(|_| boundary_size),
             )
             .await?;
             offset = self.copy_offset();
@@ -469,6 +496,7 @@ impl WriteGenerator<oio::Writer> {
                 args,
                 options,
                 BytesRange::new(offset, Some(remaining)),
+                limit.map(|_| remaining),
             )
             .await?;
         }
@@ -929,6 +957,69 @@ mod tests {
         assert_eq!(
             op.read("target").await?.to_vec(),
             b"0123456789abcdefghijklmnopqrst"
+        );
+        Ok(())
+    }
+
+    /// A limited forward bounded range may end past EOF, so it streams instead
+    /// of requesting exact native copy parts.
+    #[tokio::test]
+    async fn test_copy_from_with_limit_streams_bounded_forward_range() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "01234567890123456789").await?;
+        let (op, copy_ranges, _) = with_write_faults(&op, WriteFaults::default());
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    range: (0..25).into(),
+                    limit: Some(100),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"01234567890123456789");
+        assert!(
+            copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned")
+                .is_empty(),
+            "a limited forward bounded range must not use native copy"
+        );
+        Ok(())
+    }
+
+    /// A limited suffix range resolves against the source length, so native
+    /// parts stay inside the source and only the remainder streams.
+    #[tokio::test]
+    async fn test_copy_from_with_limit_keeps_suffix_native_parts() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "01234567890123456789").await?;
+        let (op, copy_ranges, _) = with_write_faults(&op, WriteFaults::default());
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        writer
+            .copy_from_options(
+                "source",
+                crate::options::ReadOptions {
+                    range: BytesRange::suffix(20),
+                    limit: Some(15),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"012345678901234");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![BytesRange::new(0, Some(10))]
         );
         Ok(())
     }

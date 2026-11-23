@@ -25,13 +25,27 @@ import java.util.Objects;
 
 public class OperatorOutputStream extends OutputStream {
     private static class Writer extends NativeObject {
+        /**
+         * Whether disposing this object commits it. Guarded by the owning
+         * {@link OperatorOutputStream}, which owns the only reference.
+         */
+        private boolean commitOnDispose = true;
+
         private Writer(long nativeHandle) {
             super(nativeHandle);
         }
 
+        /**
+         * Releases the native writer without committing the object it was writing.
+         */
+        private void discard() {
+            commitOnDispose = false;
+            close();
+        }
+
         @Override
         protected void disposeInternal(long handle) {
-            disposeWriter(handle);
+            disposeWriter(handle, commitOnDispose);
         }
     }
 
@@ -43,6 +57,15 @@ public class OperatorOutputStream extends OutputStream {
     private final int maxBatchBytes;
 
     private int offset = 0;
+
+    /**
+     * The first native write or flush failure, if any.
+     *
+     * <p>OpenDAL publishes an object when the native writer is closed. After a failure the native
+     * writer may hold only a prefix of the content, so {@link #close()} discards the writer instead
+     * of committing a truncated object.
+     */
+    private Throwable failure;
 
     public OperatorOutputStream(Operator operator, String path, WriteOptions options) {
         this(operator, path, DEFAULT_MAX_BYTES, MAX_DIRECT_WRITE_BYTES, options);
@@ -87,7 +110,7 @@ public class OperatorOutputStream extends OutputStream {
             final int count;
             if (offset == 0 && len >= bytes.length) {
                 count = Math.min(len, maxBatchBytes);
-                writeByteRange(writer.nativeHandle, b, off, count);
+                writeNative(b, off, count);
             } else {
                 count = Math.min(len, bytes.length - offset);
                 System.arraycopy(b, off, bytes, offset, count);
@@ -105,8 +128,7 @@ public class OperatorOutputStream extends OutputStream {
     public synchronized void flush() {
         ensureOpen();
         if (offset != 0) {
-            writeByteRange(writer.nativeHandle, bytes, 0, offset);
-            offset = 0;
+            flushBuffer();
         }
     }
 
@@ -115,25 +137,58 @@ public class OperatorOutputStream extends OutputStream {
         if (writer.isDisposed()) {
             return;
         }
-        Throwable primary = null;
-        try {
-            flush();
-        } catch (Throwable t) {
-            primary = t;
-        }
-        // Always release the native writer, even when `flush()` failed. Otherwise
-        // the native handle leaks and the stream keeps accepting writes.
-        try {
-            writer.close();
-        } catch (Throwable secondary) {
-            if (primary != null) {
-                primary.addSuppressed(secondary);
-            } else {
-                primary = secondary;
+        // A stream that already reported a failure never commits: the native writer may
+        // hold only a prefix of the content.
+        final Throwable earlierFailure = failure;
+        Throwable primary = earlierFailure;
+        if (primary == null) {
+            try {
+                flush();
+            } catch (Throwable t) {
+                primary = t;
             }
         }
-        if (primary != null) {
-            rethrow(primary);
+        // Release the native writer even when the stream failed, otherwise the handle
+        // leaks and the stream keeps accepting writes. A failed stream is discarded
+        // instead of closed, because closing would commit the bytes that did reach the
+        // native writer, possibly truncated.
+        try {
+            if (failure == null) {
+                writer.close();
+            } else {
+                writer.discard();
+            }
+        } catch (Throwable secondary) {
+            if (primary == null) {
+                primary = secondary;
+            } else if (primary != secondary) {
+                primary.addSuppressed(secondary);
+            }
+        }
+        if (primary == null) {
+            return;
+        }
+        if (primary == earlierFailure) {
+            throwUnrecovered(primary);
+        }
+        rethrow(primary);
+    }
+
+    private void flushBuffer() {
+        // Clear the buffered range only after the native write succeeded, so a failed
+        // flush() keeps the bytes instead of dropping them silently.
+        writeNative(bytes, 0, offset);
+        offset = 0;
+    }
+
+    private void writeNative(byte[] source, int off, int len) {
+        try {
+            writeByteRange(writer.nativeHandle, source, off, len);
+        } catch (RuntimeException | Error e) {
+            if (failure == null) {
+                failure = e;
+            }
+            throw e;
         }
     }
 
@@ -147,6 +202,27 @@ public class OperatorOutputStream extends OutputStream {
         throw new RuntimeException(t);
     }
 
+    /**
+     * Throws an exception for a failure that happened before {@link #close()}.
+     *
+     * <p>The original throwable already reached the caller from the write or flush that failed.
+     * Rethrowing it here would make a try-with-resources statement suppress it into itself, which
+     * the JVM rejects with {@link IllegalArgumentException}, so raise a fresh exception that keeps
+     * the original one as its cause.
+     */
+    private static void throwUnrecovered(Throwable failure) {
+        if (failure instanceof Error) {
+            throw (Error) failure;
+        }
+        if (failure instanceof OpenDALException) {
+            final OpenDALException original = (OpenDALException) failure;
+            final OpenDALException reopened = new OpenDALException(original.getCode(), original.getMessage());
+            reopened.initCause(original);
+            throw reopened;
+        }
+        throw new IllegalStateException("OperatorOutputStream failed, the object was not committed", failure);
+    }
+
     private void ensureOpen() {
         if (writer.isDisposed()) {
             throw new IllegalStateException("OperatorOutputStream is closed");
@@ -155,7 +231,7 @@ public class OperatorOutputStream extends OutputStream {
 
     private static native long constructWriter(long op, String path, WriteOptions options);
 
-    private static native void disposeWriter(long writer);
+    private static native void disposeWriter(long writer, boolean commit);
 
     private static native void writeByteRange(long writer, byte[] bytes, int off, int len);
 }

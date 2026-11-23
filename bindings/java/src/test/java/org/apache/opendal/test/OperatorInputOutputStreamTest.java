@@ -274,29 +274,85 @@ public class OperatorInputOutputStreamTest {
     @Test
     void testOutputStreamCloseReleasesWriterWhenFlushFails() throws Exception {
         try (final AsyncOperator op =
-                AsyncOperator.of(ServiceConfig.Memory.builder().build())) {
-            try (final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4))) {
-                final Operator layeredOp = throttled.blocking();
-                try {
-                    final OperatorOutputStream out = layeredOp.createOutputStream("close-flush-failure");
-                    // The 8 buffered bytes exceed the throttle burst of 4, so the flush
-                    // performed by close() fails with RateLimited.
-                    out.write(new byte[8]);
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4));
+                final Operator layeredOp = throttled.blocking()) {
+            final String path = "close-flush-failure";
+            final OperatorOutputStream out = layeredOp.createOutputStream(path);
+            // The 8 buffered bytes exceed the throttle burst of 4, so the flush
+            // performed by close() fails with RateLimited.
+            out.write(new byte[8]);
 
-                    assertThatThrownBy(out::close)
-                            .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+            assertThatThrownBy(out::close).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
 
-                    // The native writer must be released even though flush() failed.
-                    assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+            // A failed close must not publish the object, not even an empty one.
+            assertNotExist(layeredOp, path);
 
-                    // Closing again is safe and does not touch the released writer.
-                    out.close();
-                    out.close();
-                } finally {
-                    layeredOp.close();
-                }
-            }
+            // The native writer is released even though flush() failed, so the
+            // stream rejects any further use instead of leaking the handle.
+            assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(out::flush).isInstanceOf(IllegalStateException.class);
+
+            // Closing again is a safe no-op that does not touch the released writer.
+            out.close();
+            out.close();
         }
+    }
+
+    @Test
+    void testOutputStreamCloseDiscardsPartialWrite() throws Exception {
+        try (final AsyncOperator op =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4));
+                final Operator layeredOp = throttled.blocking()) {
+            final String path = "partial-flush-failure";
+            final OperatorOutputStream out = layeredOp.createOutputStream(path);
+            // The first chunk fits into the burst and reaches the native writer.
+            out.write(new byte[4]);
+            out.flush();
+            assertNotExist(layeredOp, path);
+
+            // The second chunk exceeds the burst, so this flush fails after the
+            // native writer already holds the first chunk.
+            out.write(new byte[8]);
+            assertThatThrownBy(out::flush).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+
+            // close() reports the unrecovered failure and discards the writer.
+            // Committing would publish a truncated object.
+            assertThatThrownBy(out::close).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+            assertNotExist(layeredOp, path);
+
+            assertThatThrownBy(() -> out.write(1)).isInstanceOf(IllegalStateException.class);
+            assertThatThrownBy(out::flush).isInstanceOf(IllegalStateException.class);
+        }
+    }
+
+    @Test
+    void testOutputStreamTryWithResourcesKeepsOriginalFailure() throws Exception {
+        try (final AsyncOperator op =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                final AsyncOperator throttled = op.layer(new ThrottleLayer(1024, 4));
+                final Operator layeredOp = throttled.blocking()) {
+            final String path = "try-with-resources-failure";
+            final Throwable[] thrown = new Throwable[1];
+            try (final OperatorOutputStream out = layeredOp.createOutputStream(path)) {
+                out.write(new byte[4]);
+                out.flush();
+                out.write(new byte[8]);
+                out.flush();
+            } catch (Throwable t) {
+                thrown[0] = t;
+            }
+
+            // close() must not add the original failure as a suppressed exception of itself,
+            // because the JVM rejects self-suppression with IllegalArgumentException.
+            assertThat(thrown[0]).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.RateLimited));
+            assertNotExist(layeredOp, path);
+        }
+    }
+
+    private static void assertNotExist(Operator op, String path) {
+        assertThatThrownBy(() -> op.stat(path)).is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
     }
 
     @ParameterizedTest

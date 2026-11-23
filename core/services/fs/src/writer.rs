@@ -161,6 +161,9 @@ pub struct FsWriter {
     /// User metadata to be written to xattr on Unix systems.
     #[cfg(unix)]
     user_metadata: Option<HashMap<String, String>>,
+    /// Whether close must replace user metadata on an existing inode.
+    #[cfg(unix)]
+    overwrite_in_place: bool,
 }
 
 impl FsWriter {
@@ -214,6 +217,11 @@ impl FsWriter {
         };
         let open_path = temp_path.as_ref().unwrap_or(&target_path);
 
+        // Opening an existing file without appending truncates it in place,
+        // keeping the old inode and its user metadata.
+        #[cfg(unix)]
+        let overwrite_in_place = !op.append() && temp_path.is_none();
+
         #[cfg(target_os = "linux")]
         if core.direct_io {
             let open_path = open_path.clone();
@@ -238,6 +246,8 @@ impl FsWriter {
                 direct_io: Some(alignment),
                 #[cfg(unix)]
                 user_metadata,
+                #[cfg(unix)]
+                overwrite_in_place,
             });
         }
 
@@ -255,7 +265,26 @@ impl FsWriter {
             direct_io: None,
             #[cfg(unix)]
             user_metadata,
+            #[cfg(unix)]
+            overwrite_in_place,
         })
+    }
+
+    /// Write the final user metadata for this write.
+    ///
+    /// A non-append write without staging truncates the existing file in place,
+    /// so user metadata from the previous content must be replaced. Staged
+    /// writes publish a new inode, while appends must keep the metadata already
+    /// attached to the file.
+    #[cfg(unix)]
+    fn update_user_metadata(&self) -> Result<()> {
+        if self.overwrite_in_place {
+            FsCore::replace_user_metadata(&self.target_path, self.user_metadata.as_ref())
+        } else if let Some(user_metadata) = &self.user_metadata {
+            FsCore::set_user_metadata(&self.target_path, user_metadata)
+        } else {
+            Ok(())
+        }
     }
 
     async fn commit_staged_file(&self) -> Result<()> {
@@ -310,11 +339,8 @@ impl oio::Write for FsWriter {
 
         self.commit_staged_file().await?;
 
-        // Write user metadata to xattr on Unix systems.
         #[cfg(unix)]
-        if let Some(ref user_metadata) = self.user_metadata {
-            FsCore::set_user_metadata(&self.target_path, user_metadata)?;
-        }
+        self.update_user_metadata()?;
 
         let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
         let mut meta = MetadataBuilder::file(file_meta.len());
@@ -391,11 +417,8 @@ impl oio::PositionWrite for FsWriter {
 
         self.commit_staged_file().await?;
 
-        // Write user metadata to xattr on Unix systems.
         #[cfg(unix)]
-        if let Some(ref user_metadata) = self.user_metadata {
-            FsCore::set_user_metadata(&self.target_path, user_metadata)?;
-        }
+        self.update_user_metadata()?;
 
         let file_meta = f.metadata().map_err(new_std_io_error)?;
         let mode = if file_meta.is_file() {
@@ -440,4 +463,117 @@ fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
 fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.write_at(buf, offset).map_err(new_std_io_error)
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::collections::HashMap;
+    use std::path::Path;
+
+    use opendal_core::Operator;
+
+    use super::*;
+
+    fn xattrs_supported(dir: &Path) -> bool {
+        let probe = dir.join(".xattr-probe");
+        if std::fs::write(&probe, b"probe").is_err() {
+            return false;
+        }
+        let supported = xattr::set(&probe, "user.opendal_probe", b"1").is_ok();
+        let _ = std::fs::remove_file(&probe);
+        supported
+    }
+
+    fn operator(root: &Path, atomic_write_dir: Option<&Path>) -> Operator {
+        let builder = crate::Fs::default().root(root.to_str().unwrap());
+        let builder = match atomic_write_dir {
+            Some(dir) => builder.atomic_write_dir(dir.to_str().unwrap()),
+            None => builder,
+        };
+        Operator::new(builder).unwrap()
+    }
+
+    async fn overwrite_replaces_user_metadata(atomic_write: bool) {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        std::fs::create_dir(&root).unwrap();
+        if !xattrs_supported(&root) {
+            return;
+        }
+        let staging = atomic_write.then(|| {
+            let dir = temp_dir.path().join("staging");
+            std::fs::create_dir(&dir).unwrap();
+            dir
+        });
+        let op = operator(&root, staging.as_deref());
+
+        op.write_with("file", "first")
+            .user_metadata([("old".to_string(), "value".to_string())])
+            .await
+            .unwrap();
+        let file = root.join("file");
+        assert_eq!(
+            FsCore::get_user_metadata(&file).unwrap(),
+            HashMap::from([("old".to_string(), "value".to_string())])
+        );
+
+        // A non-empty to non-empty overwrite must drop the old key and keep
+        // only the new one.
+        op.write_with("file", "second")
+            .user_metadata([("new".to_string(), "value".to_string())])
+            .await
+            .unwrap();
+        assert_eq!(
+            FsCore::get_user_metadata(&file).unwrap(),
+            HashMap::from([("new".to_string(), "value".to_string())])
+        );
+
+        // A write without user metadata must clear the previous keys.
+        op.write("file", "third").await.unwrap();
+        assert!(FsCore::get_user_metadata(&file).unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_overwrite_replaces_user_metadata() {
+        overwrite_replaces_user_metadata(false).await;
+        overwrite_replaces_user_metadata(true).await;
+    }
+
+    async fn append_preserves_user_metadata(atomic_write: bool) {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        std::fs::create_dir(&root).unwrap();
+        if !xattrs_supported(&root) {
+            return;
+        }
+        let staging = atomic_write.then(|| {
+            let dir = temp_dir.path().join("staging");
+            std::fs::create_dir(&dir).unwrap();
+            dir
+        });
+        let op = operator(&root, staging.as_deref());
+
+        let metadata = HashMap::from([
+            ("first".to_string(), "one".to_string()),
+            ("second".to_string(), "two".to_string()),
+        ]);
+        op.write_with("file", "first")
+            .user_metadata(metadata.clone())
+            .await
+            .unwrap();
+
+        op.write_with("file", "more").append(true).await.unwrap();
+
+        assert_eq!(
+            FsCore::get_user_metadata(&root.join("file")).unwrap(),
+            metadata
+        );
+        assert_eq!(op.read("file").await.unwrap().to_vec(), b"firstmore");
+    }
+
+    #[tokio::test]
+    async fn test_append_preserves_user_metadata() {
+        append_preserves_user_metadata(false).await;
+        append_preserves_user_metadata(true).await;
+    }
 }

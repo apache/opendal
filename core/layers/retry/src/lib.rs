@@ -643,6 +643,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             .policy
             .retry(Operation::Read, || self.inner.open(range))
             .await?;
+        let identity = ReadStreamIdentity::from_rp(&rp);
         let range = resolve_range(range, &rp);
         Ok((
             rp,
@@ -651,6 +652,8 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
                 stream: Some(stream),
                 range,
                 read: 0,
+                identity,
+                identity_mismatch: false,
                 policy: self.policy.clone(),
                 deposited: self.deposited.clone(),
             }),
@@ -700,18 +703,52 @@ fn resolve_range(range: BytesRange, rp: &RpRead) -> BytesRange {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReadStreamIdentity {
+    version: Option<String>,
+    etag: Option<String>,
+    last_modified: Option<Timestamp>,
+    content_length: Option<u64>,
+}
+
+impl ReadStreamIdentity {
+    fn from_rp(rp: &RpRead) -> Option<Self> {
+        let metadata = rp.metadata()?;
+        let identity = Self {
+            version: metadata.version().map(str::to_owned),
+            etag: metadata.etag().map(str::to_owned),
+            last_modified: metadata.last_modified(),
+            content_length: metadata.is_file().then_some(metadata.content_length()),
+        };
+        (identity.version.is_some()
+            || identity.etag.is_some()
+            || identity.last_modified.is_some()
+            || identity.content_length.is_some())
+        .then_some(identity)
+    }
+}
+
 #[doc(hidden)]
 pub struct RetryReadStream<R, I> {
     reader: Arc<R>,
     stream: Option<Box<dyn oio::ReadStreamDyn>>,
     range: BytesRange,
     read: u64,
+    identity: Option<ReadStreamIdentity>,
+    identity_mismatch: bool,
     policy: RetryPolicy<I>,
     deposited: Option<Arc<AtomicBool>>,
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
+        if self.identity_mismatch {
+            return Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "object changed during read stream retry",
+            )
+            .with_operation("RetryReadStream::read"));
+        }
         let stream = self.stream.take();
         if stream.is_none() && self.policy.budget.is_some() && self.range.size() != Some(self.read)
         {
@@ -722,26 +759,29 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
             );
         }
         let reader = &self.reader;
-        let initial = (stream, self.range, self.read);
-        let ((stream, range, read), result) = self
+        let initial = (stream, self.range, self.read, self.identity.clone(), false);
+        let ((stream, range, read, identity, identity_mismatch), result) = self
             .policy
             .retry_with_context(
                 Operation::Read,
                 initial,
-                |(stream, mut range, mut read)| async move {
+                |(stream, mut range, mut read, mut identity, identity_mismatch)| async move {
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
                             // A completed read stays at EOF across later calls.
                             if range.size() == Some(read) {
-                                return ((None, range, read), Ok(Buffer::new()));
+                                return (
+                                    (None, range, read, identity, identity_mismatch),
+                                    Ok(Buffer::new()),
+                                );
                             }
                             if range.is_suffix() && read > 0 {
                                 // Without the object size, the actual suffix length is
                                 // unknown, so advancing it can duplicate bytes that the
                                 // caller has already received.
                                 return (
-                                    (None, range, read),
+                                    (None, range, read, identity, identity_mismatch),
                                     Err(Error::new(
                                         ErrorKind::Unexpected,
                                         "cannot resume a suffix range after progress without the object size",
@@ -755,10 +795,34 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                             }
                             match reader.open(range).await {
                                 Ok((rp, stream)) => {
+                                    let reopened_identity = ReadStreamIdentity::from_rp(&rp);
+                                    match &identity {
+                                        Some(expected)
+                                            if reopened_identity.as_ref() != Some(expected) =>
+                                        {
+                                            return (
+                                                (None, range, read, identity, true),
+                                                Err(Error::new(
+                                                    ErrorKind::ConditionNotMatch,
+                                                    "object changed during read stream retry",
+                                                )
+                                                .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        None => {
+                                            identity = reopened_identity;
+                                        }
+                                        Some(_) => {}
+                                    }
                                     range = resolve_range(range, &rp);
                                     stream
                                 }
-                                Err(err) => return ((None, range, read), Err(err)),
+                                Err(err) => {
+                                    return (
+                                        (None, range, read, identity, identity_mismatch),
+                                        Err(err),
+                                    );
+                                }
                             }
                         }
                     };
@@ -766,18 +830,20 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                     match stream.read().await {
                         Ok(buf) => {
                             read += buf.len() as u64;
-                            ((Some(stream), range, read), Ok(buf))
+                            ((Some(stream), range, read, identity, identity_mismatch), Ok(buf))
                         }
                         // There are no bytes left to fetch after the resolved range completes.
-                        Err(err) if err.is_temporary() && range.size() == Some(read) => {
-                            ((None, range, read), Ok(Buffer::new()))
-                        }
+                        Err(err) if err.is_temporary() && range.size() == Some(read) => (
+                            (None, range, read, identity, identity_mismatch),
+                            Ok(Buffer::new()),
+                        ),
                         // An unresolved suffix range cannot be advanced safely after
                         // progress. Preserve the original error and stop retrying.
-                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => {
-                            ((None, range, read), Err(err.set_persistent()))
-                        }
-                        Err(err) => ((None, range, read), Err(err)),
+                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => (
+                            (None, range, read, identity, identity_mismatch),
+                            Err(err.set_persistent()),
+                        ),
+                        Err(err) => ((None, range, read, identity, identity_mismatch), Err(err)),
                     }
                 },
             )
@@ -786,6 +852,8 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
         self.stream = stream;
         self.range = range;
         self.read = read;
+        self.identity = identity;
+        self.identity_mismatch = identity_mismatch;
 
         let buf = result?;
         if (buf.is_empty() || range.size() == Some(read))
@@ -962,6 +1030,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
 #[cfg(test)]
 mod tests {
     mod budget;
+    mod identity;
     mod range;
 
     use std::sync::Mutex;

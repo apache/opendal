@@ -31,7 +31,6 @@ use reqsign_aliyun_oss::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::OSS_SCHEME;
@@ -597,8 +596,8 @@ impl Builder for OssBuilder {
         };
 
         let sign_ctx = ctx;
-        let request_signer = RequestSigner::new(bucket);
-        let signer = Signer::new(sign_ctx.clone(), provider, request_signer);
+        let credential_provider = Arc::new(provider);
+        let request_signer = Arc::new(RequestSigner::new(bucket));
 
         let info = ServiceInfo::new(OSS_SCHEME, &root, bucket);
         let capability = Capability {
@@ -673,8 +672,10 @@ impl Builder for OssBuilder {
                 host,
                 presign_endpoint,
                 skip_signature,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 server_side_encryption,
                 server_side_encryption_key_id,
             }),
@@ -915,11 +916,11 @@ impl Service for OssBackend {
 mod tests {
     use std::collections::{HashMap, VecDeque};
     use std::sync::Mutex;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use bytes::Bytes;
     use reqsign_core::time::Timestamp;
-    use reqsign_core::{FileRead, HttpSend, ProvideCredential, StaticEnv};
+    use reqsign_core::{FileRead, HttpSend, ProvideCredential, Signer, StaticEnv};
 
     use super::*;
 
@@ -1103,7 +1104,7 @@ mod tests {
                 })
                 .with_file_read(TestFileRead::new([("/test/oidc-token", "test-oidc-token")]))
                 .with_http_send(http.clone());
-            let signer = backend.core.signer.clone().with_context(ctx);
+            let signer = backend.core.signer_with_context(ctx);
             let (mut parts, _) = http::Request::builder()
                 .method(http::Method::PUT)
                 .uri("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/manifest.json")
@@ -1200,7 +1201,7 @@ mod tests {
             })
             .with_file_read(TestFileRead::new([("/test/oidc-token", "test-oidc-token")]))
             .with_http_send(http.clone());
-        let signer = backend.core.signer.clone().with_context(ctx);
+        let signer = backend.core.signer_with_context(ctx);
 
         let parts = sign_test_request(&signer).await;
 
@@ -1213,6 +1214,25 @@ mod tests {
         assert_eq!(parts.headers["x-oss-security-token"], "custom-token");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
         assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[derive(Clone, Default)]
+    struct PanicTransport {
+        dropped: Option<Arc<AtomicBool>>,
+    }
+
+    impl Drop for PanicTransport {
+        fn drop(&mut self) {
+            if let Some(dropped) = &self.dropped {
+                dropped.store(true, Ordering::SeqCst);
+            }
+        }
+    }
+
+    impl HttpTransport for PanicTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+            panic!("unexpected HTTP request: {}", req.uri())
+        }
     }
 
     #[tokio::test]
@@ -1244,10 +1264,10 @@ mod tests {
         let backend = (&backend as &dyn std::any::Any)
             .downcast_ref::<OssBackend>()
             .unwrap();
-        let http = CredentialHttpSend::default();
-        let ctx = Context::new().with_http_send(http.clone());
+        let op_ctx = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(PanicTransport::default()));
 
-        let first = sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        let first = sign_test_request(&backend.core.signer(&op_ctx)).await;
         assert!(
             first.headers[http::header::AUTHORIZATION]
                 .to_str()
@@ -1257,8 +1277,7 @@ mod tests {
         assert_eq!(first.headers["x-oss-security-token"], "custom-token-1");
         assert_eq!(calls.load(Ordering::SeqCst), 1);
 
-        let second =
-            sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        let second = sign_test_request(&backend.core.signer(&op_ctx)).await;
         assert!(
             second.headers[http::header::AUTHORIZATION]
                 .to_str()
@@ -1268,7 +1287,7 @@ mod tests {
         assert_eq!(second.headers["x-oss-security-token"], "custom-token-2");
         assert_eq!(calls.load(Ordering::SeqCst), 2);
 
-        let third = sign_test_request(&backend.core.signer.clone().with_context(ctx.clone())).await;
+        let third = sign_test_request(&backend.core.signer(&op_ctx)).await;
         assert!(
             third.headers[http::header::AUTHORIZATION]
                 .to_str()
@@ -1276,7 +1295,105 @@ mod tests {
                 .starts_with("OSS custom-ak-2:")
         );
         assert_eq!(calls.load(Ordering::SeqCst), 2);
-        assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_signer_cache_isolates_distinct_transports() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let provider = TestCredentialProvider::new(
+            calls.clone(),
+            vec![
+                Credential {
+                    access_key_id: "ak-1".to_string(),
+                    access_key_secret: "sk-1".to_string(),
+                    security_token: Some("token-1".to_string()),
+                    expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(3600)),
+                },
+                Credential {
+                    access_key_id: "ak-2".to_string(),
+                    access_key_secret: "sk-2".to_string(),
+                    security_token: Some("token-2".to_string()),
+                    expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(3600)),
+                },
+                Credential {
+                    access_key_id: "ak-3".to_string(),
+                    access_key_secret: "sk-3".to_string(),
+                    security_token: Some("token-3".to_string()),
+                    expires_in: Some(Timestamp::now() + std::time::Duration::from_secs(3600)),
+                },
+            ],
+        );
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .credential_provider_chain(ProvideCredentialChain::new().push(provider)),
+        );
+
+        let ctx1 = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(PanicTransport::default()));
+        let first = sign_test_request(&core.signer(&ctx1)).await;
+        let second = sign_test_request(&core.signer(&ctx1)).await;
+        assert!(
+            first.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-1:")
+        );
+        assert!(
+            second.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-1:")
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+
+        let t2_dropped = Arc::new(AtomicBool::new(false));
+        let ctx2 =
+            OperationContext::new().with_http_transport(HttpTransporter::new(PanicTransport {
+                dropped: Some(t2_dropped.clone()),
+            }));
+        let third = sign_test_request(&core.signer(&ctx2)).await;
+        let fourth = sign_test_request(&core.signer(&ctx2)).await;
+        assert!(
+            third.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-2:")
+        );
+        assert!(
+            fourth.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-2:")
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+        // ctx1 must continue reusing its own cached signer and credential.
+        let fifth = sign_test_request(&core.signer(&ctx1)).await;
+        assert!(
+            fifth.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-1:")
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+
+        // Dropping ctx2 must release t2 immediately (no strong reference cycle).
+        drop(ctx2);
+        assert!(t2_dropped.load(Ordering::SeqCst));
+
+        // A third transport prunes t2's dead entry and stays isolated.
+        let ctx3 = OperationContext::new()
+            .with_http_transport(HttpTransporter::new(PanicTransport::default()));
+        let sixth = sign_test_request(&core.signer(&ctx3)).await;
+        assert!(
+            sixth.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS ak-3:")
+        );
+        assert_eq!(calls.load(Ordering::SeqCst), 3);
     }
 
     fn build_test_core(builder: OssBuilder) -> Arc<OssCore> {
@@ -1325,7 +1442,7 @@ mod tests {
                 .sts_endpoint("sts.example.com")
                 .role_session_name("builder-session"),
         );
-        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+        let parts = sign_test_request(&core.signer_with_context(ctx)).await;
 
         // `role_arn` wraps the OIDC credential with an AK-based AssumeRole call.
         assert!(
@@ -1374,7 +1491,7 @@ mod tests {
                 .bucket("test-bucket")
                 .endpoint("https://oss-cn-hangzhou.aliyuncs.com"),
         );
-        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+        let parts = sign_test_request(&core.signer_with_context(ctx)).await;
         assert!(
             parts.headers[http::header::AUTHORIZATION]
                 .to_str()
@@ -1412,7 +1529,7 @@ mod tests {
                 .access_key_secret("static-secret")
                 .security_token("static-token"),
         );
-        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+        let parts = sign_test_request(&core.signer_with_context(ctx)).await;
         assert!(
             parts.headers[http::header::AUTHORIZATION]
                 .to_str()
@@ -1477,9 +1594,7 @@ mod tests {
             .unwrap()
             .into_parts();
         let err = core
-            .signer
-            .clone()
-            .with_context(ctx)
+            .signer_with_context(ctx)
             .sign(&mut parts, None)
             .await
             .expect_err("ambient credentials must not be loaded");

@@ -23,7 +23,6 @@ use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredential;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_google::Credential;
 use reqsign_google::DefaultCredentialProvider;
@@ -330,11 +329,8 @@ impl GcsBuilder {
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(
-            sign_ctx.clone(),
-            credential_chain,
-            RequestSigner::new("storage").with_scope(&scope),
-        );
+        let credential_provider = Arc::new(credential_chain);
+        let request_signer = Arc::new(RequestSigner::new("storage").with_scope(&scope));
 
         let info = ServiceInfo::new(GCS_SCHEME, &root, bucket);
         let capability = Capability {
@@ -429,8 +425,10 @@ impl GcsBuilder {
                 endpoint,
                 bucket: bucket.to_string(),
                 root,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 predefined_acl: self.config.predefined_acl.clone(),
                 default_storage_class: self.config.default_storage_class.clone(),
                 skip_signature,
@@ -770,9 +768,7 @@ mod tests {
 
         backend
             .core
-            .signer
-            .clone()
-            .with_context(ctx)
+            .signer_with_context(ctx)
             .sign(&mut parts, None)
             .await
             .unwrap();
@@ -836,9 +832,7 @@ mod tests {
 
             backend
                 .core
-                .signer
-                .clone()
-                .with_context(ctx)
+                .signer_with_context(ctx)
                 .sign(&mut parts, None)
                 .await
                 .unwrap();
@@ -901,9 +895,7 @@ mod tests {
 
         let err = backend
             .core
-            .signer
-            .clone()
-            .with_context(ctx)
+            .signer_with_context(ctx)
             .sign(&mut parts, None)
             .await
             .unwrap_err();

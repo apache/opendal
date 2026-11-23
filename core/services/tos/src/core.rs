@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 use std::time::Duration;
 
 use http::Request;
@@ -25,11 +26,10 @@ use http::header::CONTENT_TYPE;
 use http::header::HOST;
 use http::header::HeaderValue;
 use http::header::USER_AGENT;
-use reqsign_core::Context;
-use reqsign_core::OsEnv;
-use reqsign_core::Signer;
-use reqsign_volcengine_tos::Credential;
-use reqsign_volcengine_tos::{percent_encode_path, percent_encode_query};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_volcengine_tos::{
+    Credential, RequestSigner, percent_encode_path, percent_encode_query,
+};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -69,7 +69,10 @@ pub struct TosCore {
     pub default_storage_class: Option<String>,
     pub skip_signature: bool,
 
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 pub(crate) struct TosUploadPartCopyRequest<'a> {
@@ -92,11 +95,21 @@ impl Debug for TosCore {
 
 impl TosCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(OsEnv),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 

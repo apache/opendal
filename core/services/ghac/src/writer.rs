@@ -27,7 +27,6 @@ use opendal_service_azblob::writer::AzblobWriter;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Signer;
 
 pub struct GhacWriter(pub TwoWays<GhacWriterV1, GhacWriterV2>);
 
@@ -76,11 +75,6 @@ impl GhacWriter {
                     )
                     .with_context("url", &url));
                 };
-                let signer = Signer::new(
-                    Context::new(),
-                    StaticCredentialProvider::new_sas_token(query),
-                    RequestSigner::new(),
-                );
                 let azure_core = Arc::new(AzblobCore {
                     info: ServiceInfo::new("azblob", "/", container),
                     capability: Capability {
@@ -122,7 +116,10 @@ impl GhacWriter {
                     encryption_key_sha256: None,
                     encryption_algorithm: None,
                     skip_signature: false,
-                    signer,
+                    sign_ctx: Context::new(),
+                    credential_provider: Arc::new(StaticCredentialProvider::new_sas_token(query)),
+                    request_signer: Arc::new(RequestSigner::new()),
+                    signers: HttpTransportCache::new(),
                 });
                 let w = AzblobWriter::new(
                     azure_core,

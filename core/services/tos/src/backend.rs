@@ -34,7 +34,7 @@ use http::StatusCode;
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_core::{Buffer, Builder, Capability, Error, ErrorKind, Result};
-use reqsign_core::{Context, OsEnv, Signer};
+use reqsign_core::{Context, OsEnv};
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_volcengine_tos::{DefaultCredentialProvider, RequestSigner, StaticCredentialProvider};
 
@@ -179,8 +179,8 @@ impl Builder for TosBuilder {
             provider = provider.push_front(static_provider);
         }
 
-        let request_signer = RequestSigner::new(&region);
-        let signer = Signer::new(ctx, provider, request_signer);
+        let credential_provider = Arc::new(provider);
+        let request_signer = Arc::new(RequestSigner::new(&region));
 
         let info = ServiceInfo::new(TOS_SCHEME, &root, &bucket);
         let capability = Capability {
@@ -265,7 +265,10 @@ impl Builder for TosBuilder {
             root,
             default_storage_class: None,
             skip_signature: config.skip_signature,
-            signer,
+            sign_ctx: ctx,
+            credential_provider,
+            request_signer,
+            signers: HttpTransportCache::new(),
         };
 
         Ok(TosBackend {
@@ -501,13 +504,10 @@ mod tests {
         core: &TosCore,
         envs: HashMap<String, String>,
     ) -> reqsign_core::Result<http::request::Parts> {
-        let signer = core
-            .signer
-            .clone()
-            .with_context(Context::new().with_env(StaticEnv {
-                home_dir: None,
-                envs,
-            }));
+        let signer = core.signer_with_context(Context::new().with_env(StaticEnv {
+            home_dir: None,
+            envs,
+        }));
 
         let req = core
             .tos_put_object_request("test", None, &OpWrite::default(), Buffer::new())

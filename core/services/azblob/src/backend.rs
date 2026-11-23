@@ -30,7 +30,6 @@ use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use sha2::Digest;
 use sha2::Sha256;
@@ -529,11 +528,8 @@ impl AzblobBuilder {
             credential_providers = customized_credential_chain;
         }
 
-        let signer = Signer::new(
-            ctx,
-            credential_providers,
-            RequestSigner::new().with_service_sas_permissions("racwd"),
-        );
+        let credential_provider = Arc::new(credential_providers);
+        let request_signer = Arc::new(RequestSigner::new().with_service_sas_permissions("racwd"));
 
         // SharedKey Service SAS signing in `reqsign-azure-storage` derives the
         // canonicalized resource from the first URL path segment, which only
@@ -605,7 +601,10 @@ impl AzblobBuilder {
                 encryption_algorithm,
                 container: self.config.container.clone(),
                 skip_signature: self.config.skip_signature,
-                signer,
+                sign_ctx: ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
     }
@@ -1169,7 +1168,7 @@ mod tests {
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv::default())
             .with_http_send(http.clone());
-        let signer = backend.core.signer.clone().with_context(ctx);
+        let signer = backend.core.signer_with_context(ctx);
 
         let (mut parts, _) = http::Request::get("https://myaccount.blob.core.windows.net/test/a")
             .body(())

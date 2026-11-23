@@ -327,16 +327,19 @@ async fn streaming_eof_and_direct_reads_share_one_deposit() -> Result<()> {
 
     let reader = op.service().read(op.context(), "file", OpRead::default())?;
     let (_, mut stream) = reader.open(BytesRange::default()).await?;
-    assert!(!stream.read().await?.is_empty());
-    assert!(budget.take_events().is_empty());
-
-    let (eof, direct) = futures::join!(stream.read(), reader.read(BytesRange::from(0..7)));
-    assert!(eof?.is_empty());
-    assert_eq!(direct?.1.to_bytes(), Bytes::from_static(b"content"));
+    assert_eq!(
+        stream.read().await?.to_bytes(),
+        Bytes::from_static(b"content")
+    );
     assert_eq!(
         budget.take_events(),
         [BudgetEvent::Deposit(Operation::Read)]
     );
+
+    let (eof, direct) = futures::join!(stream.read(), reader.read(BytesRange::from(0..7)));
+    assert!(eof?.is_empty());
+    assert_eq!(direct?.1.to_bytes(), Bytes::from_static(b"content"));
+    assert!(budget.take_events().is_empty());
 
     let reader = op.service().read(op.context(), "file", OpRead::default())?;
     let (_, mut stream) = reader.open(BytesRange::default()).await?;

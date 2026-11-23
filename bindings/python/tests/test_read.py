@@ -17,6 +17,7 @@
 
 import io
 import os
+import sys
 from datetime import timedelta
 from pathlib import Path
 from random import choices, randint
@@ -25,7 +26,7 @@ from uuid import uuid4
 import pytest
 
 import opendal
-from opendal.exceptions import ConditionNotMatch, NotFound
+from opendal.exceptions import ConditionNotMatch, NotFound, RangeNotSatisfied
 
 
 @pytest.mark.need_capability("read", "write", "delete")
@@ -487,3 +488,34 @@ def test_sync_readinto_readonly_empty_buffer(operator):
             reader.readinto(memoryview(b""))
     finally:
         operator.delete(filename)
+
+
+@pytest.mark.skipif(sys.maxsize < (1 << 63) - 1, reason="requires 64-bit usize")
+def test_sync_open_range_overflow_raises_range_not_satisfied():
+    op = opendal.Operator("memory")
+    op.write("test", b"hello")
+
+    with pytest.raises(RangeNotSatisfied):
+        op.open("test", "rb", offset=(1 << 64) - 1, size=1)
+
+    with pytest.raises(RangeNotSatisfied):
+        op.open("test", "rb", offset=1, size=(1 << 64) - 1)
+
+    with pytest.raises(RangeNotSatisfied):
+        op.read("test", offset=(1 << 64) - 1, size=1)
+
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(sys.maxsize < (1 << 63) - 1, reason="requires 64-bit usize")
+async def test_async_open_range_overflow_raises_range_not_satisfied():
+    aop = opendal.AsyncOperator("memory")
+    await aop.write("test", b"hello")
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.open("test", "rb", offset=(1 << 64) - 1, size=1)
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.open("test", "rb", offset=1, size=(1 << 64) - 1)
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.read("test", offset=(1 << 64) - 1, size=1)

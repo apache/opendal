@@ -222,8 +222,48 @@ impl DavFileSystem for OpendalFs {
 
     fn remove_dir<'a>(&'a self, path: &'a DavPath) -> FsFuture<'a, ()> {
         async move {
-            let path = self.fs_dir_path(path)?;
-            self.op.delete(&path).await.map_err(convert_error)
+            let dir_path = self.fs_dir_path(path)?;
+
+            // Removing the root collection is never allowed.
+            if dir_path == "/" {
+                return Err(FsError::Forbidden);
+            }
+
+            let file_path = dir_path.trim_end_matches('/');
+
+            if self.op.info().capability().list {
+                let mut lister = self
+                    .op
+                    .lister_with(dir_path.as_str())
+                    .limit(2)
+                    .await
+                    .map_err(convert_error)?;
+                let mut found = false;
+                while let Some(entry) = lister.next().await {
+                    let entry = entry.map_err(convert_error)?;
+                    if entry.path() == dir_path {
+                        found = true;
+                    } else {
+                        return Err(FsError::Exists);
+                    }
+                }
+                if !found {
+                    // Some services do not yield the directory itself when
+                    // listing an empty directory, while an implicit
+                    // object-store directory disappears as soon as its last
+                    // child is removed during recursive DELETE. Refuse only
+                    // when the path actually names a file, then fall through
+                    // to the idempotent delete of `dir_path`.
+                    if self.op.info().capability().stat
+                        && !self.path_exists(&dir_path).await?
+                        && self.path_exists(file_path).await?
+                    {
+                        return Err(FsError::Forbidden);
+                    }
+                }
+            }
+
+            self.op.delete(&dir_path).await.map_err(convert_error)
         }
         .boxed()
     }

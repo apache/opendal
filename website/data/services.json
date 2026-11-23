@@ -3356,11 +3356,32 @@
           "comments": "Secret access key for obs."
         },
         {
+          "name": "security_token",
+          "type": "string",
+          "required": false,
+          "group": "General",
+          "comments": "Security token (a.k.a. session token) for obs.\n\nTemporary credentials sign with `access_key_id`, `secret_access_key` and\nthis token, and the signer attaches the token as the\n`x-obs-security-token` header.\n\nIf this field is not set, OpenDAL reads the token from the environment\nvariable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\nenabled)."
+        },
+        {
           "name": "bucket",
           "type": "string",
           "required": false,
           "group": "General",
           "comments": "Bucket for obs."
+        },
+        {
+          "name": "disable_config_load",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "comments": "Disable config load so that opendal will not load config from\nenvironment.\n\nFor examples:\n\n- envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`"
+        },
+        {
+          "name": "skip_signature",
+          "type": "bool",
+          "required": false,
+          "group": "General",
+          "comments": "Skip signature will skip loading credentials and signing requests."
         },
         {
           "name": "enable_versioning",
@@ -3379,37 +3400,37 @@
           "binding": "rust",
           "language": "rust",
           "minimal": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"obs\", [\n])?;",
-          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"obs\", [\n    // Root for obs.\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // Endpoint for obs.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Access key id for obs.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key for obs.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Bucket for obs.\n    // (\"bucket\".to_string(), \"...\".to_string()),\n])?;"
+          "full": "use opendal::Operator;\n\nlet operator = Operator::via_iter(\"obs\", [\n    // Root for obs.\n    // (\"root\".to_string(), \"...\".to_string()),\n\n    // Endpoint for obs.\n    // (\"endpoint\".to_string(), \"...\".to_string()),\n\n    // Access key id for obs.\n    // (\"access_key_id\".to_string(), \"...\".to_string()),\n\n    // Secret access key for obs.\n    // (\"secret_access_key\".to_string(), \"...\".to_string()),\n\n    // Security token (a.k.a. session token) for obs.\n    //\n    // Temporary credentials sign with `access_key_id`, `secret_access_key` and\n    // this token, and the signer attaches the token as the\n    // `x-obs-security-token` header.\n    //\n    // If this field is not set, OpenDAL reads the token from the environment\n    // variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n    // enabled).\n    // (\"security_token\".to_string(), \"...\".to_string()),\n\n    // Bucket for obs.\n    // (\"bucket\".to_string(), \"...\".to_string()),\n\n    // Disable config load so that opendal will not load config from\n    // environment.\n    //\n    // For examples:\n    //\n    // - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n    // (\"disable_config_load\".to_string(), \"true\".to_string()),\n\n    // Skip signature will skip loading credentials and signing requests.\n    // (\"skip_signature\".to_string(), \"true\".to_string()),\n])?;"
         },
         {
           "binding": "java",
           "language": "java",
           "minimal": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\nOperator operator = Operator.of(\"obs\", config);",
-          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// Root for obs.\n// config.put(\"root\", \"...\");\n\n// Endpoint for obs.\n// config.put(\"endpoint\", \"...\");\n\n// Access key id for obs.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key for obs.\n// config.put(\"secret_access_key\", \"...\");\n\n// Bucket for obs.\n// config.put(\"bucket\", \"...\");\nOperator operator = Operator.of(\"obs\", config);"
+          "full": "import java.util.HashMap;\nimport java.util.Map;\nimport org.apache.opendal.Operator;\n\nMap<String, String> config = new HashMap<>();\n// Root for obs.\n// config.put(\"root\", \"...\");\n\n// Endpoint for obs.\n// config.put(\"endpoint\", \"...\");\n\n// Access key id for obs.\n// config.put(\"access_key_id\", \"...\");\n\n// Secret access key for obs.\n// config.put(\"secret_access_key\", \"...\");\n\n// Security token (a.k.a. session token) for obs.\n//\n// Temporary credentials sign with `access_key_id`, `secret_access_key` and\n// this token, and the signer attaches the token as the\n// `x-obs-security-token` header.\n//\n// If this field is not set, OpenDAL reads the token from the environment\n// variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n// enabled).\n// config.put(\"security_token\", \"...\");\n\n// Bucket for obs.\n// config.put(\"bucket\", \"...\");\n\n// Disable config load so that opendal will not load config from\n// environment.\n//\n// For examples:\n//\n// - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n// config.put(\"disable_config_load\", \"true\");\n\n// Skip signature will skip loading credentials and signing requests.\n// config.put(\"skip_signature\", \"true\");\nOperator operator = Operator.of(\"obs\", config);"
         },
         {
           "binding": "python",
           "language": "python",
           "minimal": "import opendal\n\noperator = opendal.Operator(\n    \"obs\",\n)",
-          "full": "import opendal\n\noperator = opendal.Operator(\n    \"obs\",\n    # Root for obs.\n    # root=\"...\",\n\n    # Endpoint for obs.\n    # endpoint=\"...\",\n\n    # Access key id for obs.\n    # access_key_id=\"...\",\n\n    # Secret access key for obs.\n    # secret_access_key=\"...\",\n\n    # Bucket for obs.\n    # bucket=\"...\",\n)"
+          "full": "import opendal\n\noperator = opendal.Operator(\n    \"obs\",\n    # Root for obs.\n    # root=\"...\",\n\n    # Endpoint for obs.\n    # endpoint=\"...\",\n\n    # Access key id for obs.\n    # access_key_id=\"...\",\n\n    # Secret access key for obs.\n    # secret_access_key=\"...\",\n\n    # Security token (a.k.a. session token) for obs.\n    #\n    # Temporary credentials sign with `access_key_id`, `secret_access_key` and\n    # this token, and the signer attaches the token as the\n    # `x-obs-security-token` header.\n    #\n    # If this field is not set, OpenDAL reads the token from the environment\n    # variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n    # enabled).\n    # security_token=\"...\",\n\n    # Bucket for obs.\n    # bucket=\"...\",\n\n    # Disable config load so that opendal will not load config from\n    # environment.\n    #\n    # For examples:\n    #\n    # - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n    # disable_config_load=\"true\",\n\n    # Skip signature will skip loading credentials and signing requests.\n    # skip_signature=\"true\",\n)"
         },
         {
           "binding": "nodejs",
           "language": "javascript",
           "minimal": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"obs\", {\n});",
-          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"obs\", {\n  // Root for obs.\n  // root: \"...\",\n\n  // Endpoint for obs.\n  // endpoint: \"...\",\n\n  // Access key id for obs.\n  // access_key_id: \"...\",\n\n  // Secret access key for obs.\n  // secret_access_key: \"...\",\n\n  // Bucket for obs.\n  // bucket: \"...\",\n});"
+          "full": "import { Operator } from \"opendal\";\n\nconst operator = new Operator(\"obs\", {\n  // Root for obs.\n  // root: \"...\",\n\n  // Endpoint for obs.\n  // endpoint: \"...\",\n\n  // Access key id for obs.\n  // access_key_id: \"...\",\n\n  // Secret access key for obs.\n  // secret_access_key: \"...\",\n\n  // Security token (a.k.a. session token) for obs.\n  //\n  // Temporary credentials sign with `access_key_id`, `secret_access_key` and\n  // this token, and the signer attaches the token as the\n  // `x-obs-security-token` header.\n  //\n  // If this field is not set, OpenDAL reads the token from the environment\n  // variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n  // enabled).\n  // security_token: \"...\",\n\n  // Bucket for obs.\n  // bucket: \"...\",\n\n  // Disable config load so that opendal will not load config from\n  // environment.\n  //\n  // For examples:\n  //\n  // - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n  // disable_config_load: \"true\",\n\n  // Skip signature will skip loading credentials and signing requests.\n  // skip_signature: \"true\",\n});"
         },
         {
           "binding": "ruby",
           "language": "ruby",
           "minimal": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"obs\", {\n})",
-          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"obs\", {\n  # Root for obs.\n  # \"root\" => \"...\",\n\n  # Endpoint for obs.\n  # \"endpoint\" => \"...\",\n\n  # Access key id for obs.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key for obs.\n  # \"secret_access_key\" => \"...\",\n\n  # Bucket for obs.\n  # \"bucket\" => \"...\",\n})"
+          "full": "require \"opendal\"\n\noperator = OpenDal::Operator.new(\"obs\", {\n  # Root for obs.\n  # \"root\" => \"...\",\n\n  # Endpoint for obs.\n  # \"endpoint\" => \"...\",\n\n  # Access key id for obs.\n  # \"access_key_id\" => \"...\",\n\n  # Secret access key for obs.\n  # \"secret_access_key\" => \"...\",\n\n  # Security token (a.k.a. session token) for obs.\n  #\n  # Temporary credentials sign with `access_key_id`, `secret_access_key` and\n  # this token, and the signer attaches the token as the\n  # `x-obs-security-token` header.\n  #\n  # If this field is not set, OpenDAL reads the token from the environment\n  # variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n  # enabled).\n  # \"security_token\" => \"...\",\n\n  # Bucket for obs.\n  # \"bucket\" => \"...\",\n\n  # Disable config load so that opendal will not load config from\n  # environment.\n  #\n  # For examples:\n  #\n  # - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n  # \"disable_config_load\" => \"true\",\n\n  # Skip signature will skip loading credentials and signing requests.\n  # \"skip_signature\" => \"true\",\n})"
         },
         {
           "binding": "go",
           "language": "go",
           "minimal": "import (\n\t\"github.com/apache/opendal-go-services/obs\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(obs.Scheme, opendal.OperatorOptions{\n})",
-          "full": "import (\n\t\"github.com/apache/opendal-go-services/obs\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(obs.Scheme, opendal.OperatorOptions{\n\t// Root for obs.\n\t// \"root\": \"...\",\n\n\t// Endpoint for obs.\n\t// \"endpoint\": \"...\",\n\n\t// Access key id for obs.\n\t// \"access_key_id\": \"...\",\n\n\t// Secret access key for obs.\n\t// \"secret_access_key\": \"...\",\n\n\t// Bucket for obs.\n\t// \"bucket\": \"...\",\n})"
+          "full": "import (\n\t\"github.com/apache/opendal-go-services/obs\"\n\topendal \"github.com/apache/opendal/bindings/go\"\n)\n\noperator, err := opendal.NewOperator(obs.Scheme, opendal.OperatorOptions{\n\t// Root for obs.\n\t// \"root\": \"...\",\n\n\t// Endpoint for obs.\n\t// \"endpoint\": \"...\",\n\n\t// Access key id for obs.\n\t// \"access_key_id\": \"...\",\n\n\t// Secret access key for obs.\n\t// \"secret_access_key\": \"...\",\n\n\t// Security token (a.k.a. session token) for obs.\n\t//\n\t// Temporary credentials sign with `access_key_id`, `secret_access_key` and\n\t// this token, and the signer attaches the token as the\n\t// `x-obs-security-token` header.\n\t//\n\t// If this field is not set, OpenDAL reads the token from the environment\n\t// variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is\n\t// enabled).\n\t// \"security_token\": \"...\",\n\n\t// Bucket for obs.\n\t// \"bucket\": \"...\",\n\n\t// Disable config load so that opendal will not load config from\n\t// environment.\n\t//\n\t// For examples:\n\t//\n\t// - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`\n\t// \"disable_config_load\": \"true\",\n\n\t// Skip signature will skip loading credentials and signing requests.\n\t// \"skip_signature\": \"true\",\n})"
         }
       ]
     },

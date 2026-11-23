@@ -615,6 +615,8 @@ class ObsConfig(TypedDict):
     """Access key id for obs."""
     bucket: NotRequired[str]
     """Bucket for obs."""
+    disable_config_load: NotRequired[bool]
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`"""
     enable_versioning: NotRequired[bool]
     """Deprecated: OBS versioning capability is not controlled by service config. [Deprecated since 0.57.0] OBS versioning capability is not controlled by this option and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -623,6 +625,10 @@ class ObsConfig(TypedDict):
     """Root for obs."""
     secret_access_key: NotRequired[str]
     """Secret access key for obs."""
+    security_token: NotRequired[str]
+    """Security token (a.k.a. session token) for obs.  Temporary credentials sign with `access_key_id`, `secret_access_key` and this token, and the signer attaches the token as the `x-obs-security-token` header.  If this field is not set, OpenDAL reads the token from the environment variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is enabled)."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
 
 
 class OnedriveConfig(TypedDict):

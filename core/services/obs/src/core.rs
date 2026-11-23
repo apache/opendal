@@ -46,6 +46,7 @@ pub struct ObsCore {
     pub bucket: String,
     pub root: String,
     pub endpoint: String,
+    pub skip_signature: bool,
 
     pub signer: Signer<Credential>,
 }
@@ -71,6 +72,10 @@ impl ObsCore {
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -87,6 +92,10 @@ impl ObsCore {
         req: Request<T>,
         duration: Duration,
     ) -> Result<Request<T>> {
+        if self.skip_signature {
+            return Ok(req);
+        }
+
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
@@ -577,9 +586,115 @@ pub struct ListObjectsOutputContent {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use bytes::Buf;
+    use http::header::AUTHORIZATION;
+    use reqsign_core::Context;
+    use reqsign_core::StaticEnv;
+    use reqsign_huaweicloud_obs::DefaultCredentialProvider;
+    use reqsign_huaweicloud_obs::RequestSigner;
+    use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
     use super::*;
+
+    /// Build a core whose signer only sees the given provider, so tests never
+    /// depend on the ambient process environment.
+    fn test_core(skip_signature: bool, provider: DefaultCredentialProvider) -> ObsCore {
+        let ctx = Context::new().with_env(StaticEnv {
+            home_dir: None,
+            envs: HashMap::new(),
+        });
+
+        ObsCore {
+            info: ServiceInfo::new(crate::OBS_SCHEME, "/", "example-bucket"),
+            capability: Capability::default(),
+            bucket: "example-bucket".to_string(),
+            root: "/".to_string(),
+            endpoint: "https://example-bucket.obs.cn-north-4.myhuaweicloud.com".to_string(),
+            skip_signature,
+            signer: Signer::new(ctx, provider, RequestSigner::new("example-bucket")),
+        }
+    }
+
+    fn static_credential_provider() -> DefaultCredentialProvider {
+        DefaultCredentialProvider::builder()
+            .no_env()
+            .build()
+            .push_front(StaticCredentialProvider::with_security_token(
+                "access-key-id",
+                "secret-access-key",
+                "security-token",
+            ))
+    }
+
+    fn empty_credential_provider() -> DefaultCredentialProvider {
+        DefaultCredentialProvider::builder().no_env().build()
+    }
+
+    fn head_request(core: &ObsCore) -> Request<Buffer> {
+        core.obs_head_object_request("test.txt", &OpStat::default())
+            .expect("head object request must build")
+    }
+
+    #[tokio::test]
+    async fn signing_attaches_static_credentials() {
+        let core = test_core(false, static_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(
+            req.headers()[AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OBS access-key-id:")
+        );
+        assert_eq!(req.headers()["x-obs-security-token"], "security-token");
+    }
+
+    #[tokio::test]
+    async fn skip_signature_leaves_request_headers_unsigned() {
+        let core = test_core(true, static_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(req.headers().get(AUTHORIZATION).is_none());
+        assert!(req.headers().get("x-obs-security-token").is_none());
+    }
+
+    #[tokio::test]
+    async fn skip_signature_leaves_presigned_query_unsigned() {
+        let core = test_core(true, static_credential_provider());
+
+        let req = core
+            .sign_query(
+                &OperationContext::new(),
+                head_request(&core),
+                Duration::from_secs(3600),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(req.uri().query(), None);
+    }
+
+    #[tokio::test]
+    async fn skip_signature_accepts_requests_without_credentials() {
+        let core = test_core(true, empty_credential_provider());
+
+        let req = core
+            .sign(&OperationContext::new(), head_request(&core))
+            .await
+            .unwrap();
+
+        assert!(req.headers().get(AUTHORIZATION).is_none());
+    }
 
     #[test]
     fn test_parse_xml() {

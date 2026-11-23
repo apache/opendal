@@ -363,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_reader_retries_range_after_open_error() -> Result<()> {
-        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(0, Some(4))));
+        let fault = Arc::new(ReadFault::new().with_failed_open_range(BytesRange::new(0, Some(4))));
         let ctx = Arc::new(new_mock_read_context(
             b"HelloWorld",
             fault.clone(),
@@ -427,9 +427,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_next_reader_retries_failed_second_chunk() -> Result<()> {
-        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(4, Some(4))));
+        let fault = Arc::new(ReadFault::new().with_failed_open_range(BytesRange::new(4, Some(4))));
         let ctx = Arc::new(new_mock_read_context(
-            b"HelloWorld",
+            b"0123456789",
             fault.clone(),
             OpReader::new().with_chunk(4),
         ));
@@ -437,7 +437,7 @@ mod tests {
 
         let mut first = generator.next_reader().await?.expect("first chunk reader");
         let first = first.read_all().await?;
-        pretty_assertions::assert_eq!(first.to_vec(), b"Hell");
+        pretty_assertions::assert_eq!(first.to_vec(), b"0123");
 
         let err = generator
             .next_reader()
@@ -451,7 +451,7 @@ mod tests {
             data.extend_from_slice(&reader.read_all().await?.to_vec());
         }
 
-        pretty_assertions::assert_eq!(data, b"HelloWorld");
+        pretty_assertions::assert_eq!(data, b"0123456789");
         pretty_assertions::assert_eq!(
             fault.opened_ranges(),
             vec![

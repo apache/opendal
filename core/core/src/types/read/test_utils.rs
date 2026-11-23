@@ -28,6 +28,7 @@ use std::task::Context;
 use std::task::Poll;
 
 use bytes::Bytes;
+use futures::channel::oneshot;
 
 use crate::raw::oio;
 use crate::raw::*;
@@ -39,6 +40,20 @@ use crate::*;
 pub(crate) enum ReadRequestKind {
     Open,
     Read,
+    StreamRead,
+}
+
+/// The operation a configured failure applies to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FailedRequestKind {
+    Open,
+    Read,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct FailedRequest {
+    kind: FailedRequestKind,
+    range: BytesRange,
 }
 
 /// One request observed by [`ReadFault`].
@@ -51,8 +66,10 @@ pub(crate) struct ReadRequest {
 /// Records read requests and injects deterministic failures or pending polls.
 #[derive(Debug, Default)]
 pub(crate) struct ReadFault {
-    failed_ranges: Mutex<VecDeque<BytesRange>>,
+    failed_requests: Mutex<VecDeque<FailedRequest>>,
     pending_opens: AtomicUsize,
+    pending_read: Mutex<Option<oneshot::Receiver<()>>>,
+    pending_read_tx: Mutex<Option<oneshot::Sender<()>>>,
     requests: Mutex<Vec<ReadRequest>>,
 }
 
@@ -61,19 +78,49 @@ impl ReadFault {
         Self::default()
     }
 
-    /// Fail the next request for `range` with a temporary error.
-    pub(crate) fn with_failed_range(mut self, range: BytesRange) -> Self {
-        self.failed_ranges
-            .get_mut()
-            .expect("failed_ranges mutex must be available")
-            .push_back(range);
+    /// Fail the next `open` for `range` with a temporary error.
+    pub(crate) fn with_failed_open_range(mut self, range: BytesRange) -> Self {
+        self.push_failed_request(FailedRequestKind::Open, range);
         self
+    }
+
+    /// Fail the next read for `range` with a temporary error.
+    pub(crate) fn with_failed_read_range(mut self, range: BytesRange) -> Self {
+        self.push_failed_request(FailedRequestKind::Read, range);
+        self
+    }
+
+    fn push_failed_request(&mut self, kind: FailedRequestKind, range: BytesRange) {
+        self.failed_requests
+            .get_mut()
+            .expect("failed_requests mutex must be available")
+            .push_back(FailedRequest { kind, range });
     }
 
     /// Return `Pending` from the first poll of the first `open` call.
     pub(crate) fn with_pending_open(mut self) -> Self {
         self.pending_opens = AtomicUsize::new(1);
         self
+    }
+
+    /// Suspend the first read until [`Self::release_pending_read`] is called.
+    pub(crate) fn with_pending_read(mut self) -> Self {
+        let (tx, rx) = oneshot::channel();
+        self.pending_read = Mutex::new(Some(rx));
+        self.pending_read_tx = Mutex::new(Some(tx));
+        self
+    }
+
+    /// Resume a read suspended by [`Self::with_pending_read`].
+    pub(crate) fn release_pending_read(&self) {
+        let sender = self
+            .pending_read_tx
+            .lock()
+            .expect("pending_read_tx mutex must be available")
+            .take();
+        if let Some(sender) = sender {
+            let _ = sender.send(());
+        }
     }
 
     /// Ranges passed to `open`, in call order.
@@ -105,25 +152,41 @@ impl ReadFault {
             .push(ReadRequest { kind, range });
     }
 
-    fn take_failure(&self, range: BytesRange) -> bool {
-        let mut failed_ranges = self
-            .failed_ranges
-            .lock()
-            .expect("failed_ranges mutex must be available");
+    fn take_failure(&self, kind: ReadRequestKind, range: BytesRange) -> bool {
+        let failed_kind = match kind {
+            ReadRequestKind::Open => FailedRequestKind::Open,
+            ReadRequestKind::Read | ReadRequestKind::StreamRead => FailedRequestKind::Read,
+        };
 
-        let Some(index) = failed_ranges
+        let mut failed_requests = self
+            .failed_requests
+            .lock()
+            .expect("failed_requests mutex must be available");
+
+        let Some(index) = failed_requests
             .iter()
-            .position(|failed_range| *failed_range == range)
+            .position(|failed| failed.kind == failed_kind && failed.range == range)
         else {
             return false;
         };
 
-        failed_ranges.remove(index);
+        failed_requests.remove(index);
         true
     }
 
     fn consume_pending_open(&self) -> bool {
         self.pending_opens.swap(0, Ordering::SeqCst) > 0
+    }
+
+    async fn wait_pending_read(&self) {
+        let receiver = self
+            .pending_read
+            .lock()
+            .expect("pending_read mutex must be available")
+            .take();
+        if let Some(receiver) = receiver {
+            let _ = receiver.await;
+        }
     }
 }
 
@@ -224,7 +287,7 @@ struct MockReader {
 impl oio::Read for MockReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
         self.fault.record(ReadRequestKind::Open, range);
-        if self.fault.take_failure(range) {
+        if self.fault.take_failure(ReadRequestKind::Open, range) {
             return Err(
                 Error::new(ErrorKind::Unexpected, "injected read open failure").set_temporary(),
             );
@@ -233,16 +296,48 @@ impl oio::Read for MockReader {
             YieldOnce::default().await;
         }
 
-        Ok((RpRead::default(), Box::new(slice(&self.data, range))))
+        let metadata = MetadataBuilder::file(self.data.len() as u64).build();
+        Ok((
+            RpRead::new(metadata),
+            Box::new(MockReadStream {
+                data: slice(&self.data, range),
+                range,
+                fault: self.fault.clone(),
+            }),
+        ))
     }
 
     async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
         self.fault.record(ReadRequestKind::Read, range);
-        if self.fault.take_failure(range) {
+        if self.fault.take_failure(ReadRequestKind::Read, range) {
             return Err(Error::new(ErrorKind::Unexpected, "injected read failure").set_temporary());
         }
+        self.fault.wait_pending_read().await;
 
         Ok((RpRead::default(), Buffer::from(slice(&self.data, range))))
+    }
+}
+
+struct MockReadStream {
+    data: Bytes,
+    range: BytesRange,
+    fault: Arc<ReadFault>,
+}
+
+impl oio::ReadStream for MockReadStream {
+    async fn read(&mut self) -> Result<Buffer> {
+        self.fault.record(ReadRequestKind::StreamRead, self.range);
+        if self
+            .fault
+            .take_failure(ReadRequestKind::StreamRead, self.range)
+        {
+            return Err(
+                Error::new(ErrorKind::Unexpected, "injected stream read failure").set_temporary(),
+            );
+        }
+        self.fault.wait_pending_read().await;
+
+        Ok(Buffer::from(std::mem::take(&mut self.data)))
     }
 }
 
@@ -252,7 +347,7 @@ pub(crate) fn new_mock_read_context(
     fault: Arc<ReadFault>,
     options: OpReader,
 ) -> ReadContext {
-    let ctx = OperationContext::new();
+    let ctx = OperationContext::new().with_executor(crate::types::execute::test_executor());
     let args = OpRead::new();
     let srv = Arc::new(MockReadService::new(data, fault));
     let reader = srv

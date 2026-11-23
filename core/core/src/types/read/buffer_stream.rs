@@ -108,6 +108,15 @@ struct PlannedRange {
     next_remaining: Option<u64>,
 }
 
+/// A chunk opened by `prepare_metadata` whose range is not committed yet.
+///
+/// The range advances only after the chunk is successfully scheduled, so a
+/// failed or cancelled read retries this chunk instead of skipping it.
+struct OpenedChunk {
+    input: ChunkedReadInput,
+    planned: PlannedRange,
+}
+
 /// ChunkedReader will read the file in chunks.
 ///
 /// ChunkedReader is good for concurrent read and optimized for throughput.
@@ -115,7 +124,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    opened: Option<ChunkedReadInput>,
+    opened: Option<OpenedChunk>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -171,12 +180,14 @@ impl ChunkedReader {
             if let Some(planned) = self.plan_next_range() {
                 let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
-                self.commit_range(planned);
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(ChunkedReadInput {
-                    ctx: self.ctx.clone(),
-                    range,
-                    reader: Some(reader),
+                self.opened = Some(OpenedChunk {
+                    input: ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range,
+                        reader: Some(reader),
+                    },
+                    planned,
                 });
             } else {
                 self.done = true;
@@ -234,8 +245,10 @@ impl ChunkedReader {
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
-            if let Some(input) = self.opened.take() {
+            if let Some(opened) = self.opened.take() {
+                let OpenedChunk { input, planned } = opened;
                 self.tasks.execute(input).await?;
+                self.commit_range(planned);
             } else if let Some(planned) = self.plan_next_range() {
                 self.tasks
                     .execute(ChunkedReadInput {
@@ -638,7 +651,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_chunked_reader_retries_failed_chunk() -> Result<()> {
-        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(4, Some(4))));
+        let fault = Arc::new(ReadFault::new().with_failed_read_range(BytesRange::new(4, Some(4))));
         let ctx = Arc::new(new_mock_read_context(
             b"HelloWorld",
             fault.clone(),
@@ -684,11 +697,8 @@ mod tests {
             assert!(futures::poll!(metadata.as_mut()).is_pending());
         }
 
-        let err = reader
-            .metadata()
-            .await
-            .expect_err("mock reader has no metadata");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let metadata = reader.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
 
         let data = reader.read_all().await?;
         assert_eq!(data.to_vec(), b"HelloWorld");
@@ -714,17 +724,91 @@ mod tests {
             assert!(futures::poll!(metadata.as_mut()).is_pending());
         }
 
-        let err = stream
-            .metadata()
-            .await
-            .expect_err("mock reader has no metadata");
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        let metadata = stream.metadata().await?;
+        assert_eq!(metadata.content_length(), 10);
 
         let bufs: Vec<Buffer> = stream.try_collect().await?;
         let data: Buffer = bufs.into_iter().flatten().collect();
 
         assert_eq!(data.to_vec(), b"HelloWorld");
         assert_eq!(fault.opened_ranges(), vec![BytesRange::new(0, Some(4))]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_metadata_chunk_after_read_error() -> Result<()> {
+        for concurrent in [1, 2] {
+            let fault =
+                Arc::new(ReadFault::new().with_failed_read_range(BytesRange::new(0, Some(4))));
+            let ctx = Arc::new(new_mock_read_context(
+                b"0123456789",
+                fault.clone(),
+                OpReader::new().with_chunk(4).with_concurrent(concurrent),
+            ));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+            let metadata = reader.metadata().await?;
+            assert_eq!(metadata.content_length(), 10);
+
+            let mut data = Vec::new();
+            loop {
+                match reader.read().await {
+                    Ok(buf) if buf.is_empty() => break,
+                    Ok(buf) => data.extend_from_slice(&buf.to_vec()),
+                    Err(err) if err.is_temporary() => continue,
+                    Err(err) => return Err(err),
+                }
+            }
+
+            assert_eq!(data, b"0123456789", "concurrent={concurrent}");
+            assert_eq!(
+                fault.opened_ranges(),
+                vec![BytesRange::new(0, Some(4))],
+                "concurrent={concurrent}"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_metadata_chunk_after_read_cancel() -> Result<()> {
+        for concurrent in [1, 2] {
+            let fault = Arc::new(ReadFault::new().with_pending_read());
+            let ctx = Arc::new(new_mock_read_context(
+                b"0123456789",
+                fault.clone(),
+                OpReader::new().with_chunk(4).with_concurrent(concurrent),
+            ));
+            let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+            let metadata = reader.metadata().await?;
+            assert_eq!(metadata.content_length(), 10);
+
+            {
+                let mut read = Box::pin(reader.read());
+                assert!(
+                    futures::poll!(read.as_mut()).is_pending(),
+                    "first chunk read should stay pending for concurrent={concurrent}"
+                );
+            }
+            fault.release_pending_read();
+
+            let mut data = Vec::new();
+            loop {
+                match reader.read().await {
+                    Ok(buf) if buf.is_empty() => break,
+                    Ok(buf) => data.extend_from_slice(&buf.to_vec()),
+                    Err(err) => return Err(err),
+                }
+            }
+
+            assert_eq!(data, b"0123456789", "concurrent={concurrent}");
+            assert_eq!(
+                fault.opened_ranges(),
+                vec![BytesRange::new(0, Some(4))],
+                "concurrent={concurrent}"
+            );
+        }
         Ok(())
     }
 }

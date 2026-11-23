@@ -528,6 +528,16 @@ public class OperatorInputOutputStreamTest {
     }
 
     @Test
+    void testOutputStreamBufferAllocationOomDoesNotCreateObject() {
+        try (final Operator op = Operator.of(ServiceConfig.Memory.builder().build())) {
+            final String path = "oom-buffer";
+            assertThatThrownBy(() -> op.createOutputStream(path, Integer.MAX_VALUE))
+                    .isInstanceOf(OutOfMemoryError.class);
+            assertNotExist(op, path);
+        }
+    }
+
+    @Test
     void testBulkWriteArgumentChecks() throws Exception {
         final ServiceConfig.Fs fs =
                 ServiceConfig.Fs.builder().root(tempDir.toString()).build();

@@ -44,6 +44,7 @@ use opendal::layers::ChaosLayer;
 use opendal::layers::ConcurrentLimitLayer;
 use opendal::layers::HedgeLayer;
 use opendal::layers::ImmutableIndexLayer;
+use opendal::layers::LoggingLayer;
 use opendal::layers::MimeGuessLayer;
 use opendal::layers::RetryLayer;
 use opendal::layers::RouteLayer;
@@ -317,6 +318,16 @@ pub extern "system" fn Java_org_apache_opendal_layer_ImmutableIndexLayer_doLayer
         Ok(Box::into_raw(Box::new(op.clone().layer(layer))) as jlong)
     })
     .resolve::<ThrowException>()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_org_apache_opendal_layer_LoggingLayer_doLayer<'local>(
+    _: EnvUnowned<'local>,
+    _: JClass<'local>,
+    op: *mut Operator,
+) -> jlong {
+    let op = unsafe { &*op };
+    Box::into_raw(Box::new(op.clone().layer(LoggingLayer::default()))) as jlong
 }
 
 #[unsafe(no_mangle)]

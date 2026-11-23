@@ -172,7 +172,13 @@ impl oio::Write for HdfsNativeLazyWriter {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.inner().await?.abort().await
+        match &mut self.inner {
+            Some(w) => w.abort().await,
+            None => Err(Error::new(
+                ErrorKind::Unsupported,
+                "HdfsNativeWriter doesn't support abort",
+            )),
+        }
     }
 }
 

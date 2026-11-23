@@ -282,16 +282,16 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                     format!("{err:?}")
                 }
             );
+        } else {
+            log!(
+                target: LOGGING_TARGET,
+                Level::Debug,
+                "service={} name={}{}: {operation} {message}",
+                info.scheme(),
+                info.name(),
+                LoggingContext(context),
+            );
         }
-
-        log!(
-            target: LOGGING_TARGET,
-            Level::Debug,
-            "service={} name={}{}: {operation} {message}",
-            info.scheme(),
-            info.name(),
-            LoggingContext(context),
-        );
     }
 }
 
@@ -1020,7 +1020,36 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.inner.close().await
+        match self.inner.close().await {
+            Ok(meta) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "close succeeded",
+                    None,
+                );
+                Ok(meta)
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "close failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {

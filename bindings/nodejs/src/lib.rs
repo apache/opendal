@@ -21,7 +21,6 @@ extern crate napi_derive;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
-use std::time::Duration;
 
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
@@ -32,10 +31,13 @@ use opendal::options::{
 use tokio::sync::Mutex;
 
 use crate::layer::Layer;
+use crate::validate::parse_count;
+use crate::validate::parse_expires_secs;
 
 mod capability;
 mod layer;
 mod options;
+mod validate;
 
 #[napi]
 pub struct Operator {
@@ -628,7 +630,10 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Vec<Entry>> {
-        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let options = options
+            .map(ListOptions::try_from)
+            .transpose()?
+            .unwrap_or_default();
         let l = self
             .async_op
             .list_options(&path, options)
@@ -676,7 +681,10 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Vec<Entry>> {
-        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let options = options
+            .map(ListOptions::try_from)
+            .transpose()?
+            .unwrap_or_default();
         let l = self
             .blocking_op
             .list_options(&path, options)
@@ -719,7 +727,10 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<Lister> {
-        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let options = options
+            .map(ListOptions::try_from)
+            .transpose()?
+            .unwrap_or_default();
         let l = self
             .async_op
             .lister_options(&path, options)
@@ -765,7 +776,10 @@ impl Operator {
         path: String,
         options: Option<options::ListOptions>,
     ) -> Result<BlockingLister> {
-        let options = options.map_or(ListOptions::default(), ListOptions::from);
+        let options = options
+            .map(ListOptions::try_from)
+            .transpose()?
+            .unwrap_or_default();
         let l = self
             .blocking_op
             .lister_options(&path, options)
@@ -776,7 +790,8 @@ impl Operator {
 
     /// Get a presigned request for read.
     ///
-    /// Unit of `expires` is seconds.
+    /// Unit of `expires` is seconds. The value must be an integer between 1 and
+    /// 4294967295.
     ///
     /// ### Example
     ///
@@ -788,10 +803,10 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_read(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_read(&self, path: String, expires: f64) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_read(&path, Duration::from_secs(expires as u64))
+            .presign_read(&path, parse_expires_secs(expires)?)
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -799,7 +814,8 @@ impl Operator {
 
     /// Get a presigned request for `write`.
     ///
-    /// Unit of `expires` is seconds.
+    /// Unit of `expires` is seconds. The value must be an integer between 1 and
+    /// 4294967295.
     ///
     /// ### Example
     ///
@@ -811,10 +827,10 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_write(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_write(&self, path: String, expires: f64) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_write(&path, Duration::from_secs(expires as u64))
+            .presign_write(&path, parse_expires_secs(expires)?)
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -822,7 +838,8 @@ impl Operator {
 
     /// Get a presigned request for stat.
     ///
-    /// Unit of `expires` is seconds.
+    /// Unit of `expires` is seconds. The value must be an integer between 1 and
+    /// 4294967295.
     ///
     /// ### Example
     ///
@@ -834,10 +851,10 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_stat(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_stat(&self, path: String, expires: f64) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_stat(&path, Duration::from_secs(expires as u64))
+            .presign_stat(&path, parse_expires_secs(expires)?)
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -845,7 +862,8 @@ impl Operator {
 
     /// Get a presigned request for delete.
     ///
-    /// Unit of `expires` is seconds.
+    /// Unit of `expires` is seconds. The value must be an integer between 1 and
+    /// 4294967295.
     ///
     /// ### Example
     ///
@@ -857,10 +875,10 @@ impl Operator {
     /// console.log("headers: ", req.headers);
     /// ```
     #[napi]
-    pub async fn presign_delete(&self, path: String, expires: u32) -> Result<PresignedRequest> {
+    pub async fn presign_delete(&self, path: String, expires: f64) -> Result<PresignedRequest> {
         let res = self
             .async_op
-            .presign_delete(&path, Duration::from_secs(expires as u64))
+            .presign_delete(&path, parse_expires_secs(expires)?)
             .await
             .map_err(format_napi_error)?;
         Ok(PresignedRequest::new(res))
@@ -1053,18 +1071,13 @@ impl Reader {
     #[napi(ts_return_type = "Promise<Buffer | null>")]
     pub async fn read_chunk(&self, max_bytes: f64) -> Result<Option<ReadChunk>> {
         // N-API's uint32 conversion truncates and wraps JavaScript numbers.
-        if !(1.0..=f64::from(u32::MAX)).contains(&max_bytes) || max_bytes.fract() != 0.0 {
-            return Err(Error::new(
-                Status::InvalidArg,
-                "maxBytes must be an integer between 1 and 4294967295",
-            ));
-        }
+        let max_bytes = parse_count(max_bytes, "maxBytes", 1)?;
 
         let chunk = self
             .inner
             .lock()
             .await
-            .read_buffer(max_bytes as usize)
+            .read_buffer(max_bytes)
             .await
             .map_err(format_napi_error)?;
         Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))

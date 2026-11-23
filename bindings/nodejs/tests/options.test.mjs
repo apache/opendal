@@ -135,7 +135,6 @@ describe('bigint options', () => {
 // An unparsable timestamp used to be dropped, so the conditional read, stat,
 // or reader silently ran unconditionally instead of reporting the mistake.
 const invalidTimestamps = ['not-a-date', new Date(0).toUTCString()]
-
 // Return the error a promise rejects with, or undefined when it resolves.
 async function settle(promise) {
   try {
@@ -190,4 +189,148 @@ describe('conditional timestamps', () => {
     const statError = await settle(op.stat(path, { ifUnmodifiedSince: '2024-01-01T00:00:00Z' }))
     expect(String(statError?.message ?? '')).not.toMatch('must be an ISO 8601')
   })
+})
+
+// N-API truncates fractional numbers and wraps negative ones when it converts
+// them to the integer behind these options, so a negative `concurrent` silently
+// became the largest possible count and `1.5` became `1`.
+const invalidCounts = [-1, 1.5, NaN, Infinity, 2 ** 32]
+
+describe('numeric options', () => {
+  const op = new Operator('memory')
+
+  beforeEach(async () => {
+    await op.write(path, content)
+  })
+
+  describe('read', () => {
+    for (const field of ['concurrent', 'chunk']) {
+      for (const value of invalidCounts) {
+        it(`read rejects ${field} ${value}`, async () => {
+          await expect(op.read(path, { [field]: value })).rejects.toThrowError(`${field} must be an integer`)
+        })
+
+        it(`readSync rejects ${field} ${value}`, () => {
+          expect(() => op.readSync(path, { [field]: value })).toThrowError(`${field} must be an integer`)
+        })
+      }
+    }
+
+    it('accepts a zero concurrent and chunk', async () => {
+      // Zero keeps the sequential default.
+      expect((await op.read(path, { concurrent: 0, chunk: 0 })).equals(content)).toBe(true)
+      expect(op.readSync(path, { concurrent: 0, chunk: 0 }).equals(content)).toBe(true)
+    })
+
+    it('accepts a positive concurrent and the largest chunk', async () => {
+      expect((await op.read(path, { concurrent: 8, chunk: 4294967295 })).equals(content)).toBe(true)
+      expect(op.readSync(path, { concurrent: 8, chunk: 4294967295 }).equals(content)).toBe(true)
+    })
+  })
+
+  describe('reader', () => {
+    for (const field of ['concurrent', 'chunk', 'prefetch']) {
+      for (const value of invalidCounts) {
+        it(`reader rejects ${field} ${value}`, async () => {
+          await expect(op.reader(path, { [field]: value })).rejects.toThrowError(`${field} must be an integer`)
+        })
+
+        it(`readerSync rejects ${field} ${value}`, () => {
+          expect(() => op.readerSync(path, { [field]: value })).toThrowError(`${field} must be an integer`)
+        })
+      }
+    }
+
+    it('accepts a zero concurrent and prefetch', async () => {
+      // Zero keeps the sequential default and disables prefetching.
+      const reader = await op.reader(path, { concurrent: 0, prefetch: 0 })
+      expect((await reader.readChunk(1024)).toString()).toBe(content.toString())
+    })
+
+    it('accepts a positive concurrent, chunk and prefetch', async () => {
+      const reader = await op.reader(path, { concurrent: 2, chunk: 4, prefetch: 1 })
+      const output = []
+      let chunk
+      while ((chunk = await reader.readChunk(1024)) !== null) {
+        output.push(chunk)
+      }
+      expect(Buffer.concat(output).equals(content)).toBe(true)
+    })
+  })
+
+  describe('list', () => {
+    for (const value of invalidCounts) {
+      it(`list rejects limit ${value}`, async () => {
+        await expect(op.list('/', { limit: value })).rejects.toThrowError('limit must be an integer')
+      })
+
+      it(`listSync rejects limit ${value}`, () => {
+        expect(() => op.listSync('/', { limit: value })).toThrowError('limit must be an integer')
+      })
+
+      it(`lister rejects limit ${value}`, async () => {
+        await expect(op.lister('/', { limit: value })).rejects.toThrowError('limit must be an integer')
+      })
+
+      it(`listerSync rejects limit ${value}`, () => {
+        expect(() => op.listerSync('/', { limit: value })).toThrowError('limit must be an integer')
+      })
+    }
+
+    it('accepts a zero and a positive limit', async () => {
+      const zero = await op.list('/', { limit: 0 })
+      expect(zero.some((entry) => entry.path() === path)).toBe(true)
+
+      const positive = await op.list('/', { limit: 1024 })
+      expect(positive.some((entry) => entry.path() === path)).toBe(true)
+    })
+  })
+
+  describe('write', () => {
+    for (const value of invalidCounts) {
+      it(`write rejects concurrent ${value}`, async () => {
+        await expect(op.write(path, 'hello', { concurrent: value })).rejects.toThrowError(
+          'concurrent must be an integer',
+        )
+      })
+
+      it(`writeSync rejects concurrent ${value}`, () => {
+        expect(() => op.writeSync(path, 'hello', { concurrent: value })).toThrowError('concurrent must be an integer')
+      })
+
+      it(`writer rejects concurrent ${value}`, async () => {
+        await expect(op.writer(path, { concurrent: value })).rejects.toThrowError('concurrent must be an integer')
+      })
+
+      it(`writerSync rejects concurrent ${value}`, () => {
+        expect(() => op.writerSync(path, { concurrent: value })).toThrowError('concurrent must be an integer')
+      })
+    }
+
+    it('accepts a zero concurrent', async () => {
+      await op.write(path, 'sequential', { concurrent: 0 })
+      expect((await op.read(path)).toString()).toBe('sequential')
+    })
+  })
+})
+
+// `expires` was converted straight from a `u32`, so a negative value became a
+// request that stays valid for more than a century.
+describe('presign expires', () => {
+  const op = new Operator('memory')
+
+  for (const method of ['presignRead', 'presignWrite', 'presignStat', 'presignDelete']) {
+    for (const value of invalidCounts) {
+      it(`${method} rejects expires ${value}`, async () => {
+        await expect(op[method](path, value)).rejects.toThrowError('expires must be an integer')
+      })
+    }
+
+    it(`${method} accepts a positive expires`, async () => {
+      // The memory service does not support presign, so the value must reach
+      // the service instead of being rejected as malformed.
+      const error = await settle(op[method](path, 3600))
+      expect(String(error?.message ?? '')).not.toMatch('expires must be an integer')
+    })
+  }
 })

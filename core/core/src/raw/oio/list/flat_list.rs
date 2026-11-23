@@ -20,6 +20,13 @@ use std::sync::Arc;
 use crate::raw::*;
 use crate::*;
 
+// Keep the lister in `next_dir` until its first entry arrives so cancelling
+// `FlatLister::next` cannot detach the lister from its directory.
+enum NextDir<L> {
+    Directory(oio::Entry),
+    Listing(oio::Entry, L),
+}
+
 /// FlatLister will walk dir in bottom up way:
 ///
 /// - List nested dir first
@@ -60,8 +67,8 @@ pub struct FlatLister<S: Service> {
     service: Arc<S>,
     ctx: OperationContext,
 
-    next_dir: Option<oio::Entry>,
-    active_lister: Vec<(Option<oio::Entry>, S::Lister)>,
+    next_dir: Option<NextDir<S::Lister>>,
+    active_lister: Vec<(oio::Entry, S::Lister)>,
 }
 
 /// # Safety
@@ -79,7 +86,10 @@ impl<S: Service> FlatLister<S> {
         FlatLister {
             service,
             ctx,
-            next_dir: Some(oio::Entry::new(path, MetadataBuilder::dir().build())),
+            next_dir: Some(NextDir::Directory(oio::Entry::new(
+                path,
+                MetadataBuilder::dir().build(),
+            ))),
             active_lister: vec![],
         }
     }
@@ -88,8 +98,11 @@ impl<S: Service> FlatLister<S> {
 impl<S: Service> oio::List for FlatLister<S> {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
         loop {
-            if let Some(de) = self.next_dir.take() {
-                let mut l = match self
+            if matches!(self.next_dir.as_ref(), Some(NextDir::Directory(_))) {
+                let Some(NextDir::Directory(de)) = self.next_dir.take() else {
+                    unreachable!("next_dir must contain a directory")
+                };
+                let lister = match self
                     .service
                     .as_ref()
                     .list(&self.ctx, de.path(), OpList::new())
@@ -113,54 +126,59 @@ impl<S: Service> oio::List for FlatLister<S> {
                         continue;
                     }
                     Err(e) => {
-                        // `de` was taken out of `next_dir` above and is not in
-                        // `active_lister` yet, so dropping it here would lose
-                        // the directory: a caller that retries this `next()`
-                        // would resume from the parent and return `Ok` with
-                        // the directory's entries missing.
-                        self.next_dir = Some(de);
+                        self.next_dir = Some(NextDir::Directory(de));
                         return Err(e);
                     }
                 };
-                let first = loop {
-                    match l.next().await {
-                        Ok(v) => break v,
-                        Err(e) if e.kind() == ErrorKind::NotFound => {
-                            // Skip entries that are deleted during listing.
-                            log::warn!(
-                                "FlatLister skipping entry due to not found during listing: {}",
-                                de.path()
-                            );
-                            continue;
-                        }
-                        Err(e) => {
-                            // Same here, and this is the path a temporary
-                            // error takes: nothing has been yielded from `l`
-                            // yet, so the directory can be listed again from
-                            // the start.
-                            self.next_dir = Some(de);
-                            return Err(e);
+                self.next_dir = Some(NextDir::Listing(de, lister));
+            }
+
+            if matches!(self.next_dir.as_ref(), Some(NextDir::Listing(..))) {
+                let first = {
+                    let Some(NextDir::Listing(de, lister)) = self.next_dir.as_mut() else {
+                        unreachable!("next_dir must contain a lister")
+                    };
+                    loop {
+                        match lister.next().await {
+                            Ok(v) => break Ok(v),
+                            Err(e) if e.kind() == ErrorKind::NotFound => {
+                                // Skip entries that are deleted during listing.
+                                log::warn!(
+                                    "FlatLister skipping entry due to not found during listing: {}",
+                                    de.path()
+                                );
+                            }
+                            Err(e) => break Err(e),
                         }
                     }
                 };
+
+                let Some(NextDir::Listing(de, lister)) = self.next_dir.take() else {
+                    unreachable!("next_dir must contain a lister")
+                };
+                let first = match first {
+                    Ok(v) => v,
+                    Err(e) => {
+                        // No entry has been yielded from this lister, so restart
+                        // the directory when the caller retries after an error.
+                        self.next_dir = Some(NextDir::Directory(de));
+                        return Err(e);
+                    }
+                };
+
                 if let Some(v) = first {
-                    self.active_lister.push((Some(de.clone()), l));
+                    self.active_lister.push((de.clone(), lister));
 
                     if v.mode().is_dir() {
                         // should not loop itself again
                         if v.path() != de.path() {
-                            self.next_dir = Some(v);
+                            self.next_dir = Some(NextDir::Directory(v));
                             continue;
                         }
                     } else {
                         return Ok(Some(v));
                     }
                 }
-            }
-
-            if matches!(self.active_lister.last(), Some((None, _))) {
-                let _ = self.active_lister.pop();
-                continue;
             }
 
             let (de, lister) = match self.active_lister.last_mut() {
@@ -170,37 +188,361 @@ impl<S: Service> oio::List for FlatLister<S> {
 
             match lister.next().await {
                 Err(e) if e.kind() == ErrorKind::NotFound => {
-                    let path = de.as_ref().map(|entry| entry.path()).unwrap_or("<unknown>");
                     log::warn!(
                         "FlatLister skipping entry due to not found during recursive listing: {}",
-                        path
+                        de.path()
                     );
                     continue;
                 }
                 Err(e) => return Err(e),
                 Ok(Some(v)) if v.mode().is_dir() => {
                     // should not loop itself again
-                    if v.path()
-                        != de
-                            .as_ref()
-                            .expect("de must be present before listing")
-                            .path()
-                    {
-                        self.next_dir = Some(v);
+                    if v.path() != de.path() {
+                        self.next_dir = Some(NextDir::Directory(v));
                         continue;
                     }
                 }
                 Ok(Some(v)) => return Ok(Some(v)),
-                Ok(None) => match de.take() {
-                    Some(de) => {
-                        return Ok(Some(de));
-                    }
-                    None => {
-                        let _ = self.active_lister.pop();
-                        continue;
-                    }
-                },
+                Ok(None) => {
+                    let (de, _) = self
+                        .active_lister
+                        .pop()
+                        .expect("the exhausted lister must still be active");
+                    return Ok(Some(de));
+                }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+    use std::future::{Future, poll_fn};
+    use std::sync::Mutex;
+    use std::task::Poll;
+    use std::vec::IntoIter;
+
+    use super::*;
+
+    #[derive(Debug, Default)]
+    struct TreeState {
+        tree: HashMap<String, Vec<(String, bool)>>,
+        pending_once_on: Option<(String, usize)>,
+        fail_first_list_on: Option<String>,
+        fail_first_next_on: Option<String>,
+        pending_injected: Mutex<bool>,
+        list_injected: Mutex<bool>,
+        next_injected: Mutex<bool>,
+        listed: Mutex<Vec<String>>,
+    }
+
+    impl TreeState {
+        fn take_fault(&self, armed: Option<&str>, used: &Mutex<bool>, path: &str) -> bool {
+            if armed != Some(path) {
+                return false;
+            }
+            let mut used = used.lock().expect("mutex must not poison");
+            let first_time = !*used;
+            *used = true;
+            first_time
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockService {
+        state: Arc<TreeState>,
+    }
+
+    struct TreeLister {
+        state: Arc<TreeState>,
+        path: String,
+        entries: IntoIter<(String, bool)>,
+        calls: usize,
+        fail_first: bool,
+    }
+
+    impl TreeLister {
+        fn new(state: Arc<TreeState>, path: &str) -> Self {
+            let entries = state
+                .tree
+                .get(path)
+                .cloned()
+                .unwrap_or_default()
+                .into_iter();
+            let fail_first = state.take_fault(
+                state.fail_first_next_on.as_deref(),
+                &state.next_injected,
+                path,
+            );
+            Self {
+                state,
+                path: path.to_string(),
+                entries,
+                calls: 0,
+                fail_first,
+            }
+        }
+
+        fn next_ready(&mut self) -> Result<Option<oio::Entry>> {
+            if self.fail_first {
+                self.fail_first = false;
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected listing failure").set_temporary(),
+                );
+            }
+
+            Ok(self.entries.next().map(|(path, is_dir)| {
+                let metadata = if is_dir {
+                    MetadataBuilder::dir().build()
+                } else {
+                    MetadataBuilder::file(0).build()
+                };
+                oio::Entry::new(&path, metadata)
+            }))
+        }
+    }
+
+    impl oio::List for TreeLister {
+        async fn next(&mut self) -> Result<Option<oio::Entry>> {
+            self.calls += 1;
+            let mut pending = match &self.state.pending_once_on {
+                Some((path, call)) if path == &self.path && *call == self.calls => self
+                    .state
+                    .take_fault(Some(path), &self.state.pending_injected, &self.path),
+                _ => false,
+            };
+
+            poll_fn(move |cx| {
+                if pending {
+                    pending = false;
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
+                    Poll::Ready(self.next_ready())
+                }
+            })
+            .await
+        }
+    }
+
+    impl Service for MockService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = TreeLister;
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("test")
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                list: true,
+                ..Default::default()
+            }
+        }
+
+        fn list(&self, _: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
+            self.state
+                .listed
+                .lock()
+                .expect("mutex must not poison")
+                .push(path.to_string());
+            if self.state.take_fault(
+                self.state.fail_first_list_on.as_deref(),
+                &self.state.list_injected,
+                path,
+            ) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected list failure").set_temporary()
+                );
+            }
+            Ok(TreeLister::new(self.state.clone(), path))
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            unreachable!()
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            unreachable!()
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            unreachable!()
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            unreachable!()
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            unreachable!()
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            unreachable!()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            unreachable!()
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            unreachable!()
+        }
+    }
+
+    fn test_tree() -> HashMap<String, Vec<(String, bool)>> {
+        HashMap::from([
+            ("/".to_string(), vec![("a/".to_string(), true)]),
+            (
+                "a/".to_string(),
+                vec![("a/file".to_string(), false), ("a/sub/".to_string(), true)],
+            ),
+            (
+                "a/sub/".to_string(),
+                vec![("a/sub/file2".to_string(), false)],
+            ),
+        ])
+    }
+
+    fn new_lister(state: &Arc<TreeState>) -> FlatLister<MockService> {
+        FlatLister::new(
+            Arc::new(MockService {
+                state: state.clone(),
+            }),
+            OperationContext::new(),
+            "/",
+        )
+    }
+
+    async fn cancel_next(lister: &mut FlatLister<MockService>) {
+        let mut next = Box::pin(oio::List::next(lister));
+        poll_fn(|cx| {
+            assert!(
+                next.as_mut().poll(cx).is_pending(),
+                "the injected pending point must be reached"
+            );
+            Poll::Ready(())
+        })
+        .await;
+        drop(next);
+    }
+
+    async fn drain(lister: &mut FlatLister<MockService>) -> Vec<String> {
+        let mut paths = Vec::new();
+        while let Some(entry) = oio::List::next(lister).await.expect("listing must succeed") {
+            paths.push(entry.path().to_string());
+        }
+        paths
+    }
+
+    async fn drain_with_retry(lister: &mut FlatLister<MockService>) -> (Vec<String>, usize) {
+        let mut paths = Vec::new();
+        let mut errors = 0;
+        loop {
+            match oio::List::next(lister).await {
+                Ok(Some(entry)) => paths.push(entry.path().to_string()),
+                Ok(None) => break,
+                Err(err) => {
+                    assert!(err.is_temporary(), "injected error is temporary: {err}");
+                    errors += 1;
+                    assert_eq!(errors, 1, "the one-shot fault must not repeat");
+                }
+            }
+        }
+        (paths, errors)
+    }
+
+    fn assert_complete_tree(paths: Vec<String>) {
+        assert_eq!(
+            paths,
+            ["a/file", "a/sub/file2", "a/sub/", "a/", "/"],
+            "cancellation or retry must preserve every entry and the bottom-up order"
+        );
+    }
+
+    #[tokio::test]
+    async fn flat_lister_preserves_a_new_directory_when_cancelled() {
+        let state = Arc::new(TreeState {
+            tree: test_tree(),
+            pending_once_on: Some(("a/".to_string(), 1)),
+            ..Default::default()
+        });
+        let mut lister = new_lister(&state);
+
+        cancel_next(&mut lister).await;
+        assert_complete_tree(drain(&mut lister).await);
+    }
+
+    #[tokio::test]
+    async fn flat_lister_preserves_an_active_directory_when_cancelled() {
+        let state = Arc::new(TreeState {
+            tree: test_tree(),
+            pending_once_on: Some(("a/sub/".to_string(), 2)),
+            ..Default::default()
+        });
+        let mut lister = new_lister(&state);
+        let mut paths = Vec::new();
+        while paths.last().map(String::as_str) != Some("a/sub/file2") {
+            let entry = oio::List::next(&mut lister)
+                .await
+                .expect("listing must succeed")
+                .expect("the nested file must be reached");
+            paths.push(entry.path().to_string());
+        }
+
+        cancel_next(&mut lister).await;
+        paths.extend(drain(&mut lister).await);
+        assert_complete_tree(paths);
+    }
+
+    async fn assert_temporary_fault_is_retried(state: Arc<TreeState>) {
+        let mut lister = new_lister(&state);
+        let (paths, errors) = drain_with_retry(&mut lister).await;
+
+        assert_eq!(errors, 1);
+        assert_complete_tree(paths);
+        let listed = state.listed.lock().expect("mutex must not poison");
+        assert_eq!(
+            listed.iter().filter(|path| path.as_str() == "a/").count(),
+            2,
+            "a temporary failure before the first entry must restart the directory: {listed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn flat_lister_retries_a_temporary_list_error() {
+        assert_temporary_fault_is_retried(Arc::new(TreeState {
+            tree: test_tree(),
+            fail_first_list_on: Some("a/".to_string()),
+            ..Default::default()
+        }))
+        .await;
+    }
+
+    #[tokio::test]
+    async fn flat_lister_retries_a_temporary_first_next_error() {
+        assert_temporary_fault_is_retried(Arc::new(TreeState {
+            tree: test_tree(),
+            fail_first_next_on: Some("a/".to_string()),
+            ..Default::default()
+        }))
+        .await;
     }
 }

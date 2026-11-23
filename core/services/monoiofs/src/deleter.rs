@@ -122,7 +122,10 @@ mod tests {
         assert!(op.stat("dir_no_slash/").await.is_err());
 
         op.write("nonempty_dir/child.txt", "data").await.unwrap();
-        assert!(op.delete("nonempty_dir/").await.is_err());
+        let err = op.delete("nonempty_dir/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = op.delete("nonempty_dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(op.stat("nonempty_dir/child.txt").await.is_ok());
     }
 

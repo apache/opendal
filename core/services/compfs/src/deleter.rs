@@ -36,7 +36,7 @@ impl oio::OneShotDelete for CompfsDeleter {
         let is_dir_path = path.ends_with('/');
         let path = self.core.prepare_path(&path)?;
 
-        let file_type = match self
+        let meta = match self
             .core
             .exec({
                 let path = path.clone();
@@ -44,17 +44,17 @@ impl oio::OneShotDelete for CompfsDeleter {
             })
             .await
         {
-            Ok(meta) => meta.file_type(),
+            Ok(meta) => meta,
             Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
             Err(err) => return Err(err),
         };
-        let is_dir = file_type.is_dir();
+        let is_dir = meta.is_dir();
 
         // prepare_path calls confined_join, which strips the trailing slash.
         // Check the directory path against the target, then remove the entry
         // identified by symlink_metadata.
         if is_dir_path && !is_dir {
-            let target_is_dir = if file_type.is_symlink() {
+            let target_is_dir = if meta.is_symlink() {
                 match self
                     .core
                     .exec({
@@ -79,8 +79,16 @@ impl oio::OneShotDelete for CompfsDeleter {
             }
         }
 
+        // compio_fs::FileType::is_symlink_dir() is always false on Windows
+        // because From<std::fs::FileType> copies std's mutually exclusive
+        // is_dir() and is_symlink() flags. Check FILE_ATTRIBUTE_DIRECTORY on
+        // the raw dwFileAttributes instead so directory symlinks and junctions
+        // are removed with remove_dir.
         #[cfg(windows)]
-        let remove_as_dir = is_dir || file_type.is_symlink_dir();
+        let remove_as_dir = {
+            const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+            (meta.file_attributes() & FILE_ATTRIBUTE_DIRECTORY) != 0
+        };
         #[cfg(not(windows))]
         let remove_as_dir = is_dir;
 
@@ -138,7 +146,10 @@ mod tests {
         assert!(op.stat("dir_no_slash/").await.is_err());
 
         op.write("nonempty_dir/child.txt", "data").await.unwrap();
-        assert!(op.delete("nonempty_dir/").await.is_err());
+        let err = op.delete("nonempty_dir/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = op.delete("nonempty_dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(op.stat("nonempty_dir/child.txt").await.is_ok());
     }
 
@@ -197,6 +208,94 @@ mod tests {
         op.delete("dangle.txt").await.unwrap();
         assert_eq!(
             std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn test_delete_symlinks() {
+        const ERROR_PRIVILEGE_NOT_HELD: i32 = 1314;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let op = Operator::new(crate::Compfs::default().root(root.to_str().unwrap())).unwrap();
+
+        std::fs::write(root.join("real.txt"), b"data").unwrap();
+        if let Err(err) =
+            std::os::windows::fs::symlink_file(root.join("real.txt"), root.join("link.txt"))
+        {
+            if err.kind() == std::io::ErrorKind::PermissionDenied
+                || err.raw_os_error() == Some(ERROR_PRIVILEGE_NOT_HELD)
+            {
+                return;
+            }
+            panic!("failed to create file symlink: {err}");
+        }
+
+        let err = op.delete("link.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(
+            std::fs::symlink_metadata(root.join("link.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+        assert_eq!(std::fs::read(root.join("real.txt")).unwrap(), b"data");
+
+        op.delete("link.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("link.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(std::fs::read(root.join("real.txt")).unwrap(), b"data");
+
+        // Directory symlink: both file and directory paths must use remove_dir
+        // to unlink the symlink itself and leave the target intact.
+        std::fs::create_dir(root.join("realdir")).unwrap();
+        std::fs::write(root.join("realdir/keep"), b"data").unwrap();
+        for path in ["linkdir", "linkdir/"] {
+            std::os::windows::fs::symlink_dir(root.join("realdir"), root.join("linkdir")).unwrap();
+            op.delete(path).await.unwrap();
+            assert_eq!(
+                std::fs::symlink_metadata(root.join("linkdir"))
+                    .unwrap_err()
+                    .kind(),
+                std::io::ErrorKind::NotFound
+            );
+            assert_eq!(std::fs::read(root.join("realdir/keep")).unwrap(), b"data");
+        }
+
+        // Dangling file and directory symlinks: directory path is a no-op
+        // leaving the link; file path removes the link.
+        std::os::windows::fs::symlink_file(root.join("nope.txt"), root.join("dangle.txt")).unwrap();
+        op.delete("dangle.txt/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+        op.delete("dangle.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+
+        std::os::windows::fs::symlink_dir(root.join("nopedir"), root.join("dangledir")).unwrap();
+        op.delete("dangledir/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangledir"))
+                .unwrap()
+                .is_symlink()
+        );
+        op.delete("dangledir").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangledir"))
                 .unwrap_err()
                 .kind(),
             std::io::ErrorKind::NotFound

@@ -636,4 +636,52 @@ mod tests {
         assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_object_store_list_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a#/child", "child").await?;
+
+        let entries = op.list("a#").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+
+        let entries = op.list("a#/").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::FILE);
+
+        let entries = op.list_with("a#").recursive(true).await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_start_after_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/[", "a/\\", "a/~", "a/z"] {
+            op.write(path, "content").await?;
+        }
+
+        let expected = vec!["a/\\".to_string(), "a/z".to_string(), "a/~".to_string()];
+
+        let entries = op.list_with("a/").start_after("a/[").await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/[")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        // Percent encoding reverses the order of `~` and `z`. The filter must
+        // use decoded OpenDAL paths, not object_store's encoded locations.
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/z")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a/~".to_string()]);
+        Ok(())
+    }
 }

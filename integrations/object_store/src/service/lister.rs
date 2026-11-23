@@ -56,6 +56,10 @@ impl ObjectStoreLister {
 /// [`ObjectStore::list`] is always recursive. A path without a trailing `/` is
 /// still a prefix, so list its parent and keep only entries that start with the
 /// requested prefix.
+///
+/// `object_store::Path` stores percent-encoded locations, while OpenDAL paths
+/// are decoded. Decode locations before comparing them with the requested
+/// prefix or `start_after`, and return the decoded path in the entry.
 fn recursive_stream(
     store: Arc<dyn ObjectStore + 'static>,
     path: &str,
@@ -68,31 +72,25 @@ fn recursive_stream(
     };
     let start_after = start_after.map(str::to_string);
 
-    let stream = match &start_after {
-        Some(start_after) => store
-            .list_with_offset(
-                Some(&ObjectStorePath::from(directory)),
-                &ObjectStorePath::from(start_after.as_str()),
-            )
-            .boxed(),
-        None => store.list(Some(&ObjectStorePath::from(directory))).boxed(),
-    };
-
-    stream
+    // Do not use `list_with_offset`: it compares percent-encoded locations,
+    // whose order can differ from the decoded OpenDAL order. Filter after
+    // decoding so `start_after` keeps OpenDAL semantics.
+    store
+        .list(Some(&ObjectStorePath::from(directory)))
         .filter_map(move |item| {
             let entry = match item {
                 Ok(meta) => {
-                    let location = meta.location.as_ref();
+                    let location = percent_decode_path(meta.location.as_ref());
                     if !location.starts_with(&prefix)
                         || start_after
                             .as_deref()
-                            .is_some_and(|marker| location <= marker)
+                            .is_some_and(|marker| location.as_str() <= marker)
                     {
                         return futures::future::ready(None);
                     }
 
                     let metadata = format_metadata(&meta);
-                    Ok(oio::Entry::new(location, metadata))
+                    Ok(oio::Entry::new(&location, metadata))
                 }
                 // Local filesystem stores report a missing directory as NotFound.
                 // Listing a missing prefix is empty in OpenDAL.
@@ -112,6 +110,10 @@ fn recursive_stream(
 /// The delimiter API returns direct children and folds deeper objects into
 /// common prefixes. A path without a trailing `/` is still a prefix, so list
 /// its parent and keep only entries that start with the requested prefix.
+///
+/// Common prefixes and object locations are percent-encoded by
+/// `object_store::Path`, so decode them before returning entries and comparing
+/// them with the OpenDAL prefix or `start_after`.
 fn non_recursive_stream(
     store: Arc<dyn ObjectStore + 'static>,
     path: &str,
@@ -139,7 +141,7 @@ fn non_recursive_stream(
         let mut entries: Vec<Result<oio::Entry>> =
             Vec::with_capacity(result.common_prefixes.len() + result.objects.len());
         for common_prefix in result.common_prefixes {
-            let entry_path = format!("{}/", common_prefix.as_ref());
+            let entry_path = format!("{}/", percent_decode_path(common_prefix.as_ref()));
             if !keep_entry(&entry_path, prefix.as_deref(), start_after.as_deref()) {
                 continue;
             }
@@ -149,11 +151,11 @@ fn non_recursive_stream(
             )));
         }
         for meta in result.objects {
-            let entry_path = meta.location.as_ref();
-            if !keep_entry(entry_path, prefix.as_deref(), start_after.as_deref()) {
+            let entry_path = percent_decode_path(meta.location.as_ref());
+            if !keep_entry(&entry_path, prefix.as_deref(), start_after.as_deref()) {
                 continue;
             }
-            entries.push(Ok(oio::Entry::new(entry_path, format_metadata(&meta))));
+            entries.push(Ok(oio::Entry::new(&entry_path, format_metadata(&meta))));
         }
         entries
     })

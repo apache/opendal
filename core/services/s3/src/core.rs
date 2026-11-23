@@ -430,14 +430,6 @@ impl S3Core {
             req = req.header(CACHE_CONTROL, cache_control)
         }
 
-        if let Some(if_match) = args.if_match() {
-            req = req.header(IF_MATCH, if_match);
-        }
-
-        if args.if_not_exists() {
-            req = req.header(IF_NONE_MATCH, "*");
-        }
-
         // Set storage class header
         if let Some(v) = &self.default_storage_class {
             req = req.header(HeaderName::from_static(constants::X_AMZ_STORAGE_CLASS), v);
@@ -652,6 +644,13 @@ impl S3Core {
 
         req = self.insert_metadata_headers(req, size, args);
 
+        if let Some(if_match) = args.if_match() {
+            req = req.header(IF_MATCH, if_match);
+        }
+        if args.if_not_exists() {
+            req = req.header(IF_NONE_MATCH, "*");
+        }
+
         // Set request payer header if enabled.
         req = self.insert_request_payer_header(req);
 
@@ -687,18 +686,32 @@ impl S3Core {
         position: u64,
         size: u64,
         args: &OpWrite,
+        include_conditions: bool,
         body: Buffer,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let url = format!("{}/{}", self.endpoint, percent_encode_path(&p));
         let mut req = Request::put(&url);
 
-        // Only include full metadata headers when creating a new object via append (position == 0)
-        // For existing objects or subsequent appends, only include content-length
+        // Only include full metadata headers when creating a new object via append (position == 0).
+        // For existing objects or subsequent appends, only include content-length.
         if position == 0 {
             req = self.insert_metadata_headers(req, Some(size), args);
         } else {
             req = req.header(CONTENT_LENGTH, size.to_string());
+        }
+
+        // Apply caller preconditions on the writer's first append regardless of whether
+        // the object already exists (position > 0) or is being created (position == 0).
+        // Subsequent chunks from the same writer omit these headers because the first
+        // append already created the object or updated its ETag.
+        if include_conditions {
+            if let Some(if_match) = args.if_match() {
+                req = req.header(IF_MATCH, if_match);
+            }
+            if args.if_not_exists() {
+                req = req.header(IF_NONE_MATCH, "*");
+            }
         }
 
         req = req.header(constants::X_AMZ_WRITE_OFFSET_BYTES, position.to_string());

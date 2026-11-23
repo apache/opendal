@@ -288,8 +288,12 @@ fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
         let reader_arc =
             resolved_reader.ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?;
 
+        let end = start
+            .checked_add(len)
+            .ok_or_else(|| CxxAsyncException::new("read range end overflow".into()))?;
+
         let buffer = reader_arc
-            .read(start..(start + len))
+            .read(start..end)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(buffer.to_vec())

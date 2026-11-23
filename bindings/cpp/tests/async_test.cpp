@@ -17,9 +17,14 @@
  * under the License.
  */
 
+#include <cstdint>
+#include <initializer_list>
+#include <limits>
 #include <optional>
 #include <random>
 #include <stdexcept>
+#include <string>
+#include <utility>
 
 #include "cppcoro/sync_wait.hpp"
 #include "cppcoro/task.hpp"
@@ -557,4 +562,37 @@ TEST_F(AsyncOpendalTest, MovedFromOperatorThrows) {
   cppcoro::sync_wait(moved_to.Write(file_path, data));
   auto res = cppcoro::sync_wait(moved_to.Read(file_path));
   ASSERT_EQ(res.size(), data.size());
+}
+
+// Regression test: `Reader::Read` must reject overflowing `start + len` ranges
+// with a clean C++ exception instead of panicking or wrapping.
+TEST_F(AsyncOpendalTest, AsyncReaderReadRangeOverflowThrows) {
+  const auto file_path = "test_reader_overflow/file.txt";
+  std::vector<uint8_t> data{1, 2, 3, 4, 5};
+
+  cppcoro::sync_wait(op->Write(file_path, data));
+
+  auto reader_id = cppcoro::sync_wait(op->GetReader(file_path));
+  opendal::async::Reader reader(reader_id);
+
+  constexpr uint64_t kMax = std::numeric_limits<uint64_t>::max();
+  for (const auto [start, len] :
+       std::initializer_list<std::pair<uint64_t, uint64_t>>{
+           {kMax, 2}, {kMax, 1}, {1, kMax}}) {
+    try {
+      (void)cppcoro::sync_wait(reader.Read(start, len));
+      FAIL() << "Expected overflow exception for start=" << start
+             << ", len=" << len;
+    } catch (const std::exception &e) {
+      EXPECT_NE(std::string(e.what()).find("overflow"), std::string::npos)
+          << "Unexpected exception message: " << e.what();
+    }
+  }
+
+  // Reader stays usable after rejected reads.
+  auto res = cppcoro::sync_wait(reader.Read(0, data.size()));
+  ASSERT_EQ(res.size(), data.size());
+  for (size_t i = 0; i < data.size(); ++i) {
+    EXPECT_EQ(res[i], data[i]);
+  }
 }

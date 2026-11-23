@@ -107,18 +107,36 @@ class IOTest < ActiveSupport::TestCase
   end
 
   test "#read with zero size returns an empty string without moving the stream" do
-    buffer = +"stale"
+    buffer = +"héllo"
 
     assert_equal "", @io_read.read(0)
-    assert_equal "", @io_read.read(0, buffer)
-    assert_equal "", buffer
+    result = @io_read.read(0, buffer)
+    assert_equal "", result
+    assert_same buffer, result
+    assert_equal Encoding::UTF_8, result.encoding
+    assert_equal Encoding::UTF_8, buffer.encoding
     assert_equal 0, @io_read.pos
     assert_equal "Sample", @io_read.read(6)
 
     @io_read.read
     assert @io_read.eof?
-    assert_equal "", @io_read.read(0)
+
+    buffer = +"héllo"
+    result = @io_read.read(0, buffer)
+    assert_equal "", result
+    assert_same buffer, result
+    assert_equal Encoding::UTF_8, result.encoding
     assert_equal 43, @io_read.pos
+  end
+
+  test "#read with zero size raises on a closed stream" do
+    @io_read.close
+
+    assert_raise(RuntimeError) { @io_read.read(0) }
+  end
+
+  test "#read with zero size raises on a write-only stream" do
+    assert_raise(RuntimeError) { @io_write.read(0) }
   end
 
   test "#read reads to a buffer" do

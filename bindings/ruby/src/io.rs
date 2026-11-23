@@ -248,7 +248,7 @@ impl Io {
     ///
     /// @param size [Integer, nil] The maximum number of bytes to read. Reads all data when not provided.
     /// @param buffer [String, nil] The output buffer to append to.
-    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<bytes::Bytes>, Error> {
+    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<RString>, Error> {
         let args = scan_args::<(), (Option<Option<i64>>, Option<RString>), (), (), (), ()>(args)?;
         let (option_size, mut option_output_buffer) = args.optional;
         let size = option_size.unwrap_or_default(); // allow nil
@@ -265,6 +265,11 @@ impl Io {
                         ));
                     }
                     if size == 0 {
+                        // Ruby returns the given output buffer object for a zero-length read.
+                        if let Some(output_buffer) = option_output_buffer.as_mut() {
+                            output_buffer.drop_bytes(output_buffer.len())?;
+                            return Ok(Some(*output_buffer));
+                        }
                         Some(bytes::Bytes::new())
                     } else {
                         let mut bs = vec![0; size as usize];
@@ -289,16 +294,14 @@ impl Io {
                 }
             };
 
-            if let Some(output_buffer) = option_output_buffer.as_mut() {
-                if size == Some(0) {
-                    // Ruby clears the output buffer for a zero-length read.
-                    output_buffer.drop_bytes(output_buffer.len())?;
-                } else if let Some(inner) = buffer.as_ref() {
-                    output_buffer.cat(inner);
-                }
+            // when provided the buffer parameter, append read buffer
+            if let (Some(output_buffer), Some(inner)) =
+                (option_output_buffer.as_mut(), buffer.as_ref())
+            {
+                output_buffer.cat(inner);
             }
 
-            Ok(buffer)
+            Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),

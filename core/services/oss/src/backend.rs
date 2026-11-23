@@ -24,16 +24,14 @@ use log::debug;
 use reqsign_aliyun_oss::AssumeRoleCredentialProvider;
 use reqsign_aliyun_oss::AssumeRoleWithOidcCredentialProvider;
 use reqsign_aliyun_oss::Credential;
+use reqsign_aliyun_oss::DefaultCredentialProvider;
 use reqsign_aliyun_oss::EcsRamRoleCredentialProvider;
-use reqsign_aliyun_oss::EnvCredentialProvider;
 use reqsign_aliyun_oss::RequestSigner;
 use reqsign_aliyun_oss::StaticCredentialProvider;
 use reqsign_core::Context;
-use reqsign_core::Env as _;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::Signer;
-use reqsign_core::StaticEnv;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::OSS_SCHEME;
@@ -326,6 +324,14 @@ impl OssBuilder {
         self.skip_signature()
     }
 
+    /// Disable loading credentials from ambient sources.
+    ///
+    /// See [`OssConfig::disable_config_load`] for the affected sources.
+    pub fn disable_config_load(mut self) -> Self {
+        self.config.disable_config_load = true;
+        self
+    }
+
     /// Set role_arn for this backend.
     ///
     /// If `role_arn` is set, we will use already known config as source
@@ -484,46 +490,11 @@ impl Builder for OssBuilder {
             ),
         };
 
-        // NOTE: `AssumeRoleWithOidcCredentialProvider` still reads `role_arn`, `oidc_provider_arn`
-        // and `oidc_token_file` from `Context` environment variables at runtime. Until reqsign
-        // exposes typed builder APIs for all of them, we overlay config values into a `StaticEnv`
-        // snapshot here.
-        let os_env = OsEnv;
-        let mut envs = os_env.vars();
-
-        if let Some(v) = &self.config.role_arn {
-            envs.insert("ALIBABA_CLOUD_ROLE_ARN".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.oidc_provider_arn {
-            envs.insert("ALIBABA_CLOUD_OIDC_PROVIDER_ARN".to_string(), v.clone());
-        }
-        if let Some(v) = &self.config.oidc_token_file {
-            envs.insert("ALIBABA_CLOUD_OIDC_TOKEN_FILE".to_string(), v.clone());
-        }
-
-        let mut assume_role = AssumeRoleWithOidcCredentialProvider::new();
-
-        if let Some(sts_endpoint) = &self.config.sts_endpoint {
-            if sts_endpoint.starts_with("http://") || sts_endpoint.starts_with("https://") {
-                assume_role = assume_role.with_sts_endpoint(sts_endpoint.clone());
-            } else {
-                envs.insert(
-                    "ALIBABA_CLOUD_STS_ENDPOINT".to_string(),
-                    sts_endpoint.clone(),
-                );
-            }
-        }
-
-        if let Some(role_session_name) = &self.config.role_session_name {
-            assume_role = assume_role.with_role_session_name(role_session_name.clone());
-        }
-
-        let ctx = Context::new()
-            .with_file_read(TokioFileRead)
-            .with_env(StaticEnv {
-                home_dir: os_env.home_dir(),
-                envs,
-            });
+        // The signer reads credential files (OIDC tokens, OSS profile and
+        // Alibaba Cloud files) and ambient environment variables through this
+        // context. `OperationContext` supplies the HTTP sender for STS and
+        // metadata requests when requests are signed.
+        let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
         let static_provider = if let (Some(ak), Some(sk)) =
             (&self.config.access_key_id, &self.config.access_key_secret)
@@ -537,33 +508,87 @@ impl Builder for OssBuilder {
             None
         };
 
-        let mut provider = ProvideCredentialChain::new();
+        // Configure OIDC from builder options so that it never depends on the
+        // environment. Options that are unset keep falling back to their
+        // `ALIBABA_CLOUD_*` environment variables.
+        let mut oidc = AssumeRoleWithOidcCredentialProvider::new();
+        if let Some(v) = self.config.role_arn.as_deref() {
+            oidc = oidc.with_role_arn(v);
+        }
+        if let Some(v) = self.config.oidc_provider_arn.as_deref() {
+            oidc = oidc.with_oidc_provider_arn(v);
+        }
+        if let Some(v) = self.config.oidc_token_file.as_deref() {
+            oidc = oidc.with_oidc_token_file(v);
+        }
+        if let Some(v) = self.config.sts_endpoint.as_deref() {
+            oidc = oidc.with_sts_endpoint(v);
+        }
+        if let Some(v) = self.config.role_session_name.as_deref() {
+            oidc = oidc.with_role_session_name(v);
+        }
+
+        // `role_arn` is taken from this builder only. Disabling the default
+        // assume-role slot keeps an ambient `ALIBABA_CLOUD_ROLE_ARN` from
+        // replacing explicit access keys with an assumed role.
+        //
+        // OIDC must stay ahead of ECS metadata so that ACK RRSA deployments use
+        // the pod role instead of the node role (#8339). Both providers are
+        // appended to the chain below instead of using their default slots,
+        // because the default order tries ECS metadata before OIDC.
+        let mut default_credential = DefaultCredentialProvider::builder()
+            .no_assume_role()
+            .no_oidc()
+            .no_ecs_ram_role();
+
+        if self.config.disable_config_load {
+            default_credential = default_credential
+                .no_env()
+                .no_oss_profile()
+                .no_credentials_file()
+                .no_config_file()
+                .no_credentials_uri();
+        }
+
+        // A partially configured OIDC provider still reads the missing options
+        // from the environment, so it only runs when every required option is
+        // set here or when loading ambient configuration is allowed.
+        let oidc_configured_explicitly = self.config.role_arn.is_some()
+            && self.config.oidc_provider_arn.is_some()
+            && self.config.oidc_token_file.is_some();
+
+        let mut provider = ProvideCredentialChain::new().push(default_credential.build());
+        if !self.config.disable_config_load || oidc_configured_explicitly {
+            provider = provider.push(oidc);
+        }
+        provider = provider.push(EcsRamRoleCredentialProvider::new());
+
+        // Explicit access keys take precedence over every ambient source.
         if let Some(static_provider) = static_provider {
-            provider = provider.push(static_provider);
+            provider = provider.push_front(static_provider);
         }
-        let mut provider = provider
-            .push(EnvCredentialProvider::new())
-            .push(assume_role)
-            .push(EcsRamRoleCredentialProvider::new());
 
-        if let Some(role_arn) = &self.config.role_arn {
-            let mut assume_role_with_ak = AssumeRoleCredentialProvider::new()
+        // When `role_arn` is configured, the credentials above call STS and the
+        // assumed role signs requests.
+        let provider = if let Some(role_arn) = &self.config.role_arn {
+            let mut assume_role = AssumeRoleCredentialProvider::new()
                 .with_base_provider(provider)
-                .with_role_arn(role_arn.clone());
+                .with_role_arn(role_arn);
 
-            if let Some(role_session_name) = &self.config.role_session_name {
-                assume_role_with_ak =
-                    assume_role_with_ak.with_role_session_name(role_session_name.clone());
+            if let Some(v) = self.config.role_session_name.as_deref() {
+                assume_role = assume_role.with_role_session_name(v);
             }
-            if let Some(external_id) = &self.config.external_id {
-                assume_role_with_ak = assume_role_with_ak.with_external_id(external_id.clone());
+            if let Some(v) = self.config.external_id.as_deref() {
+                assume_role = assume_role.with_external_id(v);
             }
-            if let Some(sts_endpoint) = &self.config.sts_endpoint {
-                assume_role_with_ak = assume_role_with_ak.with_sts_endpoint(sts_endpoint.clone());
+            if let Some(v) = self.config.sts_endpoint.as_deref() {
+                assume_role = assume_role.with_sts_endpoint(v);
             }
 
-            provider = ProvideCredentialChain::new().push(assume_role_with_ak);
-        }
+            ProvideCredentialChain::new().push(assume_role)
+        } else {
+            provider
+        };
 
         let provider = if let Some(credential_providers) = self.credential_providers {
             credential_providers
@@ -894,17 +919,41 @@ mod tests {
 
     use bytes::Bytes;
     use reqsign_core::time::Timestamp;
-    use reqsign_core::{FileRead, HttpSend, ProvideCredential};
+    use reqsign_core::{FileRead, HttpSend, ProvideCredential, StaticEnv};
 
     use super::*;
 
-    #[derive(Debug)]
-    struct OidcTokenFile;
+    #[derive(Clone, Debug, Default)]
+    struct TestFileRead {
+        files: HashMap<String, String>,
+        reads: Arc<Mutex<Vec<String>>>,
+    }
 
-    impl FileRead for OidcTokenFile {
+    impl TestFileRead {
+        fn new(files: impl IntoIterator<Item = (&'static str, &'static str)>) -> Self {
+            Self {
+                files: files
+                    .into_iter()
+                    .map(|(path, content)| (path.to_string(), content.to_string()))
+                    .collect(),
+                reads: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn reads(&self) -> Vec<String> {
+            self.reads.lock().unwrap().clone()
+        }
+    }
+
+    impl FileRead for TestFileRead {
         async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
-            assert_eq!(path, "/test/oidc-token");
-            Ok(b"test-oidc-token".to_vec())
+            self.reads.lock().unwrap().push(path.to_string());
+            self.files
+                .get(path)
+                .map(|content| content.as_bytes().to_vec())
+                .ok_or_else(|| {
+                    reqsign_core::Error::unexpected(format!("unexpected file path: {path}"))
+                })
         }
     }
 
@@ -975,6 +1024,18 @@ mod tests {
                     );
                     r#"{"Credentials":{"AccessKeyId":"oidc-ak","AccessKeySecret":"oidc-secret","SecurityToken":"oidc-token","Expiration":"2099-01-01T00:00:00Z"}}"#
                 }
+                ("sts.example.com", "/") => {
+                    let query = req.uri().query().unwrap();
+                    if query.contains("Action=AssumeRoleWithOIDC") {
+                        assert!(query.contains("RoleSessionName=builder-session"));
+                        assert!(query.contains("OIDCToken=test-oidc-token"));
+                        r#"{"Credentials":{"AccessKeyId":"oidc-ak","AccessKeySecret":"oidc-secret","SecurityToken":"oidc-token","Expiration":"2099-01-01T00:00:00Z"}}"#
+                    } else {
+                        assert!(query.contains("Action=AssumeRole"));
+                        assert!(query.contains("RoleSessionName=builder-session"));
+                        r#"{"Credentials":{"AccessKeyId":"assumed-ak","AccessKeySecret":"assumed-secret","SecurityToken":"assumed-token","Expiration":"2099-01-01T00:00:00Z"}}"#
+                    }
+                }
                 ("100.100.100.200", "/latest/api/token") => "metadata-token",
                 ("100.100.100.200", "/latest/meta-data/ram/security-credentials/") => "node-role",
                 ("100.100.100.200", "/latest/meta-data/ram/security-credentials/node-role") => {
@@ -1040,7 +1101,7 @@ mod tests {
                     home_dir: None,
                     envs,
                 })
-                .with_file_read(OidcTokenFile)
+                .with_file_read(TestFileRead::new([("/test/oidc-token", "test-oidc-token")]))
                 .with_http_send(http.clone());
             let signer = backend.core.signer.clone().with_context(ctx);
             let (mut parts, _) = http::Request::builder()
@@ -1137,7 +1198,7 @@ mod tests {
                 home_dir: None,
                 envs,
             })
-            .with_file_read(OidcTokenFile)
+            .with_file_read(TestFileRead::new([("/test/oidc-token", "test-oidc-token")]))
             .with_http_send(http.clone());
         let signer = backend.core.signer.clone().with_context(ctx);
 
@@ -1215,6 +1276,215 @@ mod tests {
                 .starts_with("OSS custom-ak-2:")
         );
         assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    fn build_test_core(builder: OssBuilder) -> Arc<OssCore> {
+        let backend = builder.build().unwrap();
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<OssBackend>()
+            .unwrap();
+        backend.core.clone()
+    }
+
+    #[test]
+    fn test_reqsign_aliyun_oss_is_reexported() {
+        // `credential_provider_chain` takes providers built from the
+        // re-exported crate, so this only compiles while the re-export exists
+        // and matches the types used by the service.
+        let provider = crate::reqsign_aliyun_oss::StaticCredentialProvider::new("ak", "sk");
+        let chain = ProvideCredentialChain::new().push(provider);
+        let _ = OssBuilder::default().credential_provider_chain(chain);
+    }
+
+    #[tokio::test]
+    async fn test_oidc_credentials_from_builder_config() {
+        let file_read = TestFileRead::new([("/test/oidc-token", "test-oidc-token")]);
+        let http = CredentialHttpSend::default();
+        // No `ALIBABA_CLOUD_OIDC_*` or `ALIBABA_CLOUD_ROLE_ARN` variables: the
+        // STS request can only be built when every OIDC option comes from the
+        // builder.
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([(
+                    "ALIBABA_CLOUD_ECS_METADATA_DISABLED".to_string(),
+                    "true".to_string(),
+                )]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .role_arn("acs:ram::123:role/builder-role")
+                .oidc_provider_arn("acs:ram::123:oidc-provider/builder-provider")
+                .oidc_token_file("/test/oidc-token")
+                .sts_endpoint("sts.example.com")
+                .role_session_name("builder-session"),
+        );
+        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+
+        // `role_arn` wraps the OIDC credential with an AK-based AssumeRole call.
+        assert!(
+            parts.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS assumed-ak:")
+        );
+        assert_eq!(parts.headers["x-oss-security-token"], "assumed-token");
+        assert_eq!(file_read.reads(), vec!["/test/oidc-token".to_string()]);
+        assert_eq!(
+            *http.requests.lock().unwrap(),
+            vec![
+                "sts.example.com/".to_string(),
+                "sts.example.com/".to_string()
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn test_default_credential_provider_loads_oss_profile_file() {
+        let http = CredentialHttpSend::default();
+        let file_read = TestFileRead::new([(
+            "/mock/oss-credentials",
+            "[default]\naccess_key_id = profile-ak\naccess_key_secret = profile-secret\nsecurity_token = profile-token\n",
+        )]);
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "OSS_CREDENTIAL_PROFILES_FILE".to_string(),
+                        "/mock/oss-credentials".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_ECS_METADATA_DISABLED".to_string(),
+                        "true".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com"),
+        );
+        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+        assert!(
+            parts.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS profile-ak:")
+        );
+        assert_eq!(parts.headers["x-oss-security-token"], "profile-token");
+        assert_eq!(file_read.reads(), vec!["/mock/oss-credentials".to_string()]);
+        assert!(http.requests.lock().unwrap().is_empty());
+
+        // Explicit access keys still take precedence over the profile file.
+        let static_file_read = TestFileRead::new([]);
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "OSS_CREDENTIAL_PROFILES_FILE".to_string(),
+                        "/mock/oss-credentials".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_ECS_METADATA_DISABLED".to_string(),
+                        "true".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(static_file_read.clone())
+            .with_http_send(http.clone());
+
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .access_key_id("static-ak")
+                .access_key_secret("static-secret")
+                .security_token("static-token"),
+        );
+        let parts = sign_test_request(&core.signer.clone().with_context(ctx)).await;
+        assert!(
+            parts.headers[http::header::AUTHORIZATION]
+                .to_str()
+                .unwrap()
+                .starts_with("OSS static-ak:")
+        );
+        assert_eq!(parts.headers["x-oss-security-token"], "static-token");
+        assert!(static_file_read.reads().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_skips_ambient_credentials() {
+        let file_read = TestFileRead::new([(
+            "/mock/oss-credentials",
+            "[default]\naccess_key_id = profile-ak\naccess_key_secret = profile-secret\n",
+        )]);
+        let http = CredentialHttpSend::default();
+        let ctx = Context::new()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "ALIBABA_CLOUD_ACCESS_KEY_ID".to_string(),
+                        "env-ak".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_ACCESS_KEY_SECRET".to_string(),
+                        "env-secret".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_SECURITY_TOKEN".to_string(),
+                        "env-token".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_CREDENTIALS_URI".to_string(),
+                        "http://127.0.0.1/credentials".to_string(),
+                    ),
+                    (
+                        "OSS_CREDENTIAL_PROFILES_FILE".to_string(),
+                        "/mock/oss-credentials".to_string(),
+                    ),
+                    (
+                        "ALIBABA_CLOUD_ECS_METADATA_DISABLED".to_string(),
+                        "true".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .disable_config_load(),
+        );
+
+        let (mut parts, _) = http::Request::builder()
+            .method(http::Method::PUT)
+            .uri("https://test-bucket.oss-cn-hangzhou.aliyuncs.com/manifest.json")
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = core
+            .signer
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect_err("ambient credentials must not be loaded");
+        assert_eq!(err.to_string(), "failed to load signing credential");
+        assert!(file_read.reads().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());
     }
 }

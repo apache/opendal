@@ -362,7 +362,7 @@ impl OpendalStore {
                         .into_send()
                         .await
                         .is_ok_and(|metadata| {
-                            let meta = format_object_meta(location.as_ref(), &metadata);
+                            let meta = format_object_meta(location.clone(), &metadata);
                             matches!(
                                 options.check_preconditions(&meta),
                                 Err(object_store::Error::NotModified { .. })
@@ -441,7 +441,7 @@ impl OpendalStore {
 
         let metadata = stream.metadata().into_send().await?;
         let attributes = format_object_attributes(&metadata);
-        let meta = format_object_meta(location.as_ref(), &metadata);
+        let meta = format_object_meta(location.clone(), &metadata);
         let read_range = format_read_range(options.range.as_ref(), meta.size)?;
 
         if read_range.start >= read_range.end {
@@ -513,7 +513,7 @@ impl OpendalStore {
             .or_else(|err| async { Err(self.format_get_error(location, options, err).await) })
             .await?;
         let attributes = format_object_attributes(&metadata);
-        let meta = format_object_meta(location.as_ref(), &metadata);
+        let meta = format_object_meta(location.clone(), &metadata);
         if check_locally {
             options.check_preconditions(&meta)?;
         }
@@ -2566,5 +2566,119 @@ mod tests {
 
         // Cleanup
         store.delete(&location).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_special_character_locations_not_double_encoded() {
+        let store = OpendalStore::new(Operator::new(services::Memory::default()).unwrap());
+        let payload = Bytes::from_static(b"hello world");
+        let paths = [
+            Path::from("a#b.txt"),
+            Path::from("dir/100%?.txt"),
+            Path::from("dir/café#1%?.txt"),
+        ];
+
+        for path in &paths {
+            store.put(path, payload.clone().into()).await.unwrap();
+
+            // `head` exercises `get_opts_with_stat`.
+            let head_meta = store.head(path).await.unwrap();
+            assert_eq!(head_meta.location, *path);
+            assert_eq!(head_meta.size, payload.len() as u64);
+
+            // `get` exercises `get_opts_without_stat`.
+            let get_result = store.get(path).await.unwrap();
+            let get_location = get_result.meta.location.clone();
+            assert_eq!(get_location, *path);
+            assert_eq!(get_result.bytes().await.unwrap(), payload);
+
+            // `get_opts` with bounded range exercises `get_opts_without_stat`.
+            let range_result = store
+                .get_opts(
+                    path,
+                    object_store::GetOptions {
+                        range: Some(object_store::GetRange::Bounded(0..5)),
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(range_result.meta.location, *path);
+            assert_eq!(
+                range_result.bytes().await.unwrap(),
+                Bytes::from_static(b"hello")
+            );
+
+            // `get_opts` with `head: true` exercises `get_opts_with_stat`.
+            let head_opts_result = store
+                .get_opts(
+                    path,
+                    object_store::GetOptions {
+                        head: true,
+                        ..Default::default()
+                    },
+                )
+                .await
+                .unwrap();
+            assert_eq!(head_opts_result.meta.location, *path);
+
+            // Round-trip returned `ObjectMeta.location` into `head` and `get`.
+            let roundtrip_head = store.head(&head_meta.location).await.unwrap();
+            assert_eq!(roundtrip_head.location, *path);
+            let roundtrip_get = store.get(&get_location).await.unwrap();
+            assert_eq!(roundtrip_get.meta.location, *path);
+            assert_eq!(roundtrip_get.bytes().await.unwrap(), payload);
+        }
+
+        // Verify `list`, `list_with_offset`, and `list_with_delimiter` return the exact same locations.
+        let mut listed: Vec<Path> = store
+            .list(None)
+            .map_ok(|meta| meta.location)
+            .try_collect()
+            .await
+            .unwrap();
+        listed.sort();
+        let mut expected = paths.to_vec();
+        expected.sort();
+        assert_eq!(listed, expected);
+
+        let offset = Path::from("a");
+        let mut listed_with_offset: Vec<Path> = store
+            .list_with_offset(None, &offset)
+            .map_ok(|meta| meta.location)
+            .try_collect()
+            .await
+            .unwrap();
+        listed_with_offset.sort();
+        assert_eq!(listed_with_offset, expected);
+
+        let root_delim = store.list_with_delimiter(None).await.unwrap();
+        assert_eq!(root_delim.common_prefixes, vec![Path::from("dir")]);
+        assert_eq!(root_delim.objects.len(), 1);
+        assert_eq!(root_delim.objects[0].location, Path::from("a#b.txt"));
+
+        let dir_delim = store
+            .list_with_delimiter(Some(&Path::from("dir")))
+            .await
+            .unwrap();
+        let mut dir_locations: Vec<Path> = dir_delim
+            .objects
+            .into_iter()
+            .map(|meta| meta.location)
+            .collect();
+        dir_locations.sort();
+        let mut expected_dir = vec![Path::from("dir/100%?.txt"), Path::from("dir/café#1%?.txt")];
+        expected_dir.sort();
+        assert_eq!(dir_locations, expected_dir);
+
+        // Round-trip `ObjectMeta.location` into `delete`.
+        for location in listed {
+            let meta = store.head(&location).await.unwrap();
+            store.delete(&meta.location).await.unwrap();
+            assert!(matches!(
+                store.head(&location).await,
+                Err(object_store::Error::NotFound { .. })
+            ));
+        }
     }
 }

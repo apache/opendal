@@ -24,7 +24,8 @@ use dav_server_opendalfs::dav_server::davpath::DavPath;
 use dav_server_opendalfs::dav_server::fs::{DavFile, FsError, OpenOptions};
 use dav_server_opendalfs::dav_server::fs::{DavFileSystem, ReadDirMeta};
 use futures::{StreamExt, TryStreamExt};
-use http::{HeaderValue, Method, Request, Response, StatusCode, header::ETAG};
+use http::{HeaderValue, Method, Request, Response, StatusCode, header, header::ETAG};
+use http_body_util::BodyExt;
 use opendal::services::{Fs, Http};
 use opendal::{HttpBody, HttpTransport, HttpTransporter, Operator};
 use opendal_core::raw::{
@@ -1023,5 +1024,522 @@ async fn test_append_seek_and_cursor_accounting() -> Result<()> {
     drop(writer);
 
     assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
+    Ok(())
+}
+
+async fn dav_request(dav: &DavHandler, req: Request<Body>) -> Result<(StatusCode, Bytes)> {
+    let resp = dav.handle(req).await;
+    let status = resp.status();
+    let body = BodyExt::collect(resp.into_body()).await?.to_bytes();
+    Ok((status, body))
+}
+
+fn propfind_is_collection(xml: &[u8]) -> Result<bool> {
+    let text = std::str::from_utf8(xml)?;
+    let doc = roxmltree::Document::parse(text)?;
+    Ok(doc
+        .descendants()
+        .any(|node| node.tag_name().name() == "collection"))
+}
+
+async fn assert_put_and_patch_on_collection_rejected(op: Operator, label: &str) -> Result<()> {
+    const SABREDAV_PARTIAL_UPDATE: &str = "application/x-sabredav-partialupdate";
+
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MKCOL")
+            .uri("/dir/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED, "{label}: MKCOL /dir/");
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/dir/child.txt")
+            .body(Body::from(Bytes::from_static(b"keep")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED, "{label}: PUT /dir/child.txt");
+
+    // PUT on the collection URI (without or with trailing slash) must be rejected
+    // rather than creating a shadowing file key.
+    for uri in ["/dir", "/dir/"] {
+        let (status, _) = dav_request(
+            &dav,
+            Request::builder()
+                .method(Method::PUT)
+                .uri(uri)
+                .body(Body::from(Bytes::from_static(b"shadow")))?,
+        )
+        .await?;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{label}: PUT {uri}");
+    }
+
+    // SabreDAV append PATCH targeting the collection must also be rejected.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PATCH)
+            .uri("/dir")
+            .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+            .header("X-Update-Range", "append")
+            .header(header::CONTENT_LENGTH, "6")
+            .body(Body::from(Bytes::from_static(b"shadow")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{label}: PATCH /dir");
+
+    // Direct DavFileSystem::open must reject read, write, append, and create_new
+    // against an existing collection.
+    let webdavfs = OpendalFs::new(op.clone());
+    let dir_path = DavPath::new("/dir")?;
+    assert!(
+        matches!(
+            webdavfs
+                .open(
+                    &dir_path,
+                    OpenOptions {
+                        read: true,
+                        ..OpenOptions::default()
+                    },
+                )
+                .await,
+            Err(FsError::Forbidden)
+        ),
+        "{label}: open(read) /dir"
+    );
+    assert!(
+        matches!(
+            webdavfs
+                .open(
+                    &dir_path,
+                    OpenOptions {
+                        write: true,
+                        ..OpenOptions::default()
+                    },
+                )
+                .await,
+            Err(FsError::Forbidden)
+        ),
+        "{label}: open(write) /dir"
+    );
+    assert!(
+        matches!(
+            webdavfs
+                .open(
+                    &dir_path,
+                    OpenOptions {
+                        write: true,
+                        append: true,
+                        ..OpenOptions::default()
+                    },
+                )
+                .await,
+            Err(FsError::Forbidden)
+        ),
+        "{label}: open(append) /dir"
+    );
+    assert!(
+        matches!(
+            webdavfs
+                .open(
+                    &dir_path,
+                    OpenOptions {
+                        write: true,
+                        create_new: true,
+                        ..OpenOptions::default()
+                    },
+                )
+                .await,
+            Err(FsError::Exists)
+        ),
+        "{label}: open(create_new) /dir"
+    );
+
+    // No shadowing file key was created, PROPFIND still reports a collection,
+    // and the existing child content is intact.
+    assert!(
+        !matches!(op.stat("dir").await, Ok(meta) if meta.is_file()),
+        "{label}: dir must not exist as a file"
+    );
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/dir")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::MULTI_STATUS, "{label}: PROPFIND /dir");
+    assert!(
+        propfind_is_collection(&body)?,
+        "{label}: PROPFIND /dir must still report a collection"
+    );
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/dir/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK, "{label}: GET /dir/child.txt");
+    assert_eq!(body.as_ref(), b"keep", "{label}: child content");
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_put_and_patch_on_existing_collection_rejected() -> Result<()> {
+    let memory = Operator::new(opendal::services::Memory::default())?;
+    assert_put_and_patch_on_collection_rejected(memory, "memory").await?;
+
+    let root = tempfile::tempdir()?;
+    let fs_op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    assert_put_and_patch_on_collection_rejected(fs_op, "fs").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_put_and_open_on_implicit_collection_rejected() -> Result<()> {
+    const SABREDAV_PARTIAL_UPDATE: &str = "application/x-sabredav-partialupdate";
+
+    let op = Operator::new(opendal::services::Memory::default())?;
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+
+    // Create only a nested file without MKCOL /implicit/ to form an implicit prefix.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/implicit/child.txt")
+            .body(Body::from(Bytes::from_static(b"keep")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/implicit")
+            .body(Body::from(Bytes::from_static(b"shadow")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PATCH)
+            .uri("/implicit")
+            .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+            .header("X-Update-Range", "append")
+            .header(header::CONTENT_LENGTH, "6")
+            .body(Body::from(Bytes::from_static(b"shadow")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    let webdavfs = OpendalFs::new(op.clone());
+    assert!(matches!(
+        webdavfs
+            .open(
+                &DavPath::new("/implicit")?,
+                OpenOptions {
+                    read: true,
+                    ..OpenOptions::default()
+                },
+            )
+            .await,
+        Err(FsError::Forbidden)
+    ));
+
+    assert!(matches!(
+        op.stat("implicit").await,
+        Err(err) if err.kind() == ErrorKind::NotFound
+    ));
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/implicit")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::MULTI_STATUS);
+    assert!(propfind_is_collection(&body)?);
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/implicit/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_ref(), b"keep");
+    Ok(())
+}
+
+async fn assert_delete_depth_zero_and_missing(op: Operator, label: &str) -> Result<()> {
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MKCOL")
+            .uri("/dir/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED, "{label}: MKCOL /dir/");
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/dir/child.txt")
+            .body(Body::from(Bytes::from_static(b"keep")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED, "{label}: PUT /dir/child.txt");
+
+    // Depth: 0 DELETE on a non-empty collection must fail and keep children intact.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/dir/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(
+        status,
+        StatusCode::METHOD_NOT_ALLOWED,
+        "{label}: DELETE /dir/ Depth: 0 on non-empty collection"
+    );
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/dir/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK, "{label}: child survives");
+    assert_eq!(body.as_ref(), b"keep");
+
+    // Direct remove_dir must refuse non-empty collections, files, and the root.
+    let webdavfs = OpendalFs::new(op.clone());
+    assert!(
+        matches!(
+            webdavfs.remove_dir(&DavPath::new("/dir/")?).await,
+            Err(FsError::Exists)
+        ),
+        "{label}: remove_dir non-empty"
+    );
+    assert!(
+        matches!(
+            webdavfs.remove_dir(&DavPath::new("/dir/child.txt")?).await,
+            Err(FsError::Forbidden)
+        ),
+        "{label}: remove_dir on file"
+    );
+    assert!(
+        matches!(
+            webdavfs.remove_dir(&DavPath::new("/")?).await,
+            Err(FsError::Forbidden)
+        ),
+        "{label}: remove_dir on root"
+    );
+
+    // After removing the child, Depth: 0 DELETE removes the now-empty collection.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/dir/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT, "{label}: DELETE child");
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/dir/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(
+        status,
+        StatusCode::NO_CONTENT,
+        "{label}: DELETE empty /dir/ Depth: 0"
+    );
+
+    // Deleting a missing collection returns 404 for both Depth: 0 and default Depth.
+    for depth in [Some("0"), None] {
+        let mut req = Request::builder().method(Method::DELETE).uri("/missing/");
+        if let Some(depth) = depth {
+            req = req.header("Depth", depth);
+        }
+        let (status, _) = dav_request(&dav, req.body(Body::empty())?).await?;
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "{label}: DELETE /missing/ depth={depth:?}"
+        );
+    }
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/dir/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(
+        status,
+        StatusCode::NOT_FOUND,
+        "{label}: DELETE already-removed /dir/"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_collection_depth_zero_and_missing() -> Result<()> {
+    let memory = Operator::new(opendal::services::Memory::default())?;
+    assert_delete_depth_zero_and_missing(memory, "memory").await?;
+
+    let root = tempfile::tempdir()?;
+    let fs_op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    assert_delete_depth_zero_and_missing(fs_op, "fs").await?;
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_delete_implicit_collection_depth_zero_and_infinity() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op))
+        .build_handler();
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/implicit/child.txt")
+            .body(Body::from(Bytes::from_static(b"keep")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Depth: 0 must refuse an implicit non-empty collection.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/implicit/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/implicit/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_ref(), b"keep");
+
+    // Default Depth: infinity still deletes an implicit collection cleanly.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/implicit/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/implicit/child.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Recursive DELETE of an explicit collection containing an implicit subdir
+    // must also succeed cleanly.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MKCOL")
+            .uri("/outer/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::PUT)
+            .uri("/outer/sub/child.txt")
+            .body(Body::from(Bytes::from_static(b"deep")))?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/outer/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/outer/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NOT_FOUND);
     Ok(())
 }

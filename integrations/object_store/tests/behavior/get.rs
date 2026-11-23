@@ -173,8 +173,8 @@ pub async fn test_get_opts_with_invalid_range(store: OpendalStore) -> Result<()>
         range: Some(GetRange::Offset(100)),
         ..Default::default()
     };
-    let ret = store.get_opts(&location, opts).await?;
-    assert_eq!(ret.range, 0..0);
+    let ret = store.get_opts(&location, opts).await;
+    assert!(ret.is_err());
 
     // the suffix of the range is greater than the size of the object
     let opts = GetOptions {

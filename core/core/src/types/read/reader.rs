@@ -429,7 +429,18 @@ impl Reader {
     /// }
     /// ```
     pub async fn into_stream(self, range: impl Into<BytesRange>) -> Result<BufferStream> {
-        BufferStream::create(self.ctx, range, None).await
+        self.into_stream_with_limit(range, None).await
+    }
+
+    /// Convert reader into a [`BufferStream`] that returns at most `limit`
+    /// bytes from the start of `range` and accepts EOF after a valid starting
+    /// byte.
+    pub(crate) async fn into_stream_with_limit(
+        self,
+        range: impl Into<BytesRange>,
+        limit: Option<u64>,
+    ) -> Result<BufferStream> {
+        BufferStream::create(self.ctx, range, limit).await
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],

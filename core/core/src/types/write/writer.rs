@@ -223,6 +223,14 @@ impl Writer {
 
     /// Copy an existing object range with read conditions and execution options.
     ///
+    /// [`options::ReadOptions::limit`] bounds the number of bytes copied from
+    /// the start of the selected range and accepts EOF after a valid starting
+    /// byte, matching [`Operator::read_options`]. A zero limit copies nothing.
+    /// A non-zero limit on a forward selection that starts at or beyond EOF
+    /// returns [`crate::ErrorKind::RangeNotSatisfied`].
+    /// Combining a limit with a positive `chunk` or with `concurrent` greater
+    /// than one returns [`ErrorKind::ConfigInvalid`].
+    ///
     /// The source path must differ from the writer's destination path unless
     /// [`options::ReadOptions::version`] selects a specific source version to
     /// restore. Copying the current object onto itself returns
@@ -256,8 +264,19 @@ impl Writer {
             .with_context("source", &path)
             .with_context("destination", self.ctx.path()));
         }
+        if options.limit.is_some()
+            && (options.chunk.is_some_and(|chunk| chunk != 0) || options.concurrent > 1)
+        {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "read limit cannot be combined with chunk or concurrent reads",
+            ));
+        }
+        let limit = options.limit;
         let (range, args, options) = options.into();
-        self.inner.copy_from(&path, args, options, range).await
+        self.inner
+            .copy_from(&path, args, options, range, limit)
+            .await
     }
 
     /// Abort the writer and clean up all written data.
@@ -470,6 +489,7 @@ mod tests {
     use bytes::{Buf, Bytes};
     use rand::{Rng, RngExt};
 
+    use crate::BytesRange;
     use crate::Capability;
     use crate::ErrorKind;
     use crate::OperationContext;
@@ -521,6 +541,123 @@ mod tests {
         let content = vec![b'y'; 4096];
         op.write_with(path, content.clone()).chunk(0).await?;
         assert_eq!(op.read(path).await?.to_bytes(), content);
+        Ok(())
+    }
+
+    /// `copy_from_options` must copy the same bytes that `read_options`
+    /// returns for the same options.
+    #[tokio::test]
+    async fn test_writer_copy_from_options_honors_limit() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+
+        let cases = [
+            // A zero limit copies nothing.
+            (
+                options::ReadOptions {
+                    range: (0..6).into(),
+                    limit: Some(0),
+                    ..Default::default()
+                },
+                b"".as_slice(),
+            ),
+            // The limit bounds the supplied range from its start.
+            (
+                options::ReadOptions {
+                    range: (0..6).into(),
+                    limit: Some(3),
+                    ..Default::default()
+                },
+                b"012".as_slice(),
+            ),
+            // A limit larger than the supplied range keeps the whole range.
+            (
+                options::ReadOptions {
+                    range: (0..6).into(),
+                    limit: Some(10),
+                    ..Default::default()
+                },
+                b"012345".as_slice(),
+            ),
+            // The limit applies to an open-ended range.
+            (
+                options::ReadOptions {
+                    range: (4_u64..).into(),
+                    limit: Some(3),
+                    ..Default::default()
+                },
+                b"456".as_slice(),
+            ),
+            // The limit applies to a suffix range.
+            (
+                options::ReadOptions {
+                    range: BytesRange::suffix(4),
+                    limit: Some(2),
+                    ..Default::default()
+                },
+                b"67".as_slice(),
+            ),
+            // A limit accepts EOF after a valid starting byte.
+            (
+                options::ReadOptions {
+                    range: (0..12).into(),
+                    limit: Some(20),
+                    ..Default::default()
+                },
+                b"0123456789".as_slice(),
+            ),
+        ];
+
+        for (idx, (options, expected)) in cases.into_iter().enumerate() {
+            assert_eq!(
+                op.read_options("source", options.clone()).await?.to_vec(),
+                expected,
+                "read_options must return the expected bytes for case {idx}"
+            );
+
+            let target = format!("target-{idx}");
+            let mut writer = op.writer(&target).await?;
+            writer.copy_from_options("source", options).await?;
+            writer.close().await?;
+            assert_eq!(
+                op.read(&target).await?.to_vec(),
+                expected,
+                "copy_from_options must copy the same bytes for case {idx}"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_options_rejects_limit_with_chunk_or_concurrent() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789").await?;
+        let mut writer = op.writer("target").await?;
+
+        for (idx, options) in [
+            options::ReadOptions {
+                range: (0..6).into(),
+                limit: Some(3),
+                chunk: Some(2),
+                ..Default::default()
+            },
+            options::ReadOptions {
+                range: (0..6).into(),
+                limit: Some(3),
+                concurrent: 2,
+                ..Default::default()
+            },
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let err = writer
+                .copy_from_options("source", options)
+                .await
+                .expect_err("limit with chunk or concurrent reads must be rejected");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "case {idx}");
+        }
+        writer.abort().await?;
         Ok(())
     }
 

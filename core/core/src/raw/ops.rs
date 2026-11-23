@@ -473,6 +473,11 @@ impl OpRead {
         Self::default()
     }
 
+    /// Return whether both argument sets apply the same source conditions.
+    pub(crate) fn same_read(&self, other: &Self) -> bool {
+        self.values == other.values
+    }
+
     /// Lower compose source `options` against `capability` and freeze them into
     /// service-ready read arguments.
     ///

@@ -113,6 +113,27 @@ impl WriteContext {
     }
 }
 
+/// A source copy that has already appended part of its range.
+///
+/// The range, path, and read conditions identify the logical call so that a
+/// retry can resume after the accepted prefix instead of copying it again.
+struct PendingCopy {
+    path: String,
+    args: OpRead,
+    options: OpReader,
+    range: BytesRange,
+    end: u64,
+    /// The next source offset to copy. It advances only after the destination
+    /// accepts the corresponding bytes.
+    offset: u64,
+}
+
+impl PendingCopy {
+    fn matches(&self, path: &str, args: &OpRead, range: BytesRange) -> bool {
+        self.path == path && self.range == range && self.args.same_read(args)
+    }
+}
+
 pub struct WriteGenerator<W> {
     w: W,
 
@@ -127,6 +148,8 @@ pub struct WriteGenerator<W> {
     can_copy_from: bool,
     /// Whether a logical write stopped after the inner writer accepted part of its input.
     requires_abort: bool,
+    /// A source copy that stopped after accepting part of its range.
+    pending_copy: Option<PendingCopy>,
     buffer: oio::QueueBuf,
 }
 
@@ -144,6 +167,7 @@ impl WriteGenerator<oio::Writer> {
             exact,
             can_copy_from,
             requires_abort: false,
+            pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
     }
@@ -158,6 +182,7 @@ impl WriteGenerator<oio::Writer> {
             exact,
             can_copy_from: false,
             requires_abort: false,
+            pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
     }
@@ -186,6 +211,18 @@ impl WriteGenerator<oio::Writer> {
     }
 
     fn check_writable(&self) -> Result<()> {
+        self.check_not_aborted()?;
+        if self.pending_copy.is_some() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer must be aborted or resume the same copy_from call after a partially accepted copy",
+            )
+            .set_persistent());
+        }
+        Ok(())
+    }
+
+    fn check_not_aborted(&self) -> Result<()> {
         if self.requires_abort {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -268,11 +305,30 @@ impl WriteGenerator<oio::Writer> {
         let mut stream = reader.into_stream(range).await?;
         while let Some(mut bs) = stream.try_next().await? {
             while !bs.is_empty() {
-                let n = self.write(bs.clone()).await?;
+                // The caller already admitted this copy, and a retry must be
+                // able to continue it even though `pending_copy` is set.
+                let n = self.write_chunk(bs.clone()).await?;
                 bs.advance(n);
+                self.advance_copy_offset(n as u64);
             }
         }
         Ok(())
+    }
+
+    fn advance_copy_offset(&mut self, n: u64) {
+        let copy = self
+            .pending_copy
+            .as_mut()
+            .expect("copy progress must belong to a pending copy");
+        copy.offset += n;
+        debug_assert!(copy.offset <= copy.end);
+    }
+
+    fn copy_offset(&self) -> u64 {
+        self.pending_copy
+            .as_ref()
+            .expect("pending copy must exist")
+            .offset
     }
 
     /// Copy a source range into this writer, using native execution when possible.
@@ -285,7 +341,7 @@ impl WriteGenerator<oio::Writer> {
     ) -> Result<()> {
         const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
-        self.check_writable()?;
+        self.check_not_aborted()?;
 
         if let Some(size) = range.size()
             && size > MAX_COPY_FROM_SIZE
@@ -297,33 +353,77 @@ impl WriteGenerator<oio::Writer> {
             .with_context("size", size));
         }
 
-        let reader = self.reader(path, args.clone(), options.clone())?;
-        let absolute = reader.parse_into_range(range).await?;
-        let size = absolute.end - absolute.start;
-        if size > MAX_COPY_FROM_SIZE {
-            return Err(Error::new(
-                ErrorKind::RangeNotSatisfied,
-                "copy_from range exceeds the 5 GiB per-call limit",
-            )
-            .with_context("size", size));
+        if let Some(copy) = &self.pending_copy {
+            // Only the identical logical call can continue after the writer
+            // accepted part of its source range. Any other call would append
+            // different bytes after that prefix and invalidate a later retry.
+            if !copy.matches(path, &args, range) {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "writer must be aborted or resume the same copy_from call after a partially accepted copy",
+                )
+                .set_persistent());
+            }
+        } else {
+            let reader = self.reader(path, args.clone(), options.clone())?;
+            let absolute = reader.parse_into_range(range).await?;
+            let size = absolute.end - absolute.start;
+            if size > MAX_COPY_FROM_SIZE {
+                return Err(Error::new(
+                    ErrorKind::RangeNotSatisfied,
+                    "copy_from range exceeds the 5 GiB per-call limit",
+                )
+                .with_context("size", size));
+            }
+            if size == 0 {
+                return Ok(());
+            }
+
+            self.pending_copy = Some(PendingCopy {
+                path: path.to_string(),
+                args,
+                options,
+                range,
+                end: absolute.end,
+                offset: absolute.start,
+            });
         }
-        if size == 0 {
+
+        self.drive_copy().await
+    }
+
+    async fn drive_copy(&mut self) -> Result<()> {
+        let (path, args, options, end, mut offset) = {
+            let copy = self
+                .pending_copy
+                .as_ref()
+                .expect("pending copy must exist while driving it");
+            (
+                copy.path.clone(),
+                copy.args.clone(),
+                copy.options.clone(),
+                copy.end,
+                copy.offset,
+            )
+        };
+        let mut remaining = end - offset;
+
+        if remaining == 0 {
+            self.pending_copy = None;
             return Ok(());
         }
 
         let Some(chunk_size) = self.chunk_size.filter(|_| self.can_copy_from) else {
-            return self
-                .stream_range(
-                    path,
-                    args,
-                    options,
-                    BytesRange::new(absolute.start, Some(size)),
-                )
-                .await;
+            self.stream_range(
+                &path,
+                args,
+                options,
+                BytesRange::new(offset, Some(remaining)),
+            )
+            .await?;
+            self.pending_copy = None;
+            return Ok(());
         };
-
-        let mut offset = absolute.start;
-        let mut remaining = size;
 
         if self.buffer.len() >= chunk_size {
             self.flush_buffer(None).await?;
@@ -332,14 +432,14 @@ impl WriteGenerator<oio::Writer> {
         if !self.buffer.is_empty() {
             let boundary_size = (chunk_size as u64 - self.buffer.len() as u64).min(remaining);
             self.stream_range(
-                path,
+                &path,
                 args.clone(),
                 options.clone(),
                 BytesRange::new(offset, Some(boundary_size)),
             )
             .await?;
-            offset += boundary_size;
-            remaining -= boundary_size;
+            offset = self.copy_offset();
+            remaining = end - offset;
         }
 
         // Exact chunking keeps a full buffer queued until the next write, so
@@ -357,20 +457,22 @@ impl WriteGenerator<oio::Writer> {
                 remaining
             };
             let part_range = BytesRange::new(offset, Some(part_size));
-            self.w.copy_from(path, args.clone(), part_range).await?;
+            self.w.copy_from(&path, args.clone(), part_range).await?;
             offset += part_size;
             remaining -= part_size;
+            self.advance_copy_offset(part_size);
         }
 
         if remaining > 0 {
             self.stream_range(
-                path,
+                &path,
                 args,
                 options,
                 BytesRange::new(offset, Some(remaining)),
             )
             .await?;
         }
+        self.pending_copy = None;
         Ok(())
     }
 
@@ -386,12 +488,16 @@ impl WriteGenerator<oio::Writer> {
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
         self.buffer.clear();
+        self.pending_copy = None;
         self.w.abort().await
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+
     use asyncband::mutex::Mutex;
     use bytes::Buf;
     use bytes::BufMut;
@@ -446,10 +552,29 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Clone, Copy)]
+    struct WriteFaults {
+        fail_on_write: usize,
+        fail_on_copy: usize,
+        pending_on_copy: usize,
+    }
+
+    impl Default for WriteFaults {
+        fn default() -> Self {
+            Self {
+                fail_on_write: usize::MAX,
+                fail_on_copy: usize::MAX,
+                pending_on_copy: usize::MAX,
+            }
+        }
+    }
+
     #[derive(Debug)]
     struct WriteFaultService {
         inner: Servicer,
-        fail_on_write: usize,
+        faults: WriteFaults,
+        copy_ranges: Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        copy_pending: Arc<AtomicBool>,
     }
 
     impl Service for WriteFaultService {
@@ -495,8 +620,11 @@ mod tests {
                 writer: self.inner.write(ctx, path, args)?,
                 source: self.inner.clone(),
                 ctx: ctx.clone(),
-                fail_on_write: self.fail_on_write,
-                attempts: 0,
+                faults: self.faults,
+                write_attempts: 0,
+                copy_attempts: 0,
+                copy_ranges: self.copy_ranges.clone(),
+                copy_pending: self.copy_pending.clone(),
             })
         }
 
@@ -531,14 +659,17 @@ mod tests {
         writer: oio::Writer,
         source: Servicer,
         ctx: OperationContext,
-        fail_on_write: usize,
-        attempts: usize,
+        faults: WriteFaults,
+        write_attempts: usize,
+        copy_attempts: usize,
+        copy_ranges: Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        copy_pending: Arc<AtomicBool>,
     }
 
     impl Write for WriteFault {
         async fn write(&mut self, bs: Buffer) -> Result<()> {
-            self.attempts += 1;
-            if self.attempts == self.fail_on_write {
+            self.write_attempts += 1;
+            if self.write_attempts == self.faults.fail_on_write {
                 return Err(
                     Error::new(ErrorKind::Unexpected, "injected flush failure").set_temporary()
                 );
@@ -547,6 +678,22 @@ mod tests {
         }
 
         async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+            self.copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned")
+                .push(range);
+            self.copy_attempts += 1;
+
+            if self.copy_attempts == self.faults.fail_on_copy {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected copy failure").set_temporary()
+                );
+            }
+            if self.copy_attempts == self.faults.pending_on_copy {
+                self.copy_pending.store(true, Ordering::SeqCst);
+                std::future::pending::<()>().await;
+            }
+
             let reader = self.source.read(&self.ctx, path, args)?;
             let (_, bs) = oio::Read::read(&reader, range).await?;
             self.writer.write(bs).await
@@ -561,15 +708,38 @@ mod tests {
         }
     }
 
-    fn with_write_fault(op: &Operator, fail_on_write: usize) -> Operator {
+    fn with_write_faults(
+        op: &Operator,
+        faults: WriteFaults,
+    ) -> (
+        Operator,
+        Arc<std::sync::Mutex<Vec<BytesRange>>>,
+        Arc<AtomicBool>,
+    ) {
+        let copy_ranges = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let copy_pending = Arc::new(AtomicBool::new(false));
         let (ctx, inner) = op.clone().into_parts();
-        Operator::from_parts(
+        let op = Operator::from_parts(
             ctx,
             Arc::new(WriteFaultService {
                 inner,
-                fail_on_write,
+                faults,
+                copy_ranges: copy_ranges.clone(),
+                copy_pending: copy_pending.clone(),
             }),
+        );
+        (op, copy_ranges, copy_pending)
+    }
+
+    fn with_write_fault(op: &Operator, fail_on_write: usize) -> Operator {
+        with_write_faults(
+            op,
+            WriteFaults {
+                fail_on_write,
+                ..Default::default()
+            },
         )
+        .0
     }
 
     #[tokio::test]
@@ -623,6 +793,104 @@ mod tests {
         writer.close().await?;
 
         assert_eq!(op.read("target").await?.to_vec(), b"abcdefghij0123456789");
+        Ok(())
+    }
+
+    /// A failed native copy part must not make the retry replay the parts that
+    /// already succeeded.
+    #[tokio::test]
+    async fn test_retry_copy_from_resumes_after_native_part_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (op, copy_ranges, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_copy: 2,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        let err = writer
+            .copy_from("source", 0..20)
+            .await
+            .expect_err("second native copy part fails");
+        assert_eq!(err.message(), "injected copy failure");
+
+        let err = writer
+            .write("rejected")
+            .await
+            .expect_err("partial copy rejects unrelated writes");
+        assert!(err.is_persistent());
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![
+                BytesRange::new(0, Some(10)),
+                BytesRange::new(10, Some(10)),
+                BytesRange::new(10, Some(10)),
+            ]
+        );
+        Ok(())
+    }
+
+    /// Dropping a copy future after one native part succeeded must keep the
+    /// accepted prefix and resume at the pending part.
+    #[tokio::test]
+    async fn test_cancelled_copy_from_resumes_after_native_part() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghij").await?;
+        let (op, copy_ranges, copy_pending) = with_write_faults(
+            &op,
+            WriteFaults {
+                pending_on_copy: 2,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+
+        {
+            let mut fut = std::pin::pin!(writer.copy_from("source", 0..20));
+            for _ in 0..100 {
+                let _ = futures::poll!(&mut fut);
+                if copy_pending.load(Ordering::SeqCst) {
+                    break;
+                }
+                tokio::task::yield_now().await;
+            }
+            assert!(
+                copy_pending.load(Ordering::SeqCst),
+                "second native copy part must be pending"
+            );
+        }
+
+        // A partial copy cannot be closed as if it were complete.
+        let err = writer
+            .close()
+            .await
+            .expect_err("partial copy must not close");
+        assert!(err.is_persistent());
+
+        writer.copy_from("source", 0..20).await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("target").await?.to_vec(), b"0123456789abcdefghij");
+        assert_eq!(
+            *copy_ranges
+                .lock()
+                .expect("copy range lock must not be poisoned"),
+            vec![
+                BytesRange::new(0, Some(10)),
+                BytesRange::new(10, Some(10)),
+                BytesRange::new(10, Some(10)),
+            ]
+        );
         Ok(())
     }
 

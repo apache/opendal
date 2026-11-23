@@ -202,6 +202,11 @@ impl Writer {
     ///
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.
+    ///
+    /// If a call fails after the underlying writer accepts part of the range,
+    /// retrying the same path, range, and read options resumes after the
+    /// accepted prefix instead of copying it again. Until that retry succeeds
+    /// or [`Writer::abort`] runs, other writes and [`Writer::close`] fail.
     pub async fn copy_from(&mut self, path: &str, range: impl Into<BytesRange>) -> Result<()> {
         self.copy_from_options(
             path,
@@ -214,6 +219,11 @@ impl Writer {
     }
 
     /// Copy an existing object range with read conditions and execution options.
+    ///
+    /// A retry with the same path, range, and read options resumes a partially
+    /// accepted copy instead of replaying its accepted prefix. Any other write
+    /// or [`Writer::close`] fails until the retry succeeds or [`Writer::abort`]
+    /// runs.
     pub async fn copy_from_options(
         &mut self,
         path: &str,

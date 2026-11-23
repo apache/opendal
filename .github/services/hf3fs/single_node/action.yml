@@ -30,18 +30,7 @@ runs:
       shell: bash
       env:
         CACHE_HIT: ${{ steps.cache.outputs.cache-hit }}
-      run: |
-        # Install additional Boost 1.74 runtime libraries here rather than in
-        # setup.sh so the existing 3FS build cache key stays valid.
-        sudo apt-get update -qq
-        sudo apt-get install -y --no-install-recommends \
-          libboost-atomic1.74.0 \
-          libboost-chrono1.74.0 \
-          libboost-container1.74.0 \
-          libboost-coroutine1.74.0 \
-          libboost-date-time1.74.0 \
-          libboost-iostreams1.74.0
-        bash .github/services/hf3fs/single_node/setup.sh
+      run: bash .github/services/hf3fs/single_node/setup.sh
     - uses: actions/cache/save@v5
       if: steps.cache.outputs.cache-hit != 'true'
       with:

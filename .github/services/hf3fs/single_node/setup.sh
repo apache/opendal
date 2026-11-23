@@ -33,7 +33,9 @@ sudo apt-get install -y --no-install-recommends \
   libdwarf1 libunwind8 libaio1 libgflags2.2 libgoogle-glog0v5 \
   libgoogle-perftools4 libssl3 libibverbs1 libnuma1 \
   libevent-2.1-7 libevent-extra-2.1-7 libevent-pthreads-2.1-7 libfmt8 \
-  libboost-context1.74.0 libboost-filesystem1.74.0 \
+  libboost-atomic1.74.0 libboost-chrono1.74.0 libboost-container1.74.0 \
+  libboost-context1.74.0 libboost-coroutine1.74.0 libboost-date-time1.74.0 \
+  libboost-filesystem1.74.0 libboost-iostreams1.74.0 \
   libboost-program-options1.74.0 libboost-regex1.74.0 \
   libboost-system1.74.0 libboost-thread1.74.0
 
@@ -73,7 +75,7 @@ if [[ "${CACHE_HIT:-false}" != true ]]; then
   ./patches/apply.sh
   cmake -S . -B build -G Ninja -DCMAKE_C_COMPILER=clang-14 -DCMAKE_CXX_COMPILER=clang++-14 \
     -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS_RELEASE='-O1 -DNDEBUG' \
-    -DCMAKE_CXX_FLAGS_RELEASE='-O1 -DNDEBUG' -DSHUFFLE_METHOD=g++11
+    -DCMAKE_CXX_FLAGS_RELEASE='-O1 -DNDEBUG' -DSHUFFLE_METHOD=g++11 -DPORTABLE=ON
   cmake --build build -j 3 --target mgmtd_main meta_main storage_main hf3fs_fuse_main admin_cli hf3fs_api_shared
 
   rm -rf "$STAGE_DIR"
@@ -132,10 +134,14 @@ echo "$STAGE_DIR/lib" | sudo tee /etc/ld.so.conf.d/00-hf3fs.conf >/dev/null
 sudo ldconfig
 
 # Verify all staged runtime dependencies resolve without the build tree.
+missing=0
 for elf in "$STAGE_DIR"/bin/* "$STAGE_DIR/lib/libhf3fs_api_shared.so"; do
   if ldd "$elf" | grep -q 'not found'; then
     echo "Missing runtime shared library for $elf:" >&2
     ldd "$elf" >&2
-    exit 1
+    missing=1
   fi
 done
+if [[ "$missing" -ne 0 ]]; then
+  exit 1
+fi

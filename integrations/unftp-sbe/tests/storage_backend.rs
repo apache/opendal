@@ -18,6 +18,7 @@
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context as TaskContext, Poll};
 
 use anyhow::{Context, Result};
@@ -26,7 +27,7 @@ use opendal::{OperationContext, Operator, services};
 use tempfile::TempDir;
 use tokio::io::{AsyncRead, ReadBuf};
 use unftp_core::auth::DefaultUser;
-use unftp_core::storage::{ErrorKind, StorageBackend};
+use unftp_core::storage::{ErrorKind, Metadata, StorageBackend};
 use unftp_sbe_opendal::OpendalStorage;
 
 /// Test layer that injects a fixed [`opendal::ErrorKind`] for `stat` calls on
@@ -176,6 +177,166 @@ impl raw::Service for StatErrorService {
         args: raw::OpPresign,
     ) -> opendal::Result<raw::RpPresign> {
         self.inner.presign(ctx, path, args).await
+    }
+}
+
+#[derive(Debug)]
+struct CloseErrorLayer {
+    aborted: Arc<AtomicBool>,
+}
+
+impl raw::Layer for CloseErrorLayer {
+    fn apply_service(&self, srv: raw::Servicer) -> raw::Servicer {
+        Arc::new(CloseErrorService {
+            inner: srv,
+            aborted: self.aborted.clone(),
+        })
+    }
+}
+
+#[derive(Debug)]
+struct CloseErrorService {
+    inner: raw::Servicer,
+    aborted: Arc<AtomicBool>,
+}
+
+impl raw::Service for CloseErrorService {
+    type Reader = ();
+    type Writer = oio::Writer;
+    type Lister = ();
+    type Deleter = ();
+    type Copier = ();
+    type Composer = ();
+
+    fn info(&self) -> raw::ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> opendal::Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: raw::OpCreateDir,
+    ) -> opendal::Result<raw::RpCreateDir> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    async fn stat(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: raw::OpStat,
+    ) -> opendal::Result<raw::RpStat> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: raw::OpRead) -> opendal::Result<Self::Reader> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpWrite,
+    ) -> opendal::Result<Self::Writer> {
+        let inner = self.inner.write(ctx, path, args)?;
+        Ok(Box::new(CloseErrorWriter {
+            inner,
+            aborted: self.aborted.clone(),
+        }))
+    }
+
+    fn delete(&self, _: &OperationContext) -> opendal::Result<Self::Deleter> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: raw::OpList) -> opendal::Result<Self::Lister> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    fn copy(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: raw::OpCopy,
+    ) -> opendal::Result<Self::Copier> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: raw::OpRename,
+    ) -> opendal::Result<raw::RpRename> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+
+    async fn presign(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: raw::OpPresign,
+    ) -> opendal::Result<raw::RpPresign> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unsupported,
+            "not used by this test",
+        ))
+    }
+}
+
+struct CloseErrorWriter {
+    inner: oio::Writer,
+    aborted: Arc<AtomicBool>,
+}
+
+impl oio::Write for CloseErrorWriter {
+    async fn write(&mut self, bs: opendal::Buffer) -> opendal::Result<()> {
+        oio::Write::write(&mut self.inner, bs).await
+    }
+
+    async fn close(&mut self) -> opendal::Result<opendal::Metadata> {
+        Err(opendal::Error::new(
+            opendal::ErrorKind::PermissionDenied,
+            "injected close failure",
+        ))
+    }
+
+    async fn abort(&mut self) -> opendal::Result<()> {
+        self.aborted.store(true, Ordering::SeqCst);
+        let _ = oio::Write::abort(&mut self.inner).await;
+        Err(opendal::Error::new(
+            opendal::ErrorKind::Unexpected,
+            "injected abort failure",
+        ))
     }
 }
 
@@ -595,5 +756,129 @@ async fn cwd_on_backend_without_list_capability() -> Result<()> {
         .await
         .expect_err("cwd nonexistent must fail");
     assert_eq!(err.kind(), ErrorKind::PermanentDirectoryNotAvailable);
+    Ok(())
+}
+
+/// A directory created with `mkd` must be found by `metadata` even when the
+/// backend only reports it for the trailing-slash form.
+#[tokio::test]
+async fn metadata_returns_directory_after_mkd() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let fs = services::Fs::default().root(root.path().to_str().context("non-UTF-8 test root")?);
+    let op = Operator::new(fs)?.layer(StatErrorLayer {
+        injected_path: "sub",
+        injected_kind: opendal::ErrorKind::NotFound,
+        hide_list: false,
+    });
+    let storage = OpendalStorage::new(op);
+    let user = DefaultUser;
+
+    storage.mkd(&user, "/sub").await.context("mkd /sub")?;
+
+    let metadata = storage
+        .metadata(&user, "/sub")
+        .await
+        .context("metadata /sub")?;
+    assert!(metadata.is_dir());
+    Ok(())
+}
+
+/// Memory keeps no directory entries of its own, so `metadata` must resolve
+/// implicit prefix directories from their children.
+#[tokio::test]
+async fn metadata_returns_directory_for_implicit_prefix() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "abc".as_bytes(), "implicit/file.txt", 0)
+        .await
+        .context("put implicit/file.txt")?;
+
+    for path in ["/implicit", "/implicit/"] {
+        let metadata = storage
+            .metadata(&user, path)
+            .await
+            .with_context(|| format!("metadata {path}"))?;
+        assert!(metadata.is_dir(), "{path} must be a directory");
+    }
+    Ok(())
+}
+
+/// The FTP root always exists, even when a backend cannot stat it.
+#[tokio::test]
+async fn metadata_returns_directory_for_root() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?.layer(StatErrorLayer {
+        injected_path: "/",
+        injected_kind: opendal::ErrorKind::NotFound,
+        hide_list: false,
+    });
+    let storage = OpendalStorage::new(op);
+
+    let metadata = storage
+        .metadata(&DefaultUser, "/")
+        .await
+        .context("metadata /")?;
+    assert!(metadata.is_dir());
+    Ok(())
+}
+
+#[tokio::test]
+async fn metadata_returns_file_metadata() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "hello".as_bytes(), "/file.txt", 0)
+        .await
+        .context("put /file.txt")?;
+
+    let metadata = storage
+        .metadata(&user, "/file.txt")
+        .await
+        .context("metadata /file.txt")?;
+    assert!(metadata.is_file());
+    assert!(!metadata.is_dir());
+    assert_eq!(metadata.len(), 5);
+    Ok(())
+}
+
+#[tokio::test]
+async fn metadata_missing_returns_file_not_available() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "abc".as_bytes(), "dir/file.txt", 0)
+        .await
+        .context("put dir/file.txt")?;
+
+    let err = storage
+        .metadata(&user, "/missing")
+        .await
+        .expect_err("metadata /missing must fail");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+    Ok(())
+}
+
+/// A failed close must abort the writer and return the close error, not the
+/// abort error.
+#[tokio::test]
+async fn put_close_error_aborts_writer() -> Result<()> {
+    let aborted = Arc::new(AtomicBool::new(false));
+    let op = Operator::new(services::Memory::default())?.layer(CloseErrorLayer {
+        aborted: aborted.clone(),
+    });
+    let storage = OpendalStorage::new(op);
+
+    let err = storage
+        .put(&DefaultUser, "body".as_bytes(), "file", 0)
+        .await
+        .expect_err("put must fail when close fails");
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    assert!(
+        aborted.load(Ordering::SeqCst),
+        "close failure must abort the writer"
+    );
     Ok(())
 }

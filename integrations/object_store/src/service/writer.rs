@@ -23,7 +23,6 @@ use object_store::MultipartUpload;
 use object_store::ObjectStore;
 use object_store::PutPayload;
 use object_store::path::Path as ObjectStorePath;
-use object_store::{Attribute, AttributeValue};
 
 use asyncband::mutex::Mutex;
 use futures::future::try_join_all;
@@ -109,13 +108,7 @@ impl oio::MultipartWrite for ObjectStoreWriter {
 
         let bytes = body.to_bytes();
         let payload = PutPayload::from(bytes);
-        let mut opts = parse_op_write(&self.args)?;
-
-        // Add size metadata for tracking
-        opts.attributes.insert(
-            Attribute::Metadata("content-size".into()),
-            AttributeValue::from(size.to_string()),
-        );
+        let opts = parse_op_write(&self.args)?;
 
         let result = self
             .store
@@ -323,14 +316,17 @@ mod tests {
     use std::sync::Mutex as StdMutex;
     use std::task::Poll;
 
+    use crate::ObjectStoreBuilder;
     use async_trait::async_trait;
     use bytes::Bytes;
     use futures::channel::oneshot;
     use futures::future::poll_fn;
     use futures::{FutureExt, join};
+    use object_store::local::LocalFileSystem;
     use object_store::memory::InMemory;
-    use object_store::{ObjectStoreExt, PutResult, UploadPart};
+    use object_store::{Attribute, AttributeValue, ObjectStoreExt, PutResult, UploadPart};
     use opendal::raw::oio::MultipartWrite;
+    use tempfile::TempDir;
 
     use super::*;
 
@@ -625,5 +621,91 @@ mod tests {
 
         drop(part0);
         writer.abort_part(&upload_id).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_write_once_writes_to_local_file_system() {
+        let temp_dir = TempDir::new().expect("create temp dir");
+        let store = LocalFileSystem::new_with_prefix(temp_dir.path()).expect("create local store");
+        let op = Operator::new(ObjectStoreBuilder::new(Arc::new(store)))
+            .expect("create operator from local store");
+
+        op.write("hello.txt", "world")
+            .await
+            .expect("write should succeed");
+        let content = op.read("hello.txt").await.expect("read should succeed");
+
+        assert_eq!(content.to_vec(), b"world");
+    }
+
+    #[tokio::test]
+    async fn test_write_once_does_not_add_implicit_attributes() {
+        let store = Arc::new(InMemory::new());
+        let op = Operator::new(ObjectStoreBuilder::new(store.clone()))
+            .expect("create operator from memory store");
+
+        op.write("hello.txt", "world")
+            .await
+            .expect("write should succeed");
+
+        let result = store
+            .get_opts(
+                &ObjectStorePath::from("hello.txt"),
+                object_store::GetOptions::default(),
+            )
+            .await
+            .expect("get should succeed");
+        assert!(
+            result.attributes.is_empty(),
+            "unexpected attributes: {:?}",
+            result.attributes
+        );
+    }
+
+    #[tokio::test]
+    async fn test_write_once_propagates_explicit_attributes() {
+        let store = Arc::new(InMemory::new());
+        let op = Operator::new(ObjectStoreBuilder::new(store.clone()))
+            .expect("create operator from memory store");
+
+        op.write_with("hello.txt", "world")
+            .content_type("text/plain")
+            .cache_control("no-cache")
+            .content_disposition("attachment")
+            .user_metadata([("owner".to_string(), "opendal".to_string())])
+            .await
+            .expect("write should succeed");
+
+        let result = store
+            .get_opts(
+                &ObjectStorePath::from("hello.txt"),
+                object_store::GetOptions::default(),
+            )
+            .await
+            .expect("get should succeed");
+
+        assert_eq!(
+            result.attributes.get(&Attribute::ContentType),
+            Some(&AttributeValue::from("text/plain"))
+        );
+        assert_eq!(
+            result.attributes.get(&Attribute::CacheControl),
+            Some(&AttributeValue::from("no-cache"))
+        );
+        assert_eq!(
+            result.attributes.get(&Attribute::ContentDisposition),
+            Some(&AttributeValue::from("attachment"))
+        );
+        assert_eq!(
+            result.attributes.get(&Attribute::Metadata("owner".into())),
+            Some(&AttributeValue::from("opendal"))
+        );
+        assert!(
+            result
+                .attributes
+                .get(&Attribute::Metadata("content-size".into()))
+                .is_none(),
+            "write_once must not inject content-size"
+        );
     }
 }

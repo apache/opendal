@@ -37,7 +37,7 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
             Error::new(ErrorKind::NotFound, "invalid path").set_source(err)
         }
 
-        object_store::Error::NotSupported { .. } => {
+        object_store::Error::NotSupported { .. } | object_store::Error::NotImplemented { .. } => {
             Error::new(ErrorKind::Unsupported, "operation not supported").set_source(err)
         }
 
@@ -50,5 +50,20 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
         }
 
         _ => Error::new(ErrorKind::Unexpected, "unknown error").set_source(err),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_not_implemented_error() {
+        let err = parse_error(object_store::Error::NotImplemented {
+            operation: "`put_opts` with `opts.attributes` specified".into(),
+            implementer: "LocalFileSystem".into(),
+        });
+
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }

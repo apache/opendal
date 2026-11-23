@@ -210,13 +210,21 @@ impl Service for MonoiofsBackend {
         let to = to.to_string();
 
         let copier = oio::OneShotCopier::new(async move {
-            // ensure file exists
-            core.dispatch({
-                let from = from.clone();
-                move || monoio::fs::metadata(from)
-            })
-            .await
-            .map_err(new_std_io_error)?;
+            // Ensure source exists and is not a directory before creating
+            // destination parent directories or opening/truncating destination.
+            let from_meta = core
+                .dispatch({
+                    let from = from.clone();
+                    move || monoio::fs::metadata(from)
+                })
+                .await
+                .map_err(new_std_io_error)?;
+            if from_meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "copy source is a directory",
+                ));
+            }
             let to = core.prepare_write_path(&to).await?;
             core.dispatch({
                 let core = core.clone();
@@ -258,7 +266,13 @@ impl Service for MonoiofsBackend {
                 }
             })
             .await
-            .map_err(new_std_io_error)
+            .map_err(|err: io::Error| {
+                if err.kind() == io::ErrorKind::IsADirectory {
+                    Error::new(ErrorKind::IsADirectory, "copy path is a directory").set_source(err)
+                } else {
+                    new_std_io_error(err)
+                }
+            })
             .map(|size| {
                 let metadata = MetadataBuilder::file(size);
                 metadata.build()
@@ -278,5 +292,48 @@ impl Service for MonoiofsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_copy_source_dir_preserves_destination() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op = Operator::new(MonoiofsBuilder::default().root(temp_dir.path().to_str().unwrap()))
+            .unwrap();
+
+        op.create_dir("dir/").await.unwrap();
+        op.write("dst", "existing content").await.unwrap();
+
+        let err = op.copy("dir", "dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert_eq!(
+            op.read("dst").await.unwrap().to_bytes(),
+            b"existing content".as_slice()
+        );
+
+        let err = op.copy("dir", "new_dir/missing").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert!(!temp_dir.path().join("new_dir").exists());
+    }
+
+    #[tokio::test]
+    async fn test_copy_dest_dir_and_missing_source() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op = Operator::new(MonoiofsBuilder::default().root(temp_dir.path().to_str().unwrap()))
+            .unwrap();
+
+        op.write("src", "hello").await.unwrap();
+        op.create_dir("dir/").await.unwrap();
+
+        let err = op.copy("src", "dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+
+        let err = op.copy("missing", "missing_parent/dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(!temp_dir.path().join("missing_parent").exists());
     }
 }

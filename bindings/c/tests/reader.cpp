@@ -115,3 +115,28 @@ TEST_F(OpendalReaderTest, SeekTest)
 
     opendal_reader_free(reader);
 }
+
+TEST_F(OpendalReaderTest, PreservesNotFoundErrorCode)
+{
+    opendal_reader* reader = nullptr;
+    opendal_error* err = opendal_operator_reader(this->p, "/does_not_exist", &reader);
+    ASSERT_EQ(err, nullptr);
+    ASSERT_NE(reader, nullptr);
+
+    uint8_t buf[16] = { 0 };
+    uintptr_t read_size = 99;
+    err = opendal_reader_read(reader, buf, sizeof(buf), &read_size);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_NOT_FOUND);
+    EXPECT_EQ(read_size, 0);
+    opendal_error_free(err);
+
+    uint64_t pos = 99;
+    err = opendal_reader_seek(reader, 0, OPENDAL_SEEK_END, &pos);
+    ASSERT_NE(err, nullptr);
+    EXPECT_EQ(err->code, OPENDAL_NOT_FOUND);
+    EXPECT_EQ(pos, 0);
+    opendal_error_free(err);
+
+    opendal_reader_free(reader);
+}

@@ -19,7 +19,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use opendal_core::options::ReadOptions;
+use opendal_core::options::{DeleteOptions, ReadOptions};
 use opendal_core::raw::oio::{self, Read, ReadStream};
 use opendal_core::raw::*;
 use opendal_core::services::Memory;
@@ -515,7 +515,7 @@ async fn fs_origin_handles_missing_read_metadata_and_mutations() -> Result<()> {
     op.write("other", "independent").await?;
     assert_eq!(op.read("other").await?.to_vec(), b"independent");
     op.delete_with("dir/").recursive(true).await?;
-    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"1");
+    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"2");
     assert_eq!(
         op.read("dir/file").await.unwrap_err().kind(),
         ErrorKind::NotFound
@@ -717,5 +717,209 @@ async fn mutation_discards_inflight_pointer_even_after_ambiguous_close_failure()
     assert_eq!(error.message(), "response lost after commit");
     assert!(error.is_temporary());
     assert_eq!(op.read("object").await?.to_vec(), b"now");
+    Ok(())
+}
+
+#[tokio::test]
+async fn deleter_delete_invalidates_cache_before_close() -> Result<()> {
+    let cache = memory()?;
+    let op = memory()?.layer(CacheLayer::new(cache.clone())?.with_ttl(Duration::MAX));
+
+    op.write("object", "value").await?;
+    assert_eq!(op.read("object").await?.to_vec(), b"value");
+
+    let mut deleter = op.deleter().await?;
+    deleter.delete("object").await?;
+    assert_eq!(
+        op.read("object").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    deleter.close().await?;
+    assert_eq!(
+        op.read("object").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+
+    op.write("dir/a", "first").await?;
+    op.write("dir/b", "second").await?;
+    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
+    assert_eq!(op.read("dir/b").await?.to_vec(), b"second");
+
+    let mut deleter = op.deleter().await?;
+    deleter
+        .delete((
+            "dir/".to_owned(),
+            DeleteOptions {
+                recursive: true,
+                ..Default::default()
+            },
+        ))
+        .await?;
+    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"1");
+    assert_eq!(
+        op.read("dir/a").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    assert_eq!(
+        op.read("dir/b").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    deleter.close().await?;
+    assert_eq!(cache.read("v1/gen").await?.to_vec(), b"2");
+    assert_eq!(
+        op.read("dir/a").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
+    #[derive(Debug, Clone)]
+    struct BufferedDeleteLayer;
+
+    #[derive(Debug)]
+    struct BufferedDeleteService {
+        inner: Servicer,
+    }
+
+    struct BufferedDeleter {
+        inner: oio::Deleter,
+        pending: Vec<(String, OpDelete)>,
+    }
+
+    impl Layer for BufferedDeleteLayer {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(BufferedDeleteService { inner })
+        }
+    }
+
+    impl Service for BufferedDeleteService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = BufferedDeleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(BufferedDeleter {
+                inner: self.inner.delete(ctx)?,
+                pending: Vec::new(),
+            })
+        }
+
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    impl oio::Delete for BufferedDeleter {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            self.pending.push((path.to_owned(), args));
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            for (path, args) in self.pending.drain(..) {
+                self.inner.delete(&path, args).await?;
+            }
+            self.inner.close().await
+        }
+    }
+
+    let op = memory()?
+        .layer(BufferedDeleteLayer)
+        .layer(CacheLayer::new(memory()?)?.with_ttl(Duration::MAX));
+
+    op.write("object", "value").await?;
+    assert_eq!(op.read("object").await?.to_vec(), b"value");
+    let mut deleter = op.deleter().await?;
+    deleter.delete("object").await?;
+    // Buffered delete has not hit origin yet; reading re-populates the cache.
+    assert_eq!(op.read("object").await?.to_vec(), b"value");
+    deleter.close().await?;
+    assert_eq!(
+        op.read("object").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+
+    op.write("dir/a", "first").await?;
+    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
+    let mut deleter = op.deleter().await?;
+    deleter
+        .delete((
+            "dir/".to_owned(),
+            DeleteOptions {
+                recursive: true,
+                ..Default::default()
+            },
+        ))
+        .await?;
+    // Buffered recursive delete has not hit origin yet; reading re-populates under the new generation.
+    assert_eq!(op.read("dir/a").await?.to_vec(), b"first");
+    deleter.close().await?;
+    assert_eq!(
+        op.read("dir/a").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
     Ok(())
 }

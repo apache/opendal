@@ -684,4 +684,200 @@ mod tests {
         assert_eq!(sorted_entry_paths(&entries), vec!["a/~".to_string()]);
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_object_store_read_out_of_bounds_range_returns_range_not_satisfied()
+    -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("file.txt", "hello").await?;
+        op.write("empty.txt", "").await?;
+
+        for (path, range) in [
+            ("file.txt", BytesRange::from(10..20)),
+            ("file.txt", BytesRange::from(10..)),
+            ("file.txt", BytesRange::from(5..)),
+            ("empty.txt", BytesRange::from(0..1)),
+        ] {
+            let err = op
+                .read_with(path)
+                .range(range)
+                .await
+                .expect_err("out-of-bounds range read must fail");
+            assert_eq!(
+                err.kind(),
+                ErrorKind::RangeNotSatisfied,
+                "path={path}, range={range}"
+            );
+        }
+
+        let err = op
+            .read_with("missing.txt")
+            .range(10..20)
+            .await
+            .expect_err("missing object read must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_in_bounds_generic_error_stays_unexpected() -> anyhow::Result<()> {
+        #[derive(Debug)]
+        struct FailingRangeStore {
+            inner: InMemory,
+        }
+
+        impl std::fmt::Display for FailingRangeStore {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "FailingRangeStore")
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl ObjectStore for FailingRangeStore {
+            async fn put_opts(
+                &self,
+                location: &ObjectStorePath,
+                payload: object_store::PutPayload,
+                opts: object_store::PutOptions,
+            ) -> object_store::Result<object_store::PutResult> {
+                self.inner.put_opts(location, payload, opts).await
+            }
+
+            async fn put_multipart_opts(
+                &self,
+                location: &ObjectStorePath,
+                opts: object_store::PutMultipartOptions,
+            ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+                self.inner.put_multipart_opts(location, opts).await
+            }
+
+            async fn get_opts(
+                &self,
+                location: &ObjectStorePath,
+                options: object_store::GetOptions,
+            ) -> object_store::Result<object_store::GetResult> {
+                if !options.head && options.range.is_some() {
+                    return Err(object_store::Error::Generic {
+                        store: "FailingRangeStore",
+                        source: "transient backend error".into(),
+                    });
+                }
+                self.inner.get_opts(location, options).await
+            }
+
+            fn delete_stream(
+                &self,
+                locations: futures::stream::BoxStream<
+                    'static,
+                    object_store::Result<ObjectStorePath>,
+                >,
+            ) -> futures::stream::BoxStream<'static, object_store::Result<ObjectStorePath>>
+            {
+                self.inner.delete_stream(locations)
+            }
+
+            fn list(
+                &self,
+                prefix: Option<&ObjectStorePath>,
+            ) -> futures::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>>
+            {
+                self.inner.list(prefix)
+            }
+
+            async fn list_with_delimiter(
+                &self,
+                prefix: Option<&ObjectStorePath>,
+            ) -> object_store::Result<object_store::ListResult> {
+                self.inner.list_with_delimiter(prefix).await
+            }
+
+            async fn copy_opts(
+                &self,
+                from: &ObjectStorePath,
+                to: &ObjectStorePath,
+                options: object_store::CopyOptions,
+            ) -> object_store::Result<()> {
+                self.inner.copy_opts(from, to, options).await
+            }
+        }
+
+        let store: Arc<dyn ObjectStore> = Arc::new(FailingRangeStore {
+            inner: InMemory::new(),
+        });
+        let op = Operator::new(ObjectStoreBuilder::new(store))?;
+        op.write("file.txt", "hello").await?;
+
+        let err = op
+            .read_with("file.txt")
+            .range(0..3)
+            .await
+            .expect_err("injected generic error must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_not_modified_returns_condition_not_match() -> anyhow::Result<()> {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::new(store).build()?;
+        let ctx = test_ctx();
+
+        let mut writer = backend.write(&ctx, "file.txt", OpWrite::default())?;
+        writer.write(Buffer::from("hello")).await?;
+        writer.close().await?;
+
+        let meta = backend
+            .stat(&ctx, "file.txt", OpStat::default())
+            .await?
+            .into_metadata();
+        let etag = meta.etag().expect("InMemory should provide etag");
+        let last_modified = meta
+            .last_modified()
+            .expect("InMemory should provide last_modified");
+
+        let err = backend
+            .stat(
+                &ctx,
+                "file.txt",
+                options::StatOptions {
+                    if_none_match: Some(etag.to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .await
+            .expect_err("matching if_none_match on stat must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let err = backend
+            .stat(
+                &ctx,
+                "file.txt",
+                options::StatOptions {
+                    if_modified_since: Some(last_modified),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .await
+            .expect_err("unchanged if_modified_since on stat must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let (_, op_read, _) = options::ReadOptions {
+            if_none_match: Some(etag.to_string()),
+            ..Default::default()
+        }
+        .into();
+        let reader = backend.read(&ctx, "file.txt", op_read)?;
+        let err = reader
+            .open(BytesRange::default())
+            .await
+            .err()
+            .expect("matching if_none_match on read must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        Ok(())
+    }
 }

@@ -8160,6 +8160,7 @@ name = "opendal-service-fs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "libc",
  "log",
  "opendal-core",
  "opendal-executor-tokio",

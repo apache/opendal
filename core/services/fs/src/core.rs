@@ -143,6 +143,13 @@ impl FsCore {
         // try to get the metadata of the source file to ensure it exists
         tokio::fs::metadata(&from).await.map_err(new_std_io_error)?;
 
+        // Read source user metadata before copying: copying onto the same path
+        // would otherwise read the replaced destination. A source whose user
+        // metadata cannot be read keeps the previous copy behavior of not
+        // failing the content copy.
+        #[cfg(unix)]
+        let user_metadata = Self::get_user_metadata(&from).ok();
+
         let to = self
             .ensure_write_abs_path(&self.root, to.trim_end_matches('/'))
             .await?;
@@ -151,14 +158,11 @@ impl FsCore {
             .await
             .map_err(new_std_io_error)?;
 
-        // only *nix supports `write_with_user_metadata`
+        // Copying truncates an existing destination in place, so stale user
+        // metadata from the previous file must be replaced explicitly.
         #[cfg(unix)]
-        {
-            if let Ok(user_meta) = Self::get_user_metadata(&from)
-                && !user_meta.is_empty()
-            {
-                Self::set_user_metadata(&to, &user_meta)?;
-            }
+        if let Some(user_metadata) = user_metadata {
+            Self::replace_user_metadata(&to, Some(&user_metadata))?;
         }
 
         Ok(size)
@@ -211,21 +215,8 @@ impl FsCore {
 
         let attrs = match xattr::list(path) {
             Ok(attrs) => attrs,
-            Err(e) => {
-                // xattr may not be supported on some filesystems, ignore the error
-                if e.kind() == std::io::ErrorKind::Unsupported {
-                    return Ok(user_metadata);
-                }
-                // Also ignore "operation not supported" errors (ENOTSUP/EOPNOTSUPP)
-                // which may occur on filesystems that don't support xattr
-                if let Some(os_error) = e.raw_os_error() {
-                    // ENOTSUP (95) and EOPNOTSUPP (95) on Linux
-                    if os_error == 95 {
-                        return Ok(user_metadata);
-                    }
-                }
-                return Err(new_std_io_error(e));
-            }
+            Err(e) if is_xattr_unsupported(&e) => return Ok(user_metadata),
+            Err(e) => return Err(new_std_io_error(e)),
         };
 
         for attr in attrs {
@@ -254,12 +245,116 @@ impl FsCore {
         }
         Ok(())
     }
+
+    /// Replace the user metadata on `path` with `user_metadata`.
+    ///
+    /// Only extended attributes in the "user." namespace are removed; other
+    /// namespaces are never touched. Passing `None` clears all user metadata.
+    /// Filesystems without xattr support are treated as having no user metadata
+    /// so that ordinary writes and copies do not fail there.
+    #[cfg(unix)]
+    pub fn replace_user_metadata(
+        path: &Path,
+        user_metadata: Option<&HashMap<String, String>>,
+    ) -> Result<()> {
+        // Write the new values first so a failure while setting metadata keeps
+        // the previous user metadata instead of clearing it first.
+        if let Some(user_metadata) = user_metadata {
+            Self::set_user_metadata(path, user_metadata)?;
+        }
+
+        let attrs = match xattr::list(path) {
+            Ok(attrs) => attrs,
+            Err(e) if is_xattr_unsupported(&e) => return Ok(()),
+            Err(e) => return Err(new_std_io_error(e)),
+        };
+
+        for attr in attrs {
+            let attr_name = attr.to_string_lossy();
+            let Some(key) = attr_name.strip_prefix(XATTR_USER_PREFIX) else {
+                continue;
+            };
+            if user_metadata.is_some_and(|metadata| metadata.contains_key(key)) {
+                continue;
+            }
+
+            match xattr::remove(path, &attr) {
+                Ok(()) => {}
+                // Another task may have removed the attribute already.
+                Err(e) if is_xattr_not_found(&e) => {}
+                Err(e) if is_xattr_unsupported(&e) => return Ok(()),
+                Err(e) => return Err(new_std_io_error(e)),
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Prefix for user xattr namespace on Linux.
 /// Using "user." as the standard namespace for user-defined attributes.
 #[cfg(unix)]
 const XATTR_USER_PREFIX: &str = "user.";
+
+/// Whether an xattr error means the filesystem does not support xattrs.
+#[cfg(unix)]
+fn is_xattr_unsupported(err: &std::io::Error) -> bool {
+    if err.kind() == std::io::ErrorKind::Unsupported {
+        return true;
+    }
+
+    // Some platforms leave ENOTSUP/EOPNOTSUPP/ENOSYS uncategorized.
+    #[cfg(target_os = "linux")]
+    {
+        use rustix::io::Errno;
+        matches!(
+            err.raw_os_error().map(Errno::from_raw_os_error),
+            Some(Errno::OPNOTSUPP | Errno::NOSYS)
+        )
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
+}
+
+/// Whether an xattr error means the attribute is already gone.
+///
+/// `xattr` reports a missing attribute as `ENODATA` on Linux and `ENOATTR` on
+/// macOS and the BSDs. Neither is mapped to [`std::io::ErrorKind::NotFound`].
+/// `ENOENT` reports a missing file, so it must keep surfacing as an error.
+#[cfg(unix)]
+fn is_xattr_not_found(err: &std::io::Error) -> bool {
+    let Some(code) = err.raw_os_error() else {
+        return false;
+    };
+
+    // Platforms that `xattr` does not support report `Unsupported` for every
+    // call, so only the supported ones need a missing-attribute errno.
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "hurd"))]
+    {
+        code == libc::ENODATA
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
+    {
+        code == libc::ENOATTR
+    }
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "hurd",
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    )))]
+    {
+        let _ = code;
+        false
+    }
+}
 
 /// Publish a staged write at `to` without replacing an existing entry.
 ///
@@ -360,6 +455,67 @@ pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
+    fn xattrs_supported(dir: &Path) -> bool {
+        let probe = dir.join(".xattr-probe");
+        if std::fs::write(&probe, b"probe").is_err() {
+            return false;
+        }
+        let supported = xattr::set(&probe, "user.opendal_probe", b"1").is_ok();
+        let _ = std::fs::remove_file(&probe);
+        supported
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "hurd",
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    ))]
+    #[test]
+    fn test_is_xattr_not_found_distinguishes_missing_attribute_from_missing_file() {
+        #[cfg(any(target_os = "linux", target_os = "android", target_os = "hurd"))]
+        let missing_attr = std::io::Error::from_raw_os_error(libc::ENODATA);
+        #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
+        let missing_attr = std::io::Error::from_raw_os_error(libc::ENOATTR);
+
+        assert!(is_xattr_not_found(&missing_attr));
+        assert!(!is_xattr_not_found(&std::io::Error::from_raw_os_error(
+            libc::ENOENT
+        )));
+        assert!(!is_xattr_not_found(&std::io::Error::from_raw_os_error(
+            libc::EACCES
+        )));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_xattr_remove_missing_attribute_is_not_a_missing_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file = temp_dir.path().join("file");
+        std::fs::write(&file, b"data").unwrap();
+        if !xattrs_supported(temp_dir.path()) {
+            return;
+        }
+
+        // The attribute is already gone, as when another task removes it
+        // between listing and removing it. The error must be recognized as a
+        // missing attribute so the caller can treat the removal as done.
+        let err = xattr::remove(&file, "user.missing").unwrap_err();
+        assert!(is_xattr_not_found(&err), "{err:?}");
+
+        // A missing file reports ENOENT, which is not a missing attribute and
+        // must keep surfacing.
+        let missing = temp_dir.path().join("missing");
+        let err = xattr::remove(&missing, "user.missing").unwrap_err();
+        assert!(!is_xattr_not_found(&err), "{err:?}");
+
+        let err = FsCore::replace_user_metadata(&missing, None).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+    }
+
     #[cfg(target_os = "linux")]
     #[test]
     fn test_conditional_rename_directory_errno_mapping() {
@@ -408,6 +564,9 @@ mod tests {
 
         let temp_dir = tempfile::TempDir::new().unwrap();
         let root = temp_dir.path();
+        if !xattrs_supported(root) {
+            return;
+        }
 
         let src = "src_meta.txt";
         let dst = "dst_meta.txt";
@@ -424,8 +583,54 @@ mod tests {
         let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
         op.copy(src, dst).await.unwrap();
 
-        let got = FsCore::get_user_metadata(&dst_path).unwrap();
-        assert_eq!(got.get("key").map(String::as_str), Some("preserved123"));
+        assert_eq!(FsCore::get_user_metadata(&dst_path).unwrap(), meta);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_fs_backend_copy_replaces_target_user_metadata() {
+        use opendal_core::Operator;
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path();
+        if !xattrs_supported(root) {
+            return;
+        }
+
+        let src_path = root.join("src");
+        let dst_path = root.join("dst");
+        std::fs::write(&src_path, b"source").unwrap();
+        std::fs::write(&dst_path, b"old destination").unwrap();
+
+        let source_metadata = HashMap::from([
+            ("shared".to_string(), "new".to_string()),
+            ("source".to_string(), "kept".to_string()),
+        ]);
+        FsCore::set_user_metadata(&src_path, &source_metadata).unwrap();
+        FsCore::set_user_metadata(
+            &dst_path,
+            &HashMap::from([
+                ("shared".to_string(), "old".to_string()),
+                ("stale".to_string(), "gone".to_string()),
+            ]),
+        )
+        .unwrap();
+
+        let op = Operator::new(crate::Fs::default().root(root.to_str().unwrap())).unwrap();
+        op.copy("src", "dst").await.unwrap();
+
+        assert_eq!(std::fs::read(&dst_path).unwrap(), b"source");
+        assert_eq!(
+            FsCore::get_user_metadata(&dst_path).unwrap(),
+            source_metadata
+        );
+
+        // A source without user metadata must still clear the target's stale
+        // user metadata instead of inheriting it.
+        std::fs::write(&src_path, b"plain source").unwrap();
+        FsCore::replace_user_metadata(&src_path, None).unwrap();
+        op.copy("src", "dst").await.unwrap();
+        assert!(FsCore::get_user_metadata(&dst_path).unwrap().is_empty());
     }
 
     #[cfg(unix)]

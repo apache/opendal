@@ -44,6 +44,7 @@ tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
 rustix = { version = "1", features = ["fs"] }
 
 [target.'cfg(unix)'.dependencies]
+libc = "0.2"
 xattr = "1"
 
 [dev-dependencies]

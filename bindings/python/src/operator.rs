@@ -490,7 +490,7 @@ impl Operator {
             let r = py
                 .detach(move || {
                     let reader = this.reader_options(&path, reader_opts.into())?;
-                    reader.into_std_read(range.to_range())
+                    reader.into_std_read(range)
                 })
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
@@ -1364,7 +1364,7 @@ impl AsyncOperator {
                     .map_err(format_pyerr)?;
 
                 let r = reader
-                    .into_futures_async_read(range.to_range())
+                    .into_futures_async_read(range)
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))

@@ -24,10 +24,12 @@ match.
 
 ## Write
 
-With `atomic_write_dir` configured, writes with `if_not_exists(true)` check
-for an existing destination when committing the staged file. If the destination
-exists, the write returns [`opendal_core::ErrorKind::ConditionNotMatch`] and
-preserves the existing file. This also applies when `append(true)` is set.
+With `atomic_write_dir` configured, unconditional writes with `append(true)`
+bypass staging and open the target file directly in append mode. Writes with
+`if_not_exists(true)` check for an existing destination when committing the
+staged file. If the destination exists, the write returns
+[`opendal_core::ErrorKind::ConditionNotMatch`] and preserves the existing file.
+This also applies when `append(true)` is set alongside `if_not_exists(true)`.
 
 On Linux, the conditional commit uses `RENAME_NOREPLACE` and returns
 [`opendal_core::ErrorKind::Unsupported`] when the kernel or filesystem lacks

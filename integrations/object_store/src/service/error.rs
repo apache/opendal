@@ -45,6 +45,14 @@ pub(crate) fn parse_error(err: object_store::Error) -> Error {
             Error::new(ErrorKind::ConditionNotMatch, "precondition not met").set_source(err)
         }
 
+        object_store::Error::NotModified { .. } => {
+            Error::new(ErrorKind::ConditionNotMatch, "not modified").set_source(err)
+        }
+
+        object_store::Error::UnknownConfigurationKey { .. } => {
+            Error::new(ErrorKind::ConfigInvalid, "unknown configuration key").set_source(err)
+        }
+
         object_store::Error::Generic { store, .. } => {
             Error::new(ErrorKind::Unexpected, format!("{store} operation failed")).set_source(err)
         }
@@ -65,5 +73,25 @@ mod tests {
         });
 
         assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+
+    #[test]
+    fn test_parse_not_modified_error() {
+        let err = parse_error(object_store::Error::NotModified {
+            path: "test.txt".into(),
+            source: "etag matches".into(),
+        });
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[test]
+    fn test_parse_unknown_configuration_key_error() {
+        let err = parse_error(object_store::Error::UnknownConfigurationKey {
+            store: "S3",
+            key: "unknown_key".into(),
+        });
+
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

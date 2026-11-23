@@ -150,3 +150,70 @@ async fn staged_unconditional_write_replaces_existing_destination() {
     assert_eq!(op.read("data").await.unwrap().to_bytes(), "replacement");
     assert!(staging_is_empty(&staging));
 }
+
+#[tokio::test]
+async fn atomic_append_writers_do_not_overwrite_concurrently_created_file() {
+    let root = tempfile::tempdir().unwrap();
+    let staging = tempfile::tempdir().unwrap();
+    let op = atomic_fs_operator(&root, &staging);
+
+    let mut w1 = op.writer_with("data").append(true).await.unwrap();
+    let mut w2 = op.writer_with("data").append(true).await.unwrap();
+
+    w1.write("one").await.unwrap();
+    w2.write("two").await.unwrap();
+    w1.close().await.unwrap();
+    w2.close().await.unwrap();
+
+    assert_eq!(op.read("data").await.unwrap().to_bytes(), "onetwo");
+    assert!(staging_is_empty(&staging));
+}
+
+#[tokio::test]
+async fn atomic_non_append_write_still_stages_until_close() {
+    let root = tempfile::tempdir().unwrap();
+    let staging = tempfile::tempdir().unwrap();
+    let op = atomic_fs_operator(&root, &staging);
+
+    let mut writer = op.writer("data").await.unwrap();
+    writer.write("staged").await.unwrap();
+    assert!(!root.path().join("data").exists());
+    assert!(!staging_is_empty(&staging));
+
+    writer.close().await.unwrap();
+    assert_eq!(op.read("data").await.unwrap().to_bytes(), "staged");
+    assert!(staging_is_empty(&staging));
+}
+
+#[tokio::test]
+async fn atomic_append_abort_behavior() {
+    let root = tempfile::tempdir().unwrap();
+    let staging = tempfile::tempdir().unwrap();
+    let op = atomic_fs_operator(&root, &staging);
+
+    let mut unused = op.writer_with("unused").append(true).await.unwrap();
+    unused.abort().await.unwrap();
+    assert!(!root.path().join("unused").exists());
+    assert!(staging_is_empty(&staging));
+
+    let mut started = op.writer_with("started").append(true).await.unwrap();
+    started.write("one").await.unwrap();
+    assert_eq!(
+        started.abort().await.unwrap_err().kind(),
+        ErrorKind::Unsupported
+    );
+    assert_eq!(op.read("started").await.unwrap().to_bytes(), "one");
+    assert!(staging_is_empty(&staging));
+
+    let mut conditional = op
+        .writer_with("conditional")
+        .if_not_exists(true)
+        .append(true)
+        .await
+        .unwrap();
+    conditional.write("staged").await.unwrap();
+    assert!(!root.path().join("conditional").exists());
+    conditional.abort().await.unwrap();
+    assert!(!root.path().join("conditional").exists());
+    assert!(staging_is_empty(&staging));
+}

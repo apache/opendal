@@ -54,7 +54,8 @@ impl FsBuilder {
     ///
     /// # Notes
     ///
-    /// - Append to an existing file normally writes directly to the file.
+    /// - Unconditional append writes directly to the target file without
+    ///   staging.
     /// - Staged writes with `if_not_exists` publish without replacing an
     ///   existing destination, through `RENAME_NOREPLACE` on Linux and through
     ///   a hard link elsewhere. Both need the staging directory and the

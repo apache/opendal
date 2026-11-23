@@ -49,7 +49,7 @@ impl oio::Write for MiniMokaWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
 
-        let mut md = if self.path.ends_with('/') {
+        let mut md = if self.path.is_empty() || self.path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
             MetadataBuilder::file(buf.len() as u64)

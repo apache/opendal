@@ -514,4 +514,68 @@ mod tests {
         );
         Ok(())
     }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let op = Operator::new(builder)?.layer(layers::SimulateLayer::default());
+
+            op.create_dir("/").await?;
+
+            for entries in [
+                op.list("/").await?,
+                op.list_with("/").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+        let ctx = OperationContext::default();
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                MokaBuilder::default()
+            } else {
+                MokaBuilder::default().root(root)
+            };
+            let service = builder.build()?;
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+
+            let mut writer = service.write(&ctx, "/", OpWrite::default())?;
+            let meta = writer.close().await?;
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            assert_eq!(
+                service
+                    .stat(&ctx, "/", OpStat::default())
+                    .await?
+                    .into_metadata()
+                    .mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+        }
+        Ok(())
+    }
 }

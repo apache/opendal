@@ -37,6 +37,10 @@ namespace OpenDAL.ServiceConfig
         /// </summary>
         public string? Bucket { get; init; }
         /// <summary>
+        /// Disable config load so that opendal will not load config from environment. For examples: - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`
+        /// </summary>
+        public bool? DisableConfigLoad { get; init; }
+        /// <summary>
         /// Deprecated: OBS versioning capability is not controlled by service config.
         /// </summary>
         [System.Obsolete("OBS versioning capability is not controlled by this option and this option is no longer needed.")]
@@ -53,6 +57,14 @@ namespace OpenDAL.ServiceConfig
         /// Secret access key for obs.
         /// </summary>
         public string? SecretAccessKey { get; init; }
+        /// <summary>
+        /// Security token (a.k.a. session token) for obs. Temporary credentials sign with `access_key_id`, `secret_access_key` and this token, and the signer attaches the token as the `x-obs-security-token` header. If this field is not set, OpenDAL reads the token from the environment variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is enabled).
+        /// </summary>
+        public string? SecurityToken { get; init; }
+        /// <summary>
+        /// Skip signature will skip loading credentials and signing requests.
+        /// </summary>
+        public bool? SkipSignature { get; init; }
 
         public string Scheme => "obs";
 
@@ -66,6 +78,10 @@ namespace OpenDAL.ServiceConfig
             if (Bucket is not null)
             {
                 map["bucket"] = Utilities.ToOptionString(Bucket);
+            }
+            if (DisableConfigLoad is not null)
+            {
+                map["disable_config_load"] = Utilities.ToOptionString(DisableConfigLoad);
             }
 #pragma warning disable CS0618
             if (EnableVersioning is not null)
@@ -84,6 +100,14 @@ namespace OpenDAL.ServiceConfig
             if (SecretAccessKey is not null)
             {
                 map["secret_access_key"] = Utilities.ToOptionString(SecretAccessKey);
+            }
+            if (SecurityToken is not null)
+            {
+                map["security_token"] = Utilities.ToOptionString(SecurityToken);
+            }
+            if (SkipSignature is not null)
+            {
+                map["skip_signature"] = Utilities.ToOptionString(SkipSignature);
             }
             return map;
         }

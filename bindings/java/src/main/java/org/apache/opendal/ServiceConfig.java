@@ -2484,6 +2484,15 @@ public interface ServiceConfig {
          */
         public final String bucket;
         /**
+         * <p>Disable config load so that opendal will not load config from
+         * environment.</p>
+         * <p>For examples:</p>
+         * <ul>
+         * <li>envs like <code>HUAWEI_CLOUD_ACCESS_KEY_ID</code></li>
+         * </ul>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OBS versioning capability is not controlled by service config.</p>
          *
          * @deprecated OBS versioning capability is not controlled by this option and this option is no longer needed.
@@ -2501,6 +2510,20 @@ public interface ServiceConfig {
          * <p>Secret access key for obs.</p>
          */
         public final String secretAccessKey;
+        /**
+         * <p>Security token (a.k.a. session token) for obs.</p>
+         * <p>Temporary credentials sign with <code>access_key_id</code>, <code>secret_access_key</code> and
+         * this token, and the signer attaches the token as the
+         * <code>x-obs-security-token</code> header.</p>
+         * <p>If this field is not set, OpenDAL reads the token from the environment
+         * variable <code>HUAWEI_CLOUD_SECURITY_TOKEN</code> (unless <code>disable_config_load</code> is
+         * enabled).</p>
+         */
+        public final String securityToken;
+        /**
+         * <p>Skip signature will skip loading credentials and signing requests.</p>
+         */
+        public final Boolean skipSignature;
 
         @Override
         public String scheme() {
@@ -2516,6 +2539,9 @@ public interface ServiceConfig {
             if (bucket != null) {
                 map.put("bucket", bucket);
             }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
+            }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));
             }
@@ -2527,6 +2553,12 @@ public interface ServiceConfig {
             }
             if (secretAccessKey != null) {
                 map.put("secret_access_key", secretAccessKey);
+            }
+            if (securityToken != null) {
+                map.put("security_token", securityToken);
+            }
+            if (skipSignature != null) {
+                map.put("skip_signature", String.valueOf(skipSignature));
             }
             return map;
         }

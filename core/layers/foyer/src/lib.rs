@@ -454,6 +454,7 @@ mod tests {
     use std::io::Cursor;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
 
     use tokio::sync::{Semaphore, oneshot};
 
@@ -983,7 +984,7 @@ mod tests {
         let cache = memory_cache().await;
         let source = Arc::new(MockReadService::new("0123456789"));
         let state = source.state.clone();
-        let service = FoyerLayer::new(cache)
+        let service = FoyerLayer::new(cache.clone())
             .with_size_limit(0..100)
             .apply_service(source);
         let ctx = service_context(&service);
@@ -1005,6 +1006,13 @@ mod tests {
                 .if_match(),
             Some("\"etag-1\"")
         );
+
+        // A conditional read never populates the cache.
+        assert_eq!(state.stat_calls.load(Ordering::Relaxed), 0);
+        assert!(!cache.contains(&FoyerKey {
+            path: "test".to_owned(),
+            version: None,
+        }));
     }
 
     #[tokio::test]
@@ -1031,7 +1039,9 @@ mod tests {
         state.stat_started.acquire().await.unwrap().forget();
 
         // Start a conditional read while the unconditional fill is in flight.
-        let (started_tx, started_rx) = oneshot::channel();
+        // It must bypass the cache and reach the origin without waiting for the
+        // fill, so await it before releasing the gate. The timeout turns a
+        // regression into a fast failure instead of a hung test.
         let conditional = tokio::spawn({
             let service = service.clone();
             let ctx = ctx.clone();
@@ -1039,24 +1049,21 @@ mod tests {
                 let reader = service
                     .read(&ctx, "test", conditional_read_args("\"wrong-etag\""))
                     .unwrap();
-                started_tx.send(()).unwrap();
                 reader.open(BytesRange::new(0, None)).await
             }
         });
-        started_rx.await.unwrap();
-        tokio::task::yield_now().await;
+        let err = tokio::time::timeout(Duration::from_secs(2), conditional)
+            .await
+            .expect("a conditional read must not wait for an unconditional fill")
+            .unwrap()
+            .err()
+            .expect("a conditional read must not receive an unconditional fill");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
 
         gate.add_permits(1);
 
         let fill_buffer = fill.await.unwrap();
         assert_eq!(fill_buffer.to_vec(), b"0123456789");
-
-        let err = conditional
-            .await
-            .unwrap()
-            .err()
-            .expect("a conditional read must not receive an unconditional fill");
-        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
     }
 
     #[tokio::test]

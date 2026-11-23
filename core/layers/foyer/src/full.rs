@@ -134,7 +134,9 @@ impl FullReader {
         // conditional fill would inherit a condition failure that does not
         // apply to it. Send the read straight to the origin, which observes
         // the original args.
-        // `version` is not listed here because it is part of the cache key.
+        // `version` is excluded from `is_conditional()` because it is part of
+        // the cache key: a versioned read still uses the cache under its own
+        // key.
         if self.args.is_conditional() {
             return Ok(None);
         }

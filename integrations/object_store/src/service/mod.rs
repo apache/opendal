@@ -86,8 +86,8 @@ impl Builder for ObjectStoreBuilder {
                 write: true,
                 delete: true,
                 list: true,
-                list_with_limit: true,
                 list_with_start_after: true,
+                list_with_recursive: true,
                 delete_with_version: false,
                 ..Default::default()
             },
@@ -238,6 +238,9 @@ mod tests {
         assert!(cap.write);
         assert!(cap.delete);
         assert!(cap.list);
+        assert!(cap.list_with_recursive);
+        assert!(cap.list_with_start_after);
+        assert!(!cap.list_with_limit);
     }
 
     #[tokio::test]
@@ -448,5 +451,237 @@ mod tests {
             let entry = lister.next().await.expect("next should succeed");
             assert!(entry.is_none());
         }
+    }
+
+    fn new_object_store_operator() -> Operator {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        Operator::new(ObjectStoreBuilder::new(store)).expect("build should succeed")
+    }
+
+    fn sorted_entry_paths(entries: &[Entry]) -> Vec<String> {
+        let mut paths = entries
+            .iter()
+            .map(|e| e.path().to_string())
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_limit_is_page_hint() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/file-1", "a/file-2", "a/file-3"] {
+            op.write(path, "content").await?;
+        }
+
+        let entries = op.list_with("a/").limit(1).await?;
+
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file-1".to_string(),
+                "a/file-2".to_string(),
+                "a/file-3".to_string(),
+            ],
+            "limit is a page size hint and must not truncate the listing"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_non_recursive() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+        op.write("a/sub2/other.txt", "other").await?;
+
+        let entries = op.list("a/").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file.txt".to_string(),
+                "a/sub/".to_string(),
+                "a/sub2/".to_string(),
+            ]
+        );
+
+        let file = entries
+            .iter()
+            .find(|entry| entry.path() == "a/file.txt")
+            .expect("direct file should be listed");
+        assert_eq!(file.metadata().mode(), EntryMode::FILE);
+        assert_eq!(file.metadata().content_length(), "file".len() as u64);
+        assert!(file.metadata().last_modified().is_some());
+        assert!(file.metadata().etag().is_some());
+
+        for path in ["a/sub/", "a/sub2/"] {
+            let dir = entries
+                .iter()
+                .find(|entry| entry.path() == path)
+                .expect("direct child directory should be listed");
+            assert_eq!(dir.metadata().mode(), EntryMode::DIR);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_recursive() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+        op.write("a/sub2/other.txt", "other").await?;
+
+        let entries = op.list_with("a/").recursive(true).await?;
+
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file.txt".to_string(),
+                "a/sub/nested.txt".to_string(),
+                "a/sub2/other.txt".to_string(),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_start_after() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/file-1", "a/file-2", "a/file-3", "a/sub/nested"] {
+            op.write(path, "content").await?;
+        }
+
+        let entries = op.list_with("a/").start_after("a/file-2").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/file-3".to_string(), "a/sub/".to_string()]
+        );
+
+        // The marker is inside `a/sub/`, so the folded directory sorts before
+        // the marker and must not be returned.
+        let entries = op.list_with("a/").start_after("a/sub/nested").await?;
+        assert!(entries.is_empty());
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/file-2")
+            .await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/file-3".to_string(), "a/sub/nested".to_string()]
+        );
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/sub/")
+            .await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/sub/nested".to_string()]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_root_and_missing_prefix() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("root.txt", "root").await?;
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+
+        for path in ["/", ""] {
+            let entries = op.list(path).await?;
+            assert_eq!(
+                sorted_entry_paths(&entries),
+                vec!["a/".to_string(), "root.txt".to_string()],
+                "root listing for {path:?} should contain direct children only"
+            );
+        }
+
+        for path in ["missing/", "missing", "missing/nested/"] {
+            let entries = op.list(path).await?;
+            assert!(
+                entries.is_empty(),
+                "missing prefix {path:?} should return no entries"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_prefix_semantics() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("parent/y", "y").await?;
+        op.write("parent/yy", "yy").await?;
+        op.write("parent/z", "z").await?;
+
+        // Listing a path without a trailing slash treats it as a prefix.
+        let entries = op.list("parent/y").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["parent/y".to_string(), "parent/yy".to_string()]
+        );
+
+        let entries = op.list_with("parent/y").recursive(true).await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["parent/y".to_string(), "parent/yy".to_string()]
+        );
+
+        // The listed path itself is returned as a directory entry.
+        let entries = op.list("parent").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["parent/".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a#/child", "child").await?;
+
+        let entries = op.list("a#").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+
+        let entries = op.list("a#/").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::FILE);
+
+        let entries = op.list_with("a#").recursive(true).await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_start_after_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/[", "a/\\", "a/~", "a/z"] {
+            op.write(path, "content").await?;
+        }
+
+        let expected = vec!["a/\\".to_string(), "a/z".to_string(), "a/~".to_string()];
+
+        let entries = op.list_with("a/").start_after("a/[").await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/[")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        // Percent encoding reverses the order of `~` and `z`. The filter must
+        // use decoded OpenDAL paths, not object_store's encoded locations.
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/z")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a/~".to_string()]);
+        Ok(())
     }
 }

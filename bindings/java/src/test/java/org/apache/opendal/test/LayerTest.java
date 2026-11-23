@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.CompletableFuture;
@@ -37,6 +38,7 @@ import org.apache.opendal.Entry;
 import org.apache.opendal.Layer;
 import org.apache.opendal.ListOptions;
 import org.apache.opendal.OpenDALException;
+import org.apache.opendal.Operator;
 import org.apache.opendal.ServiceConfig;
 import org.apache.opendal.WriteOptions;
 import org.apache.opendal.layer.CapabilityCheckLayer;
@@ -45,6 +47,7 @@ import org.apache.opendal.layer.ChaosLayer;
 import org.apache.opendal.layer.ConcurrentLimitLayer;
 import org.apache.opendal.layer.HedgeLayer;
 import org.apache.opendal.layer.ImmutableIndexLayer;
+import org.apache.opendal.layer.LoggingLayer;
 import org.apache.opendal.layer.MimeGuessLayer;
 import org.apache.opendal.layer.RetryLayer;
 import org.apache.opendal.layer.RouteLayer;
@@ -71,6 +74,36 @@ public class LayerTest {
         @Cleanup final AsyncOperator op = AsyncOperator.of(memory);
         @Cleanup final AsyncOperator layeredOp = op.layer(retryLayer);
         assertThat(layeredOp.info).isNotNull();
+    }
+
+    @Test
+    void testAsyncOperatorWithLoggingLayer() {
+        final byte[] content = "logging layer".getBytes(StandardCharsets.UTF_8);
+        try (AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                AsyncOperator layeredOp = op.layer(new LoggingLayer())) {
+            layeredOp.write("file.txt", content).join();
+            assertThat(layeredOp.read("file.txt").join()).containsExactly(content);
+            assertThat(layeredOp.stat("file.txt").join().contentLength).isEqualTo(content.length);
+            layeredOp.delete("file.txt").join();
+            assertThatThrownBy(() -> layeredOp.stat("file.txt").join())
+                    .is(OpenDALExceptionCondition.ofAsync(OpenDALException.Code.NotFound));
+        }
+    }
+
+    @Test
+    void testBlockingOperatorWithLoggingLayer() {
+        final byte[] content = "logging layer".getBytes(StandardCharsets.UTF_8);
+        try (AsyncOperator asyncOp =
+                        AsyncOperator.of(ServiceConfig.Memory.builder().build());
+                AsyncOperator layeredOp = asyncOp.layer(new LoggingLayer());
+                Operator op = layeredOp.blocking()) {
+            op.write("file.txt", content);
+            assertThat(op.read("file.txt")).containsExactly(content);
+            assertThat(op.stat("file.txt").contentLength).isEqualTo(content.length);
+            op.delete("file.txt");
+            assertThatThrownBy(() -> op.stat("file.txt"))
+                    .is(OpenDALExceptionCondition.ofSync(OpenDALException.Code.NotFound));
+        }
     }
 
     @Test

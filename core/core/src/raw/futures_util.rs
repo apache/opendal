@@ -176,6 +176,12 @@ impl<I: Send + 'static, O: Send + 'static> ConcurrentTasks<I, O> {
         !self.results.is_empty()
     }
 
+    /// Check if concurrent tasks hit an unrecoverable error.
+    #[inline]
+    pub(crate) fn is_errored(&self) -> bool {
+        self.errored
+    }
+
     fn spawn_task(&self, input: I) -> Result<Task<Result<O, (I, Error)>>> {
         let completed = self.completed_but_unretrieved.clone();
         let fut = (self.factory)(input)

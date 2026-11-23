@@ -273,6 +273,10 @@ impl ChunkedReader {
         self.revalidated_range.take()
     }
 
+    fn is_errored(&self) -> bool {
+        self.tasks.is_errored()
+    }
+
     async fn open_revalidated_first_chunk(&mut self) -> Result<()> {
         let Some(mut reval) = self.suffix_revalidation else {
             return Ok(());
@@ -480,6 +484,8 @@ enum State {
     PreparingMetadata(
         BoxedStaticFuture<(TwoWays<StreamingReader, ChunkedReader>, Result<Metadata>)>,
     ),
+    /// The stream has reached EOF or an unrecoverable error.
+    Done,
 }
 
 impl BufferStream {
@@ -604,7 +610,7 @@ impl BufferStream {
                 self.state = State::PreparingMetadata(Box::pin(fut));
             }
             State::PreparingMetadata(_) => {}
-            State::Reading(_) => {
+            State::Reading(_) | State::Done => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     "read metadata is not available",
@@ -627,12 +633,17 @@ impl Stream for BufferStream {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
+        if matches!(this.state, State::Done) {
+            return Poll::Ready(None);
+        }
+
         let remaining = if this.exact {
             None
         } else {
             this.size.map(|size| size - this.read)
         };
         if remaining == Some(0) {
+            this.state = State::Done;
             return Poll::Ready(None);
         }
 
@@ -650,9 +661,9 @@ impl Stream for BufferStream {
                     let fut = fut.as_mut();
                     let (mut reader, buf) = ready!(fut.poll(cx));
                     this.sync_revalidated_suffix(&mut reader);
-                    this.state = State::Idle(Some(reader));
                     return match buf {
                         Ok(buf) if buf.is_empty() => {
+                            this.state = State::Done;
                             let error = if this.exact {
                                 check_complete(this.size, this.read).err()
                             } else {
@@ -661,13 +672,22 @@ impl Stream for BufferStream {
                             Poll::Ready(error.map(Err))
                         }
                         Ok(mut buf) => {
+                            this.state = State::Idle(Some(reader));
                             if let Some(remaining) = remaining {
                                 buf.truncate((buf.len() as u64).min(remaining) as usize);
                             }
                             this.read += buf.len() as u64;
                             Poll::Ready(Some(Ok(buf)))
                         }
-                        Err(err) => Poll::Ready(Some(Err(err))),
+                        Err(err) => {
+                            let errored = matches!(&reader, TwoWays::Two(v) if v.is_errored());
+                            this.state = if errored {
+                                State::Done
+                            } else {
+                                State::Idle(Some(reader))
+                            };
+                            Poll::Ready(Some(Err(err)))
+                        }
                     };
                 }
                 State::PreparingMetadata(fut) => {
@@ -680,6 +700,7 @@ impl Stream for BufferStream {
                         Err(err) => return Poll::Ready(Some(Err(err))),
                     }
                 }
+                State::Done => return Poll::Ready(None),
             }
         }
     }
@@ -1288,6 +1309,164 @@ mod tests {
             .chunk(2)
             .await?;
         assert_eq!(buf.to_bytes(), &b"4567"[..]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_terminates_after_truncated_eof_error() -> Result<()> {
+        let make_stream = || async {
+            let fault = Arc::new(ReadFault::new());
+            let ctx = Arc::new(new_mock_read_context(b"0123", fault, OpReader::new()));
+            BufferStream::create(ctx, 0..10, None).await
+        };
+
+        let mut stream = make_stream().await?;
+        let first = stream
+            .next()
+            .await
+            .expect("stream must yield truncated bytes")?;
+        assert_eq!(first.to_bytes().as_ref(), b"0123");
+
+        let err = stream
+            .next()
+            .await
+            .expect("stream must yield check_complete error")
+            .expect_err("truncated bounded read must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        assert!(
+            stream.next().await.is_none(),
+            "stream must terminate after EOF check_complete error"
+        );
+
+        let items: Vec<Result<Buffer>> = make_stream().await?.collect().await;
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            items[0]
+                .as_ref()
+                .expect("first item must succeed")
+                .to_bytes()
+                .as_ref(),
+            b"0123"
+        );
+        assert_eq!(
+            items[1]
+                .as_ref()
+                .expect_err("second item must fail check_complete")
+                .kind(),
+            ErrorKind::Unexpected
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_terminates_after_concurrent_chunked_permanent_error() -> Result<()>
+    {
+        struct PermanentErrorReader {
+            data: Bytes,
+            fail_offset: u64,
+            error_kind: ErrorKind,
+        }
+
+        impl oio::Read for PermanentErrorReader {
+            async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                Err(Error::new(ErrorKind::Unsupported, "open is not supported"))
+            }
+
+            async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+                if range.offset() == self.fail_offset {
+                    return Err(Error::new(self.error_kind, "permanent chunk read error"));
+                }
+                let start = range.offset() as usize;
+                let end = range
+                    .size()
+                    .map(|size| start + size as usize)
+                    .unwrap_or(self.data.len())
+                    .min(self.data.len());
+                Ok((RpRead::default(), Buffer::from(self.data.slice(start..end))))
+            }
+        }
+
+        let make_stream = |fail_offset: u64, error_kind: ErrorKind| async move {
+            let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+            let ctx = op.context().with_executor(crate::test_executor());
+            let srv = op.service().clone();
+            let reader: oio::Reader = Box::new(PermanentErrorReader {
+                data: Bytes::from_static(b"0123456789AB"),
+                fail_offset,
+                error_kind,
+            });
+            let ctx = Arc::new(ReadContext::new(
+                ctx,
+                srv,
+                "test".to_string(),
+                OpRead::new(),
+                OpReader::new().with_chunk(4).with_concurrent(2),
+                reader,
+            ));
+            BufferStream::create(ctx, 0..12, None).await
+        };
+
+        // Failure on the first chunk terminates after yielding NotFound.
+        let mut stream = make_stream(0, ErrorKind::NotFound).await?;
+        let err = stream
+            .next()
+            .await
+            .expect("stream must yield permanent error")
+            .expect_err("first chunk must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert!(!err.is_temporary());
+        assert!(
+            stream.next().await.is_none(),
+            "stream must terminate after unrecoverable concurrent chunk error"
+        );
+
+        let items: Vec<Result<Buffer>> = make_stream(0, ErrorKind::NotFound).await?.collect().await;
+        assert_eq!(items.len(), 1);
+        assert_eq!(
+            items[0].as_ref().expect_err("first item must fail").kind(),
+            ErrorKind::NotFound
+        );
+
+        // Failure on a later chunk yields prior data, yields PermissionDenied, then terminates.
+        let mut stream = make_stream(4, ErrorKind::PermissionDenied).await?;
+        let first = stream
+            .next()
+            .await
+            .expect("stream must yield first chunk")?;
+        assert_eq!(first.to_bytes().as_ref(), b"0123");
+
+        let err = stream
+            .next()
+            .await
+            .expect("stream must yield permanent error")
+            .expect_err("second chunk must fail");
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+        assert!(
+            stream.next().await.is_none(),
+            "stream must terminate after later unrecoverable concurrent chunk error"
+        );
+
+        let items: Vec<Result<Buffer>> = make_stream(4, ErrorKind::PermissionDenied)
+            .await?
+            .collect()
+            .await;
+        assert_eq!(items.len(), 2);
+        assert_eq!(
+            items[0]
+                .as_ref()
+                .expect("first item must succeed")
+                .to_bytes()
+                .as_ref(),
+            b"0123"
+        );
+        assert_eq!(
+            items[1].as_ref().expect_err("second item must fail").kind(),
+            ErrorKind::PermissionDenied
+        );
 
         Ok(())
     }

@@ -41,11 +41,74 @@ pub(super) struct DirectIoAlignment {
 impl DirectIoAlignment {
     pub(super) fn open(
         path: &Path,
+        options: OpenOptions,
+        operation: ServiceOperation,
+    ) -> Result<(File, Self)> {
+        let file = Self::open_raw(path, options, operation)?;
+        Self::discover_or_cleanup(path, file, operation, false)
+    }
+
+    pub(super) fn open_for_write(
+        path: &Path,
+        operation: ServiceOperation,
+        create_new: bool,
+    ) -> Result<(File, Self)> {
+        if create_new {
+            let mut options = OpenOptions::new();
+            options.write(true).create_new(true);
+            let file = Self::open_raw(path, options, operation)?;
+            return Self::discover_or_cleanup(path, file, operation, true);
+        }
+
+        for _ in 0..8 {
+            // Try opening an existing file first without O_CREAT so a failed
+            // O_DIRECT check never removes or truncates a pre-existing file.
+            let mut existing = OpenOptions::new();
+            existing.write(true);
+            match Self::open_raw(path, existing, operation) {
+                Ok(file) => {
+                    let (file, alignment) =
+                        Self::discover_or_cleanup(path, file, operation, false)?;
+                    file.set_len(0).map_err(new_std_io_error)?;
+                    return Ok((file, alignment));
+                }
+                Err(err) if err.kind() == OpendalErrorKind::NotFound => {}
+                Err(err) => return Err(err),
+            }
+
+            // The target did not exist; create it exclusively so we know we
+            // created the file and can remove it if direct I/O discovery fails.
+            let mut create = OpenOptions::new();
+            create.write(true).create_new(true);
+            match Self::open_raw(path, create, operation) {
+                Ok(file) => return Self::discover_or_cleanup(path, file, operation, true),
+                Err(err) if err.kind() == OpendalErrorKind::ConditionNotMatch => {
+                    // O_CREAT|O_EXCL fails with EEXIST on a dangling symlink while
+                    // opening without O_CREAT fails with ENOENT.
+                    if std::fs::symlink_metadata(path)
+                        .is_ok_and(|meta| meta.file_type().is_symlink())
+                    {
+                        break;
+                    }
+                }
+                Err(err) => return Err(err),
+            }
+        }
+
+        let mut fallback = OpenOptions::new();
+        fallback.write(true).create(true);
+        let file = Self::open_raw(path, fallback, operation)?;
+        let (file, alignment) = Self::discover_or_cleanup(path, file, operation, false)?;
+        file.set_len(0).map_err(new_std_io_error)?;
+        Ok((file, alignment))
+    }
+
+    fn open_raw(
+        path: &Path,
         mut options: OpenOptions,
         operation: ServiceOperation,
-        cleanup_on_error: bool,
-    ) -> Result<(File, Self)> {
-        let file = options
+    ) -> Result<File> {
+        options
             .custom_flags(OFlags::DIRECT.bits() as i32)
             .open(path)
             .map_err(|err| match err.raw_os_error() {
@@ -58,18 +121,30 @@ impl DirectIoAlignment {
                         .set_source(err)
                 }
                 _ => parse_error(ErrorContext::new(operation), err),
-            })?;
+            })
+    }
 
+    fn discover_or_cleanup(
+        path: &Path,
+        file: File,
+        operation: ServiceOperation,
+        cleanup_on_error: bool,
+    ) -> Result<(File, Self)> {
         match Self::discover(&file) {
             Ok(alignment) => Ok((file, alignment)),
             Err(err) => {
+                let err = err.with_context("service_operation", operation.0);
                 if cleanup_on_error {
                     drop(file);
-                    if let Err(cleanup) = std::fs::remove_file(path) {
-                        return Err(err.with_context("file_cleanup", cleanup.to_string()));
+                    match std::fs::remove_file(path) {
+                        Ok(()) => {}
+                        Err(cleanup) if cleanup.kind() == ErrorKind::NotFound => {}
+                        Err(cleanup) => {
+                            return Err(err.with_context("file_cleanup", cleanup.to_string()));
+                        }
                     }
                 }
-                Err(err.with_context("service_operation", operation.0))
+                Err(err)
             }
         }
     }

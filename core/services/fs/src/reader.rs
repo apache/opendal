@@ -63,12 +63,8 @@ impl oio::PositionRead for FsReader {
             let (file, direct_io) = if core.direct_io {
                 let mut options = std::fs::OpenOptions::new();
                 options.read(true);
-                let (file, alignment) = DirectIoAlignment::open(
-                    &path,
-                    options,
-                    ServiceOperation("OpenForRead"),
-                    false,
-                )?;
+                let (file, alignment) =
+                    DirectIoAlignment::open(&path, options, ServiceOperation("OpenForRead"))?;
                 (file, Some(alignment))
             } else {
                 (File::open(path).map_err(new_std_io_error)?, None)

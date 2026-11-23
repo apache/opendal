@@ -162,6 +162,27 @@ mod linux {
     }
 
     #[tokio::test]
+    async fn tmpfs_failed_direct_io_create_leaves_no_file() {
+        let shm = Path::new("/dev/shm");
+        let Ok(dir) = File::open(shm) else { return };
+        if fstatfs(dir).unwrap().f_type as u32 != 0x0102_1994 {
+            return;
+        }
+        let dir = tempfile::tempdir_in(shm).unwrap();
+        let full_path = dir.path().join("data");
+        let op = Operator::new(
+            Fs::default()
+                .root(dir.path().to_str().unwrap())
+                .direct_io(true),
+        )
+        .unwrap();
+
+        let err = op.write("data", "content").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(!full_path.exists(), "failed write left a file behind");
+    }
+
+    #[tokio::test]
     async fn tmpfs_failed_direct_io_create_new_leaves_no_file() {
         let shm = Path::new("/dev/shm");
         let Ok(dir) = File::open(shm) else { return };

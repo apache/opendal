@@ -241,7 +241,21 @@ impl FsCore {
     pub fn set_user_metadata(path: &Path, user_metadata: &HashMap<String, String>) -> Result<()> {
         for (key, value) in user_metadata {
             let attr_name = format!("{XATTR_USER_PREFIX}{key}");
-            xattr::set(path, &attr_name, value.as_bytes()).map_err(new_std_io_error)?;
+            xattr::set(path, &attr_name, value.as_bytes()).map_err(|err| {
+                if is_xattr_unsupported(&err) {
+                    Error::new(
+                        ErrorKind::Unsupported,
+                        "user metadata is not supported by the filesystem",
+                    )
+                    .set_source(err)
+                } else if err.kind() == std::io::ErrorKind::InvalidInput
+                    || matches!(err.raw_os_error(), Some(libc::E2BIG | libc::ERANGE))
+                {
+                    Error::new(ErrorKind::Unexpected, err.kind().to_string()).set_source(err)
+                } else {
+                    new_std_io_error(err)
+                }
+            })?;
         }
         Ok(())
     }
@@ -381,10 +395,12 @@ pub(super) fn publish_staged_file(from: &Path, to: &Path) -> Result<()> {
             // the staging entry already; the destination is still published.
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
             // The destination was published, but the staging file is orphaned
-            // now. Report it instead of leaking it silently.
-            Err(err) => {
-                Err(new_std_io_error(err).with_context("service_operation", "RemoveStagedFile"))
-            }
+            // now. Report it instead of leaking it silently, and mark it
+            // permanent so retries do not re-run hard_link against the
+            // already-published destination.
+            Err(err) => Err(new_std_io_error(err)
+                .set_permanent()
+                .with_context("service_operation", "RemoveStagedFile")),
             Ok(()) => Ok(()),
         }
     }
@@ -437,18 +453,37 @@ impl ErrorContext {
     }
 }
 
+/// Parse an error from an unconditional rename.
+pub(crate) fn parse_rename_error(err: std::io::Error) -> Error {
+    parse_io_error(err, false).with_context("service_operation", "Rename")
+}
+
 /// Parse an error using its service operation context.
 pub(crate) fn parse_error(ctx: ErrorContext, err: std::io::Error) -> Error {
-    let err = match err.kind() {
-        std::io::ErrorKind::AlreadyExists => Error::new(
+    parse_io_error(err, true).with_context("service_operation", ctx.service_operation.0)
+}
+
+fn parse_io_error(err: std::io::Error, already_exists_as_condition: bool) -> Error {
+    match err.kind() {
+        std::io::ErrorKind::AlreadyExists if already_exists_as_condition => Error::new(
             ErrorKind::ConditionNotMatch,
             "The file already exists in the filesystem",
         )
         .set_source(err),
-        _ => new_std_io_error(err),
-    };
-
-    err.with_context("service_operation", ctx.service_operation.0)
+        std::io::ErrorKind::IsADirectory => {
+            Error::new(ErrorKind::IsADirectory, err.kind().to_string()).set_source(err)
+        }
+        std::io::ErrorKind::NotADirectory => {
+            Error::new(ErrorKind::NotADirectory, err.kind().to_string()).set_source(err)
+        }
+        _ => {
+            #[cfg(unix)]
+            if err.raw_os_error() == Some(libc::EXDEV) {
+                return Error::new(ErrorKind::Unexpected, err.kind().to_string()).set_source(err);
+            }
+            new_std_io_error(err)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -514,6 +549,32 @@ mod tests {
 
         let err = FsCore::replace_user_metadata(&missing, None).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+    }
+
+    #[test]
+    fn test_parse_rename_error_classifies_permanent_and_temporary_errors() {
+        let err = parse_rename_error(std::io::Error::from(std::io::ErrorKind::IsADirectory));
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert!(!err.is_temporary());
+
+        let err = parse_rename_error(std::io::Error::from(std::io::ErrorKind::NotADirectory));
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(!err.is_temporary());
+
+        let err = parse_rename_error(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        assert!(!err.is_temporary());
+
+        let err = parse_rename_error(std::io::Error::from(std::io::ErrorKind::Interrupted));
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+
+        #[cfg(unix)]
+        {
+            let err = parse_rename_error(std::io::Error::from_raw_os_error(libc::EXDEV));
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
     }
 
     #[cfg(target_os = "linux")]

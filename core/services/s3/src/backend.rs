@@ -927,12 +927,26 @@ impl Builder for S3Builder {
     type Config = S3Config;
 
     fn build(self) -> Result<impl Service> {
-        self.build_backend()
+        self.build_inner(S3_SCHEME)
     }
 }
 
 impl S3Builder {
-    fn build_backend(self) -> Result<S3Backend> {
+    pub(crate) fn from_provider_config(
+        config: S3Config,
+        credential_providers: ProvideCredentialChain<Credential>,
+    ) -> Self {
+        Self {
+            config,
+            credential_providers: Some(credential_providers),
+        }
+    }
+
+    pub(crate) fn build_with_scheme(self, scheme: &'static str) -> Result<S3Backend> {
+        self.build_inner(scheme)
+    }
+
+    fn build_inner(self, scheme: &'static str) -> Result<S3Backend> {
         debug!("backend build started: {:?}", self);
 
         let S3Builder {
@@ -954,7 +968,7 @@ impl S3Builder {
         } else {
             Err(
                 Error::new(ErrorKind::ConfigInvalid, "The bucket is misconfigured")
-                    .with_context("service", S3_SCHEME),
+                    .with_context("service", scheme),
             )
         }?;
         debug!("backend use bucket {}", bucket);
@@ -1032,7 +1046,7 @@ impl S3Builder {
                         "region is missing. Set region, an AWS region environment variable, or default_region.",
                     )
                     .with_operation("Builder::build")
-                    .with_context("service", S3_SCHEME)
+                    .with_context("service", scheme)
                 })?
         };
         debug!("backend use region: {region}");
@@ -1153,7 +1167,7 @@ impl S3Builder {
 
         Ok(S3Backend {
             core: Arc::new(S3Core {
-                info: ServiceInfo::new(S3_SCHEME, &root, bucket),
+                info: ServiceInfo::new(scheme, &root, bucket),
                 capability: Capability {
                     stat: true,
                     stat_with_if_match: true,
@@ -2480,7 +2494,7 @@ mod tests {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let request = backend
             .core
@@ -2777,7 +2791,7 @@ mod tests {
             .region("us-west-2")
             .disable_config_load()
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .expect("S3 backend must build");
         let mut core = Arc::into_inner(backend.core).expect("S3 core must not be shared");
         core.signer_spec.base_provider = Arc::new(provider);
@@ -2888,7 +2902,7 @@ mod tests {
             .endpoint("https://s3.us-west-2.amazonaws.com")
             .profile("sso-test")
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv {
@@ -3014,7 +3028,7 @@ mod tests {
                 .endpoint("https://s3.us-east-1.amazonaws.com")
                 .profile(profile)
                 .disable_ec2_metadata()
-                .build_backend()
+                .build_inner(S3_SCHEME)
                 .unwrap();
             let ctx = Context::new()
                 .with_env(reqsign_core::StaticEnv {
@@ -3059,7 +3073,7 @@ mod tests {
                 .profile(profile)
                 .disable_config_load()
                 .disable_ec2_metadata()
-                .build_backend()
+                .build_inner(S3_SCHEME)
                 .unwrap();
             let ctx = Context::new()
                 .with_env(reqsign_core::StaticEnv {
@@ -3108,7 +3122,7 @@ mod tests {
             .region("us-east-1")
             .endpoint("https://s3.us-east-1.amazonaws.com")
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv {
@@ -3146,7 +3160,7 @@ mod tests {
             .endpoint("https://s3.us-east-1.amazonaws.com")
             .disable_config_load()
             .disable_ec2_metadata()
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv {
@@ -3183,7 +3197,7 @@ mod tests {
             .disable_config_load()
             .disable_ec2_metadata()
             .container_credentials_endpoint("http://169.254.170.2/v2/credentials/test")
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv {

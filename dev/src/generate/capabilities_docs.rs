@@ -203,19 +203,10 @@ pub fn extract_all(workspace_dir: &Path, services: &Services) -> Result<Capabili
         .collect();
 
     let mut service_docs = Vec::with_capacity(services.len());
-    for name in services.keys() {
-        let core_dir = workspace_dir.join("core/core/src/services").join(name);
-        let dir = if core_dir.is_dir() {
-            core_dir
-        } else {
-            let srv_dir = workspace_dir.join("core/services").join(name);
-            if !srv_dir.is_dir() {
-                bail!("service directory not found for `{name}`");
-            }
-            srv_dir
-        };
-        let doc = extract_service_capability(workspace_dir, name, &dir, &field_types)
-            .with_context(|| format!("failed to extract capability for service `{name}`"))?;
+    for (name, service) in services {
+        let doc =
+            extract_service_capability(workspace_dir, name, &service.source_dir, &field_types)
+                .with_context(|| format!("failed to extract capability for service `{name}`"))?;
         service_docs.push(doc);
     }
     service_docs.sort_by(|a, b| a.scheme.cmp(&b.scheme));
@@ -285,19 +276,12 @@ fn sanitize_website_doc(doc: &str) -> String {
 fn extract_service_capability(
     workspace_dir: &Path,
     name: &str,
-    service_dir: &Path,
+    src_dir: &Path,
     field_types: &HashMap<&str, bool>,
 ) -> Result<ServiceCapabilityDoc> {
-    let src_dir = if service_dir.join("src").is_dir() {
-        service_dir.join("src")
-    } else {
-        service_dir.to_path_buf()
-    };
-
     let mut consts = Vec::new();
-    collect_consts_in_dir(workspace_dir, &src_dir, &mut consts)?;
-    let (cap_rel_path, expr_struct) =
-        find_service_capability_struct(workspace_dir, &src_dir, name)?;
+    collect_consts_in_dir(workspace_dir, src_dir, &mut consts)?;
+    let (cap_rel_path, expr_struct) = find_service_capability_struct(workspace_dir, src_dir, name)?;
 
     parse_capability_literal(name, &cap_rel_path, &expr_struct, field_types, &consts)
 }

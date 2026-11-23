@@ -198,12 +198,16 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
             .map(Field::from)
             .collect();
         let grouped = group_fields(&fields, &groups);
-        let required: Vec<&Field> = fields.iter().filter(|f| f.required).collect();
+        let required: Vec<&Field> = fields.iter().filter(|f| f.required || f.minimal).collect();
 
         let mut examples = Vec::new();
         for (binding, support) in BINDINGS.iter().zip(support.iter()) {
             let enabled = match support {
-                None => binding.id != "go" || !matches!(scheme.as_str(), "hf3fs" | "smb"),
+                // Go needs a published opendal-go-services package for each scheme.
+                None if binding.id == "go" => {
+                    !matches!(scheme.as_str(), "hf3fs" | "minio" | "r2" | "smb")
+                }
+                None => true,
                 Some(set) => set.contains(&scheme),
             };
             if !enabled {
@@ -286,6 +290,7 @@ struct Field<'a> {
     name: &'a str,
     value: ConfigType,
     required: bool,
+    minimal: bool,
     comments: &'a str,
     group: &'a str,
     default: Option<&'a str>,
@@ -298,6 +303,7 @@ impl<'a> From<&'a Config> for Field<'a> {
             name: &c.name,
             value: c.value,
             required: !c.optional,
+            minimal: c.minimal,
             comments: &c.comments,
             group: c.group.as_deref().unwrap_or(DEFAULT_GROUP),
             default: c.default_value.as_deref(),
@@ -388,8 +394,9 @@ struct Syntax {
 ///
 /// `minimal` lists only the required fields. `full` walks every group in order,
 /// emitting a group header (when there is more than one group), each field's
-/// doc comment, and the assignment — uncommented when required, commented out
-/// otherwise so the block is a copy-and-trim reference.
+/// doc comment, and the assignment. Required fields and optional fields chosen
+/// for the minimal example stay uncommented so both snippets are valid;
+/// everything else is commented out as a copy-and-trim reference.
 fn build(required: &[&Field], grouped: &[(&str, Vec<&Field>)], s: &Syntax) -> (String, String) {
     let doc_prefix = format!("{}{}", s.indent, s.comment);
 
@@ -423,7 +430,7 @@ fn build(required: &[&Field], grouped: &[(&str, Vec<&Field>)], s: &Syntax) -> (S
             comment_block(field.comments, &mut field_comment);
             let assign = (s.assign)(field);
             // field have block indententation
-            if field.required {
+            if field.required || field.minimal {
                 config_options.push(format!("{field_comment}{}{assign}", s.indent));
             } else {
                 config_options.push(format!("{field_comment}{}{}{assign}", s.indent, s.comment));
@@ -527,4 +534,32 @@ fn render_examples(
     };
 
     build(required, grouped, &syntax)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn minimal_optional_fields_stay_active_in_full_examples() {
+        let field = Field {
+            name: "account_id",
+            value: ConfigType::String,
+            required: false,
+            minimal: true,
+            comments: "Cloudflare account ID.",
+            group: DEFAULT_GROUP,
+            default: None,
+            example: Some("example-account"),
+        };
+        let required = vec![&field];
+        let grouped = vec![(DEFAULT_GROUP, vec![&field])];
+
+        let (minimal, full) = render_examples("rust", "r2", &required, &grouped);
+
+        let assignment = "(\"account_id\".to_string(), \"example-account\".to_string()),";
+        assert!(minimal.contains(assignment));
+        assert!(full.contains(&format!("    {assignment}")));
+        assert!(!full.contains(&format!("// {assignment}")));
+    }
 }

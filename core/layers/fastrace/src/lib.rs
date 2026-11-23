@@ -129,7 +129,7 @@ impl FastraceLayer {
 
 impl Layer for FastraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(FastraceAccessor { inner })
+        Arc::new(FastraceService { inner })
     }
 
     fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
@@ -213,13 +213,12 @@ impl Execute for FastraceExecutor {
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct FastraceAccessor {
+struct FastraceService {
     inner: Servicer,
 }
 
-impl Service for FastraceAccessor {
+impl Service for FastraceService {
     // Operations with returned bodies continue after the service call returns,
     // so wrap those bodies to trace deferred IO as well.
     type Reader = FastraceWrapper<oio::Reader>;
@@ -344,10 +343,9 @@ impl Service for FastraceAccessor {
     }
 }
 
-#[doc(hidden)]
 // Keep the operation span with the returned body so later body methods can
 // attach child spans without relying on local span state.
-pub struct FastraceWrapper<R> {
+struct FastraceWrapper<R> {
     span: Arc<Span>,
     inner: R,
 }

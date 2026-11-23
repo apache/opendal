@@ -64,7 +64,7 @@ impl AsyncBacktraceLayer {
 
 impl Layer for AsyncBacktraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(AsyncBacktraceService { inner })
     }
 
     fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
@@ -75,12 +75,6 @@ impl Layer for AsyncBacktraceLayer {
                 inner: executor.into_inner(),
             }),
         )
-    }
-}
-
-impl AsyncBacktraceLayer {
-    fn layer(&self, inner: Servicer) -> AsyncBacktraceAccessor {
-        AsyncBacktraceAccessor { inner }
     }
 }
 
@@ -129,13 +123,12 @@ impl Execute for AsyncBacktraceExecutor {
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct AsyncBacktraceAccessor {
+struct AsyncBacktraceService {
     inner: Servicer,
 }
 
-impl Service for AsyncBacktraceAccessor {
+impl Service for AsyncBacktraceService {
     type Reader = AsyncBacktraceWrapper<oio::Reader>;
     type Writer = AsyncBacktraceWrapper<oio::Writer>;
     type Lister = AsyncBacktraceWrapper<oio::Lister>;
@@ -234,8 +227,7 @@ impl Service for AsyncBacktraceAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct AsyncBacktraceWrapper<R> {
+struct AsyncBacktraceWrapper<R> {
     inner: R,
 }
 

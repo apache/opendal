@@ -643,6 +643,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             .policy
             .retry(Operation::Read, || self.inner.open(range))
             .await?;
+        let range = resolve_suffix_range(range, &rp);
         Ok((
             rp,
             Box::new(RetryReadStream {
@@ -670,6 +671,27 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
         }
         Ok(result)
     }
+}
+
+/// Resolve a suffix range into an absolute range when the response reports the
+/// total object size.
+///
+/// Advancing a suffix range by the number of bytes read is wrong: the suffix is
+/// relative to the end of the object, and the object may be shorter than the
+/// requested suffix. Once the total size is known, a forward range can be
+/// advanced without returning bytes that the caller has already received.
+fn resolve_suffix_range(range: BytesRange, rp: &RpRead) -> BytesRange {
+    let BytesRange::Suffix { size } = range else {
+        return range;
+    };
+    let Some(metadata) = rp.metadata().filter(|metadata| metadata.is_file()) else {
+        return range;
+    };
+    let content_length = metadata.content_length();
+    BytesRange::new(
+        content_length.saturating_sub(size),
+        Some(size.min(content_length)),
+    )
 }
 
 #[doc(hidden)]
@@ -704,8 +726,23 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
-                            range.advance(read);
-                            read = 0;
+                            if range.is_suffix() && read > 0 {
+                                // Without the object size, the actual suffix length is
+                                // unknown, so advancing it can duplicate bytes that the
+                                // caller has already received.
+                                return (
+                                    (None, range, read),
+                                    Err(Error::new(
+                                        ErrorKind::Unexpected,
+                                        "cannot resume a suffix range after progress without the object size",
+                                    )
+                                    .with_operation("RetryReadStream::read")),
+                                );
+                            }
+                            if !range.is_suffix() {
+                                range.advance(read);
+                                read = 0;
+                            }
                             if range.size() == Some(0) {
                                 return ((None, range, read), Ok(Buffer::new()));
                             }
@@ -910,6 +947,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
 #[cfg(test)]
 mod tests {
     mod budget;
+    mod suffix_range;
 
     use std::sync::Mutex;
 

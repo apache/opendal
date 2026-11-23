@@ -68,6 +68,11 @@ impl BufferSink {
     pub(crate) fn is_closed(&self) -> bool {
         matches!(self.state, State::Idle(None))
     }
+
+    /// Return whether the sink is closing.
+    pub(crate) fn is_closing(&self) -> bool {
+        matches!(self.state, State::Closing(_))
+    }
 }
 
 impl futures::Sink<Buffer> for BufferSink {
@@ -82,6 +87,24 @@ impl futures::Sink<Buffer> for BufferSink {
             return Err(Error::new(
                 ErrorKind::Unexpected,
                 "state invalid: sink has been closed",
+            ));
+        }
+
+        if self.is_closing() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink is closing",
+            ));
+        }
+
+        // `Writing` means a previous item is still in flight, and a non-empty
+        // buffer means a previous item has not been flushed yet. Overwriting it
+        // here would either lose that item on close or corrupt it when the
+        // in-flight write reports how many bytes it accepted.
+        if matches!(self.state, State::Writing(_)) || !self.buf.is_empty() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink is not ready to send, please poll_ready first",
             ));
         }
 
@@ -188,12 +211,78 @@ impl futures::Sink<Buffer> for BufferSink {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
     use std::sync::Arc;
+    use std::sync::Mutex;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+    use std::task::Context;
+    use std::task::Poll;
 
+    use futures::Sink;
     use futures::SinkExt;
 
     use crate::raw::*;
     use crate::*;
+
+    /// A writer whose `write` and `close` stay pending until the test opens the
+    /// matching gate.
+    struct GatedWriter {
+        writes: Arc<Mutex<Vec<Vec<u8>>>>,
+        closed: Arc<AtomicBool>,
+        write_gate: Arc<AtomicBool>,
+        close_gate: Arc<AtomicBool>,
+    }
+
+    fn wait_for(gate: &AtomicBool) -> impl std::future::Future<Output = ()> + '_ {
+        futures::future::poll_fn(move |_| {
+            if gate.load(Ordering::SeqCst) {
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        })
+    }
+
+    impl oio::Write for GatedWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            wait_for(&self.write_gate).await;
+            self.writes.lock().unwrap().push(bs.to_vec());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            wait_for(&self.close_gate).await;
+            self.closed.store(true, Ordering::SeqCst);
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Handles shared with a [`GatedWriter`] so tests can observe and drive it.
+    #[derive(Default)]
+    struct Gates {
+        writes: Arc<Mutex<Vec<Vec<u8>>>>,
+        closed: Arc<AtomicBool>,
+        write_gate: Arc<AtomicBool>,
+        close_gate: Arc<AtomicBool>,
+    }
+
+    impl Gates {
+        fn sink(&self) -> BufferSink {
+            let writer = GatedWriter {
+                writes: self.writes.clone(),
+                closed: self.closed.clone(),
+                write_gate: self.write_gate.clone(),
+                close_gate: self.close_gate.clone(),
+            };
+
+            BufferSink::new(WriteGenerator::new(Box::new(writer), None, false))
+        }
+    }
 
     #[tokio::test]
     async fn test_sink_rejects_write_and_flush_after_close() {
@@ -227,6 +316,88 @@ mod tests {
             "{}",
             err.message()
         );
+    }
+
+    #[test]
+    fn test_start_send_rejects_item_while_closing() {
+        let gates = Gates::default();
+        let mut sink = gates.sink();
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        // Nothing has been buffered, so close goes straight into closing.
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+
+        let err = Pin::new(&mut sink)
+            .start_send(Buffer::from("late"))
+            .expect_err("closing sink must reject items");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("sink is closing"),
+            "{}",
+            err.message()
+        );
+
+        gates.close_gate.store(true, Ordering::SeqCst);
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_ready());
+        assert!(gates.closed.load(Ordering::SeqCst));
+        assert!(gates.writes.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_start_send_rejects_item_while_writing() {
+        let gates = Gates::default();
+        let mut sink = gates.sink();
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        Pin::new(&mut sink)
+            .start_send(Buffer::from("first"))
+            .expect("idle sink must accept the first item");
+        // Flushing moves the buffered item into the in-flight write.
+        assert!(Pin::new(&mut sink).poll_flush(&mut cx).is_pending());
+
+        let err = Pin::new(&mut sink)
+            .start_send(Buffer::from("second"))
+            .expect_err("sink with an in-flight write must reject items");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("not ready to send"),
+            "{}",
+            err.message()
+        );
+
+        gates.write_gate.store(true, Ordering::SeqCst);
+        assert!(Pin::new(&mut sink).poll_flush(&mut cx).is_ready());
+        assert_eq!(*gates.writes.lock().unwrap(), vec![b"first".to_vec()]);
+    }
+
+    #[test]
+    fn test_start_send_rejects_overwriting_buffered_item() {
+        let gates = Gates::default();
+        gates.write_gate.store(true, Ordering::SeqCst);
+        let mut sink = gates.sink();
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        Pin::new(&mut sink)
+            .start_send(Buffer::from("first"))
+            .expect("idle sink must accept the first item");
+
+        let err = Pin::new(&mut sink)
+            .start_send(Buffer::from("second"))
+            .expect_err("sink with a buffered item must reject items");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(
+            err.message().contains("not ready to send"),
+            "{}",
+            err.message()
+        );
+        assert_eq!(sink.position(), 0);
+
+        assert!(Pin::new(&mut sink).poll_flush(&mut cx).is_ready());
+        assert_eq!(*gates.writes.lock().unwrap(), vec![b"first".to_vec()]);
+        assert_eq!(sink.position(), 5);
     }
 
     #[tokio::test]

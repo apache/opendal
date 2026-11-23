@@ -75,8 +75,107 @@ impl Write for StdWriter {
 /// Make sure the inner writer is dropped in async context.
 impl Drop for StdWriter {
     fn drop(&mut self) {
-        if let Some(v) = self.w.take() {
-            self.handle.block_on(async move { drop(v) });
-        }
+        let Some(mut v) = self.w.take() else {
+            return;
+        };
+
+        self.handle.block_on(async move {
+            // Data that has been written but not sent yet lives in the writer's
+            // internal buffer, so dropping without closing would lose it. Close
+            // errors are ignored here, as documented for this adapter.
+            //
+            // A writer that `close` already closed is skipped: closing a closed
+            // writer returns an error instead of closing it again.
+            if !v.is_closed() {
+                let _ = v.close().await;
+            }
+
+            drop(v);
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::io::Write;
+
+    use super::*;
+    use crate::blocking;
+    use crate::services;
+
+    const PAYLOAD: &[u8] = b"hello, world";
+
+    fn new_operator() -> crate::Result<blocking::Operator> {
+        let op = Operator::new(services::Memory::default())?;
+        blocking::Operator::new(op)
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_drop_without_close_persists_data() {
+        let op = new_operator().expect("memory operator must be created");
+
+        let written = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+            let path = "test_drop_without_close_persists_data";
+            let mut w = op.writer(path).map_err(io::Error::from)?.into_std_write();
+            w.write_all(PAYLOAD)?;
+
+            drop(w);
+
+            Ok(op.read(path).map_err(io::Error::from)?.to_vec())
+        })
+        .await
+        .expect("blocking write task must complete")
+        .expect("blocking write must succeed");
+
+        assert_eq!(written, PAYLOAD);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_drop_after_flush_persists_data() {
+        let op = new_operator().expect("memory operator must be created");
+
+        let written = tokio::task::spawn_blocking(move || -> std::io::Result<Vec<u8>> {
+            let path = "test_drop_after_flush_persists_data";
+            let mut w = op.writer(path).map_err(io::Error::from)?.into_std_write();
+            w.write_all(PAYLOAD)?;
+            w.flush()?;
+
+            drop(w);
+
+            Ok(op.read(path).map_err(io::Error::from)?.to_vec())
+        })
+        .await
+        .expect("blocking write task must complete")
+        .expect("blocking write must succeed");
+
+        assert_eq!(written, PAYLOAD);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn test_drop_after_close_does_not_close_again() {
+        let op = new_operator().expect("memory operator must be created");
+
+        let (closed, written) =
+            tokio::task::spawn_blocking(move || -> std::io::Result<(bool, Vec<u8>)> {
+                let path = "test_drop_after_close_does_not_close_again";
+                let mut w = op.writer(path).map_err(io::Error::from)?.into_std_write();
+                w.write_all(PAYLOAD)?;
+                w.close()?;
+
+                // Drop must skip the second close, so the inner writer has to be
+                // observed as closed before the writer goes out of scope.
+                let closed = w.w.as_ref().expect("writer must be present").is_closed();
+
+                drop(w);
+
+                Ok((closed, op.read(path).map_err(io::Error::from)?.to_vec()))
+            })
+            .await
+            .expect("blocking write task must complete")
+            .expect("blocking write must succeed");
+
+        assert!(closed, "explicit close must leave the sink closed");
+        assert_eq!(written, PAYLOAD);
     }
 }

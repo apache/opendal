@@ -87,20 +87,14 @@ impl CapabilityOverrideLayer {
 
 impl Layer for CapabilityOverrideLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl CapabilityOverrideLayer {
-    fn layer(&self, inner: Servicer) -> CapabilityOverrideService {
-        CapabilityOverrideService {
+        Arc::new(CapabilityOverrideService {
             inner,
             apply: self.apply.clone(),
-        }
+        })
     }
 }
 
-pub struct CapabilityOverrideService {
+struct CapabilityOverrideService {
     inner: Servicer,
     apply: Arc<dyn Fn(Capability) -> Capability + Send + Sync>,
 }

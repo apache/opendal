@@ -49,18 +49,12 @@ impl std::fmt::Debug for ErrorContextLayer {
 
 impl Layer for ErrorContextLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ErrorContextLayer {
-    fn layer(&self, inner: Servicer) -> ErrorContextService {
-        ErrorContextService { inner }
+        Arc::new(ErrorContextService { inner })
     }
 }
 
 /// Provide error context wrapper for backend.
-pub struct ErrorContextService {
+struct ErrorContextService {
     inner: Servicer,
 }
 
@@ -221,7 +215,7 @@ impl Service for ErrorContextService {
     }
 }
 
-pub struct ErrorContextWrapper<T> {
+struct ErrorContextWrapper<T> {
     scheme: &'static str,
     path: String,
     inner: T,

@@ -111,21 +111,15 @@ impl SimulateLayer {
 
 impl Layer for SimulateLayer {
     fn apply_service(&self, srv: Servicer) -> Servicer {
-        Arc::new(self.layer(srv))
-    }
-}
-
-impl SimulateLayer {
-    fn layer(&self, srv: Servicer) -> SimulateService {
-        SimulateService {
+        Arc::new(SimulateService {
             srv,
             config: self.clone(),
-        }
+        })
     }
 }
 
 /// Service that applies capability simulation.
-pub struct SimulateService {
+struct SimulateService {
     srv: Servicer,
     config: SimulateLayer,
 }
@@ -431,14 +425,14 @@ impl Service for SimulateService {
     }
 }
 
-pub type SimulateLister = FourWays<
+type SimulateLister = FourWays<
     oio::Lister,
     ServicerFlatLister,
     PrefixLister<oio::Lister>,
     PrefixLister<ServicerFlatLister>,
 >;
 
-pub struct SimulateReader {
+struct SimulateReader {
     ctx: OperationContext,
     srv: Servicer,
     path: String,
@@ -641,7 +635,7 @@ enum NextDir {
     Listing(PendingDir, oio::Lister),
 }
 
-pub struct ServicerFlatLister {
+struct ServicerFlatLister {
     ctx: OperationContext,
     srv: Servicer,
     directory_args: OpList,
@@ -812,7 +806,7 @@ impl oio::List for ServicerFlatLister {
 }
 
 /// Deleter wrapper that simulates recursive deletion.
-pub struct SimulateDeleter {
+struct SimulateDeleter {
     ctx: OperationContext,
     srv: Servicer,
     config: SimulateLayer,
@@ -820,7 +814,7 @@ pub struct SimulateDeleter {
 }
 
 impl SimulateDeleter {
-    pub fn new(
+    fn new(
         ctx: OperationContext,
         srv: Servicer,
         config: SimulateLayer,

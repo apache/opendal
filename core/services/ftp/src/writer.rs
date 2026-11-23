@@ -17,7 +17,8 @@
 
 use asyncband::pool::bounded;
 use bytes::Buf;
-use tokio::io::AsyncWrite;
+use suppaftp::tokio::AsyncRustlsStream;
+use suppaftp::tokio::TransferStream;
 use tokio::io::AsyncWriteExt;
 
 use super::core::Manager;
@@ -71,7 +72,7 @@ pub struct FtpWriter {
     append: bool,
     /// Declared before `ftp_stream` so the data connection is always closed
     /// before the control connection returns to the pool.
-    data_stream: Option<Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>>,
+    data_stream: Option<TransferStream<AsyncRustlsStream>>,
     ftp_stream: bounded::Object<Manager>,
     /// Bytes actually sent over the data stream.
     written: u64,
@@ -107,9 +108,7 @@ impl FtpWriter {
 
     /// Open the data stream on first use so that empty writes and appends
     /// still create the remote file once the stream is finalized.
-    async fn data_stream(
-        &mut self,
-    ) -> Result<&mut Box<dyn AsyncWrite + Sync + Send + Unpin + 'static>> {
+    async fn data_stream(&mut self) -> Result<&mut TransferStream<AsyncRustlsStream>> {
         if self.data_stream.is_none() {
             if !self.state.may_open_data_stream() {
                 return Err(Error::new(
@@ -119,12 +118,12 @@ impl FtpWriter {
                 .with_operation("FtpWriter::data_stream"));
             }
             let path = self.tmp_path.as_ref().unwrap_or(&self.target_path);
-            self.data_stream = Some(Box::new(
+            self.data_stream = Some(
                 self.ftp_stream
                     .append_with_stream(path)
                     .await
                     .map_err(format_ftp_error)?,
-            ));
+            );
         }
 
         Ok(self
@@ -182,10 +181,7 @@ impl oio::Write for FtpWriter {
             data_stream.flush().await.map_err(|err| {
                 Error::new(ErrorKind::Unexpected, "flush data stream failed").set_source(err)
             })?;
-            self.ftp_stream
-                .finalize_put_stream(data_stream)
-                .await
-                .map_err(format_ftp_error)?;
+            data_stream.finish().await.map_err(format_ftp_error)?;
             self.state = CloseState::Rename;
         }
 

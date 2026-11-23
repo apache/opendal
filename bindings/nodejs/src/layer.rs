@@ -189,6 +189,27 @@ impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
     }
 }
 
+/// Validate a permit count received from JavaScript.
+///
+/// Zero permits block every operation forever, and negative values wrap to
+/// `usize::MAX` and silently disable the limit, so only positive counts that
+/// fit in `usize` are accepted.
+fn parse_permits(value: i64, field: &str) -> Result<usize> {
+    if value <= 0 {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("{field} must be greater than 0"),
+        ));
+    }
+
+    usize::try_from(value).map_err(|_| {
+        Error::new(
+            Status::InvalidArg,
+            format!("{field} must not be greater than {}", usize::MAX),
+        )
+    })
+}
+
 /// Concurrent limit layer
 ///
 /// Add concurrent request limit.
@@ -219,8 +240,8 @@ impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
 /// ```
 #[napi]
 pub struct ConcurrentLimitLayer {
-    permits: i64,
-    http_permits: Option<i64>,
+    permits: usize,
+    http_permits: Option<usize>,
 }
 
 #[napi]
@@ -232,12 +253,16 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `permits` - The maximum number of concurrent operations allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `permits` is not greater than 0.
     #[napi(constructor)]
-    pub fn new(permits: i64) -> Self {
-        Self {
-            permits,
+    pub fn new(permits: i64) -> Result<Self> {
+        Ok(Self {
+            permits: parse_permits(permits, "permits")?,
             http_permits: None,
-        }
+        })
     }
 
     /// Set a concurrent limit for HTTP requests.
@@ -247,9 +272,14 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `v` - The maximum number of concurrent HTTP requests allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `v` is not greater than 0.
     #[napi(setter)]
-    pub fn http_permits(&mut self, v: i64) {
-        self.http_permits = Some(v);
+    pub fn http_permits(&mut self, v: i64) -> Result<()> {
+        self.http_permits = Some(parse_permits(v, "httpPermits")?);
+        Ok(())
     }
 
     /// Build the layer.
@@ -257,11 +287,10 @@ impl ConcurrentLimitLayer {
     /// Returns an `External<Layer>` that can be used with `Operator.layer()`.
     #[napi]
     pub fn build(&self) -> External<Layer> {
-        let permits = self.permits;
-        let mut l = opendal::layers::ConcurrentLimitLayer::new(permits as usize);
+        let mut l = opendal::layers::ConcurrentLimitLayer::new(self.permits);
 
         if let Some(http_permits) = self.http_permits {
-            l = l.with_http_concurrent_limit(http_permits as usize);
+            l = l.with_http_concurrent_limit(http_permits);
         }
 
         External::new(Layer { inner: Box::new(l) })

@@ -109,6 +109,8 @@ data = op.read("hello.txt")`,
     language: "go",
     install: "$ go get [github.com/apache/opendal/bindings/go](/docs/bindings/go)",
     code: `import (
+    "context"
+
     "github.com/apache/opendal-go-services/s3"
     opendal "github.com/apache/opendal/bindings/go"
 )
@@ -118,8 +120,9 @@ opts := opendal.OperatorOptions{"bucket": "data"}
 op, _ := opendal.NewOperator(s3.Scheme, opts)
 defer op.Close()
 
-op.Write("hello.txt", []byte("Hello, World!"))
-data, _ := op.Read("hello.txt")`,
+ctx := context.Background()
+op.Write(ctx, "hello.txt", []byte("Hello, World!"))
+data, _ := op.Read(ctx, "hello.txt")`,
   },
   {
     id: "c",

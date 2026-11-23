@@ -42,10 +42,10 @@ var ErrDeleterClosed = errors.New("opendal: deleter is closed")
 //
 // # Example
 //
-//	func exampleDeleter(op *opendal.Operator) {
-//		err := op.WithDeleter(func(d *opendal.Deleter) error {
+//	func exampleDeleter(ctx context.Context, op *opendal.Operator) {
+//		err := op.WithDeleter(ctx, func(d *opendal.Deleter) error {
 //			for _, path := range []string{"a.txt", "b.txt", "c.txt"} {
-//				if err := d.Delete(path); err != nil {
+//				if err := d.Delete(ctx, path); err != nil {
 //					return err
 //				}
 //			}
@@ -66,7 +66,11 @@ type Deleter struct {
 
 // Deleter creates a Deleter that removes many paths.
 //
-// Deleter is a wrapper around the C-binding function `opendal_operator_deleter`.
+// Deleter is a wrapper around the C-binding function `opendal_operator_deleter_with_cancel`.
+//
+// # Parameters
+//
+//   - ctx: The context controlling cancellation and deadlines.
 //
 // # Returns
 //
@@ -78,13 +82,15 @@ type Deleter struct {
 //     queued deletions first, or with Discard, which drops them.
 //   - Prefer Operator.WithDeleter, which pairs the release with the queueing for
 //     the caller.
-func (op *Operator) Deleter() (*Deleter, error) {
+func (op *Operator) Deleter(ctx context.Context) (*Deleter, error) {
 	opInner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
-	inner, err := ffiOperatorDeleter.symbol(op.ctx)(opInner)
-	release()
+	defer release()
+	inner, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalDeleter, error) {
+		return ffiOperatorDeleter.symbol(op.ctx)(opInner, token)
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -98,10 +104,11 @@ func (op *Operator) Deleter() (*Deleter, error) {
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - path: The path of the file or directory to delete.
 //   - opts: Optional functional options, shared with Operator.Delete, to delete a
 //     specific version or to delete recursively.
-func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
+func (d *Deleter) Delete(ctx context.Context, path string, opts ...WithDeleteFn) error {
 	if d == nil {
 		return ErrDeleterClosed
 	}
@@ -110,17 +117,24 @@ func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
 	if d.inner == nil {
 		return ErrDeleterClosed
 	}
-	if len(opts) == 0 {
-		return ffiDeleterDelete.symbol(d.ctx)(d.inner, path)
-	}
-
-	o := parseDeleteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalDeleteOptions(d.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
-	defer ffiDeleteOptionsFree.symbol(d.ctx)(cOpts)
-	err = ffiDeleterDeleteWith.symbol(d.ctx)(d.inner, path, cOpts)
+
+	var cOpts *opendalDeleteOptions
+	var keepAlive [][]byte
+	if len(opts) > 0 {
+		o := parseDeleteOptions(opts...)
+		var err error
+		cOpts, keepAlive, err = newOpendalDeleteOptions(d.ctx, o)
+		if err != nil {
+			return err
+		}
+		defer ffiDeleteOptionsFree.symbol(d.ctx)(cOpts)
+	}
+	err := withCancelToken(d.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiDeleterDelete.symbol(d.ctx)(d.inner, path, cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	return err
 }
@@ -131,7 +145,7 @@ func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
 // path, which dominates on services whose queueing is just a buffer insert. This
 // hands the whole slice over at once. Every path is queued with default options,
 // so callers that need per-path options must use Delete.
-func (d *Deleter) deleteMany(paths []string) error {
+func (d *Deleter) deleteMany(ctx context.Context, paths []string) error {
 	if d == nil {
 		return ErrDeleterClosed
 	}
@@ -142,7 +156,9 @@ func (d *Deleter) deleteMany(paths []string) error {
 	}
 	// An empty slice is handled by the FFI wrapper and the C side; Remove, the
 	// only caller, already skips creating a deleter for it.
-	return ffiDeleterDeleteMany.symbol(d.ctx)(d.inner, paths)
+	return withCancelToken(d.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiDeleterDeleteMany.symbol(d.ctx)(d.inner, paths, token)
+	})
 }
 
 // Flush hands the queued deletions to the service, waits for them to complete,
@@ -150,7 +166,7 @@ func (d *Deleter) deleteMany(paths []string) error {
 //
 // If a batch flush fails, pending paths remain queued for a retry. Flush
 // returns ErrDeleterClosed once the Deleter is released.
-func (d *Deleter) Flush() error {
+func (d *Deleter) Flush(ctx context.Context) error {
 	if d == nil {
 		return ErrDeleterClosed
 	}
@@ -159,7 +175,9 @@ func (d *Deleter) Flush() error {
 	if d.inner == nil {
 		return ErrDeleterClosed
 	}
-	return ffiDeleterFlush.symbol(d.ctx)(d.inner)
+	return withCancelToken(d.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiDeleterFlush.symbol(d.ctx)(d.inner, token)
+	})
 }
 
 // Close flushes the queued deletions, waits for them to complete, and releases
@@ -168,7 +186,7 @@ func (d *Deleter) Flush() error {
 // Close always releases the Deleter and returns the flush error, if any. Use
 // Flush first if you need to retry a failed batch. Further calls to Close
 // return nil.
-func (d *Deleter) Close() error {
+func (d *Deleter) Close(ctx context.Context) error {
 	if d == nil {
 		return nil
 	}
@@ -178,7 +196,9 @@ func (d *Deleter) Close() error {
 		return nil
 	}
 	defer d.releaseLocked()
-	return ffiDeleterFlush.symbol(d.ctx)(d.inner)
+	return withCancelToken(d.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiDeleterFlush.symbol(d.ctx)(d.inner, token)
+	})
 }
 
 // Discard releases the Deleter without flushing, dropping every path that is
@@ -217,6 +237,7 @@ func (d *Deleter) releaseLocked() {
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - fn: The function that queues paths on the Deleter.
 //
 // # Returns
@@ -225,16 +246,16 @@ func (d *Deleter) releaseLocked() {
 //
 // # Example
 //
-//	func exampleWithDeleter(op *opendal.Operator) {
-//		err := op.WithDeleter(func(d *opendal.Deleter) error {
-//			return d.Delete("a.txt", opendal.DeleteWithVersion("v1"))
+//	func exampleWithDeleter(ctx context.Context, op *opendal.Operator) {
+//		err := op.WithDeleter(ctx, func(d *opendal.Deleter) error {
+//			return d.Delete(ctx, "a.txt", opendal.DeleteWithVersion("v1"))
 //		})
 //		if err != nil {
 //			log.Printf("delete failed: %v", err)
 //		}
 //	}
-func (op *Operator) WithDeleter(fn func(d *Deleter) error) error {
-	deleter, err := op.Deleter()
+func (op *Operator) WithDeleter(ctx context.Context, fn func(d *Deleter) error) error {
+	deleter, err := op.Deleter(ctx)
 	if err != nil {
 		return err
 	}
@@ -244,7 +265,7 @@ func (op *Operator) WithDeleter(fn func(d *Deleter) error) error {
 	if err := fn(deleter); err != nil {
 		return err
 	}
-	return deleter.Close()
+	return deleter.Close(ctx)
 }
 
 // Remove deletes the given paths.
@@ -262,6 +283,7 @@ func (op *Operator) WithDeleter(fn func(d *Deleter) error) error {
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - paths: The paths to delete.
 //
 // # Returns
@@ -270,27 +292,30 @@ func (op *Operator) WithDeleter(fn func(d *Deleter) error) error {
 //
 // # Example
 //
-//	func exampleRemove(op *opendal.Operator) {
-//		err := op.Remove([]string{"a.txt", "b.txt"})
+//	func exampleRemove(ctx context.Context, op *opendal.Operator) {
+//		err := op.Remove(ctx, []string{"a.txt", "b.txt"})
 //		if err != nil {
 //			log.Printf("Remove operation failed: %v", err)
 //		}
 //	}
-func (op *Operator) Remove(paths []string) error {
+func (op *Operator) Remove(ctx context.Context, paths []string) error {
+	if err := checkContext(ctx); err != nil {
+		return err
+	}
 	if len(paths) == 0 {
 		return nil
 	}
-	return op.WithDeleter(func(d *Deleter) error {
-		return d.deleteMany(paths)
+	return op.WithDeleter(ctx, func(d *Deleter) error {
+		return d.deleteMany(ctx, paths)
 	})
 }
 
 var ffiOperatorDeleter = newFFI(
-	"opendal_operator_deleter",
-	func(ctx context.Context, cFunc func(op *opendalOperator, deleter **opendalDeleter) *opendalError) func(op *opendalOperator) (*opendalDeleter, error) {
-		return func(op *opendalOperator) (*opendalDeleter, error) {
+	"opendal_operator_deleter_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, cancel *opendalCancelToken, deleter **opendalDeleter) *opendalError) func(op *opendalOperator, cancel *opendalCancelToken) (*opendalDeleter, error) {
+		return func(op *opendalOperator, cancel *opendalCancelToken) (*opendalDeleter, error) {
 			var deleter *opendalDeleter
-			if err := cFunc(op, &deleter); err != nil {
+			if err := cFunc(op, cancel, &deleter); err != nil {
 				return nil, parseError(ctx, err)
 			}
 			return deleter, nil
@@ -299,14 +324,14 @@ var ffiOperatorDeleter = newFFI(
 )
 
 var ffiDeleterDelete = newFFI(
-	"opendal_deleter_delete",
-	func(ctx context.Context, cFunc func(d *opendalDeleter, path *byte) *opendalError) func(d *opendalDeleter, path string) error {
-		return func(d *opendalDeleter, path string) error {
+	"opendal_deleter_delete_with_cancel",
+	func(ctx context.Context, cFunc func(d *opendalDeleter, path *byte, opts *opendalDeleteOptions, cancel *opendalCancelToken) *opendalError) func(d *opendalDeleter, path string, opts *opendalDeleteOptions, cancel *opendalCancelToken) error {
+		return func(d *opendalDeleter, path string, opts *opendalDeleteOptions, cancel *opendalCancelToken) error {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return err
 			}
-			e := cFunc(d, bytePath)
+			e := cFunc(d, bytePath, opts, cancel)
 			runtime.KeepAlive(bytePath)
 			return parseError(ctx, e)
 		}
@@ -314,9 +339,9 @@ var ffiDeleterDelete = newFFI(
 )
 
 var ffiDeleterDeleteMany = newFFI(
-	"opendal_deleter_delete_many",
-	func(ctx context.Context, cFunc func(d *opendalDeleter, paths **byte, pathsLen uint) *opendalError) func(d *opendalDeleter, paths []string) error {
-		return func(d *opendalDeleter, paths []string) error {
+	"opendal_deleter_delete_many_with_cancel",
+	func(ctx context.Context, cFunc func(d *opendalDeleter, paths **byte, pathsLen uint, cancel *opendalCancelToken) *opendalError) func(d *opendalDeleter, paths []string, cancel *opendalCancelToken) error {
+		return func(d *opendalDeleter, paths []string, cancel *opendalCancelToken) error {
 			pathPointers := make([]*byte, len(paths))
 			for i, path := range paths {
 				ptr, err := BytePtrFromString(path)
@@ -330,7 +355,7 @@ var ffiDeleterDeleteMany = newFFI(
 			if len(pathPointers) > 0 {
 				pathsPtr = &pathPointers[0]
 			}
-			e := cFunc(d, pathsPtr, uint(len(pathPointers)))
+			e := cFunc(d, pathsPtr, uint(len(pathPointers)), cancel)
 			// The pointer array also keeps each path buffer alive during the call.
 			runtime.KeepAlive(pathPointers)
 			return parseError(ctx, e)
@@ -338,26 +363,11 @@ var ffiDeleterDeleteMany = newFFI(
 	},
 )
 
-var ffiDeleterDeleteWith = newFFI(
-	"opendal_deleter_delete_with",
-	func(ctx context.Context, cFunc func(d *opendalDeleter, path *byte, opts *opendalDeleteOptions) *opendalError) func(d *opendalDeleter, path string, opts *opendalDeleteOptions) error {
-		return func(d *opendalDeleter, path string, opts *opendalDeleteOptions) error {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return err
-			}
-			e := cFunc(d, bytePath, opts)
-			runtime.KeepAlive(bytePath)
-			return parseError(ctx, e)
-		}
-	},
-)
-
 var ffiDeleterFlush = newFFI(
-	"opendal_deleter_flush",
-	func(ctx context.Context, cFunc func(d *opendalDeleter) *opendalError) func(d *opendalDeleter) error {
-		return func(d *opendalDeleter) error {
-			return parseError(ctx, cFunc(d))
+	"opendal_deleter_flush_with_cancel",
+	func(ctx context.Context, cFunc func(d *opendalDeleter, cancel *opendalCancelToken) *opendalError) func(d *opendalDeleter, cancel *opendalCancelToken) error {
+		return func(d *opendalDeleter, cancel *opendalCancelToken) error {
+			return parseError(ctx, cFunc(d, cancel))
 		}
 	},
 )

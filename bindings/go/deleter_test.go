@@ -34,13 +34,13 @@ func TestDeleterCreationReportsAndFreesNativeError(t *testing.T) {
 		}
 		freed++
 	})
-	ctx = context.WithValue(ctx, ffiOperatorDeleter.sym, ffiOperatorDeleter.withFunc(ctx, func(_ *opendalOperator, out **opendalDeleter) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorDeleter.sym, ffiOperatorDeleter.withFunc(ctx, func(_ *opendalOperator, _ *opendalCancelToken, out **opendalDeleter) *opendalError {
 		*out = nil
 		return nativeErr
 	}))
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
-	deleter, err := op.Deleter()
+	deleter, err := op.Deleter(context.Background())
 	var opErr *Error
 	if deleter != nil || !errors.As(err, &opErr) || opErr.Code() != CodeUnsupported {
 		t.Fatalf("Deleter() = %v, %v, want nil and CodeUnsupported", deleter, err)
@@ -55,7 +55,7 @@ func TestFfiDeleterDeleteManyMarshalsPaths(t *testing.T) {
 	want := []string{"a.txt", "b.txt", "nested/c.txt"}
 	calls := 0
 
-	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(d *opendalDeleter, paths **byte, pathsLen uint) *opendalError {
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(d *opendalDeleter, paths **byte, pathsLen uint, _ *opendalCancelToken) *opendalError {
 		calls++
 		if d != deleterInner {
 			t.Fatalf("deleter = %p, want %p", d, deleterInner)
@@ -71,7 +71,7 @@ func TestFfiDeleterDeleteManyMarshalsPaths(t *testing.T) {
 		return nil
 	})
 
-	if err := deleteMany(deleterInner, want); err != nil {
+	if err := deleteMany(deleterInner, want, nil); err != nil {
 		t.Fatalf("delete many failed: %v", err)
 	}
 	// One crossing for the whole slice is the point of this entry point.
@@ -82,12 +82,12 @@ func TestFfiDeleterDeleteManyMarshalsPaths(t *testing.T) {
 
 func TestFfiDeleterDeleteManyRejectsNulBeforeCall(t *testing.T) {
 	called := false
-	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(*opendalDeleter, **byte, uint) *opendalError {
+	deleteMany := ffiDeleterDeleteMany.withFunc(context.Background(), func(*opendalDeleter, **byte, uint, *opendalCancelToken) *opendalError {
 		called = true
 		return nil
 	})
 
-	err := deleteMany(newTestDeleterHandle(), []string{"a.txt", "bad\x00path"})
+	err := deleteMany(newTestDeleterHandle(), []string{"a.txt", "bad\x00path"}, nil)
 	if err == nil {
 		t.Fatal("delete many with a nul path succeeded")
 	}
@@ -117,7 +117,7 @@ func TestDeleterDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		assertDeleteOptionsPointer(t, cOpts, opts)
 		versionPtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiDeleterDeleteWith.sym, ffiDeleterDeleteWith.withFunc(ctx, func(d *opendalDeleter, path *byte, opts *opendalDeleteOptions) *opendalError {
+	ctx = context.WithValue(ctx, ffiDeleterDelete.sym, ffiDeleterDelete.withFunc(ctx, func(d *opendalDeleter, path *byte, opts *opendalDeleteOptions, _ *opendalCancelToken) *opendalError {
 		if d != deleterInner {
 			t.Fatalf("deleter = %p, want %p", d, deleterInner)
 		}
@@ -135,7 +135,7 @@ func TestDeleterDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 
 	deleter := &Deleter{inner: deleterInner, ctx: ctx}
-	if err := deleter.Delete("file.txt", DeleteWithVersion("v1"), DeleteWithRecursive(true)); err != nil {
+	if err := deleter.Delete(context.Background(), "file.txt", DeleteWithVersion("v1"), DeleteWithRecursive(true)); err != nil {
 		t.Fatalf("Delete with options failed: %v", err)
 	}
 	if optionsFreed != 1 {
@@ -150,10 +150,10 @@ func TestDeleterCloseFlushesFreesAndBlocksReuse(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, nil, nil)
 
 	deleter := &Deleter{inner: deleterInner, ctx: ctx}
-	if err := deleter.Close(); err != nil {
+	if err := deleter.Close(context.Background()); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
-	if err := deleter.Close(); err != nil {
+	if err := deleter.Close(context.Background()); err != nil {
 		t.Fatalf("second Close failed: %v", err)
 	}
 	if calls.flushes != 1 {
@@ -162,7 +162,7 @@ func TestDeleterCloseFlushesFreesAndBlocksReuse(t *testing.T) {
 	if calls.freed != 1 {
 		t.Fatalf("deleter freed %d times, want 1", calls.freed)
 	}
-	if err := deleter.Delete("file.txt"); !errors.Is(err, ErrDeleterClosed) {
+	if err := deleter.Delete(context.Background(), "file.txt"); !errors.Is(err, ErrDeleterClosed) {
 		t.Fatalf("Delete after Close = %v, want ErrDeleterClosed", err)
 	}
 }
@@ -177,13 +177,13 @@ func TestDeleterCloseReleasesAndReportsFailedFlush(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, nil, func() error { return flushErr })
 
 	deleter := &Deleter{inner: deleterInner, ctx: ctx}
-	if err := deleter.Close(); !errors.Is(err, flushErr) {
+	if err := deleter.Close(context.Background()); !errors.Is(err, flushErr) {
 		t.Fatalf("Close = %v, want flush error", err)
 	}
 	if calls.freed != 1 {
 		t.Fatalf("deleter freed %d times after failed flush, want 1", calls.freed)
 	}
-	if err := deleter.Close(); err != nil {
+	if err := deleter.Close(context.Background()); err != nil {
 		t.Fatalf("second Close = %v, want nil", err)
 	}
 	if calls.freed != 1 {
@@ -206,16 +206,16 @@ func TestDeleterFlushRetriesThenCloseReleases(t *testing.T) {
 	})
 
 	deleter := &Deleter{inner: deleterInner, ctx: ctx}
-	if err := deleter.Flush(); !errors.Is(err, flushErr) {
+	if err := deleter.Flush(context.Background()); !errors.Is(err, flushErr) {
 		t.Fatalf("Flush = %v, want flush error", err)
 	}
 	if calls.freed != 0 {
 		t.Fatalf("Flush freed the deleter %d times, want 0", calls.freed)
 	}
-	if err := deleter.Flush(); err != nil {
+	if err := deleter.Flush(context.Background()); err != nil {
 		t.Fatalf("Flush retry failed: %v", err)
 	}
-	if err := deleter.Close(); err != nil {
+	if err := deleter.Close(context.Background()); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
 	if calls.flushes != 3 {
@@ -241,7 +241,7 @@ func TestDeleterDiscardReleasesWithoutFlushing(t *testing.T) {
 	if calls.freed != 1 {
 		t.Fatalf("deleter freed %d times, want 1", calls.freed)
 	}
-	if err := deleter.Delete("file.txt"); !errors.Is(err, ErrDeleterClosed) {
+	if err := deleter.Delete(context.Background(), "file.txt"); !errors.Is(err, ErrDeleterClosed) {
 		t.Fatalf("Delete after Discard = %v, want ErrDeleterClosed", err)
 	}
 }
@@ -253,22 +253,22 @@ func TestDeleterFlushKeepsDeleterUsable(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, nil, nil)
 
 	deleter := &Deleter{inner: deleterInner, ctx: ctx}
-	if err := deleter.Flush(); err != nil {
+	if err := deleter.Flush(context.Background()); err != nil {
 		t.Fatalf("Flush failed: %v", err)
 	}
 	if calls.freed != 0 {
 		t.Fatalf("Flush freed the deleter %d times, want 0", calls.freed)
 	}
-	if err := deleter.Delete("file.txt"); err != nil {
+	if err := deleter.Delete(context.Background(), "file.txt"); err != nil {
 		t.Fatalf("Delete after Flush failed: %v", err)
 	}
-	if err := deleter.Close(); err != nil {
+	if err := deleter.Close(context.Background()); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
 	if calls.flushes != 2 {
 		t.Fatalf("flushed %d times, want 2", calls.flushes)
 	}
-	if err := deleter.Flush(); !errors.Is(err, ErrDeleterClosed) {
+	if err := deleter.Flush(context.Background()); !errors.Is(err, ErrDeleterClosed) {
 		t.Fatalf("Flush after Close = %v, want ErrDeleterClosed", err)
 	}
 }
@@ -280,7 +280,7 @@ func TestRemoveQueuesEveryPathInOneCrossingThenCloses(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, nil, nil)
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
-	if err := op.Remove([]string{"a.txt", "b.txt", "c.txt"}); err != nil {
+	if err := op.Remove(context.Background(), []string{"a.txt", "b.txt", "c.txt"}); err != nil {
 		t.Fatalf("Remove failed: %v", err)
 	}
 	assertPaths(t, calls.deleted, []string{"a.txt", "b.txt", "c.txt"})
@@ -305,7 +305,7 @@ func TestRemoveDiscardsQueueWhenQueueingFails(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, func([]string) error { return deleteErr }, nil)
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
-	if err := op.Remove([]string{"a.txt", "b.txt", "c.txt"}); !errors.Is(err, deleteErr) {
+	if err := op.Remove(context.Background(), []string{"a.txt", "b.txt", "c.txt"}); !errors.Is(err, deleteErr) {
 		t.Fatalf("Remove = %v, want delete error", err)
 	}
 	// Flushing here would delete whatever was queued before the failure while
@@ -333,7 +333,7 @@ func TestWithDeleterReportsAndReleasesOnFailedFlush(t *testing.T) {
 	ctx := newDeleterTestContext(t, deleterInner, &calls, nil, func() error { return flushErr })
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
-	err := op.WithDeleter(func(d *Deleter) error { return d.Delete("a.txt") })
+	err := op.WithDeleter(context.Background(), func(d *Deleter) error { return d.Delete(context.Background(), "a.txt") })
 	if !errors.Is(err, flushErr) {
 		t.Fatalf("WithDeleter = %v, want flush error", err)
 	}
@@ -356,7 +356,7 @@ func TestWithDeleterReleasesWhenFnPanics(t *testing.T) {
 				t.Fatalf("recovered %v, want %v", got, panicValue)
 			}
 		}()
-		_ = op.WithDeleter(func(*Deleter) error { panic(panicValue) })
+		_ = op.WithDeleter(context.Background(), func(*Deleter) error { panic(panicValue) })
 	}()
 
 	if calls.freed != 1 {
@@ -368,13 +368,13 @@ func TestWithDeleterReleasesWhenFnPanics(t *testing.T) {
 }
 
 func TestRemoveWithoutPathsSkipsDeleter(t *testing.T) {
-	ctx := context.WithValue(context.Background(), ffiOperatorDeleter.sym, func(*opendalOperator) (*opendalDeleter, error) {
+	ctx := context.WithValue(context.Background(), ffiOperatorDeleter.sym, func(*opendalOperator, *opendalCancelToken) (*opendalDeleter, error) {
 		t.Fatal("Remove(nil) created a deleter")
 		return nil, nil
 	})
 
 	op := &Operator{ctx: ctx, inner: &opendalOperator{}}
-	if err := op.Remove(nil); err != nil {
+	if err := op.Remove(context.Background(), nil); err != nil {
 		t.Fatalf("Remove(nil) = %v, want nil", err)
 	}
 }
@@ -404,14 +404,14 @@ func newDeleterTestContext(t *testing.T, inner *opendalDeleter, calls *deleterCa
 	t.Helper()
 
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, ffiOperatorDeleter.sym, ffiOperatorDeleter.withFunc(ctx, func(op *opendalOperator, out **opendalDeleter) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorDeleter.sym, ffiOperatorDeleter.withFunc(ctx, func(op *opendalOperator, _ *opendalCancelToken, out **opendalDeleter) *opendalError {
 		if op == nil {
 			t.Fatal("Deleter() passed nil operator")
 		}
 		*out = inner
 		return nil
 	}))
-	ctx = context.WithValue(ctx, ffiDeleterDelete.sym, func(d *opendalDeleter, path string) error {
+	ctx = context.WithValue(ctx, ffiDeleterDelete.sym, func(d *opendalDeleter, path string, _ *opendalDeleteOptions, _ *opendalCancelToken) error {
 		if d != inner {
 			t.Fatalf("deleter = %p, want %p", d, inner)
 		}
@@ -422,7 +422,7 @@ func newDeleterTestContext(t *testing.T, inner *opendalDeleter, calls *deleterCa
 		}
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiDeleterDeleteMany.sym, func(d *opendalDeleter, paths []string) error {
+	ctx = context.WithValue(ctx, ffiDeleterDeleteMany.sym, func(d *opendalDeleter, paths []string, _ *opendalCancelToken) error {
 		if d != inner {
 			t.Fatalf("deleter = %p, want %p", d, inner)
 		}
@@ -433,7 +433,7 @@ func newDeleterTestContext(t *testing.T, inner *opendalDeleter, calls *deleterCa
 		}
 		return nil
 	})
-	ctx = context.WithValue(ctx, ffiDeleterFlush.sym, func(d *opendalDeleter) error {
+	ctx = context.WithValue(ctx, ffiDeleterFlush.sym, func(d *opendalDeleter, _ *opendalCancelToken) error {
 		if d != inner {
 			t.Fatalf("flushed deleter = %p, want %p", d, inner)
 		}

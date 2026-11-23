@@ -18,6 +18,7 @@
 package opendal_test
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"math/big"
@@ -56,7 +57,7 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-type behaviorTest = func(assert *require.Assertions, op *opendal.Operator, fixture *fixture)
+type behaviorTest = func(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture)
 
 func TestBehavior(t *testing.T) {
 	assert := require.New(t)
@@ -94,7 +95,7 @@ func TestBehavior(t *testing.T) {
 			t.Parallel()
 			assert := require.New(t)
 
-			test(assert, op, fixture)
+			test(t.Context(), assert, op, fixture)
 		})
 	}
 }
@@ -281,7 +282,7 @@ func (f *fixture) Cleanup(assert *require.Assertions) {
 	defer f.lock.Unlock()
 
 	for i := len(f.paths) - 1; i >= 0; i-- {
-		f.op.Delete(f.paths[i])
+		f.op.Delete(context.Background(), f.paths[i])
 	}
 }
 

@@ -81,6 +81,8 @@ type opendalCapability struct {
 
 type opendalOperator struct{}
 
+type opendalCancelToken struct{}
+
 type opendalReader struct{}
 
 type opendalWriter struct{}

@@ -34,7 +34,7 @@ func TestReaderReturnsAvailablePrefix(t *testing.T) {
 				blocked := make(chan struct{})
 				defer close(blocked)
 				calls := 0
-				read := func(_ *opendalReader, p []byte) (uint, error) {
+				read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 					calls++
 					if calls == 1 {
 						return uint(copy(p, "abc")), nil
@@ -76,7 +76,7 @@ func TestReaderCopyWritesAvailablePrefix(t *testing.T) {
 		blocked := make(chan struct{})
 		defer close(blocked)
 		calls := 0
-		read := func(_ *opendalReader, p []byte) (uint, error) {
+		read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 			calls++
 			if calls == 1 {
 				return uint(copy(p, "abc")), nil
@@ -118,7 +118,7 @@ func TestReaderReadResults(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			read := func(_ *opendalReader, p []byte) (uint, error) {
+			read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 				calls++
 				return uint(copy(p, tc.data)), tc.err
 			}
@@ -142,7 +142,7 @@ func TestReaderReadResults(t *testing.T) {
 func TestReaderReturnsLaterErrorOnNextRead(t *testing.T) {
 	failure := errors.New("next chunk failed")
 	calls := 0
-	read := func(_ *opendalReader, p []byte) (uint, error) {
+	read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 		calls++
 		if calls == 1 {
 			return uint(copy(p, "abc")), nil
@@ -161,7 +161,7 @@ func TestReaderReturnsLaterErrorOnNextRead(t *testing.T) {
 
 func TestReaderShortReadsWithReadFullSeekAndClose(t *testing.T) {
 	src := bytes.NewReader([]byte("abcdefgh"))
-	read := func(_ *opendalReader, p []byte) (uint, error) {
+	read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 		n, err := src.Read(p[:min(len(p), 3)])
 		if err == io.EOF {
 			err = nil
@@ -169,7 +169,7 @@ func TestReaderShortReadsWithReadFullSeekAndClose(t *testing.T) {
 		return uint(n), err
 	}
 	ctx := context.WithValue(context.Background(), ffiReaderRead.sym, read)
-	ctx = context.WithValue(ctx, ffiReaderSeek.sym, func(_ *opendalReader, offset int64, whence int) (int64, error) {
+	ctx = context.WithValue(ctx, ffiReaderSeek.sym, func(_ *opendalReader, offset int64, whence int, _ *opendalCancelToken) (int64, error) {
 		return src.Seek(offset, whence)
 	})
 	closed := 0
@@ -211,7 +211,7 @@ func BenchmarkReaderProgressive(b *testing.B) {
 		b.Run(fmt.Sprint(size), func(b *testing.B) {
 			pos := 0
 			nativeReads := 0
-			read := func(_ *opendalReader, p []byte) (uint, error) {
+			read := func(_ *opendalReader, p []byte, _ *opendalCancelToken) (uint, error) {
 				nativeReads++
 				n := copy(p[:min(len(p), 4096)], data[pos:])
 				pos += n

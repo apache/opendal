@@ -18,6 +18,7 @@
 package opendal_test
 
 import (
+	"context"
 	"fmt"
 
 	opendal "github.com/apache/opendal/bindings/go"
@@ -60,84 +61,84 @@ func testsCopy(cap *opendal.Capability) []behaviorTest {
 	return tests
 }
 
-func testCopyFileWithASCIIName(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyFileWithASCIIName(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
 
-	assert.Nil(op.Copy(sourcePath, targetPath))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath))
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testCopyFileWithNonASCIIName(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyFileWithNonASCIIName(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFileWithPath("🐂🍺中文.docx")
 	targetPath := fixture.PushPath("😈🐅Français.docx")
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
-	assert.Nil(op.Copy(sourcePath, targetPath))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath))
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testCopyNonExistingSource(assert *require.Assertions, op *opendal.Operator, _ *fixture) {
+func testCopyNonExistingSource(ctx context.Context, assert *require.Assertions, op *opendal.Operator, _ *fixture) {
 	sourcePath := uuid.NewString()
 	targetPath := uuid.NewString()
 
-	err := op.Copy(sourcePath, targetPath)
+	err := op.Copy(ctx, sourcePath, targetPath)
 	assert.NotNil(err, "copy must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 }
 
-func testCopySourceDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopySourceDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath := fixture.NewDirPath()
 	targetPath := uuid.NewString()
 
-	assert.Nil(op.CreateDir(sourcePath))
+	assert.Nil(op.CreateDir(ctx, sourcePath))
 
-	err := op.Copy(sourcePath, targetPath)
+	err := op.Copy(ctx, sourcePath, targetPath)
 	assert.NotNil(err, "copy must fail")
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
 
-func testCopyTargetDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyTargetDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewDirPath()
 
-	assert.Nil(op.CreateDir(targetPath))
+	assert.Nil(op.CreateDir(ctx, targetPath))
 
-	err = op.Copy(sourcePath, targetPath)
+	err = op.Copy(ctx, sourcePath, targetPath)
 	assert.NotNil(err, "copy must fail")
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
 
-func testCopySelf(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopySelf(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
-	err = op.Copy(sourcePath, sourcePath)
+	err = op.Copy(ctx, sourcePath, sourcePath)
 	assert.NotNil(err, "copy must fail")
 	assert.Equal(opendal.CodeIsSameFile, assertErrorCode(err))
 }
 
-func testCopyNested(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyNested(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.PushPath(fmt.Sprintf(
@@ -147,35 +148,35 @@ func testCopyNested(assert *require.Assertions, op *opendal.Operator, fixture *f
 		uuid.NewString(),
 	))
 
-	assert.Nil(op.Copy(sourcePath, targetPath))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath))
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testCopyOverwrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyOverwrite(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath, targetContent, _ := fixture.NewFile()
 	assert.NotEqual(sourceContent, targetContent)
 
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err)
 
-	assert.Nil(op.Copy(sourcePath, targetPath))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath))
 
-	targetContent, err = op.Read(targetPath)
+	targetContent, err = op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func driveCopier(copier *opendal.Copier) error {
+func driveCopier(ctx context.Context, copier *opendal.Copier) error {
 	for {
-		_, ok, err := copier.Next()
+		_, ok, err := copier.Next(ctx)
 		if err != nil {
 			return err
 		}
@@ -185,187 +186,187 @@ func driveCopier(copier *opendal.Copier) error {
 	}
 }
 
-func testCopierFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath)
+	copier, err := op.Copier(ctx, sourcePath, targetPath)
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
-	assert.Nil(driveCopier(copier), "copier must drive to completion")
+	assert.Nil(driveCopier(ctx, copier), "copier must drive to completion")
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testCopierCompletion(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierCompletion(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath)
+	copier, err := op.Copier(ctx, sourcePath, targetPath)
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
-	assert.Nil(driveCopier(copier), "copier must drive to completion")
+	assert.Nil(driveCopier(ctx, copier), "copier must drive to completion")
 
-	_, ok, err := copier.Next()
+	_, ok, err := copier.Next(ctx)
 	assert.Nil(err, "next on completed copier must not error")
 	assert.False(ok, "completed copier must keep reporting no progress")
 }
 
-func testCopierAbort(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierAbort(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath)
+	copier, err := op.Copier(ctx, sourcePath, targetPath)
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
-	assert.Nil(copier.Abort(), "abort must succeed")
+	assert.Nil(copier.Abort(ctx), "abort must succeed")
 }
 
-func testCopierClosed(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierClosed(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath)
+	copier, err := op.Copier(ctx, sourcePath, targetPath)
 	assert.Nil(err, "create copier must succeed")
 
 	assert.Nil(copier.Close(), "close must succeed")
 	assert.Nil(copier.Close(), "close must be idempotent")
 
-	_, ok, err := copier.Next()
+	_, ok, err := copier.Next(ctx)
 	assert.Nil(err, "next on a closed copier must not error")
 	assert.False(ok, "closed copier must report no progress")
-	assert.Nil(copier.Abort(), "abort on a closed copier must be a no-op")
+	assert.Nil(copier.Abort(ctx), "abort on a closed copier must be a no-op")
 }
 
-func testCopierWithIfNotExistsToNewFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierWithIfNotExistsToNewFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
+	copier, err := op.Copier(ctx, sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
-	assert.Nil(driveCopier(copier), "copier must drive to completion")
+	assert.Nil(driveCopier(ctx, copier), "copier must drive to completion")
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopierWithIfNotExistsToExistingFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierWithIfNotExistsToExistingFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath, targetContent, _ := fixture.NewFile()
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err)
 
-	copier, err := op.Copier(sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
+	copier, err := op.Copier(ctx, sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
-	err = driveCopier(copier)
+	err = driveCopier(ctx, copier)
 	assert.NotNil(err, "copier must fail when target exists")
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(targetContent, bs, "target must not be overwritten")
 }
 
-func testCopyWithIfNotExistsToNewFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithIfNotExistsToNewFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	assert.Nil(op.Copy(sourcePath, targetPath, opendal.CopyWithIfNotExists(true)))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithIfNotExists(true)))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopyWithIfNotExistsToExistingFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithIfNotExistsToExistingFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath, targetContent, _ := fixture.NewFile()
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err)
 
-	err = op.Copy(sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
+	err = op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithIfNotExists(true))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(targetContent, bs, "target must not be overwritten")
 }
 
-func testCopyWithIfMatchMatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithIfMatchMatch(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath, targetContent, _ := fixture.NewFile()
 	assert.NotEqual(sourceContent, targetContent)
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err)
 
-	meta, err := op.Stat(targetPath)
+	meta, err := op.Stat(ctx, targetPath)
 	assert.Nil(err, "stat must succeed")
 	etag, ok := meta.ETag()
 	assert.True(ok, "etag must exist")
 
-	assert.Nil(op.Copy(sourcePath, targetPath, opendal.CopyWithIfMatch(etag)))
-	bs, err := op.Read(targetPath)
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithIfMatch(etag)))
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopyWithIfMatchMismatch(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithIfMatchMismatch(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath, targetContent, _ := fixture.NewFile()
 	assert.NotEqual(sourceContent, targetContent)
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err)
 
-	err = op.Copy(sourcePath, targetPath, opendal.CopyWithIfMatch("wrong-etag"))
+	err = op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithIfMatch("wrong-etag"))
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeConditionNotMatch, assertErrorCode(err))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(targetContent, bs, "target must not be overwritten")
 }
 
-func testCopyWithSourceVersionToNewFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithSourceVersionToNewFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
-	meta, err := op.Stat(sourcePath)
+	meta, err := op.Stat(ctx, sourcePath)
 	assert.Nil(err, "stat must succeed")
 	version, ok := meta.Version()
 	if !ok {
@@ -373,23 +374,23 @@ func testCopyWithSourceVersionToNewFile(assert *require.Assertions, op *opendal.
 	}
 
 	newContent := genFixedBytes(uint(len(sourceContent)) + 1)
-	_, err = op.Write(sourcePath, newContent)
+	_, err = op.Write(ctx, sourcePath, newContent)
 	assert.Nil(err, "overwrite must succeed")
 
 	targetPath := fixture.NewFilePath()
-	assert.Nil(op.Copy(sourcePath, targetPath, opendal.CopyWithSourceVersion(version)))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithSourceVersion(version)))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopyWithSourceVersionToSameFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithSourceVersionToSameFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
-	meta, err := op.Stat(sourcePath)
+	meta, err := op.Stat(ctx, sourcePath)
 	assert.Nil(err, "stat must succeed")
 	version, ok := meta.Version()
 	if !ok {
@@ -397,12 +398,12 @@ func testCopyWithSourceVersionToSameFile(assert *require.Assertions, op *opendal
 	}
 
 	newContent := genFixedBytes(uint(len(sourceContent)) + 1)
-	_, err = op.Write(sourcePath, newContent)
+	_, err = op.Write(ctx, sourcePath, newContent)
 	assert.Nil(err, "overwrite must succeed")
 
-	assert.Nil(op.Copy(sourcePath, sourcePath, opendal.CopyWithSourceVersion(version)))
+	assert.Nil(op.Copy(ctx, sourcePath, sourcePath, opendal.CopyWithSourceVersion(version)))
 
-	bs, err := op.Read(sourcePath)
+	bs, err := op.Read(ctx, sourcePath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
@@ -419,7 +420,7 @@ func copyMultiChunkSize(cap *opendal.Capability) (uint, uint) {
 	return chunk, chunk + 1
 }
 
-func testCopyWithChunk(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithChunk(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	chunk, sourceSize := copyMultiChunkSize(op.Info().GetCapability())
 	if sourceSize == 0 {
 		return
@@ -427,18 +428,18 @@ func testCopyWithChunk(assert *require.Assertions, op *opendal.Operator, fixture
 
 	sourcePath := fixture.NewFilePath()
 	sourceContent := genFixedBytes(sourceSize)
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	assert.Nil(op.Copy(sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk))))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk))))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopyWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopyWithChunkAndConcurrent(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	chunk, sourceSize := copyMultiChunkSize(op.Info().GetCapability())
 	if sourceSize == 0 {
 		return
@@ -446,18 +447,18 @@ func testCopyWithChunkAndConcurrent(assert *require.Assertions, op *opendal.Oper
 
 	sourcePath := fixture.NewFilePath()
 	sourceContent := genFixedBytes(sourceSize)
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	assert.Nil(op.Copy(sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk)), opendal.CopyWithConcurrent(4)))
+	assert.Nil(op.Copy(ctx, sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk)), opendal.CopyWithConcurrent(4)))
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }
 
-func testCopierMultipart(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testCopierMultipart(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	chunk, sourceSize := copyMultiChunkSize(op.Info().GetCapability())
 	if sourceSize == 0 {
 		return
@@ -465,18 +466,18 @@ func testCopierMultipart(assert *require.Assertions, op *opendal.Operator, fixtu
 
 	sourcePath := fixture.NewFilePath()
 	sourceContent := genFixedBytes(sourceSize)
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err)
 
 	targetPath := fixture.NewFilePath()
-	copier, err := op.Copier(sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk)))
+	copier, err := op.Copier(ctx, sourcePath, targetPath, opendal.CopyWithChunk(uint(chunk)))
 	assert.Nil(err, "create copier must succeed")
 	defer copier.Close()
 
 	var steps int
 	var total uint
 	for {
-		n, ok, err := copier.Next()
+		n, ok, err := copier.Next(ctx)
 		assert.Nil(err, "copier next must succeed")
 		if !ok {
 			break
@@ -488,7 +489,7 @@ func testCopierMultipart(assert *require.Assertions, op *opendal.Operator, fixtu
 	assert.Greater(steps, 0, "multipart copier must report incremental progress")
 	assert.Equal(uint(sourceSize), total, "reported progress must sum to source size")
 
-	bs, err := op.Read(targetPath)
+	bs, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, bs)
 }

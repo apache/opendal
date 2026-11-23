@@ -24,13 +24,13 @@ use dav_server::fs::{DavFileSystem, ReadDirMeta};
 use futures::FutureExt;
 use futures::StreamExt;
 use opendal_core::raw::normalize_path;
-use opendal_core::{ErrorKind, Operator};
+use opendal_core::{ErrorKind, MetadataBuilder, Operator};
 use std::path::Path;
 
 use super::dir::OpendalStream;
 use super::file::OpendalFile;
 use super::metadata::OpendalMetaData;
-use super::utils::convert_error;
+use super::utils::{convert_error, dir_exists, implicit_dir_exists};
 
 /// OpendalFs is a `DavFileSystem` implementation for opendal.
 ///
@@ -153,12 +153,32 @@ impl DavFileSystem for OpendalFs {
             let path = self.fs_path(path)?;
             let metadata = match self.op.stat(path.as_str()).await {
                 Ok(metadata) => metadata,
+                Err(e) if path == "/" && e.kind() == ErrorKind::NotFound => {
+                    MetadataBuilder::dir().build()
+                }
+                Err(e) if Self::is_dir_path(&path) && e.kind() == ErrorKind::NotFound => {
+                    if implicit_dir_exists(&self.op, path.as_str()).await? {
+                        MetadataBuilder::dir().build()
+                    } else {
+                        return Err(FsError::NotFound);
+                    }
+                }
                 Err(e)
                     if !Self::is_dir_path(&path)
                         && matches!(e.kind(), ErrorKind::NotFound | ErrorKind::IsADirectory) =>
                 {
-                    let path = Self::into_dir_path(path);
-                    self.op.stat(path.as_str()).await.map_err(convert_error)?
+                    let dir_path = Self::into_dir_path(path);
+                    match self.op.stat(dir_path.as_str()).await {
+                        Ok(metadata) => metadata,
+                        Err(dir_err) if dir_err.kind() == ErrorKind::NotFound => {
+                            if implicit_dir_exists(&self.op, dir_path.as_str()).await? {
+                                MetadataBuilder::dir().build()
+                            } else {
+                                return Err(FsError::NotFound);
+                            }
+                        }
+                        Err(dir_err) => return Err(convert_error(dir_err)),
+                    }
                 }
                 Err(e) => return Err(convert_error(e)),
             };
@@ -192,26 +212,16 @@ impl DavFileSystem for OpendalFs {
             if let Some(parent) = Path::new(&dir_path).parent()
                 && !parent.as_os_str().is_empty()
             {
-                match self
-                    .op
-                    .exists(format!("{}/", parent.display()).as_str())
-                    .await
-                {
-                    Ok(exist) => {
-                        if !exist {
-                            return Err(FsError::NotFound);
-                        }
-                    }
-                    Err(e) => {
-                        return Err(convert_error(e));
-                    }
+                let parent_dir = format!("{}/", parent.display());
+                if !dir_exists(&self.op, parent_dir.as_str()).await? {
+                    return Err(FsError::NotFound);
                 }
             }
 
             // Some backends keep files and directory markers as separate keys,
             // so "foo" and "foo/" can both exist. MKCOL must fail with Exists
             // when either form already names a resource (RFC 4918 9.3.1).
-            if self.path_exists(file_path).await? || self.path_exists(&dir_path).await? {
+            if self.path_exists(file_path).await? || dir_exists(&self.op, &dir_path).await? {
                 return Err(FsError::Exists);
             }
 
@@ -288,12 +298,8 @@ impl DavFileSystem for OpendalFs {
                     return Err(FsError::Forbidden);
                 }
 
-                if self
-                    .op
-                    .exists(to_path.as_str())
-                    .await
-                    .map_err(convert_error)?
-                {
+                let to_file_path = to_path.trim_end_matches('/');
+                if self.path_exists(to_file_path).await? || dir_exists(&self.op, &to_path).await? {
                     return Err(FsError::Exists);
                 }
 
@@ -304,10 +310,7 @@ impl DavFileSystem for OpendalFs {
                 if self.op.info().capability().rename {
                     match self
                         .op
-                        .rename(
-                            from_path.trim_end_matches('/'),
-                            to_path.trim_end_matches('/'),
-                        )
+                        .rename(from_path.trim_end_matches('/'), to_file_path)
                         .await
                     {
                         Ok(()) => return Ok(()),
@@ -321,11 +324,8 @@ impl DavFileSystem for OpendalFs {
                             // destination collection appeared after the check
                             // above, refuse the move instead of clobbering it.
                             ErrorKind::IsADirectory => {
-                                if self
-                                    .op
-                                    .exists(to_path.as_str())
-                                    .await
-                                    .map_err(convert_error)?
+                                if self.path_exists(to_file_path).await?
+                                    || dir_exists(&self.op, &to_path).await?
                                 {
                                     return Err(FsError::Exists);
                                 }
@@ -368,8 +368,12 @@ impl DavFileSystem for OpendalFs {
 
             let from_path = self.fs_path(from)?;
             let to_path = self.fs_path(to)?;
+            if from_path == "/" || to_path == "/" {
+                return Err(FsError::Forbidden);
+            }
+            let to_path = to_path.trim_end_matches('/');
             self.op
-                .rename(from_path.as_str(), to_path.as_str())
+                .rename(from_path.as_str(), to_path)
                 .await
                 .map_err(convert_error)
         }
@@ -380,8 +384,12 @@ impl DavFileSystem for OpendalFs {
         async move {
             let from_path = self.fs_path(from)?;
             let to_path = self.fs_path(to)?;
+            if from_path == "/" || to_path == "/" {
+                return Err(FsError::Forbidden);
+            }
+            let to_path = to_path.trim_end_matches('/');
             self.op
-                .copy(from_path.as_str(), to_path.as_str())
+                .copy(from_path.as_str(), to_path)
                 .await
                 .map(|_| ())
                 .map_err(convert_error)

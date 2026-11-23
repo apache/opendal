@@ -437,8 +437,8 @@ async fn test_read_dir() {
         .collect::<Vec<_>>();
     println!("{entries:?}");
     assert_eq!(entries.len(), 2);
-    assert!(entries.contains(&format!("{TEST_PATH_DECODED_1}/")));
-    assert!(entries.contains(&format!("{TEST_PATH_DECODED_2}/")));
+    assert!(entries.contains(&TEST_PATH_DECODED_1.to_string()));
+    assert!(entries.contains(&TEST_PATH_DECODED_2.to_string()));
 
     fs::remove_dir_all(TMP_PATH).unwrap();
 }
@@ -1541,5 +1541,574 @@ async fn test_delete_implicit_collection_depth_zero_and_infinity() -> Result<()>
     )
     .await?;
     assert_eq!(status, StatusCode::NOT_FOUND);
+    Ok(())
+}
+
+struct CopyFromInnerCopier {
+    op: Operator,
+    from: String,
+    to: String,
+    copied: Option<usize>,
+}
+
+impl oio::Copy for CopyFromInnerCopier {
+    async fn next(&mut self) -> opendal_core::Result<Option<usize>> {
+        if self.copied.is_some() {
+            return Ok(None);
+        }
+        let data = self.op.read(&self.from).await?;
+        let len = data.len();
+        self.op.write(&self.to, data).await?;
+        self.copied = Some(len);
+        Ok(Some(len))
+    }
+
+    async fn close(&mut self) -> opendal_core::Result<Metadata> {
+        let len = self.copied.unwrap_or(0) as u64;
+        Ok(MetadataBuilder::file(len).build())
+    }
+
+    async fn abort(&mut self) -> opendal_core::Result<()> {
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct MemoryWithCopyService {
+    inner: Servicer,
+}
+
+impl Service for MemoryWithCopyService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = CopyFromInnerCopier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info_dyn()
+    }
+
+    fn capability(&self) -> Capability {
+        let mut cap = self.inner.capability_dyn();
+        cap.copy = true;
+        cap
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> opendal_core::Result<RpCreateDir> {
+        self.inner.create_dir_dyn(ctx, path, args).await
+    }
+
+    async fn stat(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpStat,
+    ) -> opendal_core::Result<RpStat> {
+        self.inner.stat_dyn(ctx, path, args).await
+    }
+
+    fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRead,
+    ) -> opendal_core::Result<Self::Reader> {
+        self.inner.read_dyn(ctx, path, args)
+    }
+
+    fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpWrite,
+    ) -> opendal_core::Result<Self::Writer> {
+        self.inner.write_dyn(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> opendal_core::Result<Self::Deleter> {
+        self.inner.delete_dyn(ctx)
+    }
+
+    fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpList,
+    ) -> opendal_core::Result<Self::Lister> {
+        self.inner.list_dyn(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        _args: OpCopy,
+    ) -> opendal_core::Result<Self::Copier> {
+        Ok(CopyFromInnerCopier {
+            op: Operator::from_parts(ctx.clone(), self.inner.clone()),
+            from: from.to_string(),
+            to: to.to_string(),
+            copied: None,
+        })
+    }
+
+    fn compose(
+        &self,
+        ctx: &OperationContext,
+        to: &str,
+        args: OpCompose,
+    ) -> opendal_core::Result<Self::Composer> {
+        self.inner.compose_dyn(ctx, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> opendal_core::Result<RpRename> {
+        self.inner.rename_dyn(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpRestore,
+    ) -> opendal_core::Result<RpRestore> {
+        self.inner.restore_dyn(ctx, path, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> opendal_core::Result<RpPresign> {
+        self.inner.presign_dyn(ctx, path, args).await
+    }
+}
+
+fn memory_without_stat_dir_simulation() -> Result<Operator> {
+    let raw_mem = Arc::new(opendal_core::Builder::build(
+        opendal::services::Memory::default(),
+    )?) as Servicer;
+    let service = Arc::new(MemoryWithCopyService { inner: raw_mem }) as Servicer;
+    Ok(Operator::from_parts(OperationContext::default(), service)
+        .layer(opendal_core::layers::SimulateLayer::default().with_stat_dir(false)))
+}
+
+fn propfind_hrefs(xml: &[u8]) -> Result<Vec<String>> {
+    let text = std::str::from_utf8(xml)?;
+    let doc = roxmltree::Document::parse(text)?;
+    Ok(doc
+        .descendants()
+        .filter(|node| node.tag_name().name() == "href")
+        .filter_map(|node| node.text().map(ToOwned::to_owned))
+        .collect())
+}
+
+#[tokio::test]
+async fn test_implicit_directories_propfind_copy_delete_without_stat_dir_simulation() -> Result<()>
+{
+    let op = memory_without_stat_dir_simulation()?;
+    op.write("a/b/c.txt", "hello").await?;
+    op.write("foo", "file").await?;
+
+    // Confirm the backend genuinely reports NotFound when stat-ing implicit
+    // directory prefixes so this test exercises OpendalFs's fallback path.
+    assert!(matches!(
+        op.stat("a/").await,
+        Err(err) if err.kind() == ErrorKind::NotFound
+    ));
+    assert!(matches!(
+        op.stat("a/b/").await,
+        Err(err) if err.kind() == ErrorKind::NotFound
+    ));
+
+    let webdavfs = OpendalFs::new(op.clone());
+    assert!(webdavfs.metadata(&DavPath::new("/")?).await?.is_dir());
+    for dir in ["/a", "/a/", "/a/b", "/a/b/"] {
+        let meta = webdavfs.metadata(&DavPath::new(dir)?).await?;
+        assert!(meta.is_dir(), "{dir} should be detected as a directory");
+    }
+    let file_meta = webdavfs.metadata(&DavPath::new("/a/b/c.txt")?).await?;
+    assert!(file_meta.is_file());
+    assert_eq!(file_meta.len(), 5);
+
+    let foo_meta = webdavfs.metadata(&DavPath::new("/foo")?).await?;
+    assert!(foo_meta.is_file());
+    assert!(matches!(
+        webdavfs.metadata(&DavPath::new("/foo/")?).await,
+        Err(FsError::NotFound)
+    ));
+    for missing in ["/missing", "/missing/", "/a/missing/"] {
+        assert!(
+            matches!(
+                webdavfs.metadata(&DavPath::new(missing)?).await,
+                Err(FsError::NotFound)
+            ),
+            "{missing} should be NotFound"
+        );
+    }
+
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+
+    // PROPFIND / (Depth: 1) must include the implicit directory /a/ instead of
+    // dropping it when OpendalDirEntry::metadata() stats "a/".
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/")
+            .header("Depth", "1")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::MULTI_STATUS);
+    let hrefs = propfind_hrefs(&body)?;
+    assert!(hrefs.iter().any(|h| h == "/a/"), "missing /a/ in {hrefs:?}");
+    assert!(
+        hrefs.iter().any(|h| h == "/foo"),
+        "missing /foo in {hrefs:?}"
+    );
+
+    // PROPFIND /a/ (Depth: 1) must list the nested implicit directory /a/b/.
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/a/")
+            .header("Depth", "1")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::MULTI_STATUS);
+    let hrefs = propfind_hrefs(&body)?;
+    assert!(
+        hrefs.iter().any(|h| h == "/a/b/"),
+        "missing /a/b/ in {hrefs:?}"
+    );
+
+    // PROPFIND /a/b/ (Depth: 0) must report a collection; missing must be 404.
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/a/b/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::MULTI_STATUS);
+    assert!(propfind_is_collection(&body)?);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/missing/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // MKCOL onto an implicit directory reports 405; MKCOL under it succeeds.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MKCOL")
+            .uri("/a/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MKCOL")
+            .uri("/a/sibling/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+
+    // Recursive COPY of an implicit directory must copy nested entries.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("COPY")
+            .uri("/a/")
+            .header("Destination", "/copied/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/copied/b/c.txt")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_ref(), b"hello");
+
+    // Recursive DELETE of an implicit directory must remove its entire subtree.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::DELETE)
+            .uri("/a/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("PROPFIND")
+            .uri("/a/")
+            .header("Depth", "0")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(!op.exists("a/b/c.txt").await?);
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_file_move_and_copy_to_trailing_slash_destination() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+    let dav = DavHandler::builder()
+        .filesystem(OpendalFs::new(op.clone()))
+        .build_handler();
+
+    // MOVE file onto an existing collection with trailing slash and Overwrite: T.
+    op.write("src.txt", "moved-data").await?;
+    op.create_dir("dst/").await?;
+    op.write("dst/old.txt", "old").await?;
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MOVE")
+            .uri("/src.txt")
+            .header("Destination", "/dst/")
+            .header("Overwrite", "T")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/dst")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_ref(), b"moved-data");
+    assert!(!op.exists("src.txt").await?);
+    assert!(root.path().join("dst").is_file());
+    assert!(!root.path().join("dst/old.txt").exists());
+
+    // COPY file onto an existing collection with trailing slash and Overwrite: T.
+    op.write("src2.txt", "copied-data").await?;
+    op.create_dir("copy_dst/").await?;
+    op.write("copy_dst/old.txt", "old").await?;
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("COPY")
+            .uri("/src2.txt")
+            .header("Destination", "/copy_dst/")
+            .header("Overwrite", "T")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, body) = dav_request(
+        &dav,
+        Request::builder()
+            .method(Method::GET)
+            .uri("/copy_dst")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body.as_ref(), b"copied-data");
+    assert_eq!(
+        op.read("src2.txt").await?.to_bytes().as_ref(),
+        b"copied-data"
+    );
+
+    // COPY and MOVE to a non-existent destination with trailing slash.
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("COPY")
+            .uri("/src2.txt")
+            .header("Destination", "/fresh_copy/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        op.read("fresh_copy").await?.to_bytes().as_ref(),
+        b"copied-data"
+    );
+
+    let (status, _) = dav_request(
+        &dav,
+        Request::builder()
+            .method("MOVE")
+            .uri("/src2.txt")
+            .header("Destination", "/fresh_move/")
+            .body(Body::empty())?,
+    )
+    .await?;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        op.read("fresh_move").await?.to_bytes().as_ref(),
+        b"copied-data"
+    );
+    assert!(!op.exists("src2.txt").await?);
+
+    // Root "/" must be rejected as source or destination for file rename/copy.
+    let webdavfs = OpendalFs::new(op);
+    assert!(matches!(
+        webdavfs
+            .rename(&DavPath::new("/fresh_move")?, &DavPath::new("/")?)
+            .await,
+        Err(FsError::Forbidden)
+    ));
+    assert!(matches!(
+        webdavfs
+            .copy(&DavPath::new("/fresh_move")?, &DavPath::new("/")?)
+            .await,
+        Err(FsError::Forbidden)
+    ));
+    assert!(matches!(
+        webdavfs
+            .copy(&DavPath::new("/")?, &DavPath::new("/out")?)
+            .await,
+        Err(FsError::Forbidden)
+    ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_collection_rename_fallback_rejects_existing_file_and_implicit_dir() -> Result<()> {
+    let op = Operator::new(opendal::services::Memory::default())?;
+    op.create_dir("dir/").await?;
+    op.write("file", "keep").await?;
+    let webdavfs = OpendalFs::new(op.clone());
+
+    for dst in ["/file", "/file/"] {
+        assert!(
+            matches!(
+                webdavfs
+                    .rename(&DavPath::new("/dir/")?, &DavPath::new(dst)?)
+                    .await,
+                Err(FsError::Exists)
+            ),
+            "renaming /dir/ onto existing file via {dst} must fail with Exists"
+        );
+    }
+
+    assert_eq!(op.read("file").await?.to_bytes().as_ref(), b"keep");
+    assert!(!op.exists("file/").await?);
+    assert!(op.exists("dir/").await?);
+
+    // Also reject renaming an empty collection onto an implicit directory when
+    // stat_dir simulation is disabled.
+    let implicit_op = memory_without_stat_dir_simulation()?;
+    implicit_op.create_dir("empty/").await?;
+    implicit_op.write("implicit/child.txt", "keep").await?;
+    let implicit_fs = OpendalFs::new(implicit_op.clone());
+
+    assert!(matches!(
+        implicit_fs
+            .rename(&DavPath::new("/empty/")?, &DavPath::new("/implicit/")?)
+            .await,
+        Err(FsError::Exists)
+    ));
+    assert!(implicit_op.exists("empty/").await?);
+    assert_eq!(
+        implicit_op
+            .read("implicit/child.txt")
+            .await?
+            .to_bytes()
+            .as_ref(),
+        b"keep"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_autoindex_directory_name_has_single_slash() -> Result<()> {
+    let memory = Operator::new(opendal::services::Memory::default())?;
+    let root = tempfile::tempdir()?;
+    let fs_op = Operator::new(Fs::default().root(root.path().to_str().unwrap()))?;
+
+    for (label, op) in [("memory", memory), ("fs", fs_op)] {
+        op.create_dir("sub/").await?;
+        op.write("sub/file.txt", "hi").await?;
+
+        let webdavfs = OpendalFs::new(op.clone());
+        let entries: Vec<String> = webdavfs
+            .read_dir(&DavPath::new("/")?, ReadDirMeta::None)
+            .await?
+            .map(|entry| String::from_utf8(entry.unwrap().name()).unwrap())
+            .collect()
+            .await;
+        assert_eq!(entries, vec!["sub".to_string()], "{label}: bare entry name");
+
+        let dav = DavHandler::builder()
+            .filesystem(OpendalFs::new(op))
+            .autoindex(true)
+            .build_handler();
+        let (status, body) = dav_request(
+            &dav,
+            Request::builder()
+                .method(Method::GET)
+                .uri("/")
+                .body(Body::empty())?,
+        )
+        .await?;
+        assert_eq!(status, StatusCode::OK, "{label}: GET / autoindex");
+        let html = std::str::from_utf8(&body)?;
+        assert!(
+            html.contains("sub/"),
+            "{label}: expected single-slash sub/ in {html}"
+        );
+        assert!(
+            !html.contains("sub//"),
+            "{label}: unexpected double-slash sub// in {html}"
+        );
+    }
     Ok(())
 }

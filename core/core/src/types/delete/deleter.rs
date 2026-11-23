@@ -205,10 +205,16 @@ impl Deleter {
 
 #[cfg(test)]
 mod tests {
+    use std::future::poll_fn;
+    use std::pin::Pin;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::task::Context;
+    use std::task::Poll;
 
+    use futures::Sink;
     use futures::SinkExt;
+    use futures::task::noop_waker;
 
     use super::*;
     use crate::raw::OpDelete;
@@ -263,6 +269,165 @@ mod tests {
             "file_b should have been flushed by close, got: {:?}",
             *flushed
         );
+    }
+
+    struct FailCloseOnce<D> {
+        inner: D,
+        failed: bool,
+    }
+
+    impl<D: oio::Delete> oio::Delete for FailCloseOnce<D> {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            self.inner.delete(path, args).await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            if !self.failed {
+                self.failed = true;
+                return Err(Error::new(ErrorKind::Unexpected, "injected close failure"));
+            }
+            self.inner.close().await
+        }
+    }
+
+    struct PendingCloseOnce<D> {
+        inner: D,
+    }
+
+    impl<D: oio::Delete> oio::Delete for PendingCloseOnce<D> {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            self.inner.delete(path, args).await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            let mut pending = true;
+            poll_fn(|cx| {
+                if pending {
+                    pending = false;
+                    cx.waker().wake_by_ref();
+                    Poll::Pending
+                } else {
+                    Poll::Ready(())
+                }
+            })
+            .await;
+            self.inner.close().await
+        }
+    }
+
+    async fn pending_close_sink(op: &Operator) -> FuturesDeleteSink<String> {
+        let Deleter {
+            deleter,
+            scheme,
+            capability,
+        } = op.deleter().await.unwrap();
+        Deleter {
+            deleter: Box::new(PendingCloseOnce { inner: deleter }),
+            scheme,
+            capability,
+        }
+        .into_sink()
+    }
+
+    #[tokio::test]
+    async fn test_sink_rejects_operations_after_close() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.write("file_a", "a").await.unwrap();
+        op.write("file_b", "b").await.unwrap();
+        let mut sink = op.deleter().await.unwrap().into_sink::<String>();
+
+        sink.send("file_a".to_string()).await.unwrap();
+        sink.close().await.unwrap();
+        assert!(!op.exists("file_a").await.unwrap());
+
+        let err = sink
+            .send("file_b".to_string())
+            .await
+            .expect_err("closed sink must reject sends");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+
+        let err = sink
+            .flush()
+            .await
+            .expect_err("closed sink must reject flushes");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = sink
+            .close()
+            .await
+            .expect_err("closed sink must reject repeated close");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let err = match Pin::new(&mut sink).poll_ready(&mut cx) {
+            Poll::Ready(Err(err)) => err,
+            result => panic!("closed sink must reject ready, got {result:?}"),
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        let err = Pin::new(&mut sink)
+            .start_send("file_b".to_string())
+            .expect_err("closed sink must reject start_send");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_sink_close_can_retry_after_error() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        op.write("file_a", "a").await.unwrap();
+        op.write("file_b", "b").await.unwrap();
+        let Deleter {
+            deleter,
+            scheme,
+            capability,
+        } = op.deleter().await.unwrap();
+        let mut sink = Deleter {
+            deleter: Box::new(FailCloseOnce {
+                inner: deleter,
+                failed: false,
+            }),
+            scheme,
+            capability,
+        }
+        .into_sink::<String>();
+
+        sink.send("file_a".to_string()).await.unwrap();
+        let err = sink.close().await.expect_err("first close must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.message().contains("injected close failure"));
+
+        sink.close().await.expect("close retry must succeed");
+        assert!(!op.exists("file_a").await.unwrap());
+        let err = sink
+            .send("file_b".to_string())
+            .await
+            .expect_err("successful close retry must close the sink");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(op.exists("file_b").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_sink_ready_and_flush_reject_completed_close() {
+        let op = Operator::new(services::Memory::default()).unwrap();
+        let waker = noop_waker();
+        let mut cx = Context::from_waker(&waker);
+
+        let mut sink = pending_close_sink(&op).await;
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+        let err = match Pin::new(&mut sink).poll_ready(&mut cx) {
+            Poll::Ready(Err(err)) => err,
+            result => panic!("ready must reject a completed close, got {result:?}"),
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let mut sink = pending_close_sink(&op).await;
+        assert!(Pin::new(&mut sink).poll_close(&mut cx).is_pending());
+        let err = match Pin::new(&mut sink).poll_flush(&mut cx) {
+            Poll::Ready(Err(err)) => err,
+            result => panic!("flush must reject a completed close, got {result:?}"),
+        };
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
     }
 
     #[tokio::test]

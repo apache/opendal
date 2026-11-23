@@ -22,7 +22,22 @@ use parquet::errors::{ParquetError, Result};
 use futures::future::BoxFuture;
 use opendal::Writer;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum WriterState {
+    Active,
+    /// `write`, `complete`, or `abort` failed before `inner.abort()` succeeded.
+    /// Buffered data may already be discarded so `write`/`complete` must fail,
+    /// while `abort()` can still be retried.
+    Failed,
+    /// `inner.abort()` succeeded; repeated `abort()` is a no-op.
+    Aborted,
+}
+
 /// AsyncWriter implements AsyncFileWriter trait by using opendal.
+///
+/// A failed [`AsyncFileWriter::write`] or [`AsyncFileWriter::complete`] call
+/// attempts to abort the underlying [`Writer`] so that staged files and
+/// multipart uploads are released, then returns the original error.
 ///
 /// ```no_run
 /// use std::sync::Arc;
@@ -73,49 +88,139 @@ use opendal::Writer;
 /// ```
 pub struct AsyncWriter {
     inner: Writer,
+    state: WriterState,
 }
 
 impl AsyncWriter {
     /// Create a [`AsyncWriter`] by given [`Writer`].
     pub fn new(writer: Writer) -> Self {
-        Self { inner: writer }
+        Self {
+            inner: writer,
+            state: WriterState::Active,
+        }
     }
 
     /// Aborts the write and cleans up data written by the underlying [`Writer`].
+    ///
+    /// Failed [`AsyncFileWriter::write`] and [`AsyncFileWriter::complete`] calls
+    /// attempt to abort the underlying writer automatically; if that succeeded,
+    /// calling this method afterwards returns `Ok(())`.
+    ///
+    /// If the automatic abort did not succeed (for example, because the service
+    /// does not support abort or a transient error occurred), calling this
+    /// method retries the underlying abort, and the writer can no longer be
+    /// used for [`AsyncFileWriter::write`] or [`AsyncFileWriter::complete`].
     pub async fn abort(&mut self) -> opendal::Result<()> {
-        self.inner.abort().await
+        if self.state == WriterState::Aborted {
+            return Ok(());
+        }
+
+        // Transition before awaiting so an abort failure or dropped future
+        // blocks subsequent writes or completion while allowing abort retries.
+        self.state = WriterState::Failed;
+        self.inner.abort().await?;
+        self.state = WriterState::Aborted;
+        Ok(())
+    }
+
+    fn ensure_active(&self) -> Result<()> {
+        match self.state {
+            WriterState::Active => Ok(()),
+            WriterState::Failed => Err(ParquetError::External(Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                "the underlying writer has failed and cannot be reused",
+            )))),
+            WriterState::Aborted => Err(ParquetError::External(Box::new(opendal::Error::new(
+                opendal::ErrorKind::Unexpected,
+                "the underlying writer has been aborted",
+            )))),
+        }
     }
 }
 
 impl AsyncFileWriter for AsyncWriter {
     fn write(&mut self, bs: Bytes) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            self.inner
-                .write(bs)
-                .await
-                .map_err(|err| ParquetError::External(Box::new(err)))
+            self.ensure_active()?;
+
+            match self.inner.write(bs).await {
+                Ok(()) => Ok(()),
+                Err(err) => {
+                    // AsyncArrowWriter hands over the encoded row group and
+                    // drops it on failure, so the file can never be completed.
+                    // Release staged data before returning the write error.
+                    let _ = self.abort().await;
+                    Err(ParquetError::External(Box::new(err)))
+                }
+            }
         })
     }
 
     fn complete(&mut self) -> BoxFuture<'_, Result<()>> {
         Box::pin(async move {
-            self.inner
-                .close()
-                .await
-                .map(|_| ())
-                .map_err(|err| ParquetError::External(Box::new(err)))
+            self.ensure_active()?;
+
+            match self.inner.close().await {
+                Ok(_) => Ok(()),
+                Err(err) => {
+                    // AsyncArrowWriter::close consumes the writer, so this is
+                    // the last chance to release staged files or multipart
+                    // uploads. Report the close error, not the abort error.
+                    let _ = self.abort().await;
+                    Err(ParquetError::External(Box::new(err)))
+                }
+            }
         })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
-    use arrow::array::{ArrayRef, Int64Array, RecordBatch};
-    use opendal::{Operator, services};
+    use arrow::array::{ArrayRef, BinaryArray, Int64Array, RecordBatch};
+    use opendal::raw::{self, oio};
+    use opendal::{
+        Buffer, Capability, Error, ErrorKind, Metadata, OperationContext, Operator, services,
+    };
     use parquet::arrow::{AsyncArrowWriter, arrow_reader::ParquetRecordBatchReaderBuilder};
+
+    /// Builds an operator whose writes are staged and renamed on close, the
+    /// layout used by OpenDAL's atomic writers.
+    fn staged_fs_operator(root: &Path) -> Operator {
+        let staging = root.join("staging");
+        std::fs::create_dir_all(&staging).unwrap();
+
+        Operator::new(
+            services::Fs::default()
+                .root(root.to_str().unwrap())
+                .atomic_write_dir(staging.to_str().unwrap()),
+        )
+        .unwrap()
+    }
+
+    fn staged_files(root: &Path) -> Vec<String> {
+        std::fs::read_dir(root.join("staging"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect()
+    }
+
+    fn test_batch() -> RecordBatch {
+        let col = Arc::new(Int64Array::from_iter_values([1, 2, 3])) as ArrayRef;
+        RecordBatch::try_from_iter([("col", col)]).unwrap()
+    }
+
+    /// A batch large enough that flushing a row group writes through parquet's
+    /// internal buffer instead of only buffering it for the final close.
+    fn large_batch() -> RecordBatch {
+        let bytes = vec![b'x'; 64 * 1024];
+        let col = Arc::new(BinaryArray::from(vec![bytes.as_slice()])) as ArrayRef;
+        RecordBatch::try_from_iter([("col", col)]).unwrap()
+    }
 
     #[tokio::test]
     async fn test_basic() {
@@ -161,8 +266,7 @@ mod tests {
                 .unwrap(),
         );
 
-        let col = Arc::new(Int64Array::from_iter_values([1, 2, 3])) as ArrayRef;
-        let to_write = RecordBatch::try_from_iter([("col", col)]).unwrap();
+        let to_write = test_batch();
         let mut writer = AsyncArrowWriter::try_new(writer, to_write.schema(), None).unwrap();
         writer.write(&to_write).await.unwrap();
         writer.close().await.unwrap();
@@ -174,5 +278,403 @@ mod tests {
             .unwrap();
         let read = reader.next().unwrap().unwrap();
         assert_eq!(to_write, read);
+    }
+
+    /// `AsyncArrowWriter::close` consumes the writer, so a failed commit must
+    /// release the staged file before the error is returned.
+    #[tokio::test]
+    async fn test_complete_failure_cleans_staged_file() {
+        let root = tempfile::tempdir().unwrap();
+        let op = staged_fs_operator(root.path());
+        // Renaming the staged file over an existing directory fails.
+        std::fs::create_dir_all(root.path().join("data/blocked.parquet")).unwrap();
+
+        let mut writer = AsyncArrowWriter::try_new(
+            AsyncWriter::new(op.writer("data/blocked.parquet").await.unwrap()),
+            large_batch().schema(),
+            None,
+        )
+        .unwrap();
+        writer.write(&large_batch()).await.unwrap();
+        writer.flush().await.unwrap();
+        assert_eq!(staged_files(root.path()).len(), 1);
+
+        writer
+            .close()
+            .await
+            .expect_err("committing over an existing directory must fail");
+        assert!(
+            staged_files(root.path()).is_empty(),
+            "staged file left behind: {:?}",
+            staged_files(root.path())
+        );
+    }
+
+    /// `AsyncArrowWriter` drops the row group it passed to `write` and cannot
+    /// retry, so a failed write must clean up the staged file immediately.
+    #[tokio::test]
+    async fn test_write_failure_cleans_staged_file() {
+        let root = tempfile::tempdir().unwrap();
+        let op = staged_fs_operator(root.path()).layer(FaultInjectLayer::fail_write_after(1));
+
+        let mut writer = AsyncArrowWriter::try_new(
+            AsyncWriter::new(op.writer("data/test.parquet").await.unwrap()),
+            large_batch().schema(),
+            None,
+        )
+        .unwrap();
+        // The first flush forwards data and creates the staged file.
+        writer.write(&large_batch()).await.unwrap();
+        writer.flush().await.unwrap();
+        assert_eq!(staged_files(root.path()).len(), 1);
+
+        writer.write(&large_batch()).await.unwrap();
+        let err = writer
+            .flush()
+            .await
+            .expect_err("injected write failure must surface");
+        assert!(err.to_string().contains("write error injected by the test"));
+        assert!(
+            staged_files(root.path()).is_empty(),
+            "staged file left behind: {:?}",
+            staged_files(root.path())
+        );
+
+        // The failed write already released the staging area, so an explicit
+        // abort must not fail on the cleaned up file.
+        writer
+            .into_inner()
+            .abort()
+            .await
+            .expect("abort after automatic cleanup must succeed");
+    }
+
+    /// Non-staged `services::Fs` does not support `abort`, returning
+    /// `Unsupported`. A failed write must still return the original write
+    /// error and reject later `write`/`complete` calls instead of committing
+    /// a partial file.
+    #[tokio::test]
+    async fn test_write_failure_on_non_staged_fs_rejects_reuse() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new(services::Fs::default().root(root.path().to_str().unwrap()))
+            .unwrap()
+            .layer(FaultInjectLayer::fail_write_after(1));
+
+        let mut writer = AsyncWriter::new(op.writer("data/test.parquet").await.unwrap());
+        writer.write(Bytes::from_static(b"first")).await.unwrap();
+
+        let err = writer
+            .write(Bytes::from_static(b"second"))
+            .await
+            .expect_err("injected write failure must surface");
+        assert!(err.to_string().contains("write error injected by the test"));
+
+        let reuse_write_err = writer
+            .write(Bytes::from_static(b"third"))
+            .await
+            .expect_err("write after failed write must be rejected");
+        assert!(
+            reuse_write_err
+                .to_string()
+                .contains("the underlying writer has failed")
+        );
+
+        let reuse_complete_err = writer
+            .complete()
+            .await
+            .expect_err("complete after failed write must be rejected");
+        assert!(
+            reuse_complete_err
+                .to_string()
+                .contains("the underlying writer has failed")
+        );
+
+        // The automatic abort returned Unsupported, so an explicit abort
+        // retries the underlying abort instead of returning Ok(()).
+        let abort_err = writer
+            .abort()
+            .await
+            .expect_err("non-staged Fs abort must remain Unsupported");
+        assert_eq!(abort_err.kind(), ErrorKind::Unsupported);
+
+        // PositionWriter::abort discarded the buffered first write before
+        // FsWriter::abort returned Unsupported, and the rejected reuse calls
+        // must not write additional bytes.
+        assert!(
+            std::fs::read(root.path().join("data/test.parquet"))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    /// When `abort` fails transiently, `write` and `complete` must immediately
+    /// be rejected, a subsequent `abort` must retry and clean up the staged
+    /// file, and any later `abort` must be a no-op.
+    #[tokio::test]
+    async fn test_abort_retries_after_transient_failure() {
+        let root = tempfile::tempdir().unwrap();
+        let fault = FaultInjectLayer::fail_abort_times(1);
+        let op = staged_fs_operator(root.path()).layer(fault.clone());
+
+        let mut writer = AsyncWriter::new(op.writer("data/test.parquet").await.unwrap());
+        writer.write(Bytes::from_static(b"staged")).await.unwrap();
+        assert_eq!(staged_files(root.path()).len(), 1);
+
+        let err = writer
+            .abort()
+            .await
+            .expect_err("first abort attempt must surface transient error");
+        assert!(err.to_string().contains("abort error injected by the test"));
+        assert_eq!(fault.abort_calls(), 1);
+        assert_eq!(staged_files(root.path()).len(), 1);
+
+        let reuse_write_err = writer
+            .write(Bytes::from_static(b"more"))
+            .await
+            .expect_err("write after failed abort must be rejected");
+        assert!(
+            reuse_write_err
+                .to_string()
+                .contains("the underlying writer has failed")
+        );
+
+        let reuse_complete_err = writer
+            .complete()
+            .await
+            .expect_err("complete after failed abort must be rejected");
+        assert!(
+            reuse_complete_err
+                .to_string()
+                .contains("the underlying writer has failed")
+        );
+        assert!(!root.path().join("data/test.parquet").exists());
+
+        writer
+            .abort()
+            .await
+            .expect("second abort attempt must retry and succeed");
+        assert_eq!(fault.abort_calls(), 2);
+        assert!(
+            staged_files(root.path()).is_empty(),
+            "staged file left behind: {:?}",
+            staged_files(root.path())
+        );
+
+        writer
+            .abort()
+            .await
+            .expect("third abort attempt must be a no-op");
+        assert_eq!(fault.abort_calls(), 2);
+
+        let aborted_complete_err = writer
+            .complete()
+            .await
+            .expect_err("complete after abort must be rejected");
+        assert!(
+            aborted_complete_err
+                .to_string()
+                .contains("the underlying writer has been aborted")
+        );
+    }
+
+    fn unsupported<T>() -> opendal::Result<T> {
+        Err(Error::new(
+            ErrorKind::Unsupported,
+            "operation is not used by AsyncWriter tests",
+        ))
+    }
+
+    /// Wraps writers to inject write or abort failures while forwarding the
+    /// remaining operations unchanged.
+    #[derive(Debug, Clone)]
+    struct FaultInjectLayer {
+        /// Succeed this many writes before failing subsequent writes.
+        /// `None` forwards all writes.
+        succeed_writes: Option<usize>,
+        /// Fail this many `abort` calls before forwarding to the inner writer.
+        fail_aborts: usize,
+        abort_calls: Arc<AtomicUsize>,
+    }
+
+    impl FaultInjectLayer {
+        fn fail_write_after(succeed_writes: usize) -> Self {
+            Self {
+                succeed_writes: Some(succeed_writes),
+                fail_aborts: 0,
+                abort_calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        fn fail_abort_times(fail_aborts: usize) -> Self {
+            Self {
+                succeed_writes: None,
+                fail_aborts,
+                abort_calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+
+        fn abort_calls(&self) -> usize {
+            self.abort_calls.load(Ordering::SeqCst)
+        }
+    }
+
+    impl raw::Layer for FaultInjectLayer {
+        fn apply_service(&self, inner: raw::Servicer) -> raw::Servicer {
+            Arc::new(FaultInjectService {
+                inner,
+                succeed_writes: self.succeed_writes,
+                fail_aborts: self.fail_aborts,
+                abort_calls: self.abort_calls.clone(),
+            })
+        }
+    }
+
+    #[derive(Debug)]
+    struct FaultInjectService {
+        inner: raw::Servicer,
+        succeed_writes: Option<usize>,
+        fail_aborts: usize,
+        abort_calls: Arc<AtomicUsize>,
+    }
+
+    impl raw::Service for FaultInjectService {
+        type Reader = ();
+        type Writer = oio::Writer;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> raw::ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: raw::OpCreateDir,
+        ) -> opendal::Result<raw::RpCreateDir> {
+            unsupported()
+        }
+
+        async fn stat(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: raw::OpStat,
+        ) -> opendal::Result<raw::RpStat> {
+            unsupported()
+        }
+
+        fn read(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: raw::OpRead,
+        ) -> opendal::Result<Self::Reader> {
+            unsupported()
+        }
+
+        fn write(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: raw::OpWrite,
+        ) -> opendal::Result<Self::Writer> {
+            let inner = self.inner.write(ctx, path, args)?;
+            Ok(Box::new(FaultInjectWriter {
+                inner,
+                succeed_writes: self.succeed_writes,
+                writes_seen: 0,
+                fail_aborts: self.fail_aborts,
+                abort_calls: self.abort_calls.clone(),
+            }))
+        }
+
+        fn delete(&self, _: &OperationContext) -> opendal::Result<Self::Deleter> {
+            unsupported()
+        }
+
+        fn list(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: raw::OpList,
+        ) -> opendal::Result<Self::Lister> {
+            unsupported()
+        }
+
+        fn copy(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: raw::OpCopy,
+        ) -> opendal::Result<Self::Copier> {
+            unsupported()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: raw::OpRename,
+        ) -> opendal::Result<raw::RpRename> {
+            unsupported()
+        }
+
+        async fn presign(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: raw::OpPresign,
+        ) -> opendal::Result<raw::RpPresign> {
+            unsupported()
+        }
+    }
+
+    struct FaultInjectWriter {
+        inner: oio::Writer,
+        succeed_writes: Option<usize>,
+        writes_seen: usize,
+        fail_aborts: usize,
+        abort_calls: Arc<AtomicUsize>,
+    }
+
+    impl oio::Write for FaultInjectWriter {
+        async fn write(&mut self, bs: Buffer) -> opendal::Result<()> {
+            if self
+                .succeed_writes
+                .is_some_and(|limit| self.writes_seen >= limit)
+            {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "write error injected by the test")
+                        .set_permanent(),
+                );
+            }
+            self.writes_seen += 1;
+            oio::Write::write(&mut self.inner, bs).await
+        }
+
+        async fn close(&mut self) -> opendal::Result<Metadata> {
+            oio::Write::close(&mut self.inner).await
+        }
+
+        async fn abort(&mut self) -> opendal::Result<()> {
+            let call = self.abort_calls.fetch_add(1, Ordering::SeqCst);
+            if call < self.fail_aborts {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "abort error injected by the test")
+                        .set_temporary(),
+                );
+            }
+            oio::Write::abort(&mut self.inner).await
+        }
     }
 }

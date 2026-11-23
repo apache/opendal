@@ -40,10 +40,12 @@ parquet = { version = "59.2", default-features = false, features = [
 [dev-dependencies]
 arrow = { version = "59.0" }
 opendal = { version = "0.59.5", path = "../../core", features = [
+  "services-fs",
   "services-memory",
   "services-s3",
 ] }
 rand = "0.10.1"
+tempfile = "3"
 tokio = { version = "1", features = ["fs", "macros", "rt-multi-thread"] }
 
 [[example]]

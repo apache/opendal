@@ -124,7 +124,7 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
-    opened: Option<OpenedChunk>,
+    opened: Option<Box<OpenedChunk>>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
 }
@@ -181,14 +181,14 @@ impl ChunkedReader {
                 let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
                 self.ctx.observe_read_response(rp);
-                self.opened = Some(OpenedChunk {
+                self.opened = Some(Box::new(OpenedChunk {
                     input: ChunkedReadInput {
                         ctx: self.ctx.clone(),
                         range,
                         reader: Some(reader),
                     },
                     planned,
-                });
+                }));
             } else {
                 self.done = true;
             }
@@ -246,7 +246,7 @@ impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
         while self.tasks.has_remaining() && !self.done {
             if let Some(opened) = self.opened.take() {
-                let OpenedChunk { input, planned } = opened;
+                let OpenedChunk { input, planned } = *opened;
                 self.tasks.execute(input).await?;
                 self.commit_range(planned);
             } else if let Some(planned) = self.plan_next_range() {

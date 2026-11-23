@@ -598,6 +598,44 @@ impl OpendalStore {
         })
     }
 
+    /// Resolve a copy or rename whose source and destination are the same.
+    ///
+    /// `object_store` implementations report `AlreadyExists` when a create-only
+    /// destination exists and `NotFound` when the source is missing. OpenDAL
+    /// rejects the call with `IsSameFile` before either can be evaluated, so
+    /// inspect the source and produce the corresponding result. An overwrite
+    /// onto the same path keeps the object in place.
+    async fn check_same_path(&self, path: &Path, if_not_exists: bool) -> object_store::Result<()> {
+        let exists = match self
+            .inner
+            .stat(&percent_decode_path(path.as_ref()))
+            .into_send()
+            .await
+        {
+            Ok(meta) if meta.is_file() => true,
+            Ok(_) => {
+                return Err(format_object_store_error(
+                    opendal::Error::new(ErrorKind::IsADirectory, "source is a directory"),
+                    path.as_ref(),
+                ));
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => false,
+            Err(err) => return Err(format_object_store_error(err, path.as_ref())),
+        };
+
+        match (if_not_exists, exists) {
+            (true, true) => Err(format_object_store_error(
+                opendal::Error::new(ErrorKind::AlreadyExists, "destination already exists"),
+                path.as_ref(),
+            )),
+            (true, false) | (false, false) => Err(format_object_store_error(
+                opendal::Error::new(ErrorKind::NotFound, "source does not exist"),
+                path.as_ref(),
+            )),
+            (false, true) => Ok(()),
+        }
+    }
+
     /// Copy a file from one location to another
     async fn copy_request(
         &self,
@@ -605,6 +643,10 @@ impl OpendalStore {
         to: &Path,
         if_not_exists: bool,
     ) -> object_store::Result<()> {
+        if from == to {
+            return self.check_same_path(from, if_not_exists).await;
+        }
+
         let mut copy_options = CopyOptions::default();
         if if_not_exists {
             copy_options.if_not_exists = true;
@@ -854,14 +896,18 @@ impl ObjectStore for OpendalStore {
         }
 
         let raw_location = percent_decode_path(location.as_ref());
-        let reader = self
+        let options = GetOptions::default();
+        let reader = match self
             .inner
             .reader_with(&raw_location)
             .concurrent(DEFAULT_CONCURRENT)
             .gap(self.get_ranges_gap)
             .into_send()
             .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        {
+            Ok(reader) => reader,
+            Err(err) => return Err(self.format_get_error(location, &options, err).await),
+        };
 
         // Avoid a stat for normal ranges. An over-EOF fetch can fail either
         // range validation or OpenDAL's short-read check, so normalize and
@@ -874,12 +920,12 @@ impl ObjectStore for OpendalStore {
                     ErrorKind::RangeNotSatisfied | ErrorKind::Unexpected
                 ) =>
             {
-                let metadata = self
-                    .inner
-                    .stat(&raw_location)
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                let metadata = match self.inner.stat(&raw_location).into_send().await {
+                    Ok(metadata) => metadata,
+                    Err(err) => {
+                        return Err(self.format_get_error(location, &options, err).await);
+                    }
+                };
                 let normalized_ranges = ranges
                     .iter()
                     .map(|range| {
@@ -891,15 +937,16 @@ impl ObjectStore for OpendalStore {
                     .collect::<opendal::Result<Vec<_>>>()
                     .map_err(|err| format_object_store_error(err, location.as_ref()))?;
                 if normalized_ranges.as_slice() == ranges {
-                    return Err(format_object_store_error(err, location.as_ref()));
+                    return Err(self.format_get_error(location, &options, err).await);
                 }
-                reader
-                    .fetch(normalized_ranges)
-                    .into_send()
-                    .await
-                    .map_err(|err| format_object_store_error(err, location.as_ref()))?
+                match reader.fetch(normalized_ranges).into_send().await {
+                    Ok(buffers) => buffers,
+                    Err(err) => {
+                        return Err(self.format_get_error(location, &options, err).await);
+                    }
+                }
             }
-            Err(err) => return Err(format_object_store_error(err, location.as_ref())),
+            Err(err) => return Err(self.format_get_error(location, &options, err).await),
         };
 
         Ok(buffers.into_iter().map(|buf| buf.to_bytes()).collect())
@@ -1087,6 +1134,12 @@ impl ObjectStore for OpendalStore {
         to: &Path,
         options: RenameOptions,
     ) -> object_store::Result<()> {
+        if from == to {
+            return self
+                .check_same_path(from, options.target_mode == RenameTargetMode::Create)
+                .await;
+        }
+
         let capability = self.info().capability();
         let (supports_rename, copy_mode) = match options.target_mode {
             RenameTargetMode::Overwrite => (capability.rename, ObjectStoreCopyMode::Overwrite),
@@ -1660,6 +1713,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_get_ranges_directory_maps_to_not_found() -> anyhow::Result<()> {
+        let store = OpendalStore::new(Operator::new(services::Memory::default())?);
+        // `Path::parse` keeps the encoded segment, and `OpendalStore` decodes
+        // the location before forwarding it to OpenDAL, so this resolves to
+        // the directory path `dir/`.
+        let location = Path::parse("dir%2F")?;
+
+        assert!(matches!(
+            store.get(&location).await.unwrap_err(),
+            object_store::Error::NotFound { .. }
+        ));
+        let range = 0..1;
+        let err = store
+            .get_ranges(&location, std::slice::from_ref(&range))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, object_store::Error::NotFound { .. }),
+            "unexpected error: {err:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_get_opts_range_contract_matches_in_memory() {
         let store = OpendalStore::new(Operator::new(services::Memory::default()).unwrap());
         let reference = object_store::memory::InMemory::new();
@@ -1810,6 +1887,60 @@ mod tests {
             result?,
             Err(object_store::Error::NotModified { path, .. }) if path == location.as_ref()
         ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_same_path_matches_object_store_contract() -> anyhow::Result<()> {
+        let store = OpendalStore::new(Operator::new(services::Memory::default())?);
+        let location = Path::from("same-path-copy");
+
+        assert!(matches!(
+            store.copy(&location, &location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+        assert!(matches!(
+            store.copy_if_not_exists(&location, &location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+
+        let content = Bytes::from_static(b"content");
+        store.put(&location, content.clone().into()).await?;
+
+        store.copy(&location, &location).await?;
+        assert_eq!(store.get(&location).await?.bytes().await?, content);
+        assert!(matches!(
+            store.copy_if_not_exists(&location, &location).await.unwrap_err(),
+            object_store::Error::AlreadyExists { path, .. } if path == location.as_ref()
+        ));
+        assert_eq!(store.get(&location).await?.bytes().await?, content);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_same_path_matches_object_store_contract() -> anyhow::Result<()> {
+        let store = OpendalStore::new(Operator::new(services::Memory::default())?);
+        let location = Path::from("same-path-rename");
+
+        assert!(matches!(
+            store.rename(&location, &location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+        assert!(matches!(
+            store.rename_if_not_exists(&location, &location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+
+        let content = Bytes::from_static(b"content");
+        store.put(&location, content.clone().into()).await?;
+
+        store.rename(&location, &location).await?;
+        assert_eq!(store.get(&location).await?.bytes().await?, content);
+        assert!(matches!(
+            store.rename_if_not_exists(&location, &location).await.unwrap_err(),
+            object_store::Error::AlreadyExists { path, .. } if path == location.as_ref()
+        ));
+        assert_eq!(store.get(&location).await?.bytes().await?, content);
         Ok(())
     }
 

@@ -250,7 +250,7 @@ impl Builder for WebdavBuilder {
 
                 ..Default::default()
             },
-            endpoint: endpoint.to_string(),
+            endpoint: endpoint.trim_end_matches('/').to_string(),
             server_path,
             authorization,
             root,
@@ -478,6 +478,7 @@ mod tests {
         method: String,
         path: String,
         destination: Option<String>,
+        headers: http::HeaderMap,
     }
 
     #[derive(Clone, Default)]
@@ -502,8 +503,8 @@ mod tests {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
             let method = req.method().as_str().to_string();
             let path = req.uri().path().to_string();
-            let destination = req
-                .headers()
+            let headers = req.headers().clone();
+            let destination = headers
                 .get("Destination")
                 .and_then(|v| v.to_str().ok())
                 .map(str::to_owned);
@@ -512,12 +513,14 @@ mod tests {
                 method: method.clone(),
                 path: path.clone(),
                 destination,
+                headers,
             });
 
             let (status, body) = match (method.as_str(), path.as_str()) {
                 ("PROPFIND", "/src.txt") => (StatusCode::MULTI_STATUS, FILE_STAT_RESPONSE),
                 ("PROPFIND", _) => (StatusCode::NOT_FOUND, ""),
                 ("MKCOL", _) | ("COPY", _) | ("MOVE", _) | ("PUT", _) => (StatusCode::CREATED, ""),
+                ("DELETE", _) => (StatusCode::NO_CONTENT, ""),
                 _ => (StatusCode::METHOD_NOT_ALLOWED, ""),
             };
 
@@ -533,17 +536,24 @@ mod tests {
         }
     }
 
-    fn test_operator(disable_create_dir: bool) -> Result<(Operator, RecordingHttpTransport)> {
+    fn test_operator_with_endpoint(
+        endpoint: &str,
+        disable_create_dir: bool,
+    ) -> Result<(Operator, RecordingHttpTransport)> {
         let transport = RecordingHttpTransport::default();
         let op = Operator::new(
             WebdavBuilder::default()
-                .endpoint("http://localhost:8080")
+                .endpoint(endpoint)
                 .disable_create_dir(disable_create_dir),
         )?
         .with_context(
             OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone())),
         );
         Ok((op, transport))
+    }
+
+    fn test_operator(disable_create_dir: bool) -> Result<(Operator, RecordingHttpTransport)> {
+        test_operator_with_endpoint("http://localhost:8080", disable_create_dir)
     }
 
     #[test]
@@ -698,6 +708,183 @@ mod tests {
                 ("MKCOL".to_string(), "/nested/dir/".to_string()),
             ]
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn strong_etag_if_match_uses_if_match_header_only() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("nested/file.txt", "hello")
+            .if_match("\"strong-1\"")
+            .await?;
+        op.delete_with("nested/file.txt")
+            .if_match("\"strong-1\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+
+        for (req, expected_method) in requests.iter().zip(["PUT", "DELETE"]) {
+            assert_eq!(req.method, expected_method);
+            assert_eq!(
+                req.headers
+                    .get(http::header::IF_MATCH)
+                    .and_then(|v| v.to_str().ok()),
+                Some("\"strong-1\"")
+            );
+            assert!(req.headers.get("If").is_none());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn weak_etag_if_match_uses_tagged_dav_if_header_only() -> Result<()> {
+        let (op, transport) = test_operator_with_endpoint("http://localhost:8080/dav/", true)?;
+
+        op.write_with("nested/my file.txt", "hello")
+            .if_match(" W/\"weak-1\" ")
+            .await?;
+        op.delete_with("nested/my file.txt")
+            .if_match("W/\"weak-1\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+
+        let expected_if = "<http://localhost:8080/dav/nested/my%20file.txt> ([W/\"weak-1\"])";
+        for (req, expected_method) in requests.iter().zip(["PUT", "DELETE"]) {
+            assert_eq!(req.method, expected_method);
+            assert_eq!(req.path, "/dav/nested/my%20file.txt");
+            assert!(req.headers.get(http::header::IF_MATCH).is_none());
+            assert_eq!(req.headers.get_all("If").iter().count(), 1);
+            assert_eq!(
+                req.headers.get("If").and_then(|v| v.to_str().ok()),
+                Some(expected_if)
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn strong_etag_if_none_match_and_if_not_exists_use_if_none_match_only() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("a.txt", "1")
+            .if_none_match("\"strong-1\"")
+            .await?;
+        op.write_with("b.txt", "2").if_none_match("*").await?;
+        op.write_with("c.txt", "3").if_not_exists(true).await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 3);
+
+        for (req, expected) in requests.iter().zip(["\"strong-1\"", "*", "*"]) {
+            assert_eq!(req.method, "PUT");
+            assert_eq!(
+                req.headers
+                    .get(http::header::IF_NONE_MATCH)
+                    .and_then(|v| v.to_str().ok()),
+                Some(expected)
+            );
+            assert!(req.headers.get("If").is_none());
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn weak_etag_if_none_match_uses_if_none_match_and_tagged_dav_if() -> Result<()> {
+        let (op, transport) = test_operator_with_endpoint("http://localhost:8080/dav/", true)?;
+
+        op.write_with("nested/file.txt", "hello")
+            .if_none_match(" W/\"weak-1\" ")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        let req = &requests[0];
+        assert_eq!(req.method, "PUT");
+        assert_eq!(
+            req.headers
+                .get(http::header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok()),
+            Some("W/\"weak-1\"")
+        );
+        assert_eq!(req.headers.get_all("If").iter().count(), 1);
+        assert_eq!(
+            req.headers.get("If").and_then(|v| v.to_str().ok()),
+            Some("<http://localhost:8080/dav/nested/file.txt> (Not [W/\"weak-1\"])")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn combined_weak_if_match_and_if_none_match_merges_into_single_dav_if() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        op.write_with("file.txt", "hello")
+            .if_match("W/\"a\"")
+            .if_none_match("W/\"b\"")
+            .await?;
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        let req = &requests[0];
+        assert!(req.headers.get(http::header::IF_MATCH).is_none());
+        assert_eq!(
+            req.headers
+                .get(http::header::IF_NONE_MATCH)
+                .and_then(|v| v.to_str().ok()),
+            Some("W/\"b\"")
+        );
+        assert_eq!(req.headers.get_all("If").iter().count(), 1);
+        assert_eq!(
+            req.headers.get("If").and_then(|v| v.to_str().ok()),
+            Some("<http://localhost:8080/file.txt> ([W/\"a\"] Not [W/\"b\"])")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn invalid_weak_etag_returns_config_invalid_for_put_and_delete() -> Result<()> {
+        let (op, transport) = test_operator(true)?;
+
+        for invalid in ["W/\"bad]\"", "W/unquoted", "W/\"a\" \"b\"", "W/\"a"] {
+            let err = op
+                .write_with("file.txt", "hello")
+                .if_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "PUT if_match: {invalid}"
+            );
+
+            let err = op
+                .write_with("file.txt", "hello")
+                .if_none_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "PUT if_none_match: {invalid}"
+            );
+
+            let err = op
+                .delete_with("file.txt")
+                .if_match(invalid)
+                .await
+                .unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::ConfigInvalid,
+                "DELETE if_match: {invalid}"
+            );
+        }
+
+        assert!(transport.requests().is_empty());
         Ok(())
     }
 }

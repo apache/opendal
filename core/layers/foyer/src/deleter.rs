@@ -80,8 +80,13 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
             // Buffered deleters may not remove objects until close, so clear
             // afterwards to remove any entries refilled by concurrent reads.
             // Clear after errors too because close may have partially deleted
-            // objects before returning the error.
-            self.inner.cache.clear().await.map_err(extract_err)
+            // objects before returning the error. Downgrade pending `Store`
+            // pins/repairs around `clear()` so completing older reads cannot
+            // resurrect recursively deleted entries.
+            self.inner.deleted_keys.downgrade_stored_pins();
+            let res = self.inner.cache.clear().await.map_err(extract_err);
+            self.inner.deleted_keys.downgrade_stored_pins();
+            res
         } else {
             Ok(())
         };

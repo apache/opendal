@@ -169,33 +169,43 @@ impl FullReader {
                         .map_err(FetchError::from_error)?;
                     let buffer = stream.read_all().await.map_err(FetchError::from_error)?;
 
-                    if inner
-                        .deleted_keys
-                        .is_fetch_stale(fetch_guard.key(), fetch_guard.epoch())
-                    {
-                        return Err(FetchError::Stale {
-                            buffer,
-                            fetch_epoch: fetch_guard.epoch(),
-                        });
-                    }
+                    // Commit the fetched entry to Foyer while holding
+                    // `DeletedKeys`'s cache lock so staleness checks and cache
+                    // insertion are serialized with `store`, `evict`,
+                    // `invalidate`, and `begin_delete`.
+                    //
+                    // Returning `FetchError::Committed` prevents Foyer's
+                    // `RawFetch::handle_target` from inserting a second time
+                    // after `fetch_guard` drops (when a caller is cancelled,
+                    // `fetch_guard` drops as this future finishes, before
+                    // `handle_target` would run). `HybridCache::insert` inside
+                    // `commit_fetch` has already resolved Foyer's inflight
+                    // waiters with the inserted entry, so `handle_error` finds
+                    // no remaining waiters for this fetch.
+                    inner.deleted_keys.commit_fetch(
+                        &inner.cache,
+                        fetch_guard.key(),
+                        fetch_guard.epoch(),
+                        buffer,
+                    )?;
 
-                    // Foyer's `handle_target` inserts the returned entry into
-                    // the cache before completing `get_or_fetch` and dropping
-                    // the fetch state, so `ReadGuardInner::drop`'s post-read
-                    // eviction always runs after Foyer's insert.
-                    Ok(FoyerValue(buffer))
+                    Err::<FoyerValue, FetchError>(FetchError::Committed)
                 }
             })
             .await;
 
+        let read_epoch = read_guard.epoch();
+        drop(read_guard);
+        self.inner.deleted_keys.flush_repairs(&self.inner.cache);
+
         match result {
             Ok(entry) => Ok(Some(entry.0.clone())),
             Err(e) => match e.downcast_ref::<FetchError>() {
-                Some(FetchError::SizeTooLarge) => Ok(None),
+                Some(FetchError::SizeTooLarge | FetchError::Committed) => Ok(None),
                 Some(FetchError::Stale {
                     buffer,
                     fetch_epoch,
-                }) if *fetch_epoch == read_guard.epoch() => Ok(Some(buffer.clone())),
+                }) if *fetch_epoch == read_epoch => Ok(Some(buffer.clone())),
                 Some(FetchError::Stale { .. }) => Ok(None),
                 Some(FetchError::Source { kind, message }) => {
                     Err(Error::new(*kind, message.clone()))

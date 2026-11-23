@@ -28,7 +28,10 @@ mod writer;
 use std::{
     collections::{BTreeMap, HashMap},
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{
+        Arc, Mutex, MutexGuard,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use foyer::{Code, HybridCache, Result as FoyerResult};
@@ -38,6 +41,7 @@ use opendal_core::*;
 
 use copier::FoyerCopier;
 pub use deleter::Deleter;
+use error::FetchError;
 pub use writer::Writer;
 
 /// [`FoyerKey`] is a key for the foyer cache. It implements foyer's [`Code`] trait
@@ -171,7 +175,7 @@ impl IdleTombstones {
     fn insert_shared(
         &mut self,
         shared_key: Arc<FoyerKey>,
-        cache: &HybridCache<FoyerKey, FoyerValue>,
+        mut on_evict: impl FnMut(Arc<FoyerKey>),
     ) {
         let seq = self.next_seq;
         self.next_seq += 1;
@@ -186,12 +190,8 @@ impl IdleTombstones {
                 break;
             };
             self.keys.remove(&oldest_key);
-            cache.remove(oldest_key.as_ref());
+            on_evict(oldest_key);
         }
-    }
-
-    fn insert(&mut self, key: FoyerKey, cache: &HybridCache<FoyerKey, FoyerValue>) {
-        self.insert_shared(Arc::new(key), cache);
     }
 
     fn remove(&mut self, key: &FoyerKey) {
@@ -206,28 +206,37 @@ impl IdleTombstones {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 enum PinnedKind {
     /// Invalidated while older reads of this key were in flight.
     /// New reads bypass the cache until those reads finish, at which point the
-    /// key is removed from the cache again and recorded in the bounded idle
+    /// key is scheduled for cache removal and recorded in the bounded idle
     /// tombstone history.
     Invalidate,
     /// Evicted without marking deleted while older reads of this key were in
     /// flight. New reads bypass the cache until those reads finish, at which
-    /// point the key is removed from the cache again and released so later
+    /// point the key is scheduled for cache removal and released so later
     /// reads can refill it.
     Evict,
     /// Overwritten by a cacheable write while older reads of this key were in
-    /// flight. New reads can hit the cached entry, while older fetches abort
-    /// cache insertion without evicting the newer value when they finish.
-    Store,
+    /// flight. New reads can hit the cached entry, while older origin fetches
+    /// abort insertion under `cache_lock`. Holds a cheap ref-counted clone of
+    /// the latest stored buffer so any late disk-load promotion
+    /// (`optional_fetch`) or waking `WriteOnInsertion` enqueue by an older
+    /// read is overwritten once those reads finish.
+    Store(Buffer),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct PinnedEntry {
     epoch: u64,
     kind: PinnedKind,
+}
+
+#[derive(Debug, Clone)]
+enum PendingRepair {
+    Remove,
+    Store(Buffer),
 }
 
 /// Active read counts per epoch for a single cache key.
@@ -319,16 +328,22 @@ impl ActiveReadEpochs {
 
 /// Invalidated cache keys and in-flight read/delete fences.
 ///
-/// A key stays pinned while reads that started before its invalidation (or a
-/// `Deleter::close` call targeting the key) are still in flight, so racing
-/// cache fills cannot leave stale data behind. Once those reads finish, any
-/// entry they could have inserted is removed and the pin is released.
-/// Invalidations without in-flight reads are retained up to
-/// [`MAX_DELETED_KEYS`] so recently mutated paths keep bypassing the cache
-/// until a write through the layer repopulates them.
+/// Origin cache fills commit under `cache_lock` alongside `store`, `evict`,
+/// `invalidate`, and `begin_delete` so staleness checks and Foyer mutations
+/// are serialized. A key also stays pinned while reads that started before a
+/// mutation (or a `Deleter::close` call targeting the key) are still in
+/// flight; once those reads finish, any deferred cache repair is queued into
+/// `pending_repairs` and flushed outside `ReadGuardInner::drop`.
+///
+/// Lock hierarchy is strictly `cache_lock` -> Foyer internal locks -> `state`.
+/// `state` is a leaf lock and never calls back into Foyer while held, because
+/// Foyer may drop a coalesced waiter's fetch future (and its `ReadGuard`)
+/// while holding its own shard and inflight locks.
 #[derive(Debug, Default)]
 struct DeletedKeys {
+    cache_lock: Mutex<()>,
     state: Mutex<DeletedKeysState>,
+    has_pending_repairs: AtomicBool,
 }
 
 #[derive(Debug, Default)]
@@ -338,18 +353,25 @@ struct DeletedKeysState {
     pinned: HashMap<FoyerKey, PinnedEntry>,
     active_deletes: HashMap<FoyerKey, usize>,
     idle: IdleTombstones,
+    pending_repairs: HashMap<FoyerKey, PendingRepair>,
 }
 
 impl DeletedKeysState {
-    fn apply_invalidation(
-        &mut self,
-        cache: &HybridCache<FoyerKey, FoyerValue>,
-        keys: &[FoyerKey],
-        evict_keys: &[FoyerKey],
-    ) {
+    fn insert_idle(&mut self, shared_key: Arc<FoyerKey>) -> bool {
+        let mut queued_repair = false;
+        self.idle.insert_shared(shared_key, |evicted_key| {
+            self.pending_repairs
+                .insert(evicted_key.as_ref().clone(), PendingRepair::Remove);
+            queued_repair = true;
+        });
+        queued_repair
+    }
+
+    fn apply_invalidation(&mut self, keys: &[FoyerKey], evict_keys: &[FoyerKey]) -> bool {
+        let mut queued_repair = false;
         for key in evict_keys {
             self.idle.remove(key);
-            cache.remove(key);
+            self.pending_repairs.remove(key);
             if self.active_reads.contains_key(key) {
                 self.epoch += 1;
                 self.pinned.insert(
@@ -365,7 +387,7 @@ impl DeletedKeysState {
         }
 
         for key in keys {
-            cache.remove(key);
+            self.pending_repairs.remove(key);
             if self.active_reads.contains_key(key) {
                 self.idle.remove(key);
                 self.epoch += 1;
@@ -378,9 +400,10 @@ impl DeletedKeysState {
                 );
             } else {
                 self.pinned.remove(key);
-                self.idle.insert(key.clone(), cache);
+                queued_repair |= self.insert_idle(Arc::new(key.clone()));
             }
         }
+        queued_repair
     }
 }
 
@@ -400,15 +423,13 @@ impl ReadGuard {
 #[derive(Debug)]
 struct ReadGuardInner {
     deleted_keys: Arc<DeletedKeys>,
-    cache: HybridCache<FoyerKey, FoyerValue>,
     key: Arc<FoyerKey>,
     epoch: u64,
 }
 
 impl Drop for ReadGuardInner {
     fn drop(&mut self) {
-        self.deleted_keys
-            .finish_read(&self.cache, &self.key, self.epoch);
+        self.deleted_keys.finish_read(&self.key, self.epoch);
     }
 }
 
@@ -425,25 +446,84 @@ impl Drop for DeleteGuard<'_> {
         if self.keys.is_empty() && self.evict_keys.is_empty() {
             return;
         }
-        let mut state = self.deleted_keys.lock_state();
-        for key in self.keys.iter().chain(self.evict_keys.iter()) {
-            if let Some(count) = state.active_deletes.get_mut(key) {
-                if *count > 1 {
-                    *count -= 1;
-                } else {
-                    state.active_deletes.remove(key);
+        let cache_guard = self.deleted_keys.lock_cache();
+        self.deleted_keys
+            .drain_repairs_locked(&cache_guard, self.cache);
+        {
+            let mut state = self.deleted_keys.lock_state();
+            for key in self.keys.iter().chain(self.evict_keys.iter()) {
+                if let Some(count) = state.active_deletes.get_mut(key) {
+                    if *count > 1 {
+                        *count -= 1;
+                    } else {
+                        state.active_deletes.remove(key);
+                    }
                 }
             }
+            if state.apply_invalidation(self.keys, self.evict_keys) {
+                self.deleted_keys
+                    .has_pending_repairs
+                    .store(true, Ordering::Release);
+            }
         }
-        state.apply_invalidation(self.cache, self.keys, self.evict_keys);
+        for key in self.evict_keys.iter().chain(self.keys.iter()) {
+            self.cache.remove(key);
+        }
+        self.deleted_keys
+            .drain_repairs_locked(&cache_guard, self.cache);
     }
 }
 
 impl DeletedKeys {
+    fn lock_cache(&self) -> MutexGuard<'_, ()> {
+        self.cache_lock
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
     fn lock_state(&self) -> MutexGuard<'_, DeletedKeysState> {
         self.state
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn drain_repairs_locked(
+        &self,
+        _cache_guard: &MutexGuard<'_, ()>,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+    ) {
+        if !self.has_pending_repairs.load(Ordering::Acquire) {
+            return;
+        }
+        loop {
+            let repairs = {
+                let mut state = self.lock_state();
+                if state.pending_repairs.is_empty() {
+                    // Only clear the flag once every previously popped batch
+                    // has been applied to Foyer and no new repairs were queued.
+                    self.has_pending_repairs.store(false, Ordering::Release);
+                    return;
+                }
+                std::mem::take(&mut state.pending_repairs)
+            };
+
+            for (key, repair) in repairs {
+                match repair {
+                    PendingRepair::Remove => cache.remove(&key),
+                    PendingRepair::Store(value) => {
+                        cache.insert(key, FoyerValue(value));
+                    }
+                }
+            }
+        }
+    }
+
+    fn flush_repairs(&self, cache: &HybridCache<FoyerKey, FoyerValue>) {
+        if !self.has_pending_repairs.load(Ordering::Acquire) {
+            return;
+        }
+        let cache_guard = self.lock_cache();
+        self.drain_repairs_locked(&cache_guard, cache);
     }
 
     fn begin_read(
@@ -451,39 +531,43 @@ impl DeletedKeys {
         cache: &HybridCache<FoyerKey, FoyerValue>,
         key: &Arc<FoyerKey>,
     ) -> Option<ReadGuard> {
-        let mut state = self.lock_state();
-        if state.active_deletes.contains_key(key.as_ref())
-            || state.idle.contains(key.as_ref())
-            || state.pinned.get(key.as_ref()).is_some_and(|entry| {
-                matches!(entry.kind, PinnedKind::Invalidate | PinnedKind::Evict)
-            })
-        {
-            return None;
-        }
+        loop {
+            if self.has_pending_repairs.load(Ordering::Acquire) {
+                self.flush_repairs(cache);
+            }
+            let mut state = self.lock_state();
+            if self.has_pending_repairs.load(Ordering::Acquire) {
+                drop(state);
+                self.flush_repairs(cache);
+                continue;
+            }
+            if state.active_deletes.contains_key(key.as_ref())
+                || state.idle.contains(key.as_ref())
+                || state.pinned.get(key.as_ref()).is_some_and(|entry| {
+                    matches!(entry.kind, PinnedKind::Invalidate | PinnedKind::Evict)
+                })
+            {
+                return None;
+            }
 
-        let epoch = state.epoch;
-        if let Some(epochs) = state.active_reads.get_mut(key.as_ref()) {
-            epochs.insert(epoch);
-        } else {
-            state
-                .active_reads
-                .insert(key.clone(), ActiveReadEpochs::single(epoch));
-        }
+            let epoch = state.epoch;
+            if let Some(epochs) = state.active_reads.get_mut(key.as_ref()) {
+                epochs.insert(epoch);
+            } else {
+                state
+                    .active_reads
+                    .insert(key.clone(), ActiveReadEpochs::single(epoch));
+            }
 
-        Some(ReadGuard(Arc::new(ReadGuardInner {
-            deleted_keys: self.clone(),
-            cache: cache.clone(),
-            key: key.clone(),
-            epoch,
-        })))
+            return Some(ReadGuard(Arc::new(ReadGuardInner {
+                deleted_keys: self.clone(),
+                key: key.clone(),
+                epoch,
+            })));
+        }
     }
 
-    fn finish_read(
-        &self,
-        cache: &HybridCache<FoyerKey, FoyerValue>,
-        key: &Arc<FoyerKey>,
-        epoch: u64,
-    ) {
+    fn finish_read(&self, key: &Arc<FoyerKey>, epoch: u64) {
         let mut state = self.lock_state();
         let Some(epochs) = state.active_reads.get_mut(key.as_ref()) else {
             return;
@@ -510,31 +594,65 @@ impl DeletedKeys {
         if expired && let Some(entry) = state.pinned.remove(key.as_ref()) {
             match entry.kind {
                 PinnedKind::Invalidate => {
-                    // The last read that could have refilled this entry has finished.
-                    // Drop whatever it may have inserted and record the bounded idle
-                    // tombstone so recent invalidations keep bypassing the cache.
-                    cache.remove(key.as_ref());
-                    state.idle.insert_shared(key.clone(), cache);
+                    // The last read that could have refilled this entry has
+                    // finished. Record the bounded idle tombstone and queue a
+                    // cache removal (applied outside `ReadGuardInner::drop`).
+                    state.insert_idle(key.clone());
+                    state
+                        .pending_repairs
+                        .insert(key.as_ref().clone(), PendingRepair::Remove);
+                    self.has_pending_repairs.store(true, Ordering::Release);
                 }
                 PinnedKind::Evict => {
-                    // The last read that could have refilled this entry has finished.
-                    // Drop whatever it may have inserted and allow subsequent reads
-                    // to refill the cache.
-                    cache.remove(key.as_ref());
+                    // The last read that could have refilled this entry has
+                    // finished. Queue a cache removal and allow subsequent
+                    // reads to refill the cache.
+                    state
+                        .pending_repairs
+                        .insert(key.as_ref().clone(), PendingRepair::Remove);
+                    self.has_pending_repairs.store(true, Ordering::Release);
                 }
-                PinnedKind::Store => {}
+                PinnedKind::Store(value) => {
+                    // The last read that started before `store()` has finished.
+                    // Queue a re-insert so any stale disk-load promotion
+                    // (`optional_fetch`) or waking `WriteOnInsertion` enqueue
+                    // cannot leave older bytes behind.
+                    state
+                        .pending_repairs
+                        .insert(key.as_ref().clone(), PendingRepair::Store(value));
+                    self.has_pending_repairs.store(true, Ordering::Release);
+                }
             }
         }
     }
 
-    fn is_fetch_stale(&self, key: &FoyerKey, fetch_epoch: u64) -> bool {
-        let state = self.lock_state();
-        state.active_deletes.contains_key(key)
-            || state.idle.contains(key)
-            || state
-                .pinned
-                .get(key)
-                .is_some_and(|entry| entry.epoch > fetch_epoch)
+    fn commit_fetch(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        key: &FoyerKey,
+        fetch_epoch: u64,
+        buffer: Buffer,
+    ) -> std::result::Result<(), FetchError> {
+        let cache_guard = self.lock_cache();
+        self.drain_repairs_locked(&cache_guard, cache);
+        let stale = {
+            let state = self.lock_state();
+            state.active_deletes.contains_key(key)
+                || state.idle.contains(key)
+                || state
+                    .pinned
+                    .get(key)
+                    .is_some_and(|entry| entry.epoch > fetch_epoch)
+        };
+        if stale {
+            return Err(FetchError::Stale {
+                buffer,
+                fetch_epoch,
+            });
+        }
+        cache.insert(key.clone(), FoyerValue(buffer));
+        self.drain_repairs_locked(&cache_guard, cache);
+        Ok(())
     }
 
     fn invalidate(
@@ -543,8 +661,21 @@ impl DeletedKeys {
         keys: &[FoyerKey],
         evict_keys: &[FoyerKey],
     ) {
-        let mut state = self.lock_state();
-        state.apply_invalidation(cache, keys, evict_keys);
+        if keys.is_empty() && evict_keys.is_empty() {
+            return;
+        }
+        let cache_guard = self.lock_cache();
+        self.drain_repairs_locked(&cache_guard, cache);
+        {
+            let mut state = self.lock_state();
+            if state.apply_invalidation(keys, evict_keys) {
+                self.has_pending_repairs.store(true, Ordering::Release);
+            }
+        }
+        for key in evict_keys.iter().chain(keys.iter()) {
+            cache.remove(key);
+        }
+        self.drain_repairs_locked(&cache_guard, cache);
     }
 
     pub(crate) fn begin_delete<'a>(
@@ -554,17 +685,42 @@ impl DeletedKeys {
         evict_keys: &'a [FoyerKey],
     ) -> DeleteGuard<'a> {
         if !keys.is_empty() || !evict_keys.is_empty() {
-            let mut state = self.lock_state();
-            state.apply_invalidation(cache, keys, evict_keys);
-            for key in keys.iter().chain(evict_keys.iter()) {
-                *state.active_deletes.entry(key.clone()).or_insert(0) += 1;
+            let cache_guard = self.lock_cache();
+            self.drain_repairs_locked(&cache_guard, cache);
+            {
+                let mut state = self.lock_state();
+                if state.apply_invalidation(keys, evict_keys) {
+                    self.has_pending_repairs.store(true, Ordering::Release);
+                }
+                for key in keys.iter().chain(evict_keys.iter()) {
+                    *state.active_deletes.entry(key.clone()).or_insert(0) += 1;
+                }
             }
+            for key in evict_keys.iter().chain(keys.iter()) {
+                cache.remove(key);
+            }
+            self.drain_repairs_locked(&cache_guard, cache);
         }
         DeleteGuard {
             deleted_keys: self,
             cache,
             keys,
             evict_keys,
+        }
+    }
+
+    pub(crate) fn downgrade_stored_pins(&self) {
+        let _cache_guard = self.lock_cache();
+        let mut state = self.lock_state();
+        for entry in state.pinned.values_mut() {
+            if matches!(entry.kind, PinnedKind::Store(_)) {
+                entry.kind = PinnedKind::Evict;
+            }
+        }
+        for repair in state.pending_repairs.values_mut() {
+            if matches!(repair, PendingRepair::Store(_)) {
+                *repair = PendingRepair::Remove;
+            }
         }
     }
 
@@ -575,60 +731,76 @@ impl DeletedKeys {
         value: FoyerValue,
         evict_key: Option<&FoyerKey>,
     ) {
-        let mut state = self.lock_state();
-        state.idle.remove(&key);
-        if state.active_reads.contains_key(&key) {
-            state.epoch += 1;
-            let epoch = state.epoch;
-            state.pinned.insert(
-                key.clone(),
-                PinnedEntry {
-                    epoch,
-                    kind: PinnedKind::Store,
-                },
-            );
-        } else {
-            state.pinned.remove(&key);
-        }
-
-        if let Some(evict_key) = evict_key {
-            state.idle.remove(evict_key);
-            cache.remove(evict_key);
-            if state.active_reads.contains_key(evict_key) {
+        let cache_guard = self.lock_cache();
+        self.drain_repairs_locked(&cache_guard, cache);
+        {
+            let mut state = self.lock_state();
+            state.idle.remove(&key);
+            state.pending_repairs.remove(&key);
+            if state.active_reads.contains_key(&key) {
                 state.epoch += 1;
                 let epoch = state.epoch;
                 state.pinned.insert(
-                    evict_key.clone(),
+                    key.clone(),
+                    PinnedEntry {
+                        epoch,
+                        kind: PinnedKind::Store(value.0.clone()),
+                    },
+                );
+            } else {
+                state.pinned.remove(&key);
+            }
+
+            if let Some(evict_key) = evict_key {
+                state.idle.remove(evict_key);
+                state.pending_repairs.remove(evict_key);
+                if state.active_reads.contains_key(evict_key) {
+                    state.epoch += 1;
+                    let epoch = state.epoch;
+                    state.pinned.insert(
+                        evict_key.clone(),
+                        PinnedEntry {
+                            epoch,
+                            kind: PinnedKind::Evict,
+                        },
+                    );
+                } else {
+                    state.pinned.remove(evict_key);
+                }
+            }
+        }
+
+        if let Some(evict_key) = evict_key {
+            cache.remove(evict_key);
+        }
+        cache.insert(key, value);
+        self.drain_repairs_locked(&cache_guard, cache);
+    }
+
+    fn evict(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey) {
+        let cache_guard = self.lock_cache();
+        self.drain_repairs_locked(&cache_guard, cache);
+        {
+            let mut state = self.lock_state();
+            state.idle.remove(key);
+            state.pending_repairs.remove(key);
+            if state.active_reads.contains_key(key) {
+                state.epoch += 1;
+                let epoch = state.epoch;
+                state.pinned.insert(
+                    key.clone(),
                     PinnedEntry {
                         epoch,
                         kind: PinnedKind::Evict,
                     },
                 );
             } else {
-                state.pinned.remove(evict_key);
+                state.pinned.remove(key);
             }
         }
 
-        cache.insert(key, value);
-    }
-
-    fn evict(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey) {
-        let mut state = self.lock_state();
-        state.idle.remove(key);
         cache.remove(key);
-        if state.active_reads.contains_key(key) {
-            state.epoch += 1;
-            let epoch = state.epoch;
-            state.pinned.insert(
-                key.clone(),
-                PinnedEntry {
-                    epoch,
-                    kind: PinnedKind::Evict,
-                },
-            );
-        } else {
-            state.pinned.remove(key);
-        }
+        self.drain_repairs_locked(&cache_guard, cache);
     }
 
     #[cfg(test)]
@@ -2390,6 +2562,89 @@ mod tests {
             path: "target".to_string(),
             version: None,
         }));
+    }
+
+    #[tokio::test]
+    async fn pending_store_repair_restores_fresh_entry_before_next_read() {
+        let cache = memory_cache().await;
+        let deleted_keys = Arc::new(DeletedKeys::default());
+        let key = Arc::new(FoyerKey {
+            path: "target".to_string(),
+            version: None,
+        });
+
+        let read_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        deleted_keys.store(
+            &cache,
+            key.as_ref().clone(),
+            FoyerValue(Buffer::from("fresh")),
+            None,
+        );
+
+        // Simulate a late Foyer disk-load (`optional_fetch`) promoting stale bytes
+        // into memory before the older read finishes.
+        cache.insert(key.as_ref().clone(), FoyerValue(Buffer::from("stale-disk")));
+        drop(read_guard);
+
+        // The next read must flush `PendingRepair::Store` before consulting Foyer.
+        let next_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        let entry = cache.get(key.as_ref()).await.unwrap().unwrap();
+        assert_eq!(entry.0.to_vec(), b"fresh");
+        drop(next_guard);
+    }
+
+    #[tokio::test]
+    async fn pending_evict_repair_removes_late_disk_insert_before_next_read() {
+        let cache = memory_cache().await;
+        let deleted_keys = Arc::new(DeletedKeys::default());
+        let key = Arc::new(FoyerKey {
+            path: "target".to_string(),
+            version: None,
+        });
+
+        let read_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        deleted_keys.evict(&cache, key.as_ref());
+
+        // Simulate a late Foyer disk-load (`optional_fetch`) promoting stale bytes
+        // into memory before the older read finishes.
+        cache.insert(key.as_ref().clone(), FoyerValue(Buffer::from("stale-disk")));
+        drop(read_guard);
+
+        // The next read must flush `PendingRepair::Remove` before consulting Foyer
+        // so it misses and refills fresh data instead of serving stale bytes.
+        let next_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        assert!(!cache.contains(key.as_ref()));
+        drop(next_guard);
+    }
+
+    #[tokio::test]
+    async fn downgrade_stored_pins_prevents_resurrection_after_clear() {
+        let cache = memory_cache().await;
+        let deleted_keys = Arc::new(DeletedKeys::default());
+        let key = Arc::new(FoyerKey {
+            path: "dir/target".to_string(),
+            version: None,
+        });
+
+        let read_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        deleted_keys.store(
+            &cache,
+            key.as_ref().clone(),
+            FoyerValue(Buffer::from("pre-clear")),
+            None,
+        );
+
+        deleted_keys.downgrade_stored_pins();
+        cache.clear().await.unwrap();
+        deleted_keys.downgrade_stored_pins();
+
+        drop(read_guard);
+        let next_guard = deleted_keys.begin_read(&cache, &key).unwrap();
+        assert!(
+            !cache.contains(key.as_ref()),
+            "downgraded store pin must not resurrect an entry after recursive cache clear"
+        );
+        drop(next_guard);
     }
 
     #[test]

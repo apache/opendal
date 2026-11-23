@@ -61,14 +61,52 @@ pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 /// Parse content length from header map.
+///
+/// RFC 9112 §6.3 permits multiple `Content-Length` fields only when every
+/// field carries the same decimal value, and RFC 9110 §8.6 defines the value
+/// as `1*DIGIT`.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
-    parse_header_to_str(headers, CONTENT_LENGTH)?
-        .map(|v| {
-            v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(e)
-            })
-        })
-        .transpose()
+    let mut values = headers.get_all(CONTENT_LENGTH).iter();
+
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    let content_length = parse_content_length_value(value)?;
+
+    for value in values {
+        if parse_content_length_value(value)? != content_length {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "conflicting content length headers",
+            ));
+        }
+    }
+
+    Ok(Some(content_length))
+}
+
+/// Parse a single `Content-Length` field value, which must be ASCII digits only.
+fn parse_content_length_value(value: &HeaderValue) -> Result<u64> {
+    let value = value.to_str().map_err(|err| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "header value must be valid utf-8 string but not",
+        )
+        .with_operation("http_util::parse_content_length")
+        .with_context("header_name", "content-length")
+        .set_source(err)
+    })?;
+
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "header value is not a valid content length",
+        ));
+    }
+
+    value.parse::<u64>().map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(err)
+    })
 }
 
 /// Parse content md5 from header map.
@@ -546,6 +584,44 @@ mod tests {
         );
 
         parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
+    }
+
+    #[test]
+    fn test_parse_content_length_missing() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(parse_content_length(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_parse_content_length_accepts_identical_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        assert_eq!(parse_content_length(&headers).unwrap(), Some(10));
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_conflicting_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("20"));
+
+        let err =
+            parse_content_length(&headers).expect_err("conflicting content lengths must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_invalid_values() {
+        for value in ["+10", "-1", " 10", "10 ", "", "10, 10", "10abc"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_LENGTH, HeaderValue::from_str(value).unwrap());
+
+            let err = parse_content_length(&headers).expect_err("invalid content length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "value: {value:?}");
+        }
     }
 
     #[test]

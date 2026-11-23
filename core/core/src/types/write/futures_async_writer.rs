@@ -60,6 +60,12 @@ impl FuturesAsyncWriter {
             buf: oio::FlexBuf::new(256 * 1024),
         }
     }
+
+    /// Return whether the underlying sink has been closed.
+    #[cfg(feature = "blocking")]
+    pub(crate) fn is_closed(&self) -> bool {
+        self.sink.is_closed()
+    }
 }
 
 impl AsyncWrite for FuturesAsyncWriter {
@@ -78,6 +84,15 @@ impl AsyncWrite for FuturesAsyncWriter {
             return Poll::Ready(Err(format_std_io_error(Error::new(
                 ErrorKind::Unexpected,
                 "state invalid: sink has been closed",
+            ))));
+        }
+
+        // Bytes accepted here would stay in `buf` while the sink finishes
+        // closing, so they would never reach the service.
+        if this.sink.is_closing() {
+            return Poll::Ready(Err(format_std_io_error(Error::new(
+                ErrorKind::Unexpected,
+                "state invalid: sink is closing",
             ))));
         }
 
@@ -136,8 +151,13 @@ impl AsyncWrite for FuturesAsyncWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::pin::Pin;
     use std::sync::Arc;
     use std::sync::Mutex;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::atomic::Ordering;
+    use std::task::Context;
+    use std::task::Poll;
 
     use futures::AsyncWriteExt;
 
@@ -172,6 +192,38 @@ mod tests {
     fn new_async_writer(writer: RecordingWriter) -> FuturesAsyncWriter {
         let write_state = WriteState::new(Box::new(writer), None, false);
         FuturesAsyncWriter::new(write_state)
+    }
+
+    /// A writer whose `close` stays pending until the test releases the gate.
+    struct GatedCloseWriter {
+        writes: Arc<Mutex<Vec<Vec<u8>>>>,
+        close_started: Arc<AtomicBool>,
+        close_gate: Arc<AtomicBool>,
+    }
+
+    impl oio::Write for GatedCloseWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            self.writes.lock().unwrap().push(bs.to_vec());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.close_started.store(true, Ordering::SeqCst);
+            futures::future::poll_fn(|_| {
+                if self.close_gate.load(Ordering::SeqCst) {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            })
+            .await;
+
+            Ok(MetadataBuilder::unknown().build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
@@ -229,6 +281,50 @@ mod tests {
 
         let err = w.flush().await.expect_err("flush must fail");
         assert!(err.to_string().contains("sink has been closed"), "{err}");
+    }
+
+    #[test]
+    fn test_poll_write_rejected_while_closing() {
+        let writes = Arc::new(Mutex::new(Vec::new()));
+        let close_started = Arc::new(AtomicBool::new(false));
+        let close_gate = Arc::new(AtomicBool::new(false));
+
+        let write_state = WriteState::new(
+            Box::new(GatedCloseWriter {
+                writes: writes.clone(),
+                close_started: close_started.clone(),
+                close_gate: close_gate.clone(),
+            }),
+            None,
+            false,
+        );
+        let mut w = FuturesAsyncWriter::new(write_state);
+
+        let waker = futures::task::noop_waker();
+        let mut cx = Context::from_waker(&waker);
+        let mut w = Pin::new(&mut w);
+
+        // The payload stays in the 256 KiB buffer until close flushes it.
+        let written = match w.as_mut().poll_write(&mut cx, b"hello") {
+            Poll::Ready(Ok(written)) => written,
+            _ => panic!("poll_write must accept the payload"),
+        };
+        assert_eq!(written, 5);
+
+        // Close sends the buffered payload and then parks in the closing state.
+        assert!(w.as_mut().poll_close(&mut cx).is_pending());
+        assert!(close_started.load(Ordering::SeqCst));
+
+        let err = match w.as_mut().poll_write(&mut cx, b"late") {
+            Poll::Ready(Err(err)) => err,
+            _ => panic!("poll_write must fail while the sink is closing"),
+        };
+        assert!(err.to_string().contains("sink is closing"), "{err}");
+
+        close_gate.store(true, Ordering::SeqCst);
+        assert!(w.as_mut().poll_close(&mut cx).is_ready());
+
+        assert_eq!(*writes.lock().unwrap(), vec![b"hello".to_vec()]);
     }
 
     #[tokio::test]

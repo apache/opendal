@@ -7678,6 +7678,7 @@ name = "opendal-http-transport-cyper"
 version = "0.59.5"
 dependencies = [
  "async-channel",
+ "bytes",
  "compio",
  "cyper",
  "futures",
@@ -7695,7 +7696,6 @@ dependencies = [
  "bytes",
  "futures",
  "http 1.5.0",
- "http-body 1.1.0",
  "opendal-core",
  "reqwest 0.13.5",
  "tokio",

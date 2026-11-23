@@ -74,6 +74,17 @@ struct CopiedBlock {
     size: u64,
 }
 
+enum State {
+    /// The copy is active and can be advanced or completed.
+    Running,
+    /// An abort has been requested and server-side cleanup is pending retry.
+    Aborting,
+    /// The copy completed and produced server-side metadata.
+    Completed(Metadata),
+    /// The copy was aborted and any server-side intermediate state was cleaned up.
+    Aborted,
+}
+
 /// BlockCopier implements [`oio::Copy`] based on block copy.
 pub struct BlockCopier<C: BlockCopy> {
     copier: Arc<C>,
@@ -87,8 +98,7 @@ pub struct BlockCopier<C: BlockCopy> {
     copy_once_threshold: u64,
     block_size: u64,
     concurrent: usize,
-    completed: bool,
-    metadata: Option<Metadata>,
+    state: State,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedBlock>,
 }
@@ -118,8 +128,7 @@ impl<C: BlockCopy> BlockCopier<C> {
             copy_once_threshold,
             block_size,
             concurrent,
-            completed: false,
-            metadata: None,
+            state: State::Running,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -212,15 +221,22 @@ where
     C: BlockCopy,
 {
     async fn next(&mut self) -> Result<Option<usize>> {
-        if self.completed {
-            return Ok(None);
+        match &self.state {
+            State::Completed(_) => return Ok(None),
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block copier has already been aborted",
+                ));
+            }
+            State::Running => {}
         }
 
         let source_size = self.source_size().await?;
 
-        if self.block_ids.is_empty() && source_size <= self.copy_once_threshold {
-            self.metadata = Some(self.copier.copy_once().await?);
-            self.completed = true;
+        if self.scheduled_block_ids.is_empty() && source_size <= self.copy_once_threshold {
+            let metadata = self.copier.copy_once().await?;
+            self.state = State::Completed(metadata);
             return Ok(None);
         }
 
@@ -251,20 +267,32 @@ where
             .iter()
             .map(|(_, block_id)| *block_id)
             .collect();
-        self.metadata = Some(self.copier.complete_block(block_ids).await?);
-        self.completed = true;
+        let metadata = self.copier.complete_block(block_ids).await?;
+        self.scheduled_block_ids.clear();
+        self.block_ids.clear();
+        self.state = State::Completed(metadata);
         Ok(None)
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        while !self.completed {
+        match &self.state {
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "block copier has already been aborted and can't be closed",
+                ));
+            }
+            State::Running | State::Completed(_) => {}
+        }
+
+        while matches!(self.state, State::Running) {
             self.next().await?;
         }
 
-        let metadata = self
-            .metadata
-            .clone()
-            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let State::Completed(metadata) = &self.state else {
+            unreachable!("block copier must be completed after draining next()");
+        };
+        let metadata = metadata.clone();
         let Some(source_size) = self.source_size else {
             return Ok(metadata);
         };
@@ -286,18 +314,25 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.tasks.clear();
-        if self.scheduled_block_ids.is_empty() {
-            self.completed = true;
-            self.metadata = None;
-            return Ok(());
+        match &self.state {
+            State::Completed(_) | State::Aborted => return Ok(()),
+            State::Running | State::Aborting => {}
         }
 
-        self.copier
-            .abort_block(self.scheduled_block_ids.clone())
-            .await?;
-        self.completed = true;
-        self.metadata = None;
+        self.state = State::Aborting;
+        self.tasks.clear();
+
+        // Keep scheduled_block_ids in place until abort_block succeeds so a
+        // failed abort can be retried with the complete list.
+        if !self.scheduled_block_ids.is_empty() {
+            self.copier
+                .abort_block(self.scheduled_block_ids.clone())
+                .await?;
+            self.scheduled_block_ids.clear();
+        }
+
+        self.block_ids.clear();
+        self.state = State::Aborted;
         Ok(())
     }
 }
@@ -318,6 +353,12 @@ mod tests {
     struct TestState {
         ranges: HashMap<Uuid, BytesRange>,
         completed_ranges: Vec<BytesRange>,
+        source_metadata_calls: usize,
+        copy_once_calls: usize,
+        complete_block_calls: usize,
+        abort_calls: Vec<Vec<Uuid>>,
+        abort_failures_remaining: usize,
+        delay_first_block: bool,
     }
 
     struct TestCopy {
@@ -326,6 +367,10 @@ mod tests {
 
     impl BlockCopy for TestCopy {
         async fn source_metadata(&self) -> Result<Metadata> {
+            self.state
+                .lock()
+                .expect("test state mutex poisoned")
+                .source_metadata_calls += 1;
             Ok({
                 let mut metadata = MetadataBuilder::unknown();
                 metadata.set_file(4);
@@ -334,11 +379,21 @@ mod tests {
         }
 
         async fn copy_once(&self) -> Result<Metadata> {
+            self.state
+                .lock()
+                .expect("test state mutex poisoned")
+                .copy_once_calls += 1;
             Ok(MetadataBuilder::unknown().build())
         }
 
         async fn copy_block(&self, block_id: Uuid, range: BytesRange) -> Result<()> {
-            if range.offset() == 0 {
+            let should_delay = range.offset() == 0
+                && self
+                    .state
+                    .lock()
+                    .expect("test state mutex poisoned")
+                    .delay_first_block;
+            if should_delay {
                 sleep(Duration::from_millis(50)).await;
             }
 
@@ -353,6 +408,7 @@ mod tests {
 
         async fn complete_block(&self, block_ids: Vec<Uuid>) -> Result<Metadata> {
             let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.complete_block_calls += 1;
             state.completed_ranges = block_ids
                 .into_iter()
                 .map(|block_id| state.ranges[&block_id])
@@ -360,14 +416,23 @@ mod tests {
             Ok(MetadataBuilder::unknown().build())
         }
 
-        async fn abort_block(&self, _: Vec<Uuid>) -> Result<()> {
+        async fn abort_block(&self, block_ids: Vec<Uuid>) -> Result<()> {
+            let mut state = self.state.lock().expect("test state mutex poisoned");
+            state.abort_calls.push(block_ids);
+            if state.abort_failures_remaining > 0 {
+                state.abort_failures_remaining -= 1;
+                return Err(Error::new(ErrorKind::Unexpected, "503 SlowDown").set_temporary());
+            }
             Ok(())
         }
     }
 
     #[tokio::test]
     async fn test_block_copier_completes_blocks_in_source_order() -> Result<()> {
-        let state = Arc::new(Mutex::new(TestState::default()));
+        let state = Arc::new(Mutex::new(TestState {
+            delay_first_block: true,
+            ..Default::default()
+        }));
         let inner = TestCopy {
             state: state.clone(),
         };
@@ -513,6 +578,198 @@ mod tests {
         assert_eq!(
             state.completed_ranges,
             vec![BytesRange::new(0, Some(2)), BytesRange::new(2, Some(2))]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_before_schedule_prevents_copy_and_close() -> Result<()> {
+        let state = Arc::new(Mutex::new(TestState::default()));
+        let inner = TestCopy {
+            state: state.clone(),
+        };
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 1,
+        );
+
+        copier.abort().await?;
+        copier.abort().await?;
+
+        let err = copier.next().await.expect_err("next after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.source_metadata_calls, 0);
+        assert_eq!(state.copy_once_calls, 0);
+        assert_eq!(state.complete_block_calls, 0);
+        assert!(state.abort_calls.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_after_schedule_clears_blocks_and_rejects_close() -> Result<()> {
+        let state = Arc::new(Mutex::new(TestState::default()));
+        let inner = TestCopy {
+            state: state.clone(),
+        };
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 1,
+        );
+
+        assert_eq!(copier.next().await?, Some(2));
+
+        copier.abort().await?;
+        copier.abort().await?;
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier.next().await.expect_err("next after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.complete_block_calls, 0);
+        assert_eq!(state.abort_calls.len(), 1);
+        assert_eq!(state.abort_calls[0].len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_failure_is_retryable_and_blocks_copy_and_close() -> Result<()> {
+        let state = Arc::new(Mutex::new(TestState {
+            abort_failures_remaining: 1,
+            ..Default::default()
+        }));
+        let inner = TestCopy {
+            state: state.clone(),
+        };
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 1,
+        );
+
+        assert_eq!(copier.next().await?, Some(2));
+
+        let err = copier
+            .abort()
+            .await
+            .expect_err("first abort should surface temporary failure");
+        assert!(err.is_temporary());
+
+        let err = copier
+            .next()
+            .await
+            .expect_err("next after failed abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after failed abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        copier.abort().await?;
+        copier.abort().await?;
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after retried abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let state = state.lock().expect("test state mutex poisoned");
+        assert_eq!(state.complete_block_calls, 0);
+        assert_eq!(state.abort_calls.len(), 2);
+        assert_eq!(state.abort_calls[0], state.abort_calls[1]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_after_complete_is_noop_and_keeps_completed_metadata() -> Result<()> {
+        let state = Arc::new(Mutex::new(TestState::default()));
+        let inner = TestCopy {
+            state: state.clone(),
+        };
+        let mut copier = BlockCopier::new(
+            crate::test_executor(),
+            inner,
+            Some(4),
+            /*copy_once_threshold=*/ 0,
+            /*block_size=*/ 2,
+            /*concurrent=*/ 1,
+        );
+
+        while copier.next().await?.is_some() {}
+        assert_eq!(
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .complete_block_calls,
+            1
+        );
+
+        copier.abort().await?;
+        assert!(
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .abort_calls
+                .is_empty()
+        );
+        assert_eq!(copier.next().await?, None);
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 4);
+
+        copier.abort().await?;
+        assert!(
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .abort_calls
+                .is_empty()
+        );
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 4);
+        assert_eq!(
+            state
+                .lock()
+                .expect("test state mutex poisoned")
+                .complete_block_calls,
+            1
         );
         Ok(())
     }

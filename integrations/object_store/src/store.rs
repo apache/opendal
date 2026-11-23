@@ -897,21 +897,35 @@ impl ObjectStore for OpendalStore {
 
         let this = self.clone();
         let fut = async move {
+            // object_store lists objects only, while OpenDAL also returns directories.
             let stream = this
                 .inner
                 .lister_with(&path)
                 .recursive(true)
                 .await
-                .map_err(|err| format_object_store_error(err, &path))?;
-
-            // object_store lists objects only, while OpenDAL also returns directories.
-            let stream = stream
-                .try_filter(|entry| futures::future::ready(!entry.metadata().is_dir()))
-                .then(|res| async {
-                    let entry = res.map_err(|err| format_object_store_error(err, ""))?;
-                    let meta = entry.metadata();
-
-                    Ok(format_object_meta(entry.path(), meta))
+                .map_err(|err| format_object_store_error(err, &path))?
+                .map_err(move |err| format_object_store_error(err, &path))
+                .map_ok(|entry| {
+                    let (path, metadata) = entry.into_parts();
+                    (Path::from(path.as_str()), path, metadata)
+                })
+                .try_filter(|(_, _, metadata)| futures::future::ready(!metadata.is_dir()))
+                .and_then(move |(location, path, metadata)| {
+                    let this = this.clone();
+                    async move {
+                        // Some backends return partial metadata from list. Fetch
+                        // the complete metadata so ObjectMeta stays consistent
+                        // with list_with_offset and list_with_delimiter.
+                        let metadata = if metadata.last_modified().is_some() {
+                            metadata
+                        } else {
+                            this.inner
+                                .stat(&path)
+                                .await
+                                .map_err(|err| format_object_store_error(err, &path))?
+                        };
+                        Ok(format_object_meta(location, &metadata))
+                    }
                 });
             Ok::<_, object_store::Error>(stream)
         };
@@ -2391,6 +2405,317 @@ mod tests {
                 self.srv.presign(ctx, path, args).await
             }
         }
+    }
+
+    /// A layer that controls list metadata and counts stat calls.
+    ///
+    /// `Missing` lists files without `last_modified`, `etag`, or a known
+    /// size, like an incomplete list entry. `Complete` provides the full
+    /// metadata in list, so the store must not issue a stat for those entries.
+    mod list_metadata {
+        use super::*;
+        use opendal::MetadataBuilder;
+        use opendal::raw::oio;
+        use opendal::raw::*;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        pub const LAST_MODIFIED_SECONDS: i64 = 1_700_000_000;
+        pub const LISTED_SIZE: u64 = 4;
+        pub const LISTED_ETAG: &str = "etag-from-list";
+        pub const STAT_ETAG: &str = "etag-from-stat";
+
+        fn stat_timestamp() -> Timestamp {
+            Timestamp::new(LAST_MODIFIED_SECONDS, 0).unwrap()
+        }
+
+        #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+        pub enum ListMetadata {
+            Missing,
+            Complete,
+        }
+
+        #[derive(Debug, Clone)]
+        pub struct ListMetadataLayer {
+            mode: ListMetadata,
+            stat_count: Arc<AtomicUsize>,
+        }
+
+        impl ListMetadataLayer {
+            pub fn new(mode: ListMetadata, stat_count: Arc<AtomicUsize>) -> Self {
+                Self { mode, stat_count }
+            }
+        }
+
+        impl Layer for ListMetadataLayer {
+            fn apply_service(&self, srv: Servicer) -> Servicer {
+                Arc::new(ListMetadataService {
+                    srv,
+                    mode: self.mode,
+                    stat_count: self.stat_count.clone(),
+                })
+            }
+        }
+
+        #[derive(Debug)]
+        struct ListMetadataService {
+            srv: Servicer,
+            mode: ListMetadata,
+            stat_count: Arc<AtomicUsize>,
+        }
+
+        struct ListMetadataLister {
+            inner: oio::Lister,
+            mode: ListMetadata,
+        }
+
+        impl oio::List for ListMetadataLister {
+            async fn next(&mut self) -> opendal::Result<Option<oio::Entry>> {
+                let Some(entry) = self.inner.next().await? else {
+                    return Ok(None);
+                };
+                if entry.metadata().is_dir() {
+                    return Ok(Some(entry));
+                }
+
+                let (path, _) = entry.into_parts();
+                let mut metadata = MetadataBuilder::file(match self.mode {
+                    ListMetadata::Missing => 0,
+                    ListMetadata::Complete => LISTED_SIZE,
+                });
+                if self.mode == ListMetadata::Complete {
+                    metadata.last_modified(stat_timestamp()).etag(LISTED_ETAG);
+                }
+                Ok(Some(oio::Entry::with(path, metadata.build())))
+            }
+        }
+
+        impl Service for ListMetadataService {
+            type Reader = oio::Reader;
+            type Writer = oio::Writer;
+            type Lister = oio::Lister;
+            type Deleter = oio::Deleter;
+            type Copier = oio::Copier;
+            type Composer = oio::Composer;
+
+            fn info(&self) -> ServiceInfo {
+                self.srv.info()
+            }
+
+            fn capability(&self) -> opendal::Capability {
+                self.srv.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpCreateDir,
+            ) -> opendal::Result<RpCreateDir> {
+                self.srv.create_dir(ctx, path, args).await
+            }
+
+            async fn stat(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpStat,
+            ) -> opendal::Result<RpStat> {
+                self.stat_count.fetch_add(1, Ordering::SeqCst);
+                let metadata = self.srv.stat(ctx, path, args).await?;
+                let mut builder = metadata.into_metadata().into_builder();
+                builder.last_modified(stat_timestamp()).etag(STAT_ETAG);
+                Ok(RpStat::new(builder.build()))
+            }
+
+            fn read(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> opendal::Result<Self::Reader> {
+                self.srv.read(ctx, path, args)
+            }
+
+            fn write(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> opendal::Result<Self::Writer> {
+                self.srv.write(ctx, path, args)
+            }
+
+            fn delete(&self, ctx: &opendal::OperationContext) -> opendal::Result<Self::Deleter> {
+                self.srv.delete(ctx)
+            }
+
+            fn list(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpList,
+            ) -> opendal::Result<Self::Lister> {
+                let inner = self.srv.list(ctx, path, args)?;
+                Ok(Box::new(ListMetadataLister {
+                    inner,
+                    mode: self.mode,
+                }))
+            }
+
+            fn copy(
+                &self,
+                ctx: &opendal::OperationContext,
+                from: &str,
+                to: &str,
+                args: OpCopy,
+            ) -> opendal::Result<Self::Copier> {
+                self.srv.copy(ctx, from, to, args)
+            }
+
+            async fn rename(
+                &self,
+                ctx: &opendal::OperationContext,
+                from: &str,
+                to: &str,
+                args: OpRename,
+            ) -> opendal::Result<RpRename> {
+                self.srv.rename(ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &opendal::OperationContext,
+                path: &str,
+                args: OpPresign,
+            ) -> opendal::Result<RpPresign> {
+                self.srv.presign(ctx, path, args).await
+            }
+        }
+    }
+
+    fn assert_stat_metadata(meta: &ObjectMeta, expected_size: u64) {
+        assert_eq!(
+            meta.last_modified.timestamp(),
+            list_metadata::LAST_MODIFIED_SECONDS,
+            "last_modified for {}",
+            meta.location
+        );
+        assert_eq!(
+            meta.e_tag.as_deref(),
+            Some(list_metadata::STAT_ETAG),
+            "etag for {}",
+            meta.location
+        );
+        assert_eq!(meta.size, expected_size, "size for {}", meta.location);
+    }
+
+    #[tokio::test]
+    async fn test_list_uses_stat_fallback_for_missing_metadata() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let stat_count = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(services::Memory::default()).unwrap().layer(
+            list_metadata::ListMetadataLayer::new(
+                list_metadata::ListMetadata::Missing,
+                stat_count.clone(),
+            ),
+        );
+        let store = OpendalStore::new(op);
+        let prefix = Path::from("data");
+        let paths = [prefix.clone().join("a.txt"), prefix.clone().join("b.txt")];
+        for path in &paths {
+            store
+                .put(path, Bytes::from_static(b"data").into())
+                .await
+                .unwrap();
+        }
+        stat_count.store(0, Ordering::SeqCst);
+
+        let mut listed: Vec<_> = store.list(Some(&prefix)).try_collect().await.unwrap();
+        listed.sort_unstable_by(|left, right| left.location.cmp(&right.location));
+        assert_eq!(listed.len(), 2);
+        for meta in &listed {
+            assert_stat_metadata(meta, 4);
+        }
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            2,
+            "list must stat each entry with missing metadata"
+        );
+
+        stat_count.store(0, Ordering::SeqCst);
+        let offset = paths[0].clone();
+        let offset_listed: Vec<_> = store
+            .list_with_offset(Some(&prefix), &offset)
+            .try_collect()
+            .await
+            .unwrap();
+        assert_eq!(offset_listed.len(), 1);
+        assert_eq!(offset_listed[0].location, paths[1]);
+        assert_stat_metadata(&offset_listed[0], 4);
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            1,
+            "list_with_offset must stat only entries with missing metadata"
+        );
+
+        stat_count.store(0, Ordering::SeqCst);
+        let result = store.list_with_delimiter(Some(&prefix)).await.unwrap();
+        assert_eq!(result.objects.len(), 2);
+        for meta in &result.objects {
+            assert_stat_metadata(meta, 4);
+        }
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            2,
+            "list_with_delimiter must stat each entry with missing metadata"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_list_skips_stat_when_list_metadata_is_complete() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let stat_count = Arc::new(AtomicUsize::new(0));
+        let op = Operator::new(services::Memory::default()).unwrap().layer(
+            list_metadata::ListMetadataLayer::new(
+                list_metadata::ListMetadata::Complete,
+                stat_count.clone(),
+            ),
+        );
+        let store = OpendalStore::new(op);
+        let prefix = Path::from("data");
+        for name in ["a.txt", "b.txt"] {
+            store
+                .put(
+                    &prefix.clone().join(name),
+                    Bytes::from_static(b"data").into(),
+                )
+                .await
+                .unwrap();
+        }
+        stat_count.store(0, Ordering::SeqCst);
+
+        let listed: Vec<_> = store.list(Some(&prefix)).try_collect().await.unwrap();
+        assert_eq!(listed.len(), 2);
+        for meta in &listed {
+            assert_eq!(
+                meta.last_modified.timestamp(),
+                list_metadata::LAST_MODIFIED_SECONDS
+            );
+            assert_eq!(
+                meta.e_tag.as_deref(),
+                Some(list_metadata::LISTED_ETAG),
+                "etag for {}",
+                meta.location
+            );
+            assert_eq!(meta.size, list_metadata::LISTED_SIZE);
+        }
+        assert_eq!(
+            stat_count.load(Ordering::SeqCst),
+            0,
+            "list must not stat entries whose metadata is complete"
+        );
     }
 
     #[tokio::test]

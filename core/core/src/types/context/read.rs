@@ -186,6 +186,14 @@ pub struct ReadGenerator {
     done: bool,
 }
 
+/// A planned read range and the generator state after opening it.
+#[derive(Clone, Copy)]
+struct PlannedRange {
+    range: BytesRange,
+    next_range: BytesRange,
+    done: bool,
+}
+
 impl ReadGenerator {
     /// Create a new ReadGenerator.
     #[inline]
@@ -197,49 +205,62 @@ impl ReadGenerator {
         }
     }
 
-    /// Generate next range to read.
-    fn next_range(&mut self) -> Option<BytesRange> {
+    /// Plan the next range to read without advancing the generator.
+    fn plan_next_range(&self) -> Option<PlannedRange> {
         if self.done || self.range.size() == Some(0) {
             return None;
         }
 
         let Some(chunk) = self.ctx.options.chunk() else {
-            self.done = true;
-            return Some(self.range);
+            return Some(PlannedRange {
+                range: self.range,
+                next_range: self.range,
+                done: true,
+            });
         };
 
         match self.range {
-            BytesRange::Suffix { .. } => {
-                self.done = true;
-                Some(self.range)
-            }
+            BytesRange::Suffix { .. } => Some(PlannedRange {
+                range: self.range,
+                next_range: self.range,
+                done: true,
+            }),
             BytesRange::Range { offset, size } => {
-                let next_size = match size {
-                    // Given size is None, read all data.
-                    None => {
-                        self.done = true;
-                        None
-                    }
-                    Some(remaining) => {
-                        let read_size = remaining.min(chunk as u64);
-                        self.range =
-                            BytesRange::new(offset + read_size, Some(remaining - read_size));
-                        Some(read_size)
-                    }
+                let Some(remaining) = size else {
+                    return Some(PlannedRange {
+                        range: self.range,
+                        next_range: self.range,
+                        done: true,
+                    });
                 };
 
-                Some(BytesRange::new(offset, next_size))
+                let read_size = remaining.min(chunk as u64);
+                Some(PlannedRange {
+                    range: BytesRange::new(offset, Some(read_size)),
+                    next_range: BytesRange::new(offset + read_size, Some(remaining - read_size)),
+                    done: false,
+                })
             }
         }
     }
 
+    /// Advance generator state after the planned range has been opened.
+    fn commit_range(&mut self, planned: PlannedRange) {
+        self.range = planned.next_range;
+        self.done = planned.done;
+    }
+
     /// Generate next reader.
+    ///
+    /// The generator advances only after `open` succeeds, so a failed or
+    /// cancelled open retries the same range instead of skipping it.
     pub async fn next_reader(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
-        let Some(range) = self.next_range() else {
+        let Some(planned) = self.plan_next_range() else {
             return Ok(None);
         };
 
-        let (rp, r) = self.ctx.reader().open(range).await?;
+        let (rp, r) = self.ctx.reader().open(planned.range).await?;
+        self.commit_range(planned);
         self.ctx.observe_read_response(rp);
         Ok(Some(r))
     }
@@ -255,6 +276,9 @@ mod tests {
     use bytes::Bytes;
 
     use super::*;
+    use crate::raw::oio::ReadStream as _;
+    use crate::types::read::test_utils::ReadFault;
+    use crate::types::read::test_utils::new_mock_read_context;
 
     fn new_read_context(
         ctx: OperationContext,
@@ -335,6 +359,144 @@ mod tests {
 
         pretty_assertions::assert_eq!(readers.len(), 1);
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_next_reader_retries_range_after_open_error() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(0, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
+
+        let err = generator
+            .next_reader()
+            .await
+            .err()
+            .expect("first open should fail");
+        assert!(err.is_temporary());
+
+        let data = read_generator_to_end(&mut generator).await?;
+
+        pretty_assertions::assert_eq!(data, b"HelloWorld");
+        pretty_assertions::assert_eq!(
+            fault.opened_ranges(),
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(8, Some(2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_next_reader_is_cancel_safe() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_pending_open());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
+
+        let mut fut = Box::pin(generator.next_reader());
+        assert!(
+            futures::poll!(fut.as_mut()).is_pending(),
+            "first open should stay pending"
+        );
+        drop(fut);
+
+        let data = read_generator_to_end(&mut generator).await?;
+
+        pretty_assertions::assert_eq!(data, b"HelloWorld");
+        pretty_assertions::assert_eq!(
+            fault.opened_ranges(),
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(8, Some(2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_next_reader_retries_failed_second_chunk() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(4, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut generator = ReadGenerator::new(ctx, BytesRange::new(0, Some(10)));
+
+        let mut first = generator.next_reader().await?.expect("first chunk reader");
+        let first = first.read_all().await?;
+        pretty_assertions::assert_eq!(first.to_vec(), b"Hell");
+
+        let err = generator
+            .next_reader()
+            .await
+            .err()
+            .expect("second chunk open should fail");
+        assert!(err.is_temporary());
+
+        let mut data = first.to_vec();
+        while let Some(mut reader) = generator.next_reader().await? {
+            data.extend_from_slice(&reader.read_all().await?.to_vec());
+        }
+
+        pretty_assertions::assert_eq!(data, b"HelloWorld");
+        pretty_assertions::assert_eq!(
+            fault.opened_ranges(),
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(8, Some(2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_next_reader_preserves_range_boundaries() -> Result<()> {
+        let fault = Arc::new(ReadFault::new());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(5),
+        ));
+
+        let mut generator = ReadGenerator::new(ctx.clone(), BytesRange::new(0, Some(10)));
+        let data = read_generator_to_end(&mut generator).await?;
+
+        pretty_assertions::assert_eq!(data, b"HelloWorld");
+        pretty_assertions::assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(5)), BytesRange::new(5, Some(5)),]
+        );
+
+        let mut empty = ReadGenerator::new(ctx, BytesRange::new(0, Some(0)));
+        assert!(empty.next_reader().await?.is_none());
+        pretty_assertions::assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(5)), BytesRange::new(5, Some(5)),]
+        );
+        Ok(())
+    }
+
+    async fn read_generator_to_end(generator: &mut ReadGenerator) -> Result<Vec<u8>> {
+        let mut data = Vec::new();
+        while let Some(mut reader) = generator.next_reader().await? {
+            data.extend_from_slice(&reader.read_all().await?.to_vec());
+        }
+        Ok(data)
     }
 
     #[tokio::test]

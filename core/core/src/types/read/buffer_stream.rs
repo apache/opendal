@@ -100,6 +100,14 @@ struct ChunkedReadInput {
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
+/// A planned chunk and the chunked reader state after it is scheduled.
+#[derive(Clone, Copy)]
+struct PlannedRange {
+    range: BytesRange,
+    next_offset: u64,
+    next_remaining: Option<u64>,
+}
+
 /// ChunkedReader will read the file in chunks.
 ///
 /// ChunkedReader is good for concurrent read and optimized for throughput.
@@ -160,8 +168,10 @@ impl ChunkedReader {
         }
 
         if self.opened.is_none() {
-            if let Some(range) = self.next_range() {
+            if let Some(planned) = self.plan_next_range() {
+                let range = planned.range;
                 let (rp, reader) = self.ctx.reader().open(range).await?;
+                self.commit_range(planned);
                 self.ctx.observe_read_response(rp);
                 self.opened = Some(ChunkedReadInput {
                     ctx: self.ctx.clone(),
@@ -185,31 +195,39 @@ impl ChunkedReader {
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
     }
 
-    /// Generate the next range to read, advancing internal state.
-    fn next_range(&mut self) -> Option<BytesRange> {
+    /// Plan the next range to read without advancing chunked reader state.
+    fn plan_next_range(&self) -> Option<PlannedRange> {
         if self.remaining == Some(0) {
             return None;
         }
 
-        let next_offset = self.offset;
-        let next_size = match self.remaining {
-            None => {
-                self.remaining = Some(0);
-                None
-            }
+        let (next_size, next_offset, next_remaining) = match self.remaining {
+            None => (None, self.offset, Some(0)),
             Some(remaining) => {
                 let read_size = self
                     .ctx
                     .options()
                     .chunk()
                     .map_or(remaining, |chunk| remaining.min(chunk as u64));
-                self.offset += read_size;
-                self.remaining = Some(remaining - read_size);
-                Some(read_size)
+                (
+                    Some(read_size),
+                    self.offset + read_size,
+                    Some(remaining - read_size),
+                )
             }
         };
 
-        Some(BytesRange::new(next_offset, next_size))
+        Some(PlannedRange {
+            range: BytesRange::new(self.offset, next_size),
+            next_offset,
+            next_remaining,
+        })
+    }
+
+    /// Advance chunked reader state after the planned range is scheduled.
+    fn commit_range(&mut self, planned: PlannedRange) {
+        self.offset = planned.next_offset;
+        self.remaining = planned.next_remaining;
     }
 }
 
@@ -218,14 +236,15 @@ impl oio::ReadStream for ChunkedReader {
         while self.tasks.has_remaining() && !self.done {
             if let Some(input) = self.opened.take() {
                 self.tasks.execute(input).await?;
-            } else if let Some(range) = self.next_range() {
+            } else if let Some(planned) = self.plan_next_range() {
                 self.tasks
                     .execute(ChunkedReadInput {
                         ctx: self.ctx.clone(),
-                        range,
+                        range: planned.range,
                         reader: None,
                     })
                     .await?;
+                self.commit_range(planned);
             } else {
                 self.done = true;
                 break;
@@ -433,6 +452,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::types::read::test_utils::ReadFault;
+    use crate::types::read::test_utils::new_mock_read_context;
 
     struct PendingOnceReader {
         content: Bytes,
@@ -612,6 +633,98 @@ mod tests {
         assert_eq!(buf.len(), 4);
         assert_eq!(&buf.to_vec(), "oWor".as_bytes());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_retries_failed_chunk() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_failed_range(BytesRange::new(4, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..10, None).await?;
+
+        let mut data = Vec::new();
+        loop {
+            match stream.try_next().await {
+                Ok(Some(buf)) => data.extend_from_slice(&buf.to_vec()),
+                Ok(None) => break,
+                Err(err) if err.is_temporary() => continue,
+                Err(err) => return Err(err),
+            }
+        }
+
+        assert_eq!(data, b"HelloWorld");
+        assert_eq!(
+            fault.read_ranges(),
+            vec![
+                BytesRange::new(0, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(4, Some(4)),
+                BytesRange::new(8, Some(2)),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_chunked_reader_metadata_cancel_does_not_skip_chunk() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_pending_open());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut reader = ChunkedReader::new(ctx, BytesRange::new(0, Some(10)));
+
+        {
+            let mut metadata = Box::pin(reader.metadata());
+            assert!(futures::poll!(metadata.as_mut()).is_pending());
+        }
+
+        let err = reader
+            .metadata()
+            .await
+            .expect_err("mock reader has no metadata");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let data = reader.read_all().await?;
+        assert_eq!(data.to_vec(), b"HelloWorld");
+        assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(0, Some(4)),]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_metadata_cancel_keeps_chunked_reader() -> Result<()> {
+        let fault = Arc::new(ReadFault::new().with_pending_open());
+        let ctx = Arc::new(new_mock_read_context(
+            b"HelloWorld",
+            fault.clone(),
+            OpReader::new().with_chunk(4),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..10, None).await?;
+
+        {
+            let mut metadata = Box::pin(stream.metadata());
+            assert!(futures::poll!(metadata.as_mut()).is_pending());
+        }
+
+        let err = stream
+            .metadata()
+            .await
+            .expect_err("mock reader has no metadata");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let bufs: Vec<Buffer> = stream.try_collect().await?;
+        let data: Buffer = bufs.into_iter().flatten().collect();
+
+        assert_eq!(data.to_vec(), b"HelloWorld");
+        assert_eq!(fault.opened_ranges(), vec![BytesRange::new(0, Some(4))]);
         Ok(())
     }
 }

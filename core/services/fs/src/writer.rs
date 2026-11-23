@@ -517,10 +517,9 @@ mod tests {
             HashMap::from([("old".to_string(), "value".to_string())])
         );
 
-        op.write("file", "second").await.unwrap();
-        assert!(FsCore::get_user_metadata(&file).unwrap().is_empty());
-
-        op.write_with("file", "third")
+        // A non-empty to non-empty overwrite must drop the old key and keep
+        // only the new one.
+        op.write_with("file", "second")
             .user_metadata([("new".to_string(), "value".to_string())])
             .await
             .unwrap();
@@ -528,6 +527,10 @@ mod tests {
             FsCore::get_user_metadata(&file).unwrap(),
             HashMap::from([("new".to_string(), "value".to_string())])
         );
+
+        // A write without user metadata must clear the previous keys.
+        op.write("file", "third").await.unwrap();
+        assert!(FsCore::get_user_metadata(&file).unwrap().is_empty());
     }
 
     #[tokio::test]

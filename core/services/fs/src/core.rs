@@ -281,7 +281,7 @@ impl FsCore {
             match xattr::remove(path, &attr) {
                 Ok(()) => {}
                 // Another task may have removed the attribute already.
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) if is_xattr_not_found(&e) => {}
                 Err(e) if is_xattr_unsupported(&e) => return Ok(()),
                 Err(e) => return Err(new_std_io_error(e)),
             }
@@ -315,6 +315,43 @@ fn is_xattr_unsupported(err: &std::io::Error) -> bool {
 
     #[cfg(not(target_os = "linux"))]
     {
+        false
+    }
+}
+
+/// Whether an xattr error means the attribute is already gone.
+///
+/// `xattr` reports a missing attribute as `ENODATA` on Linux and `ENOATTR` on
+/// macOS and the BSDs. Neither is mapped to [`std::io::ErrorKind::NotFound`].
+/// `ENOENT` reports a missing file, so it must keep surfacing as an error.
+#[cfg(unix)]
+fn is_xattr_not_found(err: &std::io::Error) -> bool {
+    let Some(code) = err.raw_os_error() else {
+        return false;
+    };
+
+    // Platforms that `xattr` does not support report `Unsupported` for every
+    // call, so only the supported ones need a missing-attribute errno.
+    #[cfg(any(target_os = "linux", target_os = "android", target_os = "hurd"))]
+    {
+        code == libc::ENODATA
+    }
+
+    #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
+    {
+        code == libc::ENOATTR
+    }
+
+    #[cfg(not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "hurd",
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    )))]
+    {
+        let _ = code;
         false
     }
 }
@@ -427,6 +464,56 @@ mod tests {
         let supported = xattr::set(&probe, "user.opendal_probe", b"1").is_ok();
         let _ = std::fs::remove_file(&probe);
         supported
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "hurd",
+        target_os = "macos",
+        target_os = "freebsd",
+        target_os = "netbsd"
+    ))]
+    #[test]
+    fn test_is_xattr_not_found_distinguishes_missing_attribute_from_missing_file() {
+        #[cfg(any(target_os = "linux", target_os = "android", target_os = "hurd"))]
+        let missing_attr = std::io::Error::from_raw_os_error(libc::ENODATA);
+        #[cfg(any(target_os = "macos", target_os = "freebsd", target_os = "netbsd"))]
+        let missing_attr = std::io::Error::from_raw_os_error(libc::ENOATTR);
+
+        assert!(is_xattr_not_found(&missing_attr));
+        assert!(!is_xattr_not_found(&std::io::Error::from_raw_os_error(
+            libc::ENOENT
+        )));
+        assert!(!is_xattr_not_found(&std::io::Error::from_raw_os_error(
+            libc::EACCES
+        )));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_xattr_remove_missing_attribute_is_not_a_missing_file() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let file = temp_dir.path().join("file");
+        std::fs::write(&file, b"data").unwrap();
+        if !xattrs_supported(temp_dir.path()) {
+            return;
+        }
+
+        // The attribute is already gone, as when another task removes it
+        // between listing and removing it. The error must be recognized as a
+        // missing attribute so the caller can treat the removal as done.
+        let err = xattr::remove(&file, "user.missing").unwrap_err();
+        assert!(is_xattr_not_found(&err), "{err:?}");
+
+        // A missing file reports ENOENT, which is not a missing attribute and
+        // must keep surfacing.
+        let missing = temp_dir.path().join("missing");
+        let err = xattr::remove(&missing, "user.missing").unwrap_err();
+        assert!(!is_xattr_not_found(&err), "{err:?}");
+
+        let err = FsCore::replace_user_metadata(&missing, None).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
     }
 
     #[cfg(target_os = "linux")]

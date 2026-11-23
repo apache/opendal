@@ -18,6 +18,8 @@
 use std::ffi::{CStr, CString};
 use std::fs::File;
 use std::os::fd::AsRawFd;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -66,6 +68,8 @@ struct Pool {
     available: Condvar,
     permits: Arc<Semaphore>,
     #[cfg(test)]
+    waiting_slots: AtomicUsize,
+    #[cfg(test)]
     _backing: Option<Box<[u8]>>,
 }
 
@@ -106,6 +110,8 @@ impl Pool {
                 retained: 0,
             }),
             #[cfg(test)]
+            waiting_slots: AtomicUsize::new(0),
+            #[cfg(test)]
             _backing: None,
         }))
     }
@@ -128,6 +134,8 @@ impl Pool {
                 free: (0..depth).collect(),
                 retained: 0,
             }),
+            #[cfg(test)]
+            waiting_slots: AtomicUsize::new(0),
             _backing: Some(backing),
         })
     }
@@ -215,11 +223,33 @@ struct Pending {
 
 #[derive(Clone)]
 pub(crate) struct IoDriver {
-    tx: mpsc::Sender<Request>,
+    inner: Arc<IoDriverInner>,
     pub block_size: usize,
+}
+
+struct IoDriverInner {
+    tx: Option<mpsc::Sender<Request>>,
+    pool: Arc<Pool>,
+    worker: Option<std::thread::JoinHandle<()>>,
     read: bool,
-    write_pool: Option<Arc<Pool>>,
     failure: Arc<OnceLock<String>>,
+}
+
+impl Drop for IoDriverInner {
+    fn drop(&mut self) {
+        // Closing the channel makes an idle worker leave its blocking receive.
+        self.tx.take();
+        // A worker may be waiting for slots retained by caller buffers. Wake it
+        // so the closed reply check in its wait predicate can let it exit.
+        drop(self.pool.slots.lock().unwrap());
+        self.pool.available.notify_all();
+        if let Some(worker) = self.worker.take() {
+            // Never join from the worker thread itself.
+            if worker.thread().id() != std::thread::current().id() {
+                let _ = worker.join();
+            }
+        }
+    }
 }
 
 impl IoDriver {
@@ -234,7 +264,7 @@ impl IoDriver {
         let (ready_tx, ready_rx) = std::sync::mpsc::sync_channel(1);
         let failure = Arc::new(OnceLock::new());
         let worker_failure = failure.clone();
-        std::thread::Builder::new()
+        let worker = std::thread::Builder::new()
             .name(if read { "hf3fs-read" } else { "hf3fs-write" }.into())
             .spawn(move || {
                 match Worker::new(api, &mount, depth, block_size, read, rx, worker_failure) {
@@ -251,22 +281,38 @@ impl IoDriver {
                 }
             })
             .map_err(new_std_io_error)?;
-        let pool = ready_rx.recv().map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "USRBIO driver initialization failed").set_source(e)
-        })??;
+        let pool = match ready_rx.recv() {
+            Ok(Ok(pool)) => pool,
+            Ok(Err(error)) => {
+                let _ = worker.join();
+                return Err(error);
+            }
+            Err(error) => {
+                let _ = worker.join();
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "USRBIO driver initialization failed",
+                )
+                .set_source(error));
+            }
+        };
         Ok(Self {
-            tx,
+            inner: Arc::new(IoDriverInner {
+                tx: Some(tx),
+                pool,
+                worker: Some(worker),
+                read,
+                failure,
+            }),
             block_size,
-            read,
-            write_pool: (!read).then_some(pool),
-            failure,
         })
     }
 
     fn stopped_error(&self) -> Error {
         Error::new(
             ErrorKind::Unexpected,
-            self.failure
+            self.inner
+                .failure
                 .get()
                 .map_or("USRBIO driver stopped", String::as_str),
         )
@@ -281,14 +327,17 @@ impl IoDriver {
     ) -> (Self, mpsc::Receiver<Request>, Arc<OnceLock<String>>) {
         let (tx, rx) = mpsc::channel(depth);
         let failure = Arc::new(OnceLock::new());
-        let write_pool = (!read).then(|| Pool::in_memory(api, depth, block_size));
+        let pool = Pool::in_memory(api, depth, block_size);
         (
             Self {
-                tx,
+                inner: Arc::new(IoDriverInner {
+                    tx: Some(tx),
+                    pool,
+                    worker: None,
+                    read,
+                    failure: failure.clone(),
+                }),
                 block_size,
-                read,
-                write_pool,
-                failure: failure.clone(),
             },
             rx,
             failure,
@@ -304,7 +353,7 @@ impl IoDriver {
     ) -> Result<(usize, Buffer)> {
         if size == 0
             || size > self.block_size
-            || self.read != data.is_none()
+            || self.inner.read != data.is_none()
             || data.as_ref().is_some_and(|buffer| buffer.len() != size)
         {
             return Err(Error::new(
@@ -321,7 +370,7 @@ impl IoDriver {
         })?;
         let (reply, result) = oneshot::channel();
         let slot = if let Some(data) = data {
-            let pool = self.write_pool.as_ref().expect("write pool");
+            let pool = &self.inner.pool;
             let permit = pool
                 .permits
                 .clone()
@@ -350,16 +399,18 @@ impl IoDriver {
         } else {
             None
         };
-        self.tx
-            .send(Request {
-                file,
-                offset,
-                size,
-                slot,
-                reply,
-            })
-            .await
-            .map_err(|_| self.stopped_error())?;
+        let Some(tx) = self.inner.tx.as_ref() else {
+            return Err(self.stopped_error());
+        };
+        tx.send(Request {
+            file,
+            offset,
+            size,
+            slot,
+            reply,
+        })
+        .await
+        .map_err(|_| self.stopped_error())?;
         // Read overflow copies run on the caller, leaving the driver free to
         // submit and reap other requests.
         let (size, slot) = result.await.map_err(|_| self.stopped_error())??;
@@ -499,6 +550,9 @@ impl Worker {
                     self.rx.try_recv().ok()
                 };
                 let Some(request) = request else { break };
+                if request.reply.is_closed() {
+                    continue;
+                }
                 let active_before = self.active;
                 waiting = self.prepare(request);
                 if self.active > active_before {
@@ -509,23 +563,33 @@ impl Worker {
                 }
             }
             if self.active == 0 {
-                if let Some(request) = &waiting {
-                    if request.slot.is_none() {
-                        // Callers still copying completed reads can hold all slots.
-                        drop(
-                            self.pool
-                                .available
-                                .wait_while(self.pool.slots.lock().unwrap(), |slots| {
-                                    slots.free.is_empty()
-                                })
-                                .unwrap(),
-                        );
-                    } else {
-                        std::thread::sleep(Duration::from_millis(1));
-                    }
+                let Some(request) = waiting.take() else {
+                    return Ok(());
+                };
+                if request.reply.is_closed() {
                     continue;
                 }
-                return Ok(());
+                if request.slot.is_none() {
+                    // Callers still copying completed reads can hold all slots.
+                    // A closed reply also releases the worker when the driver is
+                    // dropping while retained buffers still own every slot.
+                    #[cfg(test)]
+                    self.pool.waiting_slots.fetch_add(1, Ordering::SeqCst);
+                    let slots = self
+                        .pool
+                        .available
+                        .wait_while(self.pool.slots.lock().unwrap(), |slots| {
+                            !request.reply.is_closed() && slots.free.is_empty()
+                        })
+                        .unwrap();
+                    #[cfg(test)]
+                    self.pool.waiting_slots.fetch_sub(1, Ordering::SeqCst);
+                    drop(slots);
+                } else {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                waiting = Some(request);
+                continue;
             }
             if prepared {
                 let result = unsafe { (self.pool.api.submit_ios)(self.ring.as_ref().unwrap()) };
@@ -625,7 +689,48 @@ impl Drop for Worker {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::{RecvTimeoutError, channel};
+
     use super::*;
+
+    fn test_worker(
+        pool: Arc<Pool>,
+        rx: mpsc::Receiver<Request>,
+        depth: usize,
+        read: bool,
+        failure: Arc<OnceLock<String>>,
+    ) -> Worker {
+        Worker {
+            pool,
+            ring: None,
+            read,
+            depth,
+            rx,
+            pending: (0..depth * 2).map(|_| None).collect(),
+            active: 0,
+            failure,
+        }
+    }
+
+    fn test_driver(
+        tx: mpsc::Sender<Request>,
+        pool: Arc<Pool>,
+        worker: Option<std::thread::JoinHandle<()>>,
+        read: bool,
+        block_size: usize,
+        failure: Arc<OnceLock<String>>,
+    ) -> IoDriver {
+        IoDriver {
+            inner: Arc::new(IoDriverInner {
+                tx: Some(tx),
+                pool,
+                worker,
+                read,
+                failure,
+            }),
+            block_size,
+        }
+    }
 
     #[test]
     fn ring_entries_stays_below_i32_max() {
@@ -634,6 +739,113 @@ mod tests {
         assert_eq!(ring_entries(i32::MAX as usize - 1), i32::MAX - 1);
         assert_eq!(ring_entries(usize::MAX), i32::MAX - 1);
         assert!(ring_entries(usize::MAX).checked_add(1).is_some());
+    }
+
+    #[test]
+    fn dropping_driver_joins_worker_before_returning() {
+        let api = Api::noop();
+        let (tx, rx) = mpsc::channel(1);
+        let pool = Pool::in_memory(api, 1, 16);
+        let failure = Arc::new(OnceLock::new());
+        let (run_finished_tx, run_finished_rx) = channel();
+        let (allow_exit_tx, allow_exit_rx) = channel::<()>();
+
+        let worker_pool = pool.clone();
+        let worker_failure = failure.clone();
+        let worker = std::thread::spawn(move || {
+            test_worker(worker_pool, rx, 1, true, worker_failure)
+                .run()
+                .unwrap();
+            run_finished_tx.send(()).unwrap();
+            // Keep the thread alive briefly so a drop that does not join would
+            // return before the worker really stops.
+            allow_exit_rx.recv().unwrap();
+        });
+        let driver = test_driver(tx, pool, Some(worker), true, 16, failure);
+
+        let (dropped_tx, dropped_rx) = channel();
+        std::thread::spawn(move || {
+            drop(driver);
+            dropped_tx.send(()).unwrap();
+        });
+
+        run_finished_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("worker must stop after the driver closes the channel");
+        assert!(matches!(
+            dropped_rx.recv_timeout(Duration::from_millis(100)),
+            Err(RecvTimeoutError::Timeout)
+        ));
+
+        allow_exit_tx.send(()).unwrap();
+        dropped_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("driver drop must join the worker");
+    }
+
+    #[test]
+    fn dropping_driver_unblocks_cancelled_request_waiting_for_retained_slots() {
+        let api = Api::noop();
+        let (tx, rx) = mpsc::channel(1);
+        let pool = Pool::in_memory(api.clone(), 1, 16);
+        let failure = Arc::new(OnceLock::new());
+
+        let worker_pool = pool.clone();
+        let worker_failure = failure.clone();
+        let worker = std::thread::spawn(move || {
+            test_worker(worker_pool, rx, 1, true, worker_failure)
+                .run()
+                .unwrap();
+        });
+        let driver = test_driver(tx, pool.clone(), Some(worker), true, 16, failure);
+
+        // Model a completed read whose returned Buffer retains the only slot.
+        let index = pool.slots.lock().unwrap().free.pop().unwrap();
+        let retained: Buffer = Slot {
+            pool: pool.clone(),
+            index,
+            len: 16,
+            retained: false,
+            _permit: None,
+        }
+        .into_buffer();
+        assert!(pool.slots.lock().unwrap().free.is_empty());
+
+        let (reply, result) = oneshot::channel();
+        driver
+            .inner
+            .tx
+            .as_ref()
+            .unwrap()
+            .try_send(Request {
+                file: RegisteredFile::new(api, tempfile::tempfile().unwrap()).unwrap(),
+                offset: 0,
+                size: 16,
+                slot: None,
+                reply,
+            })
+            .unwrap();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while pool.waiting_slots.load(Ordering::SeqCst) == 0 {
+            assert!(
+                Instant::now() < deadline,
+                "worker did not wait for slots owned by a retained buffer"
+            );
+            std::thread::yield_now();
+        }
+
+        // Cancel the caller and drop the last driver handle while the worker is
+        // waiting for a slot that only the retained Buffer still owns.
+        drop(result);
+        let (dropped_tx, dropped_rx) = channel();
+        std::thread::spawn(move || {
+            drop(driver);
+            dropped_tx.send(()).unwrap();
+        });
+        dropped_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("driver drop must not deadlock behind retained slots");
+        assert_eq!(retained.to_vec(), vec![0; 16]);
     }
 
     #[tokio::test]

@@ -518,8 +518,14 @@ fn make_entries<'local>(env: &mut Env<'local>, entries: Vec<Entry>) -> Result<JO
     )?;
 
     for (idx, entry) in entries.into_iter().enumerate() {
-        let entry = make_entry(env, entry)?;
-        jarray.set_element(env, idx, &entry)?;
+        // `make_entry` creates a dozen or more local references. Release them at
+        // the end of each iteration so a large listing cannot exhaust the JNI
+        // local reference table.
+        env.with_local_frame(16, |env| -> Result<()> {
+            let entry = make_entry(env, entry)?;
+            jarray.set_element(env, idx, &entry)?;
+            Ok(())
+        })?;
     }
 
     Ok(jarray.into())

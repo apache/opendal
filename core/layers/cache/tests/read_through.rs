@@ -19,11 +19,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use futures::StreamExt;
 use opendal_core::options::{DeleteOptions, ReadOptions};
 use opendal_core::raw::oio::{self, Read, ReadStream, Write};
 use opendal_core::raw::*;
 use opendal_core::services::Memory;
 use opendal_core::*;
+use opendal_executor_tokio::TokioExecutor;
 use opendal_layer_cache::{CacheDecision, CacheLayer, CacheReadRequest};
 use opendal_service_fs::Fs;
 use tokio::sync::Semaphore;
@@ -954,8 +956,16 @@ async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer()
         "hot large Tier 4 reads must not hit origin"
     );
 
-    // Evicting one middle chunk on a large Tier 4 object must fail with a
-    // temporary error rather than splicing from origin, then recover cleanly.
+    // Evicting a middle chunk after a large Tier 4 stream has opened must fail
+    // with a temporary error rather than splicing from origin, then recover cleanly.
+    let mut stream = op.reader("big").await?.into_stream(..).await?;
+    let first_part = stream
+        .next()
+        .await
+        .transpose()?
+        .expect("first chunk must be yielded before mid-stream eviction");
+    assert_eq!(first_part.to_vec(), &payload[..1]);
+
     let mut data_keys: Vec<String> = cache
         .list_with("v1/data/")
         .recursive(true)
@@ -976,19 +986,55 @@ async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer()
     for key in middle_keys {
         cache.delete(&key).await?;
     }
-    let err = op
-        .read("big")
-        .await
-        .expect_err("mid-stream eviction of Tier 4 chunk must not splice");
+    let mut err = None;
+    while let Some(item) = stream.next().await {
+        if let Err(e) = item {
+            err = Some(e);
+            break;
+        }
+    }
+    let err = err.expect("mid-stream eviction of Tier 4 chunk must not splice");
     assert!(err.is_temporary());
     assert_eq!(op.read("big").await?.to_vec(), payload);
 
-    // Partial miss on a fresh Tier 4 pointer must keep previously cached chunks warm
-    // instead of discarding the pointer and orphaning chunk 0.
+    // Caching disjoint boundary chunks of a large Tier 4 object (first and last)
+    // must not trick a subsequent full read into failing mid-stream; it should
+    // populate the missing middle chunks and serve future full reads from cache.
+    let probe_sparse = Probe::default();
+    let origin_sparse = memory()?.layer(probe_sparse.clone());
+    origin_sparse.write("sparse", payload.clone()).await?;
+    let op_sparse = origin_sparse.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(1)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op_sparse.read_with("sparse").range(0..1).await?.to_vec(),
+        &payload[..1]
+    );
+    assert_eq!(
+        op_sparse
+            .read_with("sparse")
+            .range((payload.len() as u64 - 1)..payload.len() as u64)
+            .await?
+            .to_vec(),
+        &payload[payload.len() - 1..]
+    );
+    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
+    let reads_after_fill = probe_sparse.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
+    assert_eq!(
+        probe_sparse.observed.reads.load(Ordering::Relaxed),
+        reads_after_fill,
+        "full read after filling sparse large Tier 4 object must hit cache"
+    );
+
+    // Partial miss on a fresh Tier 4 pointer must populate missing chunks under
+    // the existing nonce without discarding the pointer or orphaning chunk 0.
     let probe_pair = Probe::default();
     let origin_pair = memory()?.layer(probe_pair.clone());
     origin_pair.write("pair", "abcdefgh").await?;
-    let op_pair = origin_pair.layer(
+    let op_pair = origin_pair.clone().layer(
         CacheLayer::new(memory()?)?
             .with_chunk_size(4)
             .with_ttl(Duration::MAX),
@@ -1004,6 +1050,15 @@ async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer()
     );
     assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 2);
     assert_eq!(
+        op_pair.read_with("pair").range(4..8).await?.to_vec(),
+        b"efgh"
+    );
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "partial miss on chunk 1 must cache chunk 1 under the existing nonce"
+    );
+    assert_eq!(
         op_pair.read_with("pair").range(0..4).await?.to_vec(),
         b"abcd"
     );
@@ -1012,6 +1067,26 @@ async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer()
         2,
         "partial miss on chunk 1 must not invalidate chunk 0"
     );
+    assert_eq!(op_pair.read("pair").await?.to_vec(), b"abcdefgh");
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "full read must hit both chunks under the existing nonce"
+    );
+
+    // If origin length changes externally before a Tier 4 partial miss fills,
+    // the stale pointer must be discarded and the read must recover cleanly.
+    origin_pair.write("growing", "abcdefgh").await?;
+    assert_eq!(
+        op_pair.read_with("growing").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    origin_pair.write("growing", "0123456789ab").await?;
+    assert_eq!(
+        op_pair.read_with("growing").range(4..8).await?.to_vec(),
+        b"4567"
+    );
+    assert_eq!(op_pair.read("growing").await?.to_vec(), b"0123456789ab");
     Ok(())
 }
 
@@ -1398,6 +1473,104 @@ async fn singleflight_uses_operation_context_executor() -> Result<()> {
         "singleflight must submit fill tasks through OperationContext::executor"
     );
     Ok(())
+}
+
+#[tokio::test]
+async fn abandoning_executor_does_not_hang_or_leak_flight_reservations() -> Result<()> {
+    struct AbandoningExecutor;
+
+    impl Execute for AbandoningExecutor {
+        fn execute(&self, _f: BoxedStaticFuture<()>) {}
+    }
+
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "abcdefgh").await?;
+    let layer = CacheLayer::new(memory()?)?
+        .with_chunk_size(4)
+        .with_ttl(Duration::MAX);
+    let working = source.clone().layer(probe.clone()).layer(layer.clone());
+    let abandoning = working
+        .clone()
+        .with_context(OperationContext::new().with_executor(Executor::with(AbandoningExecutor)));
+
+    // Cold read: discovery flight is abandoned by the executor; read falls back
+    // cleanly to origin without hanging or reporting "object changed".
+    let cold = tokio::time::timeout(Duration::from_secs(1), abandoning.read("obj"))
+        .await
+        .expect("cold read with abandoning executor must not hang")?;
+    assert_eq!(cold.to_vec(), b"abcdefgh");
+
+    // Warm pointer + chunk 0 using a working executor so flight map is proven clear.
+    assert_eq!(
+        working.read_with("obj").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+
+    // Warm pointer + chunk 1 miss via abandoning executor (both exact range and
+    // streaming read spanning cached chunk 0 and missing chunk 1).
+    let partial = tokio::time::timeout(
+        Duration::from_secs(1),
+        abandoning.read_with("obj").range(4..8),
+    )
+    .await
+    .expect("chunk miss with abandoning executor must not hang")?;
+    assert_eq!(partial.to_vec(), b"efgh");
+
+    // Verify another uncached object works end-to-end across chunk 0 (cached) and
+    // chunk 1 (missed during streaming) with the abandoning executor.
+    source.write("1/stream", "01234567").await?;
+    assert_eq!(
+        working.read_with("stream").range(0..4).await?.to_vec(),
+        b"0123"
+    );
+    let full = tokio::time::timeout(Duration::from_secs(1), abandoning.read("stream"))
+        .await
+        .expect("streaming chunk miss with abandoning executor must not hang")?;
+    assert_eq!(full.to_vec(), b"01234567");
+
+    // Working executor must still hit cache cleanly afterwards.
+    let reads_before = probe.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(working.read("stream").await?.to_vec(), b"01234567");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), reads_before);
+    Ok(())
+}
+
+#[test]
+fn tokio_executor_falls_back_inline_outside_tokio_runtime() -> Result<()> {
+    futures::executor::block_on(async {
+        let probe = Probe {
+            version: Some(Arc::new(AtomicUsize::new(1))),
+            ..Probe::default()
+        };
+        let source = memory()?;
+        source.write("1/obj", "inline-ok").await?;
+        let op = source
+            .layer(probe.clone())
+            .layer(
+                CacheLayer::new(memory()?)?
+                    .with_chunk_size(4)
+                    .with_ttl(Duration::MAX),
+            )
+            .with_context(
+                OperationContext::new().with_executor(Executor::with(TokioExecutor::default())),
+            );
+
+        assert_eq!(op.read("obj").await?.to_vec(), b"inline-ok");
+        let reads_after_cold = probe.observed.reads.load(Ordering::Relaxed);
+        assert_eq!(reads_after_cold, 1);
+
+        assert_eq!(op.read("obj").await?.to_vec(), b"inline-ok");
+        assert_eq!(
+            probe.observed.reads.load(Ordering::Relaxed),
+            reads_after_cold,
+            "inline fallback outside Tokio runtime must still populate cache"
+        );
+        Ok(())
+    })
 }
 
 #[tokio::test]

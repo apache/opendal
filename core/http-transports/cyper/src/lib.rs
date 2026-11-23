@@ -34,6 +34,7 @@ use futures::future::Either;
 use futures::future::select;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
@@ -221,17 +222,23 @@ async fn fetch(
             .set_source(err)
     })?;
 
-    // HEAD responses have no body even when their headers describe the resource
-    // size. Encoded response bodies do not have the encoded content length after
-    // decoding.
-    let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
+    // RFC 9110 §8.6: responses to HEAD and 1xx, 204, and 304 responses never
+    // carry a message body. A 304 may still carry the Content-Length of the
+    // selected representation, so it cannot validate the body. Encoded bodies
+    // also do not have the encoded content length after decoding.
+    let status = resp.status();
+    let is_bodyless = is_head
+        || status == StatusCode::NOT_MODIFIED
+        || status == StatusCode::NO_CONTENT
+        || status.is_informational();
+    let content_length = if is_bodyless || parse_content_encoding(resp.headers())?.is_some() {
         None
     } else {
         parse_content_length(resp.headers())?
     };
 
     let mut builder = Response::builder()
-        .status(resp.status())
+        .status(status)
         .version(resp.version())
         .extension(uri.clone());
     *builder.headers_mut().unwrap() = std::mem::take(resp.headers_mut());

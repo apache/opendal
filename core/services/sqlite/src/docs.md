@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
         .connection_string("file//abc.db")
         .table("your_table")
         // key field type in the table should be compatible with Rust's &str like text
+        // and must have a PRIMARY KEY or UNIQUE constraint so writes can update it
         .key_field("key")
         // value field type in the table should be compatible with Rust's Vec<u8> like bytea
         .value_field("value");

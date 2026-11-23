@@ -169,9 +169,18 @@ impl SqliteCore {
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
         let pool = self.get_client().await?;
 
+        // `INSERT OR REPLACE` deletes the conflicting row, which resets
+        // unrelated columns and can delete a different row when another unique
+        // constraint conflicts. Update only the value column on a key conflict.
         sqlx::query(sqlx::AssertSqlSafe(format!(
-            r#"INSERT OR REPLACE INTO "{}" ("{}", "{}") VALUES ($1, $2)"#,
-            self.table, self.key_field, self.value_field,
+            r#"INSERT INTO "{}" ("{}", "{}") VALUES ($1, $2)
+            ON CONFLICT ("{}") DO UPDATE SET "{}" = excluded."{}""#,
+            self.table,
+            self.key_field,
+            self.value_field,
+            self.key_field,
+            self.value_field,
+            self.value_field,
         )))
         .bind(path)
         .bind(value.to_vec())

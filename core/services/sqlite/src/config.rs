@@ -44,7 +44,8 @@ pub struct SqliteConfig {
     pub table: Option<String>,
     /// Set the key field name of the sqlite service to read/write.
     ///
-    /// Default to `key` if not specified.
+    /// The field must have a `PRIMARY KEY` or `UNIQUE` constraint so writes can
+    /// update an existing key. Default to `key` if not specified.
     pub key_field: Option<String>,
     /// Set the value field name of the sqlite service to read/write.
     ///

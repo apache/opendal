@@ -2409,6 +2409,12 @@ pub fn parse_s3_error_code(ctx: ErrorContext, code: &str) -> Option<(ErrorKind, 
         // CopyObject. Classify the error code explicitly because the HTTP
         // status alone cannot preserve the NotFound semantics in this case.
         "NoSuchKey" => Some((ErrorKind::NotFound, false)),
+        // On CompleteMultipartUpload, NoSuchUpload means the upload session no
+        // longer exists rather than a missing target key, so it must not map to
+        // NotFound or be rewritten to ConditionNotMatch under if_match.
+        "NoSuchUpload" if ctx.service_operation == ServiceOperation("CompleteMultipartUpload") => {
+            Some((ErrorKind::Unexpected, false))
+        }
         // > Your socket connection to the server was not read from
         // > or written to within the timeout period."
         //
@@ -2495,6 +2501,77 @@ mod error_tests {
             let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
             assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
             assert!(!err.is_temporary(), "status {status}");
+        }
+    }
+
+    #[test]
+    fn complete_multipart_upload_no_such_upload_and_no_such_key() {
+        let no_such_upload_xml = "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>";
+        let no_such_key_xml = "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>";
+
+        for caller_condition in [false, true] {
+            let complete_ctx = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                .with_caller_condition(caller_condition);
+
+            assert_eq!(
+                parse_s3_error_code(complete_ctx, "NoSuchUpload"),
+                Some((ErrorKind::Unexpected, false)),
+                "caller_condition {caller_condition}"
+            );
+            for status in [404, 200] {
+                let resp = Response::builder()
+                    .status(status)
+                    .body(Buffer::from(no_such_upload_xml))
+                    .unwrap();
+                let err = parse_error(complete_ctx, resp);
+                assert_eq!(
+                    err.kind(),
+                    ErrorKind::Unexpected,
+                    "status {status}, caller_condition {caller_condition}"
+                );
+                assert!(
+                    !err.is_temporary(),
+                    "status {status}, caller_condition {caller_condition}"
+                );
+            }
+
+            assert_eq!(
+                parse_s3_error_code(complete_ctx, "NoSuchKey"),
+                Some((ErrorKind::NotFound, false)),
+                "caller_condition {caller_condition}"
+            );
+            for status in [404, 200] {
+                let resp = Response::builder()
+                    .status(status)
+                    .body(Buffer::from(no_such_key_xml))
+                    .unwrap();
+                let err = parse_error(complete_ctx, resp);
+                assert_eq!(
+                    err.kind(),
+                    ErrorKind::NotFound,
+                    "status {status}, caller_condition {caller_condition}"
+                );
+                assert!(
+                    !err.is_temporary(),
+                    "status {status}, caller_condition {caller_condition}"
+                );
+            }
+        }
+
+        for operation in ["UploadPart", "UploadPartCopy", "AbortMultipartUpload"] {
+            let ctx = ErrorContext::new(ServiceOperation(operation));
+            assert_eq!(
+                parse_s3_error_code(ctx, "NoSuchUpload"),
+                None,
+                "{operation} must leave NoSuchUpload unclassified"
+            );
+            let resp = Response::builder()
+                .status(404)
+                .body(Buffer::from(no_such_upload_xml))
+                .unwrap();
+            let err = parse_error(ctx, resp);
+            assert_eq!(err.kind(), ErrorKind::NotFound, "{operation}");
+            assert!(!err.is_temporary(), "{operation}");
         }
     }
 }

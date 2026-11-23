@@ -2850,6 +2850,125 @@ mod tests {
         assert!(transport.requests().is_empty());
     }
 
+    #[derive(Clone)]
+    struct CompleteMultipartErrorTransport {
+        complete_body: &'static str,
+    }
+
+    impl HttpTransport for CompleteMultipartErrorTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let query = req.uri().query().unwrap_or_default();
+            if req.headers().contains_key(constants::X_AMZ_COPY_SOURCE) {
+                return Ok(S3ExpressMockTransport::response(
+                    StatusCode::OK,
+                    "<CopyPartResult><ETag>\"etag\"</ETag>\
+                     <LastModified>2026-08-24T00:00:00Z</LastModified></CopyPartResult>",
+                ));
+            }
+            if query == "uploads" {
+                return Ok(S3ExpressMockTransport::response(
+                    StatusCode::OK,
+                    "<InitiateMultipartUploadResult><UploadId>upload-id</UploadId>\
+                     </InitiateMultipartUploadResult>",
+                ));
+            }
+            // Abort cleanup must not fall through to the UploadPart 200 OK branch.
+            if req.method() == Method::DELETE {
+                return Ok(S3ExpressMockTransport::response(
+                    StatusCode::NO_CONTENT,
+                    Bytes::new(),
+                ));
+            }
+            if req.method() == Method::POST && query.contains("uploadId=") {
+                assert_eq!(
+                    req.headers()
+                        .get(http::header::IF_MATCH)
+                        .and_then(|v| v.to_str().ok()),
+                    Some("\"expected\""),
+                    "CompleteMultipartUpload must carry If-Match"
+                );
+                return Ok(S3ExpressMockTransport::response(
+                    StatusCode::NOT_FOUND,
+                    self.complete_body,
+                ));
+            }
+
+            let mut response = S3ExpressMockTransport::response(StatusCode::OK, Bytes::new());
+            response
+                .headers_mut()
+                .insert(http::header::ETAG, HeaderValue::from_static("\"etag\""));
+            Ok(response)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_complete_multipart_upload_error_classification_with_if_match() {
+        const PART_SIZE: usize = 5 * 1024 * 1024;
+        let part_payload = Bytes::from(vec![0u8; PART_SIZE]);
+        let cases = [
+            (
+                "NoSuchUpload 404",
+                "<Error><Code>NoSuchUpload</Code><Message>The specified upload does not exist.</Message></Error>",
+                ErrorKind::Unexpected,
+                Some("NoSuchUpload"),
+            ),
+            (
+                "NoSuchKey 404",
+                "<Error><Code>NoSuchKey</Code><Message>The specified key does not exist.</Message></Error>",
+                ErrorKind::ConditionNotMatch,
+                None,
+            ),
+        ];
+
+        for (label, complete_body, expected_kind, expected_msg_substr) in cases {
+            let transport = CompleteMultipartErrorTransport { complete_body };
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-west-2")
+                    .skip_signature()
+                    .disable_config_load()
+                    .disable_ec2_metadata(),
+            )
+            .unwrap()
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(transport.clone())),
+            );
+
+            let mut writer = op
+                .writer_with("target")
+                .if_match("\"expected\"")
+                .chunk(PART_SIZE)
+                .await
+                .unwrap();
+            writer.write(part_payload.clone()).await.unwrap();
+            writer.write("x").await.unwrap();
+            let err = writer
+                .close()
+                .await
+                .expect_err("multipart write close must fail");
+            assert_eq!(err.kind(), expected_kind, "write {label}");
+            assert!(!err.is_temporary(), "write {label}");
+            if let Some(msg) = expected_msg_substr {
+                assert!(err.to_string().contains(msg), "write {label}: {err}");
+            }
+
+            let err = op
+                .copy_with("source", "target")
+                .if_match("\"expected\"")
+                .source_content_length_hint(PART_SIZE as u64 + 1)
+                .chunk(PART_SIZE)
+                .await
+                .expect_err("multipart copy must fail");
+            assert_eq!(err.kind(), expected_kind, "copy {label}");
+            assert!(!err.is_temporary(), "copy {label}");
+            if let Some(msg) = expected_msg_substr {
+                assert!(err.to_string().contains(msg), "copy {label}: {err}");
+            }
+        }
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     #[derive(Debug)]
     struct ExpiredSsoSession;

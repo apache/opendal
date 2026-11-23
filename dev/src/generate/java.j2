@@ -29,6 +29,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 /**
  * Service configurations that are mapped from
@@ -55,11 +56,25 @@ public interface ServiceConfig {
      */
     @Builder
     @Data
+    {%- if srv == "baidu-netdisk" %}
+    @ToString(exclude = "accessToken")
+    {%- endif %}
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class {{srv | case_java_class_name}} implements ServiceConfig {
         {%- for field in srvs[srv].config %}
         {{make_field(field) | indent(8)}}
         {%- endfor %}
+
+        {%- if srv == "baidu-netdisk" %}
+
+        public static class BaiduNetdiskBuilder {
+            @Override
+            public String toString() {
+                return "BaiduNetdiskBuilder";
+            }
+        }
+
+        {%- endif %}
 
         @Override
         public String scheme() {

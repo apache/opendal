@@ -29,6 +29,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 
 /**
  * Service configurations that are mapped from
@@ -512,6 +513,7 @@ public interface ServiceConfig {
      */
     @Builder
     @Data
+    @ToString(exclude = "accessToken")
     @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
     class BaiduNetdisk implements ServiceConfig {
         /**
@@ -522,6 +524,13 @@ public interface ServiceConfig {
          * <p>Required absolute root inside <code>/apps/&lt;application name&gt;/</code>.</p>
          */
         public final String root;
+
+        public static class BaiduNetdiskBuilder {
+            @Override
+            public String toString() {
+                return "BaiduNetdiskBuilder";
+            }
+        }
 
         @Override
         public String scheme() {

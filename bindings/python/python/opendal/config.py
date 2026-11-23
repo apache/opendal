@@ -801,7 +801,7 @@ class S3Config(TypedDict):
     delete_max_size: NotRequired[int]
     """Deprecated: S3 delete batch capability is enabled by default. [Deprecated since 0.57.0] S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
     disable_config_load: NotRequired[bool]
-    """Disable automatic endpoint loading and the environment/profile credential providers.  This skips endpoint environment variables and removes the static environment and shared-profile credential slots. Region environment lookup and other credential providers, including AWS container credentials and EC2 instance metadata, remain enabled."""
+    """Disable automatic endpoint loading and ambient environment/profile credential providers.  This skips endpoint environment variables and removes the static environment, shared-profile, SSO, web-identity, and external process credential slots. Region environment lookup and compute metadata credential providers, including AWS container credentials and EC2 instance metadata, remain enabled."""
     disable_ec2_metadata: NotRequired[bool]
     """Disable load credential from ec2 metadata.  This option is used to disable the default behavior of opendal to load credential from ec2 metadata, a.k.a., IMDSv2"""
     disable_list_objects_v2: NotRequired[bool]

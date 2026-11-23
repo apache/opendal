@@ -247,7 +247,7 @@ impl oio::PageList for GdriveLister {
 
 // GdriveFlatLister implements efficient recursive listing for Google Drive.
 //
-// Unlike the generic FlatLister which makes one API call per directory,
+// Unlike generic simulated recursive listing which makes one API call per directory,
 // this implementation uses batch queries with OR conditions to list
 // multiple directories in a single API call (up to 50 parent IDs per query).
 //

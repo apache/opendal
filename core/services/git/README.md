@@ -1,7 +1,8 @@
 # Apache OpenDAL™ Git Service
 
 `opendal-service-git` provides read-only access to a Git repository at a fixed
-reference with optional Git LFS resolution.
+reference with optional Git LFS resolution. The crate and the `opendal`
+`services-git` feature require Rust 1.95 or later.
 
 The service resolves the configured reference once per operator and keeps that
 immutable snapshot. It uses a temporary Git object database and does not create

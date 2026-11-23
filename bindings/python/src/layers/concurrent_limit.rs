@@ -44,14 +44,24 @@ impl ConcurrentLimitLayer {
     /// Parameters
     /// ----------
     /// limit : int
-    ///     Maximum number of concurrent operations allowed.
+    ///     Maximum number of concurrent operations allowed. Must be greater
+    ///     than ``0``.
     ///
     /// Returns
     /// -------
     /// ConcurrentLimitLayer
+    ///
+    /// Raises
+    /// ------
+    /// ConfigInvalid
+    ///     If ``limit`` is ``0``.
     #[new]
     #[pyo3(signature = (limit))]
     fn new(limit: usize) -> PyResult<PyClassInitializer<Self>> {
+        if limit == 0 {
+            return Err(ConfigInvalid::new_err("limit must be greater than 0"));
+        }
+
         let concurrent_limit = Self(ocore::layers::ConcurrentLimitLayer::new(limit));
         let class = PyClassInitializer::from(Layer(Box::new(concurrent_limit.clone())))
             .add_subclass(concurrent_limit);

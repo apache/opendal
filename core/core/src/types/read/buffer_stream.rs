@@ -30,12 +30,26 @@ use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
 use crate::*;
 
+/// The range a [`StreamingReader`] opens over its lifetime.
+#[derive(Clone, Copy)]
+enum PendingRange {
+    /// A caller-provided range, opened as-is.
+    Range(BytesRange),
+    /// A suffix range resolved via `stat`, revalidated on open.
+    Suffix(SuffixRevalidation),
+    /// The range has been opened; later reads drain the open reader.
+    Opened,
+}
+
 /// StreamingReader will stream the content of the file without reading into
 /// memory first.
 ///
 /// StreamingReader is good for small memory footprint and optimized for latency.
 pub struct StreamingReader {
-    generator: ReadGenerator,
+    ctx: Arc<ReadContext>,
+    pending: PendingRange,
+    /// The suffix range after revalidation, reported to `BufferStream`.
+    revalidated_range: Option<Range<u64>>,
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
@@ -43,33 +57,87 @@ impl StreamingReader {
     /// Create a new streaming reader.
     #[inline]
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
-        let generator = ReadGenerator::new(ctx, range);
         Self {
-            generator,
+            ctx,
+            pending: PendingRange::Range(range),
+            revalidated_range: None,
             reader: None,
         }
     }
 
     #[inline]
     fn with_suffix_revalidation(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
-        let generator = ReadGenerator::with_suffix_revalidation(ctx, reval);
         Self {
-            generator,
+            ctx,
+            pending: PendingRange::Suffix(reval),
+            revalidated_range: None,
             reader: None,
         }
     }
 
     fn take_revalidated_range(&mut self) -> Option<Range<u64>> {
-        self.generator.take_revalidated_range()
+        self.revalidated_range.take()
+    }
+
+    /// Open the pending range.
+    ///
+    /// The reader advances only after `open` succeeds, so a failed or
+    /// cancelled open retries the same range instead of skipping it.
+    async fn open(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
+        match self.pending {
+            PendingRange::Opened => Ok(None),
+            PendingRange::Range(range) if range.size() == Some(0) => {
+                self.pending = PendingRange::Opened;
+                Ok(None)
+            }
+            PendingRange::Range(range) => {
+                let (rp, reader) = self.ctx.reader().open(range).await?;
+                self.pending = PendingRange::Opened;
+                self.ctx.observe_read_response(rp);
+                Ok(Some(reader))
+            }
+            PendingRange::Suffix(mut reval) => {
+                let opened = self
+                    .ctx
+                    .open_revalidated_suffix(&mut reval, |full| {
+                        (full.start < full.end)
+                            .then(|| BytesRange::new(full.start, Some(full.end - full.start)))
+                    })
+                    .await;
+
+                match opened {
+                    Ok(Some(RevalidatedSuffixOpen {
+                        full_range,
+                        rp,
+                        reader,
+                        ..
+                    })) => {
+                        self.pending = PendingRange::Opened;
+                        self.revalidated_range = Some(full_range);
+                        self.ctx.observe_read_response(rp);
+                        Ok(Some(reader))
+                    }
+                    Ok(None) => {
+                        self.pending = PendingRange::Opened;
+                        self.revalidated_range = Some(reval.resolved_range());
+                        Ok(None)
+                    }
+                    Err(err) => {
+                        self.pending = PendingRange::Suffix(reval);
+                        Err(err)
+                    }
+                }
+            }
+        }
     }
 
     async fn prepare_metadata(&mut self) -> Result<()> {
-        if self.generator.metadata().is_some() {
+        if self.ctx.metadata().is_some() {
             return Ok(());
         }
 
         if self.reader.is_none() {
-            self.reader = self.generator.next_reader().await?;
+            self.reader = self.open().await?;
         }
 
         Ok(())
@@ -78,7 +146,7 @@ impl StreamingReader {
     async fn metadata(&mut self) -> Result<Metadata> {
         self.prepare_metadata().await?;
 
-        self.generator
+        self.ctx
             .metadata()
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
@@ -89,7 +157,7 @@ impl oio::ReadStream for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
-                self.reader = self.generator.next_reader().await?;
+                self.reader = self.open().await?;
             }
 
             let Some(r) = self.reader.as_mut() else {
@@ -811,6 +879,38 @@ mod tests {
         assert_eq!(buf.len(), 4);
         assert_eq!(&buf.to_vec(), "oWor".as_bytes());
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_reader_retries_open_after_error() -> Result<()> {
+        let content = b"HelloWorld";
+        let fault = Arc::new(ReadFault::new().with_failed_open_range(BytesRange::new(0, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            content,
+            fault.clone(),
+            OpReader::new(),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..4, None).await?;
+
+        let err = stream
+            .next()
+            .await
+            .expect("stream must yield")
+            .expect_err("first open must fail");
+        assert!(err.is_temporary());
+
+        let buf = stream
+            .next()
+            .await
+            .expect("stream must yield")
+            .expect("retry must succeed");
+        assert_eq!(buf.to_bytes().as_ref(), &content[..4]);
+        assert!(stream.next().await.is_none());
+        assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(0, Some(4))]
+        );
         Ok(())
     }
 

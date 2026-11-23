@@ -261,3 +261,56 @@ async def test_async_open_conflicting_options(local_operator, mode, kwargs, matc
     op = local_operator.to_async_operator()
     with pytest.raises(ValueError, match=match):
         await op.open("data", mode, **kwargs)
+
+
+NONE_WRITE_OPTIONS = {
+    "append": None,
+    "chunk": None,
+    "concurrent": None,
+    "cache_control": None,
+    "content_type": None,
+    "content_disposition": None,
+    "content_encoding": None,
+    "if_match": None,
+    "if_none_match": None,
+    "if_not_exists": None,
+    "user_metadata": None,
+}
+
+NONE_READ_OPTIONS = {
+    "version": None,
+    "concurrent": None,
+    "chunk": None,
+    "gap": None,
+    "offset": None,
+    "prefetch": None,
+    "size": None,
+    "if_match": None,
+    "if_none_match": None,
+    "if_modified_since": None,
+    "if_unmodified_since": None,
+    "content_type": None,
+    "cache_control": None,
+    "content_disposition": None,
+}
+
+
+def test_sync_open_none_options(local_operator):
+    op = local_operator
+    with op.open("data", "wb", **NONE_WRITE_OPTIONS) as file:
+        assert file.write(b"hello") == 5
+    with op.open("data", "rb", **NONE_READ_OPTIONS) as file:
+        assert file.read() == b"hello"
+    with pytest.raises(TypeError):
+        op.open("data", "rb", offset="invalid")
+
+
+@pytest.mark.asyncio
+async def test_async_open_none_options(local_operator):
+    op = local_operator.to_async_operator()
+    async with await op.open("data", "wb", **NONE_WRITE_OPTIONS) as file:
+        assert await file.write(b"hello") == 5
+    async with await op.open("data", "rb", **NONE_READ_OPTIONS) as file:
+        assert await file.read() == b"hello"
+    with pytest.raises(TypeError):
+        await op.open("data", "rb", offset="invalid")

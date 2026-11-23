@@ -8066,6 +8066,7 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign-azure-storage",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "serde",
@@ -8088,6 +8089,7 @@ dependencies = [
  "opendal-service-azure-common",
  "quick-xml",
  "reqsign-azure-storage",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "serde",
@@ -8106,6 +8108,7 @@ dependencies = [
  "opendal-service-azure-common",
  "quick-xml",
  "reqsign-azure-storage",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "serde",
@@ -8315,6 +8318,7 @@ dependencies = [
  "opendal-core",
  "percent-encoding",
  "quick-xml",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-google",
@@ -8336,11 +8340,13 @@ dependencies = [
  "percent-encoding",
  "prost 0.14.3",
  "prost-types",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "reqsign-google",
  "serde",
  "serde_json",
+ "tokio",
  "tonic 0.14.5",
  "tonic-prost",
 ]
@@ -8781,6 +8787,7 @@ dependencies = [
  "pretty_assertions",
  "quick-xml",
  "reqsign-aws-v4",
+ "reqsign-command-execute-tokio",
  "reqsign-core",
  "reqsign-file-read-tokio",
  "serde",
@@ -10708,6 +10715,16 @@ dependencies = [
  "serde",
  "serde_json",
  "sha1 0.11.0",
+]
+
+[[package]]
+name = "reqsign-command-execute-tokio"
+version = "3.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93ecd5cd3601894868476c94184ff62939f576644cc35954dc653e766093ed1e"
+dependencies = [
+ "reqsign-core",
+ "tokio",
 ]
 
 [[package]]

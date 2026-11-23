@@ -48,5 +48,8 @@ reqsign-file-read-tokio = { version = "3.0.9", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

@@ -27,12 +27,15 @@ FDB_SERVER_SHA256="6fd31402d5cd0a797307077d6f39591a806d39068fc6a28e3c6cb96b96081
 sudo apt-get update -qq
 # Runtime packages required on both cache hit and cache miss.
 sudo apt-get install -y --no-install-recommends \
-  "linux-modules-extra-$(uname -r)" rdma-core ibverbs-utils \
+  "linux-modules-extra-$(uname -r)" rdma-core ibverbs-utils ibverbs-providers \
   fuse3 gettext-base \
-  libuv1 liblz4-1 liblzma5 libdouble-conversion3 \
+  libatomic1 libuv1 liblz4-1 liblzma5 libdouble-conversion3 \
   libdwarf1 libunwind8 libaio1 libgflags2.2 libgoogle-glog0v5 \
   libgoogle-perftools4 libssl3 libibverbs1 libnuma1 \
-  libevent-2.1-7 libevent-extra-2.1-7 libevent-pthreads-2.1-7 libfmt8
+  libevent-2.1-7 libevent-extra-2.1-7 libevent-pthreads-2.1-7 libfmt8 \
+  libboost-context1.74.0 libboost-filesystem1.74.0 \
+  libboost-program-options1.74.0 libboost-regex1.74.0 \
+  libboost-system1.74.0 libboost-thread1.74.0
 
 sudo modprobe rdma_rxe
 device=$(ip -4 route show default | awk 'NR == 1 {print $5}')
@@ -88,7 +91,7 @@ if [[ "${CACHE_HIT:-false}" != true ]]; then
       [[ -n "$lib_path" ]] || continue
       dest="$STAGE_DIR/lib/$(basename "$lib_path")"
       [[ -e "$dest" ]] || cp -L "$lib_path" "$dest"
-    done < <(ldd "$elf" | awk -v prefix="$SRC_DIR/build/" '$3 ~ "^"prefix {print $3}')
+    done < <(ldd "$elf" | awk -v prefix="$SRC_DIR/build/" 'index($3, prefix) == 1 {print $3}')
   done
 
   # Stage libfuse 3.16.2 runtime libraries and helper binaries.

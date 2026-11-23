@@ -57,9 +57,9 @@ impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
         // Request builders own percent-encoding; writers pass logical paths unchanged.
-        let req = self
-            .core
-            .gcs_insert_object_request(&self.path, Some(size), &self.op, body)?;
+        let req =
+            self.core
+                .gcs_insert_object_request(&self.path, Some(size), &self.op, body, None)?;
 
         let req = self.core.sign(&self.ctx, req).await?;
 
@@ -202,6 +202,10 @@ pub struct GcsConditionalWriter {
     offset: u64,
     pending: oio::QueueBuf,
     finalize_state: FinalizeState,
+    // Retries of the same request reuse its token so GCS can return the original
+    // response instead of applying the write twice.
+    insert_idempotency_token: String,
+    session_idempotency_token: String,
 }
 
 enum ResumableUploadStatus {
@@ -226,6 +230,8 @@ impl GcsConditionalWriter {
             offset: 0,
             pending: oio::QueueBuf::new(),
             finalize_state: FinalizeState::Ready,
+            insert_idempotency_token: uuid::Uuid::new_v4().to_string(),
+            session_idempotency_token: uuid::Uuid::new_v4().to_string(),
         }
     }
 
@@ -233,7 +239,12 @@ impl GcsConditionalWriter {
         if self.session_uri.is_none() {
             let resp = self
                 .core
-                .gcs_initiate_resumable_upload(&self.ctx, &self.path, &self.op)
+                .gcs_initiate_resumable_upload(
+                    &self.ctx,
+                    &self.path,
+                    &self.op,
+                    &self.session_idempotency_token,
+                )
                 .await?;
             if !resp.status().is_success() {
                 return Err(parse_error(
@@ -361,6 +372,7 @@ impl GcsConditionalWriter {
             Some(body.len() as u64),
             &self.op,
             body,
+            Some(&self.insert_idempotency_token),
         )?;
         let req = self.core.sign(&self.ctx, req).await?;
         let resp = self.core.send(&self.ctx, req).await?;
@@ -523,6 +535,7 @@ mod tests {
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
 
+    use super::super::core::constants::X_GOOG_GCS_IDEMPOTENCY_TOKEN;
     use super::*;
 
     #[derive(Default)]
@@ -533,14 +546,29 @@ mod tests {
         fail_final_response: bool,
         fail_final_response_partially: bool,
         fail_insert_response: bool,
+        fail_initiate_response: bool,
         completed: bool,
         generation: Option<u64>,
         requests: Vec<String>,
+        idempotency_tokens: Vec<Option<String>>,
+        honor_idempotency_tokens: bool,
+        insert_results_by_token: HashMap<String, (usize, u64)>,
     }
 
-    #[derive(Clone, Default)]
+    #[derive(Clone)]
     struct MockResumableTransport {
         state: Arc<Mutex<MockState>>,
+    }
+
+    impl Default for MockResumableTransport {
+        fn default() -> Self {
+            Self {
+                state: Arc::new(Mutex::new(MockState {
+                    honor_idempotency_tokens: true,
+                    ..Default::default()
+                })),
+            }
+        }
     }
 
     impl MockResumableTransport {
@@ -558,6 +586,19 @@ mod tests {
 
         fn fail_insert_response(&self) {
             self.state.lock().unwrap().fail_insert_response = true;
+        }
+
+        fn fail_initiate_response(&self) {
+            self.state.lock().unwrap().fail_initiate_response = true;
+        }
+
+        // Models a retry sent after GCS's deduplication window has passed.
+        fn ignore_idempotency_tokens(&self) {
+            self.state.lock().unwrap().honor_idempotency_tokens = false;
+        }
+
+        fn idempotency_tokens(&self) -> Vec<Option<String>> {
+            self.state.lock().unwrap().idempotency_tokens.clone()
         }
 
         fn existing_object(&self, generation: u64) {
@@ -609,14 +650,24 @@ mod tests {
             )
         }
 
-        // GCS treats a missing object as generation 0 when evaluating preconditions.
-        fn preconditions_hold(query: &str, generation: Option<u64>) -> bool {
-            let current = generation.unwrap_or(0);
-            query.split('&').all(|pair| match pair.split_once('=') {
-                Some(("ifGenerationMatch", v)) => v.parse::<u64>().unwrap() == current,
-                Some(("ifGenerationNotMatch", v)) => v.parse::<u64>().unwrap() != current,
-                _ => true,
-            })
+        // https://cloud.google.com/storage/docs/json_api/v1/objects/insert: ifGenerationMatch=0
+        // passes only when no live object exists, and ifGenerationNotMatch fails when no live
+        // object exists. GCS does not document the status for the second case; 412 is assumed.
+        fn precondition_failure(query: &str, generation: Option<u64>) -> Option<StatusCode> {
+            query
+                .split('&')
+                .find_map(|pair| match (pair.split_once('='), generation) {
+                    (Some(("ifGenerationMatch", v)), _) => (v.parse::<u64>().unwrap()
+                        != generation.unwrap_or(0))
+                    .then_some(StatusCode::PRECONDITION_FAILED),
+                    (Some(("ifGenerationNotMatch", _)), None) => {
+                        Some(StatusCode::PRECONDITION_FAILED)
+                    }
+                    (Some(("ifGenerationNotMatch", v)), Some(current)) => {
+                        (v.parse::<u64>().unwrap() == current).then_some(StatusCode::NOT_MODIFIED)
+                    }
+                    _ => None,
+                })
         }
     }
 
@@ -630,17 +681,38 @@ mod tests {
                 http::Method::POST => format!("insert {query}"),
                 _ => "chunk".to_string(),
             };
-            self.state.lock().unwrap().requests.push(kind);
+            let token = req
+                .headers()
+                .get(X_GOOG_GCS_IDEMPOTENCY_TOKEN)
+                .map(|v| v.to_str().unwrap().to_string());
+            {
+                let mut state = self.state.lock().unwrap();
+                state.requests.push(kind);
+                state.idempotency_tokens.push(token.clone());
+            }
 
             if req.method() == http::Method::POST && !query.contains("uploadType=resumable") {
                 let mut state = self.state.lock().unwrap();
-                if !Self::preconditions_hold(&query, state.generation) {
-                    return Self::response(StatusCode::PRECONDITION_FAILED, None, None);
+                if state.honor_idempotency_tokens
+                    && let Some((size, generation)) = token
+                        .as_ref()
+                        .and_then(|t| state.insert_results_by_token.get(t))
+                {
+                    return Self::completed_response(*size, *generation);
+                }
+                if let Some(status) = Self::precondition_failure(&query, state.generation) {
+                    return Self::response(status, None, None);
                 }
                 state.uploaded = req.body().to_vec();
                 state.completed = true;
                 let generation = state.generation.map_or(1, |g| g + 1);
                 state.generation = Some(generation);
+                if let Some(token) = token {
+                    let size = state.uploaded.len();
+                    state
+                        .insert_results_by_token
+                        .insert(token, (size, generation));
+                }
                 if state.fail_insert_response {
                     state.fail_insert_response = false;
                     return Err(
@@ -652,6 +724,14 @@ mod tests {
             }
 
             if req.method() == http::Method::POST {
+                let mut state = self.state.lock().unwrap();
+                if state.fail_initiate_response {
+                    state.fail_initiate_response = false;
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "mock lost initiate response")
+                            .set_temporary(),
+                    );
+                }
                 return Ok(Response::builder()
                     .status(StatusCode::OK)
                     .header(LOCATION, "https://upload.example/session")
@@ -1056,9 +1136,140 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn retry_close_reports_precondition_failure_after_lost_insert_response() {
+    async fn retry_close_reuses_insert_idempotency_token_after_lost_response() {
         let transport = MockResumableTransport::default();
         transport.fail_insert_response();
+        let mut writer = test_writer(transport.clone());
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        let metadata = writer.close().await.unwrap();
+
+        assert_eq!(metadata.content_length(), 5);
+        assert_eq!(metadata.version(), Some("1"));
+        assert_eq!(transport.uploaded(), b"hello".to_vec());
+        let tokens = transport.idempotency_tokens();
+        assert_eq!(tokens.len(), 2);
+        assert!(tokens[0].is_some());
+        assert_eq!(tokens[0], tokens[1]);
+
+        let other = MockResumableTransport::default();
+        let mut other_writer = test_writer(other.clone());
+        other_writer.close().await.unwrap();
+        assert_ne!(other.idempotency_tokens()[0], tokens[0]);
+    }
+
+    #[tokio::test]
+    async fn retry_close_reuses_session_idempotency_token_after_lost_response() {
+        let transport = MockResumableTransport::default();
+        transport.fail_initiate_response();
+        let mut writer = test_writer(transport.clone());
+        let expected = multi_chunk_body();
+        writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        writer.close().await.unwrap();
+
+        assert_eq!(transport.uploaded(), expected);
+        assert_eq!(
+            transport.requests(),
+            vec!["initiate", "initiate", "chunk", "chunk"]
+        );
+        let tokens = transport.idempotency_tokens();
+        assert!(tokens[0].is_some());
+        assert_eq!(tokens[0], tokens[1]);
+
+        let other = MockResumableTransport::default();
+        let mut other_writer = test_writer(other.clone());
+        other_writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+        other_writer.close().await.unwrap();
+        assert_eq!(other.requests()[0], "initiate");
+        assert_ne!(other.idempotency_tokens()[0], tokens[0]);
+    }
+
+    #[tokio::test]
+    async fn close_if_version_not_match_on_missing_object_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_not_match: Some("7".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn close_if_version_match_on_missing_object_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_match: Some("7".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn close_current_if_version_not_match_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        transport.existing_object(5);
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_not_match: Some("5".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn retry_close_after_dedup_window_reports_precondition_failure() {
+        let transport = MockResumableTransport::default();
+        transport.fail_insert_response();
+        transport.ignore_idempotency_tokens();
         let mut writer = test_writer(transport.clone());
         writer
             .write(Buffer::from(Bytes::from_static(b"hello")))

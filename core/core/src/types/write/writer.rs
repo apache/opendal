@@ -200,6 +200,9 @@ impl Writer {
     /// [`Capability::write_can_copy_from`] to determine whether eligible
     /// non-append writes use the native path.
     ///
+    /// The source path must differ from the writer's destination path.
+    /// Copying a file onto itself returns [`ErrorKind::IsSameFile`].
+    ///
     /// Each call accepts at most 5 GiB. Applications must split larger source
     /// ranges into multiple ordered calls.
     ///
@@ -220,6 +223,11 @@ impl Writer {
 
     /// Copy an existing object range with read conditions and execution options.
     ///
+    /// The source path must differ from the writer's destination path unless
+    /// [`options::ReadOptions::version`] selects a specific source version to
+    /// restore. Copying the current object onto itself returns
+    /// [`ErrorKind::IsSameFile`].
+    ///
     /// A retry with the same path, range, and read options resumes a partially
     /// accepted copy instead of replaying its accepted prefix. Any other write
     /// or [`Writer::close`] fails until the retry succeeds or [`Writer::abort`]
@@ -237,6 +245,16 @@ impl Writer {
                     .with_context("service", self.ctx.service().info().scheme())
                     .with_context("path", &path),
             );
+        }
+        if path == self.ctx.path() && options.version.is_none() {
+            return Err(Error::new(
+                ErrorKind::IsSameFile,
+                "source and destination paths are the same",
+            )
+            .with_operation("Writer::copy_from")
+            .with_context("service", self.ctx.service().info().scheme())
+            .with_context("source", &path)
+            .with_context("destination", self.ctx.path()));
         }
         let (range, args, options) = options.into();
         self.inner.copy_from(&path, args, options, range).await
@@ -447,11 +465,18 @@ impl Writer {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use bytes::{Buf, Bytes};
     use rand::{Rng, RngExt};
 
+    use crate::Capability;
+    use crate::ErrorKind;
+    use crate::OperationContext;
     use crate::Operator;
     use crate::Result;
+    use crate::options;
+    use crate::raw::*;
     use crate::services;
 
     fn gen_random_bytes() -> Vec<u8> {
@@ -538,5 +563,138 @@ mod tests {
             buf.to_bytes(),
             chain_same.copy_to_bytes(chain_same.remaining())
         );
+    }
+
+    #[tokio::test]
+    async fn test_copy_from_same_path_is_rejected() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let content = "copy source must survive";
+        op.write("f", content).await?;
+
+        for source in ["f", "./f", "/f", "//f"] {
+            let mut writer = op.writer("f").await?;
+            let err = writer
+                .copy_from(source, 0..content.len() as u64)
+                .await
+                .expect_err("copying a file onto itself must fail");
+            assert_eq!(err.kind(), ErrorKind::IsSameFile, "source: {source}");
+            writer.abort().await?;
+
+            assert_eq!(
+                op.read("f").await?.to_vec(),
+                content.as_bytes(),
+                "source must survive copy from {source}"
+            );
+        }
+
+        Ok(())
+    }
+
+    /// A memory service that resolves a versioned read to a stored snapshot.
+    #[derive(Debug)]
+    struct VersionedReadService {
+        inner: Servicer,
+    }
+
+    impl Service for VersionedReadService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            Capability {
+                read_with_version: true,
+                ..self.inner.capability()
+            }
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            unreachable!()
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            unreachable!()
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            let version = args.version().map(str::to_string);
+            match version {
+                Some(version) => {
+                    let snapshot = format!(".versions/{version}/{path}");
+                    self.inner.read(ctx, &snapshot, OpRead::new())
+                }
+                None => self.inner.read(ctx, path, args),
+            }
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            unreachable!()
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            unreachable!()
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            unreachable!()
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            unreachable!()
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            unreachable!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_copy_from_same_path_with_version_is_allowed() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let (ctx, inner) = op.into_parts();
+        let op = Operator::from_parts(ctx, Arc::new(VersionedReadService { inner }));
+
+        let current = "current object content";
+        let previous = "previous version content";
+        op.write("f", current).await?;
+        op.write(".versions/v1/f", previous).await?;
+
+        let mut writer = op.writer("f").await?;
+        writer
+            .copy_from_options(
+                "f",
+                options::ReadOptions {
+                    range: (0..previous.len() as u64).into(),
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await?;
+        writer.close().await?;
+
+        assert_eq!(op.read("f").await?.to_vec(), previous.as_bytes());
+        Ok(())
     }
 }

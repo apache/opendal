@@ -57,11 +57,18 @@ use opendal_core::*;
 /// # Cancellation Safety
 ///
 /// `TimeoutLayer` enforces deadlines by dropping the in-flight future when a
-/// timeout is reached. This can break lower layers that rely on a future being
-/// resolved to restore internal state.
+/// timeout is reached. Lower layers and operation handles must therefore tolerate
+/// dropped futures, and callers should follow each handle's recovery contract
+/// after a timeout (for example, aborting an interrupted writer or reopening a
+/// read stream when using a retry budget).
 ///
-/// For example, while using `TimeoutLayer` with `RetryLayer` at the same time,
-/// please make sure timeout layer is added before retry layer.
+/// When composing `TimeoutLayer` with `RetryLayer`, layer order selects what
+/// the timeout bounds:
+///
+/// - Adding `TimeoutLayer` before `RetryLayer` applies the timeout to each
+///   individual attempt so `RetryLayer` can retry timed-out attempts.
+/// - Adding `TimeoutLayer` after `RetryLayer` bounds total time across all
+///   retries of one call without losing `RetryLayer` handle state.
 ///
 /// ```no_run
 /// # use std::time::Duration;
@@ -74,11 +81,11 @@ use opendal_core::*;
 /// #
 /// # fn main() -> Result<()> {
 /// let op = Operator::new(services::Memory::default())?
-///     // This is fine: each retry attempt is timed out.
-///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)))
+///     // Time out each retry attempt so RetryLayer can retry it.
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(10)))
 ///     .layer(RetryLayer::default())
-///     // This is wrong: timeout can drop RetryLayer's future before it restores body state.
-///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_nanos(1)));
+///     // Optional outer deadline across all retries of one call.
+///     .layer(TimeoutLayer::default().with_io_timeout(Duration::from_secs(30)));
 /// # Ok(())
 /// # }
 /// ```

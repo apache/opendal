@@ -95,6 +95,11 @@ where
 /// Add source retry layers before this layer so they retry individual source
 /// requests. If a cached stream detects that the source changed after yielding
 /// bytes, restart the whole read and discard the partial result.
+///
+/// Recursive deletes invalidate entries by advancing a shared generation key
+/// that each `CacheLayer` instance caches for up to `min(ttl, 1s)`, so another
+/// instance sharing the same cache backend can observe a recursive delete up to
+/// 1 second later unless `ttl` is [`Duration::ZERO`].
 #[derive(Clone)]
 pub struct CacheLayer {
     state: Arc<State>,

@@ -108,7 +108,7 @@ pub(crate) struct RevalidationKey {
 
 #[derive(Clone)]
 pub(crate) enum RevalidationResult {
-    Verified(Pointer),
+    Verified { pointer: Pointer, published: bool },
     UnverifiableFile(Metadata),
     NotFound,
     Fallback,
@@ -136,6 +136,7 @@ impl Unit {
 pub(crate) struct Discovery {
     pointer: Pointer,
     unit: Option<Unit>,
+    published: bool,
 }
 
 pub(crate) type DiscoveryResult = std::result::Result<Option<Discovery>, FillError>;
@@ -220,16 +221,20 @@ impl CachedReader {
         self.state
             .revalidations
             .run(self.context.executor(), vec![key], move |_| async move {
-                let observed_at = Timestamp::now();
+                let cold_guard = reader.state.register_cold_read(reader.subject);
+                let observed_at = cold_guard.observed_at();
                 match reader.stat(reader.args.version()).await {
                     Ok(metadata) if metadata.is_file() => {
                         if Identity::verifiable(&metadata).is_some() {
                             let current = Pointer::new(metadata, observed_at);
-                            reader
+                            let published = reader
                                 .state
-                                .publish(snapshot, &reader.subject, &current, None)
+                                .publish(snapshot, &reader.subject, &current, Some(&cold_guard))
                                 .await;
-                            RevalidationResult::Verified(current)
+                            RevalidationResult::Verified {
+                                pointer: current,
+                                published,
+                            }
                         } else {
                             if let Some(pointer) = &stale {
                                 reader
@@ -276,13 +281,15 @@ impl CachedReader {
             generation,
             epoch: self.state.epoch(&self.subject),
         };
-        let cached = match self.local_pointer(snapshot) {
-            Some(pointer) => Some(pointer),
-            None => self.state.pointer(generation, &self.subject).await,
+        let (cached, from_local) = match self.local_pointer(snapshot) {
+            Some(pointer) => (Some(pointer), true),
+            None => (self.state.pointer(generation, &self.subject).await, false),
         };
         if let Some(pointer) = cached {
             if pointer.is_fresh(self.ttl, self.args.version()) {
-                self.remember_pointer(snapshot, &pointer);
+                if !from_local {
+                    self.remember_pointer(snapshot, &pointer);
+                }
                 if pointer.identity.tier != Tier::Nonce {
                     return self
                         .prepare_verified(snapshot, pointer, range, None, false)
@@ -302,8 +309,13 @@ impl CachedReader {
                     .await;
             } else if pointer.identity.tier != Tier::Nonce {
                 match self.revalidate_stat(snapshot, Some(pointer.clone())).await {
-                    RevalidationResult::Verified(current) => {
-                        self.remember_pointer(snapshot, &current);
+                    RevalidationResult::Verified {
+                        pointer: current,
+                        published,
+                    } => {
+                        if published {
+                            self.remember_pointer(snapshot, &current);
+                        }
                         return self
                             .prepare_verified(snapshot, current, range, None, false)
                             .await;
@@ -336,8 +348,10 @@ impl CachedReader {
                 let mut metadata = None;
                 if self.source.capability().stat {
                     match self.revalidate_stat(snapshot, None).await {
-                        RevalidationResult::Verified(pointer) => {
-                            self.remember_pointer(snapshot, &pointer);
+                        RevalidationResult::Verified { pointer, published } => {
+                            if published {
+                                self.remember_pointer(snapshot, &pointer);
+                            }
                             return self
                                 .prepare_verified(snapshot, pointer, range, None, true)
                                 .await;
@@ -366,10 +380,13 @@ impl CachedReader {
                 };
                 if Identity::verifiable(&metadata).is_some() {
                     let pointer = Pointer::new(metadata, observed_at);
-                    self.state
+                    if self
+                        .state
                         .publish(snapshot, &self.subject, &pointer, None)
-                        .await;
-                    self.remember_pointer(snapshot, &pointer);
+                        .await
+                    {
+                        self.remember_pointer(snapshot, &pointer);
+                    }
                     return self
                         .prepare_verified(snapshot, pointer, range, None, true)
                         .await;
@@ -417,7 +434,9 @@ impl CachedReader {
                 .unit
                 .filter(|unit| unit.start <= bytes.start && unit.end() >= bytes.end)
             {
-                self.remember_pointer(snapshot, &discovery.pointer);
+                if discovery.published {
+                    self.remember_pointer(snapshot, &discovery.pointer);
+                }
                 return Ok(Some(PreparedStream::Cached(CachedStream::new(
                     self.clone(),
                     snapshot,
@@ -436,7 +455,9 @@ impl CachedReader {
                 )
                 .await;
         }
-        self.remember_pointer(snapshot, &discovery.pointer);
+        if discovery.published {
+            self.remember_pointer(snapshot, &discovery.pointer);
+        }
         self.prepare_verified(snapshot, discovery.pointer, range, discovery.unit, true)
             .await
     }
@@ -452,10 +473,12 @@ impl CachedReader {
         let aligned_end = (((requested.end - 1) / self.chunk_size) + 1)
             .saturating_mul(self.chunk_size)
             .min(expected_length);
-        let observed_at = Timestamp::now();
         let cold_guard = existing
             .is_none()
-            .then(|| self.state.register_cold_read(self.subject, observed_at));
+            .then(|| self.state.register_cold_read(self.subject));
+        let observed_at = cold_guard
+            .as_ref()
+            .map_or_else(Timestamp::now, ColdReadGuard::observed_at);
         let origin = self.origin()?;
         let (response, inner) = match origin
             .open(BytesRange::new(
@@ -515,8 +538,8 @@ impl CachedReader {
     }
 
     async fn discover(&self, snapshot: Snapshot, aligned: Range<u64>) -> DiscoveryResult {
-        let observed_at = Timestamp::now();
-        let cold_guard = self.state.register_cold_read(self.subject, observed_at);
+        let cold_guard = self.state.register_cold_read(self.subject);
+        let observed_at = cold_guard.observed_at();
         let origin = self.origin()?;
         let (response, mut stream) = match origin
             .open(BytesRange::new(
@@ -598,10 +621,15 @@ impl CachedReader {
             }
             None
         };
-        self.state
+        let published = self
+            .state
             .publish(snapshot, &self.subject, &pointer, Some(&cold_guard))
             .await;
-        Ok(Some(Discovery { pointer, unit }))
+        Ok(Some(Discovery {
+            pointer,
+            unit,
+            published,
+        }))
     }
 
     async fn prepare_verified(
@@ -1101,8 +1129,9 @@ impl NonceFillStream {
 
     async fn finish(&mut self) {
         self.flush_chunk().await;
-        if self.publish_pointer {
-            self.reader
+        if self.publish_pointer
+            && self
+                .reader
                 .state
                 .publish(
                     self.snapshot,
@@ -1110,7 +1139,8 @@ impl NonceFillStream {
                     &self.pointer,
                     self.cold_guard.as_ref(),
                 )
-                .await;
+                .await
+        {
             self.reader.remember_pointer(self.snapshot, &self.pointer);
         }
         self.cold_guard = None;

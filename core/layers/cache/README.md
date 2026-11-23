@@ -21,7 +21,10 @@
 It preserves the source operator's capabilities and leaves conditional reads,
 response overrides, and other operations to the source. Mutations invalidate
 cached metadata, including when an origin error leaves the mutation outcome
-uncertain.
+uncertain. Recursive deletes invalidate the cache by advancing a shared
+generation key that each `CacheLayer` instance caches for up to `min(ttl, 1s)`,
+so another process sharing the same cache backend can observe a recursive delete
+up to 1 second later unless `ttl` is zero.
 
 Attach a source retry layer before adding the cache. Retrying a cached stream
 by reopening it after a partial read can mix bytes from different versions.

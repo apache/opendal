@@ -68,9 +68,14 @@ pub(crate) struct ColdReadGuard {
     state: Arc<State>,
     subject: Subject,
     id: u64,
+    observed_at: Timestamp,
 }
 
 impl ColdReadGuard {
+    pub(crate) fn observed_at(&self) -> Timestamp {
+        self.observed_at
+    }
+
     fn contradicts(&self, pointer: &Pointer) -> bool {
         let shard = self.state.shard(&self.subject);
         let reads = shard.cold_reads.lock().unwrap();
@@ -180,7 +185,7 @@ impl State {
     }
 
     fn shard(&self, subject: &Subject) -> &Shard {
-        &self.shards[usize::from(subject[0])]
+        &self.shards[usize::from(subject[0]) % SHARDS]
     }
 
     pub(crate) fn epoch(&self, subject: &Subject) -> u64 {
@@ -193,15 +198,19 @@ impl State {
         }
     }
 
-    pub(crate) fn register_cold_read(
-        self: &Arc<Self>,
-        subject: Subject,
-        observed_at: Timestamp,
-    ) -> ColdReadGuard {
+    /// Register an in-flight cold read before issuing the origin request.
+    ///
+    /// Captures `observed_at` and increments `cold_read_count` (Release) before
+    /// the origin read begins, while `ColdReadGuard::drop` decrements it
+    /// (Release) only after `publish` finishes. Together with `observe_stat`
+    /// checking `cold_read_count` (Acquire) before reading the cached pointer,
+    /// this lets `observe_stat` skip locking when no cold read is active.
+    pub(crate) fn register_cold_read(self: &Arc<Self>, subject: Subject) -> ColdReadGuard {
         let id = self.next_cold_id.fetch_add(1, Ordering::Relaxed);
         let shard = self.shard(&subject);
-        {
+        let observed_at = {
             let mut reads = shard.cold_reads.lock().unwrap();
+            let observed_at = Timestamp::now();
             reads.push(ColdRead {
                 id,
                 subject,
@@ -209,11 +218,13 @@ impl State {
                 latest_stat: None,
             });
             shard.cold_read_count.fetch_add(1, Ordering::Release);
-        }
+            observed_at
+        };
         ColdReadGuard {
             state: self.clone(),
             subject,
             id,
+            observed_at,
         }
     }
 
@@ -255,17 +266,18 @@ impl State {
         subject: &Subject,
         pointer: &Pointer,
         cold: Option<&ColdReadGuard>,
-    ) {
+    ) -> bool {
         let shard = self.shard(subject);
         if shard.epoch.load(Ordering::Acquire) != snapshot.epoch {
-            return;
+            return false;
         }
         let _io = shard.meta_io.lock().await;
         if shard.epoch.load(Ordering::Acquire) != snapshot.epoch {
-            return;
+            return false;
         }
         if cold.is_some_and(|guard| guard.contradicts(pointer)) {
-            return;
+            shard.epoch.fetch_add(1, Ordering::AcqRel);
+            return false;
         }
         // A slow read may finish after a newer source observation was cached.
         if self
@@ -273,12 +285,12 @@ impl State {
             .await
             .is_some_and(|cached| cached.observed_at > pointer.observed_at)
         {
-            return;
+            return false;
         }
-        let _ = self
-            .cache
+        self.cache
             .write(&meta_key(snapshot.generation, subject), pointer.encode())
-            .await;
+            .await
+            .is_ok()
     }
 
     pub(crate) async fn observe_stat(
@@ -295,6 +307,18 @@ impl State {
         if shard.epoch.load(Ordering::Acquire) != snapshot_epoch {
             return;
         }
+        // Check for in-flight cold reads BEFORE probing the cached pointer so a
+        // cold read cannot publish and drop its guard between a `None` pointer
+        // lookup and a `cold_read_count == 0` fast-path check.
+        // Fast path: when `cold_read_count == 0`, no cold read that started
+        // before `inner.stat()` completed is still unregistered or un-published
+        // (assuming wall-clock timestamps do not jump backwards).
+        let has_matching_cold = shard.cold_read_count.load(Ordering::Acquire) > 0 && {
+            let reads = shard.cold_reads.lock().unwrap();
+            reads
+                .iter()
+                .any(|entry| entry.subject == *subject && entry.observed_at <= observed_at)
+        };
         if let Some(pointer) = self.pointer(generation, subject).await {
             if pointer.observed_at > observed_at || metadata_matches_pointer(metadata, &pointer) {
                 return;
@@ -318,16 +342,6 @@ impl State {
             return;
         }
 
-        // Fast path: no in-flight cold reads in this shard can publish a stale pointer.
-        if shard.cold_read_count.load(Ordering::Acquire) == 0 {
-            return;
-        }
-        let has_matching_cold = {
-            let reads = shard.cold_reads.lock().unwrap();
-            reads
-                .iter()
-                .any(|entry| entry.subject == *subject && entry.observed_at <= observed_at)
-        };
         if !has_matching_cold {
             return;
         }

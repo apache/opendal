@@ -21,8 +21,10 @@ use cxx_async::CxxAsyncException;
 use opendal as od;
 use std::collections::HashMap;
 use std::future::Future;
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::task::{Context, Poll};
 
 #[cxx::bridge(namespace = opendal::ffi::async_op)]
 mod ffi {
@@ -106,7 +108,66 @@ unsafe impl Future for RustFutureEntryOption {
     type Output = String;
 }
 
-pub struct Operator(od::Operator);
+/// Wraps an async future so polling and dropping always run inside the binding's
+/// Tokio runtime context. `cxx_async` polls and drops futures directly on the
+/// C++ caller thread, where Tokio-backed services would otherwise panic with
+/// "there is no reactor running" and abort the process.
+struct TokioRuntimeFuture<F> {
+    future: ManuallyDrop<F>,
+}
+
+impl<F> TokioRuntimeFuture<F> {
+    fn new(future: F) -> Self {
+        Self {
+            future: ManuallyDrop::new(future),
+        }
+    }
+}
+
+impl<F: Future> Future for TokioRuntimeFuture<F> {
+    type Output = F::Output;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let _guard = crate::RUNTIME.enter();
+        // SAFETY: `future` is structurally pinned to `self`: nothing moves out
+        // of `self.future`, and `Drop` drops it in place before `self` is
+        // deallocated.
+        let future = unsafe { self.map_unchecked_mut(|this| &mut *this.future) };
+        future.poll(cx)
+    }
+}
+
+impl<F> Drop for TokioRuntimeFuture<F> {
+    fn drop(&mut self) {
+        let _guard = crate::RUNTIME.enter();
+        // SAFETY: `future` is only dropped here, once, in place.
+        unsafe {
+            ManuallyDrop::drop(&mut self.future);
+        }
+    }
+}
+
+pub struct Operator(ManuallyDrop<od::Operator>);
+
+impl Operator {
+    fn new(op: od::Operator) -> Self {
+        Self(ManuallyDrop::new(op))
+    }
+
+    fn clone_inner(&self) -> od::Operator {
+        (*self.0).clone()
+    }
+}
+
+impl Drop for Operator {
+    fn drop(&mut self) {
+        let _guard = crate::RUNTIME.enter();
+        // SAFETY: `self.0` is only dropped here, once.
+        unsafe {
+            ManuallyDrop::drop(&mut self.0);
+        }
+    }
+}
 
 // Global storage for readers and listers to avoid Send issues with raw pointers.
 // The outer tables are only locked briefly and never held across `.await`, so a
@@ -146,9 +207,10 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
         .map(|value| (value.key, value.value))
         .collect();
 
+    let _guard = crate::RUNTIME.enter();
     od::install_default();
 
-    let op = Box::new(Operator(od::Operator::via_iter(scheme, map)?));
+    let op = Box::new(Operator::new(od::Operator::via_iter(scheme, map)?));
 
     Ok(op)
 }
@@ -158,88 +220,88 @@ fn new_operator(scheme: &str, configs: Vec<ffi::HashMapValue>) -> Result<Box<Ope
 // clone) instead of borrowing `op`, so the future remains valid even if the
 // C++ operator is destroyed before the future is first polled.
 fn operator_read(op: &Operator, path: String) -> RustFutureRead {
-    let op = op.0.clone();
-    RustFutureRead::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureRead::fallible(TokioRuntimeFuture::new(async move {
         Ok(op
             .read(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?
             .to_vec())
-    })
+    }))
 }
 
 fn operator_write(op: &Operator, path: String, bs: &[u8]) -> RustFutureWrite {
-    let op = op.0.clone();
+    let op = op.clone_inner();
     // Copy before building the future, which outlives the borrowed slice.
     let bs = bs.to_vec();
-    RustFutureWrite::fallible(async move {
+    RustFutureWrite::fallible(TokioRuntimeFuture::new(async move {
         op.write(&path, bs)
             .await
             .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_list(op: &Operator, path: String) -> RustFutureList {
-    let op = op.0.clone();
-    RustFutureList::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureList::fallible(TokioRuntimeFuture::new(async move {
         let entries = op
             .list(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(entries.into_iter().map(|e| e.path().to_string()).collect())
-    })
+    }))
 }
 
 fn operator_exists(op: &Operator, path: String) -> RustFutureBool {
-    let op = op.0.clone();
-    RustFutureBool::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureBool::fallible(TokioRuntimeFuture::new(async move {
         op.exists(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_create_dir(op: &Operator, path: String) -> RustFutureWrite {
-    let op = op.0.clone();
-    RustFutureWrite::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureWrite::fallible(TokioRuntimeFuture::new(async move {
         op.create_dir(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_copy(op: &Operator, from: String, to: String) -> RustFutureWrite {
-    let op = op.0.clone();
-    RustFutureWrite::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureWrite::fallible(TokioRuntimeFuture::new(async move {
         op.copy(&from, &to)
             .await
             .map(|_| ())
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_rename(op: &Operator, from: String, to: String) -> RustFutureWrite {
-    let op = op.0.clone();
-    RustFutureWrite::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureWrite::fallible(TokioRuntimeFuture::new(async move {
         op.rename(&from, &to)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_delete(op: &Operator, path: String) -> RustFutureWrite {
-    let op = op.0.clone();
-    RustFutureWrite::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureWrite::fallible(TokioRuntimeFuture::new(async move {
         op.delete(&path)
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))
-    })
+    }))
 }
 
 fn operator_reader(op: &Operator, path: String) -> RustFutureReaderId {
-    let op = op.0.clone();
-    RustFutureReaderId::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureReaderId::fallible(TokioRuntimeFuture::new(async move {
         let reader = op
             .reader(&path)
             .await
@@ -255,12 +317,12 @@ fn operator_reader(op: &Operator, path: String) -> RustFutureReaderId {
         lock(get_reader_storage()).insert(id, reader_arc);
 
         Ok(id)
-    })
+    }))
 }
 
 fn operator_lister(op: &Operator, path: String) -> RustFutureListerId {
-    let op = op.0.clone();
-    RustFutureListerId::fallible(async move {
+    let op = op.clone_inner();
+    RustFutureListerId::fallible(TokioRuntimeFuture::new(async move {
         let lister = op
             .lister(&path)
             .await
@@ -276,7 +338,7 @@ fn operator_lister(op: &Operator, path: String) -> RustFutureListerId {
         lock(get_lister_storage()).insert(id, lister_arc);
 
         Ok(id)
-    })
+    }))
 }
 
 fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
@@ -284,7 +346,7 @@ fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
     // future owns the reader handle and stays valid even if the C++ reader is
     // destroyed before the future is polled.
     let resolved_reader = lock(get_reader_storage()).get(&reader).cloned();
-    RustFutureRead::fallible(async move {
+    RustFutureRead::fallible(TokioRuntimeFuture::new(async move {
         let reader_arc =
             resolved_reader.ok_or_else(|| CxxAsyncException::new("Invalid reader ID".into()))?;
 
@@ -297,14 +359,14 @@ fn reader_read(reader: usize, start: u64, len: u64) -> RustFutureRead {
             .await
             .map_err(|e| CxxAsyncException::new(e.to_string().into_boxed_str()))?;
         Ok(buffer.to_vec())
-    })
+    }))
 }
 
 fn lister_next(lister: usize) -> RustFutureEntryOption {
     // Same ownership rule as `reader_read`: resolve the id eagerly so the
     // future owns the lister handle.
     let resolved_lister = lock(get_lister_storage()).get(&lister).cloned();
-    RustFutureEntryOption::fallible(async move {
+    RustFutureEntryOption::fallible(TokioRuntimeFuture::new(async move {
         use futures::TryStreamExt;
 
         let lister_arc =
@@ -316,19 +378,21 @@ fn lister_next(lister: usize) -> RustFutureEntryOption {
             Ok(None) => Ok(String::new()), // Empty string indicates end of iteration
             Err(e) => Err(CxxAsyncException::new(e.to_string().into_boxed_str())),
         }
-    })
+    }))
 }
 
 fn delete_reader(reader: usize) {
     // Called from C++ destructors: always evict the id, then drop the removed
-    // handle outside the lock.
+    // handle outside the lock within the Tokio runtime context.
     let removed = lock(get_reader_storage()).remove(&reader);
+    let _guard = crate::RUNTIME.enter();
     drop(removed);
 }
 
 fn delete_lister(lister: usize) {
     // Called from C++ destructors: always evict the id, then drop the removed
-    // handle outside the lock.
+    // handle outside the lock within the Tokio runtime context.
     let removed = lock(get_lister_storage()).remove(&lister);
+    let _guard = crate::RUNTIME.enter();
     drop(removed);
 }

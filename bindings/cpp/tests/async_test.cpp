@@ -17,7 +17,11 @@
  * under the License.
  */
 
+#include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <initializer_list>
 #include <limits>
 #include <optional>
@@ -25,6 +29,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "cppcoro/sync_wait.hpp"
 #include "cppcoro/task.hpp"
@@ -595,4 +600,121 @@ TEST_F(AsyncOpendalTest, AsyncReaderReadRangeOverflowThrows) {
   for (size_t i = 0; i < data.size(); ++i) {
     EXPECT_EQ(res[i], data[i]);
   }
+}
+
+namespace {
+
+class ScopedTempDir {
+ public:
+  ScopedTempDir() {
+    static std::atomic<unsigned> next_id{0};
+    auto name = "opendal-cpp-async-fs-" +
+                std::to_string(std::chrono::steady_clock::now()
+                                   .time_since_epoch()
+                                   .count()) +
+                "-" + std::to_string(next_id.fetch_add(1));
+    path_ = std::filesystem::temp_directory_path() / name;
+    std::filesystem::create_directories(path_);
+  }
+
+  ~ScopedTempDir() {
+    std::error_code ignored;
+    std::filesystem::remove_all(path_, ignored);
+  }
+
+  ScopedTempDir(const ScopedTempDir &) = delete;
+  ScopedTempDir &operator=(const ScopedTempDir &) = delete;
+
+  const std::filesystem::path &path() const { return path_; }
+
+ private:
+  std::filesystem::path path_;
+};
+
+}  // namespace
+
+// Regression test: Tokio-backed services such as `fs` require an active Tokio
+// runtime context when constructing operators and polling or dropping async
+// futures from C++ threads.
+TEST(AsyncFsOpendalTest, TokioBackedFsOperations) {
+  ScopedTempDir dir;
+  opendal::async::Operator op("fs", {{"root", dir.path().string()}});
+
+  cppcoro::sync_wait([&]() -> cppcoro::task<void> {
+    const std::string dir_path = "nested/";
+    const std::string src_path = "nested/source.bin";
+    const std::string copy_path = "nested/copied.bin";
+    const std::string moved_path = "nested/moved.bin";
+    std::vector<uint8_t> data = {'h', 'e', 'l', 'l', 'o', ' ', 'f', 's'};
+
+    co_await op.CreateDir(dir_path);
+    EXPECT_TRUE(co_await op.Exists(dir_path));
+
+    co_await op.Write(src_path, data);
+    EXPECT_TRUE(co_await op.Exists(src_path));
+
+    auto read_back = co_await op.Read(src_path);
+    EXPECT_EQ(read_back.size(), data.size());
+    for (size_t i = 0; i < std::min(read_back.size(), data.size()); ++i) {
+      EXPECT_EQ(read_back[i], data[i]);
+    }
+
+    co_await op.Copy(src_path, copy_path);
+    EXPECT_TRUE(co_await op.Exists(copy_path));
+
+    co_await op.Rename(copy_path, moved_path);
+    EXPECT_FALSE(co_await op.Exists(copy_path));
+    EXPECT_TRUE(co_await op.Exists(moved_path));
+
+    auto listed = co_await op.List(dir_path);
+    std::vector<std::string> listed_paths;
+    for (const auto &entry : listed) {
+      listed_paths.emplace_back(entry);
+    }
+    EXPECT_NE(std::find(listed_paths.begin(), listed_paths.end(), src_path),
+              listed_paths.end());
+    EXPECT_NE(std::find(listed_paths.begin(), listed_paths.end(), moved_path),
+              listed_paths.end());
+
+    {
+      auto reader_id = co_await op.GetReader(moved_path);
+      opendal::async::Reader reader(reader_id);
+      auto slice = co_await reader.Read(0, data.size());
+      EXPECT_EQ(slice.size(), data.size());
+      for (size_t i = 0; i < std::min(slice.size(), data.size()); ++i) {
+        EXPECT_EQ(slice[i], data[i]);
+      }
+    }
+
+    {
+      auto lister_id = co_await op.GetLister(dir_path);
+      opendal::async::Lister lister(lister_id);
+      std::vector<std::string> streamed_paths;
+      while (true) {
+        auto entry = co_await lister.Next();
+        if (entry.empty()) {
+          break;
+        }
+        streamed_paths.emplace_back(entry);
+      }
+      EXPECT_NE(
+          std::find(streamed_paths.begin(), streamed_paths.end(), src_path),
+          streamed_paths.end());
+      EXPECT_NE(
+          std::find(streamed_paths.begin(), streamed_paths.end(), moved_path),
+          streamed_paths.end());
+    }
+
+    // Dropping an unpolled future must also run cleanly.
+    {
+      auto unused_future = op.Exists(src_path);
+      (void)unused_future;
+    }
+
+    co_await op.DeletePath(src_path);
+    co_await op.DeletePath(moved_path);
+    EXPECT_FALSE(co_await op.Exists(src_path));
+    EXPECT_FALSE(co_await op.Exists(moved_path));
+    co_return;
+  }());
 }

@@ -74,11 +74,7 @@ impl FullReader {
     }
 
     fn is_deleted(&self, key: &FoyerKey) -> bool {
-        self.inner
-            .deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .contains(key)
+        self.inner.deleted_keys.contains(key)
     }
 
     /// Derive the `OpStat` used for cache fill from the reader's `OpRead`, so a
@@ -121,6 +117,11 @@ impl FullReader {
         // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
         // range.
         let key = self.cache_key();
+
+        // Keep this read registered until it finishes so an invalidation that
+        // races with its cache fill can keep the tombstone alive long enough
+        // to remove any entry this read inserts.
+        let _read_guard = self.inner.deleted_keys.begin_read(self.inner.cache.clone());
 
         if self.is_deleted(&key) {
             return Ok(None);

@@ -26,9 +26,12 @@ mod full;
 mod writer;
 
 use std::{
-    collections::HashSet,
+    collections::{HashMap, VecDeque},
     ops::{Bound, Deref, Range, RangeBounds},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use foyer::{Code, HybridCache, Result as FoyerResult};
@@ -149,6 +152,212 @@ impl Code for FoyerValue {
     }
 }
 
+/// Maximum number of invalidated keys remembered by the layer.
+///
+/// The invalidation history is a negative cache, not a correctness requirement:
+/// cache entries are removed as soon as they are invalidated. Bounding the
+/// history keeps long-running deleters from retaining every deleted path.
+const MAX_DELETED_KEYS: usize = 1024;
+
+#[derive(Debug, Default)]
+struct ReadGeneration {
+    active: AtomicUsize,
+}
+
+impl ReadGeneration {
+    fn is_active(&self) -> bool {
+        self.active.load(Ordering::Acquire) > 0
+    }
+}
+
+/// Invalidated cache keys.
+///
+/// A key stays invalidated while a read that started before its invalidation is
+/// still in flight, so that the read cannot repopulate the cache with stale
+/// data. Once those reads finish, the cache entry is removed again and the
+/// tombstone is released. Invalidations without in-flight reads are retained up
+/// to [`MAX_DELETED_KEYS`] so recently mutated paths keep bypassing the cache
+/// until a write through the layer repopulates them.
+#[derive(Debug, Default)]
+struct DeletedKeys {
+    state: Mutex<DeletedKeysState>,
+}
+
+#[derive(Debug, Default)]
+struct DeletedKeysState {
+    current: Arc<ReadGeneration>,
+    keys: HashMap<FoyerKey, Option<Arc<ReadGeneration>>>,
+    order: VecDeque<FoyerKey>,
+}
+
+impl DeletedKeysState {
+    fn enforce_limit(&mut self, cache: &HybridCache<FoyerKey, FoyerValue>) {
+        while self.keys.len() > MAX_DELETED_KEYS {
+            let mut attempts = self.order.len();
+            let mut evicted = false;
+            while attempts > 0 && self.keys.len() > MAX_DELETED_KEYS {
+                attempts -= 1;
+                let Some(key) = self.order.pop_front() else {
+                    break;
+                };
+                let Some(tombstone) = self.keys.get(&key) else {
+                    continue;
+                };
+                if tombstone.as_ref().is_some_and(|g| g.is_active()) {
+                    // A read that started before this invalidation may still
+                    // repopulate the key, so this tombstone cannot be released.
+                    self.order.push_back(key);
+                    continue;
+                }
+                self.keys.remove(&key);
+                cache.remove(&key);
+                evicted = true;
+                break;
+            }
+            if !evicted {
+                break;
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+struct ReadGuard {
+    deleted_keys: Arc<DeletedKeys>,
+    cache: HybridCache<FoyerKey, FoyerValue>,
+    generation: Arc<ReadGeneration>,
+}
+
+impl Drop for ReadGuard {
+    fn drop(&mut self) {
+        self.deleted_keys.finish_read(&self.cache, &self.generation);
+    }
+}
+
+impl DeletedKeys {
+    fn begin_read(self: &Arc<Self>, cache: HybridCache<FoyerKey, FoyerValue>) -> ReadGuard {
+        let state = self.state.lock().expect("deleted keys lock poisoned");
+        state.current.active.fetch_add(1, Ordering::Relaxed);
+        ReadGuard {
+            deleted_keys: self.clone(),
+            cache,
+            generation: state.current.clone(),
+        }
+    }
+
+    fn finish_read(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        generation: &Arc<ReadGeneration>,
+    ) {
+        if generation.active.fetch_sub(1, Ordering::AcqRel) != 1 {
+            return;
+        }
+
+        let mut state = self.state.lock().expect("deleted keys lock poisoned");
+        state.keys.retain(|key, tombstone| {
+            let expired = tombstone.as_ref().is_some_and(|g| !g.is_active());
+            if expired {
+                // The last read that could have refilled this entry has
+                // finished. Drop whatever it may have inserted before
+                // releasing the tombstone.
+                cache.remove(key);
+            }
+            !expired
+        });
+    }
+
+    fn contains(&self, key: &FoyerKey) -> bool {
+        self.state
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .keys
+            .contains_key(key)
+    }
+
+    fn invalidate(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        keys: &[FoyerKey],
+        evict_keys: &[FoyerKey],
+    ) {
+        let mut state = self.state.lock().expect("deleted keys lock poisoned");
+
+        for key in evict_keys {
+            state.keys.remove(key);
+            cache.remove(key);
+        }
+
+        let generation = state.current.clone();
+        let active = generation.is_active();
+        for key in keys {
+            cache.remove(key);
+            let replace = match state.keys.get(key) {
+                // Keep the earliest in-flight generation so the tombstone
+                // outlives every read that could observe stale data.
+                Some(Some(g)) if g.is_active() => false,
+                _ => true,
+            };
+            if replace {
+                let existed = state
+                    .keys
+                    .insert(key.clone(), active.then(|| generation.clone()))
+                    .is_some();
+                if !existed {
+                    state.order.push_back(key.clone());
+                }
+            }
+        }
+
+        if active {
+            state.current = Arc::new(ReadGeneration::default());
+        }
+        state.enforce_limit(cache);
+        // Forgotten or expired keys leave stale ordering entries behind.
+        // Rebuild the queue occasionally so writes that never invalidate also
+        // keep the auxiliary history bounded.
+        if state.order.len() > MAX_DELETED_KEYS * 2 {
+            state.order = state.keys.keys().cloned().collect();
+        }
+    }
+
+    fn store(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        key: FoyerKey,
+        value: FoyerValue,
+        evict_key: Option<&FoyerKey>,
+    ) {
+        let mut state = self.state.lock().expect("deleted keys lock poisoned");
+        state.keys.remove(&key);
+        if let Some(evict_key) = evict_key {
+            state.keys.remove(evict_key);
+            cache.remove(evict_key);
+        }
+        cache.insert(key, value);
+    }
+
+    fn evict(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey) {
+        let mut state = self.state.lock().expect("deleted keys lock poisoned");
+        state.keys.remove(key);
+        cache.remove(key);
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.state
+            .lock()
+            .expect("deleted keys lock poisoned")
+            .keys
+            .len()
+    }
+
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
 /// `FoyerLayer` caches OpenDAL data with [foyer](https://github.com/foyer-rs/foyer).
 ///
 /// # Operation Behavior
@@ -174,8 +383,9 @@ impl Code for FoyerValue {
 /// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
 ///   cache entries for both the source and the destination.
 ///
-/// Reads of paths invalidated by copy or rename bypass the cache until a
-/// write through the layer repopulates the corresponding entry.
+/// Reads of recently invalidated paths bypass the cache until a write through
+/// the layer repopulates the corresponding entry. The layer retains a bounded
+/// invalidation history, so older invalidated paths can be cached again.
 ///
 /// # Range Reads
 ///
@@ -220,7 +430,7 @@ impl Code for FoyerValue {
 pub struct FoyerLayer {
     cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
-    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
+    deleted_keys: Arc<DeletedKeys>,
 }
 
 impl FoyerLayer {
@@ -276,7 +486,7 @@ pub(crate) struct Inner {
     pub(crate) srv: Servicer,
     pub(crate) ctx: OperationContext,
     pub(crate) cache: HybridCache<FoyerKey, FoyerValue>,
-    pub(crate) deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
+    pub(crate) deleted_keys: Arc<DeletedKeys>,
 }
 
 impl Inner {
@@ -285,12 +495,7 @@ impl Inner {
             path,
             version: None,
         };
-        let mut deleted_keys = self
-            .deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned");
-        self.cache.remove(&key);
-        deleted_keys.insert(key);
+        self.deleted_keys.invalidate(&self.cache, &[key], &[]);
     }
 }
 
@@ -300,7 +505,7 @@ pub struct FoyerService {
     inner: Servicer,
     cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
-    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
+    deleted_keys: Arc<DeletedKeys>,
 }
 
 impl FoyerService {
@@ -447,8 +652,10 @@ mod tests {
         FsDeviceBuilder, HybridCache, HybridCacheBuilder, RecoverMode,
     };
     use opendal_core::raw::oio::Copy as _;
+    use opendal_core::raw::oio::Delete as _;
     use opendal_core::raw::oio::Read as _;
     use opendal_core::raw::oio::ReadStream as _;
+    use opendal_core::raw::oio::Write as _;
     use opendal_core::{Buffer, Operator, services::Memory};
     use size::consts::MiB;
     use std::io::Cursor;
@@ -1244,6 +1451,71 @@ mod tests {
         let read_small_range = op.read_with("small.txt").range(0..1024).await.unwrap();
         assert_eq!(read_small_range.len(), 1024);
         assert_eq!(read_small_range.to_vec(), small_data[0..1024]);
+    }
+
+    #[tokio::test]
+    async fn deleted_keys_stay_bounded() {
+        let cache = memory_cache().await;
+        let layer = FoyerLayer::new(cache);
+        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let ctx = OperationContext::new();
+
+        for i in 0..=MAX_DELETED_KEYS {
+            let path = format!("obj-{i}");
+            let mut writer = service.write(&ctx, &path, OpWrite::new()).unwrap();
+            writer.write(Buffer::from("value")).await.unwrap();
+            writer.close().await.unwrap();
+
+            let mut deleter = service.delete(&ctx).unwrap();
+            deleter.delete(&path, OpDelete::new()).await.unwrap();
+            deleter.close().await.unwrap();
+        }
+
+        let len = layer.deleted_keys.len();
+        assert!(
+            len <= MAX_DELETED_KEYS,
+            "deleted key tombstones grew to {len}, expected at most {MAX_DELETED_KEYS}"
+        );
+    }
+
+    #[tokio::test]
+    async fn invalidation_during_fill_does_not_repopulate_cache() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let gate = state.gate_stat();
+        let layer = FoyerLayer::new(cache.clone());
+        let service = Arc::new(layer.layer(source));
+        let ctx = OperationContext::new();
+        let inner = service.operation_inner(&ctx);
+
+        let fill = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        state.stat_started.acquire().await.unwrap().forget();
+
+        inner.invalidate_unversioned("test".to_string());
+        gate.add_permits(1);
+
+        let buffer = fill.await.unwrap();
+        assert_eq!(buffer.to_vec(), b"0123456789");
+        assert!(
+            !cache.contains(&FoyerKey {
+                path: "test".to_string(),
+                version: None,
+            }),
+            "a fill that started before invalidation must not repopulate the cache"
+        );
+        assert!(
+            layer.deleted_keys.is_empty(),
+            "tombstones must be released once the invalidation readers finish"
+        );
     }
 
     #[test]

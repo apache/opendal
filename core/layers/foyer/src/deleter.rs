@@ -70,21 +70,9 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        {
-            let mut deleted_keys = self
-                .inner
-                .deleted_keys
-                .lock()
-                .expect("deleted keys lock poisoned");
-            for key in &self.evict_keys {
-                self.inner.cache.remove(key);
-                deleted_keys.remove(key);
-            }
-            for key in &self.keys {
-                self.inner.cache.remove(key);
-                deleted_keys.insert(key.clone());
-            }
-        }
+        self.inner
+            .deleted_keys
+            .invalidate(&self.inner.cache, &self.keys, &self.evict_keys);
         let close_res = self.deleter.close().await;
         let clear_res = if self.recursive {
             // Foyer only supports removing exact keys or clearing the cache.

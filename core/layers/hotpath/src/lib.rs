@@ -88,7 +88,7 @@ impl HotpathLayer {
 
 impl Layer for HotpathLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(HotpathService { inner })
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -99,19 +99,12 @@ impl Layer for HotpathLayer {
     }
 }
 
-impl HotpathLayer {
-    fn layer(&self, inner: Servicer) -> HotpathAccessor {
-        HotpathAccessor { inner }
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct HotpathAccessor {
+struct HotpathService {
     inner: Servicer,
 }
 
-impl Service for HotpathAccessor {
+impl Service for HotpathService {
     type Reader = HotpathWrapper<oio::Reader>;
     type Writer = HotpathWrapper<oio::Writer>;
     type Lister = HotpathWrapper<oio::Lister>;
@@ -201,8 +194,7 @@ impl Service for HotpathAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct HotpathWrapper<R> {
+struct HotpathWrapper<R> {
     inner: R,
 }
 

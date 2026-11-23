@@ -98,6 +98,15 @@ to `PrometheusClientLayerBuilder::register` must update their direct
 `prometheus-client` dependency to 0.26; a 0.25 `Registry` no longer satisfies
 the signature.
 
+## `OtelMetricsLayer` and `OtelTraceLayer` use OpenTelemetry 0.33
+
+The `opendal-layer-otelmetrics` and `opendal-layer-oteltrace` crates now use
+`opentelemetry` 0.33, and the `opendal-layer-tracing` examples use
+`tracing-opentelemetry` 0.34. Update your direct `opentelemetry` crates to 0.33
+when you pass a `Meter` to `OtelMetricsLayerBuilder::register` or install the
+global OpenTelemetry tracer and meter providers used by these layers. A `Meter`
+from `opentelemetry` 0.32 no longer satisfies the signature.
+
 ## Raw API
 
 ### Path helper names

@@ -34,7 +34,7 @@ all-features = true
 [dependencies]
 http = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
-opentelemetry = { version = "0.32.0", default-features = false, features = [
+opentelemetry = { version = "0.33.1", default-features = false, features = [
   "trace",
 ] }
 
@@ -42,7 +42,7 @@ opentelemetry = { version = "0.32.0", default-features = false, features = [
 futures = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5" }
 opendal-service-http = { path = "../../services/http", version = "0.59.5" }
-opentelemetry_sdk = { version = "0.32.1", default-features = false, features = [
+opentelemetry_sdk = { version = "0.33.1", default-features = false, features = [
   "testing",
 ] }
 tokio = { workspace = true, features = ["macros", "rt"] }

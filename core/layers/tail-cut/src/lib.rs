@@ -886,8 +886,9 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
 
 /// Statistics engine for tail cut layer.
 struct TailCutStats {
-    // Statistics for each operation type (9 operations)
-    operations: [Arc<OperationStats>; 9],
+    // One dedicated histogram per `Operation` variant. `Info` carries no
+    // traffic and also holds future `#[non_exhaustive]` variants.
+    operations: [Arc<OperationStats>; 12],
 }
 
 impl TailCutStats {
@@ -899,16 +900,21 @@ impl TailCutStats {
 
     fn stats_for(&self, op: Operation) -> &Arc<OperationStats> {
         let idx = match op {
-            Operation::Read => 0,
-            Operation::Write => 1,
-            Operation::Stat => 2,
-            Operation::List => 3,
-            Operation::Delete => 4,
-            Operation::Copy => 5,
+            Operation::Info => 0,
+            Operation::CreateDir => 1,
+            Operation::Read => 2,
+            Operation::Write => 3,
+            Operation::Copy => 4,
+            Operation::Compose => 5,
             Operation::Rename => 6,
-            Operation::Compose => 7,
-            Operation::Restore => 8,
-            _ => 2, // fallback to Stat
+            Operation::Restore => 7,
+            Operation::Stat => 8,
+            Operation::Delete => 9,
+            Operation::List => 10,
+            Operation::Presign => 11,
+            // New variants must not reuse a live operation's baseline before
+            // they get a dedicated histogram.
+            _ => 0,
         };
         &self.operations[idx]
     }
@@ -1214,13 +1220,19 @@ mod tests {
             Capability {
                 stat: true,
                 restore: true,
+                create_dir: true,
                 ..Default::default()
             }
         }
 
         async fn stat(&self, _: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
-            if path == "slow" {
-                tokio::time::sleep(Duration::from_secs(1)).await;
+            let delay = match path {
+                "slow" => Duration::from_secs(1),
+                "healthy" => Duration::from_millis(900),
+                _ => Duration::ZERO,
+            };
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
             }
             Ok(RpStat::new(MetadataBuilder::file(0).build()))
         }
@@ -1240,10 +1252,13 @@ mod tests {
         async fn create_dir(
             &self,
             _: &OperationContext,
-            _: &str,
+            path: &str,
             _: OpCreateDir,
         ) -> Result<RpCreateDir> {
-            unreachable!()
+            if path == "slow/" {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            Ok(RpCreateDir::default())
         }
 
         fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
@@ -1279,6 +1294,74 @@ mod tests {
         async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
             unreachable!()
         }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_create_dir_samples_do_not_cancel_healthy_stat() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(5)
+            .min_deadline(Duration::from_millis(1))
+            .max_deadline(Duration::from_secs(30))
+            .build();
+        let op = Operator::from_parts(OperationContext::default(), Arc::new(SlowService))
+            .layer(layer.clone());
+
+        // `std::time::Instant` does not follow the paused Tokio clock, so seed
+        // the stat baseline directly instead of sleeping in the stub.
+        for _ in 0..5 {
+            layer
+                .stats
+                .stats_for(Operation::Stat)
+                .record(None, Duration::from_secs(1));
+        }
+
+        for _ in 0..5 {
+            op.create_dir("dir/").await.unwrap();
+        }
+
+        let window = layer.config.window;
+        assert_eq!(
+            layer
+                .stats
+                .stats_for(Operation::Stat)
+                .total_samples(None, window),
+            5,
+            "create_dir must not record samples in the stat histogram"
+        );
+        assert_eq!(
+            layer
+                .stats
+                .stats_for(Operation::CreateDir)
+                .total_samples(None, window),
+            5
+        );
+
+        op.stat("healthy")
+            .await
+            .expect("healthy stat must not be cancelled by create_dir samples");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stat_samples_do_not_cancel_create_dir() {
+        let layer = TailCutLayer::builder()
+            .percentile(50)
+            .safety_factor(1.0)
+            .min_samples(5)
+            .min_deadline(Duration::from_millis(1))
+            .max_deadline(Duration::from_secs(30))
+            .build();
+        let op =
+            Operator::from_parts(OperationContext::default(), Arc::new(SlowService)).layer(layer);
+
+        for _ in 0..5 {
+            op.stat("fast").await.unwrap();
+        }
+
+        op.create_dir("slow/")
+            .await
+            .expect("create_dir must not be cancelled by stat samples");
     }
 
     #[tokio::test(start_paused = true)]
@@ -1374,6 +1457,35 @@ mod tests {
 
         assert_eq!(layer.config.min_deadline, deadline);
         assert_eq!(layer.config.max_deadline, deadline);
+    }
+
+    #[test]
+    fn test_each_operation_has_its_own_stats() {
+        let layer = TailCutLayer::new();
+        let operations = [
+            Operation::Info,
+            Operation::CreateDir,
+            Operation::Read,
+            Operation::Write,
+            Operation::Copy,
+            Operation::Compose,
+            Operation::Rename,
+            Operation::Restore,
+            Operation::Stat,
+            Operation::Delete,
+            Operation::List,
+            Operation::Presign,
+        ];
+
+        let mut seen = Vec::new();
+        for op in operations {
+            let stats = Arc::as_ptr(layer.stats.stats_for(op));
+            assert!(
+                !seen.contains(&stats),
+                "{op} must not share latency stats with another operation"
+            );
+            seen.push(stats);
+        }
     }
 
     #[tokio::test]

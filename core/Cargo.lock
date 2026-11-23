@@ -7835,12 +7835,14 @@ dependencies = [
  "backon",
  "bytes",
  "futures",
+ "http 1.5.0",
  "log",
  "logforth",
  "opendal-core",
  "opendal-executor-tokio",
  "opendal-layer-logging",
  "opendal-layer-timeout",
+ "opendal-service-http",
  "tokio",
 ]
 

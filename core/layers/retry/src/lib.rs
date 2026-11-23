@@ -44,6 +44,14 @@ use opendal_core::*;
 /// If the operation still fails, the layer marks the error as `Persistent` to
 /// indicate that retries did not resolve it.
 ///
+/// When reopening a read stream after a temporary error, `RetryLayer` checks
+/// that the reopened object identity matches the previously observed metadata.
+/// If the object's identity changes or can no longer be verified (for example,
+/// a strong validator disappears, or a mid-stream resume only has a weak ETag
+/// without a matching `version`), `RetryLayer` returns
+/// [`ErrorKind::ConditionNotMatch`] instead of splicing bytes across different
+/// versions.
+///
 /// # Stateful operation bodies
 ///
 /// While retrying stateful operation bodies, please make sure either:
@@ -652,6 +660,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
                 stream: Some(stream),
                 range,
                 read: 0,
+                has_progress: false,
                 identity,
                 identity_mismatch: false,
                 policy: self.policy.clone(),
@@ -704,9 +713,34 @@ fn resolve_range(range: BytesRange, rp: &RpRead) -> BytesRange {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+enum ReadStreamEtag {
+    Strong(String),
+    Weak(String),
+}
+
+impl ReadStreamEtag {
+    fn from_raw(etag: &str) -> Self {
+        // RFC 9110 section 8.8.3 defines the weak indicator `W/` as case-sensitive.
+        if etag.starts_with("W/\"") {
+            Self::Weak(etag.to_owned())
+        } else {
+            Self::Strong(etag.to_owned())
+        }
+    }
+
+    fn is_strong(&self) -> bool {
+        matches!(self, Self::Strong(_))
+    }
+
+    fn is_weak(&self) -> bool {
+        matches!(self, Self::Weak(_))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ReadStreamIdentity {
     version: Option<String>,
-    etag: Option<String>,
+    etag: Option<ReadStreamEtag>,
     last_modified: Option<Timestamp>,
     content_length: Option<u64>,
 }
@@ -716,7 +750,7 @@ impl ReadStreamIdentity {
         let metadata = rp.metadata()?;
         let identity = Self {
             version: metadata.version().map(str::to_owned),
-            etag: metadata.etag().map(str::to_owned),
+            etag: metadata.etag().map(ReadStreamEtag::from_raw),
             last_modified: metadata.last_modified(),
             content_length: metadata.is_file().then_some(metadata.content_length()),
         };
@@ -726,6 +760,66 @@ impl ReadStreamIdentity {
             || identity.content_length.is_some())
         .then_some(identity)
     }
+
+    fn has_strong_etag(&self) -> bool {
+        self.etag.as_ref().is_some_and(ReadStreamEtag::is_strong)
+    }
+
+    fn has_weak_etag(&self) -> bool {
+        self.etag.as_ref().is_some_and(ReadStreamEtag::is_weak)
+    }
+
+    fn has_strong_validator(&self) -> bool {
+        self.version.is_some() || self.has_strong_etag()
+    }
+
+    /// Return `true` when this identity carries a weak ETag without a strong
+    /// `version` validator. Per RFC 9110 section 14.2, a weak ETag does not
+    /// guarantee byte-for-byte identity across range requests.
+    fn has_unverified_weak_etag(&self) -> bool {
+        self.has_weak_etag() && self.version.is_none()
+    }
+
+    /// Compare a previously observed identity (`self`) with a reopened stream's
+    /// identity (`other`).
+    ///
+    /// - Every validator present in both responses must match; any mismatch
+    ///   (including a weak ETag change even when `version` matches) rejects.
+    /// - When `has_progress` is `true` (at least one byte has already been
+    ///   yielded), a weak ETag cannot justify byte splicing unless both
+    ///   responses carry a matching `version`.
+    /// - If `self` had a strong validator (`version` or strong ETag), at least
+    ///   one strong validator must remain present and match in `other` so a
+    ///   reopen cannot silently downgrade to `content_length` or
+    ///   `last_modified` alone.
+    /// - Otherwise, at least one validator field must overlap and match.
+    fn matches(&self, other: &Self, has_progress: bool) -> bool {
+        if matches!((&self.version, &other.version), (Some(a), Some(b)) if a != b)
+            || matches!((&self.etag, &other.etag), (Some(a), Some(b)) if a != b)
+            || matches!((self.last_modified, other.last_modified), (Some(a), Some(b)) if a != b)
+            || matches!((self.content_length, other.content_length), (Some(a), Some(b)) if a != b)
+        {
+            return false;
+        }
+
+        let version_overlap = self.version.is_some() && other.version.is_some();
+        let strong_etag_overlap = self.has_strong_etag() && other.has_strong_etag();
+
+        if has_progress && (self.has_weak_etag() || other.has_weak_etag()) && !version_overlap {
+            return false;
+        }
+
+        if self.has_strong_validator() {
+            return version_overlap || strong_etag_overlap;
+        }
+
+        let etag_overlap = self.etag.is_some() && other.etag.is_some();
+        let last_modified_overlap = self.last_modified.is_some() && other.last_modified.is_some();
+        let content_length_overlap =
+            self.content_length.is_some() && other.content_length.is_some();
+
+        etag_overlap || last_modified_overlap || content_length_overlap
+    }
 }
 
 #[doc(hidden)]
@@ -734,6 +828,7 @@ pub struct RetryReadStream<R, I> {
     stream: Option<Box<dyn oio::ReadStreamDyn>>,
     range: BytesRange,
     read: u64,
+    has_progress: bool,
     identity: Option<ReadStreamIdentity>,
     identity_mismatch: bool,
     policy: RetryPolicy<I>,
@@ -759,20 +854,27 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
             );
         }
         let reader = &self.reader;
-        let initial = (stream, self.range, self.read, self.identity.clone(), false);
-        let ((stream, range, read, identity, identity_mismatch), result) = self
+        let initial = (
+            stream,
+            self.range,
+            self.read,
+            self.has_progress,
+            self.identity.clone(),
+            false,
+        );
+        let ((stream, range, read, has_progress, identity, identity_mismatch), result) = self
             .policy
             .retry_with_context(
                 Operation::Read,
                 initial,
-                |(stream, mut range, mut read, mut identity, identity_mismatch)| async move {
+                |(stream, mut range, mut read, mut has_progress, mut identity, identity_mismatch)| async move {
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
                             // A completed read stays at EOF across later calls.
                             if range.size() == Some(read) {
                                 return (
-                                    (None, range, read, identity, identity_mismatch),
+                                    (None, range, read, has_progress, identity, identity_mismatch),
                                     Ok(Buffer::new()),
                                 );
                             }
@@ -781,10 +883,24 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                                 // unknown, so advancing it can duplicate bytes that the
                                 // caller has already received.
                                 return (
-                                    (None, range, read, identity, identity_mismatch),
+                                    (None, range, read, has_progress, identity, identity_mismatch),
                                     Err(Error::new(
                                         ErrorKind::Unexpected,
                                         "cannot resume a suffix range after progress without the object size",
+                                    )
+                                    .with_operation("RetryReadStream::read")),
+                                );
+                            }
+                            if has_progress
+                                && identity
+                                    .as_ref()
+                                    .is_some_and(ReadStreamIdentity::has_unverified_weak_etag)
+                            {
+                                return (
+                                    (None, range, read, has_progress, identity, true),
+                                    Err(Error::new(
+                                        ErrorKind::ConditionNotMatch,
+                                        "cannot resume read stream with weak etag",
                                     )
                                     .with_operation("RetryReadStream::read")),
                                 );
@@ -796,12 +912,12 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                             match reader.open(range).await {
                                 Ok((rp, stream)) => {
                                     let reopened_identity = ReadStreamIdentity::from_rp(&rp);
-                                    match &identity {
-                                        Some(expected)
-                                            if reopened_identity.as_ref() != Some(expected) =>
+                                    match (&identity, &reopened_identity) {
+                                        (Some(expected), Some(actual))
+                                            if !expected.matches(actual, has_progress) =>
                                         {
                                             return (
-                                                (None, range, read, identity, true),
+                                                (None, range, read, has_progress, identity, true),
                                                 Err(Error::new(
                                                     ErrorKind::ConditionNotMatch,
                                                     "object changed during read stream retry",
@@ -809,17 +925,47 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                                                 .with_operation("RetryReadStream::read")),
                                             );
                                         }
-                                        None => {
+                                        (Some(_), None) => {
+                                            return (
+                                                (None, range, read, has_progress, identity, true),
+                                                Err(Error::new(
+                                                    ErrorKind::ConditionNotMatch,
+                                                    "object identity missing during read stream retry",
+                                                )
+                                                .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        (None, Some(actual))
+                                            if has_progress
+                                                && actual.has_unverified_weak_etag() =>
+                                        {
+                                            return (
+                                                (None, range, read, has_progress, identity, true),
+                                                Err(Error::new(
+                                                    ErrorKind::ConditionNotMatch,
+                                                    "cannot resume read stream with weak etag",
+                                                )
+                                                .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        (None, _) => {
                                             identity = reopened_identity;
                                         }
-                                        Some(_) => {}
+                                        (Some(_), Some(_)) => {}
                                     }
                                     range = resolve_range(range, &rp);
                                     stream
                                 }
                                 Err(err) => {
                                     return (
-                                        (None, range, read, identity, identity_mismatch),
+                                        (
+                                            None,
+                                            range,
+                                            read,
+                                            has_progress,
+                                            identity,
+                                            identity_mismatch,
+                                        ),
                                         Err(err),
                                     );
                                 }
@@ -829,21 +975,37 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
 
                     match stream.read().await {
                         Ok(buf) => {
-                            read += buf.len() as u64;
-                            ((Some(stream), range, read, identity, identity_mismatch), Ok(buf))
+                            if !buf.is_empty() {
+                                read += buf.len() as u64;
+                                has_progress = true;
+                            }
+                            (
+                                (
+                                    Some(stream),
+                                    range,
+                                    read,
+                                    has_progress,
+                                    identity,
+                                    identity_mismatch,
+                                ),
+                                Ok(buf),
+                            )
                         }
                         // There are no bytes left to fetch after the resolved range completes.
                         Err(err) if err.is_temporary() && range.size() == Some(read) => (
-                            (None, range, read, identity, identity_mismatch),
+                            (None, range, read, has_progress, identity, identity_mismatch),
                             Ok(Buffer::new()),
                         ),
                         // An unresolved suffix range cannot be advanced safely after
                         // progress. Preserve the original error and stop retrying.
                         Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => (
-                            (None, range, read, identity, identity_mismatch),
+                            (None, range, read, has_progress, identity, identity_mismatch),
                             Err(err.set_persistent()),
                         ),
-                        Err(err) => ((None, range, read, identity, identity_mismatch), Err(err)),
+                        Err(err) => (
+                            (None, range, read, has_progress, identity, identity_mismatch),
+                            Err(err),
+                        ),
                     }
                 },
             )
@@ -852,6 +1014,7 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
         self.stream = stream;
         self.range = range;
         self.read = read;
+        self.has_progress = has_progress;
         self.identity = identity;
         self.identity_mismatch = identity_mismatch;
 

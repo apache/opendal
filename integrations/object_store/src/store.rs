@@ -926,6 +926,12 @@ impl ObjectStore for OpendalStore {
                         return Err(self.format_get_error(location, &options, err).await);
                     }
                 };
+                if metadata.is_dir() {
+                    return Err(format_object_store_error(
+                        opendal::Error::new(ErrorKind::NotFound, "path is a directory"),
+                        location.as_ref(),
+                    ));
+                }
                 let normalized_ranges = ranges
                     .iter()
                     .map(|range| {
@@ -1731,6 +1737,40 @@ mod tests {
             .unwrap_err();
         assert!(
             matches!(err, object_store::Error::NotFound { .. }),
+            "unexpected error: {err:?}"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_ranges_directory_fs_maps_to_not_found() -> anyhow::Result<()> {
+        let tempdir = tempfile::tempdir()?;
+        let op = Operator::new(services::Fs::default().root(tempdir.path().to_str().unwrap()))?;
+        let store = OpendalStore::new(op);
+        store
+            .put(
+                &Path::from("dir/child"),
+                Bytes::from_static(b"hello").into(),
+            )
+            .await?;
+
+        let location = Path::from("dir");
+        assert!(matches!(
+            store.head(&location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+        assert!(matches!(
+            store.get(&location).await.unwrap_err(),
+            object_store::Error::NotFound { path, .. } if path == location.as_ref()
+        ));
+
+        let range = 0..1;
+        let err = store
+            .get_ranges(&location, std::slice::from_ref(&range))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(&err, object_store::Error::NotFound { path, .. } if path == location.as_ref()),
             "unexpected error: {err:?}"
         );
         Ok(())

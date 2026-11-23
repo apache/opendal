@@ -8473,6 +8473,7 @@ dependencies = [
 name = "opendal-service-http"
 version = "0.59.5"
 dependencies = [
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

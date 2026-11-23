@@ -359,30 +359,62 @@ impl FoyerCore {
         if let Some(entry) = cache.memory().get(&foyer_key) {
             return Ok(Some(entry.value().0.clone()));
         }
+        // Without disk storage the cold path can only miss, so memory-only
+        // caches keep misses lock-free as well.
+        if !cache.is_hybrid() {
+            return Ok(None);
+        }
 
-        // Slow path: the value can only come from disk. Load it here instead of
-        // calling `HybridCache::get`, which promotes disk entries from a
-        // detached task: a concurrent `remove` cannot fence that promotion and
-        // a cancelled caller cannot stop it. Owning the load lets `ReadGuard`
-        // fence the promotion against deletes and makes cancellation clean.
-        //
+        self.load_from_disk(&cache, foyer_key).await
+    }
+
+    /// Load `foyer_key` from disk after the caller observed a memory miss.
+    ///
+    /// The value can only come from disk. Load it here instead of calling
+    /// `HybridCache::get`, which promotes disk entries from a detached task: a
+    /// concurrent `remove` cannot fence that promotion and a cancelled caller
+    /// cannot stop it. Owning the load lets [`ReadGuard`] fence the promotion
+    /// against deletes and makes cancellation clean.
+    ///
+    /// The caller checks memory without the lock. An `insert` that lands
+    /// between that check and the registration below is already part of the
+    /// epoch `begin_read` snapshots, so `finish` cannot report it. The memory
+    /// re-check under the lock is what keeps the bytes still on disk from being
+    /// returned and promoted over such an insert.
+    async fn load_from_disk(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        foyer_key: FoyerKey,
+    ) -> Result<Option<Buffer>> {
+        let key = foyer_key.path.as_str();
+
         // Register the read before loading. `begin_read` and every cache
         // mutation run under the same write lock, so a mutation either lands
         // before the registration (and is visible here) or is recorded in the
         // registration and reported by `finish`.
-        let read_guard = match self
-            .deleted_keys
-            .write()
-            .expect("deleted keys lock poisoned")
-            .begin_read(key)
-        {
-            Some(epoch) => ReadGuard {
-                deleted_keys: self.deleted_keys.clone(),
-                key: Arc::from(key),
-                epoch,
-                finished: false,
-            },
-            None => return Ok(None),
+        let read_guard = {
+            let mut deleted_keys = self
+                .deleted_keys
+                .write()
+                .expect("deleted keys lock poisoned");
+
+            // An `insert` may have landed after the caller's unlocked memory
+            // check. It is newer than the bytes on disk, and because it
+            // predates the registration its epoch is already part of the
+            // snapshot, so `finish` cannot attribute it to this read.
+            if let Some(entry) = cache.memory().get(&foyer_key) {
+                return Ok(Some(entry.value().0.clone()));
+            }
+
+            match deleted_keys.begin_read(key) {
+                Some(epoch) => ReadGuard {
+                    deleted_keys: self.deleted_keys.clone(),
+                    key: Arc::from(key),
+                    epoch,
+                    finished: false,
+                },
+                None => return Ok(None),
+            }
         };
 
         let load = cache.storage().load(&foyer_key).await;
@@ -843,6 +875,56 @@ mod tests {
         assert!(
             cache.memory().get(&foyer_key("/target")).is_none(),
             "the older read must not promote its bytes over the newer insert"
+        );
+    }
+
+    #[tokio::test]
+    async fn cold_read_rechecks_memory_before_loading_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = disk_core(&dir);
+        let cache = core.get_cache().await.unwrap();
+
+        core.insert("/target", Buffer::from(vec![b'o'; 512 * 1024]))
+            .await
+            .unwrap();
+        move_to_disk(&core, &cache, "/target").await;
+
+        // Reproduce the window inside `get`: it checks memory without the lock
+        // and misses, then an `insert` lands before the read is registered. The
+        // registration snapshots an epoch that already includes that insert, so
+        // `finish` cannot report it.
+        assert!(cache.memory().get(&foyer_key("/target")).is_none());
+        core.insert("/target", Buffer::from(vec![b'n'; 512 * 1024]))
+            .await
+            .unwrap();
+
+        // Enter the cold path, which must take the newer value from memory
+        // instead of loading the stale one still on disk.
+        let mut read = Box::pin(core.load_from_disk(&cache, foyer_key("/target")));
+        let polled = poll_once(&mut read).await;
+
+        // Evict the newer value from memory while the stale load is running.
+        for i in 0..8 {
+            core.insert(&format!("/evictor-{i}"), Buffer::from(vec![b'e'; 1024]))
+                .await
+                .unwrap();
+        }
+        assert!(cache.memory().get(&foyer_key("/target")).is_none());
+
+        let value = match polled {
+            Poll::Ready(result) => result,
+            Poll::Pending => read.await,
+        }
+        .unwrap()
+        .expect("the read must not lose the newer insert");
+        assert_eq!(
+            value.to_vec(),
+            vec![b'n'; 512 * 1024],
+            "the read must return the newer insert instead of the stale disk value"
+        );
+        assert!(
+            cache.memory().get(&foyer_key("/target")).is_none(),
+            "the stale disk value must not be promoted back into memory"
         );
     }
 

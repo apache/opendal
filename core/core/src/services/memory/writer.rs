@@ -52,7 +52,11 @@ impl oio::Write for MemoryWriter {
         let buf = self.buf.take().unwrap_or_default();
         let content = buf.collect();
 
-        let mut metadata = MetadataBuilder::file(content.len() as u64);
+        let mut metadata = if self.path.is_empty() || self.path.ends_with('/') {
+            MetadataBuilder::dir()
+        } else {
+            MetadataBuilder::file(content.len() as u64)
+        };
 
         if let Some(v) = self.op.cache_control() {
             metadata.cache_control(v);

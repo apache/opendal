@@ -128,6 +128,10 @@ impl ObsBuilder {
     /// Use this for an ordinary internal or third-party OBS service endpoint
     /// where the bucket is configured separately. Without it, non-Huawei
     /// hostnames are treated as bucket-bound custom domains (CNAME).
+    ///
+    /// The endpoint host must resolve in DNS as `{bucket}.{endpoint host}`.
+    /// Virtual host style cannot address a literal IP endpoint, and the
+    /// endpoint's port and path are not part of the signed host.
     pub fn enable_virtual_host_style(mut self) -> Self {
         self.config.enable_virtual_host_style = true;
         self
@@ -533,7 +537,9 @@ mod tests {
 
     #[test]
     fn enable_virtual_host_style_forces_bucket_signing_on_internal_hosts() {
-        for host in ["obs.internal.example", "192.0.2.10", "custom.obs.example"] {
+        // A literal IP endpoint stays on path-style addressing, so it is covered
+        // by `non_huawei_hosts_default_to_cname_mode` only.
+        for host in ["obs.internal.example", "custom.obs.example"] {
             let (endpoint, is_default) = resolve_obs_endpoint(host, "example-bucket", true);
             assert_eq!(endpoint, format!("example-bucket.{host}"));
             assert!(is_default);

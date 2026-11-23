@@ -2427,6 +2427,10 @@ public interface ServiceConfig {
          * the bucket name. Set this to <code>true</code> for an ordinary internal or
          * third-party OBS service endpoint where the bucket is configured
          * separately (see #8321).</p>
+         * <p>The endpoint host must resolve in DNS as <code>{bucket}.{endpoint host}</code>.
+         * Virtual host style therefore cannot address a literal IP endpoint, which
+         * Huawei's SDKs keep on path-style addressing, and the endpoint's port and
+         * path are not part of the signed host.</p>
          */
         public final Boolean enableVirtualHostStyle;
         /**

@@ -69,3 +69,8 @@ let builder = Obs::default()
 # Ok(())
 # }
 ```
+
+Virtual host style needs `{bucket}.{endpoint host}` to resolve in DNS. A literal
+IP endpoint cannot be reached that way, so it keeps path-style addressing, which
+is what Huawei's SDKs use for IP endpoints. The signed host comes from the
+endpoint's host only, without its port or path.

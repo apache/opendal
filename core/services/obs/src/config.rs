@@ -48,6 +48,11 @@ pub struct ObsConfig {
     /// third-party OBS service endpoint where the bucket is configured
     /// separately (see #8321).
     ///
+    /// The endpoint host must resolve in DNS as `{bucket}.{endpoint host}`.
+    /// Virtual host style therefore cannot address a literal IP endpoint, which
+    /// Huawei's SDKs keep on path-style addressing, and the endpoint's port and
+    /// path are not part of the signed host.
+    ///
     /// <!-- @group Behavior -->
     #[serde(
         alias = "virtual_hosted_style_request",

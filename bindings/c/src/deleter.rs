@@ -15,11 +15,26 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use ::opendal as core;
 use std::ffi::c_void;
 use std::os::raw::c_char;
 
+use ::opendal as core;
+
 use super::*;
+use crate::cancel::{block_on_cancellable, CancelTokenInner};
+
+struct DeleterInner {
+    handle: tokio::runtime::Handle,
+    deleter: Option<core::Deleter>,
+}
+
+impl Drop for DeleterInner {
+    fn drop(&mut self) {
+        if let Some(v) = self.deleter.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
+    }
+}
 
 /// \brief opendal_deleter removes many paths from storage.
 ///
@@ -40,23 +55,26 @@ use super::*;
 /// @see opendal_deleter_flush()
 #[repr(C)]
 pub struct opendal_deleter {
-    /// The pointer to the opendal::blocking::Deleter in the Rust code.
+    /// The pointer to the internal Rust deleter state.
     /// Only used to check whether the deleter is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_deleter {
-    fn deref_mut(&mut self) -> &mut core::blocking::Deleter {
+    fn deref_mut(&mut self) -> &mut DeleterInner {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::blocking::Deleter) }
+        unsafe { &mut *(self.inner as *mut DeleterInner) }
     }
 }
 
 impl opendal_deleter {
-    pub(crate) fn new(deleter: core::blocking::Deleter) -> Self {
+    pub(crate) fn new(handle: tokio::runtime::Handle, deleter: core::Deleter) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(deleter)) as _,
+            inner: Box::into_raw(Box::new(DeleterInner {
+                handle,
+                deleter: Some(deleter),
+            })) as _,
         }
     }
 
@@ -80,7 +98,7 @@ impl opendal_deleter {
         &mut self,
         path: *const c_char,
     ) -> *mut opendal_error {
-        self.opendal_deleter_delete_with(path, std::ptr::null())
+        self.opendal_deleter_delete_with_cancel(path, std::ptr::null(), std::ptr::null())
     }
 
     /// \brief Submit multiple paths for deletion in one call.
@@ -111,7 +129,29 @@ impl opendal_deleter {
         paths: *const *const c_char,
         paths_len: usize,
     ) -> *mut opendal_error {
+        self.opendal_deleter_delete_many_with_cancel(paths, paths_len, std::ptr::null())
+    }
+
+    /// \brief Submit multiple paths for deletion in one call, supporting cancellation via `cancel`.
+    ///
+    /// Pass NULL for `cancel` to run without cancellation.
+    ///
+    /// @param paths The paths to delete
+    /// @param paths_len The number of paths in `paths`
+    /// @param cancel Optional cancel token, or NULL
+    /// @return NULL on success, or an `opendal_error *` on cancellation or failure.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_delete_many_with_cancel(
+        &mut self,
+        paths: *const *const c_char,
+        paths_len: usize,
+        cancel: *const opendal_cancel_token,
+    ) -> *mut opendal_error {
+        let cancel_token = opendal_cancel_token::as_inner(cancel);
         if paths_len == 0 {
+            if cancel_token.is_some_and(CancelTokenInner::is_cancelled) {
+                return opendal_error::cancelled();
+            }
             return std::ptr::null_mut();
         }
 
@@ -127,9 +167,11 @@ impl opendal_deleter {
             })
             .collect::<Vec<_>>();
 
-        match self.deref_mut().delete_iter(paths) {
+        let inner = self.deref_mut();
+        let deleter = inner.deleter.as_mut().expect("deleter has been dropped");
+        match block_on_cancellable(&inner.handle, cancel_token, deleter.delete_iter(paths)) {
             Ok(()) => std::ptr::null_mut(),
-            Err(e) => opendal_error::new(e),
+            Err(e) => opendal_error::from_cancellable(e),
         }
     }
 
@@ -154,6 +196,24 @@ impl opendal_deleter {
         path: *const c_char,
         opts: *const opendal_delete_options,
     ) -> *mut opendal_error {
+        self.opendal_deleter_delete_with_cancel(path, opts, std::ptr::null())
+    }
+
+    /// \brief Submit `path` for deletion with per-path options, supporting cancellation via `cancel`.
+    ///
+    /// Pass NULL for `opts` to use defaults, and NULL for `cancel` to run without cancellation.
+    ///
+    /// @param path The path to delete
+    /// @param opts The options for this path, or NULL to use defaults
+    /// @param cancel Optional cancel token, or NULL
+    /// @return NULL on success, or an `opendal_error *` on cancellation or failure.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_delete_with_cancel(
+        &mut self,
+        path: *const c_char,
+        opts: *const opendal_delete_options,
+        cancel: *const opendal_cancel_token,
+    ) -> *mut opendal_error {
         assert!(!path.is_null());
         let path = std::ffi::CStr::from_ptr(path)
             .to_str()
@@ -164,9 +224,16 @@ impl opendal_deleter {
             (&*opts).into()
         };
 
-        match self.deref_mut().delete((path.to_string(), delete_opts)) {
+        let cancel_token = opendal_cancel_token::as_inner(cancel);
+        let inner = self.deref_mut();
+        let deleter = inner.deleter.as_mut().expect("deleter has been dropped");
+        match block_on_cancellable(
+            &inner.handle,
+            cancel_token,
+            deleter.delete((path.to_string(), delete_opts)),
+        ) {
             Ok(()) => std::ptr::null_mut(),
-            Err(e) => opendal_error::new(e),
+            Err(e) => opendal_error::from_cancellable(e),
         }
     }
 
@@ -178,9 +245,26 @@ impl opendal_deleter {
     /// @return NULL on success, or an `opendal_error *` on failure.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_deleter_flush(&mut self) -> *mut opendal_error {
-        match self.deref_mut().close() {
+        self.opendal_deleter_flush_with_cancel(std::ptr::null())
+    }
+
+    /// \brief Complete pending deletions and keep the deleter usable, supporting cancellation via `cancel`.
+    ///
+    /// Pass NULL for `cancel` to run without cancellation.
+    ///
+    /// @param cancel Optional cancel token, or NULL
+    /// @return NULL on success, or an `opendal_error *` on cancellation or failure.
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_deleter_flush_with_cancel(
+        &mut self,
+        cancel: *const opendal_cancel_token,
+    ) -> *mut opendal_error {
+        let cancel_token = opendal_cancel_token::as_inner(cancel);
+        let inner = self.deref_mut();
+        let deleter = inner.deleter.as_mut().expect("deleter has been dropped");
+        match block_on_cancellable(&inner.handle, cancel_token, deleter.close()) {
             Ok(()) => std::ptr::null_mut(),
-            Err(e) => opendal_error::new(e),
+            Err(e) => opendal_error::from_cancellable(e),
         }
     }
 
@@ -192,7 +276,7 @@ impl opendal_deleter {
     pub unsafe extern "C" fn opendal_deleter_free(ptr: *mut opendal_deleter) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw((*ptr).inner as *mut core::blocking::Deleter));
+                drop(Box::from_raw((*ptr).inner as *mut DeleterInner));
                 drop(Box::from_raw(ptr));
             }
         }

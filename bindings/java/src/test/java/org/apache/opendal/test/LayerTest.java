@@ -593,6 +593,19 @@ public class LayerTest {
     }
 
     @Test
+    void testRetryLayerRejectsInvalidDelays() {
+        for (Duration invalid : Arrays.asList(
+                Duration.ofNanos(-1), Duration.ofNanos(Long.MAX_VALUE).plusNanos(1))) {
+            assertThatThrownBy(() -> RetryLayer.builder().minDelay(invalid).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("minDelay ");
+            assertThatThrownBy(() -> RetryLayer.builder().maxDelay(invalid).build())
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageStartingWith("maxDelay ");
+        }
+    }
+
+    @Test
     void testThrottleLayerEnforcesBurst() {
         @Cleanup
         final AsyncOperator op = AsyncOperator.of(ServiceConfig.Memory.builder().build());

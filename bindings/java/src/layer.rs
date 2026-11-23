@@ -57,7 +57,7 @@ use opendal::{Error, ErrorKind};
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     op: *mut Operator,
     jitter: jboolean,
@@ -66,18 +66,25 @@ pub extern "system" fn Java_org_apache_opendal_layer_RetryLayer_doLayer<'local>(
     max_delay: jlong,
     max_times: jlong,
 ) -> jlong {
-    let op = unsafe { &*op };
-    let mut retry = RetryLayer::new();
-    retry = retry.with_factor(factor);
-    retry = retry.with_min_delay(Duration::from_nanos(min_delay as u64));
-    retry = retry.with_max_delay(Duration::from_nanos(max_delay as u64));
-    if jitter {
-        retry = retry.with_jitter()
-    }
-    if max_times >= 0 {
-        retry = retry.with_max_times(max_times as usize);
-    }
-    Box::into_raw(Box::new(op.clone().layer(retry))) as jlong
+    env.with_env(|_| -> Result<jlong> {
+        let min_delay = u64::try_from(min_delay)
+            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "minDelay must be non-negative"))?;
+        let max_delay = u64::try_from(max_delay)
+            .map_err(|_| Error::new(ErrorKind::ConfigInvalid, "maxDelay must be non-negative"))?;
+        let op = unsafe { &*op };
+        let mut retry = RetryLayer::new();
+        retry = retry.with_factor(factor);
+        retry = retry.with_min_delay(Duration::from_nanos(min_delay));
+        retry = retry.with_max_delay(Duration::from_nanos(max_delay));
+        if jitter {
+            retry = retry.with_jitter()
+        }
+        if max_times >= 0 {
+            retry = retry.with_max_times(max_times as usize);
+        }
+        Ok(Box::into_raw(Box::new(op.clone().layer(retry))) as jlong)
+    })
+    .resolve::<ThrowException>()
 }
 
 #[unsafe(no_mangle)]

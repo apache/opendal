@@ -27,7 +27,7 @@ use bytes::Buf;
 use bytes::Bytes;
 use tokio::io::AsyncWriteExt;
 
-use super::core::{ErrorContext, FsCore, parse_error, publish_staged_file};
+use super::core::{ErrorContext, FsCore, parse_error, parse_rename_error, publish_staged_file};
 #[cfg(target_os = "linux")]
 use super::direct_io::DirectIoAlignment;
 use opendal_core::raw::*;
@@ -203,18 +203,6 @@ impl FsWriter {
             }
         }
 
-        let mut options = OpenOptions::new();
-        options.write(true);
-        let operation = if temp_path.is_some() {
-            options.create_new(true);
-            ServiceOperation("OpenTemporaryFile")
-        } else {
-            options
-                .create_new(op.if_not_exists())
-                .create(!op.if_not_exists());
-            options.append(op.append());
-            ServiceOperation("OpenForWrite")
-        };
         let open_path = temp_path.as_ref().unwrap_or(&target_path);
 
         // Opening an existing file without appending truncates it in place,
@@ -225,16 +213,14 @@ impl FsWriter {
         #[cfg(target_os = "linux")]
         if core.direct_io {
             let open_path = open_path.clone();
-            let temporary = temp_path.is_some();
-            let cleanup_on_error = temporary || op.if_not_exists();
+            let create_new = temp_path.is_some() || op.if_not_exists();
+            let operation = if temp_path.is_some() {
+                ServiceOperation("OpenTemporaryFile")
+            } else {
+                ServiceOperation("OpenForWrite")
+            };
             let (f, alignment) = tokio::task::spawn_blocking(move || {
-                let (file, alignment) =
-                    DirectIoAlignment::open(&open_path, options, operation, cleanup_on_error)?;
-                // Validate O_DIRECT on the opened fd before truncating an overwrite.
-                if !temporary {
-                    file.set_len(0).map_err(new_std_io_error)?;
-                }
-                Ok::<_, Error>((file, alignment))
+                DirectIoAlignment::open_for_write(&open_path, operation, create_new)
             })
             .await
             .map_err(new_task_join_error)??;
@@ -250,6 +236,19 @@ impl FsWriter {
                 overwrite_in_place,
             });
         }
+
+        let mut options = OpenOptions::new();
+        options.write(true);
+        let operation = if temp_path.is_some() {
+            options.create_new(true);
+            ServiceOperation("OpenTemporaryFile")
+        } else {
+            options
+                .create_new(op.if_not_exists())
+                .create(!op.if_not_exists());
+            options.append(op.append());
+            ServiceOperation("OpenForWrite")
+        };
 
         options.truncate(!op.append() || temp_path.is_some());
         let f = tokio::fs::OpenOptions::from(options)
@@ -274,16 +273,34 @@ impl FsWriter {
     ///
     /// A non-append write without staging truncates the existing file in place,
     /// so user metadata from the previous content must be replaced. Staged
-    /// writes publish a new inode, while appends must keep the metadata already
-    /// attached to the file.
+    /// writes attach metadata to the staging file before publishing the new
+    /// inode, while appends keep the metadata already attached to the file.
     #[cfg(unix)]
     fn update_user_metadata(&self) -> Result<()> {
         if self.overwrite_in_place {
             FsCore::replace_user_metadata(&self.target_path, self.user_metadata.as_ref())
         } else if let Some(user_metadata) = &self.user_metadata {
-            FsCore::set_user_metadata(&self.target_path, user_metadata)
+            let path = self.temp_path.as_deref().unwrap_or(&self.target_path);
+            FsCore::set_user_metadata(path, user_metadata)
         } else {
             Ok(())
+        }
+    }
+
+    /// Discard the staged file on a permanent failure while keeping it intact
+    /// for temporary errors so retry layers can retry `close()`.
+    async fn cleanup_staged_on_permanent_error(&self, err: Error) -> Error {
+        if err.is_temporary() {
+            return err;
+        }
+        let Some(temp_path) = &self.temp_path else {
+            return err;
+        };
+
+        match tokio::fs::remove_file(temp_path).await {
+            Ok(()) => err,
+            Err(cleanup_err) if cleanup_err.kind() == std::io::ErrorKind::NotFound => err,
+            Err(cleanup_err) => err.with_context("staging_cleanup", cleanup_err),
         }
     }
 
@@ -292,29 +309,22 @@ impl FsWriter {
             return Ok(());
         };
 
-        if self.if_not_exists {
+        let result = if self.if_not_exists {
             let temp_path = temp_path.clone();
             let target_path = self.target_path.clone();
-            return tokio::task::spawn_blocking(move || {
-                publish_staged_file(&temp_path, &target_path).map_err(|err| {
-                    // The staged file is discarded, so this close cannot be retried.
-                    let err = err.set_permanent();
-                    match std::fs::remove_file(&temp_path) {
-                        Ok(()) => err,
-                        Err(cleanup_err) if cleanup_err.kind() == std::io::ErrorKind::NotFound => {
-                            err
-                        }
-                        Err(cleanup_err) => err.with_context("staging_cleanup", cleanup_err),
-                    }
-                })
-            })
-            .await
-            .map_err(new_task_join_error)?;
-        }
+            tokio::task::spawn_blocking(move || publish_staged_file(&temp_path, &target_path))
+                .await
+                .map_err(new_task_join_error)?
+        } else {
+            tokio::fs::rename(temp_path, &self.target_path)
+                .await
+                .map_err(parse_rename_error)
+        };
 
-        tokio::fs::rename(temp_path, &self.target_path)
-            .await
-            .map_err(new_std_io_error)
+        match result {
+            Ok(()) => Ok(()),
+            Err(err) => Err(self.cleanup_staged_on_permanent_error(err).await),
+        }
     }
 }
 
@@ -334,13 +344,18 @@ impl oio::Write for FsWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.f.flush().await.map_err(new_std_io_error)?;
-        self.f.sync_all().await.map_err(new_std_io_error)?;
+        if let Err(err) = self.f.flush().await.map_err(new_std_io_error) {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
+        #[cfg(unix)]
+        if let Err(err) = self.update_user_metadata() {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
+        if let Err(err) = self.f.sync_all().await.map_err(new_std_io_error) {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
 
         self.commit_staged_file().await?;
-
-        #[cfg(unix)]
-        self.update_user_metadata()?;
 
         let file_meta = self.f.metadata().await.map_err(new_std_io_error)?;
         let mut meta = MetadataBuilder::file(file_meta.len());
@@ -400,8 +415,10 @@ impl oio::PositionWrite for FsWriter {
 
     async fn close(&self, _size: u64) -> Result<Metadata> {
         #[cfg(target_os = "linux")]
-        if self.direct_io.is_some() {
-            self.f.set_len(_size).await.map_err(new_std_io_error)?;
+        if self.direct_io.is_some()
+            && let Err(err) = self.f.set_len(_size).await.map_err(new_std_io_error)
+        {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
         }
 
         let mut f = self
@@ -412,13 +429,18 @@ impl oio::PositionWrite for FsWriter {
             .into_std()
             .await;
 
-        f.flush().map_err(new_std_io_error)?;
-        f.sync_all().map_err(new_std_io_error)?;
+        if let Err(err) = f.flush().map_err(new_std_io_error) {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
+        #[cfg(unix)]
+        if let Err(err) = self.update_user_metadata() {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
+        if let Err(err) = f.sync_all().map_err(new_std_io_error) {
+            return Err(self.cleanup_staged_on_permanent_error(err).await);
+        }
 
         self.commit_staged_file().await?;
-
-        #[cfg(unix)]
-        self.update_user_metadata()?;
 
         let file_meta = f.metadata().map_err(new_std_io_error)?;
         let mode = if file_meta.is_file() {
@@ -465,8 +487,9 @@ fn write_at(f: &File, buf: &[u8], offset: u64) -> Result<usize> {
     f.write_at(buf, offset).map_err(new_std_io_error)
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::collections::HashMap;
     use std::path::Path;
 
@@ -474,6 +497,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(unix)]
     fn xattrs_supported(dir: &Path) -> bool {
         let probe = dir.join(".xattr-probe");
         if std::fs::write(&probe, b"probe").is_err() {
@@ -482,6 +506,10 @@ mod tests {
         let supported = xattr::set(&probe, "user.opendal_probe", b"1").is_ok();
         let _ = std::fs::remove_file(&probe);
         supported
+    }
+
+    fn staging_is_empty(staging: &Path) -> bool {
+        std::fs::read_dir(staging).unwrap().next().is_none()
     }
 
     fn operator(root: &Path, atomic_write_dir: Option<&Path>) -> Operator {
@@ -493,6 +521,7 @@ mod tests {
         Operator::new(builder).unwrap()
     }
 
+    #[cfg(unix)]
     async fn overwrite_replaces_user_metadata(atomic_write: bool) {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let root = temp_dir.path().join("root");
@@ -533,12 +562,14 @@ mod tests {
         assert!(FsCore::get_user_metadata(&file).unwrap().is_empty());
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_overwrite_replaces_user_metadata() {
         overwrite_replaces_user_metadata(false).await;
         overwrite_replaces_user_metadata(true).await;
     }
 
+    #[cfg(unix)]
     async fn append_preserves_user_metadata(atomic_write: bool) {
         let temp_dir = tempfile::TempDir::new().unwrap();
         let root = temp_dir.path().join("root");
@@ -571,9 +602,278 @@ mod tests {
         assert_eq!(op.read("file").await.unwrap().to_vec(), b"firstmore");
     }
 
+    #[cfg(unix)]
     #[tokio::test]
     async fn test_append_preserves_user_metadata() {
         append_preserves_user_metadata(false).await;
         append_preserves_user_metadata(true).await;
+    }
+
+    #[tokio::test]
+    async fn test_staged_write_cleans_up_on_is_a_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+        std::fs::create_dir(root.join("target")).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        let err = op.write("target", "data").await.unwrap_err();
+        assert!(!err.is_temporary(), "{err:?}");
+        #[cfg(unix)]
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[tokio::test]
+    async fn test_staged_write_cleans_up_on_not_a_directory() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        let mut writer = op.writer("sub/file").await.unwrap();
+        writer.write("data").await.unwrap();
+        assert!(!staging_is_empty(&staging));
+
+        // Replace the parent directory with a regular file before commit so
+        // rename fails permanently with ENOTDIR.
+        std::fs::remove_dir(root.join("sub")).unwrap();
+        std::fs::write(root.join("sub"), b"blocker").unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(!err.is_temporary(), "{err:?}");
+        #[cfg(unix)]
+        assert_eq!(err.kind(), ErrorKind::NotADirectory, "{err:?}");
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_staged_write_cleans_up_on_permission_denied() {
+        use std::os::unix::fs::PermissionsExt;
+
+        // Root bypasses directory write permission checks.
+        if unsafe { libc::geteuid() } == 0 {
+            return;
+        }
+
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        let ro_dir = root.join("ro");
+        std::fs::create_dir_all(&ro_dir).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+        std::fs::set_permissions(&ro_dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        let result = op.write("ro/file", "data").await;
+
+        std::fs::set_permissions(&ro_dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn test_staged_write_cleans_up_on_cross_device_rename() {
+        use std::os::unix::fs::MetadataExt;
+
+        let shm = Path::new("/dev/shm");
+        let Ok(staging_dir) = tempfile::tempdir_in(shm) else {
+            return;
+        };
+        let root_dir = tempfile::tempdir().unwrap();
+        if std::fs::metadata(root_dir.path()).unwrap().dev()
+            == std::fs::metadata(staging_dir.path()).unwrap().dev()
+        {
+            return;
+        }
+
+        let op = operator(root_dir.path(), Some(staging_dir.path()));
+        let err = op.write("file", "data").await.unwrap_err();
+        assert!(!err.is_temporary(), "{err:?}");
+        assert!(staging_is_empty(staging_dir.path()));
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_staged_preserves_temp_file_on_temporary_error() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+
+        let core = Arc::new(FsCore {
+            info: ServiceInfo::new(crate::FS_SCHEME, root.to_string_lossy(), ""),
+            capability: Capability::default(),
+            root: root.clone(),
+            atomic_write_dir: Some(staging.clone()),
+            direct_io: false,
+            buf_pool: oio::PooledBuf::new(1),
+        });
+
+        let writer = FsWriter::create(&core, "file", &OpWrite::default())
+            .await
+            .unwrap();
+        oio::PositionWrite::write_all_at(&writer, 0, Buffer::from("data"))
+            .await
+            .unwrap();
+        let temp_path = writer.temp_path.clone().unwrap();
+        assert!(temp_path.exists());
+
+        // Temporary errors must leave the staging file intact for retry.
+        let transient = Error::new(ErrorKind::Unexpected, "transient").set_temporary();
+        let returned = writer.cleanup_staged_on_permanent_error(transient).await;
+        assert!(returned.is_temporary());
+        assert!(temp_path.exists());
+
+        // A retried close must publish the preserved staging file cleanly.
+        oio::PositionWrite::close(&writer, 4).await.unwrap();
+        assert_eq!(std::fs::read(root.join("file")).unwrap(), b"data");
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_staged_write_applies_user_metadata_before_commit() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+        if !xattrs_supported(&root) {
+            return;
+        }
+
+        let core = Arc::new(FsCore {
+            info: ServiceInfo::new(crate::FS_SCHEME, root.to_string_lossy(), ""),
+            capability: Capability::default(),
+            root: root.clone(),
+            atomic_write_dir: Some(staging.clone()),
+            direct_io: false,
+            buf_pool: oio::PooledBuf::new(1),
+        });
+
+        let expected = HashMap::from([("key".to_string(), "value".to_string())]);
+        let capability = Capability {
+            write_with_user_metadata: true,
+            ..Default::default()
+        };
+        let (op_write, _) = OpWrite::from_options(
+            &capability,
+            options::WriteOptions {
+                user_metadata: Some(expected.clone()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let writer = FsWriter::create(&core, "file", &op_write).await.unwrap();
+        oio::PositionWrite::write_all_at(&writer, 0, Buffer::from("data"))
+            .await
+            .unwrap();
+
+        let temp_path = writer.temp_path.clone().unwrap();
+        writer.update_user_metadata().unwrap();
+        assert!(!root.join("file").exists());
+        assert_eq!(FsCore::get_user_metadata(&temp_path).unwrap(), expected);
+
+        writer.commit_staged_file().await.unwrap();
+        assert_eq!(
+            FsCore::get_user_metadata(&root.join("file")).unwrap(),
+            expected
+        );
+        assert!(staging_is_empty(&staging));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_staged_conditional_write_loss_preserves_winner_user_metadata() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+        if !xattrs_supported(&root) {
+            return;
+        }
+
+        let op = operator(&root, Some(&staging));
+        for append in [false, true] {
+            let path = if append { "race_append" } else { "race" };
+            let mut loser = op
+                .writer_with(path)
+                .if_not_exists(true)
+                .append(append)
+                .user_metadata([("owner".to_string(), "loser".to_string())])
+                .await
+                .unwrap();
+            loser.write("loser").await.unwrap();
+
+            op.write_with(path, "winner")
+                .user_metadata([("owner".to_string(), "winner".to_string())])
+                .await
+                .unwrap();
+
+            let err = loser.close().await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch, "{err:?}");
+            assert_eq!(op.read(path).await.unwrap().to_bytes(), "winner");
+            assert_eq!(
+                FsCore::get_user_metadata(&root.join(path)).unwrap(),
+                HashMap::from([("owner".to_string(), "winner".to_string())])
+            );
+            assert!(staging_is_empty(&staging));
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_staged_write_user_metadata_failure_does_not_publish_or_leak() {
+        let temp_dir = tempfile::TempDir::new().unwrap();
+        let root = temp_dir.path().join("root");
+        let staging = temp_dir.path().join("staging");
+        std::fs::create_dir(&root).unwrap();
+        std::fs::create_dir(&staging).unwrap();
+
+        let op = operator(&root, Some(&staging));
+        // A NUL byte in the xattr key fails deterministically on all Unix
+        // platforms before or at setxattr without depending on filesystem
+        // xattr configuration.
+        let invalid_metadata = [("bad\0key".to_string(), "v".to_string())];
+
+        // New file must not be published and staged file must be removed for
+        // both PositionWrite::close and oio::Write::close (append + if_not_exists).
+        for (name, append, if_not_exists) in
+            [("new_file", false, false), ("new_append", true, true)]
+        {
+            let err = op
+                .write_with(name, "payload")
+                .append(append)
+                .if_not_exists(if_not_exists)
+                .user_metadata(invalid_metadata.clone())
+                .await
+                .unwrap_err();
+            assert!(!err.is_temporary(), "{err:?}");
+            assert!(!root.join(name).exists());
+            assert!(staging_is_empty(&staging));
+        }
+
+        // Overwriting an existing file must leave it untouched if setting
+        // user metadata on the staged file fails.
+        std::fs::write(root.join("existing"), b"original").unwrap();
+        let err = op
+            .write_with("existing", "updated")
+            .user_metadata(invalid_metadata)
+            .await
+            .unwrap_err();
+        assert!(!err.is_temporary(), "{err:?}");
+        assert_eq!(std::fs::read(root.join("existing")).unwrap(), b"original");
+        assert!(staging_is_empty(&staging));
     }
 }

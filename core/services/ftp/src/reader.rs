@@ -28,15 +28,20 @@ use opendal_core::*;
 use std::sync::Arc;
 use suppaftp::FtpError;
 use suppaftp::Status;
+use suppaftp::tokio::AsyncRustlsStream;
+use suppaftp::tokio::TransferStream;
 use suppaftp::types::Response;
-use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 
 pub struct FtpReadStream {
+    /// Declared before `_ftp_stream` so the data connection is always closed
+    /// before the control connection returns to the pool.
+    data_stream: Option<TransferStream<AsyncRustlsStream>>,
+
     /// Keep the connection alive while data stream is alive.
     _ftp_stream: bounded::Object<Manager>,
-
-    data_stream: Box<dyn AsyncRead + Sync + Send + Unpin + 'static>,
+    /// Bytes left in the requested range, or `u64::MAX` for an open-ended read.
+    remaining: u64,
     chunk: usize,
     buf: BytesMut,
 }
@@ -59,16 +64,16 @@ impl FtpReadStream {
                 .await
                 .map_err(format_ftp_error)?;
         }
-        let ds = ftp_stream
+        let data_stream = ftp_stream
             .retr_as_stream(path)
             .await
-            .map_err(format_ftp_error)?
-            .take(size as _);
+            .map_err(format_ftp_error)?;
 
         Ok(Self {
-            _ftp_stream: ftp_stream,
+            data_stream: Some(data_stream),
 
-            data_stream: Box::new(ds),
+            _ftp_stream: ftp_stream,
+            remaining: size,
             chunk: 1024 * 1024,
             buf: BytesMut::new(),
         })
@@ -77,12 +82,43 @@ impl FtpReadStream {
 
 impl oio::ReadStream for FtpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
-        self.buf.resize(self.chunk, 0);
-        let n = self
-            .data_stream
+        // A zero-length range never reads from the server. Finish the
+        // transfer without checking the reply: closing the data connection
+        // early makes the server report an aborted transfer even though the
+        // requested range is complete.
+        if self.remaining == 0 {
+            if let Some(data_stream) = self.data_stream.take() {
+                let _ = data_stream.finish().await;
+            }
+            return Ok(Buffer::new());
+        }
+
+        let Some(data_stream) = self.data_stream.as_mut() else {
+            return Ok(Buffer::new());
+        };
+
+        let limit = self.remaining.min(self.chunk as u64) as usize;
+        self.buf.resize(limit, 0);
+        let n = data_stream
             .read(&mut self.buf)
             .await
             .map_err(new_std_io_error)?;
+        self.remaining -= n as u64;
+
+        if n == 0 || self.remaining == 0 {
+            let data_stream = self
+                .data_stream
+                .take()
+                .expect("ftp data stream must be initialized");
+            let result = data_stream.finish().await;
+            // A range-limited read closes the data connection before the
+            // server finishes sending, so its completion reply may report an
+            // aborted transfer even though every requested byte arrived.
+            if n == 0 {
+                result.map_err(format_ftp_error)?;
+            }
+        }
+
         Ok(Buffer::from(self.buf.split_to(n).freeze()))
     }
 }

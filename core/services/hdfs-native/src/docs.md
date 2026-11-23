@@ -29,3 +29,25 @@ configured root is the HDFS filesystem root, HDFS keeps it intact.
 Use [`crate::HdfsNativeConfig`] for serializable configuration and this builder's
 methods for direct construction. The field and method documentation defines
 accepted values, defaults, and environment interaction.
+
+## Encryption zones
+
+Reading and writing files in HDFS encryption zones requires a Hadoop KMS client.
+Enable one of these features on `opendal-service-hdfs-native`. Applications that
+use the `opendal` facade add it as a direct dependency so Cargo unifies the
+features:
+
+| Feature | KMS transport |
+| --- | --- |
+| `kms` | `http://` only |
+| `kms-rustls-tls` | Rustls with its default crypto provider |
+| `kms-rustls-no-provider` | Rustls with the crypto provider the application installs |
+| `kms-native-tls` | Platform TLS |
+
+```shell
+cargo add opendal --features services-hdfs-native
+cargo add opendal-service-hdfs-native --features kms-rustls-tls
+```
+
+The KMS endpoint comes from `hadoop.security.key.provider.path`, set in
+`core-site.xml` or in `options`.

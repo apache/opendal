@@ -192,12 +192,54 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         _: &User,
         path: P,
     ) -> storage::Result<Self::Metadata> {
-        let metadata = self
-            .op
-            .stat(convert_path(path.as_ref())?)
-            .await
-            .map_err(convert_err)?;
-        Ok(OpendalMetadata(metadata))
+        use opendal::ErrorKind::*;
+
+        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let directory = format!("{}/", path.trim_end_matches('/'));
+
+        // The FTP root always exists; some backends cannot stat it.
+        if directory == "/" {
+            return Ok(OpendalMetadata(opendal::MetadataBuilder::dir().build()));
+        }
+
+        // Try the path as a file first. Object stores only address directories
+        // with a trailing `/`, so fall back to the directory form below.
+        let mut stat_error = match self.op.stat(&path).await {
+            Ok(metadata) => return Ok(OpendalMetadata(metadata)),
+            Err(e) if matches!(e.kind(), NotFound | NotADirectory | IsADirectory) => e,
+            Err(e) => return Err(convert_err(e)),
+        };
+
+        if !path.ends_with('/') {
+            match self.op.stat(&directory).await {
+                Ok(metadata) if metadata.is_dir() => return Ok(OpendalMetadata(metadata)),
+                Ok(_) => {}
+                Err(e) if matches!(e.kind(), NotFound | NotADirectory | IsADirectory) => {
+                    stat_error = e;
+                }
+                Err(e) => return Err(convert_err(e)),
+            }
+        }
+
+        // Object stores can serve implicit prefix directories that have no
+        // directory entry of their own; probing needs the list capability.
+        if !self.op.info().capability().list {
+            return Err(convert_err(stat_error));
+        }
+        match self.op.lister(&directory).await {
+            Ok(mut entries) => match entries.next().await {
+                Some(Ok(_)) => Ok(OpendalMetadata(opendal::MetadataBuilder::dir().build())),
+                Some(Err(e)) if matches!(e.kind(), NotFound | NotADirectory | Unsupported) => {
+                    Err(convert_err(stat_error))
+                }
+                Some(Err(e)) => Err(convert_err(e)),
+                None => Err(convert_err(stat_error)),
+            },
+            Err(e) if matches!(e.kind(), NotFound | NotADirectory | Unsupported) => {
+                Err(convert_err(stat_error))
+            }
+            Err(e) => Err(convert_err(e)),
+        }
     }
 
     async fn list<P: AsRef<Path> + Send + Debug>(
@@ -295,10 +337,15 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
 
         let mut writer = writer;
         match copy_read_write_loop(&mut input, &mut writer).await {
-            Ok(len) => {
-                writer.close().await.map_err(convert_err)?;
-                Ok(len)
-            }
+            Ok(len) => match writer.close().await {
+                Ok(_) => Ok(len),
+                Err(close_err) => {
+                    // A failed close can leave staged or multipart data behind.
+                    // Abort it, but return the original close error.
+                    let _ = writer.abort().await;
+                    Err(convert_err(close_err))
+                }
+            },
             Err(copy_err) => {
                 // The writer is still open, so abort it to discard buffered
                 // and uploaded data. Some services do not support abort;

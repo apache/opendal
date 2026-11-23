@@ -131,6 +131,7 @@ impl Builder for HdfsNativeBuilder {
 
                     create_dir: true,
                     delete: true,
+                    delete_with_recursive: true,
 
                     list: true,
 
@@ -163,7 +164,7 @@ pub struct HdfsNativeBackend {
 }
 
 impl Service for HdfsNativeBackend {
-    type Reader = oio::PositionReader<HdfsNativeReader>;
+    type Reader = HdfsNativeReader;
     type Writer = HdfsNativeLazyWriter;
     type Lister = HdfsNativeLazyLister;
     type Deleter = oio::OneShotDeleter<HdfsNativeDeleter>;
@@ -193,10 +194,7 @@ impl Service for HdfsNativeBackend {
         Ok(RpStat::new(m))
     }
     fn read(&self, _ctx: &OperationContext, path: &str, _: OpRead) -> Result<Self::Reader> {
-        Ok(oio::PositionReader::new(HdfsNativeReader::new(
-            self.core.clone(),
-            path,
-        )))
+        Ok(HdfsNativeReader::new(self.core.clone(), path))
     }
 
     fn write(&self, _ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {

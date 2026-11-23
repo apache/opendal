@@ -1,0 +1,85 @@
+// Licensed to the Apache Software Foundation (ASF) under one
+// or more contributor license agreements.  See the NOTICE file
+// distributed with this work for additional information
+// regarding copyright ownership.  The ASF licenses this file
+// to you under the Apache License, Version 2.0 (the
+// "License"); you may not use this file except in compliance
+// with the License.  You may obtain a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+use opendal_core::ErrorKind;
+use opendal_core::Operator;
+use opendal_service_sftp::Sftp;
+
+// Use the key-auth fixture in fixtures/sftp/docker-compose-sftp.yml.
+fn fixture_builder(endpoint: &str) -> Sftp {
+    Sftp::default()
+        .endpoint(endpoint)
+        .root("/upload")
+        .user("foo")
+        .key(&std::env::var("OPENDAL_SFTP_KEY").unwrap())
+        .known_hosts_strategy("accept")
+}
+
+fn unique_path(name: &str) -> String {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    format!("{name}-{}-{nanos}", std::process::id())
+}
+
+#[tokio::test]
+async fn abort_unused_writer_does_not_connect() {
+    // Bind and drop a listener so that any connection attempt is refused
+    // instead of reaching a real SFTP server.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let endpoint = format!("ssh://{}", listener.local_addr().unwrap());
+    drop(listener);
+
+    let op = Operator::new(Sftp::default().endpoint(&endpoint)).unwrap();
+    let mut writer = op.writer("new-dir/nested/file.txt").await.unwrap();
+
+    let err = writer.abort().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+}
+
+#[tokio::test]
+#[ignore = "requires the real OpenSSH SFTP fixture"]
+async fn abort_unused_writer_preserves_existing_file() {
+    let endpoint = std::env::var("OPENDAL_SFTP_ENDPOINT").unwrap();
+    let op = Operator::new(fixture_builder(&endpoint)).unwrap();
+    let path = unique_path("abort-unused-existing.txt");
+    op.write(&path, "original").await.unwrap();
+
+    let mut writer = op.writer(&path).await.unwrap();
+
+    let err = writer.abort().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert_eq!(op.read(&path).await.unwrap().to_vec(), b"original".to_vec());
+
+    op.delete(&path).await.unwrap();
+}
+
+#[tokio::test]
+#[ignore = "requires the real OpenSSH SFTP fixture"]
+async fn abort_unused_writer_does_not_create_path() {
+    let endpoint = std::env::var("OPENDAL_SFTP_ENDPOINT").unwrap();
+    let op = Operator::new(fixture_builder(&endpoint)).unwrap();
+    let dir = unique_path("abort-unused-missing");
+    let path = format!("{dir}/new-dir/nested/file.txt");
+
+    let mut writer = op.writer(&path).await.unwrap();
+
+    let err = writer.abort().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+    assert!(!op.exists(&dir).await.unwrap());
+}

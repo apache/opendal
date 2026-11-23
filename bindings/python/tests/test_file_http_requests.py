@@ -18,13 +18,18 @@
 import asyncio
 import contextlib
 import multiprocessing
+from collections import Counter
+from collections.abc import Callable
+from contextvars import Context
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from multiprocessing.managers import ListProxy
 from multiprocessing.synchronize import Event as EventType
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
 import opendal
+from opendal.options import ReadKwargs
 
 CONTENT = b"HelloWorld"
 TRUNCATED_CONTENT = b"Hell"
@@ -39,12 +44,13 @@ class RequestState:
         self.slow_release = slow_release
 
     def _methods(self) -> list[str]:
-        return [
-            entry[0] if isinstance(entry, tuple) else entry for entry in self._requests
-        ]
+        return [entry[0] for entry in self._requests]
 
     def _uploads(self) -> list[bytes]:
-        return [entry[1] for entry in self._requests if isinstance(entry, tuple)]
+        return [entry[1] for entry in self._requests if entry[0] == "PUT"]
+
+    def _reads(self) -> list[tuple[str, str | None]]:
+        return [(entry[1], entry[2]) for entry in self._requests if entry[0] == "GET"]
 
     def _reset(self) -> None:
         self._requests[:] = []
@@ -57,7 +63,7 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
         protocol_version = "HTTP/1.1"
 
         def do_HEAD(self) -> None:
-            requests.append("HEAD")
+            requests.append(("HEAD",))
             self.send_response(200)
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Content-Length", str(len(CONTENT)))
@@ -69,18 +75,18 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
             if self.path == "/slow":
                 slow_started.set()
                 slow_release.wait(timeout=5)
-            uploads = [entry for entry in requests if isinstance(entry, tuple)]
+            uploads = [entry for entry in requests if entry[0] == "PUT"]
             status = 403 if self.path == "/retry" and len(uploads) == 1 else 201
             self.send_response(status)
             self.send_header("Content-Length", "0")
             self.end_headers()
 
         def do_GET(self) -> None:
-            requests.append("GET")
+            range_header = self.headers.get("Range")
+            requests.append(("GET", self.path, range_header))
             content = TRUNCATED_CONTENT if self.path == "/truncated" else CONTENT
             body = content
             status = 200
-            range_header = self.headers.get("Range")
             if range_header is not None:
                 start, end = range_header.removeprefix("bytes=").split("-", 1)
                 start = int(start)
@@ -94,6 +100,19 @@ def serve_requests(port_queue, requests, slow_started, slow_release, stop):
 
             self.send_response(status)
             self.send_header("Accept-Ranges", "bytes")
+            if self.path in ("/paused-chunks", "/broken-chunks") and status == 200:
+                self.send_header("Transfer-Encoding", "chunked")
+                self.end_headers()
+                with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+                    if self.path == "/broken-chunks":
+                        self.wfile.write(b"4\r\nHell\r\ninvalid-chunk-size\r\n")
+                        self.close_connection = True
+                    else:
+                        self.wfile.write(b"2\r\nHe\r\n3\r\nllo\r\n")
+                        slow_started.set()
+                        slow_release.wait(timeout=5)
+                        self.wfile.write(b"5\r\nWorld\r\n0\r\n\r\n")
+                return
             self.send_header("Content-Length", str(len(body)))
             if status == 206:
                 self.send_header("Content-Range", f"bytes {start}-{end}/{len(content)}")
@@ -150,6 +169,80 @@ def request_server():
     manager.shutdown()
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prefetch", [None, 0])
+async def test_read_forwards_response_overrides(request_server, prefetch):
+    endpoint, state = request_server
+    state._reset()
+    config = {
+        "endpoint": endpoint,
+        "bucket": "fixture-bucket",
+        "region": "us-west-2",
+        "disable_config_load": "true",
+        "access_key_id": "test-key",
+        "secret_access_key": "test-secret",
+    }
+    operator = opendal.Operator("s3", **config)
+    async_operator = opendal.AsyncOperator("s3", **config)
+    options: ReadKwargs = {
+        "offset": 2,
+        "size": 5,
+        "content_type": "text/plain",
+        "cache_control": "max-age=60",
+        "content_disposition": 'attachment; filename="sample.txt"',
+    }
+
+    assert operator.read("file", prefetch=prefetch, **options) == b"lloWo"
+    assert await async_operator.read("file", prefetch=prefetch, **options) == b"lloWo"
+    expected_query = {
+        "response-content-type": ["text/plain"],
+        "response-cache-control": ["max-age=60"],
+        "response-content-disposition": ['attachment; filename="sample.txt"'],
+    }
+    assert [
+        (parse_qs(urlsplit(target).query), byte_range)
+        for target, byte_range in state._reads()
+    ] == [(expected_query, "bytes=2-6")] * 2
+
+
+@pytest.mark.asyncio
+async def test_read_range_with_prefetch(request_server):
+    endpoint, state = request_server
+    state._reset()
+    operator = opendal.Operator("http", endpoint=endpoint, root="/")
+    async_operator = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    assert (
+        operator.read("file", offset=2, size=5, chunk=2, concurrent=2, prefetch=1)
+        == b"lloWo"
+    )
+    assert (
+        await async_operator.read(
+            "file", offset=2, size=5, chunk=2, concurrent=2, prefetch=1
+        )
+        == b"lloWo"
+    )
+    assert Counter(state._reads()) == {
+        ("/file", "bytes=2-3"): 2,
+        ("/file", "bytes=4-5"): 2,
+        ("/file", "bytes=6-6"): 2,
+    }
+
+
+@pytest.mark.asyncio
+async def test_read_rejects_prefetch_with_response_overrides():
+    operator = opendal.Operator("memory")
+    async_operator = opendal.AsyncOperator("memory")
+    operator.write("file", CONTENT)
+    await async_operator.write("file", CONTENT)
+
+    message = "prefetch cannot be combined with response header overrides"
+    with pytest.raises(ValueError, match=message):
+        operator.read("file", prefetch=1, content_type="text/plain")
+    with pytest.raises(ValueError, match=message):
+        await async_operator.read("file", prefetch=1, content_type="text/plain")
+
+
 def test_sync_file_sequential_read_uses_one_request(request_server):
     endpoint, state = request_server
     state._reset()
@@ -172,11 +265,13 @@ def test_sync_file_sequential_read_uses_one_request(request_server):
         file.read(1)
 
 
-def test_sync_file_flush_keeps_small_writes_coalesced(request_server):
+@pytest.mark.parametrize("chunk", [None, 0], ids=["default", "zero"])
+def test_sync_file_flush_keeps_small_writes_coalesced(request_server, chunk):
     endpoint, state = request_server
     state._reset()
     op = opendal.Operator("webdav", endpoint=endpoint, disable_create_dir="true")
-    with op.open("file", "wb") as file:
+    options = {} if chunk is None else {"chunk": chunk}
+    with op.open("file", "wb", **options) as file:
         for _ in range(1000):
             assert file.write(b"small") == 5
         file.flush()
@@ -316,6 +411,104 @@ async def test_async_file_sequential_read_uses_one_request(request_server):
 
 
 @pytest.mark.asyncio
+async def test_async_file_read_buffered_returns_ready_chunks(request_server):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    async with await op.open("paused-chunks", "rb") as file:
+        try:
+            assert await file.read_buffered(0) == b""
+            assert state._methods() == []
+            prefix = await asyncio.wait_for(file.read_buffered(10), 2)
+            assert prefix
+            assert b"Hello".startswith(prefix)
+            while len(prefix) < 5:
+                chunk = await asyncio.wait_for(file.read_buffered(10), 2)
+                assert chunk
+                prefix += chunk
+            assert prefix == b"Hello"
+            assert await asyncio.to_thread(state.slow_started.wait, 2)
+            assert await file.tell() == 5
+
+            pending = file.read_buffered(10)
+            done, _ = await asyncio.wait([pending], timeout=0.05)
+            assert not done
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+            assert await asyncio.wait_for(file.tell(), 2) == 5
+        finally:
+            state.slow_release.set()
+
+        assert await file.read_buffered(10) == b"World"
+        assert await file.tell() == 10
+        assert await file.read_buffered(10) == b""
+        assert state._methods() == ["GET"]
+
+
+@pytest.mark.asyncio
+async def test_async_file_read_buffered_cancelled_before_delivery(
+    request_server, monkeypatch
+):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+    loop = asyncio.get_running_loop()
+    call_soon_threadsafe = loop.call_soon_threadsafe
+    delivery_scheduled = asyncio.Event()
+    pending = None
+
+    def hold_delivery(
+        callback: Callable[..., object], *args: object, context: Context | None = None
+    ) -> asyncio.Handle:
+        if pending is not None and any(arg is pending for arg in args):
+            return call_soon_threadsafe(delivery_scheduled.set)
+        return call_soon_threadsafe(callback, *args, context=context)
+
+    async with await op.open("file", "rb") as file:
+        with monkeypatch.context() as patch:
+            patch.setattr(loop, "call_soon_threadsafe", hold_delivery)
+            pending = file.read_buffered(5)
+            try:
+                await asyncio.wait_for(delivery_scheduled.wait(), 2)
+            finally:
+                pending.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+
+        assert await file.tell() == 0
+        assert await file.read_buffered(2) == b"He"
+        assert await file.tell() == 2
+        assert await file.read(3) == b"llo"
+        assert await file.read() == b"World"
+        assert state._methods() == ["GET"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("next_read", ["read", "read_buffered", "seek"])
+async def test_async_file_read_buffered_defers_error(request_server, next_read):
+    endpoint, state = request_server
+    state._reset()
+    op = opendal.AsyncOperator("http", endpoint=endpoint, root="/")
+
+    async with await op.open("broken-chunks", "rb") as file:
+        assert await file.read_buffered(10) == b"Hell"
+        assert await file.tell() == 4
+        assert await file.read_buffered(0) == b""
+
+        if next_read == "seek":
+            assert await file.seek(1) == 1
+            assert await file.read_buffered(3) == b"ell"
+            assert state._methods() == ["GET", "GET"]
+        else:
+            with pytest.raises(OSError, match="read data from http response"):
+                await getattr(file, next_read)(10)
+            assert await file.tell() == 4
+            assert state._methods() == ["GET"]
+
+
+@pytest.mark.asyncio
 async def test_async_file_start_and_current_seek_do_not_fetch_length(request_server):
     endpoint, state = request_server
     state._reset()
@@ -429,13 +622,14 @@ async def test_async_file_cancelled_read_can_close(request_server):
 
 
 @pytest.mark.asyncio
-async def test_async_file_coalesces_small_writes(request_server):
+@pytest.mark.parametrize("options", [{}, {"chunk": 0}], ids=["default", "zero-chunk"])
+async def test_async_file_coalesces_small_writes(request_server, options):
     endpoint, state = request_server
     state._reset()
     op = opendal.AsyncOperator(
         "webdav", endpoint=endpoint, root="/", disable_create_dir="true"
     )
-    async with await op.open("file", "wb") as file:
+    async with await op.open("file", "wb", **options) as file:
         for _ in range(1000):
             assert await file.write(b"small") == 5
         assert state._methods() == []

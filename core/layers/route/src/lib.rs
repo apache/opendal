@@ -159,38 +159,31 @@ impl RouteRouter {
 
 impl Layer for RouteLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl RouteLayer {
-    fn layer(&self, inner: Servicer) -> RouteAccessor {
-        RouteAccessor {
-            inner: Arc::new(inner),
+        Arc::new(RouteService {
+            inner,
             router: self.router.clone(),
-        }
+        })
     }
 }
 
-#[doc(hidden)]
-pub struct RouteAccessor {
+struct RouteService {
     inner: Servicer,
     router: Arc<RouteRouter>,
 }
 
-impl Debug for RouteAccessor {
+impl Debug for RouteService {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl RouteAccessor {
+impl RouteService {
     fn select(&self, path: &str) -> RouteSelected {
         self.router.select(path, &self.inner)
     }
 }
 
-impl Service for RouteAccessor {
+impl Service for RouteService {
     type Reader = oio::Reader;
     type Writer = oio::Writer;
     type Lister = oio::Lister;
@@ -236,14 +229,22 @@ impl Service for RouteAccessor {
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<oio::Reader> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.read(ctx, path, args),
-            RouteSelected::Target(target) => target.srv.read(&target.ctx, path, args),
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.read(&target.ctx, path, args)
+            }
         }
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<oio::Writer> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.write(ctx, path, args),
-            RouteSelected::Target(target) => target.srv.write(&target.ctx, path, args),
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.write(&target.ctx, path, args)
+            }
         }
     }
 
@@ -256,7 +257,11 @@ impl Service for RouteAccessor {
     ) -> Result<oio::Copier> {
         match self.select(from) {
             RouteSelected::Default(srv) => srv.copy(ctx, from, to, args),
-            RouteSelected::Target(target) => target.srv.copy(&target.ctx, from, to, args),
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.copy(&target.ctx, from, to, args)
+            }
         }
     }
 
@@ -269,7 +274,11 @@ impl Service for RouteAccessor {
     ) -> Result<RpRename> {
         match self.select(from) {
             RouteSelected::Default(srv) => srv.rename(ctx, from, to, args).await,
-            RouteSelected::Target(target) => target.srv.rename(&target.ctx, from, to, args).await,
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.rename(&target.ctx, from, to, args).await
+            }
         }
     }
 
@@ -281,14 +290,22 @@ impl Service for RouteAccessor {
     ) -> Result<RpRestore> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.restore(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.restore(&target.ctx, path, args).await,
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.restore(&target.ctx, path, args).await
+            }
         }
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.stat(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.stat(&target.ctx, path, args).await,
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.stat(&target.ctx, path, args).await
+            }
         }
     }
 
@@ -303,7 +320,11 @@ impl Service for RouteAccessor {
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<oio::Lister> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.list(ctx, path, args),
-            RouteSelected::Target(target) => target.srv.list(&target.ctx, path, args),
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.list(&target.ctx, path, args)
+            }
         }
     }
 
@@ -315,13 +336,16 @@ impl Service for RouteAccessor {
     ) -> Result<RpPresign> {
         match self.select(path) {
             RouteSelected::Default(srv) => srv.presign(ctx, path, args).await,
-            RouteSelected::Target(target) => target.srv.presign(&target.ctx, path, args).await,
+            RouteSelected::Target(target) => {
+                args.check(&target.srv.capability())
+                    .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                target.srv.presign(&target.ctx, path, args).await
+            }
         }
     }
 }
 
-#[doc(hidden)]
-pub struct RouteDeleter {
+struct RouteDeleter {
     default: Servicer,
     router: Arc<RouteRouter>,
     ctx: OperationContext,
@@ -388,7 +412,13 @@ impl RouteDeleter {
 impl oio::Delete for RouteDeleter {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
         let key = match self.router.match_index(path) {
-            Some(idx) => RouteKey::Target(idx),
+            Some(idx) => {
+                if let Some(target) = self.router.target(idx) {
+                    args.check(&target.srv.capability())
+                        .map_err(|err| err.with_context("service", target.srv.info().scheme()))?;
+                }
+                RouteKey::Target(idx)
+            }
             None => RouteKey::Default,
         };
         let deleter = self.get_deleter(key).await?;
@@ -706,6 +736,392 @@ mod tests {
         assert_missing(&default_op, "cold/b.txt").await?;
 
         cleanup_fs_root(&hot_root).await;
+        Ok(())
+    }
+
+    #[derive(Debug)]
+    struct CapMockService {
+        info: ServiceInfo,
+        capability: Capability,
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl Service for CapMockService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = CapMockDeleter;
+        type Copier = CapMockCopier;
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            self.info.clone()
+        }
+
+        fn capability(&self) -> Capability {
+            self.capability
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(RpCreateDir::default())
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(RpStat::new(MetadataBuilder::file(0).build()))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Ok(CapMockDeleter {
+                calls: self.calls.clone(),
+            })
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(CapMockCopier)
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(RpRename::default())
+        }
+
+        async fn restore(&self, _: &OperationContext, _: &str, _: OpRestore) -> Result<RpRestore> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(RpRestore::default())
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Err(Error::new(ErrorKind::Unexpected, "mock presign reached"))
+        }
+    }
+
+    struct CapMockDeleter {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl oio::Delete for CapMockDeleter {
+        async fn delete(&mut self, _: &str, _: OpDelete) -> Result<()> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct CapMockCopier;
+
+    impl oio::Copy for CapMockCopier {
+        async fn next(&mut self) -> Result<Option<usize>> {
+            Ok(None)
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn build_cap_operator(
+        scheme: &'static str,
+        capability: Capability,
+    ) -> (Operator, Arc<std::sync::atomic::AtomicUsize>) {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let op = Operator::from_parts(
+            OperationContext::default(),
+            Arc::new(CapMockService {
+                info: ServiceInfo::with_scheme(scheme),
+                capability,
+                calls: calls.clone(),
+            }),
+        );
+        (op, calls)
+    }
+
+    #[tokio::test]
+    async fn test_route_revalidates_target_capabilities() -> Result<()> {
+        let full_cap = Capability {
+            stat: true,
+            stat_with_if_match: true,
+            read: true,
+            read_with_version: true,
+            write: true,
+            write_with_if_not_exists: true,
+            delete: true,
+            delete_with_version: true,
+            delete_with_if_match: true,
+            list: true,
+            list_with_start_after: true,
+            copy: true,
+            copy_with_if_not_exists: true,
+            copy_with_content_type: true,
+            rename: true,
+            rename_with_if_not_exists: true,
+            restore: true,
+            restore_with_version: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
+            ..Default::default()
+        };
+        let minimal_cap = Capability {
+            stat: true,
+            read: true,
+            write: true,
+            delete: true,
+            list: true,
+            copy: true,
+            rename: true,
+            presign_stat: true,
+            presign_read: true,
+            presign_write: true,
+            presign_delete: true,
+            ..Default::default()
+        };
+
+        let (default_op, default_calls) = build_cap_operator("default", full_cap);
+        let (limited_op, limited_calls) = build_cap_operator("limited", minimal_cap);
+        let (capable_op, capable_calls) = build_cap_operator("capable", full_cap);
+
+        let routed = default_op.layer(
+            RouteLayer::builder()
+                .route("limited/**", limited_op)
+                .route("capable/**", capable_op)
+                .build()?,
+        );
+
+        // Operations targeting `limited/**` pass outer `Operator` validation
+        // against `default`'s capability, then must be rejected by `RouteLayer`
+        // against `limited`'s capability before invoking `limited`.
+        for (name, res) in [
+            (
+                "stat",
+                routed
+                    .stat_with("limited/a")
+                    .if_match("etag")
+                    .await
+                    .map(drop),
+            ),
+            (
+                "read",
+                routed
+                    .reader_with("limited/a")
+                    .version("v1")
+                    .await
+                    .map(drop),
+            ),
+            (
+                "write",
+                routed
+                    .writer_with("limited/a")
+                    .if_not_exists(true)
+                    .await
+                    .map(drop),
+            ),
+            (
+                "copy_condition",
+                routed
+                    .copy_with("limited/a", "limited/b")
+                    .if_not_exists(true)
+                    .await
+                    .map(drop),
+            ),
+            (
+                "copy_metadata",
+                routed
+                    .copy_with("limited/a", "limited/b")
+                    .content_type("text/plain")
+                    .await
+                    .map(drop),
+            ),
+            (
+                "rename",
+                routed
+                    .rename_with("limited/a", "limited/b")
+                    .if_not_exists(true)
+                    .await,
+            ),
+            (
+                "restore",
+                routed.restore_with("limited/a").version("v1").await,
+            ),
+            (
+                "list",
+                routed
+                    .lister_with("limited/")
+                    .start_after("limited/0")
+                    .await
+                    .map(drop),
+            ),
+            (
+                "delete",
+                routed.delete_with("limited/a").version("v1").await,
+            ),
+            (
+                "presign_stat",
+                routed
+                    .presign_stat_with("limited/a", std::time::Duration::from_secs(60))
+                    .if_match("etag")
+                    .await
+                    .map(drop),
+            ),
+            (
+                "presign_read",
+                routed
+                    .presign_read_options(
+                        "limited/a",
+                        std::time::Duration::from_secs(60),
+                        options::ReadOptions {
+                            version: Some("v1".to_string()),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(drop),
+            ),
+            (
+                "presign_write",
+                routed
+                    .presign_write_options(
+                        "limited/a",
+                        std::time::Duration::from_secs(60),
+                        options::WriteOptions {
+                            if_not_exists: true,
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(drop),
+            ),
+            (
+                "presign_delete",
+                routed
+                    .presign_delete_options(
+                        "limited/a",
+                        std::time::Duration::from_secs(60),
+                        options::DeleteOptions {
+                            if_match: Some("etag".to_string()),
+                            ..Default::default()
+                        },
+                    )
+                    .await
+                    .map(drop),
+            ),
+        ] {
+            let err = res.expect_err(name);
+            assert_eq!(err.kind(), ErrorKind::Unsupported, "{name}: {err}");
+            assert!(
+                err.to_string().contains("service: limited"),
+                "{name}: {err}"
+            );
+        }
+
+        // `RouteDeleter` via `deleter()` handle must also reject unsupported
+        // options on a routed target while still allowing them on the default route.
+        let mut deleter = routed.deleter().await?;
+        let err = deleter
+            .delete((
+                "limited/a".to_string(),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            ))
+            .await
+            .expect_err("RouteDeleter must reject unsupported target delete option");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("service: limited"));
+
+        deleter
+            .delete((
+                "default/a".to_string(),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            ))
+            .await?;
+        deleter
+            .delete((
+                "capable/a".to_string(),
+                options::DeleteOptions {
+                    if_match: Some("etag".to_string()),
+                    ..Default::default()
+                },
+            ))
+            .await?;
+        deleter.close().await?;
+
+        assert_eq!(limited_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(default_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(capable_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+
+        // Supported options on `capable/**` succeed through `RouteService`.
+        routed.stat_with("capable/a").if_match("etag").await?;
+        let _ = routed.reader_with("capable/a").version("v1").await?;
+        let _ = routed.writer_with("capable/a").if_not_exists(true).await?;
+        routed
+            .copy_with("capable/a", "capable/b")
+            .content_type("text/plain")
+            .await?;
+        routed
+            .rename_with("capable/a", "capable/b")
+            .if_not_exists(true)
+            .await?;
+        routed.restore_with("capable/a").version("v1").await?;
+        let _ = routed
+            .lister_with("capable/")
+            .start_after("capable/0")
+            .await?;
+        let err = routed
+            .presign_read_options(
+                "capable/a",
+                std::time::Duration::from_secs(60),
+                options::ReadOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("mock presign returns Unexpected when reached");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(capable_calls.load(std::sync::atomic::Ordering::SeqCst), 9);
+
         Ok(())
     }
 }

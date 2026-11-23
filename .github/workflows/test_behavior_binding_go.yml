@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: bindings/go/go.mod
           # params must be in sync with `test` job
@@ -92,7 +92,7 @@ jobs:
           echo "::add-mask::${{ secrets.OP_CONNECT_TOKEN }}"
           echo "OP_CONNECT_HOST=${{ secrets.OP_CONNECT_HOST }}" >> "$GITHUB_ENV"
           echo "OP_CONNECT_TOKEN=${{ secrets.OP_CONNECT_TOKEN }}" >> "$GITHUB_ENV"
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           # params must be in sync with `go-cache` job
           go-version-file: bindings/go/go.mod
@@ -107,7 +107,7 @@ jobs:
         run: brew install zstd
       - name: Install dependencies (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1.13.0
       - name: Setup Go Workspace
         env:
           SERVICE: ${{ matrix.cases.service }}

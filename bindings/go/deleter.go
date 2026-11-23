@@ -79,7 +79,12 @@ type Deleter struct {
 //   - Prefer Operator.WithDeleter, which pairs the release with the queueing for
 //     the caller.
 func (op *Operator) Deleter() (*Deleter, error) {
-	inner, err := ffiOperatorDeleter.symbol(op.ctx)(op.inner)
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	inner, err := ffiOperatorDeleter.symbol(op.ctx)(opInner)
+	release()
 	if err != nil {
 		return nil, err
 	}
@@ -97,6 +102,9 @@ func (op *Operator) Deleter() (*Deleter, error) {
 //   - opts: Optional functional options, shared with Operator.Delete, to delete a
 //     specific version or to delete recursively.
 func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
+	if d == nil {
+		return ErrDeleterClosed
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.inner == nil {
@@ -124,6 +132,9 @@ func (d *Deleter) Delete(path string, opts ...WithDeleteFn) error {
 // hands the whole slice over at once. Every path is queued with default options,
 // so callers that need per-path options must use Delete.
 func (d *Deleter) deleteMany(paths []string) error {
+	if d == nil {
+		return ErrDeleterClosed
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.inner == nil {
@@ -140,6 +151,9 @@ func (d *Deleter) deleteMany(paths []string) error {
 // If a batch flush fails, pending paths remain queued for a retry. Flush
 // returns ErrDeleterClosed once the Deleter is released.
 func (d *Deleter) Flush() error {
+	if d == nil {
+		return ErrDeleterClosed
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.inner == nil {
@@ -155,6 +169,9 @@ func (d *Deleter) Flush() error {
 // Flush first if you need to retry a failed batch. Further calls to Close
 // return nil.
 func (d *Deleter) Close() error {
+	if d == nil {
+		return nil
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.inner == nil {
@@ -172,6 +189,9 @@ func (d *Deleter) Close() error {
 // service already performed. Discard is safe to call more than once, and after
 // Close; further calls are no-ops.
 func (d *Deleter) Discard() {
+	if d == nil {
+		return
+	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.inner == nil {

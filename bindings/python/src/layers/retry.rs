@@ -33,7 +33,7 @@ use opendal::Operator;
 /// After an operation on a `Reader` or `Writer` has failed through
 /// all retries, the object is in an undefined state. Reusing it
 /// can lead to exceptions.
-#[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends=Layer)]
 #[derive(Clone)]
 pub struct RetryLayer(ocore::layers::RetryLayer);
 

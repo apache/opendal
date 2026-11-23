@@ -17,6 +17,7 @@
 
 mod delete;
 mod get;
+mod list;
 mod put;
 mod utils;
 
@@ -32,6 +33,7 @@ fn main() -> anyhow::Result<()> {
     delete::tests(&store, &mut tests);
     put::tests(&store, &mut tests);
     get::tests(&store, &mut tests);
+    list::tests(&store, &mut tests);
 
     let args = Arguments::from_args();
     let conclusion = libtest_mimic::run(&args, tests);

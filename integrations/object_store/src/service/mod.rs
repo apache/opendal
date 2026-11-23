@@ -86,8 +86,8 @@ impl Builder for ObjectStoreBuilder {
                 write: true,
                 delete: true,
                 list: true,
-                list_with_limit: true,
                 list_with_start_after: true,
+                list_with_recursive: true,
                 delete_with_version: false,
                 ..Default::default()
             },
@@ -138,6 +138,19 @@ impl Service for ObjectStoreService {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        // Object stores have no directory marker objects, and
+        // `object_store::path::Path` drops a trailing slash. Looking up `foo/`
+        // would otherwise report the metadata of the regular file `foo`.
+        if path == "/" {
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
+        }
+        if path.ends_with('/') {
+            return Err(
+                Error::new(ErrorKind::NotFound, "directory has no object metadata")
+                    .with_context("path", path),
+            );
+        }
+
         let path = ObjectStorePath::from(path);
         let opts = parse_op_stat(&args)?;
         let result = self
@@ -238,6 +251,9 @@ mod tests {
         assert!(cap.write);
         assert!(cap.delete);
         assert!(cap.list);
+        assert!(cap.list_with_recursive);
+        assert!(cap.list_with_start_after);
+        assert!(!cap.list_with_limit);
     }
 
     #[tokio::test]
@@ -421,6 +437,55 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_object_store_stat_directory_path_without_simulation() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::new(store)
+            .build()
+            .expect("build should succeed");
+        let ctx = test_ctx();
+
+        for path in ["file", "nested/child"] {
+            let mut writer = backend
+                .write(&ctx, path, OpWrite::default())
+                .expect("write should succeed");
+            writer
+                .write(Buffer::from("content"))
+                .await
+                .expect("write content should succeed");
+            writer.close().await.expect("close should succeed");
+        }
+
+        for path in ["file/", "nested/"] {
+            let err = backend
+                .stat(&ctx, path, OpStat::default())
+                .await
+                .expect_err("stat of a directory path must not resolve to a file");
+            assert_eq!(err.kind(), ErrorKind::NotFound, "path: {path}");
+        }
+
+        let meta = backend
+            .stat(&ctx, "/", OpStat::default())
+            .await
+            .expect("stat of the root should succeed");
+        assert!(meta.into_metadata().is_dir());
+    }
+
+    #[tokio::test]
+    async fn test_object_store_stat_directory_path_with_simulation() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("file", "content").await?;
+        op.write("nested/child", "content").await?;
+
+        assert_eq!(
+            op.stat("file/").await.unwrap_err().kind(),
+            ErrorKind::NotFound
+        );
+        assert!(op.stat("nested/").await?.is_dir());
+        assert!(op.stat("/").await?.is_dir());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_object_store_backend_error_handling() {
         let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
         let backend = ObjectStoreBuilder::new(store)
@@ -448,5 +513,433 @@ mod tests {
             let entry = lister.next().await.expect("next should succeed");
             assert!(entry.is_none());
         }
+    }
+
+    fn new_object_store_operator() -> Operator {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        Operator::new(ObjectStoreBuilder::new(store)).expect("build should succeed")
+    }
+
+    fn sorted_entry_paths(entries: &[Entry]) -> Vec<String> {
+        let mut paths = entries
+            .iter()
+            .map(|e| e.path().to_string())
+            .collect::<Vec<_>>();
+        paths.sort();
+        paths
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_limit_is_page_hint() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/file-1", "a/file-2", "a/file-3"] {
+            op.write(path, "content").await?;
+        }
+
+        let entries = op.list_with("a/").limit(1).await?;
+
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file-1".to_string(),
+                "a/file-2".to_string(),
+                "a/file-3".to_string(),
+            ],
+            "limit is a page size hint and must not truncate the listing"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_non_recursive() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+        op.write("a/sub2/other.txt", "other").await?;
+
+        let entries = op.list("a/").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file.txt".to_string(),
+                "a/sub/".to_string(),
+                "a/sub2/".to_string(),
+            ]
+        );
+
+        let file = entries
+            .iter()
+            .find(|entry| entry.path() == "a/file.txt")
+            .expect("direct file should be listed");
+        assert_eq!(file.metadata().mode(), EntryMode::FILE);
+        assert_eq!(file.metadata().content_length(), "file".len() as u64);
+        assert!(file.metadata().last_modified().is_some());
+        assert!(file.metadata().etag().is_some());
+
+        for path in ["a/sub/", "a/sub2/"] {
+            let dir = entries
+                .iter()
+                .find(|entry| entry.path() == path)
+                .expect("direct child directory should be listed");
+            assert_eq!(dir.metadata().mode(), EntryMode::DIR);
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_recursive() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+        op.write("a/sub2/other.txt", "other").await?;
+
+        let entries = op.list_with("a/").recursive(true).await?;
+
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec![
+                "a/file.txt".to_string(),
+                "a/sub/nested.txt".to_string(),
+                "a/sub2/other.txt".to_string(),
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_start_after() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/file-1", "a/file-2", "a/file-3", "a/sub/nested"] {
+            op.write(path, "content").await?;
+        }
+
+        let entries = op.list_with("a/").start_after("a/file-2").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/file-3".to_string(), "a/sub/".to_string()]
+        );
+
+        // The marker is inside `a/sub/`, so the folded directory sorts before
+        // the marker and must not be returned.
+        let entries = op.list_with("a/").start_after("a/sub/nested").await?;
+        assert!(entries.is_empty());
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/file-2")
+            .await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/file-3".to_string(), "a/sub/nested".to_string()]
+        );
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/sub/")
+            .await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["a/sub/nested".to_string()]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_root_and_missing_prefix() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("root.txt", "root").await?;
+        op.write("a/file.txt", "file").await?;
+        op.write("a/sub/nested.txt", "nested").await?;
+
+        for path in ["/", ""] {
+            let entries = op.list(path).await?;
+            assert_eq!(
+                sorted_entry_paths(&entries),
+                vec!["a/".to_string(), "root.txt".to_string()],
+                "root listing for {path:?} should contain direct children only"
+            );
+        }
+
+        for path in ["missing/", "missing", "missing/nested/"] {
+            let entries = op.list(path).await?;
+            assert!(
+                entries.is_empty(),
+                "missing prefix {path:?} should return no entries"
+            );
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_prefix_semantics() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("parent/y", "y").await?;
+        op.write("parent/yy", "yy").await?;
+        op.write("parent/z", "z").await?;
+
+        // Listing a path without a trailing slash treats it as a prefix.
+        let entries = op.list("parent/y").await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["parent/y".to_string(), "parent/yy".to_string()]
+        );
+
+        let entries = op.list_with("parent/y").recursive(true).await?;
+        assert_eq!(
+            sorted_entry_paths(&entries),
+            vec!["parent/y".to_string(), "parent/yy".to_string()]
+        );
+
+        // The listed path itself is returned as a directory entry.
+        let entries = op.list("parent").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["parent/".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("a#/child", "child").await?;
+
+        let entries = op.list("a#").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::DIR);
+
+        let entries = op.list("a#/").await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        assert_eq!(entries[0].metadata().mode(), EntryMode::FILE);
+
+        let entries = op.list_with("a#").recursive(true).await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a#/child".to_string()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_list_start_after_special_characters() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        for path in ["a/[", "a/\\", "a/~", "a/z"] {
+            op.write(path, "content").await?;
+        }
+
+        let expected = vec!["a/\\".to_string(), "a/z".to_string(), "a/~".to_string()];
+
+        let entries = op.list_with("a/").start_after("a/[").await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/[")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), expected);
+
+        // Percent encoding reverses the order of `~` and `z`. The filter must
+        // use decoded OpenDAL paths, not object_store's encoded locations.
+        let entries = op
+            .list_with("a/")
+            .recursive(true)
+            .start_after("a/z")
+            .await?;
+        assert_eq!(sorted_entry_paths(&entries), vec!["a/~".to_string()]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_read_out_of_bounds_range_returns_range_not_satisfied()
+    -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("file.txt", "hello").await?;
+        op.write("empty.txt", "").await?;
+
+        for (path, range) in [
+            ("file.txt", BytesRange::from(10..20)),
+            ("file.txt", BytesRange::from(10..)),
+            ("file.txt", BytesRange::from(5..)),
+            ("empty.txt", BytesRange::from(0..1)),
+        ] {
+            let err = op
+                .read_with(path)
+                .range(range)
+                .await
+                .expect_err("out-of-bounds range read must fail");
+            assert_eq!(
+                err.kind(),
+                ErrorKind::RangeNotSatisfied,
+                "path={path}, range={range}"
+            );
+        }
+
+        let err = op
+            .read_with("missing.txt")
+            .range(10..20)
+            .await
+            .expect_err("missing object read must fail");
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_in_bounds_generic_error_stays_unexpected() -> anyhow::Result<()> {
+        #[derive(Debug)]
+        struct FailingRangeStore {
+            inner: InMemory,
+        }
+
+        impl std::fmt::Display for FailingRangeStore {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "FailingRangeStore")
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl ObjectStore for FailingRangeStore {
+            async fn put_opts(
+                &self,
+                location: &ObjectStorePath,
+                payload: object_store::PutPayload,
+                opts: object_store::PutOptions,
+            ) -> object_store::Result<object_store::PutResult> {
+                self.inner.put_opts(location, payload, opts).await
+            }
+
+            async fn put_multipart_opts(
+                &self,
+                location: &ObjectStorePath,
+                opts: object_store::PutMultipartOptions,
+            ) -> object_store::Result<Box<dyn object_store::MultipartUpload>> {
+                self.inner.put_multipart_opts(location, opts).await
+            }
+
+            async fn get_opts(
+                &self,
+                location: &ObjectStorePath,
+                options: object_store::GetOptions,
+            ) -> object_store::Result<object_store::GetResult> {
+                if !options.head && options.range.is_some() {
+                    return Err(object_store::Error::Generic {
+                        store: "FailingRangeStore",
+                        source: "transient backend error".into(),
+                    });
+                }
+                self.inner.get_opts(location, options).await
+            }
+
+            fn delete_stream(
+                &self,
+                locations: futures::stream::BoxStream<
+                    'static,
+                    object_store::Result<ObjectStorePath>,
+                >,
+            ) -> futures::stream::BoxStream<'static, object_store::Result<ObjectStorePath>>
+            {
+                self.inner.delete_stream(locations)
+            }
+
+            fn list(
+                &self,
+                prefix: Option<&ObjectStorePath>,
+            ) -> futures::stream::BoxStream<'static, object_store::Result<object_store::ObjectMeta>>
+            {
+                self.inner.list(prefix)
+            }
+
+            async fn list_with_delimiter(
+                &self,
+                prefix: Option<&ObjectStorePath>,
+            ) -> object_store::Result<object_store::ListResult> {
+                self.inner.list_with_delimiter(prefix).await
+            }
+
+            async fn copy_opts(
+                &self,
+                from: &ObjectStorePath,
+                to: &ObjectStorePath,
+                options: object_store::CopyOptions,
+            ) -> object_store::Result<()> {
+                self.inner.copy_opts(from, to, options).await
+            }
+        }
+
+        let store: Arc<dyn ObjectStore> = Arc::new(FailingRangeStore {
+            inner: InMemory::new(),
+        });
+        let op = Operator::new(ObjectStoreBuilder::new(store))?;
+        op.write("file.txt", "hello").await?;
+
+        let err = op
+            .read_with("file.txt")
+            .range(0..3)
+            .await
+            .expect_err("injected generic error must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_object_store_not_modified_returns_condition_not_match() -> anyhow::Result<()> {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::new(store).build()?;
+        let ctx = test_ctx();
+
+        let mut writer = backend.write(&ctx, "file.txt", OpWrite::default())?;
+        writer.write(Buffer::from("hello")).await?;
+        writer.close().await?;
+
+        let meta = backend
+            .stat(&ctx, "file.txt", OpStat::default())
+            .await?
+            .into_metadata();
+        let etag = meta.etag().expect("InMemory should provide etag");
+        let last_modified = meta
+            .last_modified()
+            .expect("InMemory should provide last_modified");
+
+        let err = backend
+            .stat(
+                &ctx,
+                "file.txt",
+                options::StatOptions {
+                    if_none_match: Some(etag.to_string()),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .await
+            .expect_err("matching if_none_match on stat must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let err = backend
+            .stat(
+                &ctx,
+                "file.txt",
+                options::StatOptions {
+                    if_modified_since: Some(last_modified),
+                    ..Default::default()
+                }
+                .into(),
+            )
+            .await
+            .expect_err("unchanged if_modified_since on stat must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let (_, op_read, _) = options::ReadOptions {
+            if_none_match: Some(etag.to_string()),
+            ..Default::default()
+        }
+        .into();
+        let reader = backend.read(&ctx, "file.txt", op_read)?;
+        let err = reader
+            .open(BytesRange::default())
+            .await
+            .err()
+            .expect("matching if_none_match on read must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        Ok(())
     }
 }

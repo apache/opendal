@@ -227,7 +227,7 @@ mod ffi {
         content_type: OptionalString,
         content_encoding: OptionalString,
         etag: OptionalString,
-        last_modified: OptionalString,
+        last_modified: OptionalTimestamp,
         version: OptionalString,
         is_current: OptionalBool,
         is_deleted: bool,
@@ -353,7 +353,7 @@ fn new_operator(
         .map(|value| (value.key, value.value))
         .collect();
 
-    od::init_default_registry();
+    od::install_default();
 
     let op = od::Operator::via_iter(scheme, map)?;
     let op = layers.apply(op);
@@ -552,6 +552,7 @@ fn list_options(opts: ffi::FfiListOptions) -> od::options::ListOptions {
         recursive: opts.recursive,
         versions: opts.versions,
         deleted: opts.deleted,
+        glob: None,
     }
 }
 

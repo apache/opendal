@@ -32,6 +32,7 @@ use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_RANGE;
 use http::header::CONTENT_TYPE;
 use http::header::HOST;
+use http::header::HeaderValue;
 use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
@@ -56,6 +57,7 @@ pub mod constants {
         usize::MAX / GCS_REWRITE_MIN_CHUNK_SIZE * GCS_REWRITE_MIN_CHUNK_SIZE;
 
     pub const X_GOOG_ACL: &str = "x-goog-acl";
+    pub const X_GOOG_GCS_IDEMPOTENCY_TOKEN: &str = "x-goog-gcs-idempotency-token";
     pub const X_GOOG_STORAGE_CLASS: &str = "x-goog-storage-class";
     pub const X_GOOG_META_PREFIX: &str = "x-goog-meta-";
 
@@ -300,6 +302,7 @@ impl GcsCore {
         size: Option<u64>,
         op: &OpWrite,
         body: Buffer,
+        idempotency_token: Option<&str>,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
 
@@ -349,6 +352,9 @@ impl GcsCore {
         let mut req = Request::post(&url);
 
         req = req.header(CONTENT_LENGTH, size.unwrap_or_default());
+        if let Some(token) = idempotency_token {
+            req = req.header(X_GOOG_GCS_IDEMPOTENCY_TOKEN, token);
+        }
 
         if request_metadata.is_empty() {
             let req = req
@@ -366,28 +372,25 @@ impl GcsCore {
                     CONTENT_TYPE,
                     "application/json; charset=UTF-8".parse().unwrap(),
                 )
-                .content(
-                    serde_json::to_vec(&request_metadata)
-                        .expect("metadata serialization should succeed"),
-                );
+                .content(serde_json::to_vec(&request_metadata).map_err(new_json_serialize_error)?);
             multipart = multipart.part(metadata_part);
 
             // Content-Type must be set, even if it is set in the metadata part
-            let content_type = op
-                .content_type()
-                .unwrap_or("application/octet-stream")
-                .parse()
-                .expect("Failed to parse content-type");
+            let content_type =
+                HeaderValue::from_str(op.content_type().unwrap_or("application/octet-stream"))
+                    .map_err(|err| new_request_build_error(err.into()))?;
             let media_part = RelatedPart::new()
                 .header(CONTENT_TYPE, content_type)
                 .content(body);
             multipart = multipart.part(media_part);
 
-            let req = multipart.apply(
-                Request::post(url)
-                    .extension(Operation::Write)
-                    .extension(ServiceOperation("InsertObject")),
-            )?;
+            let mut req = Request::post(url)
+                .extension(Operation::Write)
+                .extension(ServiceOperation("InsertObject"));
+            if let Some(token) = idempotency_token {
+                req = req.header(X_GOOG_GCS_IDEMPOTENCY_TOKEN, token);
+            }
+            let req = multipart.apply(req)?;
 
             Ok(req)
         }
@@ -397,6 +400,7 @@ impl GcsCore {
         &self,
         path: &str,
         op: &OpWrite,
+        idempotency_token: &str,
     ) -> Result<Request<Buffer>> {
         let p = build_absolute_path(&self.root, path);
         let base = format!("{}/upload/storage/v1/b/{}/o", self.endpoint, self.bucket);
@@ -427,7 +431,8 @@ impl GcsCore {
 
         let mut req = Request::post(url.finish())
             .header(CONTENT_TYPE, "application/json; charset=UTF-8")
-            .header(CONTENT_LENGTH, body.len());
+            .header(CONTENT_LENGTH, body.len())
+            .header(X_GOOG_GCS_IDEMPOTENCY_TOKEN, idempotency_token);
         if let Some(content_type) = op.content_type() {
             req = req.header("x-upload-content-type", content_type);
         }
@@ -443,8 +448,9 @@ impl GcsCore {
         ctx: &OperationContext,
         path: &str,
         op: &OpWrite,
+        idempotency_token: &str,
     ) -> Result<Response<Buffer>> {
-        let req = self.gcs_initiate_resumable_upload_request(path, op)?;
+        let req = self.gcs_initiate_resumable_upload_request(path, op, idempotency_token)?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -1367,7 +1373,42 @@ mod tests {
 
         GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
-            capability: Capability::default(),
+            capability: Capability {
+                write: true,
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                write_with_if_version_match: true,
+                write_with_if_version_not_match: true,
+                write_with_if_not_exists: true,
+                delete: true,
+                delete_with_version: true,
+                delete_with_if_match: true,
+                delete_with_if_none_match: true,
+                delete_with_if_version_match: true,
+                delete_with_if_version_not_match: true,
+                copy: true,
+                copy_with_if_match: true,
+                copy_with_if_none_match: true,
+                copy_with_if_version_match: true,
+                copy_with_if_version_not_match: true,
+                copy_with_if_not_exists: true,
+                copy_with_source_version: true,
+                copy_with_content_type: true,
+                copy_with_content_language: true,
+                copy_with_user_metadata: true,
+                compose: true,
+                compose_with_content_type: true,
+                compose_with_content_disposition: true,
+                compose_with_content_encoding: true,
+                compose_with_cache_control: true,
+                compose_with_user_metadata: true,
+                compose_with_if_match: true,
+                compose_with_if_none_match: true,
+                compose_with_if_version_match: true,
+                compose_with_if_version_not_match: true,
+                compose_with_if_not_exists: true,
+                ..Default::default()
+            },
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
@@ -1385,12 +1426,12 @@ mod tests {
     }
 
     fn write_args(options: options::WriteOptions) -> OpWrite {
-        let (args, _) = OpWrite::from_options(&Capability::default(), options).unwrap();
+        let (args, _) = OpWrite::from_options(&test_core().capability, options).unwrap();
         args
     }
 
     fn copy_args(options: options::CopyOptions) -> OpCopy {
-        OpCopy::from_options(&Capability::default(), options).unwrap()
+        OpCopy::from_options(&test_core().capability, options).unwrap()
     }
 
     #[test]
@@ -1452,6 +1493,7 @@ mod tests {
                 Some(0),
                 &OpWrite::default(),
                 Buffer::new(),
+                None,
             )
             .expect("request must build");
         let original_uri = req.uri().clone();
@@ -1469,6 +1511,75 @@ mod tests {
             .expect("request must sign");
 
         assert_eq!(signed.uri(), &original_uri);
+    }
+
+    #[test]
+    fn test_insert_object_request_sends_idempotency_token() {
+        let core = test_core();
+        let media = core
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &OpWrite::default(),
+                Buffer::new(),
+                Some("token-1"),
+            )
+            .expect("media request must build");
+        assert_eq!(media.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-1");
+
+        let multipart = core
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &write_args(options::WriteOptions {
+                    content_type: Some("text/plain".to_owned()),
+                    ..Default::default()
+                }),
+                Buffer::new(),
+                Some("token-2"),
+            )
+            .expect("multipart request must build");
+        assert!(
+            multipart
+                .uri()
+                .query()
+                .unwrap()
+                .contains("uploadType=multipart")
+        );
+        assert_eq!(multipart.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-2");
+
+        let untokened = core
+            .gcs_insert_object_request("object", Some(0), &OpWrite::default(), Buffer::new(), None)
+            .expect("media request must build");
+        assert!(
+            !untokened
+                .headers()
+                .contains_key(X_GOOG_GCS_IDEMPOTENCY_TOKEN)
+        );
+
+        let resumable = core
+            .gcs_initiate_resumable_upload_request("object", &OpWrite::default(), "token-3")
+            .expect("resumable request must build");
+        assert_eq!(resumable.headers()[X_GOOG_GCS_IDEMPOTENCY_TOKEN], "token-3");
+    }
+
+    #[test]
+    fn test_insert_object_request_rejects_invalid_content_type() {
+        let core = test_core();
+        let err = core
+            .gcs_insert_object_request(
+                "object",
+                Some(0),
+                &write_args(options::WriteOptions {
+                    content_type: Some("text/plain\n".to_owned()),
+                    ..Default::default()
+                }),
+                Buffer::new(),
+                None,
+            )
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("building http request"), "{err}");
     }
 
     #[test]
@@ -1537,6 +1648,7 @@ mod tests {
                     ..Default::default()
                 }),
                 Buffer::new(),
+                None,
             )
             .expect("write request must build");
         let query = write.uri().query().unwrap();
@@ -1547,7 +1659,7 @@ mod tests {
             .gcs_delete_object_request(
                 "object",
                 &OpDelete::from_options(
-                    &Capability::default(),
+                    &core.capability,
                     options::DeleteOptions {
                         if_version_not_match: Some("456".to_owned()),
                         ..Default::default()
@@ -1572,6 +1684,7 @@ mod tests {
                     if_version_match: Some("123".to_owned()),
                     ..Default::default()
                 }),
+                "token",
             )
             .expect("resumable request must build");
         let query = resumable.uri().query().unwrap();
@@ -1718,7 +1831,7 @@ mod tests {
     }
 
     fn delete_args(options: options::DeleteOptions) -> OpDelete {
-        OpDelete::from_options(&Capability::default(), options).unwrap()
+        OpDelete::from_options(&test_core().capability, options).unwrap()
     }
 
     #[test]
@@ -1797,7 +1910,7 @@ mod tests {
             },
         ];
         let args = OpCompose::from_options(
-            &Capability::default(),
+            &core.capability,
             options::ComposeOptions {
                 if_version_match: Some("33".to_string()),
                 cache_control: Some("no-cache".to_string()),

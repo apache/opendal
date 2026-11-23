@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 use opendal_core::*;
 use redb::ReadableDatabase;
+use redb::ReadableTable;
 
 #[derive(Clone)]
 pub struct RedbCore {
@@ -38,14 +39,18 @@ impl Debug for RedbCore {
 }
 
 impl RedbCore {
-    pub fn scan(&self, prefix: &str) -> Result<redb::Range<'static, &'static str, &'static [u8]>> {
+    /// Scan all keys starting with `prefix`.
+    ///
+    /// The returned [`redb::OwnedRange`] keeps the read transaction alive, so callers can
+    /// keep iterating after this method returns and drops its own transaction handle.
+    pub fn scan(&self, prefix: &str) -> Result<redb::OwnedRange<&'static str, &'static [u8]>> {
         let read_txn = self.db.begin_read().map_err(parse_transaction_error)?;
         let table_define: redb::TableDefinition<&str, &[u8]> =
             redb::TableDefinition::new(&self.table);
         let table = read_txn
             .open_table(table_define)
             .map_err(parse_table_error)?;
-        table.range(prefix..).map_err(parse_storage_error)
+        table.range_owned(prefix..).map_err(parse_storage_error)
     }
 
     pub fn get(&self, path: &str) -> Result<Option<Buffer>> {

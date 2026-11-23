@@ -61,6 +61,7 @@ pub fn tests(op: &Operator, tests: &mut Vec<Trial>) {
             test_writer_futures_copy_with_concurrent,
             test_writer_return_metadata,
             test_writer_copy_from_interleaved,
+            test_writer_copy_from_mismatched_if_match_preserves_target,
             test_writer_write_non_contiguous_data,
             test_writer_write_with_if_not_exists,
             test_writer_write_with_if_none_match,
@@ -508,6 +509,72 @@ pub async fn test_writer_copy_from_interleaved(op: Operator) -> Result<()> {
     expected.extend_from_slice(b"footer");
     expected.extend_from_slice(&source[15 * 1024 * 1024..]);
     assert_eq!(op.read(&target_path).await?.to_bytes(), expected);
+    Ok(())
+}
+
+/// A failed conditional `copy_from` must stay abortable and preserve the target.
+///
+/// A mismatched source `if_match` fails with `ConditionNotMatch`, reported either
+/// by `copy_from` itself or by the later `close` that collects the failed part.
+/// `Writer::abort` then rolls the writer back without ever completing the
+/// multipart upload, so the pre-existing target object keeps its original
+/// content.
+pub async fn test_writer_copy_from_mismatched_if_match_preserves_target(
+    op: Operator,
+) -> Result<()> {
+    if !(op.info().capability().write_can_multi
+        && op.info().capability().write_can_copy_from
+        && op.info().capability().read_with_if_match)
+    {
+        return Ok(());
+    }
+
+    let target_path = TEST_FIXTURE.new_file_path();
+    let target_content = b"original-target".to_vec();
+    op.write(&target_path, target_content.clone()).await?;
+
+    // Use a full multipart-minimum-sized source so the exact chunk is copied
+    // through the native writer copy path.
+    let source_path = TEST_FIXTURE.new_file_path();
+    let size = 5 * 1024 * 1024;
+    let source = gen_fixed_bytes(size);
+    op.write(&source_path, source).await?;
+
+    let mut writer = op
+        .writer_with(&target_path)
+        .chunk(size)
+        .concurrent(2)
+        .await?;
+    let result = writer
+        .copy_from_options(
+            &source_path,
+            options::ReadOptions {
+                range: (0_u64..size as u64).into(),
+                // A well-formed ETag that cannot match the written source object.
+                if_match: Some("\"00000000000000000000000000000000\"".to_string()),
+                ..Default::default()
+            },
+        )
+        .await;
+
+    // The copy error can surface at `copy_from` or at the `close` that collects
+    // the failed part; both report the source condition failure.
+    let err = match result {
+        Err(err) => err,
+        Ok(()) => writer
+            .close()
+            .await
+            .expect_err("close must fail after the copied part was rejected"),
+    };
+    assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+    writer.abort().await?;
+
+    assert_eq!(
+        op.read(&target_path).await?.to_bytes(),
+        target_content,
+        "aborted writer must preserve the original target"
+    );
     Ok(())
 }
 

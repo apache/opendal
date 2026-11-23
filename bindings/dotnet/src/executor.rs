@@ -28,7 +28,7 @@ use crate::utils::config_invalid_error;
 static DEFAULT_EXECUTOR: OnceLock<Arc<Executor>> = OnceLock::new();
 
 pub struct Executor {
-    runtime: tokio::runtime::Runtime,
+    runtime: Option<tokio::runtime::Runtime>,
 }
 
 impl Executor {
@@ -53,19 +53,51 @@ impl Executor {
                 )
             })?;
 
-        Ok(Self { runtime })
+        Ok(Self {
+            runtime: Some(runtime),
+        })
+    }
+
+    fn runtime(&self) -> &tokio::runtime::Runtime {
+        self.runtime
+            .as_ref()
+            .expect("executor runtime is only taken in Drop")
     }
 
     pub fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.runtime.block_on(future)
+        self.runtime().block_on(future)
     }
 
-    pub fn spawn<F>(&self, future: F) -> tokio::task::JoinHandle<F::Output>
+    pub fn spawn<F>(self: &Arc<Self>, future: F) -> tokio::task::JoinHandle<F::Output>
     where
         F: Future + Send + 'static,
         F::Output: Send + 'static,
     {
-        self.runtime.spawn(future)
+        // Keep the executor alive until the spawned future finishes so freeing
+        // the caller's handles does not cancel in-flight FFI callbacks.
+        let keep_alive = Arc::clone(self);
+        self.runtime().spawn(async move {
+            let _keep_alive = keep_alive;
+            future.await
+        })
+    }
+}
+
+impl Drop for Executor {
+    fn drop(&mut self) {
+        let Some(runtime) = self.runtime.take() else {
+            return;
+        };
+
+        // Dropping a Tokio runtime inside an async runtime context panics and
+        // aborts across `extern "C"`. Use non-blocking shutdown when the last
+        // reference drops on a runtime thread (for example when the final
+        // in-flight task finishes or a completion callback frees handles).
+        if tokio::runtime::Handle::try_current().is_ok() {
+            runtime.shutdown_background();
+        } else {
+            drop(runtime);
+        }
     }
 }
 
@@ -132,8 +164,58 @@ pub unsafe extern "C" fn executor_free(executor: *mut c_void) {
     }
 
     // SAFETY: reclaims the reference handed out by `executor_create`.
-    // Operators hold their own clones, so in-flight work keeps its runtime.
+    // Operators and in-flight spawned tasks hold their own clones, so work
+    // keeps its runtime alive until completion.
     unsafe {
         drop(Arc::from_raw(executor as *const Executor));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    #[test]
+    fn spawn_keeps_runtime_alive_after_external_drop() {
+        let executor = Arc::new(Executor::new(1).expect("create executor"));
+        let (started_tx, started_rx) = mpsc::channel();
+        let (release_tx, release_rx) = tokio::sync::oneshot::channel::<()>();
+
+        let handle = executor.spawn(async move {
+            started_tx.send(()).expect("signal task started");
+            release_rx.await.expect("receive release signal");
+            42usize
+        });
+
+        started_rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("spawned task should start");
+
+        // Drop the caller's last handle while the spawned task is suspended.
+        drop(executor);
+
+        release_tx
+            .send(())
+            .expect("runtime must not cancel in-flight task when caller drops executor");
+
+        let output = futures::executor::block_on(handle).expect(
+            "in-flight task must finish without cancellation or panic on final executor drop",
+        );
+        assert_eq!(output, 42);
+    }
+
+    #[test]
+    fn dropping_executor_inside_runtime_does_not_panic() {
+        let host = Arc::new(Executor::new(1).expect("create host executor"));
+        let target = Arc::new(Executor::new(1).expect("create target executor"));
+
+        let handle = host.spawn(async move {
+            drop(target);
+        });
+
+        futures::executor::block_on(handle)
+            .expect("dropping executor on a Tokio worker thread must not panic");
     }
 }

@@ -83,7 +83,10 @@ impl MemcachedBuilder {
         self
     }
 
-    /// Set the default ttl for memcached services.
+    /// Set the default TTL for writes without a per-write expiration.
+    ///
+    /// Positive durations are rounded up to whole seconds and must not exceed
+    /// 30 days. A zero duration disables expiration.
     pub fn default_ttl(mut self, ttl: Duration) -> Self {
         self.default_ttl = Some(ttl);
         self
@@ -117,7 +120,7 @@ impl Builder for MemcachedBuilder {
                 .transpose()?,
         };
         if let Some(ttl) = default_ttl
-            && ttl.as_secs() > MAX_RELATIVE_EXPIRATION_SECS
+            && ttl > Duration::from_secs(MAX_RELATIVE_EXPIRATION_SECS)
         {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -411,11 +414,16 @@ mod tests {
             .build();
         assert!(ok.is_ok(), "thirty days exactly must still be accepted");
 
-        let err = MemcachedBuilder::default()
-            .endpoint("tcp://127.0.0.1:11211")
-            .default_ttl(thirty_days + Duration::from_secs(1))
-            .build()
-            .expect_err("a ttl over thirty days must be rejected");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        for ttl in [
+            thirty_days + Duration::from_nanos(1),
+            thirty_days + Duration::from_secs(1),
+        ] {
+            let err = MemcachedBuilder::default()
+                .endpoint("tcp://127.0.0.1:11211")
+                .default_ttl(ttl)
+                .build()
+                .expect_err("a ttl over thirty days must be rejected");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
     }
 }

@@ -47,6 +47,12 @@ pub use rps::*;
 mod ops;
 pub use ops::*;
 
+pub(crate) mod glob_matcher;
+
+mod http_transport_cache;
+pub use http_transport_cache::HttpTransportCache;
+pub use http_transport_cache::WeakHttpTransporter;
+
 mod http_util;
 pub use http_util::*;
 

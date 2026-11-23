@@ -50,7 +50,7 @@ impl oio::Write for DashmapWriter {
     async fn close(&mut self) -> Result<Metadata> {
         let content = self.buf.clone().collect();
 
-        let mut meta = if self.path.ends_with('/') {
+        let mut meta = if self.path.is_empty() || self.path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
             MetadataBuilder::file(content.len() as u64)

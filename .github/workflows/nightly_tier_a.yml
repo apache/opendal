@@ -191,7 +191,7 @@ jobs:
             --head-sha "${{ github.sha }}"
             --self-job-name "Report Nightly Status"
           )
-          if [ "${{ github.repository }}" = "apache/opendal" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "$DRY_RUN" != "true" ]; then
+          if [ "$GITHUB_REPOSITORY" = "apache/opendal" ] && [ "$GITHUB_REF" = "refs/heads/main" ] && [ "$DRY_RUN" != "true" ]; then
             args+=(--apply)
           fi
           python3 .github/scripts/nightly/report.py "${args[@]}"

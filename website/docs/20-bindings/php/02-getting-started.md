@@ -81,9 +81,9 @@ $op->create_dir("logs/app/");
 
 ## Error handling
 
-All methods throw a standard `Exception` on failure. The message comes from
-the OpenDAL core and describes what went wrong (service error, path not found,
-invalid configuration, and so on).
+The PHP binding throws `OpenDAL\Exception` when OpenDAL returns an error.
+The class extends PHP's built-in `\Exception`. Use `getMessage()` to read the
+OpenDAL error kind and details, such as `NotFound` when a path is missing.
 
 ```php
 use OpenDAL\Operator;
@@ -91,13 +91,12 @@ use OpenDAL\Operator;
 try {
     $op = new Operator("fs", ["root" => "/tmp"]);
     $content = $op->read("no-such-file.txt");
-} catch (\Exception $e) {
+} catch (\OpenDAL\Exception $e) {
     echo "Error: " . $e->getMessage() . "\n";
 }
 ```
 
-Common error causes:
-- Passing an unknown scheme to the constructor.
-- Missing required configuration keys (e.g. `"root"` for the `fs` service).
-- Reading a path that does not exist.
-- Passing non-UTF-8 content to `write` (use `write_binary` instead).
+An unknown scheme, missing required configuration such as `"root"` for `fs`,
+or a missing path can produce an OpenDAL error. PHP argument conversion can
+also throw separately. Use `write_binary` to write content that contains
+invalid UTF-8.

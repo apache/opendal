@@ -32,6 +32,9 @@
 //!
 //! For examples, you may see the examples subdirectory
 
+mod cancel;
+pub use cancel::opendal_cancel_token;
+
 mod error;
 pub use error::opendal_code;
 pub use error::opendal_error;

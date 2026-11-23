@@ -20,6 +20,7 @@ use std::fmt::Formatter;
 use std::future::Future;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::Weak;
 
 #[cfg(feature = "reqsign")]
 use bytes::Bytes;
@@ -95,6 +96,18 @@ impl HttpTransporter {
         Self {
             inner: Arc::new(transport),
         }
+    }
+
+    pub(crate) fn identity_addr(&self) -> usize {
+        Arc::as_ptr(&self.inner).cast::<()>().addr()
+    }
+
+    pub(crate) fn downgrade(&self) -> Weak<dyn HttpTransportDyn> {
+        Arc::downgrade(&self.inner)
+    }
+
+    pub(crate) fn from_arc(inner: Arc<dyn HttpTransportDyn>) -> Self {
+        Self { inner }
     }
 
     /// Install the process-wide default HTTP transport.

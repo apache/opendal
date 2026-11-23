@@ -315,7 +315,14 @@ impl FromStr for BytesRange {
                 .with_operation("BytesRange::from_str")
                 .with_context("value", value));
             }
-            Ok(BytesRange::new(start, Some(end - start + 1)))
+            // `end >= start`, so the subtraction is exact. A request for the
+            // entire addressable range (`0-u64::MAX`) spans 2^64 bytes, which
+            // does not fit in u64; saturate to u64::MAX to match
+            // `From<RangeBounds>`.
+            Ok(BytesRange::new(
+                start,
+                Some((end - start).saturating_add(1)),
+            ))
         }
     }
 }
@@ -327,11 +334,18 @@ where
     fn from(range: T) -> Self {
         let offset = match range.start_bound().cloned() {
             Bound::Included(n) => n,
-            Bound::Excluded(n) => n.saturating_add(1),
+            Bound::Excluded(n) => match n.checked_add(1) {
+                Some(offset) => offset,
+                None => return BytesRange::new(u64::MAX, Some(0)),
+            },
             Bound::Unbounded => 0,
         };
         let size = match range.end_bound().cloned() {
-            Bound::Included(n) => Some(n.saturating_add(1).saturating_sub(offset)),
+            Bound::Included(n) => Some(if n < offset {
+                0
+            } else {
+                (n - offset).saturating_add(1)
+            }),
             Bound::Excluded(n) => Some(n.saturating_sub(offset)),
             Bound::Unbounded => None,
         };
@@ -426,8 +440,33 @@ mod tests {
     }
 
     #[test]
+    fn test_bytes_range_from_str_u64_max() -> Result<()> {
+        // A request for the entire addressable range spans 2^64 bytes, one more
+        // than u64 can hold. Saturate the size to u64::MAX, matching
+        // `From<RangeBounds>` for `..=u64::MAX`.
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            "bytes=0-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(0..=u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(1, Some(u64::MAX)),
+            "bytes=1-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(1)),
+            "bytes=18446744073709551615-18446744073709551615".parse::<BytesRange>()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_bytes_range_from_str_invalid_end_less_than_start() {
-        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0"];
+        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0", "bytes=10-5"];
 
         for input in cases {
             let result: Result<BytesRange> = input.parse();
@@ -447,28 +486,77 @@ mod tests {
         assert_eq!(BytesRange::new(10, Some(0)), BytesRange::from(10..=5));
         assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..0));
         assert_eq!(BytesRange::new(5, Some(0)), BytesRange::from(5..=0));
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)),
+            BytesRange::from(u64::MAX..=0)
+        );
     }
 
     #[test]
-    fn test_bytes_range_from_range_bounds_u64_max() {
-        // Boundary cases near u64::MAX must not overflow.
+    fn test_bytes_range_from_range_bounds_u64_max() -> Result<()> {
+        // Boundary cases near u64::MAX must not overflow or drop a byte.
         assert_eq!(
             BytesRange::new(0, Some(u64::MAX)),
             BytesRange::from(..=u64::MAX)
         );
         assert_eq!(
             BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(0..=u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
             BytesRange::from(..u64::MAX)
         );
         assert_eq!(
-            BytesRange::new(1, Some(u64::MAX.saturating_sub(1))),
+            BytesRange::new(1, Some(u64::MAX)),
             BytesRange::from(1..=u64::MAX)
         );
-        // Excluded start at u64::MAX must not overflow.
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(1)),
+            BytesRange::from(u64::MAX..=u64::MAX)
+        );
         assert_eq!(
             BytesRange::new(u64::MAX, None),
             BytesRange::from((u64::MAX)..)
         );
+
+        // Parity with FromStr at u64::MAX boundaries.
+        assert_eq!(
+            BytesRange::from(0..=u64::MAX),
+            "bytes=0-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::from(1..=u64::MAX),
+            "bytes=1-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::from(u64::MAX..=u64::MAX),
+            "bytes=18446744073709551615-18446744073709551615".parse::<BytesRange>()?
+        );
+
+        // Excluded start near and at u64::MAX.
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(1)),
+            BytesRange::from((Bound::Excluded(u64::MAX - 1), Bound::Included(u64::MAX)))
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, None),
+            BytesRange::from((Bound::Excluded(u64::MAX - 1), Bound::Unbounded))
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)),
+            BytesRange::from((Bound::Excluded(u64::MAX), Bound::Unbounded))
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)),
+            BytesRange::from((Bound::Excluded(u64::MAX), Bound::Included(u64::MAX)))
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(0)),
+            BytesRange::from((Bound::Excluded(u64::MAX), Bound::Excluded(u64::MAX)))
+        );
+
+        Ok(())
     }
 
     #[test]

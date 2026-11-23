@@ -22,6 +22,7 @@ use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
 use http::StatusCode;
 use log::debug;
+use reqsign_azure_storage::ClientSecretCredentialProvider;
 use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
@@ -65,6 +66,10 @@ impl From<AzureConnectionConfig> for AzblobConfig {
             endpoint: value.endpoint,
             account_name: value.account_name,
             account_key: value.account_key,
+            client_id: value.client_id,
+            client_secret: value.client_secret,
+            tenant_id: value.tenant_id,
+            authority_host: value.authority_host,
             sas_token: value.sas_token,
             ..Default::default()
         }
@@ -247,6 +252,58 @@ impl AzblobBuilder {
         self
     }
 
+    /// Set client_id of this backend.
+    ///
+    /// - If client_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn client_id(mut self, client_id: &str) -> Self {
+        if !client_id.is_empty() {
+            self.config.client_id = Some(client_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set client_secret of this backend.
+    ///
+    /// - If client_secret is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn client_secret(mut self, client_secret: &str) -> Self {
+        if !client_secret.is_empty() {
+            self.config.client_secret = Some(client_secret.to_string());
+        }
+
+        self
+    }
+
+    /// Set tenant_id of this backend.
+    ///
+    /// - If tenant_id is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Required for client_credentials authentication.
+    pub fn tenant_id(mut self, tenant_id: &str) -> Self {
+        if !tenant_id.is_empty() {
+            self.config.tenant_id = Some(tenant_id.to_string());
+        }
+
+        self
+    }
+
+    /// Set authority_host of this backend.
+    ///
+    /// - If authority_host is set, we will take user's input first.
+    /// - If not, we will try to load it from environment.
+    /// - Defaults to `https://login.microsoftonline.com`.
+    pub fn authority_host(mut self, authority_host: &str) -> Self {
+        if !authority_host.is_empty() {
+            self.config.authority_host = Some(authority_host.to_string());
+        }
+
+        self
+    }
+
     /// Replace the credential providers with a custom chain.
     ///
     /// Build the chain from [`opendal_core::reqsign_core`] and
@@ -310,6 +367,12 @@ impl Builder for AzblobBuilder {
     type Config = AzblobConfig;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl AzblobBuilder {
+    fn build_backend(self) -> Result<AzblobBackend> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -325,7 +388,7 @@ impl Builder for AzblobBuilder {
         debug!("backend use container {}", container);
 
         let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
+            Some(endpoint) => Ok(endpoint.trim_end_matches('/').to_string()),
             None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
                 .with_operation("Builder::build")
                 .with_context("service", AZBLOB_SCHEME)),
@@ -403,8 +466,51 @@ impl Builder for AzblobBuilder {
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
 
-        let mut credential_providers =
-            ProvideCredentialChain::new().push(DefaultCredentialProvider::new());
+        let mut client_secret = ClientSecretCredentialProvider::new();
+        if let Some(v) = self.config.tenant_id.as_deref().filter(|v| !v.is_empty()) {
+            client_secret = client_secret.with_tenant_id(v);
+        }
+        if let Some(v) = self.config.client_id.as_deref().filter(|v| !v.is_empty()) {
+            client_secret = client_secret.with_client_id(v);
+        }
+        if let Some(v) = self
+            .config
+            .client_secret
+            .as_deref()
+            .filter(|v| !v.is_empty())
+        {
+            client_secret = client_secret.with_client_secret(v);
+        }
+        if let Some(v) = self
+            .config
+            .authority_host
+            .as_deref()
+            .filter(|v| !v.is_empty())
+        {
+            client_secret = client_secret.with_authority_host(v);
+        }
+
+        let mut credential_providers = ProvideCredentialChain::new().push(
+            DefaultCredentialProvider::builder()
+                .client_secret(client_secret)
+                .build(),
+        );
+
+        let has_shared_key = account_name.as_deref().is_some_and(|v| !v.is_empty())
+            && self
+                .config
+                .account_key
+                .as_deref()
+                .is_some_and(|v| !v.is_empty());
+        let has_sas_token = self
+            .config
+            .sas_token
+            .as_deref()
+            .is_some_and(|token| !token.trim_start_matches('?').is_empty());
+        let is_path_style_endpoint = match endpoint.parse::<http::Uri>() {
+            Ok(uri) => uri.authority().is_none() || !uri.path().trim_matches('/').is_empty(),
+            Err(_) => true,
+        };
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
@@ -428,6 +534,14 @@ impl Builder for AzblobBuilder {
             credential_providers,
             RequestSigner::new().with_service_sas_permissions("racwd"),
         );
+
+        // SharedKey Service SAS signing in `reqsign-azure-storage` derives the
+        // canonicalized resource from the first URL path segment, which only
+        // matches host-style endpoints (`https://<account>.blob.core.windows.net`).
+        // Path-style endpoints such as Azurite (`http://127.0.0.1:10000/<account>`)
+        // require a pre-generated `sas_token` for presigning.
+        let azblob_can_presign = !self.config.skip_signature
+            && (has_sas_token || (has_shared_key && !is_path_style_endpoint));
 
         let info = ServiceInfo::new(AZBLOB_SCHEME, &root, container);
         let capability = Capability {
@@ -470,10 +584,10 @@ impl Builder for AzblobBuilder {
             list: true,
             list_with_recursive: true,
 
-            presign: self.config.sas_token.is_some(),
-            presign_stat: self.config.sas_token.is_some(),
-            presign_read: self.config.sas_token.is_some(),
-            presign_write: self.config.sas_token.is_some(),
+            presign: azblob_can_presign,
+            presign_stat: azblob_can_presign,
+            presign_read: azblob_can_presign,
+            presign_write: azblob_can_presign,
 
             shared: true,
 
@@ -665,6 +779,13 @@ impl Service for AzblobBackend {
         path: &str,
         args: OpPresign,
     ) -> Result<RpPresign> {
+        if !self.core.capability.presign {
+            return Err(Error::new(
+                ErrorKind::Unsupported,
+                "presign is not supported for the current azblob configuration",
+            ));
+        }
+
         let req = match args.operation() {
             PresignOperation::Stat(v) => self.core.azblob_head_blob_request(path, v),
             PresignOperation::Read(range, v) => self.core.azblob_get_blob_request(path, *range, v),
@@ -683,7 +804,7 @@ impl Service for AzblobBackend {
         };
 
         let req = req?;
-        let req = self.core.sign_query(ctx, req).await?;
+        let req = self.core.sign_query(ctx, req, args.expire()).await?;
 
         let (parts, _) = req.into_parts();
 
@@ -767,5 +888,307 @@ mod tests {
             ..Default::default()
         };
         Operator::from_config(config).expect("Base64-encoded 32-byte key must build");
+    }
+
+    fn parse_query_params(uri: &http::Uri) -> std::collections::HashMap<String, String> {
+        uri.query()
+            .unwrap_or_default()
+            .split('&')
+            .filter(|pair| !pair.is_empty())
+            .filter_map(|pair| {
+                let (k, v) = pair.split_once('=')?;
+                Some((k.to_string(), percent_decode_path(v)))
+            })
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn presign_shared_key_enables_capability_and_generates_service_sas() {
+        let key = BASE64_STANDARD.encode([42u8; 64]);
+
+        for endpoint in [
+            "https://myaccount.blob.core.windows.net",
+            "https://myaccount.blob.core.windows.net/",
+        ] {
+            let op = Operator::from_config(AzblobConfig {
+                container: "test".to_string(),
+                endpoint: Some(endpoint.to_string()),
+                account_name: Some("myaccount".to_string()),
+                account_key: Some(key.clone()),
+                ..Default::default()
+            })
+            .unwrap();
+
+            let cap = op.info().capability();
+            assert!(cap.presign);
+            assert!(cap.presign_stat);
+            assert!(cap.presign_read);
+            assert!(cap.presign_write);
+            assert!(!cap.presign_delete);
+
+            for req in [
+                op.presign_stat("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+                op.presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+                op.presign_write("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap(),
+            ] {
+                assert_eq!(req.uri().path(), "/test/path/to/file.txt");
+                let params = parse_query_params(req.uri());
+                assert_eq!(params.get("sr").map(String::as_str), Some("b"));
+                assert_eq!(params.get("sp").map(String::as_str), Some("racwd"));
+                assert!(params.contains_key("sv"));
+                assert!(params.contains_key("se"));
+                assert!(params.contains_key("sig"));
+            }
+        }
+
+        // SharedKey with account_name inferred from host-style endpoint enables presign.
+        let inferred_op = Operator::new(
+            AzblobBuilder::default()
+                .container("test")
+                .endpoint("https://myaccount.blob.core.windows.net")
+                .account_key(&key),
+        )
+        .unwrap();
+        assert!(inferred_op.info().capability().presign);
+
+        // Path-style endpoints (such as Azurite) must not advertise SharedKey presign
+        // and must reject presign calls with Unsupported instead of emitting invalid URLs.
+        for endpoint in [
+            "http://127.0.0.1:10000/devstoreaccount1",
+            "http://127.0.0.1:10000/devstoreaccount1/",
+        ] {
+            for op in [
+                Operator::new(
+                    AzblobBuilder::default()
+                        .container("test")
+                        .endpoint(endpoint)
+                        .account_name("devstoreaccount1")
+                        .account_key(&key),
+                )
+                .unwrap(),
+                Operator::from_config(AzblobConfig {
+                    container: "test".to_string(),
+                    endpoint: Some(endpoint.to_string()),
+                    account_name: Some("devstoreaccount1".to_string()),
+                    account_key: Some(key.clone()),
+                    ..Default::default()
+                })
+                .unwrap(),
+            ] {
+                let cap = op.info().capability();
+                assert!(!cap.presign);
+                assert!(!cap.presign_stat);
+                assert!(!cap.presign_read);
+                assert!(!cap.presign_write);
+                let err = op
+                    .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                    .await
+                    .unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unsupported);
+            }
+        }
+
+        // Path-style endpoints with a pre-generated sas_token still support presign.
+        for endpoint in [
+            "http://127.0.0.1:10000/devstoreaccount1",
+            "http://127.0.0.1:10000/devstoreaccount1/",
+        ] {
+            let sas_op = Operator::new(
+                AzblobBuilder::default()
+                    .container("test")
+                    .endpoint(endpoint)
+                    .sas_token("sv=2022-11-02&ss=b&srt=o&sp=r&sig=test"),
+            )
+            .unwrap();
+            let cap = sas_op.info().capability();
+            assert!(cap.presign);
+            assert!(cap.presign_stat);
+            assert!(cap.presign_read);
+            assert!(cap.presign_write);
+            let req = sas_op
+                .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+                .await
+                .unwrap();
+            assert_eq!(req.uri().path(), "/devstoreaccount1/test/path/to/file.txt");
+            assert_eq!(
+                parse_query_params(req.uri()).get("sig").map(String::as_str),
+                Some("test")
+            );
+        }
+
+        // Custom credential_provider_chain without explicit SharedKey/SAS must not
+        // advertise presign support because the chain may yield BearerToken credentials.
+        let chain = ProvideCredentialChain::new()
+            .push(StaticCredentialProvider::new_shared_key("myaccount", &key));
+        let custom_op = Operator::new(
+            AzblobBuilder::default()
+                .container("test")
+                .endpoint("https://myaccount.blob.core.windows.net")
+                .credential_provider_chain(chain),
+        )
+        .unwrap();
+        let custom_cap = custom_op.info().capability();
+        assert!(!custom_cap.presign);
+        assert!(!custom_cap.presign_stat);
+        assert!(!custom_cap.presign_read);
+        assert!(!custom_cap.presign_write);
+        let err = custom_op
+            .presign_read("path/to/file.txt", std::time::Duration::from_secs(120))
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        // Entra ID client credentials alone must not claim presign support.
+        let entra_op = Operator::new(
+            AzblobBuilder::default()
+                .container("test")
+                .endpoint("https://myaccount.blob.core.windows.net")
+                .client_id("client-123")
+                .client_secret("secret-123")
+                .tenant_id("tenant-123"),
+        )
+        .unwrap();
+        assert!(!entra_op.info().capability().presign);
+
+        // Empty or "?" sas_token and skip_signature must not enable presign.
+        for sas_token in ["", "?"] {
+            let op = Operator::from_config(AzblobConfig {
+                container: "test".to_string(),
+                endpoint: Some("https://myaccount.blob.core.windows.net".to_string()),
+                sas_token: Some(sas_token.to_string()),
+                ..Default::default()
+            })
+            .unwrap();
+            assert!(!op.info().capability().presign);
+        }
+        let skipped_op = Operator::new(
+            AzblobBuilder::default()
+                .container("test")
+                .endpoint("https://myaccount.blob.core.windows.net")
+                .account_name("myaccount")
+                .account_key(&key)
+                .skip_signature(),
+        )
+        .unwrap();
+        assert!(!skipped_op.info().capability().presign);
+    }
+
+    #[tokio::test]
+    async fn presign_honors_requested_expiration() {
+        let key = BASE64_STANDARD.encode([42u8; 64]);
+        let op = Operator::new(
+            AzblobBuilder::default()
+                .container("test")
+                .endpoint("https://myaccount.blob.core.windows.net")
+                .account_name("myaccount")
+                .account_key(&key),
+        )
+        .unwrap();
+
+        let before = reqsign_core::time::Timestamp::now();
+        let short_req = op
+            .presign_read("a", std::time::Duration::from_secs(120))
+            .await
+            .unwrap();
+        let long_req = op
+            .presign_read("a", std::time::Duration::from_secs(600))
+            .await
+            .unwrap();
+        let after = reqsign_core::time::Timestamp::now();
+
+        let short_params = parse_query_params(short_req.uri());
+        let long_params = parse_query_params(long_req.uri());
+
+        let short_se: reqsign_core::time::Timestamp = short_params
+            .get("se")
+            .expect("se must exist")
+            .parse()
+            .unwrap();
+        let long_se: reqsign_core::time::Timestamp = long_params
+            .get("se")
+            .expect("se must exist")
+            .parse()
+            .unwrap();
+
+        assert!(
+            short_se >= before + std::time::Duration::from_secs(115)
+                && short_se <= after + std::time::Duration::from_secs(125),
+            "expected ~120s expiration, got se={short_se:?} (before={before:?}, after={after:?})"
+        );
+        assert!(
+            long_se >= before + std::time::Duration::from_secs(595)
+                && long_se <= after + std::time::Duration::from_secs(605),
+            "expected ~600s expiration, got se={long_se:?} (before={before:?}, after={after:?})"
+        );
+        assert!(long_se > short_se);
+    }
+
+    #[derive(Clone, Default, Debug)]
+    struct MockTokenHttpSend {
+        captured: Arc<std::sync::Mutex<Vec<(String, String)>>>,
+    }
+
+    impl reqsign_core::HttpSend for MockTokenHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<bytes::Bytes>,
+        ) -> reqsign_core::Result<http::Response<bytes::Bytes>> {
+            let uri = req.uri().to_string();
+            let body = String::from_utf8_lossy(req.body()).into_owned();
+            self.captured.lock().unwrap().push((uri, body));
+            Ok(http::Response::builder()
+                .status(StatusCode::OK)
+                .body(bytes::Bytes::from_static(
+                    br#"{"access_token":"azblob-bearer-token","expires_in":3600}"#,
+                ))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn client_secret_credentials_use_configured_authority_and_tenant() {
+        let backend = AzblobBuilder::default()
+            .container("test")
+            .endpoint("https://myaccount.blob.core.windows.net")
+            .client_id("client-123")
+            .client_secret("secret-123")
+            .tenant_id("tenant-123")
+            .authority_host("https://custom.authority.example")
+            .build_backend()
+            .unwrap();
+
+        assert!(!backend.capability().presign);
+
+        let http = MockTokenHttpSend::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_http_send(http.clone());
+        let signer = backend.core.signer.clone().with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("https://myaccount.blob.core.windows.net/test/a")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer azblob-bearer-token"
+        );
+        let captured = http.captured.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(
+            captured[0].0,
+            "https://custom.authority.example/tenant-123/oauth2/v2.0/token"
+        );
+        assert!(captured[0].1.contains("client_id=client-123"));
+        assert!(captured[0].1.contains("client_secret=secret-123"));
+        assert!(captured[0].1.contains("grant_type=client_credentials"));
     }
 }

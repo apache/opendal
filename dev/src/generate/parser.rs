@@ -29,7 +29,7 @@ use syn::{
 
 pub type Services = HashMap<String, Service>;
 
-pub fn sorted_services(services: Services, test: fn(&str) -> bool) -> Services {
+pub fn sorted_services(services: Services, test: impl Fn(&str) -> bool) -> Services {
     let mut srvs = Services::new();
     for (k, srv) in services.into_iter() {
         if !test(k.as_str()) {

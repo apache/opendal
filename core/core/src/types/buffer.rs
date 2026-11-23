@@ -122,6 +122,12 @@ enum Inner {
     Contiguous(Bytes),
     // the logic view of the buffer starts at `parts[idx][offset]` and spans `size` bytes
     // across subsequent `parts`
+    //
+    // Invariants:
+    // - `parts` holds at least two `Bytes` and all of them are non-empty,
+    //   so `Buf::chunk` never returns an empty slice while `size > 0`.
+    // - `size == 0` iff the view is exhausted, in which case `idx` may equal
+    //   `parts.len()`.
     NonContiguous {
         parts: Arc<[Bytes]>,
         size: usize,
@@ -186,6 +192,29 @@ impl Buffer {
         self.len() == 0
     }
 
+    /// Build a `Buffer` from multiple `Bytes` parts.
+    ///
+    /// Empty parts are dropped so that `NonContiguous` buffers always start
+    /// on a non-empty part. Views backed by zero or one non-empty part become
+    /// `Contiguous` to avoid the `Arc` allocation.
+    fn from_parts(parts: Vec<Bytes>) -> Self {
+        match parts.len() {
+            0 => Self(Inner::Contiguous(Bytes::new())),
+            1 => Self(Inner::Contiguous(
+                parts.into_iter().next().expect("len checked"),
+            )),
+            _ => {
+                let size = parts.iter().map(Bytes::len).sum();
+                Self(Inner::NonContiguous {
+                    parts: parts.into(),
+                    size,
+                    idx: 0,
+                    offset: 0,
+                })
+            }
+        }
+    }
+
     /// Number of [`Bytes`] in [`Buffer`].
     ///
     /// For contiguous buffer, it's always 1. For non-contiguous buffer, it's number of bytes
@@ -199,6 +228,10 @@ impl Buffer {
                 size,
                 offset,
             } => {
+                if *size == 0 {
+                    return 0;
+                }
+
                 parts
                     .iter()
                     .skip(*idx)
@@ -224,6 +257,10 @@ impl Buffer {
                 offset,
                 size,
             } => {
+                if *size == 0 || *idx >= parts.len() {
+                    return Bytes::new();
+                }
+
                 let chunk = &parts[*idx];
                 let n = (chunk.len() - *offset).min(*size);
                 chunk.slice(*offset..*offset + n)
@@ -292,13 +329,19 @@ impl Buffer {
             Inner::NonContiguous {
                 parts,
                 size,
-                idx: _,
+                idx,
                 offset,
             } => {
-                if parts.len() == 1 {
-                    parts[0].slice(*offset..(*offset + *size))
+                if *size == 0 || *idx >= parts.len() {
+                    return Bytes::new();
+                }
+                // Keep the view zero-copy when it lives inside a single part,
+                // e.g. after `slice` or `split_to` shortened the buffer.
+                let chunk = &parts[*idx];
+                if chunk.len() - *offset >= *size {
+                    chunk.slice(*offset..*offset + *size)
                 } else {
-                    let mut ret = BytesMut::with_capacity(self.len());
+                    let mut ret = BytesMut::with_capacity(*size);
                     ret.put(self.clone());
                     ret.freeze()
                 }
@@ -321,13 +364,23 @@ impl Buffer {
     #[inline]
     pub fn to_io_slice(&self) -> Vec<IoSlice<'_>> {
         match &self.0 {
-            Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
+            Inner::Contiguous(bs) => {
+                if bs.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![IoSlice::new(bs.chunk())]
+                }
+            }
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
             } => {
+                if *size == 0 {
+                    return Vec::new();
+                }
+
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
                 let mut new_offset = *offset;
                 let mut remaining = *size;
@@ -470,56 +523,43 @@ impl FromIterator<u8> for Buffer {
 impl From<VecDeque<Bytes>> for Buffer {
     #[inline]
     fn from(bs: VecDeque<Bytes>) -> Self {
-        let size = bs.iter().map(Bytes::len).sum();
-        Self(Inner::NonContiguous {
-            parts: Vec::from(bs).into(),
-            size,
-            idx: 0,
-            offset: 0,
-        })
+        Self::from(Vec::from(bs))
     }
 }
 
 impl From<Vec<Bytes>> for Buffer {
     #[inline]
-    fn from(bs: Vec<Bytes>) -> Self {
-        let size = bs.iter().map(Bytes::len).sum();
-        Self(Inner::NonContiguous {
-            parts: bs.into(),
-            size,
-            idx: 0,
-            offset: 0,
-        })
+    fn from(mut bs: Vec<Bytes>) -> Self {
+        bs.retain(|b| !b.is_empty());
+        Self::from_parts(bs)
     }
 }
 
 impl From<Arc<[Bytes]>> for Buffer {
     #[inline]
     fn from(bs: Arc<[Bytes]>) -> Self {
-        let size = bs.iter().map(Bytes::len).sum();
-        Self(Inner::NonContiguous {
-            parts: bs,
-            size,
-            idx: 0,
-            offset: 0,
-        })
+        let non_empty = bs.iter().filter(|b| !b.is_empty()).count();
+        // Reuse the incoming `Arc` directly when all parts are non-empty.
+        if non_empty == bs.len() && non_empty >= 2 {
+            let size = bs.iter().map(Bytes::len).sum();
+            return Self(Inner::NonContiguous {
+                parts: bs,
+                size,
+                idx: 0,
+                offset: 0,
+            });
+        }
+
+        Self::from_parts(bs.iter().filter(|b| !b.is_empty()).cloned().collect())
     }
 }
 
 impl FromIterator<Bytes> for Buffer {
     #[inline]
     fn from_iter<T: IntoIterator<Item = Bytes>>(iter: T) -> Self {
-        let mut size = 0;
-        let bs = iter.into_iter().inspect(|v| size += v.len());
         // This operation only needs one allocation from iterator to `Arc<[Bytes]>` instead
         // of iterator -> `Vec<Bytes>` -> `Arc<[Bytes]>`.
-        let parts = Arc::from_iter(bs);
-        Self(Inner::NonContiguous {
-            parts,
-            size,
-            idx: 0,
-            offset: 0,
-        })
+        Self::from(Arc::from_iter(iter.into_iter().filter(|v| !v.is_empty())))
     }
 }
 
@@ -553,14 +593,7 @@ impl Buf for Buffer {
     #[inline]
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         match &self.0 {
-            Inner::Contiguous(b) => {
-                if dst.is_empty() {
-                    return 0;
-                }
-
-                dst[0] = IoSlice::new(b.chunk());
-                1
-            }
+            Inner::Contiguous(b) => b.chunks_vectored(dst),
             Inner::NonContiguous {
                 parts,
                 size,
@@ -676,8 +709,10 @@ impl Iterator for Buffer {
                     (1, Some(1))
                 }
             }
-            Inner::NonContiguous { parts, idx, .. } => {
-                let remaining = parts.len().saturating_sub(*idx);
+            Inner::NonContiguous { .. } => {
+                // `truncate` can leave trailing parts outside the view, so the
+                // exact count is cheaper to compute than to reason about here.
+                let remaining = self.count();
                 (remaining, Some(remaining))
             }
         }
@@ -879,7 +914,7 @@ impl BufferCursor {
 impl Read for BufferCursor {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let size = self.view.read(buf)?;
-        self.seek(SeekFrom::Current(size as i64))?;
+        self.pos += size as u64;
         Ok(size)
     }
 }
@@ -899,26 +934,32 @@ impl BufRead for BufferCursor {
 impl Seek for BufferCursor {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let end = self.data.len() as u64;
-        match pos {
-            SeekFrom::Start(pos) => {
-                self.pos = pos.min(end);
-            }
-            SeekFrom::Current(pos) => {
-                if pos.is_negative() {
-                    self.pos = self.pos.saturating_sub(pos.unsigned_abs());
-                } else {
-                    self.pos = self.pos.saturating_add(pos as u64).min(end);
-                }
-            }
-            SeekFrom::End(pos) => {
-                if pos.is_negative() {
-                    self.pos = end.saturating_sub(pos.unsigned_abs());
-                } else {
-                    self.pos = end.saturating_add(pos as u64).min(end);
-                }
-            }
-        }
-        self.view = self.data.slice(self.pos as usize..);
+        let new_pos = match pos {
+            SeekFrom::Start(pos) => pos,
+            SeekFrom::Current(offset) => self.pos.checked_add_signed(offset).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )
+            })?,
+            SeekFrom::End(offset) => end.checked_add_signed(offset).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )
+            })?,
+        };
+
+        self.pos = new_pos;
+        self.view = if new_pos < end {
+            self.data.slice(new_pos as usize..)
+        } else {
+            Buffer::new()
+        };
+        Ok(self.pos)
+    }
+
+    fn stream_position(&mut self) -> io::Result<u64> {
         Ok(self.pos)
     }
 }
@@ -981,6 +1022,216 @@ mod tests {
         assert_eq!(bs, Some(Bytes::from("a")));
         assert_eq!(buf.remaining(), 0);
         assert_eq!(buf.chunk(), EMPTY_SLICE);
+    }
+
+    /// Every multi-part constructor must drop empty `Bytes` parts so that
+    /// `chunk()` is never empty while `remaining() > 0`.
+    #[test]
+    fn test_non_contiguous_constructors_drop_empty_parts() {
+        let expected = Bytes::from_static(b"abcdef");
+
+        // Leading, middle and trailing empty parts for every constructor.
+        let cases: Vec<Buffer> = vec![
+            Buffer::from(vec![
+                Bytes::new(),
+                Bytes::from_static(b"abc"),
+                Bytes::new(),
+                Bytes::from_static(b"def"),
+                Bytes::new(),
+            ]),
+            Buffer::from(VecDeque::from(vec![
+                Bytes::new(),
+                Bytes::from_static(b"abc"),
+                Bytes::new(),
+                Bytes::from_static(b"def"),
+            ])),
+            Buffer::from(Arc::from(vec![
+                Bytes::from_static(b"abc"),
+                Bytes::new(),
+                Bytes::new(),
+                Bytes::from_static(b"def"),
+            ])),
+            [
+                Bytes::new(),
+                Bytes::from_static(b"abc"),
+                Bytes::new(),
+                Bytes::from_static(b"def"),
+                Bytes::new(),
+            ]
+            .into_iter()
+            .collect(),
+        ];
+
+        for mut buf in cases {
+            assert_eq!(buf.remaining(), 6);
+            assert_eq!(Buffer::count(&buf), 2);
+            // `Buf::chunk` contract: never empty while `remaining() > 0`.
+            assert_eq!(buf.chunk(), b"abc");
+            // `to_vec`, `to_bytes` and `copy_to_slice` used to spin forever
+            // on a zero-length chunk.
+            assert_eq!(buf.to_vec(), expected.to_vec());
+            assert_eq!(buf.to_bytes(), expected);
+            let mut dst = [0u8; 6];
+            buf.copy_to_slice(&mut dst);
+            assert_eq!(&dst, b"abcdef");
+            // Buf::copy_to_slice consumed the buffer.
+            assert_eq!(buf.remaining(), 0);
+            assert_eq!(buf.next(), None);
+        }
+    }
+
+    #[test]
+    fn test_buffer_read_and_fill_buf_with_empty_parts() {
+        // `Read::read` / `BufRead::fill_buf` used to return `Ok(0)` early on
+        // a leading empty part, silently truncating the buffer.
+        let mut buf = Buffer::from(vec![
+            Bytes::new(),
+            Bytes::from_static(b"Hello"),
+            Bytes::new(),
+            Bytes::from_static(b"World"),
+        ]);
+
+        let mut output = String::new();
+        buf.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "HelloWorld");
+
+        let mut buf = Buffer::from(vec![
+            Bytes::new(),
+            Bytes::from_static(b"Hello"),
+            Bytes::from_static(b"World"),
+        ]);
+        assert_eq!(buf.fill_buf().unwrap(), b"Hello");
+        buf.consume(5);
+        assert_eq!(buf.fill_buf().unwrap(), b"World");
+        buf.consume(5);
+        assert_eq!(buf.fill_buf().unwrap(), EMPTY_SLICE);
+    }
+
+    /// Views backed by a single non-empty part collapse to contiguous and
+    /// must not pay for an `Arc` or keep empty parts around.
+    #[test]
+    fn test_buffer_from_single_non_empty_part() {
+        let mut buf = Buffer::from(vec![Bytes::new(), Bytes::from_static(b"a"), Bytes::new()]);
+
+        assert_eq!(buf.remaining(), 1);
+        assert_eq!(Buffer::count(&buf), 1);
+        assert_eq!(buf.current(), Bytes::from_static(b"a"));
+        assert_eq!(buf.to_bytes(), Bytes::from_static(b"a"));
+        assert_eq!(buf.next(), Some(Bytes::from_static(b"a")));
+        assert_eq!(buf.next(), None);
+
+        // Only empty parts: collapses to an empty contiguous buffer.
+        let mut buf = Buffer::from(vec![Bytes::new(), Bytes::new()]);
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+        assert_eq!(buf.current(), Bytes::new());
+        assert_eq!(buf.next(), None);
+    }
+
+    /// `current()` used to index `parts[idx]` unconditionally, panicking on
+    /// an empty view or after `advance(len)` moved `idx` past the end.
+    #[test]
+    fn test_buffer_current_when_empty() {
+        let buf = Buffer::from(Vec::<Bytes>::new());
+        assert_eq!(buf.current(), Bytes::new());
+
+        let mut buf = Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        assert_eq!(buf.current(), Bytes::from_static(b"ab"));
+
+        buf.advance(4);
+        assert_eq!(buf.remaining(), 0);
+        assert_eq!(buf.current(), Bytes::new());
+
+        buf.advance(0);
+        assert_eq!(buf.current(), Bytes::new());
+    }
+
+    #[test]
+    fn test_buffer_count_matches_iterator_items() {
+        let mut buf = Buffer::from(vec![
+            Bytes::from_static(b"ab"),
+            Bytes::from_static(b"cd"),
+            Bytes::from_static(b"ef"),
+        ]);
+        assert_eq!(Buffer::count(&buf), 3);
+        assert_eq!(Iterator::size_hint(&buf), (3, Some(3)));
+
+        // `truncate` leaves trailing parts outside the view; `count` and
+        // `size_hint` must only report parts the iterator will yield.
+        buf.truncate(3);
+        assert_eq!(Buffer::count(&buf), 2);
+        assert_eq!(Iterator::size_hint(&buf), (2, Some(2)));
+        assert_eq!(Iterator::count(&mut buf), 2);
+        assert_eq!(buf.next(), None);
+
+        let mut buf = Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        buf.advance(1);
+        assert_eq!(Buffer::count(&buf), 2);
+        buf.advance(2);
+        assert_eq!(Buffer::count(&buf), 1);
+        buf.advance(1);
+        assert_eq!(Buffer::count(&buf), 0);
+        assert_eq!(Iterator::size_hint(&buf), (0, Some(0)));
+
+        let mut buf = Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        buf.truncate(0);
+        assert_eq!(Buffer::count(&buf), 0);
+        assert_eq!(buf.next(), None);
+    }
+
+    #[test]
+    fn test_buffer_vectored_views_with_empty_parts() {
+        let buf = Buffer::from(vec![
+            Bytes::new(),
+            Bytes::from_static(b"abc"),
+            Bytes::new(),
+            Bytes::from_static(b"def"),
+        ]);
+        assert_eq!(
+            vectored_bytes(&buf),
+            (Bytes::from_static(b"abcdef"), Bytes::from_static(b"abcdef"))
+        );
+
+        let view = buf.slice(1..5);
+        assert_eq!(view.remaining(), 4);
+        assert_eq!(view.to_bytes(), Bytes::from_static(b"bcde"));
+        assert_eq!(
+            vectored_bytes(&view),
+            (Bytes::from_static(b"bcde"), Bytes::from_static(b"bcde"))
+        );
+    }
+
+    #[test]
+    fn test_buffer_advance_and_slice_with_empty_parts() {
+        let mut buf = Buffer::from(vec![
+            Bytes::new(),
+            Bytes::from_static(b"ab"),
+            Bytes::new(),
+            Bytes::from_static(b"cd"),
+            Bytes::new(),
+        ]);
+
+        buf.advance(1);
+        assert_eq!(buf.chunk(), b"b");
+        buf.advance(2);
+        assert_eq!(buf.chunk(), b"d");
+        buf.advance(1);
+        assert_eq!(buf.chunk(), EMPTY_SLICE);
+
+        let buf = Buffer::from(vec![
+            Bytes::from_static(b"ab"),
+            Bytes::new(),
+            Bytes::from_static(b"cd"),
+        ]);
+        assert_eq!(buf.slice(1..3).to_bytes(), Bytes::from_static(b"bc"));
+        assert_eq!(
+            buf.clone().split_off(2).to_bytes(),
+            Bytes::from_static(b"cd")
+        );
+        assert_eq!(
+            buf.clone().split_to(2).to_bytes(),
+            Bytes::from_static(b"ab")
+        );
     }
 
     #[test]
@@ -1549,6 +1800,139 @@ mod tests {
             .take(3)
             .collect::<io::Result<Vec<_>>>()?;
         assert_eq!(lines, vec!["line one", "line two"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chunks_vectored_empty_and_chain() {
+        let mut exhausted_contiguous = Buffer::from(Bytes::from_static(b"abc"));
+        exhausted_contiguous.advance(3);
+
+        let mut truncated_contiguous = Buffer::from(Bytes::from_static(b"abc"));
+        truncated_contiguous.truncate(0);
+
+        let mut exhausted_non_contiguous =
+            Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        exhausted_non_contiguous.advance(4);
+
+        let mut truncated_non_contiguous =
+            Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        truncated_non_contiguous.truncate(0);
+
+        for buf in [
+            Buffer::new(),
+            exhausted_contiguous,
+            truncated_contiguous,
+            exhausted_non_contiguous,
+            truncated_non_contiguous,
+        ] {
+            let mut dst = [IoSlice::new(b"sentinel")];
+            assert_eq!(buf.chunks_vectored(&mut dst), 0);
+            assert_eq!(&*dst[0], b"sentinel");
+            assert!(buf.to_io_slice().is_empty());
+        }
+
+        let chained = Buf::chain(Buffer::new(), Bytes::from_static(b"hello"));
+        let mut dst = [IoSlice::new(EMPTY_SLICE)];
+        assert_eq!(chained.chunks_vectored(&mut dst), 1);
+        assert_eq!(&*dst[0], b"hello");
+    }
+
+    #[test]
+    fn test_buffer_cursor_seek_negative_and_overflow() -> io::Result<()> {
+        let mut cur = BufferCursor::new(Buffer::from(vec![
+            Bytes::from_static(b"abc"),
+            Bytes::from_static(b"def"),
+        ]));
+
+        assert_eq!(cur.seek(SeekFrom::Start(2))?, 2);
+
+        for invalid in [
+            SeekFrom::Current(-3),
+            SeekFrom::Current(i64::MIN),
+            SeekFrom::End(-7),
+            SeekFrom::End(i64::MIN),
+        ] {
+            let err = cur.seek(invalid).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(cur.stream_position()?, 2);
+        }
+
+        // Unchanged cursor still reads from position 2.
+        let mut out = [0u8; 2];
+        cur.read_exact(&mut out)?;
+        assert_eq!(&out, b"cd");
+        assert_eq!(cur.stream_position()?, 4);
+
+        // Overflowing seeks must return InvalidInput without mutating position.
+        assert_eq!(cur.seek(SeekFrom::Start(u64::MAX))?, u64::MAX);
+        for invalid in [SeekFrom::Current(1), SeekFrom::Current(i64::MAX)] {
+            let err = cur.seek(invalid).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(cur.stream_position()?, u64::MAX);
+        }
+
+        let near_overflow = u64::MAX - i64::MAX as u64 + 1;
+        assert_eq!(cur.seek(SeekFrom::Start(near_overflow))?, near_overflow);
+        let err = cur.seek(SeekFrom::Current(i64::MAX)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(cur.stream_position()?, near_overflow);
+
+        let end_plus_max = 6 + i64::MAX as u64;
+        assert_eq!(cur.seek(SeekFrom::End(i64::MAX))?, end_plus_max);
+        let err = cur.seek(SeekFrom::Current(i64::MAX)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(cur.stream_position()?, end_plus_max);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_buffer_cursor_seek_past_end_and_read() -> io::Result<()> {
+        let mut cur = BufferCursor::new(Buffer::from(vec![
+            Bytes::from_static(b"abc"),
+            Bytes::from_static(b"def"),
+        ]));
+
+        // Seek past end via Start, End, and u64::MAX.
+        assert_eq!(cur.seek(SeekFrom::Start(10))?, 10);
+        assert_eq!(cur.stream_position()?, 10);
+        let mut buf = [0u8; 4];
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, 10);
+        assert_eq!(cur.fill_buf()?, EMPTY_SLICE);
+        cur.consume(4);
+        assert_eq!(cur.stream_position()?, 10);
+
+        assert_eq!(cur.seek(SeekFrom::End(5))?, 11);
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, 11);
+
+        assert_eq!(cur.seek(SeekFrom::Start(u64::MAX))?, u64::MAX);
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, u64::MAX);
+
+        // Seek back into bounds from past end and read.
+        assert_eq!(cur.seek(SeekFrom::Start(10))?, 10);
+        assert_eq!(cur.seek(SeekFrom::Current(-7))?, 3);
+        let mut tail = [0u8; 3];
+        cur.read_exact(&mut tail)?;
+        assert_eq!(&tail, b"def");
+        assert_eq!(cur.stream_position()?, 6);
+
+        // Valid backward and forward seeks inside the buffer.
+        assert_eq!(cur.seek(SeekFrom::End(-4))?, 2);
+        let mut mid = [0u8; 2];
+        cur.read_exact(&mut mid)?;
+        assert_eq!(&mid, b"cd");
+        assert_eq!(cur.stream_position()?, 4);
+
+        assert_eq!(cur.seek(SeekFrom::Current(-3))?, 1);
+        let mut rest = Vec::new();
+        cur.read_to_end(&mut rest)?;
+        assert_eq!(rest, b"bcdef");
+        assert_eq!(cur.stream_position()?, 6);
 
         Ok(())
     }

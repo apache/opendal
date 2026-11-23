@@ -18,7 +18,9 @@
 import collections.abc
 import types
 import typing
-from typing import Any, final
+from typing import Any, SupportsIndex, final
+
+__all__ = ["AsyncFile", "File"]
 
 @final
 class AsyncFile:
@@ -56,7 +58,9 @@ class AsyncFile:
         coroutine
             An awaitable that returns True if this file is closed.
         """
-    def read(self, /, size: int | None = None) -> collections.abc.Awaitable[bytes]:
+    def read(
+        self, /, size: SupportsIndex | None = None
+    ) -> collections.abc.Awaitable[bytes]:
         """
         Read at most `size` bytes from this file asynchronously.
 
@@ -77,6 +81,32 @@ class AsyncFile:
         coroutine
             An awaitable that returns the bytes read from the stream.
         """
+    def read_buffered(
+        self, /, size: SupportsIndex
+    ) -> collections.abc.Awaitable[bytes]:
+        """
+        Read up to `size` bytes by combining immediately available data.
+
+        A positive-sized read waits for the first bytes, then returns when
+        more data would require waiting, at EOF, or at the requested limit.
+        Keep reading until an empty result to consume the file. A zero-sized
+        read returns empty bytes without consuming data or a pending error.
+
+        If a read encounters an error after collecting bytes, it returns those
+        bytes and the next positive-sized read raises the error. A successful
+        seek clears a pending error. Cancelling a pending read preserves the
+        file position and any bytes collected for that read.
+
+        Parameters
+        ----------
+        size : int
+            The maximum number of bytes to read. Must be non-negative.
+
+        Returns
+        -------
+        coroutine
+            An awaitable that returns the bytes read from the stream.
+        """
     def readable(self, /) -> collections.abc.Awaitable[bool]:
         """
         Whether this file can be read from.
@@ -86,7 +116,9 @@ class AsyncFile:
         coroutine
             An awaitable that returns True if this file can be read from.
         """
-    def seek(self, /, pos: int, whence: int = 0) -> collections.abc.Awaitable[int]:
+    def seek(
+        self, /, pos: SupportsIndex, whence: SupportsIndex = 0
+    ) -> collections.abc.Awaitable[int]:
         """
         Change the position of this file to the given byte offset.
 
@@ -213,7 +245,7 @@ class File:
         buffered until more data arrives or `close()` completes the write.
         Is a no-op if the file is not `writable`.
         """
-    def read(self, /, size: int | None = None) -> bytes:
+    def read(self, /, size: SupportsIndex | None = None) -> bytes:
         """
         Read at most `size` bytes from this file.
 
@@ -257,7 +289,7 @@ class File:
         int
             The number of bytes read.
         """
-    def readline(self, /, size: int | None = None) -> bytes:
+    def readline(self, /, size: SupportsIndex | None = None) -> bytes:
         """
         Read one line from this file.
 
@@ -278,7 +310,7 @@ class File:
         bytes
             The bytes read from this file.
         """
-    def seek(self, /, pos: int, whence: int = 0) -> int:
+    def seek(self, /, pos: SupportsIndex, whence: SupportsIndex = 0) -> int:
         """
         Change the position of this file to the given byte offset.
 

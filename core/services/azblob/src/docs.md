@@ -15,6 +15,13 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
+Presigning (`presign_stat`, `presign_read`, and `presign_write`) requires
+`skip_signature` to be disabled and either a pre-generated `sas_token` or
+SharedKey credentials (`account_name` and `account_key`) with a host-style
+endpoint such as `https://<account>.blob.core.windows.net`. Path-style
+endpoints such as Azurite (`http://127.0.0.1:10000/<account>`) require a
+pre-generated `sas_token` for presigning.
+
 ## Configuration
 
 Use [`crate::AzblobConfig`] for serializable configuration and this builder's

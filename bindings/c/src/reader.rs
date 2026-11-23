@@ -16,39 +16,60 @@
 // under the License.
 
 use std::ffi::c_void;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::SeekFrom;
 
 use ::opendal as core;
+use futures::{AsyncReadExt, AsyncSeekExt};
 
 use super::*;
+use crate::cancel::{block_on_cancellable, CancellableError};
 
+/// Seek from the start of the stream.
 pub const OPENDAL_SEEK_SET: i32 = 0;
+/// Seek relative to the current stream position.
 pub const OPENDAL_SEEK_CUR: i32 = 1;
+/// Seek relative to the end of the stream.
 pub const OPENDAL_SEEK_END: i32 = 2;
+
+struct ReaderInner {
+    handle: tokio::runtime::Handle,
+    reader: Option<core::FuturesAsyncReader>,
+}
+
+impl Drop for ReaderInner {
+    fn drop(&mut self) {
+        if let Some(v) = self.reader.take() {
+            self.handle.block_on(async move { drop(v) });
+        }
+    }
+}
 
 /// \brief The result type returned by opendal's reader operation.
 ///
-/// \note The opendal_reader actually owns a pointer to
-/// a opendal::BlockingReader, which is inside the Rust core code.
+/// \note The opendal_reader owns an async OpenDAL reader driven on the
+/// operator's Tokio runtime handle.
 #[repr(C)]
 pub struct opendal_reader {
-    /// The pointer to the opendal::StdReader in the Rust code.
+    /// The pointer to the internal Rust reader state.
     /// Only touch this on judging whether it is NULL.
     inner: *mut c_void,
 }
 
 impl opendal_reader {
-    fn deref_mut(&mut self) -> &mut core::blocking::StdReader {
+    fn deref_mut(&mut self) -> &mut ReaderInner {
         // Safety: the inner should never be null once constructed
         // The use-after-free is undefined behavior
-        unsafe { &mut *(self.inner as *mut core::blocking::StdReader) }
+        unsafe { &mut *(self.inner as *mut ReaderInner) }
     }
 }
 
 impl opendal_reader {
-    pub(crate) fn new(reader: core::blocking::StdReader) -> Self {
+    pub(crate) fn new(handle: tokio::runtime::Handle, reader: core::FuturesAsyncReader) -> Self {
         Self {
-            inner: Box::into_raw(Box::new(reader)) as _,
+            inner: Box::into_raw(Box::new(ReaderInner {
+                handle,
+                reader: Some(reader),
+            })) as _,
         }
     }
 
@@ -63,21 +84,39 @@ impl opendal_reader {
         len: usize,
         size: *mut usize,
     ) -> *mut opendal_error {
+        self.opendal_reader_read_with_cancel(buf, len, std::ptr::null(), size)
+    }
+
+    /// \brief Read data from the reader into `buf`, supporting cancellation via `cancel`.
+    ///
+    /// Pass NULL for `cancel` to run without cancellation. At EOF, writes `0` to
+    /// `*size` and returns NULL. On cancellation or failure, writes `0` to `*size`
+    /// and returns an `opendal_error *` (`OPENDAL_CANCELLED` on cancellation).
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_read_with_cancel(
+        &mut self,
+        buf: *mut u8,
+        len: usize,
+        cancel: *const opendal_cancel_token,
+        size: *mut usize,
+    ) -> *mut opendal_error {
         assert!(!buf.is_null());
         assert!(!size.is_null());
+        std::ptr::write(size, 0);
         let buf = std::slice::from_raw_parts_mut(buf, len);
-        match self.deref_mut().read(buf) {
+        let cancel_token = opendal_cancel_token::as_inner(cancel);
+        let inner = self.deref_mut();
+        let reader = inner.reader.as_mut().expect("reader has been dropped");
+        match block_on_cancellable(&inner.handle, cancel_token, reader.read(buf)) {
             Ok(n) => {
                 std::ptr::write(size, n);
                 std::ptr::null_mut()
             }
-            Err(e) => {
-                std::ptr::write(size, 0);
-                opendal_error::new(
-                    core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
-                        .set_source(e),
-                )
-            }
+            Err(CancellableError::Cancelled) => opendal_error::cancelled(),
+            Err(CancellableError::Inner(e)) => opendal_error::new(
+                core::Error::new(core::ErrorKind::Unexpected, "read failed from reader")
+                    .set_source(e),
+            ),
         }
     }
 
@@ -91,13 +130,37 @@ impl opendal_reader {
         whence: i32,
         pos: *mut u64,
     ) -> *mut opendal_error {
+        self.opendal_reader_seek_with_cancel(offset, whence, std::ptr::null(), pos)
+    }
+
+    /// \brief Seek to an offset, in bytes, in a stream, supporting cancellation via `cancel`.
+    ///
+    /// Pass NULL for `cancel` to run without cancellation. On cancellation or failure,
+    /// writes `0` to `*pos` and returns an `opendal_error *` (`OPENDAL_CANCELLED` on
+    /// cancellation).
+    #[no_mangle]
+    pub unsafe extern "C" fn opendal_reader_seek_with_cancel(
+        &mut self,
+        offset: i64,
+        whence: i32,
+        cancel: *const opendal_cancel_token,
+        pos: *mut u64,
+    ) -> *mut opendal_error {
         assert!(!pos.is_null());
+        std::ptr::write(pos, 0);
         let seek_from = match whence {
-            OPENDAL_SEEK_SET => SeekFrom::Start(offset as u64),
+            OPENDAL_SEEK_SET => match u64::try_from(offset) {
+                Ok(offset) => SeekFrom::Start(offset),
+                Err(_) => {
+                    return opendal_error::new(core::Error::new(
+                        core::ErrorKind::Unexpected,
+                        "negative seek offset is invalid with OPENDAL_SEEK_SET",
+                    ));
+                }
+            },
             OPENDAL_SEEK_CUR => SeekFrom::Current(offset),
             OPENDAL_SEEK_END => SeekFrom::End(offset),
             _ => {
-                std::ptr::write(pos, 0);
                 return opendal_error::new(core::Error::new(
                     core::ErrorKind::Unexpected,
                     "undefined whence",
@@ -105,18 +168,19 @@ impl opendal_reader {
             }
         };
 
-        match self.deref_mut().seek(seek_from) {
+        let cancel_token = opendal_cancel_token::as_inner(cancel);
+        let inner = self.deref_mut();
+        let reader = inner.reader.as_mut().expect("reader has been dropped");
+        match block_on_cancellable(&inner.handle, cancel_token, reader.seek(seek_from)) {
             Ok(p) => {
                 std::ptr::write(pos, p);
                 std::ptr::null_mut()
             }
-            Err(e) => {
-                std::ptr::write(pos, 0);
-                opendal_error::new(
-                    core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
-                        .set_source(e),
-                )
-            }
+            Err(CancellableError::Cancelled) => opendal_error::cancelled(),
+            Err(CancellableError::Inner(e)) => opendal_error::new(
+                core::Error::new(core::ErrorKind::Unexpected, "seek failed from reader")
+                    .set_source(e),
+            ),
         }
     }
 
@@ -125,11 +189,47 @@ impl opendal_reader {
     pub unsafe extern "C" fn opendal_reader_free(ptr: *mut opendal_reader) {
         unsafe {
             if !ptr.is_null() {
-                drop(Box::from_raw(
-                    (*ptr).inner as *mut core::blocking::StdReader,
-                ));
+                drop(Box::from_raw((*ptr).inner as *mut ReaderInner));
                 drop(Box::from_raw(ptr));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_seek_set_rejects_negative_offset() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let op = core::Operator::new(core::services::Memory::default()).unwrap();
+        let reader = runtime.block_on(async {
+            op.write("test", "hello").await.unwrap();
+            op.reader("test")
+                .await
+                .unwrap()
+                .into_futures_async_read(core::BytesRange::default())
+                .await
+                .unwrap()
+        });
+        let reader = Box::into_raw(Box::new(opendal_reader::new(
+            runtime.handle().clone(),
+            reader,
+        )));
+
+        let mut pos = 42;
+        let err = unsafe {
+            opendal_reader::opendal_reader_seek(&mut *reader, -1, OPENDAL_SEEK_SET, &mut pos)
+        };
+        assert!(!err.is_null());
+        assert_eq!(pos, 0);
+        unsafe {
+            opendal_error::opendal_error_free(err);
+            opendal_reader::opendal_reader_free(reader);
         }
     }
 }

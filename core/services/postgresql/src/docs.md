@@ -15,8 +15,10 @@ Depending on its configuration and the backing system, this service can expose:
 Inspect the effective capability set with [`opendal_core::Operator::info`] and
 [`opendal_core::OperatorInfo::capability`] after building an operator.
 
-Copy and rename operate on files and replace an existing destination. Rename
-removes the source and writes the destination in a single transaction.
+Copy and rename operate on files and replace an existing destination by default.
+Rename removes the source and writes the destination in a single transaction.
+With `rename_with(...).if_not_exists(true)`, an existing destination causes
+`ConditionNotMatch` and both files remain unchanged.
 
 ## Configuration
 

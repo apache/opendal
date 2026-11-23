@@ -169,31 +169,25 @@ impl GitCore {
                     })?;
             }
 
-            prepare = prepare.configure_connection(
-                move |conn| -> std::result::Result<(), Box<dyn std::error::Error + Send + Sync>> {
-                    if let (Some(username), Some(password)) = (username.clone(), password.clone()) {
-                        #[expect(
-                            clippy::result_large_err,
-                            reason = "gix fixes the credential callback's error type"
-                        )]
-                        let credentials = move |action| match action {
-                            gix::credentials::helper::Action::Get(ctx) => {
-                                Ok(Some(gix::credentials::protocol::Outcome {
-                                    identity: gix::sec::identity::Account {
-                                        username: username.clone(),
-                                        password: password.clone(),
-                                        oauth_refresh_token: None,
-                                    },
-                                    next: ctx.into(),
-                                }))
-                            }
-                            _ => Ok(None),
-                        };
-                        conn.set_credentials(credentials);
-                    }
-                    Ok(())
-                },
-            );
+            prepare = prepare.configure_connection(move |conn| {
+                if let (Some(username), Some(password)) = (username.clone(), password.clone()) {
+                    let credentials = move |action| match action {
+                        gix::credentials::helper::Action::Get(ctx) => {
+                            Ok(Some(gix::credentials::protocol::Outcome {
+                                credentials: gix::sec::identity::Credentials::UsernamePassword {
+                                    username: username.clone(),
+                                    password: password.clone(),
+                                    oauth_refresh_token: None,
+                                },
+                                next: ctx.into(),
+                            }))
+                        }
+                        _ => Ok(None),
+                    };
+                    conn.set_credentials(credentials);
+                }
+                Ok(())
+            });
 
             let (repo, _) = prepare
                 .fetch_only(gix::progress::Discard, &gix::interrupt::IS_INTERRUPTED)

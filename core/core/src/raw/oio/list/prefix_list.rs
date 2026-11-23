@@ -36,11 +36,11 @@ pub struct PrefixLister<L> {
 
 /// # Safety
 ///
-/// We will only take `&mut Self` reference for FsLister.
+/// We will only take `&mut Self` reference for PrefixLister.
 unsafe impl<L> Sync for PrefixLister<L> {}
 
 impl<L> PrefixLister<L> {
-    /// Create a new flat lister
+    /// Create a new prefix lister.
     pub fn new(lister: L, prefix: &str) -> PrefixLister<L> {
         PrefixLister {
             lister,

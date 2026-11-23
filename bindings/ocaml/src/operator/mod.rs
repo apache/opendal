@@ -83,8 +83,8 @@ pub fn blocking_is_exist(operator: &mut Operator, path: String) -> Result<bool, 
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (bool, string) Result.t ")]
-pub fn blocking_create_dir(operator: &mut Operator, path: String) -> Result<(), String> {
-    map_res_error(operator.0.create_dir(path.as_str()))
+pub fn blocking_create_dir(operator: &mut Operator, path: String) -> Result<bool, String> {
+    map_res_error(operator.0.create_dir(path.as_str())).map(|()| true)
 }
 
 #[ocaml::func]
@@ -104,12 +104,10 @@ pub fn blocking_reader(
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> bytes -> (unit, string) Result.t ")]
-pub fn blocking_write(
-    operator: &mut Operator,
-    path: String,
-    bs: &'static [u8],
-) -> Result<(), String> {
-    map_res_error(operator.0.write(path.as_str(), bs).map(|_| ()))
+pub fn blocking_write(operator: &mut Operator, path: String, bs: &[u8]) -> Result<(), String> {
+    // Core may retain the buffer after this call, but `bs` points into the OCaml
+    // heap and can be mutated or moved by the GC. Hand over an owned copy.
+    map_res_error(operator.0.write(path.as_str(), bs.to_vec()).map(|_| ()))
 }
 
 #[ocaml::func]

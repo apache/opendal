@@ -24,6 +24,33 @@ Use `..Default::default()` in `ReadOptions` struct literals, or set
 Set `limit: Some(n)` to read up to the first `n` bytes of the selected range
 and accept EOF after a valid starting byte.
 
+## Automatic capability simulation
+
+The `auto-simulate` feature in `opendal` and `opendal-core` now controls
+whether `Operator::new` installs `SimulateLayer` automatically. The feature
+is enabled by default. If you previously disabled default features and rely
+on automatic simulation, add `auto-simulate` to your dependency features.
+To apply simulation to individual operators, see the runnable
+[`SimulateLayer` example][crate::layers::SimulateLayer#examples].
+
+## WebDAV recursive listing
+
+WebDAV now sends `Depth: infinity` for recursive listings by default. The
+reported nginx and ownCloud configurations reject that depth with HTTP 403
+and 412, respectively. Jianguoyun has been reported to return only one level.
+
+Set `disable_depth_infinity = true` in the affected endpoint's WebDAV
+configuration. With the default `auto-simulate` feature, OpenDAL walks the
+directory tree using `Depth: 1` requests for recursive listing and deletion.
+If `auto-simulate` is disabled, add `SimulateLayer::default()` to the Rust
+operator to enable the walk.
+
+## Glob listing
+
+`ListOptions` and `Capability` now have `glob` and `list_with_glob` fields,
+respectively. For exhaustive struct literals, add `glob: None` or
+`list_with_glob: false`, or use `..Default::default()`.
+
 ## Shared semaphores for `ConcurrentLimitLayer`
 
 `ConcurrentLimitLayer` now uses asyncband 0.8. If you pass an `Arc<asyncband::semaphore::Semaphore>` to `with_semaphore` or `with_http_semaphore`, update your direct asyncband dependency to `0.8` and enable its `semaphore` feature. Semaphores from asyncband 0.7 no longer implement this version's `ConcurrentLimitSemaphore` trait.
@@ -35,6 +62,50 @@ and accept EOF after a valid starting byte.
 with `SignedDuration::from_secs(5)` or parse a duration string. The builder
 setters still accept `std::time::Duration`, and string/map configuration still
 accepts duration strings such as `"5s"`.
+
+## `jiff` upgraded to 1.0
+
+OpenDAL now uses `jiff` 1.0. `opendal::raw` re-exports `jiff::SignedDuration`,
+and `opendal::raw::Timestamp` exposes its inner `jiff::Timestamp` through
+`into_inner()` and `From` conversions. If your code uses these types directly,
+upgrade your direct `jiff` dependency to `1.0`. jiff 1.0 requires Rust 1.85,
+which is below OpenDAL's minimum supported Rust version.
+
+`SystemTime::from(opendal::raw::Timestamp)` keeps its signature, but it can
+still panic when the target's `SystemTime` cannot represent the timestamp,
+matching the previous jiff 0.2 conversion. For example, wasm cannot represent
+timestamps before the Unix epoch. Convert a `jiff::Timestamp` directly with
+`SystemTime::try_from(timestamp)` and handle the error.
+
+## Tokio executor moved to `opendal-executor-tokio`
+
+If you depend directly on `opendal-core`, remove its `executors-tokio` feature
+and import `opendal_executor_tokio::TokioExecutor` from the new crate. Use
+`Executor::install_default(TokioExecutor::default())` before concurrent
+operations, or pass `Executor::with(TokioExecutor::default())` to your
+operator's `OperationContext`.
+
+The `opendal` facade still exposes `opendal::executors::TokioExecutor` with the
+`executors-tokio` feature. If you disable `auto-register-services` or your linker
+omits the process constructor, call `opendal::install_default()` to install
+Tokio and the other enabled defaults, or configure the executor explicitly.
+
+## `PrometheusClientLayer` uses `prometheus-client` 0.26
+
+`opendal-layer-prometheus-client` upgraded its `prometheus-client` dependency
+from 0.25 to 0.26. Callers that pass a `&mut prometheus_client::registry::Registry`
+to `PrometheusClientLayerBuilder::register` must update their direct
+`prometheus-client` dependency to 0.26; a 0.25 `Registry` no longer satisfies
+the signature.
+
+## `OtelMetricsLayer` and `OtelTraceLayer` use OpenTelemetry 0.33
+
+The `opendal-layer-otelmetrics` and `opendal-layer-oteltrace` crates now use
+`opentelemetry` 0.33, and the `opendal-layer-tracing` examples use
+`tracing-opentelemetry` 0.34. Update your direct `opentelemetry` crates to 0.33
+when you pass a `Meter` to `OtelMetricsLayerBuilder::register` or install the
+global OpenTelemetry tracer and meter providers used by these layers. A `Meter`
+from `opentelemetry` 0.32 no longer satisfies the signature.
 
 ## Raw API
 
@@ -53,6 +124,34 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 ### Submit tasks through `ConcurrentTasks::execute`
 
 `raw::ConcurrentTasks::create_task` has been removed. Submit inputs with `execute()` and collect outputs in submission order with `next()`. These methods keep task ownership, completion accounting, and retry handling inside the queue. If code needs input data after successful completion, include that data in the factory's output type.
+
+### `raw::oio::FlatLister` removed
+
+`raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
+
+### Explicit executor and capability in `oio::MultipartCopier::new`
+
+`raw::oio::IntoMultipartCopyContext` has been removed, and
+`raw::oio::MultipartCopier::new` now takes `executor: Executor` and
+`capability: Capability` as explicit parameters instead of a single
+`impl IntoMultipartCopyContext` argument. Pass `executor` and `capability`
+separately when constructing a `MultipartCopier`.
+
+## Services
+
+### Redb requires `redb` 5
+
+`RedbBuilder::database` takes an `Arc<redb::Database>`, so the `redb` version OpenDAL builds
+with appears in your dependency graph. `opendal` now depends on `redb` 5. Upgrade your own
+`redb` dependency to `5.x` when you pass an externally created database to the builder.
+
+`redb` 5 changed the file locking protocol. Open the same database file with matching `redb` 5.x
+versions in every process, because `redb` 5 does not reliably detect a `redb` 4.2 or earlier
+process that keeps the file open.
+
+Existing databases need no data migration. `redb` 5 changed the encoding of `Option<&str>`,
+`Option<String>`, `Option<bool>`, and `Option<char>` only, and the Redb service stores entries
+in a `TableDefinition<&str, &[u8]>` table.
 
 # Upgrade to v0.59
 

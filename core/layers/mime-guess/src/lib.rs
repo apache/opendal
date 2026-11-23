@@ -33,6 +33,11 @@ use opendal_core::*;
 ///
 /// The layer preserves any `content_type` that callers or services set.
 ///
+/// On `write` and `compose`, the layer only injects a guessed `content_type`
+/// when the underlying service reports [`Capability::write_with_content_type`]
+/// or [`Capability::compose_with_content_type`]. On `stat`, it only guesses
+/// `content_type` for file entries.
+///
 /// For example, object storage services often return `content_type` from `stat`.
 /// In that case, the layer keeps the service's value and skips MIME guessing.
 ///
@@ -72,21 +77,18 @@ impl MimeGuessLayer {
 
 impl Layer for MimeGuessLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(MimeGuessService(inner))
     }
 }
 
-impl MimeGuessLayer {
-    fn layer(&self, inner: Servicer) -> MimeGuessAccessor {
-        MimeGuessAccessor(inner)
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct MimeGuessAccessor(Servicer);
+struct MimeGuessService(Servicer);
 
 fn mime_from_path(path: &str) -> Option<&str> {
+    if path.ends_with('/') {
+        return None;
+    }
+
     mime_guess::from_path(path).first_raw()
 }
 
@@ -116,7 +118,7 @@ fn opcompose_with_mime(path: &str, op: OpCompose) -> OpCompose {
 
 fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     rp.map_metadata(|metadata| {
-        if metadata.content_type().is_some() {
+        if !metadata.is_file() || metadata.content_type().is_some() {
             return metadata;
         }
 
@@ -130,7 +132,7 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     })
 }
 
-impl Service for MimeGuessAccessor {
+impl Service for MimeGuessService {
     type Reader = oio::Reader;
     type Writer = oio::Writer;
     type Lister = oio::Lister;
@@ -160,7 +162,12 @@ impl Service for MimeGuessAccessor {
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        self.0.write(ctx, path, opwrite_with_mime(path, args))
+        let args = if self.0.capability().write_with_content_type {
+            opwrite_with_mime(path, args)
+        } else {
+            args
+        };
+        self.0.write(ctx, path, args)
     }
 
     fn copy(
@@ -174,7 +181,12 @@ impl Service for MimeGuessAccessor {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.0.compose(ctx, to, opcompose_with_mime(to, args))
+        let args = if self.0.capability().compose_with_content_type {
+            opcompose_with_mime(to, args)
+        } else {
+            args
+        };
+        self.0.compose(ctx, to, args)
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
@@ -223,6 +235,8 @@ impl Service for MimeGuessAccessor {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Mutex;
+
     use futures::TryStreamExt;
 
     use super::*;
@@ -230,6 +244,173 @@ mod tests {
     const DATA: &str = "<html>test</html>";
     const CUSTOM: &str = "text/custom";
     const HTML: &str = "text/html";
+
+    #[derive(Debug, Default)]
+    struct MockWriter {
+        written: u64,
+    }
+
+    impl oio::Write for MockWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            self.written += bs.len() as u64;
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(self.written).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct MockComposer;
+
+    impl oio::Compose for MockComposer {
+        async fn compose(&mut self, _path: &str, _args: OpRead) -> Result<()> {
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct MockService {
+        capability: Capability,
+        last_write_content_type: Arc<Mutex<Option<String>>>,
+        last_compose_content_type: Arc<Mutex<Option<String>>>,
+        stat_mode: Option<EntryMode>,
+    }
+
+    impl Service for MockService {
+        type Reader = ();
+        type Writer = MockWriter;
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = MockComposer;
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("mock")
+        }
+
+        fn capability(&self) -> Capability {
+            self.capability
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn write(
+            &self,
+            _ctx: &OperationContext,
+            _path: &str,
+            args: OpWrite,
+        ) -> Result<Self::Writer> {
+            *self.last_write_content_type.lock().unwrap() =
+                args.content_type().map(ToOwned::to_owned);
+            Ok(MockWriter::default())
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn compose(
+            &self,
+            _ctx: &OperationContext,
+            _to: &str,
+            args: OpCompose,
+        ) -> Result<Self::Composer> {
+            *self.last_compose_content_type.lock().unwrap() =
+                args.content_type().map(ToOwned::to_owned);
+            Ok(MockComposer)
+        }
+
+        async fn stat(
+            &self,
+            _ctx: &OperationContext,
+            _path: &str,
+            _args: OpStat,
+        ) -> Result<RpStat> {
+            let meta = match self.stat_mode.unwrap_or(EntryMode::FILE) {
+                EntryMode::FILE => MetadataBuilder::file(0).build(),
+                EntryMode::DIR => MetadataBuilder::dir().build(),
+                EntryMode::Unknown => MetadataBuilder::unknown().build(),
+            };
+            Ok(RpStat::new(meta))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+    }
+
+    #[derive(Default)]
+    struct MockBuilder {
+        service: MockService,
+    }
+
+    impl Builder for MockBuilder {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(self.service)
+        }
+    }
 
     #[tokio::test]
     async fn test_async() -> Result<()> {
@@ -258,6 +439,156 @@ mod tests {
         assert_eq!(entries[0].content_type(), Some(HTML));
         assert_eq!(entries[1].content_type(), None);
         assert_eq!(entries[2].content_type(), Some(CUSTOM));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stat_and_list_skip_dir_mime() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?.layer(MimeGuessLayer::new());
+
+        op.create_dir("site.html/").await?;
+        op.write("site.html/index.html", DATA).await?;
+
+        let dir_meta = op.stat("site.html/").await?;
+        assert!(dir_meta.is_dir());
+        assert_eq!(dir_meta.content_type(), None);
+
+        let file_meta = op.stat("site.html/index.html").await?;
+        assert!(file_meta.is_file());
+        assert_eq!(file_meta.content_type(), Some(HTML));
+
+        let root_entries = op.list("").await?;
+        let dir_entry = root_entries
+            .iter()
+            .find(|entry| entry.path() == "site.html/")
+            .expect("directory entry should be listed");
+        assert!(dir_entry.metadata().is_dir());
+        assert_eq!(dir_entry.metadata().content_type(), None);
+
+        let sub_entries = op.list("site.html/").await?;
+        for entry in &sub_entries {
+            if entry.metadata().is_dir() {
+                assert_eq!(entry.metadata().content_type(), None);
+            }
+        }
+
+        // Also guard against directory metadata even when the stat path lacks a trailing slash.
+        let mock_dir_op = Operator::new(MockBuilder {
+            service: MockService {
+                capability: Capability {
+                    stat: true,
+                    ..Default::default()
+                },
+                stat_mode: Some(EntryMode::DIR),
+                ..Default::default()
+            },
+        })?
+        .layer(MimeGuessLayer::new());
+        let mock_dir_meta = mock_dir_op.stat("site.html").await?;
+        assert!(mock_dir_meta.is_dir());
+        assert_eq!(mock_dir_meta.content_type(), None);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_write_respects_capability() -> Result<()> {
+        let recorded = Arc::new(Mutex::new(None));
+        let op = Operator::new(MockBuilder {
+            service: MockService {
+                capability: Capability {
+                    write: true,
+                    write_with_content_type: false,
+                    ..Default::default()
+                },
+                last_write_content_type: recorded.clone(),
+                ..Default::default()
+            },
+        })?
+        .layer(MimeGuessLayer::new());
+
+        op.write("index.html", "hi").await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), None);
+
+        // Preserve caller-supplied content_type unchanged even when capability is false.
+        op.write_with("index.html", "hi")
+            .content_type(CUSTOM)
+            .await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), Some(CUSTOM));
+
+        let recorded = Arc::new(Mutex::new(None));
+        let op = Operator::new(MockBuilder {
+            service: MockService {
+                capability: Capability {
+                    write: true,
+                    write_with_content_type: true,
+                    ..Default::default()
+                },
+                last_write_content_type: recorded.clone(),
+                ..Default::default()
+            },
+        })?
+        .layer(MimeGuessLayer::new());
+
+        op.write("index.html", "hi").await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), Some(HTML));
+
+        op.write_with("index.html", "hi")
+            .content_type(CUSTOM)
+            .await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), Some(CUSTOM));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_compose_respects_capability() -> Result<()> {
+        let recorded = Arc::new(Mutex::new(None));
+        let op = Operator::new(MockBuilder {
+            service: MockService {
+                capability: Capability {
+                    compose: true,
+                    compose_with_content_type: false,
+                    ..Default::default()
+                },
+                last_compose_content_type: recorded.clone(),
+                ..Default::default()
+            },
+        })?
+        .layer(MimeGuessLayer::new());
+
+        op.compose(["a", "b"], "out.html").await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), None);
+
+        let err = op
+            .compose_with(["a", "b"], "out.html")
+            .content_type(CUSTOM)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let recorded = Arc::new(Mutex::new(None));
+        let op = Operator::new(MockBuilder {
+            service: MockService {
+                capability: Capability {
+                    compose: true,
+                    compose_with_content_type: true,
+                    ..Default::default()
+                },
+                last_compose_content_type: recorded.clone(),
+                ..Default::default()
+            },
+        })?
+        .layer(MimeGuessLayer::new());
+
+        op.compose(["a", "b"], "out.html").await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), Some(HTML));
+
+        op.compose_with(["a", "b"], "out.html")
+            .content_type(CUSTOM)
+            .await?;
+        assert_eq!(recorded.lock().unwrap().as_deref(), Some(CUSTOM));
 
         Ok(())
     }

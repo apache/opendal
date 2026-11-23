@@ -46,7 +46,7 @@ jobs:
       - name: Prepare release candidate version
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         run: python3 .github/scripts/release_python/prepare.py
-      - uses: PyO3/maturin-action@v1
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           command: sdist
@@ -64,37 +64,37 @@ jobs:
       matrix:
         include:
           - os: windows-latest
-            services: services-all,services-foyer
+            services: services-platform-windows
           - os: macos-15-intel
             target: x86_64-apple-darwin
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-macos
           - os: macos-15
             target: aarch64-apple-darwin
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-macos
           - os: ubuntu-latest
             target: x86_64
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-linux
           - os: ubuntu-latest
             target: aarch64
             manylinux: manylinux_2_28
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-linux
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             manylinux: musllinux_1_1
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-linux
           - os: ubuntu-latest
             target: aarch64-unknown-linux-musl
             manylinux: musllinux_1_1
-            services: services-all,services-foyer,services-sftp
+            services: services-platform-linux
           # ARMv7 lacks prebuilt io-uring bindings and cannot build SFTP's
           # OpenSSH dependency chain at the supported Rust version.
           - os: ubuntu-latest
             target: armv7l
-            services: services-all
+            services: services-platform-linux-armv7
           - os: ubuntu-latest
             target: armv7-unknown-linux-musleabihf
             manylinux: musllinux_1_1
-            services: services-all
+            services: services-platform-linux-armv7
     steps:
       - uses: actions/checkout@v7
       - name: Prepare release candidate version
@@ -102,7 +102,7 @@ jobs:
         run: python .github/scripts/release_python/prepare.py
       - name: Setup Rust toolchain
         uses: ./.github/actions/setup
-      - uses: PyO3/maturin-action@v1
+      - uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           target: "${{ matrix.target }}"
@@ -111,7 +111,7 @@ jobs:
           sccache: true
           manylinux: ${{ matrix.manylinux || 'auto' }}
       - name: Build python 3.14t
-        uses: PyO3/maturin-action@v1
+        uses: PyO3/maturin-action@e83996d129638aa358a18fbd1dfb82f0b0fb5d3b # v1.51.0
         with:
           working-directory: "bindings/python"
           target: "${{ matrix.target }}"
@@ -140,7 +140,7 @@ jobs:
           merge-multiple: true
           path: bindings/python/dist
       - name: Setup uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
       - name: Publish to TestPyPI
         if: ${{ startsWith(github.ref, 'refs/tags/') && contains(github.ref, '-') }}
         run: |

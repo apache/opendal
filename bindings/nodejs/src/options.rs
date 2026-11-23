@@ -15,10 +15,63 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use napi::Status;
 use napi::bindgen_prelude::BigInt;
 use opendal::BytesRange;
 use opendal::raw::Timestamp;
 use std::collections::HashMap;
+
+use crate::validate::parse_count;
+
+/// Convert a JavaScript `BigInt` into a `u64` offset or size.
+///
+/// `BigInt::get_u64` only reports the lowest 64-bit word and returns the sign
+/// separately, so `-1n` and `1n << 64n` would both be accepted as valid values
+/// unless the caller rejects them here.
+fn bigint_to_u64(value: &BigInt, field: &str) -> napi::Result<u64> {
+    let (sign_bit, word, lossless) = value.get_u64();
+
+    if sign_bit {
+        return Err(napi::Error::new(
+            Status::InvalidArg,
+            format!("{field} must not be negative"),
+        ));
+    }
+
+    if !lossless {
+        return Err(napi::Error::new(
+            Status::InvalidArg,
+            format!("{field} must not be greater than {}", u64::MAX),
+        ));
+    }
+
+    Ok(word)
+}
+
+/// Convert a JavaScript `BigInt` into a `usize` count such as a gap or chunk size.
+fn bigint_to_usize(value: &BigInt, field: &str) -> napi::Result<usize> {
+    let value = bigint_to_u64(value, field)?;
+
+    usize::try_from(value).map_err(|_| {
+        napi::Error::new(
+            Status::InvalidArg,
+            format!("{field} must not be greater than {}", usize::MAX),
+        )
+    })
+}
+
+/// Parse a conditional request timestamp received from JavaScript.
+///
+/// Dropping an unparsable value would silently turn a conditional read or stat
+/// into an unconditional one, so an invalid timestamp is reported instead.
+fn parse_timestamp(value: &str, field: &str) -> napi::Result<Timestamp> {
+    value.parse::<Timestamp>().map_err(|_| {
+        napi::Error::new(
+            Status::InvalidArg,
+            format!("{field} must be an ISO 8601 timestamp, for example 2024-01-01T00:00:00Z"),
+        )
+    })
+}
 
 #[napi(object)]
 #[derive(Debug)]
@@ -76,16 +129,20 @@ pub struct StatOptions {
     pub override_content_disposition: Option<String>,
 }
 
-impl From<StatOptions> for opendal::options::StatOptions {
-    fn from(value: StatOptions) -> Self {
+impl TryFrom<StatOptions> for opendal::options::StatOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: StatOptions) -> napi::Result<Self> {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
 
-        Self {
+        Ok(Self {
             if_modified_since,
             if_unmodified_since,
             version: value.version,
@@ -95,7 +152,7 @@ impl From<StatOptions> for opendal::options::StatOptions {
             override_cache_control: value.override_cache_control,
             override_content_disposition: value.override_content_disposition,
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -118,15 +175,19 @@ pub struct ReadOptions {
      *
      * By setting `concurrent`, opendal will fetch chunks concurrently with
      * the give chunk size.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub concurrent: Option<u32>,
+    pub concurrent: Option<f64>,
 
     /**
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<u32>,
+    pub chunk: Option<f64>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -205,28 +266,57 @@ pub struct ReadOptions {
 }
 
 impl ReadOptions {
-    pub fn make_range(&self) -> BytesRange {
-        let offset = self.offset.clone().map(|offset| offset.get_u64().1);
-        let size = self.size.clone().map(|size| size.get_u64().1);
-        BytesRange::new(offset.unwrap_or_default(), size)
+    fn make_range(&self) -> napi::Result<BytesRange> {
+        let offset = self
+            .offset
+            .as_ref()
+            .map(|offset| bigint_to_u64(offset, "offset"))
+            .transpose()?
+            .unwrap_or_default();
+        let size = self
+            .size
+            .as_ref()
+            .map(|size| bigint_to_u64(size, "size"))
+            .transpose()?;
+
+        Ok(BytesRange::new(offset, size))
     }
 }
 
-impl From<ReadOptions> for opendal::options::ReadOptions {
-    fn from(value: ReadOptions) -> Self {
-        let range = value.make_range();
+impl TryFrom<ReadOptions> for opendal::options::ReadOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: ReadOptions) -> napi::Result<Self> {
+        let range = value.make_range()?;
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
 
-        Self {
+        let gap = value
+            .gap
+            .as_ref()
+            .map(|gap| bigint_to_usize(gap, "gap"))
+            .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
+        let chunk = value
+            .chunk
+            .map(|v| parse_count(v, "chunk", 0))
+            .transpose()?;
+
+        Ok(Self {
             version: value.version,
-            concurrent: value.concurrent.unwrap_or_default() as usize,
-            chunk: value.chunk.map(|chunk| chunk as usize),
-            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
+            concurrent,
+            chunk,
+            gap,
             range,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
@@ -237,7 +327,7 @@ impl From<ReadOptions> for opendal::options::ReadOptions {
             override_cache_control: value.cache_control,
             override_content_disposition: value.content_disposition,
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -260,15 +350,19 @@ pub struct ReaderOptions {
      *
      * By setting `concurrent`, opendal will fetch chunks concurrently with
      * the give chunk size.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub concurrent: Option<u32>,
+    pub concurrent: Option<f64>,
 
     /**
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<u32>,
+    pub chunk: Option<f64>,
 
     /** Controls the number of prefetched bytes ranges that can be buffered in memory
      * during concurrent reading.
@@ -283,8 +377,10 @@ pub struct ReaderOptions {
      *
      * This option helps prevent memory exhaustion when reading large files with high
      * concurrency settings.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub prefetch: Option<u32>,
+    pub prefetch: Option<f64>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -329,28 +425,51 @@ pub struct ReaderOptions {
     pub if_unmodified_since: Option<String>,
 }
 
-impl From<ReaderOptions> for opendal::options::ReaderOptions {
-    fn from(value: ReaderOptions) -> Self {
+impl TryFrom<ReaderOptions> for opendal::options::ReaderOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: ReaderOptions) -> napi::Result<Self> {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
+        let gap = value
+            .gap
+            .as_ref()
+            .map(|gap| bigint_to_usize(gap, "gap"))
+            .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
+        let chunk = value
+            .chunk
+            .map(|v| parse_count(v, "chunk", 0))
+            .transpose()?;
+        let prefetch = value
+            .prefetch
+            .map(|v| parse_count(v, "prefetch", 0))
+            .transpose()?
+            .unwrap_or_default();
 
-        Self {
+        Ok(Self {
             version: value.version,
-            concurrent: value.concurrent.unwrap_or_default() as usize,
-            chunk: value.chunk.map(|chunk| chunk as usize),
-            gap: value.gap.map(|gap| gap.get_u64().1 as usize),
-            prefetch: value.prefetch.unwrap_or_default() as usize,
+            concurrent,
+            chunk,
+            gap,
+            prefetch,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,
             if_unmodified_since,
             content_length_hint: None,
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -362,8 +481,10 @@ pub struct ListOptions {
      * that could return per-request.
      *
      * Users could use this to control the memory usage of list operation.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub limit: Option<u32>,
+    pub limit: Option<f64>,
 
     /**
      * The start_after passed to underlying service to specify the specified key
@@ -404,15 +525,23 @@ pub struct ListOptions {
     pub deleted: Option<bool>,
 }
 
-impl From<ListOptions> for opendal::options::ListOptions {
-    fn from(value: ListOptions) -> Self {
-        Self {
-            limit: value.limit.map(|v| v as usize),
+impl TryFrom<ListOptions> for opendal::options::ListOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: ListOptions) -> napi::Result<Self> {
+        let limit = value
+            .limit
+            .map(|v| parse_count(v, "limit", 0))
+            .transpose()?;
+
+        Ok(Self {
+            limit,
             start_after: value.start_after,
             recursive: value.recursive.unwrap_or_default(),
             versions: value.versions.unwrap_or_default(),
             deleted: value.deleted.unwrap_or_default(),
-        }
+            ..Default::default()
+        })
     }
 }
 
@@ -489,14 +618,29 @@ pub struct WriteOptions {
     ///   - Write operations return immediately without waiting if tasks space are available
     ///   - Close operation ensures all writes complete in order
     ///   - Memory usage increases with concurrency level
-    pub concurrent: Option<u32>,
+    ///
+    /// The value must be an integer between 0 and 4294967295.
+    pub concurrent: Option<f64>,
 }
 
-impl From<WriteOptions> for opendal::options::WriteOptions {
-    fn from(value: WriteOptions) -> Self {
-        Self {
+impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: WriteOptions) -> napi::Result<Self> {
+        let chunk = value
+            .chunk
+            .as_ref()
+            .map(|chunk| bigint_to_usize(chunk, "chunk"))
+            .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
+
+        Ok(Self {
             append: value.append.unwrap_or_default(),
-            chunk: value.chunk.map(|v| v.get_u64().1 as usize),
+            chunk,
             content_type: value.content_type,
             content_disposition: value.content_disposition,
             cache_control: value.cache_control,
@@ -505,9 +649,9 @@ impl From<WriteOptions> for opendal::options::WriteOptions {
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_not_exists: value.if_not_exists.unwrap_or_default(),
-            concurrent: value.concurrent.unwrap_or_default() as usize,
+            concurrent,
             ..Default::default()
-        }
+        })
     }
 }
 

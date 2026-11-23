@@ -77,6 +77,20 @@ pub struct AzblobConfig {
     )]
     pub sas_token: Option<String>,
 
+    /// The client id of the service principal for Microsoft Entra ID authentication.
+    pub client_id: Option<String>,
+
+    /// The client secret of the service principal for Microsoft Entra ID authentication.
+    pub client_secret: Option<String>,
+
+    /// The tenant id of the service principal for Microsoft Entra ID authentication.
+    pub tenant_id: Option<String>,
+
+    /// The authority host of the service principal for Microsoft Entra ID authentication.
+    ///
+    /// Defaults to `https://login.microsoftonline.com`.
+    pub authority_host: Option<String>,
+
     /// Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit.
     #[deprecated(
         since = "0.57.0",

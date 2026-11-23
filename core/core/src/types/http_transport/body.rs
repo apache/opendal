@@ -20,12 +20,16 @@ use std::cmp::Ordering;
 use futures::Stream;
 use futures::StreamExt;
 
+use crate::raw::BoxedFuture;
 use crate::raw::oio;
 use crate::raw::oio::ReadStream;
 use crate::types::Buffer;
 use crate::types::Error;
 use crate::types::ErrorKind;
 use crate::types::Result;
+
+type StreamNext<'a> = BoxedFuture<'a, Option<Result<Buffer>>>;
+type WrapStreamNext = dyn for<'a> Fn(StreamNext<'a>) -> StreamNext<'a> + Send + Sync;
 
 /// The streaming body returned by [`HttpTransporter`].
 ///
@@ -41,6 +45,7 @@ pub struct HttpBody {
     stream: Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
     size: Option<u64>,
     consumed: u64,
+    wrap_stream_next: Option<Box<WrapStreamNext>>,
 }
 
 /// # Safety
@@ -64,6 +69,7 @@ impl HttpBody {
             stream: Box::new(stream),
             size,
             consumed: 0,
+            wrap_stream_next: None,
         }
     }
 
@@ -77,6 +83,7 @@ impl HttpBody {
             stream: Box::new(stream),
             size,
             consumed: 0,
+            wrap_stream_next: None,
         }
     }
 
@@ -102,6 +109,20 @@ impl HttpBody {
         ) -> Box<dyn Stream<Item = Result<Buffer>> + Unpin + 'static>,
     ) -> Self {
         self.stream = f(self.stream);
+        self
+    }
+
+    /// Wrap each stream read future, including any wrapper already installed.
+    /// The wrapper future is dropped when the caller cancels the read.
+    #[doc(hidden)]
+    pub fn wrap_stream_next(
+        mut self,
+        wrap: impl for<'a> Fn(StreamNext<'a>) -> StreamNext<'a> + Send + Sync + 'static,
+    ) -> Self {
+        self.wrap_stream_next = Some(match self.wrap_stream_next.take() {
+            Some(previous) => Box::new(move |next| wrap(previous(next))),
+            None => Box::new(wrap),
+        });
         self
     }
 
@@ -135,15 +156,162 @@ impl HttpBody {
 
 impl oio::ReadStream for HttpBody {
     async fn read(&mut self) -> Result<Buffer> {
-        match self.stream.next().await.transpose()? {
-            Some(buf) => {
-                self.consumed += buf.len() as u64;
-                Ok(buf)
-            }
-            None => {
-                self.check()?;
-                Ok(Buffer::new())
+        loop {
+            let next = self.stream.next();
+            let chunk = match &self.wrap_stream_next {
+                Some(wrap) => wrap(Box::pin(next)).await,
+                None => next.await,
+            };
+            match chunk.transpose()? {
+                Some(buf) if buf.is_empty() => continue,
+                Some(buf) => {
+                    let chunk_len = buf.len() as u64;
+                    let Some(consumed) = self.consumed.checked_add(chunk_len) else {
+                        let actual = u128::from(self.consumed) + u128::from(chunk_len);
+                        let message = match self.size {
+                            Some(expect) => format!(
+                                "http response got too much data, expect: {expect}, actual: {actual}"
+                            ),
+                            None => format!("http response got too much data, actual: {actual}"),
+                        };
+                        return Err(Error::new(ErrorKind::Unexpected, message).set_temporary());
+                    };
+                    self.consumed = consumed;
+                    if self.size.is_some_and(|expect| self.consumed > expect) {
+                        self.check()?;
+                    }
+                    return Ok(buf);
+                }
+                None => {
+                    self.check()?;
+                    return Ok(Buffer::new());
+                }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicUsize;
+    use std::sync::atomic::Ordering as AtomicOrdering;
+
+    use futures::stream;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_http_body_skips_empty_chunks() {
+        let mut body = HttpBody::new(
+            stream::iter([
+                Ok(Buffer::new()),
+                Ok(Buffer::from("ab")),
+                Ok(Buffer::new()),
+                Ok(Buffer::from("cd")),
+            ]),
+            Some(4),
+        );
+
+        let buf = body.to_buffer().await.unwrap();
+        assert_eq!(buf.to_bytes().as_ref(), b"abcd");
+    }
+
+    #[tokio::test]
+    async fn test_http_body_only_empty_chunks_fails_when_size_expected() {
+        let mut body = HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(5));
+
+        let err = body.to_buffer().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert_eq!(
+            err.message(),
+            "http response got too little data, expect: 5, actual: 0"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_http_body_empty_with_zero_size() {
+        let mut empty_stream = HttpBody::new(stream::iter(std::iter::empty()), Some(0));
+        let buf = empty_stream.to_buffer().await.unwrap();
+        assert!(buf.is_empty());
+
+        let mut empty_chunk = HttpBody::new(stream::iter([Ok(Buffer::new())]), Some(0));
+        let buf = empty_chunk.to_buffer().await.unwrap();
+        assert!(buf.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_http_body_oversized_single_chunk_fails_immediately() {
+        let mut body = HttpBody::new(stream::iter([Ok(Buffer::from("0123456789"))]), Some(4));
+
+        let err = body.read().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert_eq!(
+            err.message(),
+            "http response got too much data, expect: 4, actual: 10"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_http_body_oversized_second_chunk_fails_immediately() {
+        let mut body = HttpBody::new(
+            stream::iter([Ok(Buffer::from("1234")), Ok(Buffer::from("5"))]),
+            Some(4),
+        );
+
+        let first = body.read().await.unwrap();
+        assert_eq!(first.to_bytes().as_ref(), b"1234");
+
+        let err = body.read().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert_eq!(
+            err.message(),
+            "http response got too much data, expect: 4, actual: 5"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_http_body_consumed_overflow_fails_immediately() {
+        let mut body = HttpBody::new(stream::iter([Ok(Buffer::from("abcd"))]), Some(u64::MAX));
+        body.consumed = u64::MAX - 2;
+
+        let err = body.read().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(err.message().contains("too much data"));
+
+        let mut unsized_body = HttpBody::new(stream::iter([Ok(Buffer::from("abcd"))]), None);
+        unsized_body.consumed = u64::MAX - 2;
+
+        let err = unsized_body.read().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(err.message().contains("too much data"));
+    }
+
+    #[tokio::test]
+    async fn test_http_body_wrap_stream_next_across_empty_chunks() {
+        let polls = Arc::new(AtomicUsize::new(0));
+        let polls_clone = polls.clone();
+
+        let mut body = HttpBody::new(
+            stream::iter([Ok(Buffer::new()), Ok(Buffer::from("hi"))]),
+            Some(2),
+        )
+        .wrap_stream_next(move |next| {
+            polls_clone.fetch_add(1, AtomicOrdering::SeqCst);
+            next
+        });
+
+        let chunk = body.read().await.unwrap();
+        assert_eq!(chunk.to_bytes().as_ref(), b"hi");
+        assert_eq!(polls.load(AtomicOrdering::SeqCst), 2);
+
+        let eof = body.read().await.unwrap();
+        assert!(eof.is_empty());
+        assert_eq!(polls.load(AtomicOrdering::SeqCst), 3);
     }
 }

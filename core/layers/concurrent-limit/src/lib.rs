@@ -222,7 +222,13 @@ where
     S::Permit: Send + Sync + 'static + Unpin,
 {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(ConcurrentLimitService {
+            inner,
+            operation_semaphore: self.operation_semaphore.clone(),
+            read_semaphore: self.read_semaphore.clone(),
+            write_semaphore: self.write_semaphore.clone(),
+            list_semaphore: self.list_semaphore.clone(),
+        })
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -236,23 +242,7 @@ where
     }
 }
 
-impl<S: ConcurrentLimitSemaphore> ConcurrentLimitLayer<S>
-where
-    S::Permit: Send + Sync + 'static + Unpin,
-{
-    fn layer(&self, inner: Servicer) -> ConcurrentLimitService<S> {
-        ConcurrentLimitService {
-            inner,
-            operation_semaphore: self.operation_semaphore.clone(),
-            read_semaphore: self.read_semaphore.clone(),
-            write_semaphore: self.write_semaphore.clone(),
-            list_semaphore: self.list_semaphore.clone(),
-        }
-    }
-}
-
-#[doc(hidden)]
-pub struct ConcurrentLimitHttpTransport<S: ConcurrentLimitSemaphore> {
+struct ConcurrentLimitHttpTransport<S: ConcurrentLimitSemaphore> {
     inner: HttpTransporter,
     http_semaphore: Option<S>,
 }
@@ -300,9 +290,8 @@ where
     }
 }
 
-#[doc(hidden)]
 #[derive(Clone)]
-pub struct ConcurrentLimitService<S: ConcurrentLimitSemaphore> {
+struct ConcurrentLimitService<S: ConcurrentLimitSemaphore> {
     inner: Servicer,
     operation_semaphore: S,
     read_semaphore: Option<S>,
@@ -435,8 +424,7 @@ where
     }
 }
 
-#[doc(hidden)]
-pub struct ConcurrentLimitReader<R, S> {
+struct ConcurrentLimitReader<R, S> {
     inner: R,
     semaphore: S,
 }
@@ -470,8 +458,7 @@ where
     }
 }
 
-#[doc(hidden)]
-pub struct ConcurrentLimitWrapper<R, S: ConcurrentLimitSemaphore> {
+struct ConcurrentLimitWrapper<R, S: ConcurrentLimitSemaphore> {
     inner: R,
     semaphore: S,
     // Hold this permit until the wrapped operation body is dropped.
@@ -510,19 +497,6 @@ where
     async fn read(&mut self) -> Result<Buffer> {
         self.acquire().await;
         self.inner.read().await
-    }
-}
-
-impl<R: oio::Read, S: ConcurrentLimitSemaphore> oio::Read for ConcurrentLimitWrapper<R, S>
-where
-    S::Permit: Send + Sync + 'static + Unpin,
-{
-    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        self.inner.open(range).await
-    }
-
-    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
-        self.inner.read(range).await
     }
 }
 
@@ -616,6 +590,7 @@ mod tests {
     use super::*;
     use opendal_core::Operator;
     use opendal_core::services;
+    use opendal_executor_tokio::TokioExecutor;
     use std::future::pending;
     use std::sync::Arc;
     use std::time::Duration;
@@ -1320,7 +1295,9 @@ mod tests {
             }),
         )
         .with_context(
-            OperationContext::new().with_http_transport(HttpTransporter::new(EchoTransport)),
+            OperationContext::new()
+                .with_http_transport(HttpTransporter::new(EchoTransport))
+                .with_executor(Executor::with(TokioExecutor::default())),
         )
         .layer(ConcurrentLimitLayer::new(1024).with_http_concurrent_limit(2));
 

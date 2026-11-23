@@ -20,12 +20,17 @@
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
 use std::sync::Arc;
+use std::time::Duration;
 
 use opendal_core::raw::*;
 use opendal_core::*;
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;
+
 /// `AsyncBacktraceLayer` records efficient logical stack traces for asynchronous
-/// service operations.
+/// service operations, HTTP requests and response body reads, and tasks
+/// submitted through the OpenDAL executor.
 ///
 /// # Async Backtrace
 ///
@@ -59,23 +64,71 @@ impl AsyncBacktraceLayer {
 
 impl Layer for AsyncBacktraceLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(AsyncBacktraceService { inner })
+    }
+
+    fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
+        let (transport, executor) = inner.into_parts();
+        OperationContext::from_parts(
+            HttpTransporter::new(AsyncBacktraceHttpTransport { inner: transport }),
+            Executor::with(AsyncBacktraceExecutor {
+                inner: executor.into_inner(),
+            }),
+        )
     }
 }
 
-impl AsyncBacktraceLayer {
-    fn layer(&self, inner: Servicer) -> AsyncBacktraceAccessor {
-        AsyncBacktraceAccessor { inner }
+struct AsyncBacktraceHttpTransport {
+    inner: HttpTransporter,
+}
+
+impl HttpTransport for AsyncBacktraceHttpTransport {
+    #[async_backtrace::framed]
+    async fn fetch(&self, req: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+        let response = self.inner.fetch(req).await?;
+        // A suspended frame belongs to the read future, which can be dropped
+        // while the response body is still in use.
+        Ok(response.map(|body| body.wrap_stream_next(Self::read_body)))
     }
 }
 
-#[doc(hidden)]
+impl AsyncBacktraceHttpTransport {
+    fn read_body(
+        next: BoxedFuture<'_, Option<Result<Buffer>>>,
+    ) -> BoxedFuture<'_, Option<Result<Buffer>>> {
+        Box::pin(async_backtrace::frame!(next))
+    }
+}
+
+struct AsyncBacktraceExecutor {
+    inner: Arc<dyn Execute>,
+}
+
+impl Execute for AsyncBacktraceExecutor {
+    fn execute(&self, task: BoxedStaticFuture<()>) {
+        self.inner.execute(Box::pin(async_backtrace::frame!(task)));
+    }
+
+    fn try_execute(&self, task: BoxedStaticFuture<()>) -> Result<()> {
+        self.inner
+            .try_execute(Box::pin(async_backtrace::frame!(task)))
+    }
+
+    fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+        self.inner.timeout()
+    }
+
+    fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
+        self.inner.sleep(duration)
+    }
+}
+
 #[derive(Debug)]
-pub struct AsyncBacktraceAccessor {
+struct AsyncBacktraceService {
     inner: Servicer,
 }
 
-impl Service for AsyncBacktraceAccessor {
+impl Service for AsyncBacktraceService {
     type Reader = AsyncBacktraceWrapper<oio::Reader>;
     type Writer = AsyncBacktraceWrapper<oio::Writer>;
     type Lister = AsyncBacktraceWrapper<oio::Lister>;
@@ -174,8 +227,7 @@ impl Service for AsyncBacktraceAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct AsyncBacktraceWrapper<R> {
+struct AsyncBacktraceWrapper<R> {
     inner: R,
 }
 

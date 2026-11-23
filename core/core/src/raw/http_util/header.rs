@@ -61,14 +61,52 @@ pub fn parse_cache_control(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 /// Parse content length from header map.
+///
+/// RFC 9112 §6.3 permits multiple `Content-Length` fields only when every
+/// field carries the same decimal value, and RFC 9110 §8.6 defines the value
+/// as `1*DIGIT`.
 pub fn parse_content_length(headers: &HeaderMap) -> Result<Option<u64>> {
-    parse_header_to_str(headers, CONTENT_LENGTH)?
-        .map(|v| {
-            v.parse::<u64>().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(e)
-            })
-        })
-        .transpose()
+    let mut values = headers.get_all(CONTENT_LENGTH).iter();
+
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    let content_length = parse_content_length_value(value)?;
+
+    for value in values {
+        if parse_content_length_value(value)? != content_length {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "conflicting content length headers",
+            ));
+        }
+    }
+
+    Ok(Some(content_length))
+}
+
+/// Parse a single `Content-Length` field value, which must be ASCII digits only.
+fn parse_content_length_value(value: &HeaderValue) -> Result<u64> {
+    let value = value.to_str().map_err(|err| {
+        Error::new(
+            ErrorKind::Unexpected,
+            "header value must be valid utf-8 string but not",
+        )
+        .with_operation("http_util::parse_content_length")
+        .with_context("header_name", "content-length")
+        .set_source(err)
+    })?;
+
+    if value.is_empty() || !value.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(Error::new(
+            ErrorKind::Unexpected,
+            "header value is not a valid content length",
+        ));
+    }
+
+    value.parse::<u64>().map_err(|err| {
+        Error::new(ErrorKind::Unexpected, "header value is not valid integer").set_source(err)
+    })
 }
 
 /// Parse content md5 from header map.
@@ -111,8 +149,102 @@ pub fn parse_content_disposition(headers: &HeaderMap) -> Result<Option<&str>> {
 }
 
 /// Parse multipart boundary from header map.
+///
+/// Returns `None` if the `Content-Type` header is missing, has no `boundary`
+/// parameter, or the parameter value is empty or malformed. Quoted parameter
+/// values are scanned with RFC 9110 `quoted-pair` escaping; a `boundary` that
+/// actually uses `quoted-pair` is rejected because `&str` cannot unescape it
+/// and RFC 2046 `bchars` disallows `\`.
 pub fn parse_multipart_boundary(headers: &HeaderMap) -> Result<Option<&str>> {
-    parse_header_to_str(headers, CONTENT_TYPE).map(|v| v.and_then(|v| v.split("boundary=").nth(1)))
+    let Some(content_type) = parse_header_to_str(headers, CONTENT_TYPE)? else {
+        return Ok(None);
+    };
+
+    // Skip the media type before the first parameter. A quoted parameter value
+    // may contain `;`, so parameter boundaries must be found while scanning.
+    let Some((_, mut rest)) = content_type.split_once(';') else {
+        return Ok(None);
+    };
+
+    loop {
+        rest = rest.trim_matches([' ', '\t']);
+        if rest.is_empty() {
+            return Ok(None);
+        }
+
+        // A parameter without `=` is malformed for our purposes; skip it.
+        let name_end = rest.find(['=', ';']).unwrap_or(rest.len());
+        if name_end == rest.len() || rest.as_bytes()[name_end] == b';' {
+            rest = &rest[name_end..];
+            let Some(next) = rest.strip_prefix(';') else {
+                return Ok(None);
+            };
+            rest = next;
+            continue;
+        }
+
+        let name = rest[..name_end].trim_matches([' ', '\t']);
+        let is_boundary = name.eq_ignore_ascii_case("boundary");
+        rest = rest[name_end + 1..].trim_start_matches([' ', '\t']);
+
+        let value = if let Some(quoted) = rest.strip_prefix('"') {
+            // RFC 9110 `quoted-pair` lets a backslash escape `"` and `\` inside
+            // a quoted string, so scan for the closing quote instead of
+            // stopping at the first one.
+            let mut value_end = None;
+            let mut escaped = false;
+            for (idx, c) in quoted.char_indices() {
+                if escaped {
+                    escaped = false;
+                } else if c == '\\' {
+                    escaped = true;
+                } else if c == '"' {
+                    value_end = Some(idx);
+                    break;
+                }
+            }
+
+            // A quote that is never closed, or one only reached through a
+            // dangling `\`, is malformed.
+            let Some(value_end) = value_end else {
+                return Ok(None);
+            };
+            let value = &quoted[..value_end];
+            // A quoted-pair cannot be represented in `&str`, and RFC 2046
+            // `bchars` disallows `\` in boundaries.
+            if is_boundary && value.contains('\\') {
+                return Ok(None);
+            }
+            rest = &quoted[value_end + 1..];
+            value
+        } else {
+            let value_end = rest.find(';').unwrap_or(rest.len());
+            let value = rest[..value_end].trim_end_matches([' ', '\t']);
+            rest = &rest[value_end..];
+            value
+        };
+
+        // Only optional whitespace may follow a parameter value before the
+        // next `;` or the end of the header.
+        rest = rest.trim_start_matches([' ', '\t']);
+        if !rest.is_empty() && !rest.starts_with(';') {
+            // `boundary="abc"garbage` is a malformed boundary parameter.
+            if is_boundary {
+                return Ok(None);
+            }
+            // Skip the malformed parameter instead of stalling on it.
+            rest = rest.find(';').map_or("", |idx| &rest[idx..]);
+        }
+
+        if is_boundary {
+            return Ok((!value.is_empty()).then_some(value));
+        }
+
+        let Some(next) = rest.strip_prefix(';') else {
+            return Ok(None);
+        };
+        rest = next;
+    }
 }
 
 /// Parse header value to string according to name.
@@ -159,15 +291,19 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let content_length = parse_content_range(headers)?
-        .and_then(|value| value.size())
-        .or(parse_content_length(headers)?);
+    let content_range = parse_content_range(headers)?;
+    let content_length = match content_range {
+        Some(range) => range.size(),
+        None => parse_content_length(headers)?,
+    };
     let mut m = if mode == EntryMode::FILE {
         MetadataBuilder::file(content_length.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "HTTP response does not contain file content length",
-            )
+            let message = if content_range.is_some() {
+                "HTTP Content-Range header does not specify total file content length"
+            } else {
+                "HTTP response does not contain file content length"
+            };
+            Error::new(ErrorKind::Unexpected, message)
         })?)
     } else {
         MetadataBuilder::dir()
@@ -364,7 +500,60 @@ mod tests {
                 "multipart/mixed; boundary=gc0p4Jq0M2Yt08jU534c0p",
                 Some("gc0p4Jq0M2Yt08jU534c0p"),
             ),
+            ("multipart/mixed; boundary=\"batch_123\"", Some("batch_123")),
+            (
+                "multipart/mixed; boundary=batch_123; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch_123\"; charset=utf-8",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; boundary=\"batch;123\"; charset=utf-8",
+                Some("batch;123"),
+            ),
+            ("multipart/mixed; BOUNDARY=batch_123", Some("batch_123")),
+            ("multipart/mixed; Boundary=\"batch_123\"", Some("batch_123")),
+            ("multipart/mixed ; boundary = batch_123 ", Some("batch_123")),
+            (
+                "multipart/mixed; charset=\"utf;8\"; boundary=batch_123",
+                Some("batch_123"),
+            ),
+            (
+                "multipart/mixed; my_boundary=wrong; boundary=right",
+                Some("right"),
+            ),
+            ("multipart/mixed; boundary=", None),
+            ("multipart/mixed; boundary=\"\"", None),
+            ("multipart/mixed; boundary=\"unclosed", None),
             ("multipart/mixed", None),
+            // A `quoted-pair` in an earlier parameter must not terminate the
+            // quoted string early.
+            (
+                r#"multipart/mixed; note="a\"b;boundary=fake"; boundary=real"#,
+                Some("real"),
+            ),
+            (
+                r#"multipart/mixed; note="trailing\\"; boundary=real"#,
+                Some("real"),
+            ),
+            // A boundary cannot use `quoted-pair`: `&str` cannot unescape it
+            // and RFC 2046 `bchars` disallows `\`.
+            (r#"multipart/mixed; boundary="foo\"bar""#, None),
+            (r#"multipart/mixed; boundary="foo\\bar""#, None),
+            // Nothing but optional whitespace may follow a closing quote.
+            (r#"multipart/mixed; boundary="abc"garbage"#, None),
+            (r#"multipart/mixed; boundary="abc"def; charset=utf-8"#, None),
+            (
+                "multipart/mixed; boundary=\"abc\" \t ; charset=utf-8",
+                Some("abc"),
+            ),
+            // GCS returns unquoted boundaries that contain `=`.
+            (
+                "multipart/mixed; boundary=batch_pK7JBAk73-E=_AA5eFwv4m2Q=",
+                Some("batch_pK7JBAk73-E=_AA5eFwv4m2Q="),
+            ),
         ];
 
         for (input, expected) in cases {
@@ -375,5 +564,94 @@ mod tests {
 
             assert_eq!(actual, expected)
         }
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_missing_content_type() {
+        let headers = HeaderMap::new();
+
+        let actual = parse_multipart_boundary(&headers).expect("parse must success");
+
+        assert_eq!(actual, None)
+    }
+
+    #[test]
+    fn test_parse_multipart_boundary_non_utf8_content_type() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            CONTENT_TYPE,
+            HeaderValue::from_bytes(b"multipart/mixed; boundary=\xff").unwrap(),
+        );
+
+        parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
+    }
+
+    #[test]
+    fn test_parse_content_length_missing() {
+        let headers = HeaderMap::new();
+
+        assert_eq!(parse_content_length(&headers).unwrap(), None);
+    }
+
+    #[test]
+    fn test_parse_content_length_accepts_identical_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        assert_eq!(parse_content_length(&headers).unwrap(), Some(10));
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_conflicting_duplicates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("10"));
+        headers.append(CONTENT_LENGTH, HeaderValue::from_static("20"));
+
+        let err =
+            parse_content_length(&headers).expect_err("conflicting content lengths must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[test]
+    fn test_parse_content_length_rejects_invalid_values() {
+        for value in ["+10", "-1", " 10", "10 ", "", "10, 10", "10abc"] {
+            let mut headers = HeaderMap::new();
+            headers.insert(CONTENT_LENGTH, HeaderValue::from_str(value).unwrap());
+
+            let err = parse_content_length(&headers).expect_err("invalid content length must fail");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "value: {value:?}");
+        }
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_unknown_size_does_not_use_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/*"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let err = parse_into_metadata("file.txt", &headers)
+            .expect_err("unknown total size in Content-Range must not fall back to Content-Length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("Content-Range"));
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_known_size() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/10"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
     }
 }

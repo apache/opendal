@@ -17,6 +17,8 @@
 
 from typing import Final, final
 
+__all__ = ["Scheme"]
+
 @final
 class Scheme:
     AliyunDrive: Final[Scheme]
@@ -26,7 +28,6 @@ class Scheme:
     Azfile: Final[Scheme]
     B2: Final[Scheme]
     Cacache: Final[Scheme]
-    CloudflareKv: Final[Scheme]
     Cos: Final[Scheme]
     Dashmap: Final[Scheme]
     Dropbox: Final[Scheme]
@@ -67,7 +68,6 @@ class Scheme:
     Tos: Final[Scheme]
     Upyun: Final[Scheme]
     VercelArtifacts: Final[Scheme]
-    VercelBlob: Final[Scheme]
     Webdav: Final[Scheme]
     Webhdfs: Final[Scheme]
     YandexDisk: Final[Scheme]

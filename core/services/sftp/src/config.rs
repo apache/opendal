@@ -17,6 +17,7 @@
 
 use std::fmt::Debug;
 
+use opendal_core::raw::SignedDuration;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -37,6 +38,15 @@ pub struct SftpConfig {
     pub key: Option<String>,
     /// known_hosts_strategy of this backend
     pub known_hosts_strategy: Option<String>,
+    /// Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit.
+    pub acquire_timeout: Option<SignedDuration>,
+    /// Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit.
+    pub connect_timeout: Option<SignedDuration>,
+    /// Directory for the SSH control socket.
+    ///
+    /// The SSH client creates a temporary directory holding the control socket here.
+    /// Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory.
+    pub control_directory: Option<String>,
     /// Deprecated: SFTP copy capability is enabled by default.
     #[deprecated(
         since = "0.57.0",
@@ -71,7 +81,10 @@ impl opendal_core::Configurator for SftpConfig {
     }
 
     fn into_builder(self) -> Self::Builder {
-        SftpBuilder { config: self }
+        SftpBuilder {
+            config: self,
+            ..Default::default()
+        }
     }
 }
 
@@ -95,6 +108,48 @@ mod tests {
     }
 
     #[test]
+    fn from_uri_applies_timeout_overrides() {
+        let uri = OperatorUri::new(
+            "sftp://host",
+            [
+                ("acquire_timeout".to_string(), "0s".to_string()),
+                ("connect_timeout".to_string(), "500ms".to_string()),
+            ],
+        )
+        .unwrap();
+
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.acquire_timeout, Some(SignedDuration::ZERO));
+        assert_eq!(cfg.connect_timeout, Some(SignedDuration::from_millis(500)));
+    }
+
+    #[test]
+    fn config_rejects_malformed_timeouts() {
+        use opendal_core::ErrorKind;
+
+        for field in ["acquire_timeout", "connect_timeout"] {
+            let error = SftpConfig::from_iter([(field.to_string(), "invalid".to_string())])
+                .expect_err("malformed duration");
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+        }
+    }
+
+    #[test]
+    fn builder_rejects_negative_configured_timeouts() {
+        use opendal_core::{Builder, ErrorKind};
+
+        for field in ["acquire_timeout", "connect_timeout"] {
+            let pairs = [("endpoint", "host"), (field, "-1s")];
+            let config =
+                SftpConfig::from_iter(pairs.map(|(key, value)| (key.into(), value.into())))
+                    .unwrap();
+            let error = config.into_builder().build().expect_err("negative timeout");
+            assert_eq!(error.kind(), ErrorKind::ConfigInvalid);
+            assert!(error.to_string().contains(field));
+        }
+    }
+
+    #[test]
     fn from_uri_applies_connection_overrides() {
         let uri = OperatorUri::new(
             "sftp://host",
@@ -111,5 +166,49 @@ mod tests {
         assert_eq!(cfg.user.as_deref(), Some("alice"));
         assert_eq!(cfg.key.as_deref(), Some("/home/alice/.ssh/id_rsa"));
         assert_eq!(cfg.known_hosts_strategy.as_deref(), Some("accept"));
+    }
+
+    #[test]
+    fn control_directory_from_map_builder_and_uri() {
+        let cfg = SftpConfig::from_iter([(
+            "control_directory".to_string(),
+            "/tmp/sftp-control".to_string(),
+        )])
+        .unwrap();
+        assert_eq!(cfg.control_directory.as_deref(), Some("/tmp/sftp-control"));
+
+        let builder = SftpBuilder::default().control_directory("/tmp/sftp-control");
+        assert_eq!(
+            builder.config.control_directory.as_deref(),
+            Some("/tmp/sftp-control")
+        );
+        assert_eq!(
+            SftpBuilder::default()
+                .control_directory("")
+                .config
+                .control_directory,
+            None
+        );
+
+        let uri = OperatorUri::new(
+            "sftp://host",
+            [(
+                "control_directory".to_string(),
+                "/tmp/sftp-control".to_string(),
+            )],
+        )
+        .unwrap();
+        let cfg = SftpConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.control_directory.as_deref(), Some("/tmp/sftp-control"));
+    }
+
+    #[test]
+    fn builder_builds_with_control_directory() {
+        use opendal_core::Builder;
+
+        let builder = SftpBuilder::default()
+            .endpoint("host")
+            .control_directory("/tmp/sftp-control");
+        assert!(builder.build().is_ok());
     }
 }

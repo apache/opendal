@@ -42,13 +42,13 @@ impl CompfsLister {
 }
 
 fn normalize(path: &Path, root: &Path) -> String {
-    normalize_path(
-        &path
-            .strip_prefix(root)
-            .expect("cannot fail because the prefix is iterated")
-            .to_string_lossy()
-            .replace('\\', "/"),
-    )
+    let raw = path
+        .strip_prefix(root)
+        .expect("cannot fail because the prefix is iterated")
+        .to_string_lossy();
+    #[cfg(windows)]
+    let raw = raw.replace('\\', "/");
+    normalize_path(&raw)
 }
 
 fn next_entry(read_dir: &mut ReadDir, root: &Path) -> std::io::Result<Option<oio::Entry>> {
@@ -129,7 +129,9 @@ mod tests {
         std::fs::write(root.join("a.txt"), b"a").unwrap();
         std::fs::write(root.join("dir/b.txt"), b"b").unwrap();
 
-        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap()))
+            .unwrap()
+            .layer(opendal_core::layers::SimulateLayer::default());
 
         let mut paths = op
             .list_with("/")
@@ -153,5 +155,49 @@ mod tests {
         assert_eq!(paths, ["/", "a.txt", "dir/"]);
 
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_list_preserves_backslashes_in_file_names() {
+        use bytes::Bytes;
+        use opendal_core::EntryMode;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let names = ["has\\slash", "trailing\\"];
+        for name in names {
+            std::fs::write(root.join(name), name.as_bytes()).unwrap();
+        }
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+
+        let entries = op.list("/").await.unwrap();
+        for name in names {
+            let entry = entries
+                .iter()
+                .find(|entry| entry.path() == name)
+                .unwrap_or_else(|| panic!("missing entry {name:?} in {entries:?}"));
+            assert_eq!(entry.metadata().mode(), EntryMode::FILE);
+            assert_eq!(
+                op.read(entry.path()).await.unwrap().to_bytes(),
+                Bytes::copy_from_slice(name.as_bytes()),
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_list_file_as_directory_returns_empty() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("f.txt"), b"file contents").unwrap();
+        let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+
+        for path in ["f.txt/", "f.txt/sub/"] {
+            let entries = op
+                .list(path)
+                .await
+                .unwrap_or_else(|err| panic!("list {path:?} failed: {err:?}"));
+            assert!(entries.is_empty(), "list {path:?} returned {entries:?}");
+        }
     }
 }

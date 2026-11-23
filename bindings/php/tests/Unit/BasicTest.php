@@ -36,16 +36,35 @@ it('class & methods exists', function ($class, $methods) {
 describe('throw exception', function () {
     it('invalid driver', function () {
         new \OpenDAL\Operator('invalid', []);
-    })->throws('Exception');
+    })->throws(\OpenDAL\Exception::class, 'scheme is not registered');
 
     it('unspecified root path', function () {
         new \OpenDAL\Operator('fs', []);
-    })->throws('Exception');
+    })->throws(\OpenDAL\Exception::class, 'root is not specified');
 
     it('read non-exist file', function () {
         $op = new \OpenDAL\Operator('fs', ['root' => '/tmp']);
         $op->read('non-exist.txt');
     })->throws('Exception');
+
+    it('reports a missing memory object as a PHP exception', function (string $path, string $pathInMessage) {
+        $op = new \OpenDAL\Operator('memory', []);
+
+        try {
+            $op->read($path);
+        } catch (\Exception $e) {
+            expect($e)->toBeInstanceOf(\OpenDAL\Exception::class)
+                ->and($e->getMessage())->toStartWith('NotFound ')
+                ->toContain($pathInMessage)
+                ->and($e->getTrace()[0]['function'] ?? null)->toBe('read');
+            return;
+        }
+
+        $this->fail('Expected reading a missing object to throw an exception.');
+    })->with([
+        ['missing.txt', 'missing.txt'],
+        ["missing\0name", 'missing\0name'],
+    ]);
 });
 
 it('initialization OpenDAL', function () {

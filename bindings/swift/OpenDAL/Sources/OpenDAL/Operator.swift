@@ -21,6 +21,22 @@ import Foundation
 public struct OperatorError: Error {
     let code: UInt32
     let message: Data
+
+    /// Creates an `OperatorError` by copying the code and message out
+    /// of a `opendal_error` and freeing it afterwards.
+    ///
+    /// The caller transfers ownership of `error` to this initializer;
+    /// it must not be used or freed again afterwards.
+    init(consuming error: UnsafeMutablePointer<opendal_error>) {
+        self.code = error.pointee.code.rawValue
+        if let data = error.pointee.message.data, error.pointee.message.len > 0 {
+            self.message = Data(bytes: data, count: Int(error.pointee.message.len))
+        }
+        else {
+            self.message = Data()
+        }
+        opendal_error_free(error)
+    }
 }
 
 public class Operator {
@@ -42,16 +58,7 @@ public class Operator {
 
         var op: UnsafeMutablePointer<opendal_operator>? = nil
         if let err = opendal_operator_new(scheme, nativeOptions, &op) {
-            defer {
-                opendal_error_free(err)
-            }
-            let immutableErr = err.pointee
-            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
-            let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(
-                code: immutableErr.code.rawValue,
-                message: Data(bytes: messagePointer, count: messageLength)
-            )
+            throw OperatorError(consuming: err)
         }
 
         self.nativeOp = UnsafePointer(op!)
@@ -59,42 +66,32 @@ public class Operator {
 
     public func blockingWrite(_ data: inout Data, to path: String) throws {
         let ret = data.withUnsafeMutableBytes { dataPointer in
-            let address = dataPointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            let bytes = opendal_bytes(data: address, len: UInt(dataPointer.count), capacity: UInt(dataPointer.count))
+            // The C binding rejects an empty buffer with a non-null data
+            // pointer, so map empty Data to a fully empty opendal_bytes.
+            let bytes =
+                dataPointer.isEmpty
+                ? opendal_bytes()
+                : opendal_bytes(
+                    data: dataPointer.baseAddress?.assumingMemoryBound(to: UInt8.self),
+                    len: UInt(dataPointer.count),
+                    capacity: UInt(dataPointer.count)
+                )
             return withUnsafePointer(to: bytes) { bytesPointer in
                 opendal_operator_write(nativeOp, path, bytesPointer)
             }
         }
 
         if let err = ret {
-            defer {
-                opendal_error_free(err)
-            }
-            let immutableErr = err.pointee
-            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
-            let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(
-                code: immutableErr.code.rawValue,
-                message: Data(bytes: messagePointer, count: messageLength)
-            )
+            throw OperatorError(consuming: err)
         }
     }
 
     public func blockingRead(_ path: String) throws -> Data {
         var data = opendal_bytes()
         if let err = opendal_operator_read(nativeOp, path, &data) {
-            defer {
-                opendal_error_free(err)
-            }
-            let immutableErr = err.pointee
-            let messagePointer = withUnsafePointer(to: immutableErr.message) { $0 }
-            let messageLength = Int(immutableErr.message.len)
-            throw OperatorError(
-                code: immutableErr.code.rawValue,
-                message: Data(bytes: messagePointer, count: messageLength)
-            )
+            throw OperatorError(consuming: err)
         }
 
-        return withUnsafeMutablePointer(to: &data) { Data(openDALBytes: $0) }
+        return Data(openDALBytes: data)
     }
 }

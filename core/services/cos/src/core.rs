@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -28,8 +29,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::{Context, Signer};
-use reqsign_tencent_cos::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_tencent_cos::{Credential, RequestSigner};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -52,7 +53,10 @@ pub struct CosCore {
     pub root: String,
     pub endpoint: String,
 
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for CosCore {
@@ -67,12 +71,13 @@ impl Debug for CosCore {
 
 impl CosCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {

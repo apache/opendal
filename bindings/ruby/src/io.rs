@@ -59,8 +59,8 @@ use crate::*;
 pub struct Io(RefCell<IoHandle>);
 
 enum FileState {
-    Reader(ocore::blocking::StdReader),
-    Writer(ocore::blocking::StdWriter),
+    Reader(Box<ocore::blocking::StdReader>),
+    Writer(Box<ocore::blocking::StdWriter>),
     Closed,
 }
 
@@ -94,29 +94,50 @@ impl Io {
         let (_open_flags, fmode, encoding) =
             ruby.io_extract_modeenc(&mut mode, &mut permission, &kwargs)?;
 
+        // `OpenDal::IO` is unidirectional, so read-write modes (`r+`, `w+`,
+        // `a+`) have no valid mapping: silently dropping either half could
+        // lose data or break reads. Reject them explicitly.
+        if fmode.contains(FMode::READ) && fmode.contains(FMode::WRITE) {
+            return Err(Error::new(
+                ruby.exception_arg_error(),
+                "Invalid mode: read-write modes are not supported",
+            ));
+        }
+
         let state =
             // Create reader if mode supports reading
             if fmode.contains(FMode::READ) {
-                FileState::Reader(
+                FileState::Reader(Box::new(
                     operator
                         .reader(&path)
                         .map_err(|err| format_magnus_error(ruby, err))?
                         .into_std_read(..)
                         .map_err(|err| format_magnus_error(ruby, err))?,
-                )
+                ))
             } else if fmode.contains(FMode::WRITE) {
-                FileState::Writer(
-                operator
-                    .writer(&path)
-                    .map_err(|err| format_magnus_error(ruby, err))?
-                    .into_std_write(),
-            )
-        } else {
-            return Err(Error::new(
-                ruby.exception_arg_error(),
-                "Invalid mode: must open for reading or writing",
-            ));
-        };
+                // Honor the mode's open flags instead of always truncating:
+                // `a` appends and `x` fails when the file already exists. Both
+                // return an `Unsupported` error on services without the
+                // capability instead of silently overwriting data.
+                FileState::Writer(Box::new(
+                    operator
+                        .writer_options(
+                            &path,
+                            ocore::options::WriteOptions {
+                                append: fmode.contains(FMode::APPEND),
+                                if_not_exists: fmode.contains(FMode::EXCLUSIVE),
+                                ..Default::default()
+                            },
+                        )
+                        .map_err(|err| format_magnus_error(ruby, err))?
+                        .into_std_write(),
+                ))
+            } else {
+                return Err(Error::new(
+                    ruby.exception_arg_error(),
+                    "Invalid mode: must open for reading or writing",
+                ));
+            };
 
         Ok(Self(RefCell::new(IoHandle {
             state,
@@ -227,7 +248,7 @@ impl Io {
     ///
     /// @param size [Integer, nil] The maximum number of bytes to read. Reads all data when not provided.
     /// @param buffer [String, nil] The output buffer to append to.
-    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<bytes::Bytes>, Error> {
+    fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<RString>, Error> {
         let args = scan_args::<(), (Option<Option<i64>>, Option<RString>), (), (), (), ()>(args)?;
         let (option_size, mut option_output_buffer) = args.optional;
         let size = option_size.unwrap_or_default(); // allow nil
@@ -237,22 +258,32 @@ impl Io {
         if let FileState::Reader(reader) = &mut handle.state {
             let buffer: Option<bytes::Bytes> = match size {
                 Some(size) => {
-                    if size <= 0 {
+                    if size < 0 {
                         return Err(Error::new(
                             ruby.exception_arg_error(),
                             format!("negative length {} given", size),
                         ));
                     }
-                    let mut bs = vec![0; size as usize];
-                    let n = reader
-                        .read(&mut bs)
-                        .map_err(|err| format_io_error(ruby, err))?;
-                    if n == 0 && size > 0 {
-                        // when called at end of file, read(positive_integer) returns nil.
-                        None
+                    if size == 0 {
+                        // Ruby returns the given output buffer object for a zero-length read.
+                        if let Some(output_buffer) = option_output_buffer.as_mut() {
+                            output_buffer.drop_bytes(output_buffer.len())?;
+                            return Ok(Some(*output_buffer));
+                        }
+                        Some(bytes::Bytes::new())
                     } else {
-                        bs.truncate(n);
-                        Some(bs.into())
+                        let mut bs = Vec::new();
+                        reader
+                            .by_ref()
+                            .take(size as u64)
+                            .read_to_end(&mut bs)
+                            .map_err(|err| format_io_error(ruby, err))?;
+                        if bs.is_empty() {
+                            // when called at end of file, read(positive_integer) returns nil.
+                            None
+                        } else {
+                            Some(bs.into())
+                        }
                     }
                 }
                 None => {
@@ -264,14 +295,14 @@ impl Io {
                 }
             };
 
-            // when provided the buffer parameter, append read buffer
-            if let (Some(output_buffer), Some(inner)) =
-                (option_output_buffer.as_mut(), buffer.as_ref())
-            {
-                output_buffer.cat(inner);
+            if let Some(output_buffer) = option_output_buffer.as_mut() {
+                match buffer.as_ref() {
+                    Some(inner) => output_buffer.cat(inner),
+                    None => output_buffer.drop_bytes(output_buffer.len())?,
+                }
             }
 
-            Ok(buffer)
+            Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),
@@ -285,13 +316,13 @@ impl Io {
     /// Reads a single line from the stream.
     /// @return [String]
     // TODO: extend readline with parameters
-    fn readline(ruby: &Ruby, rb_self: &Self) -> Result<String, Error> {
+    fn readline(ruby: &Ruby, rb_self: &Self) -> Result<RString, Error> {
         let mut handle = rb_self.0.borrow_mut();
 
         if let FileState::Reader(reader) = &mut handle.state {
-            let mut buffer = String::new();
+            let mut buffer = Vec::new();
             let size = reader
-                .read_line(&mut buffer)
+                .read_until(b'\n', &mut buffer)
                 .map_err(|err| format_io_error(ruby, err))?;
             if size == 0 {
                 return Err(Error::new(
@@ -300,7 +331,7 @@ impl Io {
                 ));
             }
 
-            Ok(buffer)
+            Ok(ruby.str_from_slice(&buffer))
         } else {
             Err(Error::new(
                 ruby.exception_runtime_error(),
@@ -314,13 +345,14 @@ impl Io {
     /// Writes data to the stream.
     /// @param buffer [String]
     /// @return [Integer] the written byte size
-    fn write(ruby: &Ruby, rb_self: &Self, bs: String) -> Result<usize, Error> {
+    fn write(ruby: &Ruby, rb_self: &Self, bs: RString) -> Result<usize, Error> {
         let mut handle = rb_self.0.borrow_mut();
 
         if let FileState::Writer(writer) = &mut handle.state {
-            let bytes_written = bs.len();
+            let bytes = bs.to_bytes();
+            let bytes_written = bytes.len();
             writer
-                .write_all(bs.as_bytes())
+                .write_all(&bytes)
                 .map_err(|err| format_io_error(ruby, err))?;
             Ok(bytes_written)
         } else {
@@ -364,31 +396,49 @@ impl Io {
                     let position = reader
                         .stream_position()
                         .map_err(|err| format_io_error(ruby, err))?;
-                    if offset < 0 && (-offset as u64) > position {
+                    let target = i128::from(position) + i128::from(offset);
+                    if target < 0 {
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
                             "Cannot seek before start of stream.",
                         ));
                     }
-                    (position as i64 + offset) as u64
+                    let target = i64::try_from(target).map_err(|_| {
+                        Error::new(ruby.exception_runtime_error(), "Seek position overflow.")
+                    })?;
+                    target as u64
                 }
                 2 => {
                     // SEEK_END
+                    let current_pos = reader
+                        .stream_position()
+                        .map_err(|err| format_io_error(ruby, err))?;
                     let end_pos = reader
                         .seek(SeekFrom::End(0))
                         .map_err(|err| format_io_error(ruby, err))?;
-                    if offset < 0 && (-offset as u64) > end_pos {
+                    let target = i128::from(end_pos) + i128::from(offset);
+                    if target < 0 {
+                        let _ = reader.seek(SeekFrom::Start(current_pos));
                         return Err(Error::new(
                             ruby.exception_runtime_error(),
                             "Cannot seek before start of stream.",
                         ));
                     }
-                    (end_pos as i64 + offset) as u64
+                    let Ok(target) = i64::try_from(target) else {
+                        let _ = reader.seek(SeekFrom::Start(current_pos));
+                        return Err(Error::new(
+                            ruby.exception_runtime_error(),
+                            "Seek position overflow.",
+                        ));
+                    };
+                    target as u64
                 }
                 _ => return Err(Error::new(ruby.exception_arg_error(), "invalid whence")),
             };
 
-            let _ = reader.seek(std::io::SeekFrom::Start(new_reader_position));
+            reader
+                .seek(SeekFrom::Start(new_reader_position))
+                .map_err(|err| format_io_error(ruby, err))?;
         } else {
             return Err(Error::new(
                 ruby.exception_runtime_error(),

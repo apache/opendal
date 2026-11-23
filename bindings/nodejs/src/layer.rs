@@ -17,8 +17,14 @@
 
 use std::time::Duration;
 
+use napi::bindgen_prelude::Error;
 use napi::bindgen_prelude::External;
 use napi::bindgen_prelude::Result;
+use napi::bindgen_prelude::Status;
+
+use crate::validate::parse_count;
+use crate::validate::parse_millis;
+use crate::validate::parse_timeout_millis;
 
 pub trait NodeLayer: Send + Sync {
     fn layer(&self, op: opendal::Operator) -> opendal::Operator;
@@ -96,10 +102,10 @@ impl CapabilityOverrideLayer {
 #[napi]
 pub struct RetryLayer {
     jitter: bool,
-    max_times: Option<u32>,
-    factor: Option<f64>,
-    max_delay: Option<f64>,
-    min_delay: Option<f64>,
+    max_times: Option<usize>,
+    factor: Option<f32>,
+    max_delay: Option<Duration>,
+    min_delay: Option<Duration>,
 }
 
 #[napi]
@@ -121,19 +127,32 @@ impl RetryLayer {
     /// Set max_times of current backoff.
     ///
     /// Backoff will return `None` if max times are reached.
+    ///
+    /// The value must be an integer between 0 and 4294967295. `0` disables
+    /// retries.
     #[napi(setter)]
-    pub fn max_times(&mut self, v: u32) {
-        self.max_times = Some(v);
+    pub fn max_times(&mut self, v: f64) -> Result<()> {
+        self.max_times = Some(parse_count(v, "maxTimes", 0)?);
+        Ok(())
     }
 
     /// Set factor of current backoff.
     ///
-    /// # Panics
-    ///
-    /// This function will panic if the input factor is smaller than `1.0`.
+    /// The value must be a finite number between `1.0` and `340282350000000000000000000000000000000`.
     #[napi(setter)]
-    pub fn factor(&mut self, v: f64) {
-        self.factor = Some(v);
+    pub fn factor(&mut self, v: f64) -> Result<()> {
+        if !(1.0..=f64::from(f32::MAX)).contains(&v) {
+            return Err(Error::new(
+                Status::InvalidArg,
+                format!(
+                    "factor must be a finite number between 1.0 and {}",
+                    f32::MAX
+                ),
+            ));
+        }
+
+        self.factor = Some(v as f32);
+        Ok(())
     }
 
     /// Set max_delay of current backoff.
@@ -143,9 +162,11 @@ impl RetryLayer {
     /// # Notes
     ///
     /// - The unit of max_delay is millisecond.
+    /// - The value must be a finite, non-negative number.
     #[napi(setter)]
-    pub fn max_delay(&mut self, v: f64) {
-        self.max_delay = Some(v);
+    pub fn max_delay(&mut self, v: f64) -> Result<()> {
+        self.max_delay = Some(parse_millis(v, "maxDelay")?);
+        Ok(())
     }
 
     /// Set min_delay of current backoff.
@@ -153,9 +174,11 @@ impl RetryLayer {
     /// # Notes
     ///
     /// - The unit of min_delay is millisecond.
+    /// - The value must be a finite, non-negative number.
     #[napi(setter)]
-    pub fn min_delay(&mut self, v: f64) {
-        self.min_delay = Some(v);
+    pub fn min_delay(&mut self, v: f64) -> Result<()> {
+        self.min_delay = Some(parse_millis(v, "minDelay")?);
+        Ok(())
     }
 
     #[napi]
@@ -165,16 +188,16 @@ impl RetryLayer {
             l = l.with_jitter();
         }
         if let Some(max_times) = self.max_times {
-            l = l.with_max_times(max_times as usize);
+            l = l.with_max_times(max_times);
         }
         if let Some(factor) = self.factor {
-            l = l.with_factor(factor as f32);
+            l = l.with_factor(factor);
         }
         if let Some(max_delay) = self.max_delay {
-            l = l.with_max_delay(Duration::from_millis(max_delay as u64));
+            l = l.with_max_delay(max_delay);
         }
         if let Some(min_delay) = self.min_delay {
-            l = l.with_min_delay(Duration::from_millis(min_delay as u64));
+            l = l.with_min_delay(min_delay);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -217,8 +240,8 @@ impl NodeLayer for opendal::layers::ConcurrentLimitLayer {
 /// ```
 #[napi]
 pub struct ConcurrentLimitLayer {
-    permits: i64,
-    http_permits: Option<i64>,
+    permits: usize,
+    http_permits: Option<usize>,
 }
 
 #[napi]
@@ -230,12 +253,16 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `permits` - The maximum number of concurrent operations allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `permits` is not an integer between 1 and 4294967295.
     #[napi(constructor)]
-    pub fn new(permits: i64) -> Self {
-        Self {
-            permits,
+    pub fn new(permits: f64) -> Result<Self> {
+        Ok(Self {
+            permits: parse_count(permits, "permits", 1)?,
             http_permits: None,
-        }
+        })
     }
 
     /// Set a concurrent limit for HTTP requests.
@@ -245,9 +272,14 @@ impl ConcurrentLimitLayer {
     /// # Arguments
     ///
     /// * `v` - The maximum number of concurrent HTTP requests allowed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `v` is not an integer between 1 and 4294967295.
     #[napi(setter)]
-    pub fn http_permits(&mut self, v: i64) {
-        self.http_permits = Some(v);
+    pub fn http_permits(&mut self, v: f64) -> Result<()> {
+        self.http_permits = Some(parse_count(v, "httpPermits", 1)?);
+        Ok(())
     }
 
     /// Build the layer.
@@ -255,11 +287,10 @@ impl ConcurrentLimitLayer {
     /// Returns an `External<Layer>` that can be used with `Operator.layer()`.
     #[napi]
     pub fn build(&self) -> External<Layer> {
-        let permits = self.permits;
-        let mut l = opendal::layers::ConcurrentLimitLayer::new(permits as usize);
+        let mut l = opendal::layers::ConcurrentLimitLayer::new(self.permits);
 
         if let Some(http_permits) = self.http_permits {
-            l = l.with_http_concurrent_limit(http_permits as usize);
+            l = l.with_http_concurrent_limit(http_permits);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -304,8 +335,8 @@ impl NodeLayer for opendal::layers::TimeoutLayer {
 #[derive(Default)]
 #[napi]
 pub struct TimeoutLayer {
-    timeout: Option<f64>,
-    io_timeout: Option<f64>,
+    timeout: Option<Duration>,
+    io_timeout: Option<Duration>,
 }
 
 #[napi]
@@ -321,9 +352,12 @@ impl TimeoutLayer {
     ///
     /// - The unit is millisecond.
     /// - Default is 60000ms (60 seconds).
+    /// - The value must be finite and greater than 0. A zero timeout is
+    ///   rejected because it would time out every operation immediately.
     #[napi(setter)]
-    pub fn timeout(&mut self, v: f64) {
-        self.timeout = Some(v);
+    pub fn timeout(&mut self, v: f64) -> Result<()> {
+        self.timeout = Some(parse_timeout_millis(v, "timeout")?);
+        Ok(())
     }
 
     /// Set timeout for IO operations (read, write, etc.)
@@ -332,9 +366,12 @@ impl TimeoutLayer {
     ///
     /// - The unit is millisecond.
     /// - Default is 10000ms (10 seconds).
+    /// - The value must be finite and greater than 0. A zero timeout is
+    ///   rejected because it would time out every operation immediately.
     #[napi(setter)]
-    pub fn io_timeout(&mut self, v: f64) {
-        self.io_timeout = Some(v);
+    pub fn io_timeout(&mut self, v: f64) -> Result<()> {
+        self.io_timeout = Some(parse_timeout_millis(v, "ioTimeout")?);
+        Ok(())
     }
 
     #[napi]
@@ -342,10 +379,10 @@ impl TimeoutLayer {
         let mut l = opendal::layers::TimeoutLayer::default();
 
         if let Some(timeout) = self.timeout {
-            l = l.with_timeout(Duration::from_millis(timeout as u64));
+            l = l.with_timeout(timeout);
         }
         if let Some(io_timeout) = self.io_timeout {
-            l = l.with_io_timeout(Duration::from_millis(io_timeout as u64));
+            l = l.with_io_timeout(io_timeout);
         }
 
         External::new(Layer { inner: Box::new(l) })
@@ -460,10 +497,16 @@ impl ThrottleLayer {
     ///
     /// # Notes
     ///
-    /// Validation (bandwidth and burst must be greater than 0) is handled by the Rust core layer.
+    /// `bandwidth` and `burst` must be integers between 1 and 4294967295.
+    /// Fractional values, and values that N-API would truncate or wrap, are
+    /// rejected instead of silently changing the rate limit.
     #[napi(constructor)]
-    pub fn new(bandwidth: u32, burst: u32) -> Self {
-        Self { bandwidth, burst }
+    pub fn new(bandwidth: f64, burst: f64) -> Result<Self> {
+        // `parse_count` bounds both values to `u32::MAX`, so the casts are exact.
+        Ok(Self {
+            bandwidth: parse_count(bandwidth, "bandwidth", 1)? as u32,
+            burst: parse_count(burst, "burst", 1)? as u32,
+        })
     }
 
     #[napi]

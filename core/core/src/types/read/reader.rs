@@ -429,7 +429,18 @@ impl Reader {
     /// }
     /// ```
     pub async fn into_stream(self, range: impl Into<BytesRange>) -> Result<BufferStream> {
-        BufferStream::create(self.ctx, range, None).await
+        self.into_stream_with_limit(range, None).await
+    }
+
+    /// Convert reader into a [`BufferStream`] that returns at most `limit`
+    /// bytes from the start of `range` and accepts EOF after a valid starting
+    /// byte.
+    pub(crate) async fn into_stream_with_limit(
+        self,
+        range: impl Into<BytesRange>,
+        limit: Option<u64>,
+    ) -> Result<BufferStream> {
+        BufferStream::create(self.ctx, range, limit).await
     }
 
     /// Convert reader into [`FuturesAsyncReader`] which implements [`futures::AsyncRead`],
@@ -661,7 +672,7 @@ mod tests {
     ) -> Reader {
         let op = Operator::new(services::Memory::default()).unwrap();
         Reader::new(ReadContext::new(
-            op.context().clone(),
+            op.context().with_executor(crate::test_executor()),
             op.service().clone(),
             "test_file".to_string(),
             OpRead::new(),
@@ -808,6 +819,7 @@ mod tests {
             .expect("write must succeed");
 
         let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
         let buf = reader.read(..).await.expect("read to end must succeed");
 
         assert_eq!(buf.to_bytes(), content);
@@ -817,6 +829,8 @@ mod tests {
     #[tokio::test]
     async fn test_reader_read_with_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
 
         let content = gen_random_bytes();
@@ -893,6 +907,8 @@ mod tests {
     #[tokio::test]
     async fn test_reader_read_suffix_with_chunk_and_concurrent() -> Result<()> {
         let op = Operator::via_iter(services::MEMORY_SCHEME, [])?;
+        let ctx = op.context().with_executor(crate::test_executor());
+        let op = op.with_context(ctx);
         let path = "test_file";
         op.write(path, Buffer::from("HelloWorld")).await?;
 
@@ -1016,6 +1032,7 @@ mod tests {
             .expect("write must succeed");
 
         let reader = op.reader_with(path).chunk(0).await.unwrap();
+        assert_eq!(reader.ctx.options().chunk(), None);
         let bufs = reader
             .fetch(vec![0..100, 200..300])
             .await

@@ -171,8 +171,10 @@ op.delete_with("a/").recursive(true).await?;
 ```
 
 `delete` succeeds even if the path does not exist. For recursive deletion,
-pass a trailing slash to limit deletion to the directory. On prefix-based
-services, `"a"` can also match entries under `"ab/"`.
+use a trailing slash to scope deletion to a directory across services.
+Prefix matching for paths without a trailing slash is service-specific.
+For example, `"a"` can also match entries under `"ab/"` on prefix-based
+services.
 
 ## Delete a specific version
 

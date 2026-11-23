@@ -61,6 +61,16 @@
 //! }
 //! ```
 //!
+//! # Path resolution
+//!
+//! `OpendalStore` forwards each [`object_store::path::Path`] to the `Operator`,
+//! which resolves it against its configured `root`; prefixes are never
+//! stripped. When the store is registered with a URL-based registry such as
+//! DataFusion's `ObjectStoreRegistry`, keep the shared prefix in exactly one
+//! place — in the queried URL paths or in the operator `root` — to avoid
+//! double-prefixing. See [`OpendalStore::new`] for the full convention and a
+//! runnable example.
+//!
 //! Use the re-exported future helper when an integration needs the same OpenDAL
 //! future wrapper used by this crate:
 //!
@@ -112,12 +122,60 @@ mod assert_send {
 
 fn timestamp_to_datetime(ts: opendal::raw::Timestamp) -> Option<chrono::DateTime<chrono::Utc>> {
     let jiff_ts = ts.into_inner();
-    chrono::DateTime::<chrono::Utc>::from_timestamp(
-        jiff_ts.as_second(),
-        jiff_ts.subsec_nanosecond() as u32,
-    )
+    // `jiff` truncates `as_second` toward zero and reports a signed subsecond,
+    // so pre-epoch timestamps can carry a negative nanosecond. `chrono` expects
+    // a non-negative nanosecond component, borrowed from the preceding second.
+    let mut second = jiff_ts.as_second();
+    let mut nanosecond = jiff_ts.subsec_nanosecond();
+    if nanosecond < 0 {
+        second = second.checked_sub(1)?;
+        nanosecond += 1_000_000_000;
+    }
+    chrono::DateTime::<chrono::Utc>::from_timestamp(second, nanosecond as u32)
 }
 
 fn datetime_to_timestamp(dt: chrono::DateTime<chrono::Utc>) -> Option<opendal::raw::Timestamp> {
     opendal::raw::Timestamp::new(dt.timestamp(), dt.timestamp_subsec_nanos() as i32).ok()
+}
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::*;
+
+    fn timestamp(second: i64, nanosecond: i32) -> opendal::raw::Timestamp {
+        opendal::raw::Timestamp::new(second, nanosecond).expect("timestamp should be valid")
+    }
+
+    #[test]
+    fn timestamp_to_datetime_handles_negative_subseconds() {
+        for (second, nanosecond) in [
+            (0, -999_999_999),
+            (0, -500_000_000),
+            (-1, -999_999_999),
+            (-1, -500_000_000),
+            (-2, -1),
+            (0, 0),
+            (-1, 0),
+            (0, 500_000_000),
+            (1, 999_999_999),
+        ] {
+            let total_nanoseconds = i128::from(second) * 1_000_000_000 + i128::from(nanosecond);
+            let expected = chrono::DateTime::<chrono::Utc>::from_timestamp(
+                total_nanoseconds.div_euclid(1_000_000_000) as i64,
+                total_nanoseconds.rem_euclid(1_000_000_000) as u32,
+            )
+            .expect("expected datetime should be valid");
+
+            let actual = timestamp_to_datetime(timestamp(second, nanosecond))
+                .unwrap_or_else(|| panic!("({second}, {nanosecond}) should convert"));
+            assert_eq!(actual, expected, "({second}, {nanosecond})");
+        }
+    }
+
+    #[test]
+    fn timestamp_to_datetime_handles_supported_range() {
+        for ts in [opendal::raw::Timestamp::MIN, opendal::raw::Timestamp::MAX] {
+            assert!(timestamp_to_datetime(ts).is_some());
+        }
+    }
 }

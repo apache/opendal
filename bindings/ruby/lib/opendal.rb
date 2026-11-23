@@ -17,7 +17,15 @@
 
 # frozen_string_literal: true
 
-require_relative "opendal_ruby"
+require "rbconfig"
+
+ruby_abi = RUBY_VERSION.split(".").first(2).join(".")
+precompiled_extension = "opendal_ruby/#{ruby_abi}/opendal_ruby"
+if File.file?(File.join(__dir__, "#{precompiled_extension}.#{RbConfig::CONFIG.fetch("DLEXT")}"))
+  require_relative precompiled_extension
+else
+  require_relative "opendal_ruby"
+end
 require_relative "opendal_ruby/io"
 require_relative "opendal_ruby/entry"
 require_relative "opendal_ruby/metadata"

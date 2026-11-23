@@ -19,10 +19,15 @@ package opendal
 
 import (
 	"context"
+	"errors"
 	"io"
 	"runtime"
+	"sync"
 	"time"
 )
+
+// ErrReaderClosed reports that a Reader is used after Close released it.
+var ErrReaderClosed = errors.New("opendal: reader is closed")
 
 // Read reads the entire contents of the file at the specified path into a byte slice.
 //
@@ -69,8 +74,14 @@ func (op *Operator) Read(path string, opts ...WithReadFn) ([]byte, error) {
 }
 
 func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) {
+	inner, release, err := op.acquire()
+	if err != nil {
+		return opendalBytes{}, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		return ffiOperatorRead.symbol(op.ctx)(op.inner, path)
+		return ffiOperatorRead.symbol(op.ctx)(inner, path)
 	}
 
 	o := parseReadOptions(opts...)
@@ -79,7 +90,7 @@ func (op *Operator) read(path string, opts ...WithReadFn) (opendalBytes, error) 
 		return opendalBytes{}, err
 	}
 	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(op.inner, path, cOpts)
+	bytes, err := ffiOperatorReadWith.symbol(op.ctx)(inner, path, cOpts)
 	runtime.KeepAlive(keepAlive)
 	return bytes, err
 }
@@ -504,8 +515,14 @@ func newOpendalReaderOptions(ctx context.Context, o *readerOptions) (*opendalRea
 //
 // Note: This example assumes proper error handling and import statements.
 func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
+	opInner, release, err := op.acquire()
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
 	if len(opts) == 0 {
-		inner, err := ffiOperatorReader.symbol(op.ctx)(op.inner, path)
+		inner, err := ffiOperatorReader.symbol(op.ctx)(opInner, path)
 		if err != nil {
 			return nil, err
 		}
@@ -518,7 +535,7 @@ func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 		return nil, err
 	}
 	defer ffiReaderOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorReaderWith.symbol(op.ctx)(op.inner, path, cOpts)
+	inner, err := ffiOperatorReaderWith.symbol(op.ctx)(opInner, path, cOpts)
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -527,11 +544,16 @@ func (op *Operator) Reader(path string, opts ...WithReaderFn) (*Reader, error) {
 }
 
 type Reader struct {
+	// mu serializes access to inner. The C reader hands out a &mut to the
+	// underlying Rust reader, so two goroutines calling in at once would alias
+	// it, which is undefined behavior rather than merely a data race.
+	mu    sync.Mutex
 	inner *opendalReader
 	ctx   context.Context
 }
 
 var _ io.ReadSeekCloser = (*Reader)(nil)
+var _ io.WriterTo = (*Reader)(nil)
 
 // Read reads up to len(buf) bytes into buf.
 // Read returns after one read from the storage library.
@@ -542,6 +564,14 @@ var _ io.ReadSeekCloser = (*Reader)(nil)
 // If len(buf) is zero, Read returns (0, nil).
 // Otherwise, Read returns io.EOF when no bytes remain.
 func (r *Reader) Read(buf []byte) (int, error) {
+	if r == nil {
+		return 0, ErrReaderClosed
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return 0, ErrReaderClosed
+	}
 	if len(buf) == 0 {
 		return 0, nil
 	}
@@ -594,12 +624,45 @@ func (r *Reader) Read(buf []byte) (int, error) {
 // Note: The actual new position may differ from the requested position
 // if the underlying storage system has restrictions on seeking.
 func (r *Reader) Seek(offset int64, whence int) (int64, error) {
+	if r == nil {
+		return 0, ErrReaderClosed
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return 0, ErrReaderClosed
+	}
 	return ffiReaderSeek.symbol(r.ctx)(r.inner, offset, whence)
 }
 
+// WriteTo copies data from r's current position to dst using one 256 KiB buffer.
+// It returns the number of bytes written and any error. Reading to EOF succeeds.
+// WriteTo leaves both streams open. If dst is an OpenDAL [Writer], call
+// [Writer.Close] to complete the write and get its metadata.
+func (r *Reader) WriteTo(dst io.Writer) (int64, error) {
+	buf := make([]byte, copyBufferSize)
+
+	// Hide WriteTo and ReadFrom to prevent io.CopyBuffer from dispatching to them.
+	reader := struct{ io.Reader }{Reader: r}
+	writer := struct{ io.Writer }{Writer: dst}
+	return io.CopyBuffer(writer, reader, buf)
+}
+
 // Close releases resources associated with the OperatorReader.
+//
+// Close is safe to call more than once; further calls are no-ops returning
+// nil. Read and Seek on a closed Reader return ErrReaderClosed.
 func (r *Reader) Close() error {
+	if r == nil {
+		return nil
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.inner == nil {
+		return nil
+	}
 	ffiReaderFree.symbol(r.ctx)(r.inner)
+	r.inner = nil
 	return nil
 }
 

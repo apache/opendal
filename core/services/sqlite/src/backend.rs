@@ -81,7 +81,8 @@ impl SqliteBuilder {
 
     /// Set the key field name of the sqlite service to read/write.
     ///
-    /// Default to `key` if not specified.
+    /// The field must have a `PRIMARY KEY` or `UNIQUE` constraint so writes can
+    /// update an existing key. Default to `key` if not specified.
     pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
@@ -188,6 +189,8 @@ impl SqliteBackend {
             stat: true,
             write_can_empty: true,
             list: false,
+            rename: true,
+            rename_with_if_not_exists: true,
             ..Default::default()
         };
 
@@ -234,7 +237,7 @@ impl Service for SqliteBackend {
                     let metadata = if p.ends_with('/') {
                         MetadataBuilder::dir()
                     } else {
-                        MetadataBuilder::file(length as u64)
+                        MetadataBuilder::file(length)
                     };
                     Ok(RpStat::new(metadata.build()))
                 }
@@ -297,11 +300,12 @@ impl Service for SqliteBackend {
     ) -> Result<RpCreateDir> {
         let p = build_absolute_path(&self.root, path);
 
-        // Ensure path ends with '/' for directory marker
-        let dir_path = if p.ends_with('/') {
+        // Ensure non-root directory keys end with '/', while keeping the root
+        // key (`""` when `root = "/"`) aligned with `stat` and `delete`.
+        let dir_path = if p.is_empty() || p.ends_with('/') {
             p
         } else {
-            format!("{}/", p)
+            format!("{p}/")
         };
 
         // Store directory marker with empty content
@@ -333,14 +337,14 @@ impl Service for SqliteBackend {
     async fn rename(
         &self,
         _ctx: &OperationContext,
-        _from: &str,
-        _to: &str,
-        _args: OpRename,
+        from: &str,
+        to: &str,
+        args: OpRename,
     ) -> Result<RpRename> {
-        Err(Error::new(
-            ErrorKind::Unsupported,
-            "operation is not supported",
-        ))
+        let from = build_absolute_path(&self.root, from);
+        let to = build_absolute_path(&self.root, to);
+        self.core.rename(&from, &to, args.if_not_exists()).await?;
+        Ok(RpRename::new())
     }
 
     async fn presign(
@@ -363,10 +367,15 @@ mod test {
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::raw::oio::Write as _;
     use sqlx::SqlitePool;
+    use sqlx::sqlite::SqlitePoolOptions;
 
     async fn build_client() -> OnceCell<SqlitePool> {
         let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
-        let pool = SqlitePool::connect_with(config).await.unwrap();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(config)
+            .await
+            .unwrap();
         OnceCell::from_value(pool)
     }
 
@@ -403,6 +412,65 @@ mod test {
 
         assert_eq!(backend.root, "/test/");
         assert_eq!(backend.info.root(), Arc::from("/test/"));
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_rename_missing_source_preserves_destination() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let op = Operator::from_parts(OperationContext::new(), Arc::new(backend));
+        op.write("target", "target value").await.unwrap();
+
+        for if_not_exists in [false, true] {
+            let err = op
+                .rename_with("missing", "target")
+                .if_not_exists(if_not_exists)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert_eq!(op.read("target").await.unwrap().to_vec(), b"target value");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_rename_preserves_rows_on_unrelated_unique_conflict() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+        sqlx::query("CREATE UNIQUE INDEX prefix_value ON test_table (substr(key, 1, 6), value)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let op = Operator::from_parts(OperationContext::new(), Arc::new(backend));
+        op.write("source", "source value").await.unwrap();
+        op.write("target-neighbor", "source value").await.unwrap();
+
+        let err = op
+            .rename_with("source", "target")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(!op.exists("target").await.unwrap());
+
+        op.write("target", "target value").await.unwrap();
+        let err = op.rename("source", "target").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert_eq!(op.read("source").await.unwrap().to_vec(), b"source value");
+        assert_eq!(op.read("target").await.unwrap().to_vec(), b"target value");
+        assert_eq!(
+            op.read("target-neighbor").await.unwrap().to_vec(),
+            b"source value"
+        );
     }
 
     #[tokio::test]
@@ -512,5 +580,402 @@ mod test {
 
         assert_eq!(rp.into_metadata().unwrap().content_length(), 6);
         assert_eq!(buffer.to_vec(), "你".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_inserts_and_overwrites_existing_key() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("first"))
+            .await
+            .unwrap();
+        assert_eq!(
+            backend.core.get("key").await.unwrap().unwrap().to_vec(),
+            b"first"
+        );
+
+        backend
+            .core
+            .set("key", Buffer::from("second"))
+            .await
+            .unwrap();
+        assert_eq!(
+            backend.core.get("key").await.unwrap().unwrap().to_vec(),
+            b"second"
+        );
+
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_table")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_preserves_existing_row_on_unrelated_unique_conflict() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB UNIQUE)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("first", Buffer::from("shared"))
+            .await
+            .unwrap();
+
+        let result = backend.core.set("second", Buffer::from("shared")).await;
+        assert!(result.is_err());
+
+        assert_eq!(
+            backend.core.get("first").await.unwrap().unwrap().to_vec(),
+            b"shared"
+        );
+        assert!(backend.core.get("second").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_preserves_unmodified_columns() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query(
+            "CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB, extra TEXT DEFAULT 'keep')",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("first"))
+            .await
+            .unwrap();
+        sqlx::query("UPDATE test_table SET extra = 'custom' WHERE key = 'key'")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("second"))
+            .await
+            .unwrap();
+
+        let (value, extra): (Vec<u8>, String) =
+            sqlx::query_as("SELECT value, extra FROM test_table WHERE key = 'key'")
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(value, b"second");
+        assert_eq!(extra, "custom");
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_create_dir_and_delete_root() {
+        for root in ["/", "/sub/"] {
+            let backend = build_backend().await.with_normalized_root(root.to_string());
+            let pool = backend.core.get_client().await.unwrap();
+            sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+                .execute(pool)
+                .await
+                .unwrap();
+
+            let op = Operator::from_parts(OperationContext::new(), Arc::new(backend.clone()));
+
+            op.create_dir("/").await.unwrap();
+            let meta = op.stat("/").await.unwrap();
+            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+
+            op.delete("/").await.unwrap();
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_table")
+                .fetch_one(pool)
+                .await
+                .unwrap();
+            assert_eq!(count, 0, "root marker should be deleted for root {root}");
+
+            op.create_dir("nested/").await.unwrap();
+            assert_eq!(
+                op.stat("nested/").await.unwrap().mode(),
+                EntryMode::DIR,
+                "root {root}"
+            );
+            op.delete("nested/").await.unwrap();
+            let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_table")
+                .fetch_one(pool)
+                .await
+                .unwrap();
+            assert_eq!(
+                count, 0,
+                "nested dir marker should be deleted for root {root}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_range_cases() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("data", Buffer::from("0123456789"))
+            .await
+            .unwrap();
+        backend.core.set("empty", Buffer::new()).await.unwrap();
+        sqlx::query("INSERT INTO test_table (key, value) VALUES ($1, $2)")
+            .bind("utf8")
+            .bind("你好")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        let ctx = OperationContext::new();
+        let reader = backend.read(&ctx, "data", OpRead::default()).unwrap();
+
+        // Full read.
+        let (rp, mut stream) = reader.open(BytesRange::default()).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+        assert_eq!(stream.read_all().await.unwrap().to_vec(), b"0123456789");
+
+        // Offset + size within bounds.
+        let (rp, mut stream) = reader.open(BytesRange::from(2_u64..7)).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+        assert_eq!(stream.read_all().await.unwrap().to_vec(), b"23456");
+
+        // Offset >= length with non-zero bounded size -> RangeNotSatisfied.
+        for range in [
+            BytesRange::from(10_u64..15),
+            BytesRange::from(15_u64..20),
+            BytesRange::new(i32::MAX as u64, Some(5)),
+            BytesRange::new(u64::MAX, Some(5)),
+        ] {
+            let err = reader
+                .open(range)
+                .await
+                .err()
+                .expect("expected RangeNotSatisfied");
+            assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied, "range {range:?}");
+        }
+
+        // Offset >= length with unbounded size -> empty buffer with total length.
+        for range in [
+            BytesRange::from(10_u64..),
+            BytesRange::from(i32::MAX as u64..),
+            BytesRange::from(u64::MAX..),
+        ] {
+            let (rp, mut stream) = reader.open(range).await.unwrap();
+            assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+            assert!(stream.read_all().await.unwrap().is_empty());
+        }
+
+        // Offset + size > length (clamped), including size > i32::MAX and u64 overflow.
+        for range in [
+            BytesRange::from(6_u64..100),
+            BytesRange::new(6, Some(i32::MAX as u64 + 1)),
+            BytesRange::new(6, Some(u64::MAX)),
+        ] {
+            let (rp, mut stream) = reader.open(range).await.unwrap();
+            assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+            assert_eq!(
+                stream.read_all().await.unwrap().to_vec(),
+                b"6789",
+                "range {range:?}"
+            );
+        }
+
+        // Zero-size ranges.
+        for range in [
+            BytesRange::new(0, Some(0)),
+            BytesRange::new(100, Some(0)),
+            BytesRange::suffix(0),
+        ] {
+            let (rp, mut stream) = reader.open(range).await.unwrap();
+            assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+            assert!(stream.read_all().await.unwrap().is_empty());
+        }
+
+        // Suffix ranges within bounds and larger than length.
+        let (rp, mut stream) = reader.open(BytesRange::suffix(4)).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+        assert_eq!(stream.read_all().await.unwrap().to_vec(), b"6789");
+
+        for size in [10, 100, i32::MAX as u64, u64::MAX] {
+            let (rp, mut stream) = reader.open(BytesRange::suffix(size)).await.unwrap();
+            assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+            assert_eq!(
+                stream.read_all().await.unwrap().to_vec(),
+                b"0123456789",
+                "suffix {size}"
+            );
+        }
+
+        // Empty blob ranges.
+        let empty_reader = backend.read(&ctx, "empty", OpRead::default()).unwrap();
+        let (rp, mut stream) = empty_reader.open(BytesRange::default()).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 0);
+        assert!(stream.read_all().await.unwrap().is_empty());
+
+        let (rp, mut stream) = empty_reader.open(BytesRange::suffix(4)).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 0);
+        assert!(stream.read_all().await.unwrap().is_empty());
+
+        let err = empty_reader
+            .open(BytesRange::from(0_u64..4))
+            .await
+            .err()
+            .expect("expected RangeNotSatisfied");
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+
+        // Multi-byte UTF-8 text value with suffix range.
+        let utf8_reader = backend.read(&ctx, "utf8", OpRead::default()).unwrap();
+        let (rp, mut stream) = utf8_reader.open(BytesRange::suffix(3)).await.unwrap();
+        assert_eq!(rp.into_metadata().unwrap().content_length(), 6);
+        assert_eq!(stream.read_all().await.unwrap().to_vec(), "好".as_bytes());
+
+        // Missing key returns NotFound across all range kinds.
+        let missing_reader = backend.read(&ctx, "missing", OpRead::default()).unwrap();
+        for range in [
+            BytesRange::default(),
+            BytesRange::from(0_u64..4),
+            BytesRange::new(0, Some(0)),
+            BytesRange::new(u64::MAX, Some(4)),
+            BytesRange::suffix(4),
+            BytesRange::suffix(u64::MAX),
+        ] {
+            let err = missing_reader
+                .open(range)
+                .await
+                .err()
+                .expect("expected NotFound");
+            assert_eq!(err.kind(), ErrorKind::NotFound, "range {range:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_read_range_atomic_length_under_concurrent_writes() {
+        use sqlx::sqlite::SqliteJournalMode;
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+        struct TempDbGuard(std::path::PathBuf);
+        impl Drop for TempDbGuard {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_file(&self.0);
+                let _ = std::fs::remove_file(format!("{}-wal", self.0.display()));
+                let _ = std::fs::remove_file(format!("{}-shm", self.0.display()));
+            }
+        }
+
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let db_path = std::env::temp_dir().join(format!(
+            "opendal-sqlite-range-race-{}-{unique}.db",
+            std::process::id()
+        ));
+        let _guard = TempDbGuard(db_path.clone());
+
+        let options = SqliteConnectOptions::new()
+            .filename(&db_path)
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .busy_timeout(Duration::from_secs(5));
+
+        let writer_pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options.clone())
+            .await
+            .unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(&writer_pool)
+            .await
+            .unwrap();
+        sqlx::query("INSERT INTO test_table (key, value) VALUES ('target', $1)")
+            .bind(b"0123456789".as_slice())
+            .execute(&writer_pool)
+            .await
+            .unwrap();
+
+        let reader_pool = SqlitePoolOptions::new()
+            .max_connections(2)
+            .connect_with(options)
+            .await
+            .unwrap();
+        let backend = SqliteBackend::new(SqliteCore {
+            pool: OnceCell::from_value(reader_pool),
+            config: Default::default(),
+            table: "test_table".to_string(),
+            key_field: "key".to_string(),
+            value_field: "value".to_string(),
+        });
+
+        let stop = Arc::new(AtomicBool::new(false));
+        let writer_stop = stop.clone();
+        let writer_task = tokio::spawn(async move {
+            let mut toggle = false;
+            while !writer_stop.load(Ordering::Relaxed) {
+                let value: &[u8] = if toggle { b"0123456789" } else { b"xy" };
+                toggle = !toggle;
+                sqlx::query("UPDATE test_table SET value = $1 WHERE key = 'target'")
+                    .bind(value)
+                    .execute(&writer_pool)
+                    .await
+                    .unwrap();
+                tokio::task::yield_now().await;
+            }
+        });
+
+        let ctx = OperationContext::new();
+        let reader = backend.read(&ctx, "target", OpRead::default()).unwrap();
+        for _ in 0..500 {
+            let (rp, mut stream) = reader.open(BytesRange::from(0_u64..6)).await.unwrap();
+            let content_length = rp.into_metadata().unwrap().content_length();
+            let buf = stream.read_all().await.unwrap().to_vec();
+            match content_length {
+                10 => assert_eq!(
+                    buf, b"012345",
+                    "stale content_length=10 returned mismatched slice {buf:?}"
+                ),
+                2 => assert_eq!(
+                    buf, b"xy",
+                    "stale content_length=2 returned mismatched slice {buf:?}"
+                ),
+                other => panic!("unexpected content_length {other}"),
+            }
+
+            match reader.open(BytesRange::from(4_u64..8)).await {
+                Ok((rp, mut stream)) => {
+                    assert_eq!(rp.into_metadata().unwrap().content_length(), 10);
+                    assert_eq!(stream.read_all().await.unwrap().to_vec(), b"4567");
+                }
+                Err(err) => assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied),
+            }
+
+            let (rp, mut stream) = reader.open(BytesRange::suffix(4)).await.unwrap();
+            let content_length = rp.into_metadata().unwrap().content_length();
+            let buf = stream.read_all().await.unwrap().to_vec();
+            match content_length {
+                10 => assert_eq!(buf, b"6789"),
+                2 => assert_eq!(buf, b"xy"),
+                other => panic!("unexpected content_length {other}"),
+            }
+        }
+
+        stop.store(true, Ordering::Relaxed);
+        writer_task.await.unwrap();
     }
 }

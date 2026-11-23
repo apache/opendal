@@ -76,7 +76,9 @@ impl MemoryBackend {
             write_with_content_encoding: true,
             write_with_content_language: true,
             write_with_if_not_exists: true,
+            write_with_user_metadata: true,
             delete: true,
+            delete_with_recursive: true,
             stat: true,
             list: true,
             list_with_recursive: true,
@@ -274,6 +276,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_writer_close_and_overwrite_user_metadata() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        let path = "test.txt";
+        let mut writer = op
+            .writer_with(path)
+            .user_metadata([("owner".to_string(), "opendal".to_string())])
+            .await?;
+        writer.write("hello").await?;
+        let written = writer.close().await?;
+        assert_eq!(
+            written
+                .user_metadata()
+                .and_then(|metadata| metadata.get("owner")),
+            Some("opendal")
+        );
+
+        op.write_with(path, "bonjour").user_metadata([]).await?;
+        assert!(op.stat(path).await?.user_metadata().unwrap().is_empty());
+
+        op.write(path, "hello again").await?;
+        assert!(op.stat(path).await?.user_metadata().is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_list_with_start_after() {
         // (name, path, recursive, start_after, expected)
         let cases: &[(&str, &str, bool, &str, &[&str])] = &[
@@ -310,5 +337,112 @@ mod tests {
                 assert_eq!(actual, expected, "{name} (root {root})");
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_create_dir_root_and_list() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let builder = if root == "/" {
+                services::Memory::default()
+            } else {
+                services::Memory::default().root(root)
+            };
+            let op = Operator::new(builder)?;
+            #[cfg(not(feature = "auto-simulate"))]
+            let op = op.layer(crate::layers::SimulateLayer::default());
+
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+            assert!(op.list("/").await?.is_empty());
+
+            op.create_dir("/").await?;
+            assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+
+            for entries in [
+                op.list("/").await?,
+                op.list("").await?,
+                op.list_with("/").recursive(true).await?,
+                op.list_with("").recursive(true).await?,
+            ] {
+                let actual: Vec<_> = entries
+                    .iter()
+                    .map(|e| (e.path(), e.metadata().mode()))
+                    .collect();
+                assert_eq!(actual, vec![("/", EntryMode::DIR)], "root {root}");
+            }
+
+            op.create_dir("a/").await?;
+            op.write("a/b.txt", "hello").await?;
+
+            let flat: Vec<_> = op
+                .list("/")
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                flat,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("a/".to_string(), EntryMode::DIR),
+                ],
+                "root {root}"
+            );
+
+            let recursive: Vec<_> = op
+                .list_with("/")
+                .recursive(true)
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                recursive,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("a/".to_string(), EntryMode::DIR),
+                    ("a/b.txt".to_string(), EntryMode::FILE),
+                ],
+                "root {root}"
+            );
+
+            let sub: Vec<_> = op
+                .list("a/")
+                .await?
+                .into_iter()
+                .map(|e| (e.path().to_string(), e.metadata().mode()))
+                .collect();
+            assert_eq!(
+                sub,
+                vec![
+                    ("a/".to_string(), EntryMode::DIR),
+                    ("a/b.txt".to_string(), EntryMode::FILE),
+                ],
+                "root {root}"
+            );
+
+            let after_root: Vec<_> = op
+                .list_with("/")
+                .start_after("/")
+                .await?
+                .into_iter()
+                .map(|e| e.path().to_string())
+                .collect();
+            assert_eq!(after_root, vec!["a/".to_string()], "root {root}");
+
+            op.delete_with("a/").recursive(true).await?;
+            op.delete("/").await?;
+            assert!(op.list("/").await?.is_empty(), "root {root}");
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stored_as_dir_metadata() -> Result<()> {
+        let srv: crate::raw::Servicer = std::sync::Arc::new(services::Memory::default().build()?);
+        let op = Operator::from_parts(OperationContext::default(), srv)
+            .layer(crate::layers::SimulateLayer::default().with_stat_dir(false));
+        op.create_dir("a/").await?;
+        assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
+        Ok(())
     }
 }

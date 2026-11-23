@@ -90,8 +90,14 @@ class AzblobConfig(TypedDict):
     """The account key of Azblob service backend."""
     account_name: NotRequired[str]
     """The account name of Azblob service backend."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
     batch_max_operations: NotRequired[int]
     """Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. [Deprecated since 0.57.0] Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     container: Required[str]
     """The container name of Azblob service backend."""
     encryption_algorithm: NotRequired[str]
@@ -108,6 +114,8 @@ class AzblobConfig(TypedDict):
     """The sas token of Azblob service backend."""
     skip_signature: NotRequired[bool]
     """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class AzdlsConfig(TypedDict):
@@ -148,6 +156,12 @@ class AzfileConfig(TypedDict):
     """The account key for azfile."""
     account_name: NotRequired[str]
     """The account name for azfile."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     endpoint: NotRequired[str]
     """The endpoint for azfile."""
     root: NotRequired[str | os.PathLike[str]]
@@ -156,6 +170,10 @@ class AzfileConfig(TypedDict):
     """The sas token for azfile."""
     share_name: Required[str]
     """The share name for azfile."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class B2Config(TypedDict):
@@ -182,23 +200,6 @@ class CacacheConfig(TypedDict):
     """The service scheme; fixed to `"cacache"`."""
     datadir: NotRequired[str]
     """That path to the cacache data directory."""
-
-
-class CloudflareKvConfig(TypedDict):
-    """Configuration for the `cloudflare-kv` service."""
-
-    scheme: Required[Literal["cloudflare-kv"]]
-    """The service scheme; fixed to `"cloudflare-kv"`."""
-    account_id: NotRequired[str]
-    """The account ID used to authenticate with CloudFlare. Used as URI path parameter."""
-    api_token: NotRequired[str]
-    """The token used to authenticate with CloudFlare."""
-    default_ttl: NotRequired[str | timedelta]
-    """The default ttl for write operations. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
-    namespace_id: NotRequired[str]
-    """The namespace ID. Used as URI path parameter."""
-    root: NotRequired[str | os.PathLike[str]]
-    """Root within this backend."""
 
 
 class CosConfig(TypedDict):
@@ -280,6 +281,8 @@ class FsConfig(TypedDict):
     """The service scheme; fixed to `"fs"`."""
     atomic_write_dir: NotRequired[str | os.PathLike[str]]
     """tmp dir for atomic write"""
+    direct_io: NotRequired[bool]
+    """Bypass the page cache for file reads and writes on Linux. Defaults to `false`."""
     root: NotRequired[str | os.PathLike[str]]
     """root dir for backend"""
 
@@ -630,6 +633,8 @@ class ObsConfig(TypedDict):
     """Access key id for obs."""
     bucket: NotRequired[str]
     """Bucket for obs."""
+    disable_config_load: NotRequired[bool]
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `HUAWEI_CLOUD_ACCESS_KEY_ID`"""
     enable_versioning: NotRequired[bool]
     """Deprecated: OBS versioning capability is not controlled by service config. [Deprecated since 0.57.0] OBS versioning capability is not controlled by this option and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -638,6 +643,10 @@ class ObsConfig(TypedDict):
     """Root for obs."""
     secret_access_key: NotRequired[str]
     """Secret access key for obs."""
+    security_token: NotRequired[str]
+    """Security token (a.k.a. session token) for obs.  Temporary credentials sign with `access_key_id`, `secret_access_key` and this token, and the signer attaches the token as the `x-obs-security-token` header.  If this field is not set, OpenDAL reads the token from the environment variable `HUAWEI_CLOUD_SECURITY_TOKEN` (unless `disable_config_load` is enabled)."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
 
 
 class OnedriveConfig(TypedDict):
@@ -678,6 +687,8 @@ class OssConfig(TypedDict):
     """Bucket for oss."""
     delete_max_size: NotRequired[int]
     """Deprecated: OSS delete batch capability is enabled by default. [Deprecated since 0.57.0] OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from ambient sources.  This removes the environment provider and the OSS profile, Alibaba Cloud shared credentials, Alibaba Cloud CLI config, and `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC options that are all set on the builder, and the `role_arn` AssumeRole flow remain enabled, and ECS instance RAM role credentials keep loading from instance metadata."""
     enable_versioning: NotRequired[bool]
     """Deprecated: OSS versioning capability is enabled by default. [Deprecated since 0.57.0] OSS versioning capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -816,7 +827,7 @@ class S3Config(TypedDict):
     delete_max_size: NotRequired[int]
     """Deprecated: S3 delete batch capability is enabled by default. [Deprecated since 0.57.0] S3 delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
     disable_config_load: NotRequired[bool]
-    """Disable automatic endpoint loading and the environment/profile credential providers.  This skips endpoint environment variables and removes the static environment and shared-profile credential slots. Region environment lookup and other credential providers, including AWS container credentials and EC2 instance metadata, remain enabled."""
+    """Disable automatic endpoint loading and ambient environment/profile credential providers.  This skips endpoint environment variables and removes the static environment, shared-profile, SSO, web-identity, and external process credential slots. Region environment lookup and compute metadata credential providers, including AWS container credentials and EC2 instance metadata, remain enabled."""
     disable_ec2_metadata: NotRequired[bool]
     """Disable load credential from ec2 metadata.  This option is used to disable the default behavior of opendal to load credential from ec2 metadata, a.k.a., IMDSv2"""
     disable_list_objects_v2: NotRequired[bool]
@@ -889,6 +900,12 @@ class SftpConfig(TypedDict):
 
     scheme: Required[Literal["sftp"]]
     """The service scheme; fixed to `"sftp"`."""
+    acquire_timeout: NotRequired[str | timedelta]
+    """Time limit for waiting for an SFTP connection pool slot. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    connect_timeout: NotRequired[str | timedelta]
+    """Time limit for each SFTP connection setup stage and each pooled connection health check. Defaults to 10 seconds. Zero disables the limit. A datetime.timedelta or human readable duration string, e.g. "5s" (see https://docs.rs/humantime/latest/humantime/fn.parse_duration.html)."""
+    control_directory: NotRequired[str]
+    """Directory for the SSH control socket.  The SSH client creates a temporary directory holding the control socket here. Defaults to `$XDG_STATE_HOME` or `$HOME/.local/state`, falling back to the current directory."""
     enable_copy: NotRequired[bool]
     """Deprecated: SFTP copy capability is enabled by default. [Deprecated since 0.57.0] SFTP copy capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]
@@ -962,7 +979,7 @@ class TosConfig(TypedDict):
     bucket: Required[str]
     """bucket name of this backend.  required."""
     disable_config_load: NotRequired[bool]
-    """Disable config load so that opendal will not load config from environment.  For examples: - envs like `TOS_ACCESS_KEY_ID`"""
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `VOLCENGINE_ACCESS_KEY_ID`"""
     endpoint: NotRequired[str]
     """endpoint of this backend.  Endpoint must be full uri, e.g. - TOS: `https://tos-cn-beijing.volces.com` - TOS with region: `https://tos-{region}.volces.com`  If user inputs endpoint without scheme like "tos-cn-beijing.volces.com", we will prepend "https://" before it."""
     region: NotRequired[str]
@@ -1007,17 +1024,6 @@ class VercelArtifactsConfig(TypedDict):
     """The Vercel team slug. When set, the `slug` query parameter is appended to all API requests."""
 
 
-class VercelBlobConfig(TypedDict):
-    """Configuration for the `vercel-blob` service."""
-
-    scheme: Required[Literal["vercel-blob"]]
-    """The service scheme; fixed to `"vercel-blob"`."""
-    root: NotRequired[str | os.PathLike[str]]
-    """root of this backend.  All operations will happen under this root."""
-    token: NotRequired[str]
-    """vercel blob token."""
-
-
 class WebdavConfig(TypedDict):
     """Configuration for the `webdav` service."""
 
@@ -1026,7 +1032,9 @@ class WebdavConfig(TypedDict):
     disable_copy: NotRequired[bool]
     """Deprecated: WebDAV copy capability is enabled by default. [Deprecated since 0.57.0] WebDAV copy capability is enabled by default and this option is no longer needed."""
     disable_create_dir: NotRequired[bool]
-    """Disable automatic parent directory creation before write operations.  By default, OpenDAL creates parent directories using MKCOL before writing files. This requires PROPFIND support to check directory existence.  Some WebDAV-compatible servers (e.g., bazel-remote) don't support PROPFIND or don't require explicit directory creation. Enable this option to skip the MKCOL calls and write files directly.  Default: false"""
+    """Disable automatic parent directory creation before write, copy, and rename operations.  By default, OpenDAL creates missing parent directories using `PROPFIND` and `MKCOL` before writing, copying, or renaming files. Enable this option to skip those automatic parent directory checks and `MKCOL` calls for servers that do not support `PROPFIND` or do not require explicit parent collections (for example, `bazel-remote`).  Explicit `create_dir` calls are unaffected.  Default: `false`"""
+    disable_depth_infinity: NotRequired[bool]
+    """Disable native recursive listing with WebDAV's `Depth: infinity`.  Set this to `true` for servers that reject or ignore infinity depth. With capability simulation enabled, OpenDAL walks the directory tree using `Depth: 1` requests instead.  The default is `false`."""
     enable_conditional_read: NotRequired[bool]
     """Deprecated: WebDAV conditional read capabilities are enabled by default. [Deprecated since 0.60.0] WebDAV conditional read capabilities are enabled by default. Use CapabilityOverrideLayer to override read_with_if_match, read_with_if_none_match, read_with_if_modified_since and read_with_if_unmodified_since for endpoints without ETag support."""
     enable_user_metadata: NotRequired[bool]
@@ -1085,7 +1093,6 @@ ServiceConfig = (
     | AzfileConfig
     | B2Config
     | CacacheConfig
-    | CloudflareKvConfig
     | CosConfig
     | DashmapConfig
     | DropboxConfig
@@ -1126,7 +1133,6 @@ ServiceConfig = (
     | TosConfig
     | UpyunConfig
     | VercelArtifactsConfig
-    | VercelBlobConfig
     | WebdavConfig
     | WebhdfsConfig
     | YandexDiskConfig
@@ -1142,7 +1148,6 @@ __all__ = [
     "AzfileConfig",
     "B2Config",
     "CacacheConfig",
-    "CloudflareKvConfig",
     "CosConfig",
     "DashmapConfig",
     "DropboxConfig",
@@ -1183,7 +1188,6 @@ __all__ = [
     "TosConfig",
     "UpyunConfig",
     "VercelArtifactsConfig",
-    "VercelBlobConfig",
     "WebdavConfig",
     "WebhdfsConfig",
     "YandexDiskConfig",

@@ -16,9 +16,8 @@
 // under the License.
 
 use super::core::*;
-use super::lister::FsLister;
-use super::writer::FsWriter;
-use super::writer::FsWriters;
+#[cfg(target_os = "linux")]
+use super::direct_io::DirectIoAlignment;
 use opendal_core::raw::*;
 use opendal_core::*;
 use std::fs::File;
@@ -28,13 +27,17 @@ use std::sync::Arc;
 pub struct FsReader {
     core: Arc<FsCore>,
     path: String,
+    if_modified_since: Option<Timestamp>,
+    if_unmodified_since: Option<Timestamp>,
 }
 
 impl FsReader {
-    pub(super) fn new(core: Arc<FsCore>, path: &str) -> Self {
+    pub(super) fn new(core: Arc<FsCore>, path: &str, args: OpRead) -> Self {
         Self {
             core,
             path: path.to_string(),
+            if_modified_since: args.if_modified_since(),
+            if_unmodified_since: args.if_unmodified_since(),
         }
     }
 }
@@ -42,28 +45,79 @@ impl FsReader {
 pub struct FsReaderHandle {
     core: Arc<FsCore>,
     file: Arc<File>,
-}
-
-impl FsReaderHandle {
-    pub(super) fn new(core: Arc<FsCore>, file: File) -> Self {
-        Self {
-            core,
-            file: file.into(),
-        }
-    }
+    #[cfg(target_os = "linux")]
+    direct_io: Option<DirectIoAlignment>,
 }
 
 impl oio::PositionRead for FsReader {
     type Handle = FsReaderHandle;
 
     async fn open(&self) -> Result<Self::Handle> {
-        let file = self.core.fs_open(&self.path).await?;
-        Ok(FsReaderHandle::new(self.core.clone(), file))
+        let path = self.core.root_join(&self.path)?;
+        let core = self.core.clone();
+        let if_modified_since = self.if_modified_since;
+        let if_unmodified_since = self.if_unmodified_since;
+
+        tokio::task::spawn_blocking(move || {
+            #[cfg(target_os = "linux")]
+            let (file, direct_io) = if core.direct_io {
+                let mut options = std::fs::OpenOptions::new();
+                options.read(true);
+                let (file, alignment) = DirectIoAlignment::open(
+                    &path,
+                    options,
+                    ServiceOperation("OpenForRead"),
+                    false,
+                )?;
+                (file, Some(alignment))
+            } else {
+                (File::open(path).map_err(new_std_io_error)?, None)
+            };
+            #[cfg(not(target_os = "linux"))]
+            let file = File::open(path).map_err(new_std_io_error)?;
+
+            if if_modified_since.is_some() || if_unmodified_since.is_some() {
+                let modified = file
+                    .metadata()
+                    .and_then(|metadata| metadata.modified())
+                    .map_err(new_std_io_error)?;
+                let modified = Timestamp::try_from(modified)?;
+                if if_modified_since.is_some_and(|since| modified <= since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file modification time is at or before if_modified_since",
+                    ));
+                }
+                if if_unmodified_since.is_some_and(|since| modified > since) {
+                    return Err(Error::new(
+                        ErrorKind::ConditionNotMatch,
+                        "file modification time is after if_unmodified_since",
+                    ));
+                }
+            }
+
+            Ok(FsReaderHandle {
+                core,
+                file: file.into(),
+                #[cfg(target_os = "linux")]
+                direct_io,
+            })
+        })
+        .await
+        .map_err(new_task_join_error)?
     }
 
     async fn read_at(handle: &Self::Handle, offset: u64, size: usize) -> Result<Buffer> {
         if size == 0 {
             return Ok(Buffer::new());
+        }
+
+        #[cfg(target_os = "linux")]
+        if let Some(alignment) = handle.direct_io {
+            let file = handle.file.clone();
+            return tokio::task::spawn_blocking(move || alignment.read_at(&file, offset, size))
+                .await
+                .map_err(new_task_join_error)?;
         }
 
         let mut bs = handle.core.buf_pool.get();
@@ -81,95 +135,5 @@ impl oio::PositionRead for FsReader {
         handle.core.buf_pool.put(bs);
 
         Ok(Buffer::from(frozen))
-    }
-}
-
-pub struct FsLazyWriter {
-    core: Arc<FsCore>,
-    executor: Executor,
-    path: String,
-    op: OpWrite,
-    inner: Option<FsWriters>,
-}
-
-impl FsLazyWriter {
-    pub(super) fn new(core: Arc<FsCore>, executor: Executor, path: &str, op: OpWrite) -> Self {
-        Self {
-            core,
-            executor,
-            path: path.to_string(),
-            op,
-            inner: None,
-        }
-    }
-
-    async fn inner(&mut self) -> Result<&mut FsWriters> {
-        if self.inner.is_none() {
-            let is_append = self.op.append();
-            let concurrent = self.op.concurrent();
-            let writer = FsWriter::create(self.core.clone(), &self.path, self.op.clone()).await?;
-            let writer = if is_append {
-                FsWriters::One(writer)
-            } else {
-                FsWriters::Two(oio::PositionWriter::new(
-                    self.executor.clone(),
-                    writer,
-                    concurrent,
-                ))
-            };
-
-            self.inner = Some(writer);
-        }
-
-        Ok(self.inner.as_mut().expect("writer must be initialized"))
-    }
-}
-
-impl oio::Write for FsLazyWriter {
-    async fn write(&mut self, bs: Buffer) -> Result<()> {
-        self.inner().await?.write(bs).await
-    }
-
-    async fn close(&mut self) -> Result<Metadata> {
-        self.inner().await?.close().await
-    }
-
-    async fn abort(&mut self) -> Result<()> {
-        match self.inner.as_mut() {
-            Some(inner) => inner.abort().await,
-            None => Ok(()),
-        }
-    }
-}
-
-pub struct FsLazyLister {
-    core: Arc<FsCore>,
-    path: String,
-    inner: Option<Option<FsLister<tokio::fs::ReadDir>>>,
-}
-
-impl FsLazyLister {
-    pub(super) fn new(core: Arc<FsCore>, path: &str) -> Self {
-        Self {
-            core,
-            path: path.to_string(),
-            inner: None,
-        }
-    }
-}
-
-impl oio::List for FsLazyLister {
-    async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        if self.inner.is_none() {
-            self.inner = Some(match self.core.fs_list(&self.path).await? {
-                Some(rd) => Some(FsLister::new(&self.core.root, &self.path, rd)),
-                None => None,
-            });
-        }
-
-        match self.inner.as_mut().expect("lister must be initialized") {
-            Some(lister) => lister.next().await,
-            None => Ok(None),
-        }
     }
 }

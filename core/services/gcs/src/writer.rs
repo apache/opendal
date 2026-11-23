@@ -57,9 +57,9 @@ impl oio::MultipartWrite for GcsWriter {
     async fn write_once(&self, _: u64, body: Buffer) -> Result<Metadata> {
         let size = body.len() as u64;
         // Request builders own percent-encoding; writers pass logical paths unchanged.
-        let req = self
-            .core
-            .gcs_insert_object_request(&self.path, Some(size), &self.op, body)?;
+        let req =
+            self.core
+                .gcs_insert_object_request(&self.path, Some(size), &self.op, body, None)?;
 
         let req = self.core.sign(&self.ctx, req).await?;
 
@@ -202,6 +202,10 @@ pub struct GcsConditionalWriter {
     offset: u64,
     pending: oio::QueueBuf,
     finalize_state: FinalizeState,
+    // Retries of the same request reuse its token so GCS can return the original
+    // response instead of applying the write twice.
+    insert_idempotency_token: String,
+    session_idempotency_token: String,
 }
 
 enum ResumableUploadStatus {
@@ -226,6 +230,8 @@ impl GcsConditionalWriter {
             offset: 0,
             pending: oio::QueueBuf::new(),
             finalize_state: FinalizeState::Ready,
+            insert_idempotency_token: uuid::Uuid::new_v4().to_string(),
+            session_idempotency_token: uuid::Uuid::new_v4().to_string(),
         }
     }
 
@@ -233,7 +239,12 @@ impl GcsConditionalWriter {
         if self.session_uri.is_none() {
             let resp = self
                 .core
-                .gcs_initiate_resumable_upload(&self.ctx, &self.path, &self.op)
+                .gcs_initiate_resumable_upload(
+                    &self.ctx,
+                    &self.path,
+                    &self.op,
+                    &self.session_idempotency_token,
+                )
                 .await?;
             if !resp.status().is_success() {
                 return Err(parse_error(
@@ -355,6 +366,27 @@ impl GcsConditionalWriter {
         ))
     }
 
+    async fn write_once(&self, body: Buffer) -> Result<Metadata> {
+        let req = self.core.gcs_insert_object_request(
+            &self.path,
+            Some(body.len() as u64),
+            &self.op,
+            body,
+            Some(&self.insert_idempotency_token),
+        )?;
+        let req = self.core.sign(&self.ctx, req).await?;
+        let resp = self.core.send(&self.ctx, req).await?;
+
+        if resp.status() == StatusCode::OK || resp.status() == StatusCode::CREATED {
+            return GcsCore::build_metadata_from_object_response(&self.path, resp.into_body());
+        }
+        Err(parse_error(
+            ErrorContext::new(ServiceOperation("InsertObject"))
+                .with_caller_condition(self.op.is_conditional()),
+            resp,
+        ))
+    }
+
     async fn flush_pending(&mut self) -> Result<()> {
         while self.pending.len() > RESUMABLE_CHUNK_SIZE {
             let mut chunk = self.pending.clone().collect();
@@ -374,6 +406,15 @@ impl oio::Write for GcsConditionalWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        // A body that fits in one chunk has no partial upload to resume, so it skips the
+        // request that opens a resumable session.
+        if self.session_uri.is_none() && self.pending.len() <= RESUMABLE_CHUNK_SIZE {
+            let body = self.pending.clone().collect();
+            let metadata = self.write_once(body).await?;
+            self.pending.clear();
+            return Ok(metadata);
+        }
+
         self.flush_pending().await?;
         let body = self.pending.clone().collect();
         let start = self.offset;
@@ -479,6 +520,7 @@ impl oio::Write for GcsConditionalWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Mutex;
 
     use bytes::Bytes;
@@ -493,6 +535,7 @@ mod tests {
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
 
+    use super::super::core::constants::X_GOOG_GCS_IDEMPOTENCY_TOKEN;
     use super::*;
 
     #[derive(Default)]
@@ -502,12 +545,30 @@ mod tests {
         fail_chunk_response: bool,
         fail_final_response: bool,
         fail_final_response_partially: bool,
+        fail_insert_response: bool,
+        fail_initiate_response: bool,
         completed: bool,
+        generation: Option<u64>,
+        requests: Vec<String>,
+        idempotency_tokens: Vec<Option<String>>,
+        honor_idempotency_tokens: bool,
+        insert_results_by_token: HashMap<String, (usize, u64)>,
     }
 
-    #[derive(Clone, Default)]
+    #[derive(Clone)]
     struct MockResumableTransport {
         state: Arc<Mutex<MockState>>,
+    }
+
+    impl Default for MockResumableTransport {
+        fn default() -> Self {
+            Self {
+                state: Arc::new(Mutex::new(MockState {
+                    honor_idempotency_tokens: true,
+                    ..Default::default()
+                })),
+            }
+        }
     }
 
     impl MockResumableTransport {
@@ -521,6 +582,31 @@ mod tests {
 
         fn fail_final_response_partially(&self) {
             self.state.lock().unwrap().fail_final_response_partially = true;
+        }
+
+        fn fail_insert_response(&self) {
+            self.state.lock().unwrap().fail_insert_response = true;
+        }
+
+        fn fail_initiate_response(&self) {
+            self.state.lock().unwrap().fail_initiate_response = true;
+        }
+
+        // Models a retry sent after GCS's deduplication window has passed.
+        fn ignore_idempotency_tokens(&self) {
+            self.state.lock().unwrap().honor_idempotency_tokens = false;
+        }
+
+        fn idempotency_tokens(&self) -> Vec<Option<String>> {
+            self.state.lock().unwrap().idempotency_tokens.clone()
+        }
+
+        fn existing_object(&self, generation: u64) {
+            self.state.lock().unwrap().generation = Some(generation);
+        }
+
+        fn requests(&self) -> Vec<String> {
+            self.state.lock().unwrap().requests.clone()
         }
 
         fn uploaded(&self) -> Vec<u8> {
@@ -554,18 +640,98 @@ mod tests {
                 .expect("mock response must build"))
         }
 
-        fn completed_response(size: usize) -> Result<Response<HttpBody>> {
+        fn completed_response(size: usize, generation: u64) -> Result<Response<HttpBody>> {
             Self::response(
                 StatusCode::OK,
                 None,
-                Some(format!(r#"{{"size":"{size}","generation":"1"}}"#)),
+                Some(format!(
+                    r#"{{"size":"{size}","generation":"{generation}"}}"#
+                )),
             )
+        }
+
+        // https://cloud.google.com/storage/docs/json_api/v1/objects/insert: ifGenerationMatch=0
+        // passes only when no live object exists, and ifGenerationNotMatch fails when no live
+        // object exists. GCS does not document the status for the second case; 412 is assumed.
+        fn precondition_failure(query: &str, generation: Option<u64>) -> Option<StatusCode> {
+            query
+                .split('&')
+                .find_map(|pair| match (pair.split_once('='), generation) {
+                    (Some(("ifGenerationMatch", v)), _) => (v.parse::<u64>().unwrap()
+                        != generation.unwrap_or(0))
+                    .then_some(StatusCode::PRECONDITION_FAILED),
+                    (Some(("ifGenerationNotMatch", _)), None) => {
+                        Some(StatusCode::PRECONDITION_FAILED)
+                    }
+                    (Some(("ifGenerationNotMatch", v)), Some(current)) => {
+                        (v.parse::<u64>().unwrap() == current).then_some(StatusCode::NOT_MODIFIED)
+                    }
+                    _ => None,
+                })
         }
     }
 
     impl HttpTransport for MockResumableTransport {
         async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let query = req.uri().query().unwrap_or_default().to_string();
+            let kind = match *req.method() {
+                http::Method::POST if query.contains("uploadType=resumable") => {
+                    "initiate".to_string()
+                }
+                http::Method::POST => format!("insert {query}"),
+                _ => "chunk".to_string(),
+            };
+            let token = req
+                .headers()
+                .get(X_GOOG_GCS_IDEMPOTENCY_TOKEN)
+                .map(|v| v.to_str().unwrap().to_string());
+            {
+                let mut state = self.state.lock().unwrap();
+                state.requests.push(kind);
+                state.idempotency_tokens.push(token.clone());
+            }
+
+            if req.method() == http::Method::POST && !query.contains("uploadType=resumable") {
+                let mut state = self.state.lock().unwrap();
+                if state.honor_idempotency_tokens
+                    && let Some((size, generation)) = token
+                        .as_ref()
+                        .and_then(|t| state.insert_results_by_token.get(t))
+                {
+                    return Self::completed_response(*size, *generation);
+                }
+                if let Some(status) = Self::precondition_failure(&query, state.generation) {
+                    return Self::response(status, None, None);
+                }
+                state.uploaded = req.body().to_vec();
+                state.completed = true;
+                let generation = state.generation.map_or(1, |g| g + 1);
+                state.generation = Some(generation);
+                if let Some(token) = token {
+                    let size = state.uploaded.len();
+                    state
+                        .insert_results_by_token
+                        .insert(token, (size, generation));
+                }
+                if state.fail_insert_response {
+                    state.fail_insert_response = false;
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "mock lost insert response")
+                            .set_temporary(),
+                    );
+                }
+                return Self::completed_response(state.uploaded.len(), generation);
+            }
+
             if req.method() == http::Method::POST {
+                let mut state = self.state.lock().unwrap();
+                if state.fail_initiate_response {
+                    state.fail_initiate_response = false;
+                    return Err(
+                        Error::new(ErrorKind::Unexpected, "mock lost initiate response")
+                            .set_temporary(),
+                    );
+                }
                 return Ok(Response::builder()
                     .status(StatusCode::OK)
                     .header(LOCATION, "https://upload.example/session")
@@ -592,12 +758,11 @@ mod tests {
             state.ranges.push(content_range.clone());
 
             if body.is_empty() {
-                if content_range == "bytes */0" && state.uploaded.is_empty() {
-                    state.completed = true;
-                    return Self::completed_response(0);
-                }
                 if state.completed {
-                    return Self::completed_response(state.uploaded.len());
+                    return Self::completed_response(
+                        state.uploaded.len(),
+                        state.generation.unwrap(),
+                    );
                 }
                 let range = (!state.uploaded.is_empty())
                     .then(|| format!("bytes=0-{}", state.uploaded.len() - 1));
@@ -645,17 +810,32 @@ mod tests {
             state.uploaded.extend_from_slice(remaining);
             assert_eq!(total.parse::<usize>().unwrap(), state.uploaded.len());
             state.completed = true;
+            let generation = state.generation.map_or(1, |g| g + 1);
+            state.generation = Some(generation);
             if state.fail_final_response {
                 state.fail_final_response = false;
                 return Err(
                     Error::new(ErrorKind::Unexpected, "mock lost final response").set_temporary(),
                 );
             }
-            Self::completed_response(state.uploaded.len())
+            Self::completed_response(state.uploaded.len(), generation)
         }
     }
 
     fn test_writer(transport: MockResumableTransport) -> GcsConditionalWriter {
+        test_writer_with(
+            transport,
+            options::WriteOptions {
+                if_not_exists: true,
+                ..Default::default()
+            },
+        )
+    }
+
+    fn test_writer_with(
+        transport: MockResumableTransport,
+        options: options::WriteOptions,
+    ) -> GcsConditionalWriter {
         let sign_ctx = Context::new();
         let signer = Signer::new(
             sign_ctx.clone(),
@@ -664,7 +844,19 @@ mod tests {
         );
         let core = Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
-            capability: Capability::default(),
+            capability: Capability {
+                write: true,
+                write_can_empty: true,
+                write_can_multi: true,
+                write_with_cache_control: true,
+                write_with_content_type: true,
+                write_with_content_encoding: true,
+                write_with_user_metadata: true,
+                write_with_if_not_exists: true,
+                write_with_if_version_match: true,
+                write_with_if_version_not_match: true,
+                ..Default::default()
+            },
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
@@ -675,14 +867,7 @@ mod tests {
             skip_signature: true,
         });
         let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
-        let (op, _) = OpWrite::from_options(
-            &Capability::default(),
-            options::WriteOptions {
-                if_not_exists: true,
-                ..Default::default()
-            },
-        )
-        .unwrap();
+        let (op, _) = OpWrite::from_options(&core.capability, options).unwrap();
         GcsConditionalWriter::new(core, ctx, "object", op)
     }
 
@@ -722,12 +907,18 @@ mod tests {
         );
     }
 
+    fn multi_chunk_body() -> Vec<u8> {
+        let mut body = vec![7; RESUMABLE_CHUNK_SIZE];
+        body.extend_from_slice(b"hello");
+        body
+    }
+
     #[tokio::test]
     async fn retry_close_reconciles_lost_final_response() {
         let transport = MockResumableTransport::default();
         transport.fail_final_response();
         let mut writer = test_writer(transport.clone());
-        let expected = b"hello".to_vec();
+        let expected = multi_chunk_body();
         writer
             .write(Buffer::from(Bytes::copy_from_slice(&expected)))
             .await
@@ -737,11 +928,16 @@ mod tests {
         assert!(err.is_temporary());
         let metadata = writer.close().await.unwrap();
 
+        let total = RESUMABLE_CHUNK_SIZE + 5;
         assert_eq!(transport.uploaded(), expected);
-        assert_eq!(metadata.content_length(), 5);
+        assert_eq!(metadata.content_length(), total as u64);
         assert_eq!(
             transport.ranges(),
-            vec!["bytes 0-4/5".to_string(), "bytes */5".to_string()]
+            vec![
+                format!("bytes 0-{}/*", RESUMABLE_CHUNK_SIZE - 1),
+                format!("bytes {RESUMABLE_CHUNK_SIZE}-{}/{total}", total - 1),
+                format!("bytes */{total}"),
+            ]
         );
     }
 
@@ -750,7 +946,7 @@ mod tests {
         let transport = MockResumableTransport::default();
         transport.fail_final_response_partially();
         let mut writer = test_writer(transport.clone());
-        let expected = b"hello".to_vec();
+        let expected = multi_chunk_body();
         writer
             .write(Buffer::from(Bytes::copy_from_slice(&expected)))
             .await
@@ -760,20 +956,76 @@ mod tests {
         assert!(err.is_temporary());
         let metadata = writer.close().await.unwrap();
 
+        let total = RESUMABLE_CHUNK_SIZE + 5;
         assert_eq!(transport.uploaded(), expected);
-        assert_eq!(metadata.content_length(), 5);
+        assert_eq!(metadata.content_length(), total as u64);
         assert_eq!(
             transport.ranges(),
             vec![
-                "bytes 0-4/5".to_string(),
-                "bytes */5".to_string(),
-                "bytes 0-4/5".to_string(),
+                format!("bytes 0-{}/*", RESUMABLE_CHUNK_SIZE - 1),
+                format!("bytes {RESUMABLE_CHUNK_SIZE}-{}/{total}", total - 1),
+                format!("bytes */{total}"),
+                format!("bytes {RESUMABLE_CHUNK_SIZE}-{}/{total}", total - 1),
             ]
         );
     }
 
     #[tokio::test]
-    async fn close_empty_object_uses_resumable_upload() {
+    async fn close_small_object_sends_one_conditional_insert() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer(transport.clone());
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let metadata = writer.close().await.unwrap();
+
+        assert_eq!(metadata.content_length(), 5);
+        assert_eq!(transport.uploaded(), b"hello".to_vec());
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationMatch=0".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_full_chunk_sends_one_conditional_insert() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer(transport.clone());
+        let expected = vec![7; RESUMABLE_CHUNK_SIZE];
+        writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+
+        writer.close().await.unwrap();
+
+        assert_eq!(transport.uploaded(), expected);
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationMatch=0".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_multi_chunk_object_uses_resumable_upload() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer(transport.clone());
+        let expected = multi_chunk_body();
+        writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+
+        writer.close().await.unwrap();
+
+        assert_eq!(transport.uploaded(), expected);
+        assert_eq!(transport.requests(), vec!["initiate", "chunk", "chunk"]);
+    }
+
+    #[tokio::test]
+    async fn close_empty_object_sends_one_conditional_insert() {
         let transport = MockResumableTransport::default();
         let mut writer = test_writer(transport.clone());
 
@@ -781,6 +1033,268 @@ mod tests {
 
         assert_eq!(metadata.content_length(), 0);
         assert_eq!(transport.uploaded(), Vec::<u8>::new());
-        assert_eq!(transport.ranges(), vec!["bytes */0".to_string()]);
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationMatch=0".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_if_version_match_sends_one_conditional_insert() {
+        let transport = MockResumableTransport::default();
+        transport.existing_object(123);
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_match: Some("123".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let metadata = writer.close().await.unwrap();
+
+        assert_eq!(metadata.version(), Some("124"));
+        assert_eq!(transport.uploaded(), b"hello".to_vec());
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationMatch=123".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_stale_if_version_match_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        transport.existing_object(5);
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_match: Some("4".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationMatch=4".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_if_version_not_match_sends_one_conditional_insert() {
+        let transport = MockResumableTransport::default();
+        transport.existing_object(5);
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_not_match: Some("7".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let metadata = writer.close().await.unwrap();
+
+        assert_eq!(metadata.version(), Some("6"));
+        assert_eq!(transport.uploaded(), b"hello".to_vec());
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=media&name=object&ifGenerationNotMatch=7".to_string()]
+        );
+    }
+
+    #[tokio::test]
+    async fn close_with_metadata_sends_one_conditional_multipart_insert() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_not_exists: true,
+                content_type: Some("text/plain".to_string()),
+                user_metadata: Some(HashMap::from([("owner".to_string(), "alice".to_string())])),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        writer.close().await.unwrap();
+
+        assert_eq!(
+            transport.requests(),
+            vec!["insert uploadType=multipart&name=object&ifGenerationMatch=0".to_string()]
+        );
+        let sent = String::from_utf8(transport.uploaded()).unwrap();
+        assert!(sent.contains(r#""contentType":"text/plain""#), "{sent}");
+        assert!(sent.contains(r#""metadata":{"owner":"alice"}"#), "{sent}");
+        assert!(sent.contains("hello"), "{sent}");
+    }
+
+    #[tokio::test]
+    async fn retry_close_reuses_insert_idempotency_token_after_lost_response() {
+        let transport = MockResumableTransport::default();
+        transport.fail_insert_response();
+        let mut writer = test_writer(transport.clone());
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        let metadata = writer.close().await.unwrap();
+
+        assert_eq!(metadata.content_length(), 5);
+        assert_eq!(metadata.version(), Some("1"));
+        assert_eq!(transport.uploaded(), b"hello".to_vec());
+        let tokens = transport.idempotency_tokens();
+        assert_eq!(tokens.len(), 2);
+        assert!(tokens[0].is_some());
+        assert_eq!(tokens[0], tokens[1]);
+
+        let other = MockResumableTransport::default();
+        let mut other_writer = test_writer(other.clone());
+        other_writer.close().await.unwrap();
+        assert_ne!(other.idempotency_tokens()[0], tokens[0]);
+    }
+
+    #[tokio::test]
+    async fn retry_close_reuses_session_idempotency_token_after_lost_response() {
+        let transport = MockResumableTransport::default();
+        transport.fail_initiate_response();
+        let mut writer = test_writer(transport.clone());
+        let expected = multi_chunk_body();
+        writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        writer.close().await.unwrap();
+
+        assert_eq!(transport.uploaded(), expected);
+        assert_eq!(
+            transport.requests(),
+            vec!["initiate", "initiate", "chunk", "chunk"]
+        );
+        let tokens = transport.idempotency_tokens();
+        assert!(tokens[0].is_some());
+        assert_eq!(tokens[0], tokens[1]);
+
+        let other = MockResumableTransport::default();
+        let mut other_writer = test_writer(other.clone());
+        other_writer
+            .write(Buffer::from(Bytes::copy_from_slice(&expected)))
+            .await
+            .unwrap();
+        other_writer.close().await.unwrap();
+        assert_eq!(other.requests()[0], "initiate");
+        assert_ne!(other.idempotency_tokens()[0], tokens[0]);
+    }
+
+    #[tokio::test]
+    async fn close_if_version_not_match_on_missing_object_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_not_match: Some("7".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn close_if_version_match_on_missing_object_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_match: Some("7".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn close_current_if_version_not_match_reports_condition_not_match() {
+        let transport = MockResumableTransport::default();
+        transport.existing_object(5);
+        let mut writer = test_writer_with(
+            transport.clone(),
+            options::WriteOptions {
+                if_version_not_match: Some("5".to_string()),
+                ..Default::default()
+            },
+        );
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        assert_eq!(transport.uploaded(), Vec::<u8>::new());
+    }
+
+    #[tokio::test]
+    async fn retry_close_after_dedup_window_reports_precondition_failure() {
+        let transport = MockResumableTransport::default();
+        transport.fail_insert_response();
+        transport.ignore_idempotency_tokens();
+        let mut writer = test_writer(transport.clone());
+        writer
+            .write(Buffer::from(Bytes::from_static(b"hello")))
+            .await
+            .unwrap();
+
+        let err = writer.close().await.unwrap_err();
+        assert!(err.is_temporary());
+        let err = writer.close().await.unwrap_err();
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(!err.is_temporary());
+        let insert = "insert uploadType=media&name=object&ifGenerationMatch=0".to_string();
+        assert_eq!(transport.requests(), vec![insert.clone(), insert]);
     }
 }

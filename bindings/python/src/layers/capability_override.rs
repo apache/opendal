@@ -21,7 +21,7 @@ use crate::*;
 use opendal::Operator;
 
 /// A layer that overrides the full capability exposed by an operator.
-#[pyclass(module = "opendal.layers", extends=Layer, skip_from_py_object)]
+#[pyclass(module = "opendal.layers", extends=Layer)]
 #[derive(Clone)]
 pub struct CapabilityOverrideLayer(ocore::layers::CapabilityOverrideLayer);
 

@@ -172,7 +172,7 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 
 // Lister provides a mechanism for listing entries at a specified path.
 //
-// Lister is a wrapper around the C-binding function `opendal_operator_list`. It allows
+// Lister is a wrapper around the C-binding function `opendal_operator_list_with_cancel`. It allows
 // for efficient iteration over entries in a storage system.
 //
 // # Usage
@@ -188,12 +188,12 @@ func (op *Operator) List(ctx context.Context, path string, opts ...WithListFn) (
 //
 // # Example
 //
-//	lister, err := op.List("path/to/list")
+//	lister, err := op.List(ctx, "path/to/list")
 //	if err != nil {
 //		log.Fatal(err)
 //	}
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		// Process the entry
 //		fmt.Println(entry.Name())
@@ -324,7 +324,7 @@ func (l *Lister) Entry() *Entry {
 //
 // Entries are typically obtained through iteration of a Lister:
 //
-//	for lister.Next() {
+//	for lister.Next(ctx) {
 //		entry := lister.Entry()
 //		// Process the entry
 //		fmt.Println(entry.Name())

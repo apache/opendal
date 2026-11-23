@@ -15,6 +15,7 @@ version.
 - [User guide](https://opendal.apache.org/docs/bindings/go)
 - [API reference](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 - [Services & configuration](https://opendal.apache.org/services)
+- [Upgrade guide](./upgrade.md)
 
 ## Installation
 

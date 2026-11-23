@@ -119,21 +119,60 @@ impl storage::Metadata for OpendalMetadata {
 
 fn convert_err(err: opendal::Error) -> Error {
     let kind = match err.kind() {
-        opendal::ErrorKind::NotFound => storage::ErrorKind::PermanentFileNotAvailable,
-        opendal::ErrorKind::AlreadyExists => storage::ErrorKind::PermanentFileNotAvailable,
+        opendal::ErrorKind::NotFound
+        | opendal::ErrorKind::AlreadyExists
+        | opendal::ErrorKind::IsADirectory
+        | opendal::ErrorKind::NotADirectory => storage::ErrorKind::PermanentFileNotAvailable,
         opendal::ErrorKind::PermissionDenied => storage::ErrorKind::PermissionDenied,
+        opendal::ErrorKind::Unsupported => storage::ErrorKind::CommandNotImplemented,
         _ => storage::ErrorKind::LocalError,
     };
     Error::new(kind, err)
 }
 
-fn convert_path(path: &Path) -> storage::Result<&str> {
-    path.to_str().ok_or_else(|| {
+/// Convert an FTP path into a lexically normalized OpenDAL path.
+///
+/// Collapses `.` and `..` segments and clamps `..` at the FTP root (`/`).
+/// Returns `"/"` for the root; otherwise returns a relative path without a
+/// leading `/` and with a trailing `/` preserved for directory paths
+/// (including paths ending in `.` or `..`).
+fn convert_path(path: &Path) -> storage::Result<String> {
+    let raw = path.to_str().ok_or_else(|| {
         Error::new(
             storage::ErrorKind::LocalError,
             "Path is not a valid UTF-8 string",
         )
-    })
+    })?;
+
+    let mut segments = Vec::new();
+    let mut is_dir = false;
+
+    for segment in raw.split('/') {
+        match segment {
+            "" => {}
+            "." => {
+                is_dir = true;
+            }
+            ".." => {
+                segments.pop();
+                is_dir = true;
+            }
+            name => {
+                segments.push(name);
+                is_dir = false;
+            }
+        }
+    }
+
+    if segments.is_empty() {
+        return Ok("/".to_string());
+    }
+
+    let mut normalized = segments.join("/");
+    if is_dir || raw.ends_with('/') {
+        normalized.push('/');
+    }
+    Ok(normalized)
 }
 
 async fn copy_read_write_loop<R>(
@@ -194,7 +233,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     ) -> storage::Result<Self::Metadata> {
         use opendal::ErrorKind::*;
 
-        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let path = convert_path(path.as_ref())?;
         let directory = format!("{}/", path.trim_end_matches('/'));
 
         // The FTP root always exists; some backends cannot stat it.
@@ -250,7 +289,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     where
         Self::Metadata: storage::Metadata,
     {
-        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let path = convert_path(path.as_ref())?;
         let directory = format!("{}/", path.trim_end_matches('/'));
         let mut entries = self.op.list(&directory).await.map_err(convert_err)?;
         if entries.is_empty() && path != directory {
@@ -280,9 +319,10 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         path: P,
         start_pos: u64,
     ) -> storage::Result<Box<dyn tokio::io::AsyncRead + Send + Sync + Unpin>> {
+        let path = convert_path(path.as_ref())?;
         let reader = self
             .op
-            .reader(convert_path(path.as_ref())?)
+            .reader(&path)
             .await
             .map_err(convert_err)?
             .into_futures_async_read(start_pos..)
@@ -316,7 +356,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
                     "the storage service does not support appending to an existing file",
                 ));
             }
-            match self.op.stat(path).await {
+            match self.op.stat(&path).await {
                 Ok(meta) if meta.content_length() == start_pos => {}
                 Ok(_) => {
                     return Err(Error::new(
@@ -329,9 +369,9 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         }
 
         let writer = if append {
-            self.op.writer_with(path).append(true).await
+            self.op.writer_with(&path).append(true).await
         } else {
-            self.op.writer(path).await
+            self.op.writer(&path).await
         }
         .map_err(convert_err)?;
 
@@ -362,14 +402,34 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
     }
 
     async fn del<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
-        self.op
-            .delete(convert_path(path.as_ref())?)
-            .await
-            .map_err(convert_err)
+        if !self.op.info().capability().delete {
+            return Err(Error::new(
+                storage::ErrorKind::CommandNotImplemented,
+                "the storage service does not support deleting",
+            ));
+        }
+
+        let path = convert_path(path.as_ref())?;
+        if path.ends_with('/') {
+            return Err(Error::new(
+                storage::ErrorKind::PermanentFileNotAvailable,
+                format!("{path} is a directory"),
+            ));
+        }
+
+        let meta = self.op.stat(&path).await.map_err(convert_err)?;
+        if meta.is_dir() {
+            return Err(Error::new(
+                storage::ErrorKind::PermanentFileNotAvailable,
+                format!("{path} is a directory"),
+            ));
+        }
+
+        self.op.delete(&path).await.map_err(convert_err)
     }
 
     async fn mkd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
-        let mut path_str = convert_path(path.as_ref())?.to_string();
+        let mut path_str = convert_path(path.as_ref())?;
         if !path_str.ends_with('/') {
             path_str.push('/');
         }
@@ -382,7 +442,43 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         from: P,
         to: P,
     ) -> storage::Result<()> {
-        let (from, to) = (convert_path(from.as_ref())?, convert_path(to.as_ref())?);
+        if !self.op.info().capability().rename {
+            return Err(Error::new(
+                storage::ErrorKind::CommandNotImplemented,
+                "the storage service does not support renaming",
+            ));
+        }
+
+        let from = convert_path(from.as_ref())?;
+        let to = convert_path(to.as_ref())?;
+
+        if from == "/" || to == "/" {
+            return Err(Error::new(
+                storage::ErrorKind::PermanentFileNotAvailable,
+                "cannot rename the FTP root directory",
+            ));
+        }
+
+        let (from, to) = if from.ends_with('/') || to.ends_with('/') {
+            let from_trimmed = from.trim_end_matches('/');
+            let to_trimmed = to.trim_end_matches('/');
+            // OpenDAL's `Operator::rename` rejects trailing slashes with
+            // `IsADirectory`. Allow stripping trailing slashes only when the
+            // source is a directory so file renames do not silently accept
+            // directory-style paths.
+            let from_dir = format!("{from_trimmed}/");
+            let meta = self.op.stat(&from_dir).await.map_err(convert_err)?;
+            if !meta.is_dir() {
+                return Err(Error::new(
+                    storage::ErrorKind::PermanentFileNotAvailable,
+                    format!("{from} is not a directory"),
+                ));
+            }
+            (from_trimmed, to_trimmed)
+        } else {
+            (from.as_str(), to.as_str())
+        };
+
         self.op.rename(from, to).await.map_err(convert_err)
     }
 
@@ -391,7 +487,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         user: &User,
         path: P,
     ) -> storage::Result<()> {
-        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let path = convert_path(path.as_ref())?;
         if path == "/" {
             return Err(Error::new(
                 storage::ErrorKind::PermissionDenied,
@@ -416,7 +512,7 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         // Object stores only address directories with a trailing `/`.
         // Normalizing to root yields "/", which `trim_end_matches('/')`
         // preserves.
-        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        let path = convert_path(path.as_ref())?;
         let directory = format!("{}/", path.trim_end_matches('/'));
 
         // The FTP root always exists; some backends cannot stat it.
@@ -464,6 +560,86 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
                 }
             }
             Err(e) => Err(convert_err(e)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn convert_err_maps_opendal_error_kinds() {
+        let cases = [
+            (
+                opendal::ErrorKind::NotFound,
+                storage::ErrorKind::PermanentFileNotAvailable,
+            ),
+            (
+                opendal::ErrorKind::AlreadyExists,
+                storage::ErrorKind::PermanentFileNotAvailable,
+            ),
+            (
+                opendal::ErrorKind::IsADirectory,
+                storage::ErrorKind::PermanentFileNotAvailable,
+            ),
+            (
+                opendal::ErrorKind::NotADirectory,
+                storage::ErrorKind::PermanentFileNotAvailable,
+            ),
+            (
+                opendal::ErrorKind::PermissionDenied,
+                storage::ErrorKind::PermissionDenied,
+            ),
+            (
+                opendal::ErrorKind::Unsupported,
+                storage::ErrorKind::CommandNotImplemented,
+            ),
+            (
+                opendal::ErrorKind::Unexpected,
+                storage::ErrorKind::LocalError,
+            ),
+            (
+                opendal::ErrorKind::RateLimited,
+                storage::ErrorKind::LocalError,
+            ),
+        ];
+
+        for (input, expected) in cases {
+            let err = convert_err(opendal::Error::new(input, "test error"));
+            assert_eq!(err.kind(), expected, "opendal error kind {input:?}");
+        }
+    }
+
+    #[test]
+    fn convert_path_normalizes_dot_and_parent_segments() {
+        let cases = [
+            ("", "/"),
+            ("/", "/"),
+            ("///", "/"),
+            (".", "/"),
+            ("/.", "/"),
+            ("/./", "/"),
+            ("..", "/"),
+            ("/..", "/"),
+            ("/../..", "/"),
+            ("/dir/..", "/"),
+            ("/dir/../", "/"),
+            ("/dir/../top.txt", "top.txt"),
+            ("/../../escape.txt", "escape.txt"),
+            ("/a/b/..", "a/"),
+            ("/a/b/.", "a/b/"),
+            ("/a/./b", "a/b"),
+            ("/a/b/../c/", "a/c/"),
+            ("/a/.hidden", "a/.hidden"),
+            ("/a/..hidden", "a/..hidden"),
+            ("dir/file.txt", "dir/file.txt"),
+            ("dir/", "dir/"),
+        ];
+
+        for (input, expected) in cases {
+            let actual = convert_path(Path::new(input)).expect("valid UTF-8 path");
+            assert_eq!(actual, expected, "input path {input:?}");
         }
     }
 }

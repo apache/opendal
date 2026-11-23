@@ -882,3 +882,308 @@ async fn put_close_error_aborts_writer() -> Result<()> {
     );
     Ok(())
 }
+
+/// Parent traversal segments (`..`) must resolve lexically and clamp at the
+/// FTP root on the filesystem backend instead of escaping or failing with
+/// `NotFound`.
+#[tokio::test]
+async fn path_parent_traversal_on_fs() -> Result<()> {
+    let (_root, storage) = fs_storage()?;
+    let user = DefaultUser;
+
+    storage.mkd(&user, "/dir").await.context("mkd /dir")?;
+    storage
+        .mkd(&user, "/dir/sub")
+        .await
+        .context("mkd /dir/sub")?;
+    storage
+        .put(&user, "top".as_bytes(), "/top.txt", 0)
+        .await
+        .context("put /top.txt")?;
+
+    storage.cwd(&user, "/dir/..").await.context("cwd /dir/..")?;
+    storage
+        .cwd(&user, "/dir/sub/..")
+        .await
+        .context("cwd /dir/sub/..")?;
+    assert_eq!(read_file(&storage, "/dir/../top.txt").await?, "top");
+
+    let meta = storage
+        .metadata(&user, "/dir/../top.txt")
+        .await
+        .context("metadata /dir/../top.txt")?;
+    assert!(meta.is_file());
+
+    let entries = storage
+        .list(&user, "/dir/..")
+        .await
+        .context("list /dir/..")?;
+    assert!(
+        entries
+            .iter()
+            .any(|entry| entry.path.as_os_str() == "top.txt"),
+        "list /dir/.. must include top.txt"
+    );
+
+    storage
+        .put(&user, "escaped".as_bytes(), "/dir/../escape.txt", 0)
+        .await
+        .context("put /dir/../escape.txt")?;
+    assert_eq!(read_file(&storage, "/escape.txt").await?, "escaped");
+
+    storage
+        .put(&user, "clamped".as_bytes(), "/../../clamped.txt", 0)
+        .await
+        .context("put /../../clamped.txt")?;
+    assert_eq!(read_file(&storage, "/clamped.txt").await?, "clamped");
+
+    storage
+        .del(&user, "/dir/../clamped.txt")
+        .await
+        .context("del /dir/../clamped.txt")?;
+    let err = storage
+        .metadata(&user, "/clamped.txt")
+        .await
+        .expect_err("clamped.txt should be deleted");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+
+    let err = storage
+        .rmd(&user, "/dir/..")
+        .await
+        .expect_err("rmd /dir/.. must reject the FTP root");
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    assert_eq!(read_file(&storage, "/top.txt").await?, "top");
+    Ok(())
+}
+
+/// Parent traversal segments (`..`) must not create literal `..` keys on
+/// object-store-like backends such as memory, and `rmd /dir/..` must hit the
+/// root guard.
+#[tokio::test]
+async fn path_parent_traversal_on_memory() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?;
+    let storage = OpendalStorage::new(op.clone());
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "top".as_bytes(), "/top.txt", 0)
+        .await
+        .context("put /top.txt")?;
+    storage
+        .put(&user, "nested".as_bytes(), "/dir/nested.txt", 0)
+        .await
+        .context("put /dir/nested.txt")?;
+
+    storage.cwd(&user, "/dir/..").await.context("cwd /dir/..")?;
+    assert_eq!(read_file(&storage, "/dir/../top.txt").await?, "top");
+
+    storage
+        .put(&user, "escaped".as_bytes(), "/dir/../escape.txt", 0)
+        .await
+        .context("put /dir/../escape.txt")?;
+    assert_eq!(read_file(&storage, "/escape.txt").await?, "escaped");
+    assert!(
+        !op.exists("dir/../escape.txt").await?,
+        "literal dir/../escape.txt key must not be created"
+    );
+
+    storage
+        .put(&user, "clamped".as_bytes(), "/../../clamped.txt", 0)
+        .await
+        .context("put /../../clamped.txt")?;
+    assert_eq!(read_file(&storage, "/clamped.txt").await?, "clamped");
+    assert!(
+        !op.exists("../../clamped.txt").await?,
+        "literal ../../clamped.txt key must not be created"
+    );
+
+    let err = storage
+        .rmd(&user, "/dir/..")
+        .await
+        .expect_err("rmd /dir/.. must reject the FTP root");
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    assert_eq!(read_file(&storage, "/top.txt").await?, "top");
+    assert_eq!(read_file(&storage, "/dir/nested.txt").await?, "nested");
+    Ok(())
+}
+
+/// `del` must report missing files as `PermanentFileNotAvailable` and refuse
+/// to delete directories on the filesystem backend.
+#[tokio::test]
+async fn del_missing_and_directory_on_fs() -> Result<()> {
+    let (_root, storage) = fs_storage()?;
+    let user = DefaultUser;
+
+    let err = storage
+        .del(&user, "missing.txt")
+        .await
+        .expect_err("del missing.txt must fail");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+
+    storage.mkd(&user, "/dir").await.context("mkd /dir")?;
+    for path in ["/dir", "/dir/", "/", "/dir/.."] {
+        let err = storage
+            .del(&user, path)
+            .await
+            .expect_err("del on directory must fail");
+        assert_eq!(
+            err.kind(),
+            ErrorKind::PermanentFileNotAvailable,
+            "del {path}"
+        );
+    }
+    assert!(storage.metadata(&user, "/dir").await?.is_dir());
+
+    storage
+        .put(&user, "keep".as_bytes(), "/dir/file.txt", 0)
+        .await
+        .context("put /dir/file.txt")?;
+    for path in ["/dir", "/dir/"] {
+        let err = storage
+            .del(&user, path)
+            .await
+            .expect_err("del on non-empty directory must fail");
+        assert_eq!(
+            err.kind(),
+            ErrorKind::PermanentFileNotAvailable,
+            "del {path}"
+        );
+    }
+    assert_eq!(read_file(&storage, "/dir/file.txt").await?, "keep");
+
+    storage
+        .del(&user, "/dir/file.txt")
+        .await
+        .context("del /dir/file.txt")?;
+    let err = storage
+        .metadata(&user, "/dir/file.txt")
+        .await
+        .expect_err("deleted file must not exist");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+    Ok(())
+}
+
+/// `del` must report missing files as `PermanentFileNotAvailable` and leave
+/// directories untouched on memory backends.
+#[tokio::test]
+async fn del_missing_and_directory_on_memory() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    let err = storage
+        .del(&user, "missing.txt")
+        .await
+        .expect_err("del missing.txt must fail");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+
+    storage
+        .put(&user, "keep".as_bytes(), "/dir/file.txt", 0)
+        .await
+        .context("put /dir/file.txt")?;
+    for path in ["/dir", "/dir/", "/", "/dir/.."] {
+        let err = storage
+            .del(&user, path)
+            .await
+            .expect_err("del on directory must fail");
+        assert_eq!(
+            err.kind(),
+            ErrorKind::PermanentFileNotAvailable,
+            "del {path}"
+        );
+    }
+    assert_eq!(read_file(&storage, "/dir/file.txt").await?, "keep");
+
+    storage
+        .del(&user, "/dir/file.txt")
+        .await
+        .context("del /dir/file.txt")?;
+    let err = storage
+        .metadata(&user, "/dir/file.txt")
+        .await
+        .expect_err("deleted file must not exist");
+    assert_eq!(err.kind(), ErrorKind::PermanentFileNotAvailable);
+    Ok(())
+}
+
+/// Backends without rename capability must report `CommandNotImplemented`.
+#[tokio::test]
+async fn rename_unsupported_on_memory() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "hello".as_bytes(), "/file.txt", 0)
+        .await
+        .context("put /file.txt")?;
+
+    let err = storage
+        .rename(&user, "/file.txt", "/file2.txt")
+        .await
+        .expect_err("rename on memory must fail");
+    assert_eq!(err.kind(), ErrorKind::CommandNotImplemented);
+
+    let err = storage
+        .rename(&user, "/dir/", "/dir2/")
+        .await
+        .expect_err("directory rename on memory must fail");
+    assert_eq!(err.kind(), ErrorKind::CommandNotImplemented);
+    Ok(())
+}
+
+/// Directory renames with trailing slashes must work on rename-capable
+/// backends, while trailing-slash renames of regular files and root renames
+/// must be rejected.
+#[tokio::test]
+async fn rename_directory_with_trailing_slash_on_fs() -> Result<()> {
+    let (_root, storage) = fs_storage()?;
+    let user = DefaultUser;
+
+    storage.mkd(&user, "/dir").await.context("mkd /dir")?;
+    storage
+        .put(&user, "hello".as_bytes(), "/dir/nested.txt", 0)
+        .await
+        .context("put /dir/nested.txt")?;
+
+    storage
+        .rename(&user, "/dir/", "/dir2/")
+        .await
+        .context("rename /dir/ -> /dir2/")?;
+    assert_eq!(read_file(&storage, "/dir2/nested.txt").await?, "hello");
+    assert_eq!(
+        storage
+            .metadata(&user, "/dir")
+            .await
+            .expect_err("old directory must be gone")
+            .kind(),
+        ErrorKind::PermanentFileNotAvailable
+    );
+
+    storage
+        .rename(&user, "/dir2/", "/dir3")
+        .await
+        .context("rename /dir2/ -> /dir3")?;
+    storage
+        .rename(&user, "/dir3", "/dir4/")
+        .await
+        .context("rename /dir3 -> /dir4/")?;
+    assert_eq!(read_file(&storage, "/dir4/nested.txt").await?, "hello");
+
+    for (from, to) in [
+        ("/dir4/nested.txt/", "/other.txt"),
+        ("/dir4/nested.txt", "/other.txt/"),
+        ("/dir4/..", "/other"),
+        ("/dir4", "/"),
+    ] {
+        let err = storage
+            .rename(&user, from, to)
+            .await
+            .expect_err("invalid trailing-slash or root rename must fail");
+        assert_eq!(
+            err.kind(),
+            ErrorKind::PermanentFileNotAvailable,
+            "rename {from} -> {to}"
+        );
+    }
+    assert_eq!(read_file(&storage, "/dir4/nested.txt").await?, "hello");
+    Ok(())
+}

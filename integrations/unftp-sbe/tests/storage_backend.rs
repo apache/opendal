@@ -18,8 +18,9 @@
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context as TaskContext, Poll};
+use std::time::SystemTime;
 
 use anyhow::{Context, Result};
 use opendal::raw::{self, oio};
@@ -130,6 +131,185 @@ impl raw::Service for StatErrorService {
         args: raw::OpList,
     ) -> opendal::Result<Self::Lister> {
         self.inner.list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: raw::OpCopy,
+    ) -> opendal::Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    fn compose(
+        &self,
+        ctx: &OperationContext,
+        to: &str,
+        args: raw::OpCompose,
+    ) -> opendal::Result<Self::Composer> {
+        self.inner.compose(ctx, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: raw::OpRename,
+    ) -> opendal::Result<raw::RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn restore(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpRestore,
+    ) -> opendal::Result<raw::RpRestore> {
+        self.inner.restore(ctx, path, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpPresign,
+    ) -> opendal::Result<raw::RpPresign> {
+        self.inner.presign(ctx, path, args).await
+    }
+}
+
+/// Test layer that counts `stat` calls and can optionally hide the `stat`
+/// capability, attach a `last_modified` timestamp to `stat` responses, or
+/// strip `last_modified` from listed file entries to simulate backends whose
+/// lister returns file mode and size without timestamps.
+#[derive(Debug)]
+struct StatObserveLayer {
+    stat_count: Arc<AtomicUsize>,
+    hide_stat: bool,
+    stat_last_modified: Option<raw::Timestamp>,
+    strip_list_last_modified: bool,
+}
+
+impl raw::Layer for StatObserveLayer {
+    fn apply_service(&self, srv: raw::Servicer) -> raw::Servicer {
+        Arc::new(StatObserveService {
+            inner: srv,
+            stat_count: self.stat_count.clone(),
+            hide_stat: self.hide_stat,
+            stat_last_modified: self.stat_last_modified,
+            strip_list_last_modified: self.strip_list_last_modified,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct StatObserveService {
+    inner: raw::Servicer,
+    stat_count: Arc<AtomicUsize>,
+    hide_stat: bool,
+    stat_last_modified: Option<raw::Timestamp>,
+    strip_list_last_modified: bool,
+}
+
+struct StripLastModifiedLister {
+    inner: oio::Lister,
+}
+
+impl oio::List for StripLastModifiedLister {
+    async fn next(&mut self) -> opendal::Result<Option<oio::Entry>> {
+        let Some(entry) = self.inner.next().await? else {
+            return Ok(None);
+        };
+        let (path, meta) = entry.into_parts();
+        if meta.is_dir() {
+            return Ok(Some(oio::Entry::new(&path, meta)));
+        }
+        let meta = opendal::MetadataBuilder::file(meta.content_length()).build();
+        Ok(Some(oio::Entry::new(&path, meta)))
+    }
+}
+
+impl raw::Service for StatObserveService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::Deleter;
+    type Copier = oio::Copier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> raw::ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> opendal::Capability {
+        let mut capability = self.inner.capability();
+        capability.stat &= !self.hide_stat;
+        capability
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpCreateDir,
+    ) -> opendal::Result<raw::RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpStat,
+    ) -> opendal::Result<raw::RpStat> {
+        self.stat_count.fetch_add(1, Ordering::SeqCst);
+        let rp = self.inner.stat(ctx, path, args).await?;
+        if let Some(ts) = self.stat_last_modified {
+            let mut builder = rp.into_metadata().into_builder();
+            builder.last_modified(ts);
+            Ok(raw::RpStat::new(builder.build()))
+        } else {
+            Ok(rp)
+        }
+    }
+
+    fn read(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpRead,
+    ) -> opendal::Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpWrite,
+    ) -> opendal::Result<Self::Writer> {
+        self.inner.write(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> opendal::Result<Self::Deleter> {
+        self.inner.delete(ctx)
+    }
+
+    fn list(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: raw::OpList,
+    ) -> opendal::Result<Self::Lister> {
+        let inner = self.inner.list(ctx, path, args)?;
+        if self.strip_list_last_modified {
+            Ok(Box::new(StripLastModifiedLister { inner }))
+        } else {
+            Ok(inner)
+        }
     }
 
     fn copy(
@@ -1185,5 +1365,253 @@ async fn rename_directory_with_trailing_slash_on_fs() -> Result<()> {
         );
     }
     assert_eq!(read_file(&storage, "/dir4/nested.txt").await?, "hello");
+    Ok(())
+}
+
+/// Backends whose lister omits file metadata (mode, size, or last_modified)
+/// must still report real file metadata in `list` and `list_fmt`, matching
+/// `metadata`, while keeping directories intact without stat'ing them.
+#[tokio::test]
+async fn list_populates_file_metadata_on_memory() -> Result<()> {
+    let expected_ts = raw::Timestamp::new(1_700_000_000, 0)?;
+    let stat_count = Arc::new(AtomicUsize::new(0));
+    let op = Operator::new(services::Memory::default())?.layer(StatObserveLayer {
+        stat_count: stat_count.clone(),
+        hide_stat: false,
+        stat_last_modified: Some(expected_ts),
+        strip_list_last_modified: false,
+    });
+    let storage = OpendalStorage::new(op);
+    let user = DefaultUser;
+
+    let payload = b"hello world";
+    storage
+        .put(&user, payload.as_slice(), "/hello.txt", 0)
+        .await
+        .context("put /hello.txt")?;
+    storage
+        .put(&user, "nested".as_bytes(), "/sub/nested.txt", 0)
+        .await
+        .context("put /sub/nested.txt")?;
+    stat_count.store(0, Ordering::SeqCst);
+
+    let entries = storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        stat_count.load(Ordering::SeqCst),
+        1,
+        "list must stat only the incomplete file entry and skip the directory"
+    );
+
+    let file = entries
+        .iter()
+        .find(|entry| entry.path.as_os_str() == "hello.txt")
+        .context("hello.txt missing from list")?;
+    assert!(file.metadata.is_file());
+    assert!(!file.metadata.is_dir());
+    assert_eq!(file.metadata.len(), payload.len() as u64);
+    assert_eq!(
+        file.metadata.modified().context("file modified")?,
+        SystemTime::from(expected_ts)
+    );
+
+    let dir = entries
+        .iter()
+        .find(|entry| entry.path.as_os_str() == "sub/")
+        .context("sub/ missing from list")?;
+    assert!(dir.metadata.is_dir());
+    assert!(!dir.metadata.is_file());
+
+    // Single-file listing must also populate metadata.
+    stat_count.store(0, Ordering::SeqCst);
+    let single = storage
+        .list(&user, "/hello.txt")
+        .await
+        .context("list /hello.txt")?;
+    assert_eq!(single.len(), 1);
+    assert!(single[0].metadata.is_file());
+    assert_eq!(single[0].metadata.len(), payload.len() as u64);
+    assert_eq!(
+        single[0].metadata.modified().context("single modified")?,
+        SystemTime::from(expected_ts)
+    );
+    assert_eq!(stat_count.load(Ordering::SeqCst), 1);
+
+    // Formatted LIST output must reflect the real file size, not 0.
+    let formatted = String::from_utf8(
+        storage
+            .list_fmt(&user, "/")
+            .await
+            .context("list_fmt /")?
+            .into_inner(),
+    )?;
+    let hello_line = formatted
+        .lines()
+        .find(|line| line.ends_with(" hello.txt"))
+        .context("hello.txt line missing from list_fmt")?;
+    assert!(
+        hello_line.contains(&format!(" {} ", payload.len())),
+        "expected formatted size {} in line: {hello_line}",
+        payload.len()
+    );
+    Ok(())
+}
+
+/// Backends whose lister already returns complete file metadata (such as fs)
+/// must not issue extra `stat` calls, while entries missing `last_modified`
+/// must still trigger the `stat` fallback.
+#[tokio::test]
+async fn list_skips_stat_when_metadata_complete_and_fills_missing_last_modified() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let root_path = root.path().to_str().context("non-UTF-8 test root")?;
+    let user = DefaultUser;
+
+    let stat_count = Arc::new(AtomicUsize::new(0));
+    let complete_op =
+        Operator::new(services::Fs::default().root(root_path))?.layer(StatObserveLayer {
+            stat_count: stat_count.clone(),
+            hide_stat: false,
+            stat_last_modified: None,
+            strip_list_last_modified: false,
+        });
+    let complete_storage = OpendalStorage::new(complete_op);
+
+    let payload = b"complete metadata";
+    complete_storage
+        .put(&user, payload.as_slice(), "/hello.txt", 0)
+        .await
+        .context("put /hello.txt")?;
+    complete_storage
+        .mkd(&user, "/sub")
+        .await
+        .context("mkd /sub")?;
+    stat_count.store(0, Ordering::SeqCst);
+
+    let entries = complete_storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        stat_count.load(Ordering::SeqCst),
+        0,
+        "list must not stat entries when lister already provides complete metadata"
+    );
+
+    let file = entries
+        .iter()
+        .find(|entry| entry.path.as_os_str() == "hello.txt")
+        .context("hello.txt missing")?;
+    assert!(file.metadata.is_file());
+    assert_eq!(file.metadata.len(), payload.len() as u64);
+    assert!(file.metadata.modified().is_ok());
+
+    // When lister reports file mode and size but omits last_modified, stat must
+    // fill in modified time for files only (never directories).
+    let partial_stat_count = Arc::new(AtomicUsize::new(0));
+    let partial_op =
+        Operator::new(services::Fs::default().root(root_path))?.layer(StatObserveLayer {
+            stat_count: partial_stat_count.clone(),
+            hide_stat: false,
+            stat_last_modified: None,
+            strip_list_last_modified: true,
+        });
+    let partial_storage = OpendalStorage::new(partial_op);
+
+    let entries = partial_storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 2);
+    assert_eq!(
+        partial_stat_count.load(Ordering::SeqCst),
+        1,
+        "list must stat only the file missing last_modified"
+    );
+    let file = entries
+        .iter()
+        .find(|entry| entry.path.as_os_str() == "hello.txt")
+        .context("hello.txt missing")?;
+    assert!(file.metadata.is_file());
+    assert_eq!(file.metadata.len(), payload.len() as u64);
+    assert!(file.metadata.modified().is_ok());
+    Ok(())
+}
+
+/// Stat fallback during `list` must skip concurrently vanished entries
+/// (`NotFound`), fall back to lister metadata when `stat` is unsupported or
+/// unavailable, and propagate other stat errors.
+#[tokio::test]
+async fn list_handles_stat_not_found_unsupported_and_errors() -> Result<()> {
+    let user = DefaultUser;
+
+    // NotFound on one entry skips the vanished entry without failing the list.
+    let op = Operator::new(services::Memory::default())?.layer(StatErrorLayer {
+        injected_path: "vanished.txt",
+        injected_kind: opendal::ErrorKind::NotFound,
+        hide_list: false,
+    });
+    let storage = OpendalStorage::new(op);
+    storage
+        .put(&user, "gone".as_bytes(), "/vanished.txt", 0)
+        .await?;
+    storage
+        .put(&user, "present".as_bytes(), "/present.txt", 0)
+        .await?;
+
+    let entries = storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path.as_os_str(), "present.txt");
+    assert!(entries[0].metadata.is_file());
+    assert_eq!(entries[0].metadata.len(), 7);
+
+    // Unsupported from stat falls back to the lister's metadata cleanly.
+    let op = Operator::new(services::Memory::default())?.layer(StatErrorLayer {
+        injected_path: "fallback.txt",
+        injected_kind: opendal::ErrorKind::Unsupported,
+        hide_list: false,
+    });
+    let storage = OpendalStorage::new(op);
+    storage
+        .put(&user, "data".as_bytes(), "/fallback.txt", 0)
+        .await?;
+
+    let entries = storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path.as_os_str(), "fallback.txt");
+    assert!(entries[0].metadata.is_file());
+    assert_eq!(entries[0].metadata.len(), 4);
+    assert!(entries[0].metadata.modified().is_err());
+
+    // Missing stat capability skips stat calls entirely.
+    let stat_count = Arc::new(AtomicUsize::new(0));
+    let op = Operator::new(services::Memory::default())?.layer(StatObserveLayer {
+        stat_count: stat_count.clone(),
+        hide_stat: true,
+        stat_last_modified: None,
+        strip_list_last_modified: false,
+    });
+    let storage = OpendalStorage::new(op);
+    storage
+        .put(&user, "data".as_bytes(), "/no-stat.txt", 0)
+        .await?;
+    stat_count.store(0, Ordering::SeqCst);
+
+    let entries = storage.list(&user, "/").await.context("list /")?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path.as_os_str(), "no-stat.txt");
+    assert_eq!(stat_count.load(Ordering::SeqCst), 0);
+
+    // Other stat errors are propagated via convert_err.
+    let op = Operator::new(services::Memory::default())?.layer(StatErrorLayer {
+        injected_path: "secret.txt",
+        injected_kind: opendal::ErrorKind::PermissionDenied,
+        hide_list: false,
+    });
+    let storage = OpendalStorage::new(op);
+    storage
+        .put(&user, "secret".as_bytes(), "/secret.txt", 0)
+        .await?;
+
+    let err = storage
+        .list(&user, "/")
+        .await
+        .err()
+        .expect("permission denied during stat fallback must fail list");
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
     Ok(())
 }

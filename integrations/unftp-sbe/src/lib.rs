@@ -300,16 +300,32 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
             // OpenDAL can include the directory entry itself in a prefix listing.
             entries.retain(|entry| entry.path() != directory);
         }
-        let ret = entries
-            .into_iter()
-            .map(|x| {
-                let (path, metadata) = x.into_parts();
-                storage::Fileinfo {
-                    path: path.into(),
-                    metadata: OpendalMetadata(metadata),
+        let can_stat = self.op.info().capability().stat;
+        let mut ret = Vec::with_capacity(entries.len());
+        for entry in entries {
+            let (path, metadata) = entry.into_parts();
+            // Some backends omit file metadata (mode, size, or last_modified)
+            // from list entries. Fetch full metadata via stat for incomplete
+            // non-directory entries while skipping entries that vanished
+            // concurrently.
+            let metadata = if can_stat
+                && !metadata.is_dir()
+                && (!metadata.is_file() || metadata.last_modified().is_none())
+            {
+                match self.op.stat(&path).await {
+                    Ok(stat_meta) => stat_meta,
+                    Err(err) if err.kind() == opendal::ErrorKind::NotFound => continue,
+                    Err(err) if err.kind() == opendal::ErrorKind::Unsupported => metadata,
+                    Err(err) => return Err(convert_err(err)),
                 }
-            })
-            .collect();
+            } else {
+                metadata
+            };
+            ret.push(storage::Fileinfo {
+                path: path.into(),
+                metadata: OpendalMetadata(metadata),
+            });
+        }
         Ok(ret)
     }
 

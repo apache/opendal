@@ -364,13 +364,23 @@ impl Buffer {
     #[inline]
     pub fn to_io_slice(&self) -> Vec<IoSlice<'_>> {
         match &self.0 {
-            Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
+            Inner::Contiguous(bs) => {
+                if bs.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![IoSlice::new(bs.chunk())]
+                }
+            }
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
             } => {
+                if *size == 0 {
+                    return Vec::new();
+                }
+
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
                 let mut new_offset = *offset;
                 let mut remaining = *size;
@@ -583,14 +593,7 @@ impl Buf for Buffer {
     #[inline]
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         match &self.0 {
-            Inner::Contiguous(b) => {
-                if dst.is_empty() {
-                    return 0;
-                }
-
-                dst[0] = IoSlice::new(b.chunk());
-                1
-            }
+            Inner::Contiguous(b) => b.chunks_vectored(dst),
             Inner::NonContiguous {
                 parts,
                 size,
@@ -911,7 +914,7 @@ impl BufferCursor {
 impl Read for BufferCursor {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let size = self.view.read(buf)?;
-        self.seek(SeekFrom::Current(size as i64))?;
+        self.pos += size as u64;
         Ok(size)
     }
 }
@@ -931,26 +934,32 @@ impl BufRead for BufferCursor {
 impl Seek for BufferCursor {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
         let end = self.data.len() as u64;
-        match pos {
-            SeekFrom::Start(pos) => {
-                self.pos = pos.min(end);
-            }
-            SeekFrom::Current(pos) => {
-                if pos.is_negative() {
-                    self.pos = self.pos.saturating_sub(pos.unsigned_abs());
-                } else {
-                    self.pos = self.pos.saturating_add(pos as u64).min(end);
-                }
-            }
-            SeekFrom::End(pos) => {
-                if pos.is_negative() {
-                    self.pos = end.saturating_sub(pos.unsigned_abs());
-                } else {
-                    self.pos = end.saturating_add(pos as u64).min(end);
-                }
-            }
-        }
-        self.view = self.data.slice(self.pos as usize..);
+        let new_pos = match pos {
+            SeekFrom::Start(pos) => pos,
+            SeekFrom::Current(offset) => self.pos.checked_add_signed(offset).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )
+            })?,
+            SeekFrom::End(offset) => end.checked_add_signed(offset).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "invalid seek to a negative or overflowing position",
+                )
+            })?,
+        };
+
+        self.pos = new_pos;
+        self.view = if new_pos < end {
+            self.data.slice(new_pos as usize..)
+        } else {
+            Buffer::new()
+        };
+        Ok(self.pos)
+    }
+
+    fn stream_position(&mut self) -> io::Result<u64> {
         Ok(self.pos)
     }
 }
@@ -1791,6 +1800,139 @@ mod tests {
             .take(3)
             .collect::<io::Result<Vec<_>>>()?;
         assert_eq!(lines, vec!["line one", "line two"]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_chunks_vectored_empty_and_chain() {
+        let mut exhausted_contiguous = Buffer::from(Bytes::from_static(b"abc"));
+        exhausted_contiguous.advance(3);
+
+        let mut truncated_contiguous = Buffer::from(Bytes::from_static(b"abc"));
+        truncated_contiguous.truncate(0);
+
+        let mut exhausted_non_contiguous =
+            Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        exhausted_non_contiguous.advance(4);
+
+        let mut truncated_non_contiguous =
+            Buffer::from(vec![Bytes::from_static(b"ab"), Bytes::from_static(b"cd")]);
+        truncated_non_contiguous.truncate(0);
+
+        for buf in [
+            Buffer::new(),
+            exhausted_contiguous,
+            truncated_contiguous,
+            exhausted_non_contiguous,
+            truncated_non_contiguous,
+        ] {
+            let mut dst = [IoSlice::new(b"sentinel")];
+            assert_eq!(buf.chunks_vectored(&mut dst), 0);
+            assert_eq!(&*dst[0], b"sentinel");
+            assert!(buf.to_io_slice().is_empty());
+        }
+
+        let chained = Buf::chain(Buffer::new(), Bytes::from_static(b"hello"));
+        let mut dst = [IoSlice::new(EMPTY_SLICE)];
+        assert_eq!(chained.chunks_vectored(&mut dst), 1);
+        assert_eq!(&*dst[0], b"hello");
+    }
+
+    #[test]
+    fn test_buffer_cursor_seek_negative_and_overflow() -> io::Result<()> {
+        let mut cur = BufferCursor::new(Buffer::from(vec![
+            Bytes::from_static(b"abc"),
+            Bytes::from_static(b"def"),
+        ]));
+
+        assert_eq!(cur.seek(SeekFrom::Start(2))?, 2);
+
+        for invalid in [
+            SeekFrom::Current(-3),
+            SeekFrom::Current(i64::MIN),
+            SeekFrom::End(-7),
+            SeekFrom::End(i64::MIN),
+        ] {
+            let err = cur.seek(invalid).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(cur.stream_position()?, 2);
+        }
+
+        // Unchanged cursor still reads from position 2.
+        let mut out = [0u8; 2];
+        cur.read_exact(&mut out)?;
+        assert_eq!(&out, b"cd");
+        assert_eq!(cur.stream_position()?, 4);
+
+        // Overflowing seeks must return InvalidInput without mutating position.
+        assert_eq!(cur.seek(SeekFrom::Start(u64::MAX))?, u64::MAX);
+        for invalid in [SeekFrom::Current(1), SeekFrom::Current(i64::MAX)] {
+            let err = cur.seek(invalid).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+            assert_eq!(cur.stream_position()?, u64::MAX);
+        }
+
+        let near_overflow = u64::MAX - i64::MAX as u64 + 1;
+        assert_eq!(cur.seek(SeekFrom::Start(near_overflow))?, near_overflow);
+        let err = cur.seek(SeekFrom::Current(i64::MAX)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(cur.stream_position()?, near_overflow);
+
+        let end_plus_max = 6 + i64::MAX as u64;
+        assert_eq!(cur.seek(SeekFrom::End(i64::MAX))?, end_plus_max);
+        let err = cur.seek(SeekFrom::Current(i64::MAX)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert_eq!(cur.stream_position()?, end_plus_max);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_buffer_cursor_seek_past_end_and_read() -> io::Result<()> {
+        let mut cur = BufferCursor::new(Buffer::from(vec![
+            Bytes::from_static(b"abc"),
+            Bytes::from_static(b"def"),
+        ]));
+
+        // Seek past end via Start, End, and u64::MAX.
+        assert_eq!(cur.seek(SeekFrom::Start(10))?, 10);
+        assert_eq!(cur.stream_position()?, 10);
+        let mut buf = [0u8; 4];
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, 10);
+        assert_eq!(cur.fill_buf()?, EMPTY_SLICE);
+        cur.consume(4);
+        assert_eq!(cur.stream_position()?, 10);
+
+        assert_eq!(cur.seek(SeekFrom::End(5))?, 11);
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, 11);
+
+        assert_eq!(cur.seek(SeekFrom::Start(u64::MAX))?, u64::MAX);
+        assert_eq!(cur.read(&mut buf)?, 0);
+        assert_eq!(cur.stream_position()?, u64::MAX);
+
+        // Seek back into bounds from past end and read.
+        assert_eq!(cur.seek(SeekFrom::Start(10))?, 10);
+        assert_eq!(cur.seek(SeekFrom::Current(-7))?, 3);
+        let mut tail = [0u8; 3];
+        cur.read_exact(&mut tail)?;
+        assert_eq!(&tail, b"def");
+        assert_eq!(cur.stream_position()?, 6);
+
+        // Valid backward and forward seeks inside the buffer.
+        assert_eq!(cur.seek(SeekFrom::End(-4))?, 2);
+        let mut mid = [0u8; 2];
+        cur.read_exact(&mut mid)?;
+        assert_eq!(&mid, b"cd");
+        assert_eq!(cur.stream_position()?, 4);
+
+        assert_eq!(cur.seek(SeekFrom::Current(-3))?, 1);
+        let mut rest = Vec::new();
+        cur.read_to_end(&mut rest)?;
+        assert_eq!(rest, b"bcdef");
+        assert_eq!(cur.stream_position()?, 6);
 
         Ok(())
     }

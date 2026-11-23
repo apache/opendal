@@ -22,11 +22,19 @@
 
 use std::time::Duration;
 
+#[cfg(not(target_arch = "wasm32"))]
+use opendal_core::Error;
+#[cfg(not(target_arch = "wasm32"))]
+use opendal_core::ErrorKind;
 use opendal_core::Execute;
 use opendal_core::Executor;
+use opendal_core::Result;
 use opendal_core::raw::BoxedStaticFuture;
 
 /// Runs background tasks on the current Tokio runtime.
+///
+/// On non-`wasm32` targets, [`Execute::try_execute`] returns an error when no
+/// Tokio runtime is active on the current thread instead of panicking.
 ///
 /// On `wasm32`, operations that submit background tasks must run inside a
 /// [`tokio::task::LocalSet`] because the executor uses [`tokio::task::spawn_local`].
@@ -39,6 +47,26 @@ impl Execute for TokioExecutor {
         let _handle = tokio::task::spawn(f);
         #[cfg(target_arch = "wasm32")]
         let _handle = tokio::task::spawn_local(f);
+    }
+
+    fn try_execute(&self, f: BoxedStaticFuture<()>) -> Result<()> {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let handle = tokio::runtime::Handle::try_current().map_err(|err| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "no Tokio runtime is available for background tasks",
+                )
+                .set_source(err)
+            })?;
+            let _handle = handle.spawn(f);
+            Ok(())
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _handle = tokio::task::spawn_local(f);
+            Ok(())
+        }
     }
 
     fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
@@ -68,6 +96,33 @@ mod tests {
         executor.inner().execute(Box::pin(async move {
             let _ = tx.send(());
         }));
+
+        timeout(Duration::from_secs(1), rx)
+            .await
+            .expect("task should finish before timeout")
+            .expect("task should send completion");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[test]
+    fn test_try_execute_outside_tokio_runtime() {
+        let executor = TokioExecutor::default();
+        let err = executor
+            .try_execute(Box::pin(async {}))
+            .expect_err("try_execute must return an error outside a Tokio runtime");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_try_execute_inside_tokio_runtime() {
+        let executor = TokioExecutor::default();
+        let (tx, rx) = oneshot::channel();
+
+        executor
+            .try_execute(Box::pin(async move {
+                let _ = tx.send(());
+            }))
+            .expect("try_execute should succeed inside a Tokio runtime");
 
         timeout(Duration::from_secs(1), rx)
             .await

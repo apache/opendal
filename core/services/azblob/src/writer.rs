@@ -134,6 +134,25 @@ impl oio::AppendWrite for AzblobWriter {
     }
 
     async fn append(&self, offset: u64, size: u64, body: Buffer) -> Result<Metadata> {
+        // Azure rejects `Append Block` with an empty body, and an empty append
+        // changes nothing, so read the blob properties instead of appending.
+        if size == 0 {
+            let resp = self
+                .core
+                .azblob_get_blob_properties(&self.ctx, &self.path, &OpStat::default())
+                .await?;
+
+            let meta = AzblobWriter::parse_metadata(resp.headers())?;
+            let status = resp.status();
+            return match status {
+                StatusCode::OK => Ok(meta),
+                _ => Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetBlobProperties")),
+                    resp,
+                )),
+            };
+        }
+
         let resp = self
             .core
             .azblob_append_blob(&self.ctx, &self.path, offset, size, body)

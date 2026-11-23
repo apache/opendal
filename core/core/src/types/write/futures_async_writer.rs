@@ -54,7 +54,7 @@ impl fmt::Debug for FuturesAsyncWriter {
 impl FuturesAsyncWriter {
     /// NOTE: don't allow users to create directly.
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
+    pub(crate) fn new(w: WriteState) -> Self {
         FuturesAsyncWriter {
             sink: BufferSink::new(w),
             buf: oio::FlexBuf::new(256 * 1024),
@@ -190,8 +190,8 @@ mod tests {
     }
 
     fn new_async_writer(writer: RecordingWriter) -> FuturesAsyncWriter {
-        let write_gen = WriteGenerator::new(Box::new(writer), None, false);
-        FuturesAsyncWriter::new(write_gen)
+        let write_state = WriteState::new(Box::new(writer), None, false);
+        FuturesAsyncWriter::new(write_state)
     }
 
     /// A writer whose `close` stays pending until the test releases the gate.
@@ -289,7 +289,7 @@ mod tests {
         let close_started = Arc::new(AtomicBool::new(false));
         let close_gate = Arc::new(AtomicBool::new(false));
 
-        let write_gen = WriteGenerator::new(
+        let write_state = WriteState::new(
             Box::new(GatedCloseWriter {
                 writes: writes.clone(),
                 close_started: close_started.clone(),
@@ -298,7 +298,7 @@ mod tests {
             None,
             false,
         );
-        let mut w = FuturesAsyncWriter::new(write_gen);
+        let mut w = FuturesAsyncWriter::new(write_state);
 
         let waker = futures::task::noop_waker();
         let mut cx = Context::from_waker(&waker);
@@ -340,9 +340,9 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).unwrap();
+        let write_state = WriteState::create(ctx).unwrap();
 
-        let v = FuturesAsyncWriter::new(write_gen);
+        let v = FuturesAsyncWriter::new(write_state);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

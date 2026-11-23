@@ -212,11 +212,11 @@ mod tests {
             write_failures,
             fail_close,
         };
-        let write_gen = WriteGenerator::new(Box::new(writer), None, false);
+        let write_state = WriteState::new(Box::new(writer), None, false);
 
         StdWriter {
             handle: tokio::runtime::Handle::current(),
-            w: Some(FuturesAsyncWriter::new(write_gen)),
+            w: Some(FuturesAsyncWriter::new(write_state)),
             close_failed: false,
             has_error: false,
         }

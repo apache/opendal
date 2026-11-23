@@ -87,11 +87,17 @@ impl FuturesAsyncReader {
     #[inline]
     pub(super) async fn new(ctx: Arc<ReadContext>, range: impl Into<BytesRange>) -> Result<Self> {
         let range = range.into();
-        let (start, range_end) = match range {
-            BytesRange::Range { offset, size: None } => (offset, None),
+        let (start, range_end, suffix_revalidation) = match range {
+            BytesRange::Range { offset, size: None } => (offset, None, None),
+            BytesRange::Suffix { size } if ctx.args().content_length_hint().is_none() => {
+                let expected_len = ctx.content_length().await?;
+                let reval = SuffixRevalidation::new(size, expected_len);
+                let resolved = reval.resolved_range();
+                (resolved.start, Some(resolved.end), Some(reval))
+            }
             range => {
                 let range = ctx.parse_into_range(range).await?;
-                (range.start, Some(range.end))
+                (range.start, Some(range.end), None)
             }
         };
 
@@ -104,7 +110,10 @@ impl FuturesAsyncReader {
             .map(|end| end - start)
             .or_else(|| content_length.map(|end| end.saturating_sub(start)));
         let stream_is_unbounded = size.is_none();
-        let stream = BufferStream::new(ctx.clone(), start, size);
+        let stream = match suffix_revalidation {
+            Some(reval) => BufferStream::new_suffix(ctx.clone(), reval),
+            None => BufferStream::new(ctx.clone(), start, size),
+        };
 
         Ok(FuturesAsyncReader {
             ctx,
@@ -130,7 +139,13 @@ impl FuturesAsyncReader {
             return Poll::Ready(Ok(None));
         }
 
-        match ready!(self.stream.poll_next_unpin(cx)) {
+        let next = ready!(self.stream.poll_next_unpin(cx));
+        if let Some(range) = self.stream.take_revalidated_suffix_range() {
+            self.start = range.start;
+            self.range_end = Some(range.end);
+        }
+
+        match next {
             Some(Ok(buf)) => Poll::Ready(Ok(Some(buf))),
             Some(Err(err)) if self.is_unbounded_eof_error(&err) => {
                 self.eof = true;
@@ -1203,6 +1218,202 @@ mod tests {
             opened_ranges(&counts),
             vec![BytesRange::new(5, Some(2)), BytesRange::new(5, Some(5))]
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_futures_async_reader_revalidates_suffix_on_size_change() -> Result<()> {
+        struct ChangingStreamRead {
+            contents: Arc<Mutex<VecDeque<Bytes>>>,
+        }
+
+        impl oio::StreamRead for ChangingStreamRead {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let data = self
+                    .contents
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected open call");
+                let content_range = range.to_content_range(data.len())?;
+                let slice = data.slice(content_range);
+                let rp = RpRead::new(MetadataBuilder::file(data.len() as u64).build());
+                Ok((
+                    rp,
+                    Box::new(Buffer::from(slice)) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+        }
+
+        #[derive(Debug)]
+        struct ChangingSizeService {
+            stat_lens: Arc<Mutex<VecDeque<u64>>>,
+            contents: Arc<Mutex<VecDeque<Bytes>>>,
+        }
+
+        impl Service for ChangingSizeService {
+            type Reader = oio::StreamReader<ChangingStreamRead>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    stat: true,
+                    read: true,
+                    read_with_suffix: false,
+                    ..Default::default()
+                }
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                let len = self
+                    .stat_lens
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected stat call");
+                Ok(RpStat::new(MetadataBuilder::file(len).build()))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Ok(oio::StreamReader::new(ChangingStreamRead {
+                    contents: self.contents.clone(),
+                }))
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let make_op = |stat_lens: Vec<u64>, contents: Vec<&'static [u8]>| {
+            let srv = Arc::new(ChangingSizeService {
+                stat_lens: Arc::new(Mutex::new(stat_lens.into())),
+                contents: Arc::new(Mutex::new(
+                    contents.into_iter().map(Bytes::from_static).collect(),
+                )),
+            }) as Servicer;
+            let ctx = OperationContext::default().with_executor(crate::test_executor());
+            Operator::from_parts(ctx, srv)
+                .layer(crate::layers::SimulateLayer::default())
+                .layer(crate::layers::CompleteLayer)
+        };
+
+        // Growth (8 -> 12) without chunk: returns b"89AB" and updates seek bounds to 8..12.
+        let op = make_op(vec![8], vec![b"0123456789AB"; 3]);
+        let mut reader = op
+            .reader("f")
+            .await?
+            .into_futures_async_read(BytesRange::suffix(4))
+            .await?;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await.unwrap();
+        assert_eq!(buf, b"89AB");
+
+        assert_eq!(reader.seek(SeekFrom::Start(0)).await.unwrap(), 0);
+        buf.clear();
+        reader.read_to_end(&mut buf).await.unwrap();
+        assert_eq!(buf, b"89AB");
+
+        // Growth (8 -> 12) with chunk(2): returns b"89AB".
+        let op = make_op(vec![8], vec![b"0123456789AB"; 3]);
+        let mut reader = op
+            .reader_with("f")
+            .chunk(2)
+            .await?
+            .into_futures_async_read(BytesRange::suffix(4))
+            .await?;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await.unwrap();
+        assert_eq!(buf, b"89AB");
+
+        // Shrink (12 -> 6) without chunk: returns b"2345".
+        let op = make_op(vec![12, 6], vec![b"012345"; 2]);
+        let mut reader = op
+            .reader("f")
+            .await?
+            .into_futures_async_read(BytesRange::suffix(4))
+            .await?;
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf).await.unwrap();
+        assert_eq!(buf, b"2345");
+
+        // Repeated growth (8 -> 12 -> 16) surfaces temporary Conflict wrapped in io::Error.
+        let op = make_op(vec![8], vec![b"0123456789AB", b"0123456789ABCDEF"]);
+        let mut reader = op
+            .reader("f")
+            .await?
+            .into_futures_async_read(BytesRange::suffix(4))
+            .await?;
+        let mut buf = Vec::new();
+        let io_err = reader
+            .read_to_end(&mut buf)
+            .await
+            .expect_err("repeated growth must fail");
+        let err = io_err
+            .into_inner()
+            .expect("io error must wrap OpenDAL Error")
+            .downcast::<Error>()
+            .expect("inner error must be opendal::Error");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.is_temporary());
+
         Ok(())
     }
 }

@@ -38,7 +38,7 @@ pub struct FuturesBytesSink {
 impl FuturesBytesSink {
     /// Create a new sink from a [`oio::Writer`].
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
+    pub(crate) fn new(w: WriteState) -> Self {
         FuturesBytesSink {
             sink: BufferSink::new(w),
         }
@@ -96,9 +96,9 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).unwrap();
+        let write_state = WriteState::create(ctx).unwrap();
 
-        let v = FuturesBytesSink::new(write_gen);
+        let v = FuturesBytesSink::new(write_state);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

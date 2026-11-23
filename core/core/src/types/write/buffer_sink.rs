@@ -35,9 +35,9 @@ pub struct BufferSink {
 }
 
 enum State {
-    Idle(Option<WriteGenerator<oio::Writer>>),
-    Writing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<usize>)>),
-    Closing(BoxedStaticFuture<(WriteGenerator<oio::Writer>, Result<Metadata>)>),
+    Idle(Option<WriteState>),
+    Writing(BoxedStaticFuture<(WriteState, Result<usize>)>),
+    Closing(BoxedStaticFuture<(WriteState, Result<Metadata>)>),
 }
 
 /// # Safety
@@ -48,7 +48,7 @@ unsafe impl Sync for State {}
 impl BufferSink {
     /// Create a new sink from a [`oio::Writer`].
     #[inline]
-    pub(crate) fn new(w: WriteGenerator<oio::Writer>) -> Self {
+    pub(crate) fn new(w: WriteState) -> Self {
         BufferSink {
             state: State::Idle(Some(w)),
             buf: Buffer::new(),
@@ -280,7 +280,7 @@ mod tests {
                 close_gate: self.close_gate.clone(),
             };
 
-            BufferSink::new(WriteGenerator::new(Box::new(writer), None, false))
+            BufferSink::new(WriteState::new(Box::new(writer), None, false))
         }
     }
 
@@ -413,9 +413,9 @@ mod tests {
             OpWrite::new(),
             OpWriter::new().with_chunk(1),
         ));
-        let write_gen = WriteGenerator::create(ctx).unwrap();
+        let write_state = WriteState::create(ctx).unwrap();
 
-        let v = BufferSink::new(write_gen);
+        let v = BufferSink::new(write_state);
 
         let _: Box<dyn Unpin + MaybeSend + Sync + 'static> = Box::new(v);
     }

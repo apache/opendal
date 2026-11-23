@@ -210,8 +210,8 @@ impl<R> ChaosReader<R> {
     /// If I feel lucky, we can return the correct response. Otherwise,
     /// we need to generate an error.
     fn i_feel_lucky(&self) -> bool {
-        let point: u32 = self.rng.lock().unwrap().random_range(0..100);
-        point >= (self.error_ratio * 100.0) as u32
+        let point: f64 = self.rng.lock().unwrap().random();
+        point >= self.error_ratio
     }
 
     fn unexpected_eof() -> Error {
@@ -251,5 +251,44 @@ impl<R: oio::Read> oio::Read for ChaosReader<R> {
         } else {
             Err(Self::unexpected_eof())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn count_failures(error_ratio: f64, trials: usize) -> usize {
+        let reader = ChaosReader::new(
+            (),
+            Arc::new(Mutex::new(StdRng::seed_from_u64(0))),
+            error_ratio,
+        );
+        (0..trials).filter(|_| !reader.i_feel_lucky()).count()
+    }
+
+    #[test]
+    fn test_sub_percent_error_ratio_injects_errors() {
+        let failures = count_failures(0.005, 2_000);
+        assert!(
+            failures > 0 && failures < 2_000,
+            "expected error_ratio=0.005 to inject some errors, got {failures}/2000"
+        );
+    }
+
+    #[test]
+    fn test_fractional_percent_error_ratio_not_truncated() {
+        let failures_one_percent = count_failures(0.01, 2_000);
+        let failures_one_point_five_percent = count_failures(0.015, 2_000);
+        assert!(
+            failures_one_point_five_percent > failures_one_percent,
+            "expected error_ratio=0.015 ({failures_one_point_five_percent}/2000) to inject more errors than 0.01 ({failures_one_percent}/2000)"
+        );
+    }
+
+    #[test]
+    fn test_error_ratio_boundaries() {
+        assert_eq!(count_failures(0.0, 1_000), 0);
+        assert_eq!(count_failures(1.0, 1_000), 1_000);
     }
 }

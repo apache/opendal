@@ -85,6 +85,15 @@ impl AzdlsCore {
         })
     }
 
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
+        )
+    }
+
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
         let (mut parts, body) = req.into_parts();
 

@@ -19,6 +19,8 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use log::debug;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredential;
@@ -283,6 +285,8 @@ impl GcsBuilder {
             .unwrap_or_else(|| DEFAULT_GCS_SCOPE.to_string());
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
 
         let mut default_credential = DefaultCredentialProvider::builder();
         if self.config.disable_config_load || cfg!(target_arch = "wasm32") {
@@ -687,6 +691,8 @@ mod tests {
                 r#"{"access_token":"vm-token","expires_in":3600}"#
             } else if uri == "https://oauth2.googleapis.com/token" {
                 r#"{"access_token":"source-token","expires_in":3600}"#
+            } else if uri == "https://sts.googleapis.com/v1/token" {
+                r#"{"access_token":"sts-exec-token","expires_in":3600}"#
             } else if uri.contains(":generateAccessToken") {
                 r#"{"accessToken":"impersonated-token","expireTime":"2100-01-01T00:00:00Z"}"#
             } else {
@@ -902,5 +908,191 @@ mod tests {
         assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
         assert!(file_read.paths.lock().unwrap().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[cfg(unix)]
+    struct TempScript {
+        dir: std::path::PathBuf,
+        script_path: std::path::PathBuf,
+        marker_path: std::path::PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl TempScript {
+        fn new(body: &str) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+            use std::sync::atomic::{AtomicU64, Ordering};
+
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "opendal-gcs-cmd-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let marker_path = dir.join("executed");
+            let script_path = dir.join("cred.sh");
+            let script = format!("#!/bin/sh\ntouch \"{}\"\n{}\n", marker_path.display(), body);
+            std::fs::write(&script_path, script).unwrap();
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            Self {
+                dir,
+                script_path,
+                marker_path,
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for TempScript {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[cfg(unix)]
+    fn executable_external_account_json(script_path: &std::path::Path) -> Vec<u8> {
+        serde_json::json!({
+            "type": "external_account",
+            "audience": "//iam.googleapis.com/projects/123/locations/global/workloadIdentityPools/pool/providers/provider",
+            "subject_token_type": "urn:ietf:params:oauth:token-type:id_token",
+            "token_url": "https://sts.googleapis.com/v1/token",
+            "credential_source": {
+                "executable": {
+                    "command": script_path.to_str().unwrap(),
+                    "timeout_millis": 5000,
+                }
+            }
+        })
+        .to_string()
+        .into_bytes()
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_executable_external_account_runs_via_wired_sign_ctx() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"version":1,"success":true,"token_type":"urn:ietf:params:oauth:token-type:id_token","id_token":"exec-subject-token","expiration_time":4102444800}'"#,
+        );
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .disable_vm_metadata()
+            .build_backend()
+            .unwrap();
+
+        let file_read = MockFileRead {
+            files: HashMap::from([(
+                "/adc/exec.json".to_string(),
+                executable_external_account_json(&script.script_path),
+            )]),
+            paths: Arc::default(),
+        };
+        let http = MockHttpSend::default();
+        let ctx = backend
+            .core
+            .sign_ctx
+            .clone()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
+                        "/adc/exec.json".to_string(),
+                    ),
+                    (
+                        "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES".to_string(),
+                        "1".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read)
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            parts
+                .headers
+                .get(AUTHORIZATION)
+                .and_then(|v| v.to_str().ok()),
+            Some("Bearer sts-exec-token")
+        );
+        assert!(script.marker_path.exists());
+        let requests = http.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].0, "https://sts.googleapis.com/v1/token");
+        assert!(
+            requests[0].1.contains("exec-subject-token"),
+            "{}",
+            requests[0].1
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_disable_config_load_skips_ambient_executable_external_account() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"version":1,"success":true,"token_type":"urn:ietf:params:oauth:token-type:id_token","id_token":"exec-subject-token","expiration_time":4102444800}'"#,
+        );
+        let backend = GcsBuilder::default()
+            .bucket("example-bucket")
+            .disable_config_load()
+            .disable_vm_metadata()
+            .build_backend()
+            .unwrap();
+
+        let file_read = MockFileRead {
+            files: HashMap::from([(
+                "/adc/exec.json".to_string(),
+                executable_external_account_json(&script.script_path),
+            )]),
+            paths: Arc::default(),
+        };
+        let http = MockHttpSend::default();
+        let ctx = backend
+            .core
+            .sign_ctx
+            .clone()
+            .with_env(StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "GOOGLE_APPLICATION_CREDENTIALS".to_string(),
+                        "/adc/exec.json".to_string(),
+                    ),
+                    (
+                        "GOOGLE_EXTERNAL_ACCOUNT_ALLOW_EXECUTABLES".to_string(),
+                        "1".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(file_read.clone())
+            .with_http_send(http.clone());
+        let (mut parts, ()) =
+            http::Request::get("https://storage.googleapis.com/example-bucket/obj")
+                .body(())
+                .unwrap()
+                .into_parts();
+
+        let err = backend
+            .core
+            .signer_with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert!(file_read.paths.lock().unwrap().is_empty());
+        assert!(http.requests.lock().unwrap().is_empty());
+        assert!(!script.marker_path.exists());
     }
 }

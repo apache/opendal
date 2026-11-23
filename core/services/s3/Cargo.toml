@@ -48,6 +48,9 @@ reqsign-file-read-tokio = { version = "3.0.9", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 url = { workspace = true }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
+
 [dev-dependencies]
 futures = { workspace = true }
 pretty_assertions = "1"

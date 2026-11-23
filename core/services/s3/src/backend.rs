@@ -35,6 +35,8 @@ use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::ECSCredentialProvider;
 use reqsign_aws_v4::S3ExpressSessionConfig;
 use reqsign_aws_v4::StaticCredentialProvider;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
@@ -1072,10 +1074,12 @@ impl S3Builder {
         };
         debug!("backend use endpoint: {endpoint}");
 
-        // The base signer context only carries local config readers. HTTP
-        // sending is injected from OperationContext when S3Core signs each
-        // operation.
+        // The base signer context carries local config readers and command
+        // execution. HTTP sending is injected from OperationContext when S3Core
+        // signs each operation.
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
 
         let mut default_provider = {
             let mut builder = DefaultCredentialProvider::builder();
@@ -3913,5 +3917,299 @@ mod tests {
             presigned.uri().to_string(),
             "https://s3.us-east-1.amazonaws.com/test/test.txt?versionId=a%2Bb/c%3Dd%2525%26e"
         );
+    }
+
+    #[cfg(unix)]
+    struct TempScript {
+        dir: std::path::PathBuf,
+        script_path: std::path::PathBuf,
+        marker_path: std::path::PathBuf,
+    }
+
+    #[cfg(unix)]
+    impl TempScript {
+        fn new(body: &str) -> Self {
+            use std::os::unix::fs::PermissionsExt;
+            use std::sync::atomic::AtomicU64;
+
+            static COUNTER: AtomicU64 = AtomicU64::new(0);
+            let dir = std::env::temp_dir().join(format!(
+                "opendal-s3-cmd-{}-{}",
+                std::process::id(),
+                COUNTER.fetch_add(1, Ordering::Relaxed)
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let marker_path = dir.join("executed");
+            let script_path = dir.join("cred.sh");
+            let script = format!("#!/bin/sh\ntouch \"{}\"\n{}\n", marker_path.display(), body);
+            std::fs::write(&script_path, script).unwrap();
+            std::fs::set_permissions(&script_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            Self {
+                dir,
+                script_path,
+                marker_path,
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    impl Drop for TempScript {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.dir);
+        }
+    }
+
+    #[cfg(unix)]
+    #[derive(Debug, Clone)]
+    struct MockConfigFileRead {
+        config_path: String,
+        contents: String,
+    }
+
+    #[cfg(unix)]
+    impl reqsign_core::FileRead for MockConfigFileRead {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            if path == self.config_path {
+                Ok(self.contents.as_bytes().to_vec())
+            } else {
+                Err(reqsign_core::Error::unexpected(format!(
+                    "file not found: {path}"
+                )))
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    #[derive(Debug, Clone, Default)]
+    struct MockStsHttpSend {
+        auth_headers: Arc<Mutex<Vec<String>>>,
+    }
+
+    #[cfg(unix)]
+    impl reqsign_core::HttpSend for MockStsHttpSend {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            let auth = request
+                .headers()
+                .get(http::header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            self.auth_headers.lock().unwrap().push(auth);
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::from_static(
+                    br#"<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+                        <AssumeRoleResult>
+                            <Credentials>
+                                <AccessKeyId>ASIAEXAMPLEASSUMED01</AccessKeyId>
+                                <SecretAccessKey>assumed-sk</SecretAccessKey>
+                                <SessionToken>assumed-token</SessionToken>
+                                <Expiration>2099-01-01T00:00:00Z</Expiration>
+                            </Credentials>
+                        </AssumeRoleResult>
+                    </AssumeRoleResponse>"#,
+                ))
+                .unwrap())
+        }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_process_credential_executes_via_wired_sign_ctx() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"Version":1,"AccessKeyId":"proc-wired-ak","SecretAccessKey":"proc-wired-sk","SessionToken":"proc-wired-token"}'"#,
+        );
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .profile("process-wired")
+            .disable_ec2_metadata()
+            .build_inner(S3_SCHEME)
+            .unwrap();
+
+        let config_contents = format!(
+            "[profile process-wired]\ncredential_process = \"{}\"\n",
+            script.script_path.display()
+        );
+        let ctx = backend
+            .core
+            .signer_spec
+            .sign_ctx
+            .clone()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([(
+                    "AWS_CONFIG_FILE".to_string(),
+                    "/mock/aws/config".to_string(),
+                )]),
+            })
+            .with_file_read(MockConfigFileRead {
+                config_path: "/mock/aws/config".to_string(),
+                contents: config_contents,
+            });
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        backend
+            .core
+            .signer_spec
+            .build(ctx)
+            .default()
+            .sign(&mut parts, None)
+            .await
+            .unwrap();
+
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=proc-wired-ak/"), "{auth}");
+        assert_eq!(
+            parts
+                .headers
+                .get("x-amz-security-token")
+                .and_then(|v| v.to_str().ok()),
+            Some("proc-wired-token")
+        );
+        assert!(script.marker_path.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_assume_role_sts_signer_inherits_wired_command_execute() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"Version":1,"AccessKeyId":"proc-wired-ak","SecretAccessKey":"proc-wired-sk","SessionToken":"proc-wired-token"}'"#,
+        );
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .profile("process-wired")
+            .role_arn("arn:aws:iam::123456789012:role/test")
+            .disable_ec2_metadata()
+            .build_inner(S3_SCHEME)
+            .unwrap();
+
+        let config_contents = format!(
+            "[profile process-wired]\ncredential_process = \"{}\"\n",
+            script.script_path.display()
+        );
+        let sts_http = MockStsHttpSend::default();
+        let ctx = backend
+            .core
+            .signer_spec
+            .sign_ctx
+            .clone()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([(
+                    "AWS_CONFIG_FILE".to_string(),
+                    "/mock/aws/config".to_string(),
+                )]),
+            })
+            .with_file_read(MockConfigFileRead {
+                config_path: "/mock/aws/config".to_string(),
+                contents: config_contents,
+            })
+            .with_http_send(sts_http.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        backend
+            .core
+            .signer_spec
+            .build(ctx)
+            .default()
+            .sign(&mut parts, None)
+            .await
+            .unwrap();
+
+        let sts_headers = sts_http.auth_headers.lock().unwrap();
+        assert_eq!(sts_headers.len(), 1);
+        assert!(
+            sts_headers[0].contains("Credential=proc-wired-ak/"),
+            "{}",
+            sts_headers[0]
+        );
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=ASIAEXAMPLEASSUMED01/"), "{auth}");
+        assert_eq!(
+            parts
+                .headers
+                .get("x-amz-security-token")
+                .and_then(|v| v.to_str().ok()),
+            Some("assumed-token")
+        );
+        assert!(script.marker_path.exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_disable_config_load_does_not_execute_process_via_wired_sign_ctx() {
+        let script = TempScript::new(
+            r#"printf '%s' '{"Version":1,"AccessKeyId":"proc-wired-ak","SecretAccessKey":"proc-wired-sk","SessionToken":"proc-wired-token"}'"#,
+        );
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build_inner(S3_SCHEME)
+            .unwrap();
+
+        let config_contents = format!(
+            "[profile process-wired]\ncredential_process = \"{}\"\n",
+            script.script_path.display()
+        );
+        let ctx = backend
+            .core
+            .signer_spec
+            .sign_ctx
+            .clone()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: None,
+                envs: HashMap::from([
+                    (
+                        "AWS_CONFIG_FILE".to_string(),
+                        "/mock/aws/config".to_string(),
+                    ),
+                    ("AWS_PROFILE".to_string(), "process-wired".to_string()),
+                ]),
+            })
+            .with_file_read(MockConfigFileRead {
+                config_path: "/mock/aws/config".to_string(),
+                contents: config_contents,
+            });
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        let err = backend
+            .core
+            .signer_spec
+            .build(ctx)
+            .default()
+            .sign(&mut parts, None)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert!(!script.marker_path.exists());
     }
 }

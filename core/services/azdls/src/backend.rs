@@ -25,6 +25,8 @@ use reqsign_azure_storage::Credential;
 use reqsign_azure_storage::DefaultCredentialProvider;
 use reqsign_azure_storage::RequestSigner;
 use reqsign_azure_storage::StaticCredentialProvider;
+#[cfg(not(target_arch = "wasm32"))]
+use reqsign_command_execute_tokio::TokioCommandExecute;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
@@ -249,6 +251,12 @@ impl Builder for AzdlsBuilder {
     type Config = AzdlsConfig;
 
     fn build(self) -> Result<impl Service> {
+        self.build_backend()
+    }
+}
+
+impl AzdlsBuilder {
+    fn build_backend(self) -> Result<AzdlsBackend> {
         debug!("backend build started: {:?}", self);
 
         let root = normalize_root(&self.config.root.unwrap_or_default());
@@ -278,26 +286,51 @@ impl Builder for AzdlsBuilder {
             .or_else(|| azure_account_name_from_endpoint(endpoint.as_str()));
 
         let ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        #[cfg(not(target_arch = "wasm32"))]
+        let ctx = ctx.with_command_execute(TokioCommandExecute);
+
+        let tenant_id = self.config.tenant_id.as_deref().filter(|v| !v.is_empty());
+        let client_id = self.config.client_id.as_deref().filter(|v| !v.is_empty());
+        let client_secret_value = self
+            .config
+            .client_secret
+            .as_deref()
+            .filter(|v| !v.is_empty());
+        let authority_host = self
+            .config
+            .authority_host
+            .as_deref()
+            .filter(|v| !v.is_empty());
 
         let mut client_secret = ClientSecretCredentialProvider::new();
-        if let Some(v) = &self.config.tenant_id {
+        if let Some(v) = tenant_id {
             client_secret = client_secret.with_tenant_id(v);
         }
-        if let Some(v) = &self.config.client_id {
+        if let Some(v) = client_id {
             client_secret = client_secret.with_client_id(v);
         }
-        if let Some(v) = &self.config.client_secret {
+        if let Some(v) = client_secret_value {
             client_secret = client_secret.with_client_secret(v);
         }
-        if let Some(v) = &self.config.authority_host {
+        if let Some(v) = authority_host {
             client_secret = client_secret.with_authority_host(v);
         }
 
-        let mut credential_providers = ProvideCredentialChain::new().push(
-            DefaultCredentialProvider::builder()
-                .client_secret(client_secret)
-                .build(),
-        );
+        let has_explicit_client_secret =
+            tenant_id.is_some() && client_id.is_some() && client_secret_value.is_some();
+        let mut credential_providers = if has_explicit_client_secret {
+            ProvideCredentialChain::new().push(client_secret).push(
+                DefaultCredentialProvider::builder()
+                    .no_client_secret()
+                    .build(),
+            )
+        } else {
+            ProvideCredentialChain::new().push(
+                DefaultCredentialProvider::builder()
+                    .client_secret(client_secret)
+                    .build(),
+            )
+        };
 
         if let (Some(account_name), Some(account_key)) =
             (account_name.as_deref(), self.config.account_key.as_deref())
@@ -549,5 +582,149 @@ impl Service for AzdlsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[derive(Clone, Default, Debug)]
+    struct MockTokenHttpSend {
+        captured: Arc<std::sync::Mutex<Vec<(String, String)>>>,
+    }
+
+    impl reqsign_core::HttpSend for MockTokenHttpSend {
+        async fn http_send(
+            &self,
+            req: http::Request<bytes::Bytes>,
+        ) -> reqsign_core::Result<http::Response<bytes::Bytes>> {
+            let uri = req.uri().to_string();
+            let body = String::from_utf8_lossy(req.body()).into_owned();
+            self.captured.lock().unwrap().push((uri, body));
+            Ok(http::Response::builder()
+                .status(StatusCode::OK)
+                .body(bytes::Bytes::from_static(
+                    br#"{"access_token":"azdls-bearer-token","expires_in":3600}"#,
+                ))
+                .unwrap())
+        }
+    }
+
+    #[derive(Clone, Default, Debug)]
+    struct MockAzCli {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl reqsign_core::CommandExecute for MockAzCli {
+        async fn command_execute(
+            &self,
+            program: &str,
+            args: &[&str],
+        ) -> reqsign_core::Result<reqsign_core::CommandOutput> {
+            self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            assert_eq!(program, "az");
+            assert_eq!(
+                args,
+                [
+                    "account",
+                    "get-access-token",
+                    "--resource",
+                    "https://storage.azure.com/",
+                    "--output",
+                    "json",
+                ]
+            );
+            Ok(reqsign_core::CommandOutput {
+                status: 0,
+                stdout: br#"{"accessToken":"az-cli-token","expires_on":4102444800,"tokenType":"Bearer"}"#
+                    .to_vec(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn sign_ctx_wires_tokio_command_execute() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .build_backend()
+            .unwrap();
+
+        #[cfg(unix)]
+        let (program, args) = ("/bin/sh", &["-c", "printf ok"][..]);
+        #[cfg(windows)]
+        let (program, args) = ("cmd", &["/C", "echo ok"][..]);
+
+        let output = backend
+            .core
+            .sign_ctx
+            .command_execute(program, args)
+            .await
+            .unwrap();
+        assert!(output.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "ok");
+    }
+
+    #[tokio::test]
+    async fn azure_cli_credential_signs_requests() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .build_backend()
+            .unwrap();
+
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("https://myaccount.dfs.core.windows.net/test/a")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer az-cli-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test]
+    async fn explicit_client_secret_precedes_azure_cli() {
+        let backend = AzdlsBuilder::default()
+            .filesystem("test")
+            .endpoint("https://myaccount.dfs.core.windows.net")
+            .client_id("client-123")
+            .client_secret("secret-123")
+            .tenant_id("tenant-123")
+            .authority_host("https://custom.authority.example")
+            .build_backend()
+            .unwrap();
+
+        let http = MockTokenHttpSend::default();
+        let az_cli = MockAzCli::default();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv::default())
+            .with_http_send(http.clone())
+            .with_command_execute(az_cli.clone());
+        let signer = backend.core.signer_with_context(ctx);
+
+        let (mut parts, _) = http::Request::get("https://myaccount.dfs.core.windows.net/test/a")
+            .body(())
+            .unwrap()
+            .into_parts();
+        signer.sign(&mut parts, None).await.unwrap();
+
+        assert_eq!(
+            parts.headers[http::header::AUTHORIZATION],
+            "Bearer azdls-bearer-token"
+        );
+        assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(http.captured.lock().unwrap().len(), 1);
     }
 }

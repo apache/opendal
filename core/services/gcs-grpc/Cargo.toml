@@ -54,5 +54,9 @@ tonic = { version = "0.14.5", default-features = false, features = [
 ] }
 tonic-prost = { version = "0.14.5", default-features = false }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
+
 [dev-dependencies]
 serde_json = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

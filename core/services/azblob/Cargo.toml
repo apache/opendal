@@ -48,6 +48,9 @@ serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 uuid = { workspace = true, features = ["v4", "serde"] }
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+reqsign-command-execute-tokio = { version = "3.0.9", default-features = false }
+
 [dev-dependencies]
 pretty_assertions = "1"
 serde_json = { workspace = true }

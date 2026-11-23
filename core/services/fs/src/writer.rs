@@ -103,8 +103,8 @@ impl oio::Write for FsLazyWriter {
         if let Some(direct) = &mut self.direct_buffer
             && !direct.tail.is_empty()
         {
-            // PositionWriter drains earlier tasks before writing its final cached
-            // buffer. It counts the logical bytes, while write_all_at pads the tail.
+            // PositionWriter waits for all write tasks before closing with the
+            // logical byte count, while write_all_at pads the aligned tail.
             inner.write(direct.tail.clone().into()).await?;
             direct.tail = Bytes::new();
         }

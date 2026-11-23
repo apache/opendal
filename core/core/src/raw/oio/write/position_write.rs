@@ -150,15 +150,24 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
+        if let Some(bytes) = self.cache.clone() {
+            let length = bytes.len() as u64;
+            let offset = self.next_offset;
+            self.tasks
+                .execute(WriteInput {
+                    w: self.w.clone(),
+                    executor: self.executor.clone(),
+                    offset,
+                    bytes,
+                })
+                .await?;
+            self.cache = None;
+            self.next_offset += length;
+        }
+
         // Make sure all tasks are finished.
         while self.tasks.next().await.transpose()?.is_some() {}
 
-        if let Some(buffer) = self.cache.clone() {
-            let offset = self.next_offset;
-            self.w.write_all_at(offset, buffer.clone()).await?;
-            self.cache = None;
-            self.next_offset += buffer.len() as u64;
-        }
         let final_size = self.next_offset;
         self.w.close(final_size).await
     }
@@ -175,10 +184,11 @@ impl<W: PositionWrite> oio::Write for PositionWriter<W> {
 mod tests {
     use std::collections::HashSet;
     use std::sync::Mutex;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
     use pretty_assertions::assert_eq;
     use rand::{Rng, RngExt, rng};
-    use tokio::time::sleep;
+    use tokio::time::{sleep, timeout};
 
     use super::*;
     use crate::raw::oio::Write;
@@ -319,5 +329,146 @@ mod tests {
         // One write stays in cache; ConcurrentTasks then holds at most `concurrent`
         // tasks when prefetch is 0. The next write awaits the queue head.
         assert_eq!(first_error_at, concurrent + 2);
+    }
+
+    struct TimeoutExecutor {
+        exec: Arc<dyn Execute>,
+        timeout: Duration,
+    }
+
+    impl TimeoutExecutor {
+        fn new(timeout: Duration) -> Self {
+            Self {
+                exec: crate::test_executor().into_inner(),
+                timeout,
+            }
+        }
+    }
+
+    impl Execute for TimeoutExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            self.exec.execute(f)
+        }
+
+        fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
+            self.exec.sleep(self.timeout)
+        }
+    }
+
+    struct StallingWrite {
+        stall_offset: u64,
+        stalled: AtomicBool,
+        attempts: AtomicUsize,
+        data: Mutex<Vec<u8>>,
+        closed_size: Mutex<Option<u64>>,
+    }
+
+    impl StallingWrite {
+        fn new(stall_offset: u64) -> Arc<Self> {
+            Arc::new(Self {
+                stall_offset,
+                stalled: AtomicBool::new(false),
+                attempts: AtomicUsize::new(0),
+                data: Mutex::new(Vec::new()),
+                closed_size: Mutex::new(None),
+            })
+        }
+    }
+
+    impl PositionWrite for Arc<StallingWrite> {
+        async fn write_all_at(&self, offset: u64, buf: Buffer) -> Result<()> {
+            self.attempts.fetch_add(1, Ordering::SeqCst);
+            if offset == self.stall_offset && !self.stalled.swap(true, Ordering::SeqCst) {
+                futures::future::pending::<()>().await;
+            }
+
+            let mut data = self.data.lock().unwrap();
+            let start = offset as usize;
+            let bytes = buf.to_bytes();
+            let end = start + bytes.len();
+            if data.len() < end {
+                data.resize(end, 0);
+            }
+            data[start..end].copy_from_slice(&bytes);
+            Ok(())
+        }
+
+        async fn close(&self, size: u64) -> Result<Metadata> {
+            *self.closed_size.lock().unwrap() = Some(size);
+            Ok(MetadataBuilder::file(size).build())
+        }
+
+        async fn abort(&self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    async fn assert_close_timeout_and_retry(concurrent: usize) {
+        let executor = Executor::with(TimeoutExecutor::new(Duration::from_millis(20)));
+        let inner = StallingWrite::new(0);
+        let mut w = PositionWriter::new(executor, inner.clone(), concurrent);
+
+        w.write(Buffer::from("hello")).await.unwrap();
+
+        let err = timeout(Duration::from_secs(1), w.close())
+            .await
+            .expect("close must honor executor timeout instead of hanging")
+            .expect_err("first close must fail with timeout");
+        assert!(err.is_temporary(), "timeout error must be temporary: {err}");
+        assert!(
+            err.to_string().contains("write position timeout"),
+            "unexpected timeout error: {err}"
+        );
+
+        let meta = timeout(Duration::from_secs(1), w.close())
+            .await
+            .expect("retry close must complete")
+            .expect("retry close must succeed");
+        assert_eq!(meta.content_length(), 5);
+        assert_eq!(*inner.closed_size.lock().unwrap(), Some(5));
+        assert_eq!(inner.data.lock().unwrap().as_slice(), b"hello");
+        assert_eq!(inner.attempts.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_close_timeout_single_concurrent() {
+        assert_close_timeout_and_retry(1).await;
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_close_timeout_multi_concurrent() {
+        assert_close_timeout_and_retry(2).await;
+    }
+
+    #[tokio::test]
+    async fn test_position_writer_close_timeout_when_queue_full_and_final_chunk_stalls() {
+        for stall_offset in [0u64, 4u64] {
+            let executor = Executor::with(TimeoutExecutor::new(Duration::from_millis(20)));
+            let inner = StallingWrite::new(stall_offset);
+            let mut w = PositionWriter::new(executor, inner.clone(), 2);
+
+            w.write(Buffer::from("aa")).await.unwrap();
+            w.write(Buffer::from("bb")).await.unwrap();
+            w.write(Buffer::from("cc")).await.unwrap();
+
+            let err = timeout(Duration::from_secs(1), w.close())
+                .await
+                .expect("close must honor executor timeout instead of hanging")
+                .expect_err("first close must fail with timeout");
+            assert!(err.is_temporary(), "timeout error must be temporary: {err}");
+            assert!(
+                err.to_string().contains("write position timeout"),
+                "unexpected timeout error: {err}"
+            );
+
+            let meta = timeout(Duration::from_secs(1), w.close())
+                .await
+                .expect("retry close must complete")
+                .expect("retry close must succeed");
+            assert_eq!(meta.content_length(), 6);
+            assert_eq!(*inner.closed_size.lock().unwrap(), Some(6));
+            assert_eq!(inner.data.lock().unwrap().as_slice(), b"aabbcc");
+            assert_eq!(inner.attempts.load(Ordering::SeqCst), 4);
+        }
     }
 }

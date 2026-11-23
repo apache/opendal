@@ -194,7 +194,14 @@ impl oio::List for CompfsLazyLister {
                     .await?
                 {
                     Ok(read_dir) => Some(CompfsLister::new(self.core.clone(), &path, read_dir)),
-                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                    Err(e)
+                        if matches!(
+                            e.kind(),
+                            std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+                        ) =>
+                    {
+                        None
+                    }
                     Err(e) => return Err(new_std_io_error(e)),
                 },
             );

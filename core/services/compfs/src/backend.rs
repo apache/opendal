@@ -193,6 +193,19 @@ impl Service for CompfsBackend {
         let to = self.core.prepare_path(to)?;
 
         Ok(oio::OneShotCopier::new(async move {
+            let from_meta = core
+                .exec({
+                    let from = from.clone();
+                    move || async move { compio::fs::metadata(from).await }
+                })
+                .await?;
+            if from_meta.is_dir() {
+                return Err(Error::new(
+                    ErrorKind::IsADirectory,
+                    "copy source is a directory",
+                ));
+            }
+
             core.exec(move || async move {
                 let from = OpenOptions::new().read(true).open(from).await?;
                 if let Some(parent) = to.parent() {
@@ -239,6 +252,7 @@ impl Service for CompfsBackend {
 
             self.core
                 .exec_blocking(move || {
+                    std::fs::metadata(&from).map_err(parse_conditional_rename_path_error)?;
                     if let Some(parent) = to.parent() {
                         std::fs::create_dir_all(parent)
                             .map_err(parse_conditional_rename_path_error)?;
@@ -253,6 +267,7 @@ impl Service for CompfsBackend {
 
         self.core
             .exec(move || async move {
+                compio::fs::metadata(&from).await?;
                 if let Some(parent) = to.parent() {
                     compio::fs::create_dir_all(parent).await?;
                 }
@@ -379,5 +394,69 @@ mod tests {
             std::fs::read(root.join("file")).unwrap(),
             b"parent contents"
         );
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory_source_preserves_destination() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("dir")).unwrap();
+        std::fs::write(root.join("dir/child"), b"source contents").unwrap();
+        std::fs::write(root.join("dst"), b"destination contents").unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.copy("dir", "dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert_eq!(
+            std::fs::read(root.join("dst")).unwrap(),
+            b"destination contents"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_copy_directory_source_does_not_create_destination() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::create_dir(root.join("dir")).unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.copy("dir", "new_dir/missing").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!root.join("new_dir").exists());
+    }
+
+    #[tokio::test]
+    async fn test_rename_missing_source_does_not_create_destination_parent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op.rename("missing", "ghost/dir/dst").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert!(!root.join("ghost").exists());
+    }
+
+    #[tokio::test]
+    async fn test_conditional_rename_missing_source_does_not_create_destination_parent() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        std::fs::write(root.join("file"), b"file contents").unwrap();
+        let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
+
+        let err = op
+            .rename_with("missing", "ghost/dir/dst")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert!(!root.join("ghost").exists());
+
+        let err = op
+            .rename_with("missing", "file/target")
+            .if_not_exists(true)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound, "{err:?}");
+        assert_eq!(std::fs::read(root.join("file")).unwrap(), b"file contents");
     }
 }

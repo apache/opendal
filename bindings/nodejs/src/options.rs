@@ -21,6 +21,8 @@ use opendal::BytesRange;
 use opendal::raw::Timestamp;
 use std::collections::HashMap;
 
+use crate::validate::parse_count;
+
 /// Convert a JavaScript `BigInt` into a `u64` offset or size.
 ///
 /// `BigInt::get_u64` only reports the lowest 64-bit word and returns the sign
@@ -173,15 +175,19 @@ pub struct ReadOptions {
      *
      * By setting `concurrent`, opendal will fetch chunks concurrently with
      * the give chunk size.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub concurrent: Option<u32>,
+    pub concurrent: Option<f64>,
 
     /**
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<u32>,
+    pub chunk: Option<f64>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -296,11 +302,20 @@ impl TryFrom<ReadOptions> for opendal::options::ReadOptions {
             .as_ref()
             .map(|gap| bigint_to_usize(gap, "gap"))
             .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
+        let chunk = value
+            .chunk
+            .map(|v| parse_count(v, "chunk", 0))
+            .transpose()?;
 
         Ok(Self {
             version: value.version,
-            concurrent: value.concurrent.unwrap_or_default() as usize,
-            chunk: value.chunk.map(|chunk| chunk as usize),
+            concurrent,
+            chunk,
             gap,
             range,
             if_match: value.if_match,
@@ -335,15 +350,19 @@ pub struct ReaderOptions {
      *
      * By setting `concurrent`, opendal will fetch chunks concurrently with
      * the give chunk size.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub concurrent: Option<u32>,
+    pub concurrent: Option<f64>,
 
     /**
      * Sets the chunk size for this operation.
      *
      * OpenDAL will use services' preferred chunk size by default. Users can set chunk based on their own needs.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub chunk: Option<u32>,
+    pub chunk: Option<f64>,
 
     /** Controls the number of prefetched bytes ranges that can be buffered in memory
      * during concurrent reading.
@@ -358,8 +377,10 @@ pub struct ReaderOptions {
      *
      * This option helps prevent memory exhaustion when reading large files with high
      * concurrency settings.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub prefetch: Option<u32>,
+    pub prefetch: Option<f64>,
 
     /**
      * Controls the optimization strategy for range reads in [`Reader::fetch`].
@@ -421,13 +442,27 @@ impl TryFrom<ReaderOptions> for opendal::options::ReaderOptions {
             .as_ref()
             .map(|gap| bigint_to_usize(gap, "gap"))
             .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
+        let chunk = value
+            .chunk
+            .map(|v| parse_count(v, "chunk", 0))
+            .transpose()?;
+        let prefetch = value
+            .prefetch
+            .map(|v| parse_count(v, "prefetch", 0))
+            .transpose()?
+            .unwrap_or_default();
 
         Ok(Self {
             version: value.version,
-            concurrent: value.concurrent.unwrap_or_default() as usize,
-            chunk: value.chunk.map(|chunk| chunk as usize),
+            concurrent,
+            chunk,
             gap,
-            prefetch: value.prefetch.unwrap_or_default() as usize,
+            prefetch,
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_modified_since,
@@ -446,8 +481,10 @@ pub struct ListOptions {
      * that could return per-request.
      *
      * Users could use this to control the memory usage of list operation.
+     *
+     * The value must be an integer between 0 and 4294967295.
      */
-    pub limit: Option<u32>,
+    pub limit: Option<f64>,
 
     /**
      * The start_after passed to underlying service to specify the specified key
@@ -488,16 +525,23 @@ pub struct ListOptions {
     pub deleted: Option<bool>,
 }
 
-impl From<ListOptions> for opendal::options::ListOptions {
-    fn from(value: ListOptions) -> Self {
-        Self {
-            limit: value.limit.map(|v| v as usize),
+impl TryFrom<ListOptions> for opendal::options::ListOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: ListOptions) -> napi::Result<Self> {
+        let limit = value
+            .limit
+            .map(|v| parse_count(v, "limit", 0))
+            .transpose()?;
+
+        Ok(Self {
+            limit,
             start_after: value.start_after,
             recursive: value.recursive.unwrap_or_default(),
             versions: value.versions.unwrap_or_default(),
             deleted: value.deleted.unwrap_or_default(),
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -574,7 +618,9 @@ pub struct WriteOptions {
     ///   - Write operations return immediately without waiting if tasks space are available
     ///   - Close operation ensures all writes complete in order
     ///   - Memory usage increases with concurrency level
-    pub concurrent: Option<u32>,
+    ///
+    /// The value must be an integer between 0 and 4294967295.
+    pub concurrent: Option<f64>,
 }
 
 impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
@@ -586,6 +632,11 @@ impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
             .as_ref()
             .map(|chunk| bigint_to_usize(chunk, "chunk"))
             .transpose()?;
+        let concurrent = value
+            .concurrent
+            .map(|v| parse_count(v, "concurrent", 0))
+            .transpose()?
+            .unwrap_or_default();
 
         Ok(Self {
             append: value.append.unwrap_or_default(),
@@ -598,7 +649,7 @@ impl TryFrom<WriteOptions> for opendal::options::WriteOptions {
             if_match: value.if_match,
             if_none_match: value.if_none_match,
             if_not_exists: value.if_not_exists.unwrap_or_default(),
-            concurrent: value.concurrent.unwrap_or_default() as usize,
+            concurrent,
             ..Default::default()
         })
     }

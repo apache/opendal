@@ -246,7 +246,7 @@ impl Operator {
         path: String,
         options: Option<options::ReadOptions>,
     ) -> Result<Buffer> {
-        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
+        let options = ReadOptions::try_from(options.unwrap_or_default())?;
         let res = self
             .async_op
             .read_options(&path, options)
@@ -265,7 +265,7 @@ impl Operator {
         path: String,
         options: Option<options::ReaderOptions>,
     ) -> Result<Reader> {
-        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
+        let options = ReaderOptions::try_from(options.unwrap_or_default())?;
         let r = self
             .async_op
             .reader_options(&path, options)
@@ -288,7 +288,7 @@ impl Operator {
     /// ```
     #[napi]
     pub fn read_sync(&self, path: String, options: Option<options::ReadOptions>) -> Result<Buffer> {
-        let options = options.map_or_else(ReadOptions::default, ReadOptions::from);
+        let options = ReadOptions::try_from(options.unwrap_or_default())?;
         let res = self
             .blocking_op
             .read_options(&path, options)
@@ -306,7 +306,7 @@ impl Operator {
         path: String,
         options: Option<options::ReaderOptions>,
     ) -> Result<BlockingReader> {
-        let options = options.map_or_else(ReaderOptions::default, ReaderOptions::from);
+        let options = ReaderOptions::try_from(options.unwrap_or_default())?;
         let r = self
             .blocking_op
             .reader_options(&path, options)
@@ -338,7 +338,7 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let metadata = self
             .async_op
             .write_options(&path, c, options)
@@ -357,10 +357,10 @@ impl Operator {
         path: String,
         options: Option<options::WriteOptions>,
     ) -> Result<Writer> {
-        let options = options.unwrap_or_default();
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let writer = self
             .async_op
-            .writer_options(&path, options.into())
+            .writer_options(&path, options)
             .await
             .map_err(format_napi_error)?;
         Ok(Writer {
@@ -377,10 +377,10 @@ impl Operator {
         path: String,
         options: Option<options::WriteOptions>,
     ) -> Result<BlockingWriter> {
-        let options = options.unwrap_or_default();
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let writer = self
             .blocking_op
-            .writer_options(&path, options.into())
+            .writer_options(&path, options)
             .map_err(format_napi_error)?;
         Ok(BlockingWriter(writer))
     }
@@ -407,7 +407,7 @@ impl Operator {
             Either::A(buf) => buf.as_ref().to_owned(),
             Either::B(s) => s.into_bytes(),
         };
-        let options = options.map_or_else(WriteOptions::default, WriteOptions::from);
+        let options = WriteOptions::try_from(options.unwrap_or_default())?;
         let metadata = self
             .blocking_op
             .write_options(&path, c, options)

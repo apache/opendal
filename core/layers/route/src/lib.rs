@@ -159,38 +159,31 @@ impl RouteRouter {
 
 impl Layer for RouteLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl RouteLayer {
-    fn layer(&self, inner: Servicer) -> RouteAccessor {
-        RouteAccessor {
-            inner: Arc::new(inner),
+        Arc::new(RouteService {
+            inner,
             router: self.router.clone(),
-        }
+        })
     }
 }
 
-#[doc(hidden)]
-pub struct RouteAccessor {
+struct RouteService {
     inner: Servicer,
     router: Arc<RouteRouter>,
 }
 
-impl Debug for RouteAccessor {
+impl Debug for RouteService {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
 }
 
-impl RouteAccessor {
+impl RouteService {
     fn select(&self, path: &str) -> RouteSelected {
         self.router.select(path, &self.inner)
     }
 }
 
-impl Service for RouteAccessor {
+impl Service for RouteService {
     type Reader = oio::Reader;
     type Writer = oio::Writer;
     type Lister = oio::Lister;
@@ -320,8 +313,7 @@ impl Service for RouteAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct RouteDeleter {
+struct RouteDeleter {
     default: Servicer,
     router: Arc<RouteRouter>,
     ctx: OperationContext,

@@ -227,7 +227,7 @@ mod ffi {
         content_type: OptionalString,
         content_encoding: OptionalString,
         etag: OptionalString,
-        last_modified: OptionalString,
+        last_modified: OptionalTimestamp,
         version: OptionalString,
         is_current: OptionalBool,
         is_deleted: bool,

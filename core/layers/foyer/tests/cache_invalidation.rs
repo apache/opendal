@@ -17,19 +17,22 @@
 
 use foyer::{HybridCache, HybridCacheBuilder, RecoverMode};
 use futures::StreamExt;
+use opendal_core::raw::oio::ReadStream as _;
 use opendal_core::raw::{
     OpCopy, OpCreateDir, OpDelete, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite,
-    RpCreateDir, RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
+    RpCreateDir, RpPresign, RpRead, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
 };
 use opendal_core::services::Memory;
 use opendal_core::{
-    Buffer, Builder, Capability, Error, ErrorKind, Metadata, OperationContext, Operator, Result,
+    Buffer, Builder, BytesRange, Capability, Error, ErrorKind, Metadata, OperationContext,
+    Operator, Result,
 };
 use opendal_layer_foyer::{Deleter, FoyerKey, FoyerLayer, FoyerService, FoyerValue, Writer};
 use opendal_service_fs::Fs;
 use std::ops::Range;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::time::Duration;
 use tokio::sync::Notify;
 
 async fn cached_fs(dir: &tempfile::TempDir) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
@@ -329,22 +332,115 @@ async fn aborted_write_keeps_cached_entry() {
     assert_eq!(op.read("k").await.unwrap().to_vec(), b"old");
 }
 
+#[derive(Debug)]
+struct ReadGate {
+    path: String,
+    started: Notify,
+    release: Notify,
+    finished: Notify,
+    armed: AtomicBool,
+    open_calls: AtomicUsize,
+}
+
+impl ReadGate {
+    fn new(path: &str) -> Arc<Self> {
+        Arc::new(Self {
+            path: path.to_string(),
+            started: Notify::new(),
+            release: Notify::new(),
+            finished: Notify::new(),
+            armed: AtomicBool::new(true),
+            open_calls: AtomicUsize::new(0),
+        })
+    }
+}
+
+struct GatedStream {
+    data: Option<Buffer>,
+    gate: Arc<ReadGate>,
+    notified: bool,
+}
+
+impl oio::ReadStream for GatedStream {
+    async fn read(&mut self) -> Result<Buffer> {
+        if !self.notified {
+            self.notified = true;
+            self.gate.started.notify_one();
+            self.gate.release.notified().await;
+        }
+        Ok(self.data.take().unwrap_or_default())
+    }
+}
+
+impl Drop for GatedStream {
+    fn drop(&mut self) {
+        self.gate.finished.notify_one();
+    }
+}
+
+struct GatedReader {
+    inner: oio::Reader,
+    path: String,
+    gate: Option<Arc<ReadGate>>,
+}
+
+impl oio::Read for GatedReader {
+    async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+        if let Some(gate) = &self.gate
+            && self.path == gate.path
+        {
+            gate.open_calls.fetch_add(1, Ordering::SeqCst);
+            let (rp, mut stream) = self.inner.open(range).await?;
+            if gate.armed.swap(false, Ordering::SeqCst) {
+                // Snapshot pre-mutation bytes before pausing so the in-flight
+                // fill carries genuinely stale bytes when released.
+                let snapshot = stream.read_all().await?;
+                return Ok((
+                    rp,
+                    Box::new(GatedStream {
+                        data: Some(snapshot),
+                        gate: gate.clone(),
+                        notified: false,
+                    }) as Box<dyn oio::ReadStreamDyn>,
+                ));
+            }
+            return Ok((rp, stream));
+        }
+        self.inner.open(range).await
+    }
+
+    async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+        self.inner.read(range).await
+    }
+}
+
 #[derive(Debug, Default)]
 struct CloseFaultBuilder {
+    fs_root: Option<String>,
     fail_next_close: bool,
     pending_next_close: bool,
     recursive_delete: Option<Arc<RecursiveDeleteState>>,
+    buffered_delete: Option<Arc<RecursiveDeleteState>>,
+    stat_gate: Option<(String, Arc<Notify>, Arc<Notify>)>,
+    read_gate: Option<Arc<ReadGate>>,
 }
 
 impl Builder for CloseFaultBuilder {
     type Config = ();
 
     fn build(self) -> Result<impl Service> {
+        let inner: Servicer = match self.fs_root {
+            Some(root) => Arc::new(Fs::default().root(&root).build()?),
+            None => Arc::new(Memory::default().build()?),
+        };
         Ok(CloseFaultService {
-            inner: Arc::new(Memory::default().build()?),
+            inner,
             fail_next_close: Arc::new(AtomicBool::new(self.fail_next_close)),
             pending_next_close: Arc::new(AtomicBool::new(self.pending_next_close)),
             recursive_delete: self.recursive_delete,
+            buffered_delete: self.buffered_delete,
+            stat_gate: self.stat_gate,
+            read_gate: self.read_gate,
         })
     }
 }
@@ -355,6 +451,9 @@ struct CloseFaultService {
     fail_next_close: Arc<AtomicBool>,
     pending_next_close: Arc<AtomicBool>,
     recursive_delete: Option<Arc<RecursiveDeleteState>>,
+    buffered_delete: Option<Arc<RecursiveDeleteState>>,
+    stat_gate: Option<(String, Arc<Notify>, Arc<Notify>)>,
+    read_gate: Option<Arc<ReadGate>>,
 }
 
 struct CloseFaultWriter {
@@ -393,12 +492,13 @@ struct RecursiveDeleteState {
 struct DelayedRecursiveDeleter {
     inner: oio::Deleter,
     state: Option<Arc<RecursiveDeleteState>>,
+    buffer_all: bool,
     pending: Vec<(String, OpDelete)>,
 }
 
 impl oio::Delete for DelayedRecursiveDeleter {
     async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
-        if self.state.is_some() && args.recursive() {
+        if self.state.is_some() && (self.buffer_all || args.recursive()) {
             self.pending.push((path.to_string(), args));
             return Ok(());
         }
@@ -427,7 +527,7 @@ impl oio::Delete for DelayedRecursiveDeleter {
 }
 
 impl Service for CloseFaultService {
-    type Reader = oio::Reader;
+    type Reader = GatedReader;
     type Writer = CloseFaultWriter;
     type Lister = oio::Lister;
     type Deleter = DelayedRecursiveDeleter;
@@ -452,11 +552,21 @@ impl Service for CloseFaultService {
     }
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        if let Some((gate_path, started, release)) = &self.stat_gate
+            && path == gate_path
+        {
+            started.notify_one();
+            release.notified().await;
+        }
         self.inner.stat(ctx, path, args).await
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        self.inner.read(ctx, path, args)
+        Ok(GatedReader {
+            inner: self.inner.read(ctx, path, args)?,
+            path: path.to_string(),
+            gate: self.read_gate.clone(),
+        })
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
@@ -468,9 +578,15 @@ impl Service for CloseFaultService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        let (state, buffer_all) = if let Some(state) = &self.buffered_delete {
+            (Some(state.clone()), true)
+        } else {
+            (self.recursive_delete.clone(), false)
+        };
         Ok(DelayedRecursiveDeleter {
             inner: self.inner.delete(ctx)?,
-            state: self.recursive_delete.clone(),
+            state,
+            buffer_all,
             pending: vec![],
         })
     }
@@ -634,6 +750,334 @@ async fn recursive_delete_does_not_serve_cached_descendants() {
         assert!(!cache.contains(&unversioned_key(path)));
     }
     assert_eq!(op.read("dir2/c").await.unwrap().to_vec(), b"v3");
+}
+
+#[tokio::test]
+async fn buffered_delete_close_does_not_allow_mid_close_cache_repopulation() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let stat_started = Arc::new(Notify::new());
+    let stat_release = Arc::new(Notify::new());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        stat_gate: Some((
+            "other".to_string(),
+            stat_started.clone(),
+            stat_release.clone(),
+        )),
+        ..Default::default()
+    })
+    .await;
+
+    op.write("target", "v1").await.unwrap();
+    op.write("other", "other-data").await.unwrap();
+    // Clear "other" from cache so reading it triggers a backend stat that we can gate.
+    cache.remove(&unversioned_key("other"));
+    assert!(cache.contains(&unversioned_key("target")));
+
+    let unrelated_read = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("other").await.unwrap() }
+    });
+    stat_started.notified().await;
+
+    // Start a buffered delete of "target"; it pauses inside `deleter.close().await`
+    // before the backend removes "target".
+    let delete_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.delete("target").await.unwrap() }
+    });
+    delete_state.close_started.notified().await;
+
+    // Finish the unrelated read while `deleter.close().await` is still running.
+    stat_release.notify_one();
+    assert_eq!(unrelated_read.await.unwrap().to_vec(), b"other-data");
+
+    // Read "target" before `deleter.close().await` finishes deleting it from backend.
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"v1");
+
+    // Complete backend deletion.
+    delete_state.finish_close.notify_one();
+    delete_task.await.unwrap();
+
+    assert!(
+        !cache.contains(&unversioned_key("target")),
+        "a read during buffered deleter close must not leave stale data cached after close"
+    );
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
+}
+
+#[tokio::test]
+async fn buffered_delete_close_reinvalidates_mid_close_write() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "v1").await.unwrap();
+    assert!(cache.contains(&key));
+
+    // Start a buffered delete of "target"; it calls `begin_delete` and pauses
+    // inside `deleter.close().await` before the backend removes "target".
+    let delete_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.delete("target").await.unwrap() }
+    });
+    delete_state.close_started.notified().await;
+
+    // A write arriving mid-close repopulates the cache before the buffered
+    // backend delete executes.
+    op.write("target", "v2").await.unwrap();
+    assert!(cache.contains(&key));
+
+    // Complete backend deletion. `DeleteGuard::drop` must re-invalidate
+    // "target" so the deleted object is not served stale from cache.
+    delete_state.finish_close.notify_one();
+    delete_task.await.unwrap();
+
+    assert!(
+        !cache.contains(&key),
+        "a write during buffered deleter close must be re-invalidated when close completes"
+    );
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
+}
+
+#[tokio::test]
+async fn cancelled_buffered_delete_close_reinvalidates_and_preserves_retry() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "v1").await.unwrap();
+    let mut deleter = op.deleter().await.unwrap();
+    deleter.delete("target").await.unwrap();
+
+    {
+        let close = deleter.close();
+        futures::pin_mut!(close);
+        assert!(futures::poll!(&mut close).is_pending());
+        // Mid-close write repopulates cache before `close` is cancelled.
+        op.write("target", "v2").await.unwrap();
+        assert!(cache.contains(&key));
+    }
+
+    // Dropping the in-flight `close()` future must still run `DeleteGuard::drop`
+    // and re-invalidate the key.
+    assert!(
+        !cache.contains(&key),
+        "cancelling deleter close must still re-invalidate target keys"
+    );
+
+    // Retrying `close()` after cancellation must still invalidate any write
+    // performed before the retry completes.
+    op.write("target", "v3").await.unwrap();
+    assert!(cache.contains(&key));
+    delete_state.finish_close.notify_one();
+    deleter.close().await.unwrap();
+
+    assert!(!cache.contains(&key));
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
+}
+
+#[tokio::test]
+async fn append_evict_during_inflight_read_does_not_cache_stale_data() {
+    let dir = tempfile::tempdir().unwrap();
+    let gate = ReadGate::new("target");
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        fs_root: Some(dir.path().to_str().unwrap().to_string()),
+        read_gate: Some(gate.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "old").await.unwrap();
+    cache.remove(&key);
+
+    // Start a read that snapshots "old" from backend and pauses before committing to cache.
+    let read_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await.unwrap() }
+    });
+    gate.started.notified().await;
+
+    // Append while the read is still in flight; this exercises `PinnedKind::Evict`.
+    op.write_with("target", "-new").append(true).await.unwrap();
+
+    // Release the older read. It returns the pre-append bytes it read, but must not
+    // leave stale bytes cached.
+    gate.release.notify_one();
+    assert_eq!(read_task.await.unwrap().to_vec(), b"old");
+    assert!(
+        !cache.contains(&key),
+        "older read completing after append eviction must not cache stale bytes"
+    );
+
+    // Subsequent reads must see the appended bytes and refill the cache.
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"old-new");
+    assert!(
+        cache.contains(&key),
+        "subsequent read after eviction release must refill the cache"
+    );
+    let opens_after_refill = gate.open_calls.load(Ordering::SeqCst);
+    assert_eq!(
+        opens_after_refill, 2,
+        "initial read and post-eviction refill should each open backend once"
+    );
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"old-new");
+    assert_eq!(
+        gate.open_calls.load(Ordering::SeqCst),
+        opens_after_refill,
+        "refilled entry after eviction must serve subsequent reads from cache"
+    );
+}
+
+#[tokio::test]
+async fn cancelled_read_racing_with_evict_does_not_leave_stale_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let gate = ReadGate::new("target");
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        fs_root: Some(dir.path().to_str().unwrap().to_string()),
+        read_gate: Some(gate.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "old").await.unwrap();
+    cache.remove(&key);
+
+    // Start a read that snapshots "old" and pauses before committing to cache.
+    let read_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await.unwrap() }
+    });
+    gate.started.notified().await;
+
+    // Cancel the caller future so only `fetch_guard` inside Foyer's detached fetch remains.
+    read_task.abort();
+    let _ = read_task.await;
+
+    // Append triggers `Evict` while the detached fetch still holds stale "old" bytes.
+    op.write_with("target", "-new").append(true).await.unwrap();
+
+    // Attach a passive waiter to Foyer's inflight so we observe the detached fetch finishing.
+    let wait_inflight = cache.get(&key);
+    gate.release.notify_one();
+    let _ = wait_inflight.await;
+    gate.finished.notified().await;
+
+    assert!(
+        !cache.contains(&key),
+        "detached fetch from a cancelled read must not insert stale bytes after eviction"
+    );
+
+    // Subsequent reads must observe the appended bytes and refill the cache.
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"old-new");
+    assert!(
+        cache.contains(&key),
+        "subsequent read after cancelled fetch and eviction must refill the cache"
+    );
+}
+
+#[tokio::test]
+async fn old_fill_racing_with_store_does_not_overwrite_fresh_entry() {
+    let gate = ReadGate::new("target");
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        read_gate: Some(gate.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "old").await.unwrap();
+    cache.remove(&key);
+
+    // Start an older fill that snapshots "old" and pauses right before committing.
+    let read_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await.unwrap() }
+    });
+    gate.started.notified().await;
+
+    // Overwrite with "fresh" via `store()`; Foyer's `insert` populates "fresh" and
+    // completes waiting readers while the detached older fill is still paused with "old".
+    op.write("target", "fresh").await.unwrap();
+    assert_eq!(read_task.await.unwrap().to_vec(), b"fresh");
+    assert!(cache.contains(&key));
+
+    // Release the detached older fill carrying "old" and wait for its fetch closure to finish.
+    gate.release.notify_one();
+    gate.finished.notified().await;
+    tokio::task::yield_now().await;
+
+    // The fresh entry written by `store()` must remain cached without being overwritten.
+    assert!(cache.contains(&key));
+    let opens_before = gate.open_calls.load(Ordering::SeqCst);
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"fresh");
+    assert_eq!(
+        gate.open_calls.load(Ordering::SeqCst),
+        opens_before,
+        "subsequent read must hit the fresh cached entry rather than stale bytes or backend"
+    );
+}
+
+#[tokio::test]
+async fn cancelled_coalesced_waiter_does_not_deadlock_on_store() {
+    let gate = ReadGate::new("target");
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        read_gate: Some(gate.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "old").await.unwrap();
+    cache.remove(&key);
+
+    // Leader read pauses inside backend stream with "old".
+    let leader = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await.unwrap() }
+    });
+    gate.started.notified().await;
+
+    // Second reader joins Foyer's inflight entry, placing its fetch future (and
+    // `ReadGuard`) inside Foyer's `InflightManager`, and is then cancelled.
+    {
+        let waiter = op.read("target");
+        futures::pin_mut!(waiter);
+        assert!(futures::poll!(&mut waiter).is_pending());
+    }
+
+    // `store()` calls `cache.insert()`, which drops the cancelled waiter's stored
+    // fetch future while holding Foyer's shard and inflight locks; this must not deadlock.
+    tokio::time::timeout(Duration::from_secs(2), op.write("target", "fresh"))
+        .await
+        .expect("store() must not deadlock when Foyer drops a cancelled waiter's guard")
+        .unwrap();
+
+    gate.release.notify_one();
+    let _ = leader.await.unwrap();
+    gate.finished.notified().await;
+
+    assert!(cache.contains(&key));
+    assert_eq!(op.read("target").await.unwrap().to_vec(), b"fresh");
 }
 
 #[test]

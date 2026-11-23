@@ -145,7 +145,12 @@ impl LoggingLayer {
 
 impl<I: LoggingInterceptor> Layer for LoggingLayer<I> {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        let info = inner.info();
+        Arc::new(LoggingService {
+            inner,
+            info,
+            logger: self.logger.clone(),
+        })
     }
 
     fn apply_context(&self, service: Servicer, inner: OperationContext) -> OperationContext {
@@ -154,17 +159,6 @@ impl<I: LoggingInterceptor> Layer for LoggingLayer<I> {
             info: service.info(),
         });
         inner.with_http_transport(transport)
-    }
-}
-
-impl<I: LoggingInterceptor> LoggingLayer<I> {
-    fn layer(&self, inner: Servicer) -> LoggingService<I> {
-        let info = inner.info();
-        LoggingService {
-            inner,
-            info,
-            logger: self.logger.clone(),
-        }
     }
 }
 
@@ -288,16 +282,16 @@ impl LoggingInterceptor for DefaultLoggingInterceptor {
                     format!("{err:?}")
                 }
             );
+        } else {
+            log!(
+                target: LOGGING_TARGET,
+                Level::Debug,
+                "service={} name={}{}: {operation} {message}",
+                info.scheme(),
+                info.name(),
+                LoggingContext(context),
+            );
         }
-
-        log!(
-            target: LOGGING_TARGET,
-            Level::Debug,
-            "service={} name={}{}: {operation} {message}",
-            info.scheme(),
-            info.name(),
-            LoggingContext(context),
-        );
     }
 }
 
@@ -312,8 +306,7 @@ impl Display for LoggingContext<'_> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingService<I: LoggingInterceptor> {
+struct LoggingService<I: LoggingInterceptor> {
     inner: Servicer,
     info: ServiceInfo,
     logger: I,
@@ -566,8 +559,7 @@ impl<I: LoggingInterceptor> Service for LoggingService<I> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingReader<R, I: LoggingInterceptor> {
+struct LoggingReader<R, I: LoggingInterceptor> {
     info: ServiceInfo,
     logger: I,
     path: String,
@@ -705,8 +697,7 @@ impl<R: oio::Read, I: LoggingInterceptor> oio::Read for LoggingReader<R, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingWriter<W, I> {
+struct LoggingWriter<W, I> {
     info: ServiceInfo,
     logger: I,
     path: String,
@@ -833,8 +824,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingLister<P, I: LoggingInterceptor> {
+struct LoggingLister<P, I: LoggingInterceptor> {
     info: ServiceInfo,
     logger: I,
     path: String,
@@ -888,8 +878,7 @@ impl<P: oio::List, I: LoggingInterceptor> oio::List for LoggingLister<P, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingDeleter<D, I: LoggingInterceptor> {
+struct LoggingDeleter<D, I: LoggingInterceptor> {
     info: ServiceInfo,
     logger: I,
 
@@ -968,8 +957,7 @@ impl<D: oio::Delete, I: LoggingInterceptor> oio::Delete for LoggingDeleter<D, I>
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingCopier<C, I: LoggingInterceptor> {
+struct LoggingCopier<C, I: LoggingInterceptor> {
     info: ServiceInfo,
     logger: I,
     from: String,
@@ -1032,7 +1020,36 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        self.inner.close().await
+        match self.inner.close().await {
+            Ok(meta) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "close succeeded",
+                    None,
+                );
+                Ok(meta)
+            }
+            Err(err) => {
+                self.logger.log(
+                    &self.info,
+                    Operation::Copy,
+                    &[
+                        ("from", &self.from),
+                        ("to", &self.to),
+                        ("copied", &self.copied.to_string()),
+                    ],
+                    "close failed",
+                    Some(&err),
+                );
+                Err(err)
+            }
+        }
     }
 
     async fn abort(&mut self) -> Result<()> {
@@ -1069,8 +1086,7 @@ impl<C: oio::Copy, I: LoggingInterceptor> oio::Copy for LoggingCopier<C, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct LoggingComposer<C, I: LoggingInterceptor> {
+struct LoggingComposer<C, I: LoggingInterceptor> {
     info: ServiceInfo,
     logger: I,
     to: String,

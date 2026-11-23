@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::ops::Range;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Context;
@@ -29,12 +30,26 @@ use crate::raw::oio::ReadStream as _;
 use crate::raw::*;
 use crate::*;
 
+/// The range a [`StreamingReader`] opens over its lifetime.
+#[derive(Clone, Copy)]
+enum PendingRange {
+    /// A caller-provided range, opened as-is.
+    Range(BytesRange),
+    /// A suffix range resolved via `stat`, revalidated on open.
+    Suffix(SuffixRevalidation),
+    /// The range has been opened; later reads drain the open reader.
+    Opened,
+}
+
 /// StreamingReader will stream the content of the file without reading into
 /// memory first.
 ///
 /// StreamingReader is good for small memory footprint and optimized for latency.
 pub struct StreamingReader {
-    generator: ReadGenerator,
+    ctx: Arc<ReadContext>,
+    pending: PendingRange,
+    /// The suffix range after revalidation, reported to `BufferStream`.
+    revalidated_range: Option<Range<u64>>,
     reader: Option<Box<dyn oio::ReadStreamDyn>>,
 }
 
@@ -42,20 +57,87 @@ impl StreamingReader {
     /// Create a new streaming reader.
     #[inline]
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
-        let generator = ReadGenerator::new(ctx, range);
         Self {
-            generator,
+            ctx,
+            pending: PendingRange::Range(range),
+            revalidated_range: None,
             reader: None,
         }
     }
 
+    #[inline]
+    fn with_suffix_revalidation(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
+        Self {
+            ctx,
+            pending: PendingRange::Suffix(reval),
+            revalidated_range: None,
+            reader: None,
+        }
+    }
+
+    fn take_revalidated_range(&mut self) -> Option<Range<u64>> {
+        self.revalidated_range.take()
+    }
+
+    /// Open the pending range.
+    ///
+    /// The reader advances only after `open` succeeds, so a failed or
+    /// cancelled open retries the same range instead of skipping it.
+    async fn open(&mut self) -> Result<Option<Box<dyn oio::ReadStreamDyn>>> {
+        match self.pending {
+            PendingRange::Opened => Ok(None),
+            PendingRange::Range(range) if range.size() == Some(0) => {
+                self.pending = PendingRange::Opened;
+                Ok(None)
+            }
+            PendingRange::Range(range) => {
+                let (rp, reader) = self.ctx.reader().open(range).await?;
+                self.pending = PendingRange::Opened;
+                self.ctx.observe_read_response(rp);
+                Ok(Some(reader))
+            }
+            PendingRange::Suffix(mut reval) => {
+                let opened = self
+                    .ctx
+                    .open_revalidated_suffix(&mut reval, |full| {
+                        (full.start < full.end)
+                            .then(|| BytesRange::new(full.start, Some(full.end - full.start)))
+                    })
+                    .await;
+
+                match opened {
+                    Ok(Some(RevalidatedSuffixOpen {
+                        full_range,
+                        rp,
+                        reader,
+                        ..
+                    })) => {
+                        self.pending = PendingRange::Opened;
+                        self.revalidated_range = Some(full_range);
+                        self.ctx.observe_read_response(rp);
+                        Ok(Some(reader))
+                    }
+                    Ok(None) => {
+                        self.pending = PendingRange::Opened;
+                        self.revalidated_range = Some(reval.resolved_range());
+                        Ok(None)
+                    }
+                    Err(err) => {
+                        self.pending = PendingRange::Suffix(reval);
+                        Err(err)
+                    }
+                }
+            }
+        }
+    }
+
     async fn prepare_metadata(&mut self) -> Result<()> {
-        if self.generator.metadata().is_some() {
+        if self.ctx.metadata().is_some() {
             return Ok(());
         }
 
         if self.reader.is_none() {
-            self.reader = self.generator.next_reader().await?;
+            self.reader = self.open().await?;
         }
 
         Ok(())
@@ -64,7 +146,7 @@ impl StreamingReader {
     async fn metadata(&mut self) -> Result<Metadata> {
         self.prepare_metadata().await?;
 
-        self.generator
+        self.ctx
             .metadata()
             .cloned()
             .ok_or_else(|| Error::new(ErrorKind::Unsupported, "read metadata is not available"))
@@ -75,7 +157,7 @@ impl oio::ReadStream for StreamingReader {
     async fn read(&mut self) -> Result<Buffer> {
         loop {
             if self.reader.is_none() {
-                self.reader = self.generator.next_reader().await?;
+                self.reader = self.open().await?;
             }
 
             let Some(r) = self.reader.as_mut() else {
@@ -124,6 +206,8 @@ pub struct ChunkedReader {
     ctx: Arc<ReadContext>,
     offset: u64,
     remaining: Option<u64>,
+    suffix_revalidation: Option<SuffixRevalidation>,
+    revalidated_range: Option<Range<u64>>,
     opened: Option<Box<OpenedChunk>>,
     tasks: ConcurrentTasks<ChunkedReadInput, Buffer>,
     done: bool,
@@ -136,6 +220,18 @@ impl ChunkedReader {
     ///
     /// We don't need to handle `Executor::timeout` since we are outside the layer.
     fn new(ctx: Arc<ReadContext>, range: BytesRange) -> Self {
+        Self::with_revalidation(ctx, range, None)
+    }
+
+    fn with_suffix_revalidation(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
+        Self::with_revalidation(ctx, reval.resolved_range().into(), Some(reval))
+    }
+
+    fn with_revalidation(
+        ctx: Arc<ReadContext>,
+        range: BytesRange,
+        suffix_revalidation: Option<SuffixRevalidation>,
+    ) -> Self {
         let tasks = ConcurrentTasks::new(
             ctx.context().executor().clone(),
             ctx.options().concurrent(),
@@ -165,14 +261,89 @@ impl ChunkedReader {
             ctx,
             offset: range.offset(),
             remaining: range.size(),
+            suffix_revalidation,
+            revalidated_range: None,
             opened: None,
             tasks,
             done: false,
         }
     }
 
+    fn take_revalidated_range(&mut self) -> Option<Range<u64>> {
+        self.revalidated_range.take()
+    }
+
+    async fn open_revalidated_first_chunk(&mut self) -> Result<()> {
+        let Some(mut reval) = self.suffix_revalidation else {
+            return Ok(());
+        };
+
+        let chunk = self.ctx.options().chunk();
+        let opened = self
+            .ctx
+            .open_revalidated_suffix(&mut reval, |full| {
+                let remaining = full.end - full.start;
+                if remaining == 0 {
+                    return None;
+                }
+                let read_size = chunk.map_or(remaining, |c| remaining.min(c as u64));
+                Some(BytesRange::new(full.start, Some(read_size)))
+            })
+            .await;
+
+        match opened {
+            Ok(Some(RevalidatedSuffixOpen {
+                full_range,
+                first_range,
+                rp,
+                reader,
+            })) => {
+                let read_size = first_range
+                    .size()
+                    .expect("revalidated suffix chunk must be bounded");
+                let total = full_range.end - full_range.start;
+                self.offset = full_range.start;
+                self.remaining = Some(total);
+                self.revalidated_range = Some(full_range);
+                self.suffix_revalidation = None;
+                self.ctx.observe_read_response(rp);
+                self.opened = Some(Box::new(OpenedChunk {
+                    input: ChunkedReadInput {
+                        ctx: self.ctx.clone(),
+                        range: first_range,
+                        reader: Some(reader),
+                    },
+                    planned: PlannedRange {
+                        range: first_range,
+                        next_offset: self.offset + read_size,
+                        next_remaining: Some(total - read_size),
+                    },
+                }));
+                Ok(())
+            }
+            Ok(None) => {
+                let full_range = reval.resolved_range();
+                self.offset = full_range.start;
+                self.remaining = Some(0);
+                self.revalidated_range = Some(full_range);
+                self.suffix_revalidation = None;
+                self.done = true;
+                Ok(())
+            }
+            Err(err) => {
+                self.suffix_revalidation = Some(reval);
+                Err(err)
+            }
+        }
+    }
+
     async fn prepare_metadata(&mut self) -> Result<()> {
-        if self.ctx.metadata().is_some() {
+        if self.ctx.metadata().is_some() && self.suffix_revalidation.is_none() {
+            return Ok(());
+        }
+
+        if self.suffix_revalidation.is_some() {
+            self.open_revalidated_first_chunk().await?;
             return Ok(());
         }
 
@@ -244,6 +415,10 @@ impl ChunkedReader {
 
 impl oio::ReadStream for ChunkedReader {
     async fn read(&mut self) -> Result<Buffer> {
+        if self.suffix_revalidation.is_some() {
+            self.open_revalidated_first_chunk().await?;
+        }
+
         while self.tasks.has_remaining() && !self.done {
             if let Some(opened) = self.opened.take() {
                 let OpenedChunk { input, planned } = *opened;
@@ -291,6 +466,7 @@ pub struct BufferStream {
     size: Option<u64>,
     exact: bool,
     read: u64,
+    revalidated_suffix_range: Option<Range<u64>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -314,7 +490,15 @@ impl BufferStream {
             "size must be known if chunk is set"
         );
 
-        Self::from_range(ctx, BytesRange::new(offset, size), None)
+        Self::from_range(ctx, BytesRange::new(offset, size), None, None)
+    }
+
+    /// Create a new buffer stream for a suffix range resolved via `stat`,
+    /// revalidating the object size on the first read open.
+    pub(crate) fn new_suffix(ctx: Arc<ReadContext>, reval: SuffixRevalidation) -> Self {
+        let resolved = reval.resolved_range();
+        let suffix_revalidation = (resolved.end > resolved.start).then_some(reval);
+        Self::from_range(ctx, resolved.into(), None, suffix_revalidation)
     }
 
     /// Create a stream, resolving the range first if chunk planning needs its size.
@@ -324,17 +508,45 @@ impl BufferStream {
         limit: Option<u64>,
     ) -> Result<Self> {
         let mut range = range.into();
+        let mut suffix_revalidation = None;
         if ctx.options().chunk().is_some() {
-            range = ctx.parse_into_range(range).await?.into();
+            if let BytesRange::Suffix { size } = range
+                && ctx.args().content_length_hint().is_none()
+            {
+                let expected_len = ctx.content_length().await?;
+                let reval = SuffixRevalidation::new(size, expected_len);
+                let resolved = reval.resolved_range();
+                if resolved.end > resolved.start {
+                    suffix_revalidation = Some(reval);
+                }
+                range = resolved.into();
+            } else {
+                range = ctx.parse_into_range(range).await?.into();
+            }
         }
-        Ok(Self::from_range(ctx, range, limit))
+        Ok(Self::from_range(ctx, range, limit, suffix_revalidation))
     }
 
-    fn from_range(ctx: Arc<ReadContext>, range: BytesRange, limit: Option<u64>) -> Self {
+    fn from_range(
+        ctx: Arc<ReadContext>,
+        range: BytesRange,
+        limit: Option<u64>,
+        suffix_revalidation: Option<SuffixRevalidation>,
+    ) -> Self {
         let exact = limit.is_none() && !range.is_suffix() && range.size().is_some();
         let size = if exact { range.size() } else { limit };
         let reader = if ctx.options().chunk().is_some() {
-            TwoWays::Two(ChunkedReader::new(ctx.clone(), range))
+            match suffix_revalidation {
+                Some(reval) => {
+                    TwoWays::Two(ChunkedReader::with_suffix_revalidation(ctx.clone(), reval))
+                }
+                None => TwoWays::Two(ChunkedReader::new(ctx.clone(), range)),
+            }
+        } else if let Some(reval) = suffix_revalidation {
+            TwoWays::One(StreamingReader::with_suffix_revalidation(
+                ctx.clone(),
+                reval,
+            ))
         } else {
             TwoWays::One(StreamingReader::new(ctx.clone(), range))
         };
@@ -345,7 +557,25 @@ impl BufferStream {
             size,
             exact,
             read: 0,
+            revalidated_suffix_range: None,
         }
+    }
+
+    fn sync_revalidated_suffix(&mut self, reader: &mut TwoWays<StreamingReader, ChunkedReader>) {
+        let revalidated = match reader {
+            TwoWays::One(v) => v.take_revalidated_range(),
+            TwoWays::Two(v) => v.take_revalidated_range(),
+        };
+        if let Some(range) = revalidated {
+            if self.exact {
+                self.size = Some(range.end - range.start);
+            }
+            self.revalidated_suffix_range = Some(range);
+        }
+    }
+
+    pub(crate) fn take_revalidated_suffix_range(&mut self) -> Option<Range<u64>> {
+        self.revalidated_suffix_range.take()
     }
 
     /// Get metadata for this stream.
@@ -385,7 +615,8 @@ impl BufferStream {
         let State::PreparingMetadata(fut) = &mut self.state else {
             unreachable!("metadata state must be preparing")
         };
-        let (reader, result) = fut.as_mut().await;
+        let (mut reader, result) = fut.as_mut().await;
+        self.sync_revalidated_suffix(&mut reader);
         self.state = State::Idle(Some(reader));
         result
     }
@@ -417,7 +648,8 @@ impl Stream for BufferStream {
                 }
                 State::Reading(fut) => {
                     let fut = fut.as_mut();
-                    let (reader, buf) = ready!(fut.poll(cx));
+                    let (mut reader, buf) = ready!(fut.poll(cx));
+                    this.sync_revalidated_suffix(&mut reader);
                     this.state = State::Idle(Some(reader));
                     return match buf {
                         Ok(buf) if buf.is_empty() => {
@@ -439,7 +671,8 @@ impl Stream for BufferStream {
                     };
                 }
                 State::PreparingMetadata(fut) => {
-                    let (reader, result) = ready!(fut.as_mut().poll(cx));
+                    let (mut reader, result) = ready!(fut.as_mut().poll(cx));
+                    this.sync_revalidated_suffix(&mut reader);
                     this.state = State::Idle(Some(reader));
                     match result {
                         Ok(_) => {}
@@ -650,6 +883,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_streaming_reader_retries_open_after_error() -> Result<()> {
+        let content = b"HelloWorld";
+        let fault = Arc::new(ReadFault::new().with_failed_open_range(BytesRange::new(0, Some(4))));
+        let ctx = Arc::new(new_mock_read_context(
+            content,
+            fault.clone(),
+            OpReader::new(),
+        ));
+        let mut stream = BufferStream::create(ctx, 0..4, None).await?;
+
+        let err = stream
+            .next()
+            .await
+            .expect("stream must yield")
+            .expect_err("first open must fail");
+        assert!(err.is_temporary());
+
+        let buf = stream
+            .next()
+            .await
+            .expect("stream must yield")
+            .expect("retry must succeed");
+        assert_eq!(buf.to_bytes().as_ref(), &content[..4]);
+        assert!(stream.next().await.is_none());
+        assert_eq!(
+            fault.opened_ranges(),
+            vec![BytesRange::new(0, Some(4)), BytesRange::new(0, Some(4))]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_chunked_reader_retries_failed_chunk() -> Result<()> {
         let fault = Arc::new(ReadFault::new().with_failed_read_range(BytesRange::new(4, Some(4))));
         let ctx = Arc::new(new_mock_read_context(
@@ -809,6 +1074,221 @@ mod tests {
                 "concurrent={concurrent}"
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_buffer_stream_chunk_revalidates_suffix_on_size_change() -> Result<()> {
+        use std::collections::VecDeque;
+        use std::sync::Mutex;
+
+        struct ChangingStreamRead {
+            contents: Arc<Mutex<VecDeque<Bytes>>>,
+            emit_metadata: bool,
+        }
+
+        impl oio::StreamRead for ChangingStreamRead {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let data = self
+                    .contents
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected open call");
+                let content_range = range.to_content_range(data.len())?;
+                let slice = data.slice(content_range);
+                let rp = if self.emit_metadata {
+                    RpRead::new(MetadataBuilder::file(data.len() as u64).build())
+                } else {
+                    RpRead::default()
+                };
+                Ok((
+                    rp,
+                    Box::new(Buffer::from(slice)) as Box<dyn oio::ReadStreamDyn>,
+                ))
+            }
+        }
+
+        #[derive(Debug)]
+        struct ChangingSizeService {
+            stat_lens: Arc<Mutex<VecDeque<u64>>>,
+            contents: Arc<Mutex<VecDeque<Bytes>>>,
+            emit_metadata: bool,
+        }
+
+        impl Service for ChangingSizeService {
+            type Reader = oio::StreamReader<ChangingStreamRead>;
+            type Writer = ();
+            type Lister = ();
+            type Deleter = ();
+            type Copier = ();
+            type Composer = ();
+
+            fn info(&self) -> ServiceInfo {
+                ServiceInfo::with_scheme("mock")
+            }
+
+            fn capability(&self) -> Capability {
+                Capability {
+                    stat: true,
+                    read: true,
+                    read_with_suffix: false,
+                    ..Default::default()
+                }
+            }
+
+            async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+                let len = self
+                    .stat_lens
+                    .lock()
+                    .expect("mutex must not poison")
+                    .pop_front()
+                    .expect("unexpected stat call");
+                Ok(RpStat::new(MetadataBuilder::file(len).build()))
+            }
+
+            fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+                Ok(oio::StreamReader::new(ChangingStreamRead {
+                    contents: self.contents.clone(),
+                    emit_metadata: self.emit_metadata,
+                }))
+            }
+
+            async fn create_dir(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            fn copy(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpCopy,
+            ) -> Result<Self::Copier> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn rename(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: &str,
+                _: OpRename,
+            ) -> Result<RpRename> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+
+            async fn presign(
+                &self,
+                _: &OperationContext,
+                _: &str,
+                _: OpPresign,
+            ) -> Result<RpPresign> {
+                Err(Error::new(ErrorKind::Unsupported, "unsupported"))
+            }
+        }
+
+        let make_op = |stat_lens: Vec<u64>, contents: Vec<&'static [u8]>, emit_metadata: bool| {
+            let srv = Arc::new(ChangingSizeService {
+                stat_lens: Arc::new(Mutex::new(stat_lens.into())),
+                contents: Arc::new(Mutex::new(
+                    contents.into_iter().map(Bytes::from_static).collect(),
+                )),
+                emit_metadata,
+            }) as Servicer;
+            let ctx = OperationContext::default().with_executor(crate::test_executor());
+            Operator::from_parts(ctx, srv)
+                .layer(crate::layers::SimulateLayer::default())
+                .layer(crate::layers::CompleteLayer)
+        };
+
+        // Growth (8 -> 12) with chunk(2) and concurrent(2): Suffix(4) returns b"89AB".
+        let op = make_op(vec![8], vec![b"0123456789AB"; 3], true);
+        let buf = op
+            .read_with("f")
+            .range(BytesRange::suffix(4))
+            .chunk(2)
+            .concurrent(2)
+            .await?;
+        assert_eq!(buf.to_bytes(), &b"89AB"[..]);
+
+        // Growth (8 -> 12) with Suffix(100) and chunk(4): returns full 12 bytes.
+        let op = make_op(vec![8], vec![b"0123456789AB"; 4], true);
+        let buf = op
+            .read_with("f")
+            .range(BytesRange::suffix(100))
+            .chunk(4)
+            .await?;
+        assert_eq!(buf.to_bytes(), &b"0123456789AB"[..]);
+
+        // Shrink (12 -> 6) with chunk(2): RangeNotSatisfied re-stats and returns b"2345".
+        let op = make_op(vec![12, 6], vec![b"012345"; 3], true);
+        let buf = op
+            .read_with("f")
+            .range(BytesRange::suffix(4))
+            .chunk(2)
+            .await?;
+        assert_eq!(buf.to_bytes(), &b"2345"[..]);
+
+        // Shrink to empty (8 -> 0) with chunk(2): returns empty without check_complete error.
+        let op = make_op(vec![8, 0], vec![b""], true);
+        let buf = op
+            .read_with("f")
+            .range(BytesRange::suffix(4))
+            .chunk(2)
+            .await?;
+        assert!(buf.is_empty());
+
+        // Repeated growth (8 -> 12 -> 16) with chunk(2) fails with temporary Conflict + context.
+        let op = make_op(vec![8], vec![b"0123456789AB", b"0123456789ABCDEF"], true);
+        let err = op
+            .read_with("f")
+            .range(BytesRange::suffix(4))
+            .chunk(2)
+            .await
+            .expect_err("repeated growth must fail");
+        assert_eq!(err.kind(), ErrorKind::Conflict);
+        assert!(err.is_temporary());
+        let msg = err.to_string();
+        assert!(msg.contains("path: f"), "missing path in {msg}");
+        assert!(
+            msg.contains("expected_size: 12"),
+            "missing expected_size in {msg}"
+        );
+        assert!(
+            msg.contains("actual_size: 16"),
+            "missing actual_size in {msg}"
+        );
+
+        // RpRead::default() (no metadata) with chunk(2) does not false-error.
+        let op = make_op(vec![8], vec![b"01234567"; 2], false);
+        let buf = op
+            .read_with("f")
+            .range(BytesRange::suffix(4))
+            .chunk(2)
+            .await?;
+        assert_eq!(buf.to_bytes(), &b"4567"[..]);
+
         Ok(())
     }
 }

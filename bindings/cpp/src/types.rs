@@ -29,7 +29,7 @@ impl From<od::Metadata> for ffi::Metadata {
         let content_type = meta.content_type().map(ToOwned::to_owned).into();
         let content_encoding = meta.content_encoding().map(ToOwned::to_owned).into();
         let etag = meta.etag().map(ToOwned::to_owned).into();
-        let last_modified = meta.last_modified().map(|time| time.to_string()).into();
+        let last_modified = to_ffi_optional_timestamp(meta.last_modified());
         let version = meta.version().map(ToOwned::to_owned).into();
         let is_current = meta.is_current().into();
         let is_deleted = meta.is_deleted();
@@ -65,6 +65,37 @@ impl From<od::EntryMode> for ffi::EntryMode {
             od::EntryMode::DIR => Self::Dir,
             _ => Self::Unknown,
         }
+    }
+}
+
+/// Convert a UTC timestamp into the signed seconds and non-negative
+/// nanoseconds used by the C++ binding.
+///
+/// `Timestamp::as_second` truncates toward zero and
+/// `Timestamp::subsec_nanosecond` carries the same sign for instants before
+/// the Unix epoch. Normalize them into a floor second and a non-negative
+/// nanosecond so C++ can rebuild the instant with `seconds + nanoseconds`.
+fn to_ffi_optional_timestamp(timestamp: Option<od::raw::Timestamp>) -> ffi::OptionalTimestamp {
+    let Some(timestamp) = timestamp else {
+        return ffi::OptionalTimestamp {
+            has_value: false,
+            seconds: 0,
+            nanoseconds: 0,
+        };
+    };
+
+    let timestamp = timestamp.into_inner();
+    let mut seconds = timestamp.as_second();
+    let mut nanoseconds = timestamp.subsec_nanosecond();
+    if nanoseconds < 0 {
+        seconds -= 1;
+        nanoseconds += 1_000_000_000;
+    }
+
+    ffi::OptionalTimestamp {
+        has_value: true,
+        seconds,
+        nanoseconds: nanoseconds as u32,
     }
 }
 
@@ -112,5 +143,49 @@ impl From<Option<od::Entry>> for ffi::OptionalEntry {
                 },
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn last_modified_of(timestamp: od::raw::Timestamp) -> ffi::OptionalTimestamp {
+        let mut builder = od::MetadataBuilder::file(0);
+        builder.last_modified(timestamp);
+        let metadata: ffi::Metadata = builder.build().into();
+        metadata.last_modified
+    }
+
+    #[test]
+    fn test_last_modified_keeps_subsecond_precision() {
+        let timestamp = od::raw::Timestamp::new(1_700_000_000, 123_456_789).unwrap();
+
+        let ffi = last_modified_of(timestamp);
+
+        assert!(ffi.has_value);
+        assert_eq!(ffi.seconds, 1_700_000_000);
+        assert_eq!(ffi.nanoseconds, 123_456_789);
+    }
+
+    #[test]
+    fn test_last_modified_normalizes_pre_epoch_timestamp() {
+        // 1969-12-31T23:59:58.5Z: jiff keeps the negative fraction in
+        // `subsec_nanosecond`, while the C++ bridge expects a floor second
+        // with a non-negative nanosecond.
+        let timestamp = od::raw::Timestamp::new(-1, -500_000_000).unwrap();
+
+        let ffi = last_modified_of(timestamp);
+
+        assert!(ffi.has_value);
+        assert_eq!(ffi.seconds, -2);
+        assert_eq!(ffi.nanoseconds, 500_000_000);
+    }
+
+    #[test]
+    fn test_last_modified_absent() {
+        let metadata: ffi::Metadata = od::MetadataBuilder::file(0).build().into();
+
+        assert!(!metadata.last_modified.has_value);
     }
 }

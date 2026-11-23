@@ -58,6 +58,19 @@ fn bigint_to_usize(value: &BigInt, field: &str) -> napi::Result<usize> {
     })
 }
 
+/// Parse a conditional request timestamp received from JavaScript.
+///
+/// Dropping an unparsable value would silently turn a conditional read or stat
+/// into an unconditional one, so an invalid timestamp is reported instead.
+fn parse_timestamp(value: &str, field: &str) -> napi::Result<Timestamp> {
+    value.parse::<Timestamp>().map_err(|_| {
+        napi::Error::new(
+            Status::InvalidArg,
+            format!("{field} must be an ISO 8601 timestamp, for example 2024-01-01T00:00:00Z"),
+        )
+    })
+}
+
 #[napi(object)]
 #[derive(Debug)]
 pub struct StatOptions {
@@ -114,16 +127,20 @@ pub struct StatOptions {
     pub override_content_disposition: Option<String>,
 }
 
-impl From<StatOptions> for opendal::options::StatOptions {
-    fn from(value: StatOptions) -> Self {
+impl TryFrom<StatOptions> for opendal::options::StatOptions {
+    type Error = napi::Error;
+
+    fn try_from(value: StatOptions) -> napi::Result<Self> {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
 
-        Self {
+        Ok(Self {
             if_modified_since,
             if_unmodified_since,
             version: value.version,
@@ -133,7 +150,7 @@ impl From<StatOptions> for opendal::options::StatOptions {
             override_cache_control: value.override_cache_control,
             override_content_disposition: value.override_content_disposition,
             ..Default::default()
-        }
+        })
     }
 }
 
@@ -267,10 +284,12 @@ impl TryFrom<ReadOptions> for opendal::options::ReadOptions {
         let range = value.make_range()?;
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
 
         let gap = value
             .gap
@@ -391,10 +410,12 @@ impl TryFrom<ReaderOptions> for opendal::options::ReaderOptions {
     fn try_from(value: ReaderOptions) -> napi::Result<Self> {
         let if_modified_since = value
             .if_modified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifModifiedSince"))
+            .transpose()?;
         let if_unmodified_since = value
             .if_unmodified_since
-            .and_then(|v| v.parse::<Timestamp>().ok());
+            .map(|v| parse_timestamp(&v, "ifUnmodifiedSince"))
+            .transpose()?;
         let gap = value
             .gap
             .as_ref()

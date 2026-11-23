@@ -167,7 +167,7 @@ impl S3Builder {
     ///
     /// The configured profile takes precedence over the `AWS_PROFILE`
     /// environment variable and applies to shared AWS config and credentials
-    /// files and SSO.
+    /// files, SSO, and external process credentials.
     ///
     /// This setting has no effect when [`Self::disable_config_load`] is set or
     /// when [`Self::credential_provider_chain`] replaces the default chain.
@@ -496,13 +496,14 @@ impl S3Builder {
         self
     }
 
-    /// Disable automatic endpoint loading and the environment/profile
+    /// Disable automatic endpoint loading and ambient environment/profile
     /// credential providers.
     ///
     /// This skips endpoint environment variables and removes the static
-    /// environment and shared-profile credential slots. Region environment
-    /// lookup and other credential providers, including AWS container
-    /// credentials and EC2 instance metadata, remain enabled.
+    /// environment, shared-profile, SSO, web-identity, and external process
+    /// credential slots. Region environment lookup and compute metadata
+    /// credential providers, including AWS container credentials and EC2
+    /// instance metadata, remain enabled.
     pub fn disable_config_load(mut self) -> Self {
         self.config.disable_config_load = true;
         self
@@ -1084,7 +1085,11 @@ impl S3Builder {
             let mut builder = DefaultCredentialProvider::builder();
 
             if config.disable_config_load {
-                builder = builder.no_env().no_profile();
+                builder = builder.no_env().no_profile().no_web_identity();
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    builder = builder.no_sso().no_process();
+                }
             } else if let Some(profile) = config
                 .profile
                 .as_deref()
@@ -2957,6 +2962,325 @@ mod tests {
             .unwrap_err();
         assert!(err.is_retryable(), "{err:?}");
         assert!(err.to_string().contains("SSO token refresh returned 503"));
+    }
+
+    #[derive(Debug, Clone, Default)]
+    struct AmbientCredentialSources {
+        file_reads: Arc<AtomicUsize>,
+        command_calls: Arc<AtomicUsize>,
+        http_calls: Arc<AtomicUsize>,
+    }
+
+    impl reqsign_core::FileRead for AmbientCredentialSources {
+        async fn file_read(&self, path: &str) -> reqsign_core::Result<Vec<u8>> {
+            self.file_reads.fetch_add(1, Ordering::SeqCst);
+            let path = std::path::Path::new(path);
+            let contents = if path == std::path::Path::new("test-home/.aws/config") {
+                "[profile sso-test]\n\
+                 sso_session = test-session\n\
+                 sso_account_id = 000000000000\n\
+                 sso_role_name = TestRole\n\
+                 [sso-session test-session]\n\
+                 sso_start_url = https://example.awsapps.com/start\n\
+                 sso_region = us-east-1\n\
+                 [profile process-test]\n\
+                 credential_process = fake-cred-helper\n"
+            } else if path.starts_with("test-home/.aws/sso/cache") {
+                r#"{
+                    "accessToken": "valid-sso-token",
+                    "expiresAt": "2099-01-01T00:00:00Z"
+                }"#
+            } else if path == std::path::Path::new("test-home/web-identity-token") {
+                "test-web-identity-jwt"
+            } else {
+                return Err(reqsign_core::Error::unexpected("file not found"));
+            };
+            Ok(contents.as_bytes().to_vec())
+        }
+    }
+
+    impl reqsign_core::CommandExecute for AmbientCredentialSources {
+        async fn command_execute(
+            &self,
+            program: &str,
+            args: &[&str],
+        ) -> reqsign_core::Result<reqsign_core::CommandOutput> {
+            self.command_calls.fetch_add(1, Ordering::SeqCst);
+            assert_eq!(program, "fake-cred-helper");
+            assert!(args.is_empty());
+            Ok(reqsign_core::CommandOutput {
+                status: 0,
+                stdout:
+                    br#"{"Version":1,"AccessKeyId":"process-ak","SecretAccessKey":"process-sk"}"#
+                        .to_vec(),
+                stderr: Vec::new(),
+            })
+        }
+    }
+
+    impl reqsign_core::HttpSend for AmbientCredentialSources {
+        async fn http_send(
+            &self,
+            request: Request<Bytes>,
+        ) -> reqsign_core::Result<Response<Bytes>> {
+            self.http_calls.fetch_add(1, Ordering::SeqCst);
+            let host = request.uri().host().unwrap_or_default();
+            let body = if host == "portal.sso.us-east-1.amazonaws.com" {
+                r#"{"roleCredentials":{"accessKeyId":"sso-ak","secretAccessKey":"sso-sk","sessionToken":"sso-token","expiration":4102444800000}}"#
+            } else if host.starts_with("sts.") {
+                "<AssumeRoleWithWebIdentityResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">\
+                    <AssumeRoleWithWebIdentityResult>\
+                        <Credentials>\
+                            <AccessKeyId>web-identity-ak</AccessKeyId>\
+                            <SecretAccessKey>web-identity-sk</SecretAccessKey>\
+                            <SessionToken>web-identity-token</SessionToken>\
+                            <Expiration>2099-01-01T00:00:00Z</Expiration>\
+                        </Credentials>\
+                    </AssumeRoleWithWebIdentityResult>\
+                 </AssumeRoleWithWebIdentityResponse>"
+            } else if host == "169.254.170.2" {
+                r#"{"AccessKeyId":"ecs-ak","SecretAccessKey":"ecs-sk","Token":"ecs-token","Expiration":"2099-01-01T00:00:00Z"}"#
+            } else {
+                panic!("unexpected HTTP credential request: {}", request.uri());
+            };
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::from_static(body.as_bytes()))
+                .unwrap())
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[tokio::test]
+    async fn test_disable_config_load_skips_sso_and_process_credentials() {
+        for (profile, expected_ak, expect_command, expect_http) in [
+            ("sso-test", "sso-ak", 0, 1),
+            ("process-test", "process-ak", 1, 0),
+        ] {
+            let sources = AmbientCredentialSources::default();
+            let enabled_backend = S3Builder::default()
+                .bucket("example")
+                .region("us-east-1")
+                .endpoint("https://s3.us-east-1.amazonaws.com")
+                .profile(profile)
+                .disable_ec2_metadata()
+                .build_inner(S3_SCHEME)
+                .unwrap();
+            let ctx = Context::new()
+                .with_env(reqsign_core::StaticEnv {
+                    home_dir: Some("test-home".into()),
+                    envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
+                })
+                .with_file_read(sources.clone())
+                .with_command_execute(sources.clone())
+                .with_http_send(sources.clone());
+            let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+                .body(())
+                .unwrap()
+                .into_parts();
+            enabled_backend
+                .core
+                .signers
+                .default()
+                .clone()
+                .with_context(ctx)
+                .sign(&mut parts, None)
+                .await
+                .unwrap_or_else(|err| {
+                    panic!("profile {profile} must load without disable_config_load: {err:?}")
+                });
+            let auth = parts
+                .headers
+                .get(http::header::AUTHORIZATION)
+                .unwrap()
+                .to_str()
+                .unwrap();
+            assert!(
+                auth.contains(&format!("Credential={expected_ak}/")),
+                "{auth}"
+            );
+            assert_eq!(sources.command_calls.load(Ordering::SeqCst), expect_command);
+            assert_eq!(sources.http_calls.load(Ordering::SeqCst), expect_http);
+
+            let disabled_sources = AmbientCredentialSources::default();
+            let disabled_backend = S3Builder::default()
+                .bucket("example")
+                .region("us-east-1")
+                .endpoint("https://s3.us-east-1.amazonaws.com")
+                .profile(profile)
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .build_inner(S3_SCHEME)
+                .unwrap();
+            let ctx = Context::new()
+                .with_env(reqsign_core::StaticEnv {
+                    home_dir: Some("test-home".into()),
+                    envs: HashMap::from([("AWS_PROFILE".to_string(), profile.to_string())]),
+                })
+                .with_file_read(disabled_sources.clone())
+                .with_command_execute(disabled_sources.clone())
+                .with_http_send(disabled_sources.clone());
+            let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+                .body(())
+                .unwrap()
+                .into_parts();
+            let err = disabled_backend
+                .core
+                .signers
+                .default()
+                .clone()
+                .with_context(ctx)
+                .sign(&mut parts, None)
+                .await
+                .expect_err("disable_config_load must not load sso or process credentials");
+            assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+            assert_eq!(disabled_sources.file_reads.load(Ordering::SeqCst), 0);
+            assert_eq!(disabled_sources.command_calls.load(Ordering::SeqCst), 0);
+            assert_eq!(disabled_sources.http_calls.load(Ordering::SeqCst), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_skips_web_identity_credentials() {
+        let env = HashMap::from([
+            (
+                "AWS_ROLE_ARN".to_string(),
+                "arn:aws:iam::000000000000:role/web-identity".to_string(),
+            ),
+            (
+                "AWS_WEB_IDENTITY_TOKEN_FILE".to_string(),
+                "test-home/web-identity-token".to_string(),
+            ),
+            ("AWS_REGION".to_string(), "us-east-1".to_string()),
+        ]);
+
+        let sources = AmbientCredentialSources::default();
+        let enabled_backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_ec2_metadata()
+            .build_inner(S3_SCHEME)
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: env.clone(),
+            })
+            .with_file_read(sources.clone())
+            .with_command_execute(sources.clone())
+            .with_http_send(sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+        enabled_backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect("web identity must load without disable_config_load");
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=web-identity-ak/"), "{auth}");
+        assert_eq!(sources.http_calls.load(Ordering::SeqCst), 1);
+
+        let disabled_sources = AmbientCredentialSources::default();
+        let disabled_backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .build_inner(S3_SCHEME)
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: env,
+            })
+            .with_file_read(disabled_sources.clone())
+            .with_command_execute(disabled_sources.clone())
+            .with_http_send(disabled_sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+        let err = disabled_backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect_err("disable_config_load must not load web identity credentials");
+        assert_eq!(err.kind(), reqsign_core::ErrorKind::CredentialInvalid);
+        assert_eq!(disabled_sources.file_reads.load(Ordering::SeqCst), 0);
+        assert_eq!(disabled_sources.http_calls.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn test_disable_config_load_keeps_container_credentials_enabled() {
+        let sources = AmbientCredentialSources::default();
+        let backend = S3Builder::default()
+            .bucket("example")
+            .region("us-east-1")
+            .endpoint("https://s3.us-east-1.amazonaws.com")
+            .disable_config_load()
+            .disable_ec2_metadata()
+            .container_credentials_endpoint("http://169.254.170.2/v2/credentials/test")
+            .build_inner(S3_SCHEME)
+            .unwrap();
+        let ctx = Context::new()
+            .with_env(reqsign_core::StaticEnv {
+                home_dir: Some("test-home".into()),
+                envs: HashMap::from([
+                    ("AWS_PROFILE".to_string(), "sso-test".to_string()),
+                    (
+                        "AWS_ROLE_ARN".to_string(),
+                        "arn:aws:iam::000000000000:role/web-identity".to_string(),
+                    ),
+                    (
+                        "AWS_WEB_IDENTITY_TOKEN_FILE".to_string(),
+                        "test-home/web-identity-token".to_string(),
+                    ),
+                ]),
+            })
+            .with_file_read(sources.clone())
+            .with_command_execute(sources.clone())
+            .with_http_send(sources.clone());
+        let (mut parts, ()) = Request::get("https://s3.us-east-1.amazonaws.com/example/test")
+            .body(())
+            .unwrap()
+            .into_parts();
+
+        backend
+            .core
+            .signers
+            .default()
+            .clone()
+            .with_context(ctx)
+            .sign(&mut parts, None)
+            .await
+            .expect("container credentials must still load when disable_config_load is set");
+        let auth = parts
+            .headers
+            .get(http::header::AUTHORIZATION)
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert!(auth.contains("Credential=ecs-ak/"), "{auth}");
+        assert_eq!(sources.file_reads.load(Ordering::SeqCst), 0);
+        assert_eq!(sources.command_calls.load(Ordering::SeqCst), 0);
+        assert_eq!(sources.http_calls.load(Ordering::SeqCst), 1);
     }
 
     struct StsErrorResponse {

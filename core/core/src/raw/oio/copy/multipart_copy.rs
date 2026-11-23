@@ -75,27 +75,20 @@ struct CopyInput<C: MultipartCopy> {
     range: BytesRange,
 }
 
-/// Build executor and capability inputs for [`MultipartCopier`].
-pub trait IntoMultipartCopyContext {
-    /// Convert into executor and capability.
-    fn into_multipart_copy_context(self) -> (Executor, Capability);
-}
-
-impl IntoMultipartCopyContext for Executor {
-    fn into_multipart_copy_context(self) -> (Executor, Capability) {
-        (self, Capability::default())
-    }
-}
-
-impl IntoMultipartCopyContext for (Executor, Capability) {
-    fn into_multipart_copy_context(self) -> (Executor, Capability) {
-        self
-    }
-}
-
 struct CopiedPart {
     part: MultipartPart,
     size: u64,
+}
+
+enum State {
+    /// The copy is active and can be advanced or completed.
+    Running,
+    /// An abort has been requested and server-side cleanup is pending retry.
+    Aborting,
+    /// The copy completed and produced server-side metadata.
+    Completed(Metadata),
+    /// The copy was aborted and any server-side intermediate state was cleaned up.
+    Aborted,
 }
 
 /// MultipartCopier implements [`oio::Copy`] based on multipart copy.
@@ -112,8 +105,7 @@ pub struct MultipartCopier<C: MultipartCopy> {
     copy_once_threshold: u64,
     part_size: u64,
     concurrent: usize,
-    completed: bool,
-    metadata: Option<Metadata>,
+    state: State,
 
     tasks: ConcurrentTasks<CopyInput<C>, CopiedPart>,
 }
@@ -121,14 +113,14 @@ pub struct MultipartCopier<C: MultipartCopy> {
 impl<C: MultipartCopy> MultipartCopier<C> {
     /// Create a new MultipartCopier.
     pub fn new(
-        context: impl IntoMultipartCopyContext,
+        executor: Executor,
+        capability: Capability,
         inner: C,
         source_content_length_hint: Option<u64>,
         copy_once_threshold: u64,
         part_size: u64,
         concurrent: usize,
     ) -> Self {
-        let (executor, capability) = context.into_multipart_copy_context();
         let copier = Arc::new(inner);
         let concurrent = concurrent.max(1);
 
@@ -144,8 +136,7 @@ impl<C: MultipartCopy> MultipartCopier<C> {
             copy_once_threshold,
             part_size,
             concurrent,
-            completed: false,
-            metadata: None,
+            state: State::Running,
 
             tasks: ConcurrentTasks::new(executor, concurrent, 0, |input| {
                 Box::pin(async move {
@@ -280,15 +271,22 @@ where
     C: MultipartCopy,
 {
     async fn next(&mut self) -> Result<Option<usize>> {
-        if self.completed {
-            return Ok(None);
+        match &self.state {
+            State::Completed(_) => return Ok(None),
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart copier has already been aborted",
+                ));
+            }
+            State::Running => {}
         }
 
         let source_size = self.source_size().await?;
 
         if self.upload_id.is_none() && source_size <= self.copy_once_threshold {
-            self.metadata = Some(self.copier.copy_once().await?);
-            self.completed = true;
+            let metadata = self.copier.copy_once().await?;
+            self.state = State::Completed(metadata);
             return Ok(None);
         }
 
@@ -322,20 +320,32 @@ where
         }
 
         self.parts.sort_by_key(|part| part.part_number);
-        self.metadata = Some(self.copier.complete_copy(&upload_id, &self.parts).await?);
-        self.completed = true;
+        let metadata = self.copier.complete_copy(&upload_id, &self.parts).await?;
+        self.upload_id = None;
+        self.parts.clear();
+        self.state = State::Completed(metadata);
         Ok(None)
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        while !self.completed {
+        match &self.state {
+            State::Aborting | State::Aborted => {
+                return Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "multipart copier has already been aborted and can't be closed",
+                ));
+            }
+            State::Running | State::Completed(_) => {}
+        }
+
+        while matches!(self.state, State::Running) {
             self.next().await?;
         }
 
-        let metadata = self
-            .metadata
-            .clone()
-            .unwrap_or_else(|| MetadataBuilder::unknown().build());
+        let State::Completed(metadata) = &self.state else {
+            unreachable!("multipart copier must be completed after draining next()");
+        };
+        let metadata = metadata.clone();
         let Some(source_size) = self.source_size else {
             return Ok(metadata);
         };
@@ -357,17 +367,23 @@ where
     }
 
     async fn abort(&mut self) -> Result<()> {
-        self.tasks.clear();
-        // Keep upload_id in place until abort succeeds so that a retry can
-        // abort the same multipart copy.
-        let Some(upload_id) = self.upload_id.clone() else {
-            return Ok(());
-        };
+        match &self.state {
+            State::Completed(_) | State::Aborted => return Ok(()),
+            State::Running | State::Aborting => {}
+        }
 
-        self.copier.abort_copy(&upload_id).await?;
-        self.completed = true;
-        self.metadata = None;
-        self.upload_id = None;
+        self.state = State::Aborting;
+        self.tasks.clear();
+
+        // Keep upload_id in place until abort_copy succeeds so a failed abort
+        // can be retried for the same multipart copy.
+        if let Some(upload_id) = self.upload_id.clone() {
+            self.copier.abort_copy(&upload_id).await?;
+            self.upload_id = None;
+        }
+
+        self.parts.clear();
+        self.state = State::Aborted;
         Ok(())
     }
 }
@@ -389,15 +405,25 @@ mod tests {
         source_metadata_calls: AtomicUsize,
         copy_once_calls: AtomicUsize,
         initiate_copy_calls: AtomicUsize,
+        complete_copy_calls: AtomicUsize,
+        abort_copy_calls: AtomicUsize,
+        abort_failures: usize,
     }
 
     impl TestCopy {
         fn new(source_size: u64) -> Arc<Self> {
+            Self::with_abort_failures(source_size, 0)
+        }
+
+        fn with_abort_failures(source_size: u64, abort_failures: usize) -> Arc<Self> {
             Arc::new(Self {
                 source_size,
                 source_metadata_calls: AtomicUsize::new(0),
                 copy_once_calls: AtomicUsize::new(0),
                 initiate_copy_calls: AtomicUsize::new(0),
+                complete_copy_calls: AtomicUsize::new(0),
+                abort_copy_calls: AtomicUsize::new(0),
+                abort_failures,
             })
         }
     }
@@ -437,10 +463,15 @@ mod tests {
         }
 
         async fn complete_copy(&self, _: &str, _: &[MultipartPart]) -> Result<Metadata> {
+            self.complete_copy_calls.fetch_add(1, Ordering::Relaxed);
             Ok(MetadataBuilder::unknown().build())
         }
 
         async fn abort_copy(&self, _: &str) -> Result<()> {
+            let call = self.abort_copy_calls.fetch_add(1, Ordering::Relaxed);
+            if call < self.abort_failures {
+                return Err(Error::new(ErrorKind::Unexpected, "503 SlowDown").set_temporary());
+            }
             Ok(())
         }
     }
@@ -448,8 +479,15 @@ mod tests {
     #[tokio::test]
     async fn test_content_length_hint_skips_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier =
-            MultipartCopier::new(crate::test_executor(), inner.clone(), Some(8), 8, 8, 1);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            8,
+            8,
+            1,
+        );
 
         let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
@@ -462,7 +500,15 @@ mod tests {
     #[tokio::test]
     async fn test_missing_content_length_hint_loads_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(crate::test_executor(), inner.clone(), None, 8, 8, 1);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            None,
+            8,
+            8,
+            1,
+        );
 
         let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
@@ -483,7 +529,8 @@ mod tests {
         // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
         let inner = TestCopy::new(10);
         let mut copier = MultipartCopier::new(
-            /*context=*/ (crate::test_executor(), capability),
+            /*executor=*/ crate::test_executor(),
+            /*capability=*/ capability,
             /*inner=*/ inner.clone(),
             /*source_content_length_hint=*/ Some(10),
             /*copy_once_threshold=*/ 0,
@@ -583,6 +630,7 @@ mod tests {
         let state = inner.state.clone();
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner,
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -609,6 +657,7 @@ mod tests {
         let state = inner.state.clone();
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner,
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -640,6 +689,159 @@ mod tests {
             state.completed_ranges,
             vec![BytesRange::new(0, Some(4)), BytesRange::new(4, Some(4))]
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_before_initiate_prevents_copy_and_close() -> Result<()> {
+        let inner = TestCopy::new(8);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 1,
+        );
+
+        copier.abort().await?;
+        copier.abort().await?;
+
+        let err = copier.next().await.expect_err("next after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.copy_once_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_after_initiate_rejects_close_and_is_idempotent() -> Result<()> {
+        let inner = TestCopy::new(8);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 1,
+        );
+
+        assert_eq!(copier.next().await?, Some(4));
+        assert_eq!(inner.initiate_copy_calls.load(Ordering::Relaxed), 1);
+
+        copier.abort().await?;
+        copier.abort().await?;
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 1);
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier.next().await.expect_err("next after abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_failure_is_retryable_and_blocks_copy_and_close() -> Result<()> {
+        let inner = TestCopy::with_abort_failures(8, 1);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 1,
+        );
+
+        assert_eq!(copier.next().await?, Some(4));
+
+        let err = copier
+            .abort()
+            .await
+            .expect_err("first abort should surface temporary failure");
+        assert!(err.is_temporary());
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 1);
+
+        let err = copier
+            .next()
+            .await
+            .expect_err("next after failed abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after failed abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        copier.abort().await?;
+        copier.abort().await?;
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 2);
+        assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 0);
+
+        let err = copier
+            .close()
+            .await
+            .expect_err("close after retried abort must fail");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_abort_after_complete_is_noop_and_keeps_completed_metadata() -> Result<()> {
+        let inner = TestCopy::new(8);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            /*copy_once_threshold=*/ 0,
+            /*part_size=*/ 4,
+            /*concurrent=*/ 1,
+        );
+
+        while copier.next().await?.is_some() {}
+        assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 1);
+
+        copier.abort().await?;
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(copier.next().await?, None);
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+
+        copier.abort().await?;
+        assert_eq!(inner.abort_copy_calls.load(Ordering::Relaxed), 0);
+
+        let metadata = copier.close().await?;
+        assert!(metadata.is_file());
+        assert_eq!(metadata.content_length(), 8);
+        assert_eq!(inner.complete_copy_calls.load(Ordering::Relaxed), 1);
         Ok(())
     }
 }

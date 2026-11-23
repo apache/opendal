@@ -19,11 +19,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+use futures::StreamExt;
 use opendal_core::options::{DeleteOptions, ReadOptions};
-use opendal_core::raw::oio::{self, Read, ReadStream};
+use opendal_core::raw::oio::{self, Read, ReadStream, Write};
 use opendal_core::raw::*;
 use opendal_core::services::Memory;
 use opendal_core::*;
+use opendal_executor_tokio::TokioExecutor;
 use opendal_layer_cache::{CacheDecision, CacheLayer, CacheReadRequest};
 use opendal_service_fs::Fs;
 use tokio::sync::Semaphore;
@@ -47,6 +49,7 @@ struct Observations {
 struct Probe {
     observed: Arc<Observations>,
     gate: Option<Arc<Gate>>,
+    stat_gate: Option<Arc<Gate>>,
     version: Option<Arc<AtomicUsize>>,
     faults: Option<Arc<AtomicUsize>>,
     expose_version: bool,
@@ -141,6 +144,10 @@ impl Service for ObservedService {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.probe.observed.stats.fetch_add(1, Ordering::Relaxed);
+        if let Some(gate) = &self.probe.stat_gate {
+            gate.entered.add_permits(1);
+            let _ = gate.release.acquire().await.unwrap();
+        }
         let (path, version) = self.selection(path, args.version());
         Ok(self
             .inner
@@ -921,5 +928,1415 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
         op.read("dir/a").await.unwrap_err().kind(),
         ErrorKind::NotFound
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer() -> Result<()> {
+    let probe = Probe::default();
+    let origin = memory()?.layer(probe.clone());
+    let payload: Vec<u8> = (0_u8..24).map(|i| b'a' + i).collect();
+    origin.write("big", payload.clone()).await?;
+    origin.write("pair", "abcdefgh").await?;
+
+    let cache = memory()?;
+    let op = origin.layer(
+        CacheLayer::new(cache.clone())?
+            .with_chunk_size(1)
+            .with_ttl(Duration::MAX),
+    );
+
+    // 24 chunks exceeds FILL_CHUNKS (16): cold read populates all 24 chunks via
+    // single-open NonceFillStream, and subsequent reads hit cache with zero origin reads.
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+    let reads_after_cold = probe.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+    assert_eq!(
+        op.read_with("big").range(5..20).await?.to_vec(),
+        &payload[5..20]
+    );
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        reads_after_cold,
+        "hot large Tier 4 reads must not hit origin"
+    );
+
+    // Evicting a middle chunk after a large Tier 4 stream has opened must fail
+    // with a temporary error rather than splicing from origin, then recover cleanly.
+    let mut stream = op.reader("big").await?.into_stream(..).await?;
+    let first_part = stream
+        .next()
+        .await
+        .transpose()?
+        .expect("first chunk must be yielded before mid-stream eviction");
+    assert_eq!(first_part.to_vec(), &payload[..1]);
+
+    let mut data_keys: Vec<String> = cache
+        .list_with("v1/data/")
+        .recursive(true)
+        .await?
+        .into_iter()
+        .filter(|entry| entry.metadata().is_file())
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    data_keys.sort();
+    let middle_keys: Vec<String> = data_keys
+        .into_iter()
+        .filter(|key| key.ends_with("/a"))
+        .collect();
+    assert!(
+        !middle_keys.is_empty(),
+        "chunk index 10 (0xa) must be cached"
+    );
+    for key in middle_keys {
+        cache.delete(&key).await?;
+    }
+    let mut err = None;
+    while let Some(item) = stream.next().await {
+        if let Err(e) = item {
+            err = Some(e);
+            break;
+        }
+    }
+    let err = err.expect("mid-stream eviction of Tier 4 chunk must not splice");
+    assert!(err.is_temporary());
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+
+    // Caching disjoint boundary chunks of a large Tier 4 object (first and last)
+    // must not trick a subsequent full read into failing mid-stream; it should
+    // populate the missing middle chunks and serve future full reads from cache.
+    let probe_sparse = Probe::default();
+    let origin_sparse = memory()?.layer(probe_sparse.clone());
+    origin_sparse.write("sparse", payload.clone()).await?;
+    let op_sparse = origin_sparse.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(1)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op_sparse.read_with("sparse").range(0..1).await?.to_vec(),
+        &payload[..1]
+    );
+    assert_eq!(
+        op_sparse
+            .read_with("sparse")
+            .range((payload.len() as u64 - 1)..payload.len() as u64)
+            .await?
+            .to_vec(),
+        &payload[payload.len() - 1..]
+    );
+    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
+    let reads_after_fill = probe_sparse.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(op_sparse.read("sparse").await?.to_vec(), payload);
+    assert_eq!(
+        probe_sparse.observed.reads.load(Ordering::Relaxed),
+        reads_after_fill,
+        "full read after filling sparse large Tier 4 object must hit cache"
+    );
+
+    // Partial miss on a fresh Tier 4 pointer must populate missing chunks under
+    // the existing nonce without discarding the pointer or orphaning chunk 0.
+    let probe_pair = Probe::default();
+    let origin_pair = memory()?.layer(probe_pair.clone());
+    origin_pair.write("pair", "abcdefgh").await?;
+    let op_pair = origin_pair.clone().layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op_pair.read_with("pair").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        op_pair.read_with("pair").range(4..8).await?.to_vec(),
+        b"efgh"
+    );
+    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        op_pair.read_with("pair").range(4..8).await?.to_vec(),
+        b"efgh"
+    );
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "partial miss on chunk 1 must cache chunk 1 under the existing nonce"
+    );
+    assert_eq!(
+        op_pair.read_with("pair").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "partial miss on chunk 1 must not invalidate chunk 0"
+    );
+    assert_eq!(op_pair.read("pair").await?.to_vec(), b"abcdefgh");
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "full read must hit both chunks under the existing nonce"
+    );
+
+    // If origin length changes externally before a Tier 4 partial miss fills,
+    // the stale pointer must be discarded and the read must recover cleanly.
+    origin_pair.write("growing", "abcdefgh").await?;
+    assert_eq!(
+        op_pair.read_with("growing").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    origin_pair.write("growing", "0123456789ab").await?;
+    assert_eq!(
+        op_pair.read_with("growing").range(4..8).await?.to_vec(),
+        b"4567"
+    );
+    assert_eq!(op_pair.read("growing").await?.to_vec(), b"0123456789ab");
+    Ok(())
+}
+
+#[tokio::test]
+async fn cached_reader_read_serves_short_suffix_from_cache() -> Result<()> {
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/short", "hello").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    let reader = op.service().read(op.context(), "short", OpRead::new())?;
+    let (rp1, buf1) = reader.read(BytesRange::suffix(100)).await?;
+    assert_eq!(buf1.to_vec(), b"hello");
+    assert_eq!(rp1.metadata().unwrap().content_length(), 5);
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    let (rp2, buf2) = reader.read(BytesRange::suffix(100)).await?;
+    assert_eq!(buf2.to_vec(), b"hello");
+    assert_eq!(rp2.metadata().unwrap().content_length(), 5);
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "hot short suffix read must be served from cache"
+    );
+
+    // Unbounded raw `oio::Read::read` stays delegated to the source contract.
+    assert!(reader.read(BytesRange::default()).await.is_err());
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn cold_suffix_and_fs_chunk_miss_avoid_extra_opens_and_stats() -> Result<()> {
+    // Verifiable backend: cold Suffix read uses 1 stat + 1 aligned read (not 2 reads).
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/object", "0123456789").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op.read_with("object")
+            .range(BytesRange::suffix(3))
+            .await?
+            .to_vec(),
+        b"789"
+    );
+    assert_eq!(probe.observed.stats.load(Ordering::Relaxed), 1);
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    // Fs backend (empty RpRead): cold suffix uses 1 open + 2 stats (pre-stat + post-stat),
+    // and a subsequent chunk miss uses 1 open + 1 post-stat (not 2 opens + 2 stats).
+    let directory = tempfile::tempdir().unwrap();
+    let fs_probe = Probe::default();
+    let origin = Operator::new(Fs::default().root(directory.path().to_str().unwrap()))?
+        .layer(fs_probe.clone());
+    origin.write("file", "abcdefghij").await?;
+    let op = origin.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op.read_with("file")
+            .range(BytesRange::suffix(2))
+            .await?
+            .to_vec(),
+        b"ij"
+    );
+    assert_eq!(fs_probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(fs_probe.observed.stats.load(Ordering::Relaxed), 2);
+
+    assert_eq!(op.read_with("file").range(0..4).await?.to_vec(), b"abcd");
+    assert_eq!(
+        fs_probe.observed.reads.load(Ordering::Relaxed),
+        2,
+        "chunk miss on Fs must open once, not twice"
+    );
+    assert_eq!(
+        fs_probe.observed.stats.load(Ordering::Relaxed),
+        3,
+        "chunk miss on Fs must run only post-read verify_stat"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn discover_retries_condition_not_match_and_does_not_cache_on_stat_error() -> Result<()> {
+    // Case A: stream.read() fails with ConditionNotMatch before any byte is yielded;
+    // discover() must map it to FillError::Changed and retry once transparently.
+    #[derive(Debug)]
+    struct FailFirstStreamLayer {
+        opens: Arc<AtomicUsize>,
+    }
+    #[derive(Debug)]
+    struct FailFirstStreamService {
+        inner: Servicer,
+        opens: Arc<AtomicUsize>,
+    }
+    struct FailFirstStreamReader {
+        inner: oio::Reader,
+        opens: Arc<AtomicUsize>,
+    }
+    struct ConditionMismatchStream;
+
+    impl ReadStream for ConditionMismatchStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "object changed during inner retry",
+            ))
+        }
+    }
+
+    impl Layer for FailFirstStreamLayer {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(FailFirstStreamService {
+                inner,
+                opens: self.opens.clone(),
+            })
+        }
+    }
+
+    impl Service for FailFirstStreamService {
+        type Reader = FailFirstStreamReader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            Ok(FailFirstStreamReader {
+                inner: self.inner.read(ctx, path, args)?,
+                opens: self.opens.clone(),
+            })
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    impl Read for FailFirstStreamReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let attempt = self.opens.fetch_add(1, Ordering::Relaxed);
+            if attempt == 0 {
+                let mut meta = MetadataBuilder::file(4);
+                meta.etag("\"v1\"");
+                return Ok((RpRead::new(meta.build()), Box::new(ConditionMismatchStream)));
+            }
+            let (rp, stream) = self.inner.open(range).await?;
+            let meta = rp
+                .into_metadata()
+                .map(|m| {
+                    let mut b = m.into_builder();
+                    b.etag("\"v2\"");
+                    b.build()
+                })
+                .unwrap();
+            Ok((RpRead::new(meta), stream))
+        }
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.inner.read(range).await
+        }
+    }
+
+    let opens = Arc::new(AtomicUsize::new(0));
+    let source = memory()?;
+    source.write("obj", "v222").await?;
+    let op = source
+        .layer(FailFirstStreamLayer {
+            opens: opens.clone(),
+        })
+        .layer(CacheLayer::new(memory()?)?.with_chunk_size(4));
+    assert_eq!(op.read("obj").await?.to_vec(), b"v222");
+    assert_eq!(opens.load(Ordering::Relaxed), 2);
+
+    // Case B: length-only RpRead followed by stat error must not publish a stale pointer.
+    #[derive(Debug)]
+    struct FailingStatLayer(ErrorKind);
+    #[derive(Debug)]
+    struct FailingStatService {
+        inner: Servicer,
+        kind: ErrorKind,
+    }
+    impl Layer for FailingStatLayer {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(FailingStatService {
+                inner,
+                kind: self.0,
+            })
+        }
+    }
+    impl Service for FailingStatService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(self.kind, "injected stat failure"))
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let source = memory()?;
+    source.write("obj", "data").await?;
+    let cache = memory()?;
+    let op = source
+        .layer(FailingStatLayer(ErrorKind::PermissionDenied))
+        .layer(CacheLayer::new(cache.clone())?.with_chunk_size(4));
+    assert_eq!(op.read("obj").await?.to_vec(), b"data");
+    assert!(
+        cache
+            .list_with("v1/meta/")
+            .recursive(true)
+            .await?
+            .is_empty(),
+        "stat failure during discovery must not publish a pointer"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn singleflight_uses_operation_context_executor() -> Result<()> {
+    struct CountingExecutor {
+        spawns: Arc<AtomicUsize>,
+    }
+
+    impl Execute for CountingExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            self.spawns.fetch_add(1, Ordering::Relaxed);
+            tokio::spawn(f);
+        }
+    }
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let gate = Gate::new();
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        ..Probe::default()
+    };
+    let origin = memory()?.layer(probe.clone());
+    origin.write("obj", "payload").await?;
+    let op = origin
+        .layer(CacheLayer::new(memory()?)?.with_chunk_size(4))
+        .with_context(
+            OperationContext::new().with_executor(Executor::with(CountingExecutor {
+                spawns: spawns.clone(),
+            })),
+        );
+
+    let first = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    gate.entered.acquire().await.unwrap().forget();
+    first.abort();
+    assert!(first.await.unwrap_err().is_cancelled());
+
+    let second = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    gate.release.add_permits(1);
+    assert_eq!(second.await.unwrap()?.to_vec(), b"payload");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert!(
+        spawns.load(Ordering::Relaxed) >= 1,
+        "singleflight must submit fill tasks through OperationContext::executor"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn abandoning_executor_does_not_hang_or_leak_flight_reservations() -> Result<()> {
+    struct AbandoningExecutor;
+
+    impl Execute for AbandoningExecutor {
+        fn execute(&self, _f: BoxedStaticFuture<()>) {}
+    }
+
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "abcdefgh").await?;
+    let layer = CacheLayer::new(memory()?)?
+        .with_chunk_size(4)
+        .with_ttl(Duration::MAX);
+    let working = source.clone().layer(probe.clone()).layer(layer.clone());
+    let abandoning = working
+        .clone()
+        .with_context(OperationContext::new().with_executor(Executor::with(AbandoningExecutor)));
+
+    // Cold read: discovery flight is abandoned by the executor; read falls back
+    // cleanly to origin without hanging or reporting "object changed".
+    let cold = tokio::time::timeout(Duration::from_secs(1), abandoning.read("obj"))
+        .await
+        .expect("cold read with abandoning executor must not hang")?;
+    assert_eq!(cold.to_vec(), b"abcdefgh");
+
+    // Warm pointer + chunk 0 using a working executor so flight map is proven clear.
+    assert_eq!(
+        working.read_with("obj").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+
+    // Warm pointer + chunk 1 miss via abandoning executor (both exact range and
+    // streaming read spanning cached chunk 0 and missing chunk 1).
+    let partial = tokio::time::timeout(
+        Duration::from_secs(1),
+        abandoning.read_with("obj").range(4..8),
+    )
+    .await
+    .expect("chunk miss with abandoning executor must not hang")?;
+    assert_eq!(partial.to_vec(), b"efgh");
+
+    // Verify another uncached object works end-to-end across chunk 0 (cached) and
+    // chunk 1 (missed during streaming) with the abandoning executor.
+    source.write("1/stream", "01234567").await?;
+    assert_eq!(
+        working.read_with("stream").range(0..4).await?.to_vec(),
+        b"0123"
+    );
+    let full = tokio::time::timeout(Duration::from_secs(1), abandoning.read("stream"))
+        .await
+        .expect("streaming chunk miss with abandoning executor must not hang")?;
+    assert_eq!(full.to_vec(), b"01234567");
+
+    // Working executor must still hit cache cleanly afterwards.
+    let reads_before = probe.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(working.read("stream").await?.to_vec(), b"01234567");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), reads_before);
+    Ok(())
+}
+
+#[test]
+fn tokio_executor_falls_back_inline_outside_tokio_runtime() -> Result<()> {
+    futures::executor::block_on(async {
+        let probe = Probe {
+            version: Some(Arc::new(AtomicUsize::new(1))),
+            ..Probe::default()
+        };
+        let source = memory()?;
+        source.write("1/obj", "inline-ok").await?;
+        let op = source
+            .layer(probe.clone())
+            .layer(
+                CacheLayer::new(memory()?)?
+                    .with_chunk_size(4)
+                    .with_ttl(Duration::MAX),
+            )
+            .with_context(
+                OperationContext::new().with_executor(Executor::with(TokioExecutor::default())),
+            );
+
+        assert_eq!(op.read("obj").await?.to_vec(), b"inline-ok");
+        let reads_after_cold = probe.observed.reads.load(Ordering::Relaxed);
+        assert_eq!(reads_after_cold, 1);
+
+        assert_eq!(op.read("obj").await?.to_vec(), b"inline-ok");
+        assert_eq!(
+            probe.observed.reads.load(Ordering::Relaxed),
+            reads_after_cold,
+            "inline fallback outside Tokio runtime must still populate cache"
+        );
+        Ok(())
+    })
+}
+
+#[tokio::test]
+async fn mutation_invalidation_covers_copy_from_compose_restore_and_versioned_delete() -> Result<()>
+{
+    #[derive(Debug)]
+    struct MutationHarness {
+        inner: Servicer,
+        current_version: Arc<AtomicUsize>,
+        restored: Arc<AtomicUsize>,
+    }
+
+    impl Layer for MutationHarness {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(MutationHarness {
+                inner,
+                current_version: self.current_version.clone(),
+                restored: self.restored.clone(),
+            })
+        }
+    }
+
+    struct HarnessComposer {
+        inner: Servicer,
+        ctx: OperationContext,
+        to: String,
+        parts: Vec<String>,
+    }
+
+    impl oio::Compose for HarnessComposer {
+        async fn compose(&mut self, path: &str, _: OpRead) -> Result<()> {
+            self.parts.push(path.to_owned());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            let mut combined = Vec::new();
+            for part in &self.parts {
+                let (_, mut stream) = self
+                    .inner
+                    .read(&self.ctx, part, OpRead::new())?
+                    .open(BytesRange::default())
+                    .await?;
+                combined.extend_from_slice(&stream.read_all().await?.to_bytes());
+            }
+            let mut writer = self.inner.write(&self.ctx, &self.to, OpWrite::new())?;
+            writer.write(Buffer::from(combined)).await?;
+            writer.close().await
+        }
+    }
+
+    struct HarnessDeleter {
+        inner: Servicer,
+        ctx: OperationContext,
+        current_version: Arc<AtomicUsize>,
+    }
+
+    impl oio::Delete for HarnessDeleter {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            let mut deleter = self.inner.delete(&self.ctx)?;
+            if let Some(version) = args.version() {
+                deleter
+                    .delete(&format!("{version}/{path}"), OpDelete::new())
+                    .await?;
+                if self.current_version.load(Ordering::Relaxed).to_string() == version {
+                    self.current_version.store(2, Ordering::Relaxed);
+                }
+            } else {
+                deleter.delete(path, args).await?;
+            }
+            deleter.close().await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct HarnessReader {
+        inner: Servicer,
+        ctx: OperationContext,
+        path: String,
+        version: Option<String>,
+    }
+
+    impl Read for HarnessReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let target = self
+                .version
+                .as_ref()
+                .map_or_else(|| self.path.clone(), |v| format!("{v}/{}", self.path));
+            let (rp, stream) = self
+                .inner
+                .read(&self.ctx, &target, OpRead::new())?
+                .open(range)
+                .await?;
+            let rp = match (rp.into_metadata(), &self.version) {
+                (Some(meta), Some(v)) => {
+                    let mut b = meta.into_builder();
+                    b.etag(format!("\"{v}\"")).version(v);
+                    RpRead::new(b.build())
+                }
+                (Some(meta), None) => RpRead::new(meta),
+                (None, _) => RpRead::default(),
+            };
+            Ok((rp, stream))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            let target = self
+                .version
+                .as_ref()
+                .map_or_else(|| self.path.clone(), |v| format!("{v}/{}", self.path));
+            self.inner
+                .read(&self.ctx, &target, OpRead::new())?
+                .read(range)
+                .await
+        }
+    }
+
+    impl Service for MutationHarness {
+        type Reader = HarnessReader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = HarnessDeleter;
+        type Copier = oio::Copier;
+        type Composer = HarnessComposer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            let mut cap = self.inner.capability();
+            cap.compose = true;
+            cap.restore = true;
+            cap.restore_with_version = true;
+            cap.read_with_version = true;
+            cap.delete_with_version = true;
+            cap.write_can_copy_from = true;
+            cap
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            if path == "ver" {
+                let v = args
+                    .version()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| self.current_version.load(Ordering::Relaxed).to_string());
+                return Ok(self
+                    .inner
+                    .stat(ctx, &format!("{v}/{path}"), OpStat::new())
+                    .await?
+                    .map_metadata(|m| {
+                        let mut b = m.into_builder();
+                        b.etag(format!("\"{v}\"")).version(v);
+                        b.build()
+                    }));
+            }
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            let version =
+                if path == "ver" {
+                    Some(args.version().map(str::to_owned).unwrap_or_else(|| {
+                        self.current_version.load(Ordering::Relaxed).to_string()
+                    }))
+                } else {
+                    None
+                };
+            Ok(HarnessReader {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                path: path.to_owned(),
+                version,
+            })
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(HarnessDeleter {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                current_version: self.current_version.clone(),
+            })
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        fn compose(
+            &self,
+            ctx: &OperationContext,
+            to: &str,
+            _: OpCompose,
+        ) -> Result<Self::Composer> {
+            Ok(HarnessComposer {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                to: to.to_owned(),
+                parts: Vec::new(),
+            })
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn restore(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpRestore,
+        ) -> Result<RpRestore> {
+            self.restored.fetch_add(1, Ordering::Relaxed);
+            let target = args
+                .version()
+                .map_or_else(|| path.to_owned(), |v| format!("{v}/{path}"));
+            let mut w = self.inner.write(ctx, &target, OpWrite::new())?;
+            w.write(Buffer::from("restored")).await?;
+            w.close().await?;
+            Ok(RpRestore::default())
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let source = memory()?;
+    source.write("src", "copied").await?;
+    source.write("dest", "old").await?;
+    source.write("p1", "hel").await?;
+    source.write("p2", "lo").await?;
+    source.write("composed", "stale").await?;
+    source.write("archived", "cold").await?;
+    source.write("1/ver", "v1data").await?;
+    source.write("2/ver", "v2data").await?;
+
+    let current_version = Arc::new(AtomicUsize::new(1));
+    let restored = Arc::new(AtomicUsize::new(0));
+    let harness = MutationHarness {
+        inner: source.service().clone(),
+        current_version: current_version.clone(),
+        restored: restored.clone(),
+    };
+    let op = source
+        .layer(harness)
+        .layer(CacheLayer::new(memory()?)?.with_ttl(Duration::MAX));
+
+    // 1. Writer::copy_from invalidates destination.
+    assert_eq!(op.read("dest").await?.to_vec(), b"old");
+    let mut writer = op.writer("dest").await?;
+    writer.copy_from("src", ..).await?;
+    writer.close().await?;
+    assert_eq!(op.read("dest").await?.to_vec(), b"copied");
+
+    // 2. compose invalidates destination.
+    assert_eq!(op.read("composed").await?.to_vec(), b"stale");
+    op.compose(["p1", "p2"], "composed").await?;
+    assert_eq!(op.read("composed").await?.to_vec(), b"hello");
+
+    // 3. restore invalidates target.
+    assert_eq!(op.read("archived").await?.to_vec(), b"cold");
+    op.restore("archived").await?;
+    assert_eq!(restored.load(Ordering::Relaxed), 1);
+    assert_eq!(op.read("archived").await?.to_vec(), b"restored");
+
+    // 4. Versioned delete invalidates both the versioned subject and unversioned current subject.
+    assert_eq!(op.read("ver").await?.to_vec(), b"v1data");
+    assert_eq!(op.read_with("ver").version("1").await?.to_vec(), b"v1data");
+    op.delete_with("ver").version("1").await?;
+    assert_eq!(
+        op.read_with("ver").version("1").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    assert_eq!(op.read("ver").await?.to_vec(), b"v2data");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn expired_revalidation_and_cold_suffix_stat_coalesce_via_singleflight() -> Result<()> {
+    // 1. Expired TTL revalidation coalesces concurrent readers into a single origin stat.
+    let stat_gate = Gate::new();
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        stat_gate: Some(stat_gate.clone()),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/hot", "abcdefgh").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::ZERO),
+    );
+    // Initial cold read populates pointer and chunks without calling stat.
+    assert_eq!(op.read("hot").await?.to_vec(), b"abcdefgh");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(probe.observed.stats.load(Ordering::Relaxed), 0);
+
+    // Fire 8 concurrent reads against the expired pointer.
+    let mut tasks = Vec::new();
+    for _ in 0..8 {
+        let op = op.clone();
+        tasks.push(tokio::spawn(async move { op.read("hot").await }));
+    }
+    let _ = stat_gate.entered.acquire().await.unwrap();
+    // Give sibling tasks a turn to join the in-flight revalidation before releasing.
+    for _ in 0..16 {
+        tokio::task::yield_now().await;
+    }
+    stat_gate.release.add_permits(8);
+    for task in tasks {
+        assert_eq!(task.await.unwrap()?.to_vec(), b"abcdefgh");
+    }
+    assert_eq!(
+        probe.observed.stats.load(Ordering::Relaxed),
+        1,
+        "concurrent expired-TTL readers must coalesce into one origin stat"
+    );
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "revalidated readers must reuse cached chunks without extra origin reads"
+    );
+
+    // 2. Cold Suffix reads coalesce their initial length-discovery stat into one origin stat.
+    let suffix_gate = Gate::new();
+    let suffix_probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        stat_gate: Some(suffix_gate.clone()),
+        ..Probe::default()
+    };
+    let suffix_source = memory()?;
+    suffix_source.write("1/parquet", "0123456789abcdef").await?;
+    let suffix_op = suffix_source.layer(suffix_probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    let mut suffix_tasks = Vec::new();
+    for _ in 0..8 {
+        let op = suffix_op.clone();
+        suffix_tasks.push(tokio::spawn(async move {
+            op.read_with("parquet").range(BytesRange::suffix(4)).await
+        }));
+    }
+    let _ = suffix_gate.entered.acquire().await.unwrap();
+    for _ in 0..16 {
+        tokio::task::yield_now().await;
+    }
+    suffix_gate.release.add_permits(8);
+    for task in suffix_tasks {
+        assert_eq!(task.await.unwrap()?.to_vec(), b"cdef");
+    }
+    assert_eq!(
+        suffix_probe.observed.stats.load(Ordering::Relaxed),
+        1,
+        "concurrent cold suffix readers must coalesce into one origin stat"
+    );
+    assert_eq!(
+        suffix_probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "concurrent cold suffix readers must coalesce chunk fills"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn observe_stat_preserves_matching_and_unrelated_cold_publish_but_blocks_stale() -> Result<()>
+{
+    let gate = Gate::new();
+    let version = Arc::new(AtomicUsize::new(1));
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        version: Some(version.clone()),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/target", "v1target").await?;
+    source.write("1/stale", "v1stale!").await?;
+    source.write("2/stale", "v2stale!").await?;
+
+    let op = source.clone().layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Part 1: Concurrent unrelated `stat` (including misses across all shards) and a
+    // matching same-subject `stat` must NOT cancel cold-read pointer publication.
+    let cold_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await }
+    });
+    let _ = gate.entered.acquire().await.unwrap();
+    // Run missing stats across many paths to hit every shard, plus a matching stat on `target`.
+    for i in 0..300 {
+        let _ = op.stat(&format!("unrelated-{i}")).await;
+    }
+    assert_eq!(op.stat("target").await?.etag(), Some("\"1\""));
+    gate.release.add_permits(1);
+    assert_eq!(cold_task.await.unwrap()?.to_vec(), b"v1target");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    // Pointer must have been published so the next read hits cache.
+    assert_eq!(op.read("target").await?.to_vec(), b"v1target");
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "unrelated or matching stat must not cancel cold-read pointer publish"
+    );
+
+    // Part 2: A newer contradicting `stat` on the SAME subject MUST suppress stale publish.
+    let stale_gate = Gate::new();
+    let stale_version = Arc::new(AtomicUsize::new(1));
+    let stale_probe = Probe {
+        gate: Some(stale_gate.clone()),
+        version: Some(stale_version.clone()),
+        ..Probe::default()
+    };
+    let stale_op = source.layer(stale_probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    let stale_reader = stale_op.reader("stale").await?;
+    let stale_task = tokio::spawn({
+        let reader = stale_reader.clone();
+        async move { reader.read(0..8).await }
+    });
+    let _ = stale_gate.entered.acquire().await.unwrap();
+    // Flip origin to version 2 while the V1 cold read is still in flight, then observe via stat.
+    stale_version.store(2, Ordering::Relaxed);
+    assert_eq!(stale_op.stat("stale").await?.etag(), Some("\"2\""));
+    stale_gate.release.add_permits(1);
+    assert_eq!(stale_task.await.unwrap()?.to_vec(), b"v1stale!");
+
+    // Because `stat` observed version 2, the stale V1 pointer must neither be published
+    // to shared cache nor remembered in the reused Reader's local pointer cache.
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(stale_reader.read(0..8).await?.to_vec(), b"v2stale!");
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(stale_op.read("stale").await?.to_vec(), b"v2stale!");
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn partial_chunk_miss_reuses_cached_trailing_chunks_without_rereading() -> Result<()> {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[derive(Debug, Clone, Default)]
+    struct KeyCounter {
+        reads: Arc<Mutex<HashMap<String, usize>>>,
+        writes: Arc<Mutex<HashMap<String, usize>>>,
+    }
+    impl KeyCounter {
+        fn read_exact(&self, key: &str) -> usize {
+            self.reads.lock().unwrap().get(key).copied().unwrap_or(0)
+        }
+        fn read_prefix(&self, prefix: &str) -> usize {
+            self.reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with(prefix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn read_chunk(&self, index: u64) -> usize {
+            let suffix = format!("{index:x}");
+            self.reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with("v1/data/") && k.rsplit('/').next() == Some(&suffix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn write_chunk(&self, index: u64) -> usize {
+            let suffix = format!("{index:x}");
+            self.writes
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with("v1/data/") && k.rsplit('/').next() == Some(&suffix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn clear(&self) {
+            self.reads.lock().unwrap().clear();
+            self.writes.lock().unwrap().clear();
+        }
+    }
+    impl Layer for KeyCounter {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(KeyCounterService {
+                inner,
+                reads: self.reads.clone(),
+                writes: self.writes.clone(),
+            })
+        }
+    }
+    #[derive(Debug)]
+    struct KeyCounterService {
+        inner: Servicer,
+        reads: Arc<Mutex<HashMap<String, usize>>>,
+        writes: Arc<Mutex<HashMap<String, usize>>>,
+    }
+    impl Service for KeyCounterService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            *self
+                .reads
+                .lock()
+                .unwrap()
+                .entry(path.to_owned())
+                .or_default() += 1;
+            self.inner.read(ctx, path, args)
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            *self
+                .writes
+                .lock()
+                .unwrap()
+                .entry(path.to_owned())
+                .or_default() += 1;
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        fn compose(
+            &self,
+            ctx: &OperationContext,
+            to: &str,
+            args: OpCompose,
+        ) -> Result<Self::Composer> {
+            self.inner.compose(ctx, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn restore(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpRestore,
+        ) -> Result<RpRestore> {
+            self.inner.restore(ctx, path, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "aaaabbbbcccc").await?;
+
+    let counter = KeyCounter::default();
+    let cache = memory()?.layer(counter.clone());
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(cache.clone())?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Warm only chunks 1 and 2 (`4..12`), leaving chunk 0 uncached.
+    assert_eq!(
+        op.read_with("obj").range(4..12).await?.to_vec(),
+        b"bbbbcccc"
+    );
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(counter.write_chunk(0), 0);
+    assert_eq!(counter.write_chunk(1), 1);
+    assert_eq!(counter.write_chunk(2), 1);
+
+    // Now read the full object (`0..12`). Chunk 0 misses and is filled from origin,
+    // while chunks 1 and 2 must each be read from cache only once (never discarded & re-read).
+    counter.clear();
+    assert_eq!(op.read("obj").await?.to_vec(), b"aaaabbbbcccc");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        counter.write_chunk(0),
+        1,
+        "only missing chunk 0 must be written during partial miss fill"
+    );
+    assert_eq!(
+        counter.write_chunk(1),
+        0,
+        "cached chunk 1 must not be rewritten during partial miss fill"
+    );
+    assert_eq!(
+        counter.write_chunk(2),
+        0,
+        "cached chunk 2 must not be rewritten during partial miss fill"
+    );
+    assert_eq!(
+        counter.read_chunk(1),
+        1,
+        "chunk 1 must be read from cache once"
+    );
+    assert_eq!(
+        counter.read_chunk(2),
+        1,
+        "chunk 2 must be read from cache once"
+    );
+
+    // Reusing one Reader across multiple ranges caches v1/meta and v1/gen in the reader
+    // and invalidates immediately when a local mutation runs.
+    counter.clear();
+    let reader = op.reader("obj").await?;
+    for offset in [0u64, 4, 8, 0, 4] {
+        let buf = reader.read(offset..offset + 4).await?;
+        assert_eq!(buf.len(), 4);
+    }
+    assert_eq!(
+        counter.read_exact("v1/gen"),
+        0,
+        "steady-state hot reads must reuse cached generation"
+    );
+    assert_eq!(
+        counter.read_prefix("v1/meta/"),
+        1,
+        "reused Reader must resolve v1/meta once across multiple range reads"
+    );
+
+    // Mutating through the operator invalidates the reused Reader's cached pointer.
+    let origin_mem = memory()?;
+    origin_mem.write("mut", "old-data").await?;
+    let mut_op = origin_mem.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    let mut_reader = mut_op.reader("mut").await?;
+    assert_eq!(mut_reader.read(0..8).await?.to_vec(), b"old-data");
+    mut_op.write("mut", "new-data").await?;
+    assert_eq!(mut_reader.read(0..8).await?.to_vec(), b"new-data");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn singleflight_truncation_discards_non_contiguous_prefetched_chunks() -> Result<()> {
+    let gate = Gate::new();
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "aaaabbbbcccc").await?;
+
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Warm only chunk 2 (`8..12`), leaving chunks 0 and 1 uncached.
+    gate.release.add_permits(1);
+    assert_eq!(op.read_with("obj").range(8..12).await?.to_vec(), b"cccc");
+    let _ = gate.entered.acquire().await.unwrap();
+
+    // Hold an in-flight fill of chunk 1 (`4..8`) so a concurrent `0..12` reader's
+    // singleflight `[chunk 0, chunk 1]` is truncated to `[chunk 0]` while chunk 2
+    // was prefetched from cache.
+    let chunk1_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read_with("obj").range(4..8).await }
+    });
+    let _ = gate.entered.acquire().await.unwrap();
+
+    let full_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    // Wait until `full_task` enters origin for truncated chunk 0, then release both.
+    let _ = gate.entered.acquire().await.unwrap();
+    gate.release.add_permits(2);
+
+    assert_eq!(chunk1_task.await.unwrap()?.to_vec(), b"bbbb");
+    assert_eq!(full_task.await.unwrap()?.to_vec(), b"aaaabbbbcccc");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 3);
     Ok(())
 }

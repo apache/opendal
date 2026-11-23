@@ -35,17 +35,37 @@ pub struct FuturesDeleteSink<T: IntoDeleteInput> {
 // Deleter embeds Capability and is kept inline rather than boxed per sink.
 #[allow(clippy::large_enum_variant)]
 enum State {
-    Idle(Option<Deleter>),
+    /// The sink is ready to accept another item.
+    Idle(Deleter),
+    /// A delete request is in flight and owns the deleter.
     Delete(BoxedStaticFuture<(Deleter, Result<()>)>),
+    /// A close request is in flight and owns the deleter.
     Close(BoxedStaticFuture<(Deleter, Result<()>)>),
+    /// The sink was closed and accepts no more items.
+    Closed,
 }
 
 impl<T: IntoDeleteInput> FuturesDeleteSink<T> {
     #[inline]
     pub(super) fn new(deleter: Deleter) -> Self {
         Self {
-            state: State::Idle(Some(deleter)),
+            state: State::Idle(deleter),
             _phantom: PhantomData,
+        }
+    }
+
+    /// Take the deleter out of an idle sink so a request can own it.
+    ///
+    /// Returns `None` and leaves the state unchanged when the sink is not idle.
+    /// The state has to move out for this hand-off; `State::Closed` only fills
+    /// the slot during that move, and no await point is crossed here.
+    fn take_idle_deleter(&mut self) -> Option<Deleter> {
+        match std::mem::replace(&mut self.state, State::Closed) {
+            State::Idle(deleter) => Some(deleter),
+            state => {
+                self.state = state;
+                None
+            }
         }
     }
 }
@@ -55,28 +75,28 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
 
     fn poll_ready(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         match &mut self.state {
-            State::Idle(Some(_)) => Poll::Ready(Ok(())),
-            State::Idle(None) => Poll::Ready(Err(Error::new(
+            State::Idle(_) => Poll::Ready(Ok(())),
+            State::Closed => Poll::Ready(Err(Error::new(
                 ErrorKind::Unexpected,
                 "FuturesDeleteSink has been closed or errored",
             ))),
             State::Delete(fut) => {
                 let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                self.state = State::Idle(Some(deleter));
+                self.state = State::Idle(deleter);
                 Poll::Ready(res.map(|_| ()))
             }
             State::Close(fut) => {
                 let (deleter, res) = ready!(fut.as_mut().poll(cx));
                 match res {
                     Ok(()) => {
-                        self.state = State::Idle(None);
+                        self.state = State::Closed;
                         Poll::Ready(Err(Error::new(
                             ErrorKind::Unexpected,
                             "FuturesDeleteSink has been closed or errored",
                         )))
                     }
                     Err(err) => {
-                        self.state = State::Idle(Some(deleter));
+                        self.state = State::Idle(deleter);
                         Poll::Ready(Err(err))
                     }
                 }
@@ -85,34 +105,28 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
     }
 
     fn start_send(mut self: Pin<&mut Self>, item: T) -> Result<()> {
-        match &mut self.state {
-            State::Idle(deleter) => {
-                let mut deleter = deleter.take().ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::Unexpected,
-                        "FuturesDeleteSink has been closed or errored",
-                    )
-                })?;
-                let input = item.into_delete_input();
-                let fut = async move {
-                    let res = deleter.delete(input).await;
-                    (deleter, res)
-                };
-                self.state = State::Delete(Box::pin(fut));
-                Ok(())
-            }
-            _ => Err(Error::new(
-                ErrorKind::Unexpected,
-                "FuturesDeleteSink is not ready to send, please poll_ready first",
-            )),
-        }
+        let Some(mut deleter) = self.take_idle_deleter() else {
+            let message = match &self.state {
+                State::Closed => "FuturesDeleteSink has been closed or errored",
+                _ => "FuturesDeleteSink is not ready to send, please poll_ready first",
+            };
+            return Err(Error::new(ErrorKind::Unexpected, message));
+        };
+
+        let input = item.into_delete_input();
+        let fut = async move {
+            let res = deleter.delete(input).await;
+            (deleter, res)
+        };
+        self.state = State::Delete(Box::pin(fut));
+        Ok(())
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
         loop {
             match &mut self.state {
-                State::Idle(Some(_)) => return Poll::Ready(Ok(())),
-                State::Idle(None) => {
+                State::Idle(_) => return Poll::Ready(Ok(())),
+                State::Closed => {
                     return Poll::Ready(Err(Error::new(
                         ErrorKind::Unexpected,
                         "FuturesDeleteSink has been closed or errored",
@@ -120,7 +134,7 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                 }
                 State::Delete(fut) => {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
+                    self.state = State::Idle(deleter);
                     res?;
                     continue;
                 }
@@ -128,14 +142,14 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
                     let (deleter, res) = ready!(fut.as_mut().poll(cx));
                     match res {
                         Ok(()) => {
-                            self.state = State::Idle(None);
+                            self.state = State::Closed;
                             return Poll::Ready(Err(Error::new(
                                 ErrorKind::Unexpected,
                                 "FuturesDeleteSink has been closed or errored",
                             )));
                         }
                         Err(err) => {
-                            self.state = State::Idle(Some(deleter));
+                            self.state = State::Idle(deleter);
                             return Poll::Ready(Err(err));
                         }
                     }
@@ -145,38 +159,36 @@ impl<T: IntoDeleteInput> Sink<T> for FuturesDeleteSink<T> {
     }
 
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<()>> {
-        loop {
-            match &mut self.state {
-                State::Idle(deleter) => {
-                    let mut deleter = deleter.take().ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::Unexpected,
-                            "FuturesDeleteSink has been closed or errored",
-                        )
-                    })?;
-                    let fut = async move {
-                        let res = deleter.close().await;
-                        (deleter, res)
-                    };
-                    self.state = State::Close(Box::pin(fut));
-                    continue;
-                }
-                State::Delete(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    self.state = State::Idle(Some(deleter));
-                    res?;
-                    continue;
-                }
-                State::Close(fut) => {
-                    let (deleter, res) = ready!(fut.as_mut().poll(cx));
-                    if res.is_ok() {
-                        self.state = State::Idle(None);
-                    } else {
-                        self.state = State::Idle(Some(deleter));
-                    }
-                    return Poll::Ready(res);
-                }
-            };
+        // A delete request has to finish before the sink can close, and a close
+        // that failed returns the sink to idle so this starts a new request.
+        if let State::Delete(fut) = &mut self.state {
+            let (deleter, res) = ready!(fut.as_mut().poll(cx));
+            self.state = State::Idle(deleter);
+            res?;
         }
+
+        // An idle sink hands its deleter to a close request.
+        if let Some(mut deleter) = self.take_idle_deleter() {
+            let fut = async move {
+                let res = deleter.close().await;
+                (deleter, res)
+            };
+            self.state = State::Close(Box::pin(fut));
+        }
+
+        // The sink is closed unless a close request is in flight.
+        let State::Close(fut) = &mut self.state else {
+            return Poll::Ready(Err(Error::new(
+                ErrorKind::Unexpected,
+                "FuturesDeleteSink has been closed or errored",
+            )));
+        };
+        let (deleter, res) = ready!(fut.as_mut().poll(cx));
+        self.state = if res.is_ok() {
+            State::Closed
+        } else {
+            State::Idle(deleter)
+        };
+        Poll::Ready(res)
     }
 }

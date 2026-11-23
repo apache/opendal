@@ -210,13 +210,14 @@ pub struct S3Config {
     ///
     /// <!-- @group Assume role -->
     pub assume_role_session_tags: Option<HashMap<String, String>>,
-    /// Disable automatic endpoint loading and the environment/profile
+    /// Disable automatic endpoint loading and ambient environment/profile
     /// credential providers.
     ///
     /// This skips endpoint environment variables and removes the static
-    /// environment and shared-profile credential slots. Region environment
-    /// lookup and other credential providers, including AWS container
-    /// credentials and EC2 instance metadata, remain enabled.
+    /// environment, shared-profile, SSO, web-identity, and external process
+    /// credential slots. Region environment lookup and compute metadata
+    /// credential providers, including AWS container credentials and EC2
+    /// instance metadata, remain enabled.
     ///
     /// <!-- @group Credentials -->
     pub disable_config_load: bool,

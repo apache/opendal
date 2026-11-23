@@ -35,6 +35,7 @@ fn build_operator() -> Result<Operator> {
 ```
 
 The URI authority sets `endpoint`, the first path component sets `share`, and
-the remaining path sets `root`. A `root` option is preserved when the URI
+the remaining path sets `root`. User information is percent-decoded, so encode
+reserved characters such as `@` and `:` as `%40` and `%3A`. A `root` option is preserved when the URI
 specifies only the share. Explicit options take precedence over credentials
 embedded in the URI.

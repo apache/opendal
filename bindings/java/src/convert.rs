@@ -39,13 +39,25 @@ pub(crate) fn jmap_to_hashmap(env: &mut Env, params: &JObject) -> Result<HashMap
     let mut iter = map.iter(env)?;
 
     let mut result: HashMap<String, String> = HashMap::new();
-    while let Some(entry) = iter.next(env)? {
-        let k = entry.key(env)?;
-        let v = entry.value(env)?;
-        // SAFETY: a `java.util.Map<String, String>` only yields String keys and values.
-        let k = unsafe { JString::from_raw(env, k.into_raw()) };
-        let v = unsafe { JString::from_raw(env, v.into_raw()) };
-        result.insert(k.mutf8_chars(env)?.into(), v.mutf8_chars(env)?.into());
+    loop {
+        // Each iteration creates several local references. Release them per
+        // iteration so a large map does not exhaust the JNI local reference
+        // table.
+        let has_next = env.with_local_frame(8, |env| -> Result<bool> {
+            let Some(entry) = iter.next(env)? else {
+                return Ok(false);
+            };
+            let k = entry.key(env)?;
+            let v = entry.value(env)?;
+            // SAFETY: a `java.util.Map<String, String>` only yields String keys and values.
+            let k = unsafe { JString::from_raw(env, k.into_raw()) };
+            let v = unsafe { JString::from_raw(env, v.into_raw()) };
+            result.insert(k.mutf8_chars(env)?.into(), v.mutf8_chars(env)?.into());
+            Ok(true)
+        })?;
+        if !has_next {
+            break;
+        }
     }
 
     Ok(result)
@@ -58,9 +70,15 @@ pub(crate) fn hashmap_to_jmap<'a, K: AsRef<str>, V: AsRef<str>>(
     let map_object = env.new_object(jni_str!("java/util/HashMap"), jni_sig!("()V"), &[])?;
     let jmap = env.new_cast_local_ref::<JMap>(&map_object)?;
     for (k, v) in map {
-        let key = env.new_string(k.as_ref())?;
-        let value = env.new_string(v.as_ref())?;
-        jmap.put(env, &key, &value)?;
+        // The key and value strings are only needed until `put` returns. Scope
+        // them per entry so a large map does not exhaust the JNI local
+        // reference table.
+        env.with_local_frame(4, |env| -> Result<()> {
+            let key = env.new_string(k.as_ref())?;
+            let value = env.new_string(v.as_ref())?;
+            jmap.put(env, &key, &value)?;
+            Ok(())
+        })?;
     }
     Ok(map_object)
 }

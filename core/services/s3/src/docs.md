@@ -75,9 +75,10 @@ environment, profile, SSO, web identity, or external process providers.
 Configured static credentials retain their higher priority. [`crate::S3::role_arn`]
 continues to use the assembled provider as the source for role assumption, and
 [`crate::S3::credential_provider_chain`] continues to replace the assembled
-chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading
-and the environment/profile credential slots. Region environment lookup and
-other credential providers, including container credentials, remain enabled.
+chain. [`crate::S3::disable_config_load`] disables automatic endpoint loading and
+the environment, profile, SSO, web-identity, and external process credential
+slots. Region environment lookup and compute metadata credential providers,
+including container credentials and EC2 instance metadata, remain enabled.
 
 ## S3 Express One Zone
 

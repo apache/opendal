@@ -19,8 +19,6 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstdio>
-#include <ctime>
 
 #include "lib.rs.h"
 #include "opendal.hpp"
@@ -204,6 +202,19 @@ std::optional<bool> parse_optional_bool(ffi::OptionalBool &&b) {
   }
 }
 
+std::optional<std::chrono::system_clock::time_point> parse_optional_timestamp(
+    ffi::OptionalTimestamp &&ts) {
+  if (!ts.has_value) {
+    return std::nullopt;
+  }
+
+  auto duration = std::chrono::seconds(ts.seconds) +
+                  std::chrono::nanoseconds(ts.nanoseconds);
+  return std::chrono::system_clock::time_point(
+      std::chrono::duration_cast<std::chrono::system_clock::duration>(
+          duration));
+}
+
 Metadata parse_meta_data(ffi::Metadata &&meta) {
   Metadata metadata;
 
@@ -226,32 +237,8 @@ Metadata parse_meta_data(ffi::Metadata &&meta) {
   metadata.is_current = parse_optional_bool(std::move(meta.is_current));
   metadata.is_deleted = meta.is_deleted;
 
-  // Parse last_modified timestamp
-  auto last_modified_str = parse_optional_string(std::move(meta.last_modified));
-  if (last_modified_str.has_value()) {
-    // Parse ISO 8601 string to time_point using strptime to avoid locale lock
-    std::tm tm = {};
-    const char *str = last_modified_str.value().c_str();
-
-    // Parse ISO 8601 format: YYYY-MM-DDTHH:MM:SS
-    int year, month, day, hour, minute, second;
-    if (sscanf(str, "%d-%d-%dT%d:%d:%d", &year, &month, &day, &hour, &minute,
-               &second) == 6) {
-      tm.tm_year = year - 1900;  // years since 1900
-      tm.tm_mon = month - 1;     // months since January (0-11)
-      tm.tm_mday = day;
-      tm.tm_hour = hour;
-      tm.tm_min = minute;
-      tm.tm_sec = second;
-      tm.tm_isdst = -1;  // let mktime determine DST
-
-      std::time_t time_t_value = std::mktime(&tm);
-      if (time_t_value != -1) {
-        metadata.last_modified =
-            std::chrono::system_clock::from_time_t(time_t_value);
-      }
-    }
-  }
+  metadata.last_modified =
+      parse_optional_timestamp(std::move(meta.last_modified));
 
   return metadata;
 }

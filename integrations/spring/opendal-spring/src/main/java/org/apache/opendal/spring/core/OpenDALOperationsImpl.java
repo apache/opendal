@@ -20,6 +20,7 @@
 package org.apache.opendal.spring.core;
 
 import org.apache.opendal.AsyncOperator;
+import org.apache.opendal.Operator;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -36,18 +37,25 @@ public class OpenDALOperationsImpl<T> implements OpenDALOperations<T> {
     @Override
     public void write(String path, T entity) {
         byte[] bytes = serializer.serialize(entity);
-        asyncOperator.blocking().write(path, bytes);
+        try (Operator operator = asyncOperator.blocking()) {
+            operator.write(path, bytes);
+        }
     }
 
     @Override
     public T read(String path) {
-        byte[] bytes = asyncOperator.blocking().read(path);
+        byte[] bytes;
+        try (Operator operator = asyncOperator.blocking()) {
+            bytes = operator.read(path);
+        }
         return serializer.deserialize(bytes);
     }
 
     @Override
     public void delete(String path) {
-        asyncOperator.blocking().delete(path);
+        try (Operator operator = asyncOperator.blocking()) {
+            operator.delete(path);
+        }
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.apache.opendal.spring.config;
 
 import org.apache.opendal.AsyncOperator;
 import org.apache.opendal.spring.core.DefaultOpenDALSerializerFactory;
-import org.apache.opendal.spring.core.OpenDALOperations;
 import org.apache.opendal.spring.core.OpenDALProperties;
 import org.apache.opendal.spring.core.OpenDALSerializerFactory;
 import org.apache.opendal.spring.core.OpenDALTemplate;
@@ -34,13 +33,13 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(OpenDALProperties.class)
 public class OpenDALAutoConfiguration {
     @Bean
-    @ConditionalOnMissingBean(OpenDALOperations.class)
+    @ConditionalOnMissingBean(OpenDALTemplate.class)
     public OpenDALTemplate opendalTemplate(AsyncOperator asyncOperator, OpenDALSerializerFactory openDALSerializerFactory) {
         return new OpenDALTemplate(asyncOperator, openDALSerializerFactory);
     }
 
     @Bean
-    @ConditionalOnMissingBean(OpenDALOperations.class)
+    @ConditionalOnMissingBean(AsyncOperator.class)
     public AsyncOperator asyncOperator(OpenDALProperties openDALProperties) {
         return AsyncOperator.of(openDALProperties.getSchema(), openDALProperties.getConf());
     }

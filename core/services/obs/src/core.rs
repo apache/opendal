@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use http::Request;
@@ -30,8 +31,8 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use opendal_core::raw::*;
 use opendal_core::*;
-use reqsign_core::{Context, Signer};
-use reqsign_huaweicloud_obs::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_huaweicloud_obs::{Credential, RequestSigner};
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -48,7 +49,10 @@ pub struct ObsCore {
     pub endpoint: String,
     pub skip_signature: bool,
 
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for ObsCore {
@@ -63,12 +67,13 @@ impl Debug for ObsCore {
 
 impl ObsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
-        )
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
     }
 
     pub async fn sign<T>(&self, ctx: &OperationContext, req: Request<T>) -> Result<Request<T>> {
@@ -593,7 +598,6 @@ mod tests {
     use reqsign_core::Context;
     use reqsign_core::StaticEnv;
     use reqsign_huaweicloud_obs::DefaultCredentialProvider;
-    use reqsign_huaweicloud_obs::RequestSigner;
     use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
     use super::*;
@@ -601,7 +605,7 @@ mod tests {
     /// Build a core whose signer only sees the given provider, so tests never
     /// depend on the ambient process environment.
     fn test_core(skip_signature: bool, provider: DefaultCredentialProvider) -> ObsCore {
-        let ctx = Context::new().with_env(StaticEnv {
+        let sign_ctx = Context::new().with_env(StaticEnv {
             home_dir: None,
             envs: HashMap::new(),
         });
@@ -613,7 +617,10 @@ mod tests {
             root: "/".to_string(),
             endpoint: "https://example-bucket.obs.cn-north-4.myhuaweicloud.com".to_string(),
             skip_signature,
-            signer: Signer::new(ctx, provider, RequestSigner::new("example-bucket")),
+            sign_ctx,
+            credential_provider: Arc::new(provider),
+            request_signer: Arc::new(RequestSigner::new("example-bucket")),
+            signers: HttpTransportCache::new(),
         }
     }
 

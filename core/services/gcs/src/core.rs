@@ -18,6 +18,7 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Write;
+use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -37,8 +38,8 @@ use http::header::IF_MATCH;
 use http::header::IF_MODIFIED_SINCE;
 use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
-use reqsign_core::{Context, Signer};
-use reqsign_google::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_google::{Credential, RequestSigner};
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::de;
@@ -73,8 +74,10 @@ pub struct GcsCore {
     pub bucket: String,
     pub root: String,
 
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 
     pub predefined_acl: Option<String>,
     pub default_storage_class: Option<String>,
@@ -94,10 +97,21 @@ impl Debug for GcsCore {
 
 impl GcsCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -1360,17 +1374,9 @@ struct GetObjectJsonResponse {
 mod tests {
     use super::*;
     use reqsign_core::ProvideCredentialChain;
-    use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
 
     fn test_core() -> GcsCore {
-        let sign_ctx = Context::new();
-        let signer = Signer::new(
-            sign_ctx.clone(),
-            ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
-            RequestSigner::new("storage"),
-        );
-
         GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability {
@@ -1412,8 +1418,12 @@ mod tests {
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
-            signer,
-            sign_ctx,
+            sign_ctx: Context::new(),
+            credential_provider: Arc::new(
+                ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
+            ),
+            request_signer: Arc::new(RequestSigner::new("storage")),
+            signers: HttpTransportCache::new(),
             predefined_acl: None,
             default_storage_class: None,
             skip_signature: false,

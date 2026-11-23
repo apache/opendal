@@ -28,7 +28,6 @@ use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZFILE_SCHEME;
@@ -330,7 +329,8 @@ impl AzfileBuilder {
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential_providers, RequestSigner::new());
+        let credential_provider = Arc::new(credential_providers);
+        let request_signer = Arc::new(RequestSigner::new());
 
         let info = ServiceInfo::new(AZFILE_SCHEME, &root, "");
         let capability = Capability {
@@ -361,8 +361,10 @@ impl AzfileBuilder {
                 capability,
                 root,
                 endpoint,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
                 share_name: self.config.share_name.clone(),
                 sas_token: rename_source_sas_token,
                 skip_signature: self.config.skip_signature,
@@ -602,9 +604,7 @@ mod tests {
 
         let signer = backend
             .core
-            .signer
-            .clone()
-            .with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
+            .signer_with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
         let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
             .body(())
             .unwrap()
@@ -664,9 +664,7 @@ mod tests {
 
         let signer = backend
             .core
-            .signer
-            .clone()
-            .with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
+            .signer_with_context(Context::new().with_env(reqsign_core::StaticEnv::default()));
         let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
             .body(())
             .unwrap()
@@ -695,7 +693,7 @@ mod tests {
         let ctx = Context::new()
             .with_env(reqsign_core::StaticEnv::default())
             .with_http_send(http.clone());
-        let signer = backend.core.signer.clone().with_context(ctx);
+        let signer = backend.core.signer_with_context(ctx);
 
         let (mut parts, _) = http::Request::get("http://127.0.0.1:10002/share/file.txt")
             .body(())

@@ -376,7 +376,6 @@ mod tests {
     use http::Response;
     use reqsign_core::Context;
     use reqsign_core::ProvideCredentialChain;
-    use reqsign_core::Signer;
     use reqsign_google::RequestSigner;
     use reqsign_google::TokenCredentialProvider;
 
@@ -521,7 +520,6 @@ mod tests {
     }
 
     fn test_core() -> Arc<GcsCore> {
-        let sign_ctx = Context::new();
         Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability {
@@ -537,12 +535,12 @@ mod tests {
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
-            signer: Signer::new(
-                sign_ctx.clone(),
+            sign_ctx: Context::new(),
+            credential_provider: Arc::new(
                 ProvideCredentialChain::new().push(TokenCredentialProvider::new("test-token")),
-                RequestSigner::new("storage"),
             ),
-            sign_ctx,
+            request_signer: Arc::new(RequestSigner::new("storage")),
+            signers: HttpTransportCache::new(),
             predefined_acl: None,
             default_storage_class: None,
             skip_signature: true,

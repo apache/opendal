@@ -17,6 +17,7 @@
 
 use std::collections::VecDeque;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use http::HeaderName;
 use http::HeaderValue;
@@ -27,8 +28,8 @@ use http::header::CONTENT_DISPOSITION;
 use http::header::CONTENT_LENGTH;
 use http::header::CONTENT_TYPE;
 use http::header::RANGE;
-use reqsign_azure_storage::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_azure_storage::{Credential, RequestSigner};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -56,8 +57,10 @@ pub struct AzfileCore {
     pub share_name: String,
     pub sas_token: Option<String>,
     pub skip_signature: bool,
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for AzfileCore {
@@ -72,10 +75,21 @@ impl Debug for AzfileCore {
 
 impl AzfileCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -672,7 +686,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use reqsign_azure_storage::{RequestSigner, StaticCredentialProvider};
+    use reqsign_azure_storage::StaticCredentialProvider;
 
     use super::*;
 
@@ -687,12 +701,12 @@ mod tests {
                 share_name: "share".to_string(),
                 sas_token: normalize_sas_token(sas_token).map(str::to_string),
                 skip_signature: false,
-                signer: Signer::new(
-                    Context::new(),
-                    StaticCredentialProvider::new_shared_key("acc", "a2V5"),
-                    RequestSigner::new(),
-                ),
                 sign_ctx: Context::new(),
+                credential_provider: Arc::new(StaticCredentialProvider::new_shared_key(
+                    "acc", "a2V5",
+                )),
+                request_signer: Arc::new(RequestSigner::new()),
+                signers: HttpTransportCache::new(),
             };
             let req = core.azfile_rename_request("a", "b").expect("must build");
             let source = &req.headers()[X_MS_FILE_RENAME_SOURCE];

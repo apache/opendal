@@ -16,6 +16,7 @@
 // under the License.
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use base64::Engine;
 use base64::prelude::BASE64_STANDARD;
@@ -35,8 +36,8 @@ use http::header::IF_NONE_MATCH;
 use http::header::IF_UNMODIFIED_SINCE;
 use opendal_service_azure_common::with_azure_error_response_context;
 use quick_xml::de;
-use reqsign_azure_storage::Credential;
-use reqsign_core::{Context, Signer};
+use reqsign_azure_storage::{Credential, RequestSigner};
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
 use serde::Deserialize;
 use serde::Serialize;
 use uuid::Uuid;
@@ -82,7 +83,10 @@ pub struct AzblobCore {
     pub encryption_key_sha256: Option<HeaderValue>,
     pub encryption_algorithm: Option<HeaderValue>,
     pub skip_signature: bool,
-    pub signer: Signer<Credential>,
+    pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
 }
 
 impl Debug for AzblobCore {
@@ -97,11 +101,21 @@ impl Debug for AzblobCore {
 
 impl AzblobCore {
     fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
-        self.signer.clone().with_context(
-            Context::new()
-                .with_file_read(reqsign_file_read_tokio::TokioFileRead)
-                .with_http_send(ctx.http_transport().clone())
-                .with_env(reqsign_core::OsEnv),
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
         )
     }
 
@@ -944,7 +958,6 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
-    use reqsign_azure_storage::RequestSigner;
     use reqsign_azure_storage::StaticCredentialProvider;
 
     fn test_core() -> AzblobCore {
@@ -958,11 +971,10 @@ mod tests {
             encryption_key_sha256: None,
             encryption_algorithm: None,
             skip_signature: true,
-            signer: Signer::new(
-                Context::new(),
-                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
-                RequestSigner::new(),
-            ),
+            sign_ctx: Context::new(),
+            credential_provider: Arc::new(StaticCredentialProvider::new_shared_key("acc", "a2V5")),
+            request_signer: Arc::new(RequestSigner::new()),
+            signers: HttpTransportCache::new(),
         }
     }
 

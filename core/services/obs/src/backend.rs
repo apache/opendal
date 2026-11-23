@@ -26,7 +26,6 @@ use opendal_core::raw::*;
 use opendal_core::*;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use reqsign_huaweicloud_obs::DefaultCredentialProvider;
 use reqsign_huaweicloud_obs::RequestSigner;
@@ -220,8 +219,12 @@ impl Builder for ObsBuilder {
         //
         // Please refer to this doc for more details:
         // https://support.huaweicloud.com/intl/en-us/api-obs/obs_04_0010.html
-        let request_signer = RequestSigner::new(if is_obs_default { &bucket } else { &endpoint });
-        let signer = Signer::new(ctx, provider, request_signer);
+        let credential_provider = Arc::new(provider);
+        let request_signer = Arc::new(RequestSigner::new(if is_obs_default {
+            &bucket
+        } else {
+            &endpoint
+        }));
 
         let info = ServiceInfo::new(OBS_SCHEME, &root, &bucket);
         let capability = Capability {
@@ -282,7 +285,10 @@ impl Builder for ObsBuilder {
                 root,
                 endpoint: format!("{}://{}", scheme, endpoint),
                 skip_signature: self.config.skip_signature,
-                signer,
+                sign_ctx: ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
     }
@@ -541,6 +547,7 @@ mod tests {
 
     use reqsign_core::Context;
     use reqsign_core::ProvideCredential;
+    use reqsign_core::Signer;
     use reqsign_core::StaticEnv;
 
     use super::*;

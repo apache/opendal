@@ -28,7 +28,6 @@ use reqsign_azure_storage::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 
 use super::AZDLS_SCHEME;
@@ -317,7 +316,8 @@ impl Builder for AzdlsBuilder {
         }
 
         let sign_ctx = ctx;
-        let signer = Signer::new(sign_ctx.clone(), credential_providers, RequestSigner::new());
+        let credential_provider = Arc::new(credential_providers);
+        let request_signer = Arc::new(RequestSigner::new());
 
         let info = ServiceInfo::new(AZDLS_SCHEME, &root, filesystem);
         let capability = Capability {
@@ -363,8 +363,10 @@ impl Builder for AzdlsBuilder {
                 root,
                 endpoint,
                 enable_hns: self.config.enable_hns,
-                signer,
                 sign_ctx,
+                credential_provider,
+                request_signer,
+                signers: HttpTransportCache::new(),
             }),
         })
     }

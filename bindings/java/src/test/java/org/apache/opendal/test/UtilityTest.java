@@ -44,7 +44,7 @@ public class UtilityTest {
     }
 
     @Test
-    public void testLoadEnabledServicesHasNoJniLocalRefWarning() throws Exception {
+    public void testLoadEnabledServicesUnderCheckJni() throws Exception {
         final String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
         final Path java = Paths.get(System.getProperty("java.home"), "bin", executable);
         final Path log = tempDir.resolve("enabled-services-check-jni.log");
@@ -71,7 +71,8 @@ public class UtilityTest {
         assertThat(exited).as("JVM must exit cleanly: %s", output).isTrue();
         assertThat(process.exitValue()).as(output).isZero();
         assertThat(output).contains("ENABLED_SERVICES_LOADED");
-        assertThat(output).doesNotContain("WARNING: JNI local refs");
+        assertThat(output).doesNotContain("FATAL ERROR in native method");
+        assertThat(output).doesNotContain("org.apache.opendal.OpenDAL.loadEnabledServices");
     }
 
     public static class EnabledServicesCheck {

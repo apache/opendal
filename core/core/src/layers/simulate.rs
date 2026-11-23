@@ -613,17 +613,25 @@ impl ServicerFlatLister {
                     }
                 };
 
-                if let Some(v) = first {
-                    self.active_lister.push((de.clone(), lister));
+                let v = match first {
+                    Some(v) => v,
+                    // A non-recursive listing may omit the self-entry of an
+                    // empty directory. Yield the exhausted directory in
+                    // post-order instead of dropping it. The top-level prefix
+                    // itself is not an entry, so an empty prefix stays empty.
+                    None if self.active_lister.is_empty() => return Ok(None),
+                    None => return Ok(Some(de)),
+                };
 
-                    if v.mode().is_dir() {
-                        if v.path() != de.path() {
-                            self.next_dir = Some(NextDir::Directory(v));
-                            continue;
-                        }
-                    } else {
-                        return Ok(Some(v));
+                self.active_lister.push((de.clone(), lister));
+
+                if v.mode().is_dir() {
+                    if v.path() != de.path() {
+                        self.next_dir = Some(NextDir::Directory(v));
+                        continue;
                     }
+                } else {
+                    return Ok(Some(v));
                 }
             }
 
@@ -762,6 +770,8 @@ mod tests {
         pending_injected: Mutex<bool>,
         /// Every path passed to `list`, so a test can assert on retries.
         listed: Mutex<Vec<String>>,
+        /// Every path passed to `delete`, in order.
+        deleted: Mutex<Vec<String>>,
     }
 
     impl TreeState {
@@ -849,11 +859,30 @@ mod tests {
         }
     }
 
+    struct MockDeleter {
+        state: Arc<TreeState>,
+    }
+
+    impl oio::Delete for MockDeleter {
+        async fn delete(&mut self, path: &str, _: OpDelete) -> Result<()> {
+            self.state
+                .deleted
+                .lock()
+                .expect("mutex must not poison")
+                .push(path.to_string());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
     impl Service for MockService {
         type Reader = ();
         type Writer = ();
         type Lister = TwoWays<MockLister, TreeLister>;
-        type Deleter = ();
+        type Deleter = MockDeleter;
         type Copier = ();
         type Composer = ();
 
@@ -899,10 +928,15 @@ mod tests {
         }
 
         fn delete(&self, _ctx: &OperationContext) -> Result<Self::Deleter> {
-            Err(Error::new(
-                ErrorKind::Unsupported,
-                "operation is not supported",
-            ))
+            let Some(state) = &self.tree else {
+                return Err(Error::new(
+                    ErrorKind::Unsupported,
+                    "operation is not supported",
+                ));
+            };
+            Ok(MockDeleter {
+                state: state.clone(),
+            })
         }
 
         fn list(&self, _ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
@@ -1332,5 +1366,112 @@ mod tests {
             saw_error,
             "the error must reach a caller that does not retry"
         );
+    }
+
+    /// A non-recursive listing can omit the self-entry of an empty directory.
+    /// The flat lister must still yield that directory, in post-order.
+    #[tokio::test]
+    async fn servicer_flat_lister_yields_an_empty_subdirectory() -> Result<()> {
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            tree: Some(Arc::new(TreeState {
+                tree: HashMap::from([(
+                    "/".to_string(),
+                    vec![
+                        ("a/one.txt".to_string(), false),
+                        ("empty/".to_string(), true),
+                    ],
+                )]),
+                ..Default::default()
+            })),
+        }) as Servicer;
+        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/", OpList::new());
+
+        let mut paths = Vec::new();
+        while let Some(entry) = oio::List::next(&mut lister).await? {
+            paths.push(entry.path().to_string());
+        }
+
+        assert_eq!(paths, ["a/one.txt", "empty/", "/"]);
+        Ok(())
+    }
+
+    /// An empty or missing top-level prefix must list as empty instead of
+    /// yielding the prefix directory itself.
+    #[tokio::test]
+    async fn servicer_flat_lister_keeps_an_empty_top_level_prefix_empty() -> Result<()> {
+        for prefix in ["missing/", "empty/"] {
+            let srv = Arc::new(MockService {
+                capability: Capability {
+                    list: true,
+                    ..Default::default()
+                },
+                tree: Some(Arc::new(TreeState {
+                    tree: HashMap::from([("empty/".to_string(), vec![])]),
+                    ..Default::default()
+                })),
+            }) as Servicer;
+            let mut lister =
+                ServicerFlatLister::new(OperationContext::new(), srv, prefix, OpList::new());
+
+            assert!(
+                oio::List::next(&mut lister).await?.is_none(),
+                "the top-level prefix {prefix} must not be yielded"
+            );
+        }
+        Ok(())
+    }
+
+    /// Simulated recursive delete must remove an empty subdirectory before it
+    /// removes the parent directory.
+    #[tokio::test]
+    async fn simulate_recursive_delete_removes_empty_subdirectories() -> Result<()> {
+        let state = Arc::new(TreeState {
+            tree: HashMap::from([
+                ("/".to_string(), vec![("data/".to_string(), true)]),
+                (
+                    "data/".to_string(),
+                    vec![
+                        ("data/empty/".to_string(), true),
+                        ("data/file.txt".to_string(), false),
+                        ("data/nested/".to_string(), true),
+                    ],
+                ),
+                (
+                    "data/nested/".to_string(),
+                    vec![("data/nested/deep.txt".to_string(), false)],
+                ),
+            ]),
+            ..Default::default()
+        });
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                delete: true,
+                list_with_recursive: false,
+                ..Default::default()
+            },
+            tree: Some(state.clone()),
+        }) as Servicer;
+        let op =
+            Operator::from_parts(OperationContext::default(), srv).layer(SimulateLayer::default());
+
+        op.delete_with("data/").recursive(true).await?;
+
+        let deleted = state.deleted.lock().expect("mutex must not poison").clone();
+        let index = |path: &str| {
+            deleted
+                .iter()
+                .position(|deleted| deleted == path)
+                .unwrap_or_else(|| panic!("{path} must be deleted; deleted {deleted:?}"))
+        };
+        assert!(index("data/empty/") < index("data/"));
+        assert!(index("data/file.txt") < index("data/"));
+        assert!(index("data/nested/deep.txt") < index("data/nested/"));
+        assert!(index("data/nested/") < index("data/"));
+        Ok(())
     }
 }

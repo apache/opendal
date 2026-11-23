@@ -116,24 +116,12 @@ fn format_stat_options(options: &GetOptions) -> StatOptions {
     }
 }
 
-fn format_read_range(range: Option<&GetRange>, size: u64) -> Range<u64> {
+fn format_read_range(range: Option<&GetRange>, size: u64) -> opendal::Result<Range<u64>> {
     match range {
-        Some(GetRange::Bounded(r)) => {
-            if r.start >= r.end || r.start >= size {
-                0..0
-            } else {
-                r.start..r.end.min(size)
-            }
-        }
-        Some(GetRange::Offset(offset)) => {
-            if *offset < size {
-                *offset..size
-            } else {
-                0..0
-            }
-        }
-        Some(GetRange::Suffix(suffix)) if *suffix < size => (size - *suffix)..size,
-        _ => 0..size,
+        Some(range) => range
+            .as_range(size)
+            .map_err(|err| opendal::Error::new(ErrorKind::RangeNotSatisfied, err.to_string())),
+        None => Ok(0..size),
     }
 }
 
@@ -454,7 +442,7 @@ impl OpendalStore {
         let metadata = stream.metadata().into_send().await?;
         let attributes = format_object_attributes(&metadata);
         let meta = format_object_meta(location.as_ref(), &metadata);
-        let read_range = format_read_range(options.range.as_ref(), meta.size);
+        let read_range = format_read_range(options.range.as_ref(), meta.size)?;
 
         if read_range.start >= read_range.end {
             return Ok(GetResult {
@@ -540,7 +528,8 @@ impl OpendalStore {
             });
         }
 
-        let read_range = format_read_range(options.range.as_ref(), meta.size);
+        let read_range = format_read_range(options.range.as_ref(), meta.size)
+            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
         if read_range.start >= read_range.end {
             return Ok(GetResult {
                 payload: GetResultPayload::Stream(Box::pin(futures::stream::empty())),
@@ -816,6 +805,15 @@ impl ObjectStore for OpendalStore {
         location: &Path,
         ranges: &[Range<u64>],
     ) -> object_store::Result<Vec<Bytes>> {
+        for range in ranges {
+            GetRange::Bounded(range.clone()).is_valid().map_err(|err| {
+                format_object_store_error(
+                    opendal::Error::new(ErrorKind::RangeNotSatisfied, err.to_string()),
+                    location.as_ref(),
+                )
+            })?;
+        }
+
         let raw_location = percent_decode_path(location.as_ref());
         let reader = self
             .inner
@@ -826,11 +824,44 @@ impl ObjectStore for OpendalStore {
             .await
             .map_err(|err| format_object_store_error(err, location.as_ref()))?;
 
-        let buffers = reader
-            .fetch(ranges.to_vec())
-            .into_send()
-            .await
-            .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+        // Avoid a stat for normal ranges. An over-EOF fetch can fail either
+        // range validation or OpenDAL's short-read check, so normalize and
+        // retry only when the object size changes the requested ranges.
+        let buffers = match reader.fetch(ranges.to_vec()).into_send().await {
+            Ok(buffers) => buffers,
+            Err(err)
+                if matches!(
+                    err.kind(),
+                    ErrorKind::RangeNotSatisfied | ErrorKind::Unexpected
+                ) =>
+            {
+                let metadata = self
+                    .inner
+                    .stat(&raw_location)
+                    .into_send()
+                    .await
+                    .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                let normalized_ranges = ranges
+                    .iter()
+                    .map(|range| {
+                        format_read_range(
+                            Some(&GetRange::Bounded(range.clone())),
+                            metadata.content_length(),
+                        )
+                    })
+                    .collect::<opendal::Result<Vec<_>>>()
+                    .map_err(|err| format_object_store_error(err, location.as_ref()))?;
+                if normalized_ranges.as_slice() == ranges {
+                    return Err(format_object_store_error(err, location.as_ref()));
+                }
+                reader
+                    .fetch(normalized_ranges)
+                    .into_send()
+                    .await
+                    .map_err(|err| format_object_store_error(err, location.as_ref()))?
+            }
+            Err(err) => return Err(format_object_store_error(err, location.as_ref())),
+        };
 
         Ok(buffers.into_iter().map(|buf| buf.to_bytes()).collect())
     }
@@ -1196,6 +1227,156 @@ mod tests {
                 .unwrap(),
             bytes
         );
+    }
+
+    async fn assert_get_opts_range_contract(
+        store: &OpendalStore,
+        reference: &object_store::memory::InMemory,
+        location: &Path,
+        range: Option<GetRange>,
+        expected: Option<(Range<u64>, &'static [u8])>,
+    ) {
+        async fn get_opts_range_and_bytes(
+            store: &dyn ObjectStore,
+            location: &Path,
+            range: Option<GetRange>,
+        ) -> object_store::Result<(Range<u64>, Bytes)> {
+            let result = store
+                .get_opts(
+                    location,
+                    GetOptions {
+                        range,
+                        ..Default::default()
+                    },
+                )
+                .await?;
+            let range = result.range.clone();
+            let bytes = result.bytes().await?;
+            Ok((range, bytes))
+        }
+
+        let actual = get_opts_range_and_bytes(store, location, range.clone()).await;
+        let actual_from_reference =
+            get_opts_range_and_bytes(reference, location, range.clone()).await;
+        match expected {
+            Some((expected_range, expected_bytes)) => {
+                let actual = actual.unwrap();
+                assert_eq!(actual.0, expected_range, "range {range:?}");
+                assert_eq!(actual.1, expected_bytes, "range {range:?}");
+                assert_eq!(actual, actual_from_reference.unwrap(), "range {range:?}");
+            }
+            None => {
+                assert!(actual.is_err(), "range {range:?} must be rejected");
+                assert!(
+                    actual_from_reference.is_err(),
+                    "InMemory must reject range {range:?}"
+                );
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_range_and_get_ranges_contract() {
+        let store = OpendalStore::new(Operator::new(services::Memory::default()).unwrap());
+        let location = Path::from("range-contract");
+        store
+            .put(&location, Bytes::from_static(b"abc").into())
+            .await
+            .unwrap();
+
+        for range in [0..0, 1..1, 3..4, 4..5, Range { start: 2, end: 1 }] {
+            assert!(
+                store.get_range(&location, range.clone()).await.is_err(),
+                "range {range:?} must be rejected"
+            );
+        }
+        assert_eq!(
+            store.get_range(&location, 0..9).await.unwrap(),
+            Bytes::from_static(b"abc")
+        );
+        assert_eq!(
+            store.get_ranges(&location, &[0..9, 1..9]).await.unwrap(),
+            vec![Bytes::from_static(b"abc"), Bytes::from_static(b"bc")]
+        );
+        for range in [1..1, 5..6] {
+            let ranges = std::slice::from_ref(&range);
+            assert!(
+                store.get_ranges(&location, ranges).await.is_err(),
+                "range {range:?} must be rejected"
+            );
+        }
+
+        let empty_location = Path::from("empty-range-contract");
+        store
+            .put(&empty_location, Bytes::new().into())
+            .await
+            .unwrap();
+        for range in [0..0, 0..1] {
+            assert!(
+                store
+                    .get_range(&empty_location, range.clone())
+                    .await
+                    .is_err(),
+                "empty object range {range:?} must be rejected"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_opts_range_contract_matches_in_memory() {
+        let store = OpendalStore::new(Operator::new(services::Memory::default()).unwrap());
+        let reference = object_store::memory::InMemory::new();
+        let location = Path::from("range-contract");
+        store
+            .put(&location, Bytes::from_static(b"abc").into())
+            .await
+            .unwrap();
+        reference
+            .put(&location, Bytes::from_static(b"abc").into())
+            .await
+            .unwrap();
+
+        let cases = [
+            (
+                Some(GetRange::Bounded(0..9)),
+                Some((0..3, b"abc".as_slice())),
+            ),
+            (Some(GetRange::Offset(2)), Some((2..3, b"c".as_slice()))),
+            (Some(GetRange::Offset(3)), None),
+            (Some(GetRange::Offset(4)), None),
+            (Some(GetRange::Suffix(0)), Some((3..3, b"".as_slice()))),
+            (Some(GetRange::Suffix(4)), Some((0..3, b"abc".as_slice()))),
+            (Some(GetRange::Bounded(1..1)), None),
+            (Some(GetRange::Bounded(Range { start: 2, end: 1 })), None),
+            (Some(GetRange::Bounded(3..4)), None),
+            (Some(GetRange::Bounded(4..5)), None),
+        ];
+        for (range, expected) in cases {
+            assert_get_opts_range_contract(&store, &reference, &location, range, expected).await;
+        }
+
+        let empty_location = Path::from("empty-range-contract");
+        store
+            .put(&empty_location, Bytes::new().into())
+            .await
+            .unwrap();
+        reference
+            .put(&empty_location, Bytes::new().into())
+            .await
+            .unwrap();
+        let empty_cases = [
+            (None, Some((0..0, b"".as_slice()))),
+            (Some(GetRange::Bounded(0..0)), None),
+            (Some(GetRange::Bounded(0..1)), None),
+            (Some(GetRange::Offset(0)), None),
+            (Some(GetRange::Offset(1)), None),
+            (Some(GetRange::Suffix(0)), Some((0..0, b"".as_slice()))),
+            (Some(GetRange::Suffix(1)), Some((0..0, b"".as_slice()))),
+        ];
+        for (range, expected) in empty_cases {
+            assert_get_opts_range_contract(&store, &reference, &empty_location, range, expected)
+                .await;
+        }
     }
 
     #[tokio::test]

@@ -109,6 +109,7 @@ impl AzblobCore {
         &self,
         ctx: &OperationContext,
         req: Request<T>,
+        duration: Duration,
     ) -> Result<Request<T>> {
         if self.skip_signature {
             return Ok(req);
@@ -117,7 +118,7 @@ impl AzblobCore {
         let (mut parts, body) = req.into_parts();
 
         self.signer(ctx)
-            .sign(&mut parts, Some(Duration::from_secs(3600)))
+            .sign(&mut parts, Some(duration))
             .await
             .map_err(|e| new_request_sign_error(e.into()))?;
 
@@ -575,7 +576,9 @@ impl AzblobCore {
             .extension(ServiceOperation("GetBlob"))
             .body(Buffer::new())
             .map_err(new_request_build_error)?;
-        let source = self.sign_query(ctx, source).await?;
+        let source = self
+            .sign_query(ctx, source, Duration::from_secs(3600))
+            .await?;
         let source = source.uri().to_string();
         let req = self.azblob_put_block_from_url_request(&source, to, block_id, range)?;
         let req = self.sign(ctx, req).await?;

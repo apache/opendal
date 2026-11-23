@@ -90,8 +90,14 @@ class AzblobConfig(TypedDict):
     """The account key of Azblob service backend."""
     account_name: NotRequired[str]
     """The account name of Azblob service backend."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
     batch_max_operations: NotRequired[int]
     """Deprecated: Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. [Deprecated since 0.57.0] Azblob delete batch capability is enabled by default with Azure Blob's 256-operation batch limit. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     container: Required[str]
     """The container name of Azblob service backend."""
     encryption_algorithm: NotRequired[str]
@@ -108,6 +114,8 @@ class AzblobConfig(TypedDict):
     """The sas token of Azblob service backend."""
     skip_signature: NotRequired[bool]
     """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class AzdlsConfig(TypedDict):
@@ -148,6 +156,12 @@ class AzfileConfig(TypedDict):
     """The account key for azfile."""
     account_name: NotRequired[str]
     """The account name for azfile."""
+    authority_host: NotRequired[str]
+    """The authority host of the service principal for Microsoft Entra ID authentication.  Defaults to `https://login.microsoftonline.com`."""
+    client_id: NotRequired[str]
+    """The client id of the service principal for Microsoft Entra ID authentication."""
+    client_secret: NotRequired[str]
+    """The client secret of the service principal for Microsoft Entra ID authentication."""
     endpoint: NotRequired[str]
     """The endpoint for azfile."""
     root: NotRequired[str | os.PathLike[str]]
@@ -156,6 +170,10 @@ class AzfileConfig(TypedDict):
     """The sas token for azfile."""
     share_name: Required[str]
     """The share name for azfile."""
+    skip_signature: NotRequired[bool]
+    """Skip signature will skip loading credentials and signing requests."""
+    tenant_id: NotRequired[str]
+    """The tenant id of the service principal for Microsoft Entra ID authentication."""
 
 
 class B2Config(TypedDict):

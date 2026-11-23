@@ -84,23 +84,16 @@ impl ChaosLayer {
 
 impl Layer for ChaosLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ChaosLayer {
-    fn layer(&self, inner: Servicer) -> ChaosService {
-        ChaosService {
+        Arc::new(ChaosService {
             inner,
             rng: self.rng.clone(),
             error_ratio: self.error_ratio,
-        }
+        })
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct ChaosService {
+struct ChaosService {
     inner: Servicer,
     rng: Arc<Mutex<StdRng>>,
     error_ratio: f64,
@@ -198,8 +191,7 @@ impl Service for ChaosService {
     }
 }
 
-#[doc(hidden)]
-pub struct ChaosReader<R> {
+struct ChaosReader<R> {
     inner: R,
     rng: Arc<Mutex<StdRng>>,
 

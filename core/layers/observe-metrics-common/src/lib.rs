@@ -462,7 +462,12 @@ impl<I: MetricsIntercept> MetricsLayer<I> {
 
 impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        let info = inner.info();
+        Arc::new(MetricsService {
+            inner,
+            info,
+            interceptor: self.interceptor.clone(),
+        })
     }
 
     fn apply_context(&self, srv: Servicer, inner: OperationContext) -> OperationContext {
@@ -473,17 +478,6 @@ impl<I: MetricsIntercept> Layer for MetricsLayer<I> {
             interceptor: self.interceptor.clone(),
         });
         inner.with_http_transport(transport)
-    }
-}
-
-impl<I: MetricsIntercept> MetricsLayer<I> {
-    fn layer(&self, inner: Servicer) -> MetricsAccessor<I> {
-        let info = inner.info();
-        MetricsAccessor {
-            inner,
-            info,
-            interceptor: self.interceptor.clone(),
-        }
     }
 }
 
@@ -732,22 +726,21 @@ impl<S, I: MetricsIntercept> Drop for MetricsStream<S, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct MetricsAccessor<I: MetricsIntercept> {
+struct MetricsService<I: MetricsIntercept> {
     inner: Servicer,
     info: ServiceInfo,
     interceptor: I,
 }
 
-impl<I: MetricsIntercept> Debug for MetricsAccessor<I> {
+impl<I: MetricsIntercept> Debug for MetricsService<I> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MetricsAccessor")
+        f.debug_struct("MetricsService")
             .field("inner", &self.inner)
             .finish_non_exhaustive()
     }
 }
 
-impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
+impl<I: MetricsIntercept> Service for MetricsService<I> {
     type Reader = MetricsReader<oio::Reader, I>;
     type Writer = MetricsWrapper<oio::Writer, I>;
     type Lister = MetricsWrapper<oio::Lister, I>;
@@ -1126,8 +1119,7 @@ impl<I: MetricsIntercept> Service for MetricsAccessor<I> {
     }
 }
 
-#[doc(hidden)]
-pub struct MetricsReader<R, I: MetricsIntercept> {
+struct MetricsReader<R, I: MetricsIntercept> {
     inner: R,
     interceptor: I,
     labels: MetricLabels,
@@ -1200,8 +1192,7 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsReader<R, I> {
     }
 }
 
-#[doc(hidden)]
-pub struct MetricsWrapper<R, I: MetricsIntercept> {
+struct MetricsWrapper<R, I: MetricsIntercept> {
     inner: R,
     interceptor: I,
     labels: MetricLabels,
@@ -2303,12 +2294,12 @@ mod tests {
         }
     }
 
-    fn build_compose_accessor(
+    fn build_compose_service(
         mock: MockInterceptor,
         service: MockComposeService,
-    ) -> MetricsAccessor<MockInterceptor> {
+    ) -> MetricsService<MockInterceptor> {
         let inner: Servicer = Arc::new(service);
-        MetricsAccessor {
+        MetricsService {
             info: inner.info(),
             inner,
             interceptor: mock,
@@ -2318,13 +2309,13 @@ mod tests {
     #[tokio::test]
     async fn test_compose_success_records_operation_metrics() {
         let mock = MockInterceptor::default();
-        let accessor = build_compose_accessor(
+        let service = build_compose_service(
             mock.clone(),
             MockComposeService::with_composer(MockComposer::ok()),
         );
         let ctx = OperationContext::default();
 
-        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        let mut composer = Service::compose(&service, &ctx, "dst", OpCompose::default()).unwrap();
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
 
         oio::Compose::compose(&mut composer, "src1", OpRead::default())
@@ -2347,7 +2338,7 @@ mod tests {
     #[tokio::test]
     async fn test_compose_source_error_preserves_error_and_records_metrics() {
         let mock = MockInterceptor::default();
-        let accessor = build_compose_accessor(
+        let service = build_compose_service(
             mock.clone(),
             MockComposeService::with_composer(MockComposer::with_compose_error(
                 ErrorKind::PermissionDenied,
@@ -2355,7 +2346,7 @@ mod tests {
         );
         let ctx = OperationContext::default();
 
-        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        let mut composer = Service::compose(&service, &ctx, "dst", OpCompose::default()).unwrap();
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
 
         let err = oio::Compose::compose(&mut composer, "src", OpRead::default())
@@ -2379,7 +2370,7 @@ mod tests {
     #[tokio::test]
     async fn test_compose_close_error_preserves_error_and_records_metrics() {
         let mock = MockInterceptor::default();
-        let accessor = build_compose_accessor(
+        let service = build_compose_service(
             mock.clone(),
             MockComposeService::with_composer(MockComposer::with_close_error(
                 ErrorKind::ConditionNotMatch,
@@ -2387,7 +2378,7 @@ mod tests {
         );
         let ctx = OperationContext::default();
 
-        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        let mut composer = Service::compose(&service, &ctx, "dst", OpCompose::default()).unwrap();
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
 
         oio::Compose::compose(&mut composer, "src", OpRead::default())
@@ -2415,13 +2406,13 @@ mod tests {
     #[tokio::test]
     async fn test_compose_init_error_preserves_error_and_records_metrics() {
         let mock = MockInterceptor::default();
-        let accessor = build_compose_accessor(
+        let service = build_compose_service(
             mock.clone(),
             MockComposeService::with_compose_error(ErrorKind::NotFound),
         );
         let ctx = OperationContext::default();
 
-        let err = match Service::compose(&accessor, &ctx, "dst", OpCompose::default()) {
+        let err = match Service::compose(&service, &ctx, "dst", OpCompose::default()) {
             Ok(_) => panic!("compose init should fail"),
             Err(err) => err,
         };
@@ -2437,13 +2428,13 @@ mod tests {
     #[tokio::test]
     async fn test_compose_dropped_without_close_decrements_executing() {
         let mock = MockInterceptor::default();
-        let accessor = build_compose_accessor(
+        let service = build_compose_service(
             mock.clone(),
             MockComposeService::with_composer(MockComposer::ok()),
         );
         let ctx = OperationContext::default();
 
-        let mut composer = Service::compose(&accessor, &ctx, "dst", OpCompose::default()).unwrap();
+        let mut composer = Service::compose(&service, &ctx, "dst", OpCompose::default()).unwrap();
         assert_eq!(mock.gauge_value("opendal_operation_executing"), 1);
 
         oio::Compose::compose(&mut composer, "src1", OpRead::default())

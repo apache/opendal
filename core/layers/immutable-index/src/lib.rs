@@ -93,22 +93,15 @@ impl ImmutableIndexLayer {
 
 impl Layer for ImmutableIndexLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl ImmutableIndexLayer {
-    fn layer(&self, inner: Servicer) -> ImmutableIndexService {
-        ImmutableIndexService {
+        Arc::new(ImmutableIndexService {
             inner,
             vec: self.vec.clone(),
-        }
+        })
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct ImmutableIndexService {
+struct ImmutableIndexService {
     inner: Servicer,
     vec: Vec<String>,
 }
@@ -315,8 +308,7 @@ impl Service for ImmutableIndexService {
     }
 }
 
-#[doc(hidden)]
-pub struct ImmutableDir {
+struct ImmutableDir {
     idx: IntoIter<String>,
 }
 
@@ -883,7 +875,7 @@ mod tests {
         let mut iil = ImmutableIndexLayer::default();
         iil.insert("file".to_string());
 
-        let service = iil.layer(Arc::new(MockService));
+        let service = iil.apply_service(Arc::new(MockService));
         let ctx = OperationContext::default();
 
         for args in [

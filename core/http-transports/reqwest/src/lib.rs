@@ -28,6 +28,7 @@ use std::sync::LazyLock;
 use futures::TryStreamExt;
 use http::Request;
 use http::Response;
+use http::StatusCode;
 use opendal_core::Buffer;
 use opendal_core::Error;
 use opendal_core::ErrorKind;
@@ -149,18 +150,22 @@ impl HttpTransport for ReqwestTransport {
                 .set_source(err.without_url())
         })?;
 
-        // Get content length from header so that we can check it.
-        //
-        // - If the request method is HEAD, we will ignore content length.
-        // - If response contains content_encoding, we should omit its content length.
-        let content_length = if is_head || parse_content_encoding(resp.headers())?.is_some() {
+        // RFC 9110 §8.6: responses to HEAD and 1xx, 204, and 304 responses
+        // never carry a message body. A 304 may still carry the Content-Length
+        // of the selected representation, so it cannot validate the body.
+        let status = resp.status();
+        let is_bodyless = is_head
+            || status == StatusCode::NOT_MODIFIED
+            || status == StatusCode::NO_CONTENT
+            || status.is_informational();
+        let content_length = if is_bodyless || parse_content_encoding(resp.headers())?.is_some() {
             None
         } else {
             parse_content_length(resp.headers())?
         };
 
         let mut hr = Response::builder()
-            .status(resp.status())
+            .status(status)
             // Insert uri into response extension so that we can fetch
             // it later.
             .extension(uri.clone());

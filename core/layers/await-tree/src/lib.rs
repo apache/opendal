@@ -72,7 +72,7 @@ impl AwaitTreeLayer {
 
 impl Layer for AwaitTreeLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(AwaitTreeService { inner })
     }
 
     fn apply_context(&self, _service: Servicer, inner: OperationContext) -> OperationContext {
@@ -151,19 +151,12 @@ impl Execute for AwaitTreeExecutor {
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests;
 
-impl AwaitTreeLayer {
-    fn layer(&self, inner: Servicer) -> AwaitTreeAccessor {
-        AwaitTreeAccessor { inner }
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct AwaitTreeAccessor {
+struct AwaitTreeService {
     inner: Servicer,
 }
 
-impl Service for AwaitTreeAccessor {
+impl Service for AwaitTreeService {
     type Reader = AwaitTreeWrapper<oio::Reader>;
     type Writer = AwaitTreeWrapper<oio::Writer>;
     type Lister = AwaitTreeWrapper<oio::Lister>;
@@ -268,8 +261,7 @@ impl Service for AwaitTreeAccessor {
     }
 }
 
-#[doc(hidden)]
-pub struct AwaitTreeWrapper<R> {
+struct AwaitTreeWrapper<R> {
     inner: R,
 }
 

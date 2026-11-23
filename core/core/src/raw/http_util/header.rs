@@ -253,15 +253,19 @@ pub fn parse_into_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> 
     } else {
         EntryMode::FILE
     };
-    let content_length = parse_content_range(headers)?
-        .and_then(|value| value.size())
-        .or(parse_content_length(headers)?);
+    let content_range = parse_content_range(headers)?;
+    let content_length = match content_range {
+        Some(range) => range.size(),
+        None => parse_content_length(headers)?,
+    };
     let mut m = if mode == EntryMode::FILE {
         MetadataBuilder::file(content_length.ok_or_else(|| {
-            Error::new(
-                ErrorKind::Unexpected,
-                "HTTP response does not contain file content length",
-            )
+            let message = if content_range.is_some() {
+                "HTTP Content-Range header does not specify total file content length"
+            } else {
+                "HTTP response does not contain file content length"
+            };
+            Error::new(ErrorKind::Unexpected, message)
         })?)
     } else {
         MetadataBuilder::dir()
@@ -542,5 +546,36 @@ mod tests {
         );
 
         parse_multipart_boundary(&headers).expect_err("non-utf8 header value must fail");
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_unknown_size_does_not_use_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/*"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let err = parse_into_metadata("file.txt", &headers)
+            .expect_err("unknown total size in Content-Range must not fall back to Content-Length");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.to_string().contains("Content-Range"));
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_range_known_size() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("bytes 0-3/10"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("4"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
+    }
+
+    #[test]
+    fn test_parse_into_metadata_content_length() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("10"));
+
+        let meta = parse_into_metadata("file.txt", &headers).expect("parse must succeed");
+        assert_eq!(meta.content_length(), 10);
     }
 }

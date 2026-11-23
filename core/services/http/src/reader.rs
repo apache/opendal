@@ -56,9 +56,10 @@ impl oio::StreamRead for HttpReader {
         let status = resp.status();
 
         let (rp, stream) = match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
-                (read_metadata(path, resp.headers())?, resp.into_body())
-            }
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => (
+                read_metadata(path, status, resp.headers())?,
+                resp.into_body(),
+            ),
             _ => {
                 let (part, mut body) = resp.into_parts();
                 let buf = body.to_buffer().await?;
@@ -91,13 +92,17 @@ impl oio::StreamRead for HttpReader {
 /// A caller that explicitly asks for `Reader::metadata()` then gets
 /// `ErrorKind::Unsupported`, which is the documented answer for a service that
 /// does not return metadata on read. Before this, the read itself failed.
-fn read_metadata(path: &str, headers: &http::HeaderMap) -> Result<RpRead> {
-    // Mirrors how parse_into_metadata derives the length, so the two cannot
-    // disagree about whether one is present. A malformed header still errors
-    // here rather than being silently treated as absent.
-    let content_length = parse_content_range(headers)?
-        .and_then(|value| value.size())
-        .or(parse_content_length(headers)?);
+fn read_metadata(path: &str, status: StatusCode, headers: &http::HeaderMap) -> Result<RpRead> {
+    // On 206 Partial Content, Content-Length is the length of the returned
+    // range, not the full object size. Only Content-Range carries the full
+    // object size, and only when its complete-length is known (not `*`).
+    // A malformed header still errors here rather than being silently treated
+    // as absent.
+    let content_length = match parse_content_range(headers)? {
+        Some(value) => value.size(),
+        None if status == StatusCode::PARTIAL_CONTENT => None,
+        None => parse_content_length(headers)?,
+    };
 
     match content_length {
         Some(_) => Ok(RpRead::new(parse_into_metadata(path, headers)?)),
@@ -125,8 +130,12 @@ mod tests {
 
     #[test]
     fn test_read_metadata_with_content_length() {
-        let rp = read_metadata("file.txt", &headers(&[("content-length", "12")]))
-            .expect("read must be accepted");
+        let rp = read_metadata(
+            "file.txt",
+            StatusCode::OK,
+            &headers(&[("content-length", "12")]),
+        )
+        .expect("read must be accepted");
 
         let meta = rp.metadata().expect("metadata must be reported");
         assert_eq!(meta.content_length(), 12);
@@ -138,6 +147,7 @@ mod tests {
         // Content-Length, and that is still a length.
         let rp = read_metadata(
             "file.txt",
+            StatusCode::PARTIAL_CONTENT,
             &headers(&[("content-length", "4"), ("content-range", "bytes 0-3/12")]),
         )
         .expect("read must be accepted");
@@ -147,18 +157,52 @@ mod tests {
     }
 
     #[test]
+    fn test_read_metadata_partial_content_unknown_total_size_reports_none() {
+        // On 206 with `Content-Range: bytes x-y/*`, Content-Length is only the
+        // range length, not the full object size.
+        let rp = read_metadata(
+            "file.txt",
+            StatusCode::PARTIAL_CONTENT,
+            &headers(&[
+                ("content-length", "4"),
+                ("content-range", "bytes 0-3/*"),
+                ("etag", "\"e1\""),
+            ]),
+        )
+        .expect("read with unknown full length must be accepted");
+
+        assert!(rp.metadata().is_none());
+    }
+
+    #[test]
+    fn test_read_metadata_partial_content_without_content_range_reports_none() {
+        let rp = read_metadata(
+            "file.txt",
+            StatusCode::PARTIAL_CONTENT,
+            &headers(&[("content-length", "4")]),
+        )
+        .expect("206 without Content-Range must be accepted without mistaking range length for object size");
+
+        assert!(rp.metadata().is_none());
+    }
+
+    #[test]
     fn test_read_metadata_without_content_length_reports_none() {
         // A chunked HTTP/1.1 response, and the shape an HTTP/2 response takes:
         // no length anywhere. The read must still be accepted.
-        let rp = read_metadata("file.txt", &headers(&[("transfer-encoding", "chunked")]))
-            .expect("a response with no length must still be read");
+        let rp = read_metadata(
+            "file.txt",
+            StatusCode::OK,
+            &headers(&[("transfer-encoding", "chunked")]),
+        )
+        .expect("a response with no length must still be read");
 
         assert!(rp.metadata().is_none());
     }
 
     #[test]
     fn test_read_metadata_without_any_headers_reports_none() {
-        let rp = read_metadata("file.txt", &HeaderMap::new())
+        let rp = read_metadata("file.txt", StatusCode::OK, &HeaderMap::new())
             .expect("a response with no headers must still be read");
 
         assert!(rp.metadata().is_none());
@@ -168,8 +212,12 @@ mod tests {
     fn test_read_metadata_rejects_a_malformed_content_length() {
         // Absent is not the same as unparsable: a server that sends garbage
         // should still be reported rather than treated as length-free.
-        let err = read_metadata("file.txt", &headers(&[("content-length", "not-a-number")]))
-            .expect_err("a malformed length must be an error");
+        let err = read_metadata(
+            "file.txt",
+            StatusCode::OK,
+            &headers(&[("content-length", "not-a-number")]),
+        )
+        .expect_err("a malformed length must be an error");
 
         assert_eq!(err.kind(), ErrorKind::Unexpected);
     }

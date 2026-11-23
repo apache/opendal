@@ -48,6 +48,20 @@ fn take_pending(
     remaining.remove(index).map(|(_, path, args)| (path, args))
 }
 
+fn take_pending_by_error_path(
+    remaining: &mut VecDeque<(ObjectStorePath, String, OpDelete)>,
+    error_path: Option<&str>,
+) -> Option<(String, OpDelete)> {
+    let error_path = error_path?;
+    if let Ok(path) = ObjectStorePath::parse(error_path)
+        && let Some(pending) = take_pending(remaining, &path)
+    {
+        return Some(pending);
+    }
+
+    take_pending(remaining, &ObjectStorePath::from(error_path))
+}
+
 fn fail_remaining(
     remaining: &mut VecDeque<(ObjectStorePath, String, OpDelete)>,
     result: &mut BatchDeleteResult,
@@ -103,6 +117,9 @@ impl oio::BatchDelete for ObjectStoreDeleter {
         let results = self.store.delete_stream(stream).collect::<Vec<_>>().await;
 
         let mut result_batch = BatchDeleteResult::default();
+        let mut unattributed_error = None;
+        let mut unmatched_not_found = 0;
+        let mut unmatched_not_found_error = None;
         for result in results {
             match result {
                 Ok(deleted_path) => {
@@ -111,44 +128,47 @@ impl oio::BatchDelete for ObjectStoreDeleter {
                     }
                 }
                 Err(err @ object_store::Error::NotFound { .. }) => {
-                    let object_path = error_path(&err).map(ObjectStorePath::from);
-                    let pending = object_path
-                        .as_ref()
-                        .and_then(|path| take_pending(&mut remaining, path))
-                        // LocalFileSystem reports its absolute filesystem path in NotFound.
-                        // Consume one outstanding delete to preserve idempotency when that
-                        // path cannot be converted back to an object store path.
-                        .or_else(|| remaining.pop_front().map(|(_, path, args)| (path, args)));
-                    if let Some((path, args)) = pending {
+                    if let Some((path, args)) =
+                        take_pending_by_error_path(&mut remaining, error_path(&err))
+                    {
                         result_batch.succeeded.push((path, args));
+                    } else {
+                        unmatched_not_found += 1;
+                        if unmatched_not_found_error.is_none() {
+                            unmatched_not_found_error = Some(parse_error(err));
+                        }
                     }
                 }
                 Err(err) => {
-                    let object_path = error_path(&err).map(ObjectStorePath::from);
-                    let pending = object_path
-                        .as_ref()
-                        .and_then(|path| take_pending(&mut remaining, path));
-                    if let Some((path, args)) = pending {
+                    if let Some((path, args)) =
+                        take_pending_by_error_path(&mut remaining, error_path(&err))
+                    {
                         result_batch.failed.push((path, args, parse_error(err)));
-                    } else {
-                        // Chunked stores can return one error for an entire request without
-                        // identifying an object. Account for every outstanding input so the
-                        // caller retains the real error instead of a batch size mismatch.
-                        fail_remaining(&mut remaining, &mut result_batch, parse_error(err));
+                    } else if unattributed_error.is_none() {
+                        // A chunked store can return one error for an entire request. Keep
+                        // consuming the stream so later per-object results are not discarded.
+                        unattributed_error = Some(parse_error(err));
                     }
                 }
             }
         }
 
-        if !remaining.is_empty() {
-            fail_remaining(
-                &mut remaining,
-                &mut result_batch,
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "object store delete stream ended without a result for every input path",
-                ),
-            );
+        if unattributed_error.is_none() && unmatched_not_found == remaining.len() {
+            // LocalFileSystem reports absolute filesystem paths in NotFound errors. Only
+            // accept those unmatched errors when they account for every remaining input.
+            for (_, path, args) in remaining.drain(..) {
+                result_batch.succeeded.push((path, args));
+            }
+        } else if !remaining.is_empty() {
+            let error = unattributed_error
+                .or(unmatched_not_found_error)
+                .unwrap_or_else(|| {
+                    Error::new(
+                        ErrorKind::Unexpected,
+                        "object store delete stream ended without a result for every input path",
+                    )
+                });
+            fail_remaining(&mut remaining, &mut result_batch, error);
         }
 
         Ok(result_batch)
@@ -262,6 +282,13 @@ mod tests {
         object_store::Error::NotFound {
             path: path.to_string(),
             source: io::Error::new(io::ErrorKind::NotFound, "missing object").into(),
+        }
+    }
+
+    fn permission_denied(path: &str) -> object_store::Error {
+        object_store::Error::PermissionDenied {
+            path: path.to_string(),
+            source: io::Error::new(io::ErrorKind::PermissionDenied, "access denied").into(),
         }
     }
 
@@ -387,6 +414,101 @@ mod tests {
         let result = delete_batch(Arc::new(store), &["a", "b", "c"]).await;
 
         assert_result_paths(&result, vec!["c"], vec!["a", "b"]);
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_chunk_error_does_not_hide_later_success() {
+        let store =
+            ScriptedDeleteStore::new(vec![Err(generic_error()), Ok(ObjectStorePath::from("b"))]);
+
+        let result = delete_batch(Arc::new(store), &["a", "b"]).await;
+
+        assert_result_paths(&result, vec!["b"], vec!["a"]);
+        assert_eq!(result.failed[0].2.kind(), ErrorKind::Unexpected);
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_defers_unmatched_not_found() {
+        let store = ScriptedDeleteStore::new(vec![
+            Err(not_found("/absolute/b")),
+            Ok(ObjectStorePath::from("a")),
+        ]);
+
+        let result = delete_batch(Arc::new(store), &["a", "b"]).await;
+
+        assert_result_paths(&result, vec!["a", "b"], vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_unconfirmed_not_found_does_not_invent_success() {
+        let mixed_failures = ScriptedDeleteStore::new(vec![
+            Err(generic_error()),
+            Err(not_found("/absolute/missing")),
+        ]);
+        let result = delete_batch(Arc::new(mixed_failures), &["a", "missing"]).await;
+        assert_result_paths(&result, vec![], vec!["a", "missing"]);
+        assert!(
+            result
+                .failed
+                .iter()
+                .all(|(_, _, err)| err.kind() == ErrorKind::Unexpected)
+        );
+
+        let chunk_not_found = ScriptedDeleteStore::new(vec![Err(not_found("a,b,c"))]);
+        let result = delete_batch(Arc::new(chunk_not_found), &["a", "b", "c"]).await;
+        assert_result_paths(&result, vec![], vec!["a", "b", "c"]);
+        assert!(
+            result
+                .failed
+                .iter()
+                .all(|(_, _, err)| err.kind() == ErrorKind::NotFound)
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_matches_encoded_not_found_path() {
+        let store = ScriptedDeleteStore::new(vec![
+            Err(not_found("a%23b.txt")),
+            Ok(ObjectStorePath::from("other")),
+        ]);
+
+        let result = delete_batch(Arc::new(store), &["other", "a#b.txt"]).await;
+
+        assert_result_paths(&result, vec!["a#b.txt", "other"], vec![]);
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_matches_encoded_error_path() {
+        let store = ScriptedDeleteStore::new(vec![
+            Err(permission_denied("a%23b.txt")),
+            Ok(ObjectStorePath::from("other")),
+        ]);
+
+        let result = delete_batch(Arc::new(store), &["a#b.txt", "other"]).await;
+
+        assert_result_paths(&result, vec!["other"], vec!["a#b.txt"]);
+        assert_eq!(result.failed[0].2.kind(), ErrorKind::PermissionDenied);
+    }
+
+    #[tokio::test]
+    async fn test_delete_batch_prefixed_errors_do_not_invent_success() {
+        let store = PrefixStore::new(
+            ScriptedDeleteStore::new(vec![
+                Err(not_found("prefix/b")),
+                Err(permission_denied("prefix/a")),
+            ]),
+            "prefix",
+        );
+
+        let result = delete_batch(Arc::new(store), &["a", "b"]).await;
+
+        assert_result_paths(&result, vec![], vec!["a", "b"]);
+        assert!(
+            result
+                .failed
+                .iter()
+                .all(|(_, _, err)| err.kind() == ErrorKind::PermissionDenied)
+        );
     }
 
     #[tokio::test]

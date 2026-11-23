@@ -133,6 +133,8 @@ impl TosCore {
                 .sign(&mut parts, None)
                 .await
                 .map_err(|e| new_request_sign_error(e.into()))?;
+
+            parts.headers.remove(HOST);
         }
 
         parts.headers.insert(
@@ -1173,6 +1175,11 @@ pub fn parse_tos_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::task::Context as TaskContext;
+    use std::task::Poll;
+    use std::task::Waker;
+
     use super::*;
 
     #[test]
@@ -1237,6 +1244,71 @@ mod tests {
 
         let out: TosError = de::from_reader(bs.reader()).expect("must success");
         assert_eq!(out, TosError::default());
+    }
+
+    /// Poll a future once; these futures resolve without an external runtime.
+    fn poll_once<F: Future>(future: F) -> F::Output {
+        let mut future = std::pin::pin!(future);
+        let mut cx = TaskContext::from_waker(Waker::noop());
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("future requires an external async runtime"),
+        }
+    }
+
+    fn build_core() -> std::sync::Arc<TosCore> {
+        let backend = crate::Tos::default()
+            .bucket("test-bucket")
+            .access_key_id("test-ak")
+            .secret_access_key("test-sk")
+            .build()
+            .expect("build must succeed");
+        let backend = (&backend as &dyn std::any::Any)
+            .downcast_ref::<crate::backend::TosBackend>()
+            .expect("build must return TosBackend");
+        backend.core.clone()
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingTransport {
+        headers: std::sync::Arc<std::sync::Mutex<Vec<http::HeaderMap>>>,
+    }
+
+    impl HttpTransport for RecordingTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.headers.lock().unwrap().push(req.headers().clone());
+            // The test only inspects request headers, so it stops before a response
+            // body would require a stream implementation.
+            Err(Error::new(
+                ErrorKind::Unexpected,
+                "request recorded by test transport",
+            ))
+        }
+    }
+
+    #[test]
+    fn test_send_removes_host_header_after_signing() {
+        let transport = RecordingTransport::default();
+        let ctx =
+            OperationContext::new().with_http_transport(HttpTransporter::new(transport.clone()));
+        let core = build_core();
+        let req = core
+            .tos_put_object_request("test", None, &OpWrite::default(), Buffer::new())
+            .expect("request must be valid");
+
+        // The recording transport stops after capturing the request headers.
+        assert!(poll_once(core.send(&ctx, req)).is_err());
+
+        let headers = transport.headers.lock().unwrap();
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers[0].contains_key(http::header::AUTHORIZATION),
+            "request must be signed before it is sent"
+        );
+        assert!(
+            !headers[0].contains_key(HOST),
+            "Host header must be removed after signing"
+        );
     }
 }
 

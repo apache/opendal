@@ -3912,7 +3912,7 @@ public interface ServiceConfig {
          * environment.</p>
          * <p>For examples:</p>
          * <ul>
-         * <li>envs like <code>TOS_ACCESS_KEY_ID</code></li>
+         * <li>envs like <code>VOLCENGINE_ACCESS_KEY_ID</code></li>
          * </ul>
          */
         public final Boolean disableConfigLoad;

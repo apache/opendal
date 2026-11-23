@@ -953,7 +953,7 @@ class TosConfig(TypedDict):
     bucket: Required[str]
     """bucket name of this backend.  required."""
     disable_config_load: NotRequired[bool]
-    """Disable config load so that opendal will not load config from environment.  For examples: - envs like `TOS_ACCESS_KEY_ID`"""
+    """Disable config load so that opendal will not load config from environment.  For examples:  - envs like `VOLCENGINE_ACCESS_KEY_ID`"""
     endpoint: NotRequired[str]
     """endpoint of this backend.  Endpoint must be full uri, e.g. - TOS: `https://tos-cn-beijing.volces.com` - TOS with region: `https://tos-{region}.volces.com`  If user inputs endpoint without scheme like "tos-cn-beijing.volces.com", we will prepend "https://" before it."""
     region: NotRequired[str]

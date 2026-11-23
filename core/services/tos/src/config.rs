@@ -82,7 +82,8 @@ pub struct TosConfig {
     /// environment.
     ///
     /// For examples:
-    /// - envs like `TOS_ACCESS_KEY_ID`
+    ///
+    /// - envs like `VOLCENGINE_ACCESS_KEY_ID`
     pub disable_config_load: bool,
     /// Skip signature will skip loading credentials and signing requests.
     pub skip_signature: bool,

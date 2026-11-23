@@ -2527,3 +2527,180 @@ fn operator_list_with_options_async_inner(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashMap;
+    use std::ffi::CString;
+    use std::ptr;
+    use std::sync::atomic::{AtomicI64, Ordering};
+    use std::sync::{Mutex as StdMutex, OnceLock, mpsc};
+
+    use crate::buffer::read_buffer_copy_to;
+    use crate::executor::{executor_create, executor_free};
+    use crate::result::{opendal_metadata_result_release, opendal_read_result_release};
+
+    struct CallbackContext {
+        tx: mpsc::Sender<Result<Vec<u8>, i32>>,
+        op_to_free: Option<*mut OperatorHandle>,
+        executor_to_free: Option<*mut c_void>,
+    }
+
+    // SAFETY: Raw handles are transferred once to the completion callback,
+    // which frees each handle at most once.
+    unsafe impl Send for CallbackContext {}
+
+    fn callback_registry() -> &'static StdMutex<HashMap<i64, CallbackContext>> {
+        static REGISTRY: OnceLock<StdMutex<HashMap<i64, CallbackContext>>> = OnceLock::new();
+        REGISTRY.get_or_init(|| StdMutex::new(HashMap::new()))
+    }
+
+    fn register_callback(ctx: CallbackContext) -> i64 {
+        static NEXT_ID: AtomicI64 = AtomicI64::new(1);
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        callback_registry()
+            .lock()
+            .expect("lock callback registry")
+            .insert(id, ctx);
+        id
+    }
+
+    extern "C" fn test_read_callback(context: i64, result: OpendalReadResult) {
+        let ctx = callback_registry()
+            .lock()
+            .expect("lock callback registry")
+            .remove(&context)
+            .expect("registered callback context");
+
+        let payload = if result.error.has_error != 0 {
+            Err(result.error.code)
+        } else {
+            let mut bytes = vec![0u8; result.buffer.len];
+            if !bytes.is_empty() {
+                let copied = unsafe {
+                    read_buffer_copy_to(result.buffer.handle, 0, bytes.as_mut_ptr(), bytes.len())
+                };
+                bytes.truncate(copied);
+            }
+            Ok(bytes)
+        };
+
+        opendal_read_result_release(result);
+
+        if let Some(op_ptr) = ctx.op_to_free {
+            unsafe { operator_free(op_ptr) };
+        }
+        if let Some(executor_ptr) = ctx.executor_to_free {
+            unsafe { executor_free(executor_ptr) };
+        }
+
+        let _ = ctx.tx.send(payload);
+    }
+
+    fn create_memory_operator(executor_ptr: *const c_void) -> *mut OperatorHandle {
+        let scheme = CString::new("memory").expect("scheme cstr");
+        let op_res = unsafe {
+            operator_construct(scheme.as_ptr(), ptr::null(), ptr::null(), 0, executor_ptr)
+        };
+        assert_eq!(op_res.error.has_error, 0, "construct memory operator");
+        assert!(!op_res.ptr.is_null());
+        op_res.ptr as *mut OperatorHandle
+    }
+
+    fn write_test_object(op_ptr: *const OperatorHandle, path: &str, data: &[u8]) {
+        let path_cstr = CString::new(path).expect("path cstr");
+        let write_res = unsafe {
+            operator_write_bytes_with_options(
+                op_ptr,
+                path_cstr.as_ptr(),
+                data.as_ptr(),
+                data.len(),
+                ptr::null(),
+            )
+        };
+        assert_eq!(write_res.error.has_error, 0, "write test object");
+        opendal_metadata_result_release(write_res);
+    }
+
+    #[test]
+    fn async_ffi_read_completes_after_handles_freed() {
+        let exec_res = executor_create(1);
+        assert_eq!(exec_res.error.has_error, 0);
+        let executor_ptr = exec_res.ptr;
+
+        let op_ptr = create_memory_operator(executor_ptr);
+        write_test_object(op_ptr, "inflight.txt", b"hello-inflight");
+
+        let path_cstr = CString::new("inflight.txt").expect("path cstr");
+        let stream_res = operator_input_stream_create(op_ptr, path_cstr.as_ptr(), ptr::null());
+        assert_eq!(stream_res.error.has_error, 0);
+        let stream_ptr = stream_res.ptr;
+
+        // Hold the stream's async mutex so the spawned read task deterministically
+        // suspends at `.await` while we free every handle on the calling thread.
+        let inner = unsafe { (&*(stream_ptr as *const InputStream)).inner.clone() };
+        let guard = futures::executor::block_on(inner.lock());
+
+        let (tx, rx) = mpsc::channel();
+        let ctx_id = register_callback(CallbackContext {
+            tx,
+            op_to_free: None,
+            executor_to_free: None,
+        });
+
+        let start_res = unsafe {
+            operator_input_stream_read_next_async(stream_ptr, Some(test_read_callback), ctx_id)
+        };
+        assert_eq!(start_res.error.has_error, 0);
+
+        // Free stream, operator, and executor while the async read is still in flight.
+        unsafe {
+            operator_input_stream_free(stream_ptr);
+            operator_free(op_ptr);
+            executor_free(executor_ptr);
+        }
+
+        // Release the mutex so the in-flight task can finish and invoke the callback.
+        drop(guard);
+
+        let payload = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("in-flight async FFI callback must still fire after handles are freed")
+            .expect("async FFI read should succeed");
+        assert_eq!(payload, b"hello-inflight");
+    }
+
+    #[test]
+    fn freeing_operator_and_executor_inside_async_callback_does_not_panic() {
+        let exec_res = executor_create(1);
+        assert_eq!(exec_res.error.has_error, 0);
+        let executor_ptr = exec_res.ptr;
+
+        let op_ptr = create_memory_operator(executor_ptr);
+        write_test_object(op_ptr, "callback-free.txt", b"hello-callback");
+
+        let path_cstr = CString::new("callback-free.txt").expect("path cstr");
+        let (tx, rx) = mpsc::channel();
+        let ctx_id = register_callback(CallbackContext {
+            tx,
+            op_to_free: Some(op_ptr),
+            executor_to_free: Some(executor_ptr),
+        });
+
+        let start_res = operator_read_with_options_async(
+            op_ptr,
+            path_cstr.as_ptr(),
+            ptr::null(),
+            Some(test_read_callback),
+            ctx_id,
+        );
+        assert_eq!(start_res.error.has_error, 0);
+
+        let payload = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("async FFI callback should complete when freeing handles on worker thread")
+            .expect("async FFI read should succeed");
+        assert_eq!(payload, b"hello-callback");
+    }
+}

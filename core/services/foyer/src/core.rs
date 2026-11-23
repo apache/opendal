@@ -18,6 +18,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::path::PathBuf;
+#[cfg(test)]
+use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
@@ -213,6 +215,67 @@ impl Drop for ReadGuard {
     }
 }
 
+/// Deterministic park point for tests of cold reads.
+///
+/// A cold read holds the bytes it loaded from disk from the moment the load
+/// returns until [`DeletedKeys::finish_read`] fences it. Whether the load is
+/// still running when the read is polled depends on the scheduler, so tests
+/// that race an insert or a delete against that window can hold this gate
+/// instead: [`FoyerCore::load_from_disk`] then parks between the load and the
+/// fence until the test releases it.
+#[cfg(test)]
+struct LoadGate {
+    /// Whether cold reads park after loading their bytes.
+    holding: AtomicBool,
+    /// One permit per parked read.
+    loaded: tokio::sync::Semaphore,
+    /// One permit releases one parked read.
+    released: tokio::sync::Semaphore,
+}
+
+#[cfg(test)]
+impl LoadGate {
+    fn new() -> Self {
+        Self {
+            holding: AtomicBool::new(false),
+            loaded: tokio::sync::Semaphore::new(0),
+            released: tokio::sync::Semaphore::new(0),
+        }
+    }
+
+    /// Park every cold read after it loads its bytes.
+    fn hold(&self) {
+        self.holding.store(true, Ordering::SeqCst);
+    }
+
+    /// Release the parked read and let later cold reads finish on their own.
+    fn release(&self) {
+        self.holding.store(false, Ordering::SeqCst);
+        self.released.add_permits(1);
+    }
+
+    /// Wait until a cold read is parked with the bytes it loaded.
+    async fn wait_loaded(&self) {
+        self.loaded
+            .acquire()
+            .await
+            .expect("load gate is never closed")
+            .forget();
+    }
+
+    async fn park(&self) {
+        if !self.holding.load(Ordering::SeqCst) {
+            return;
+        }
+        self.loaded.add_permits(1);
+        self.released
+            .acquire()
+            .await
+            .expect("load gate is never closed")
+            .forget();
+    }
+}
+
 /// FoyerCore holds the foyer HybridCache instance.
 ///
 /// It supports lazy initialization when constructed from URI.
@@ -230,6 +293,9 @@ pub struct FoyerCore {
     deleted_len: Arc<AtomicUsize>,
     /// Config
     config: FoyerConfig,
+    /// Test-only park point between a cold read's disk load and its fence.
+    #[cfg(test)]
+    load_gate: Option<Arc<LoadGate>>,
 }
 
 impl Debug for FoyerCore {
@@ -269,6 +335,8 @@ impl FoyerCore {
             deleted_keys: Arc::new(RwLock::new(DeletedKeys::default())),
             deleted_len: Arc::new(AtomicUsize::new(0)),
             config,
+            #[cfg(test)]
+            load_gate: None,
         }
     }
 
@@ -332,6 +400,13 @@ impl FoyerCore {
         }
 
         Ok(cache)
+    }
+
+    /// Park cold reads after their disk load, for tests.
+    #[cfg(test)]
+    fn with_load_gate(mut self, gate: Arc<LoadGate>) -> Self {
+        self.load_gate = Some(gate);
+        self
     }
 
     pub fn name(&self) -> Option<&str> {
@@ -418,6 +493,13 @@ impl FoyerCore {
         };
 
         let load = cache.storage().load(&foyer_key).await;
+
+        // Tests hold the load gate to race a mutation against a read that
+        // already holds the bytes it loaded.
+        #[cfg(test)]
+        if let Some(gate) = &self.load_gate {
+            gate.park().await;
+        }
 
         let mut deleted_keys = self
             .deleted_keys
@@ -509,6 +591,8 @@ mod tests {
     use std::pin::Pin;
     use std::task::Poll;
 
+    use tokio::task::JoinHandle;
+
     use super::*;
 
     fn memory_core() -> FoyerCore {
@@ -540,6 +624,29 @@ mod tests {
         FoyerKey {
             path: key.to_string(),
         }
+    }
+
+    /// Start a cold read of `key` and wait until it holds the bytes it loaded.
+    ///
+    /// The read registers itself and loads from disk, then parks on the gate
+    /// before its fence. Tests can therefore race a mutation against the loaded
+    /// bytes without depending on how long the disk load takes.
+    async fn spawn_parked_read(
+        core: &Arc<FoyerCore>,
+        gate: &LoadGate,
+        key: &str,
+    ) -> JoinHandle<Result<Option<Buffer>>> {
+        gate.hold();
+        let mut read = tokio::spawn({
+            let core = core.clone();
+            let key = key.to_string();
+            async move { core.get(&key).await }
+        });
+        tokio::select! {
+            result = &mut read => panic!("the read must park on the load gate, got {result:?}"),
+            () = gate.wait_loaded() => {}
+        }
+        read
     }
 
     /// Force `key` out of the memory cache and onto disk.
@@ -726,7 +833,8 @@ mod tests {
     #[tokio::test]
     async fn cancelled_cold_read_releases_its_pin() {
         let dir = tempfile::tempdir().unwrap();
-        let core = disk_core(&dir);
+        let gate = Arc::new(LoadGate::new());
+        let core = Arc::new(disk_core(&dir).with_load_gate(gate.clone()));
         let cache = core.get_cache().await.unwrap();
 
         core.insert("/target", Buffer::from(vec![b't'; 512 * 1024]))
@@ -734,19 +842,17 @@ mod tests {
             .unwrap();
         move_to_disk(&core, &cache, "/target").await;
 
-        let mut read = Box::pin(core.get("/target"));
-        assert!(
-            poll_once(&mut read).await.is_pending(),
-            "the read must park on the disk load"
-        );
+        let read = spawn_parked_read(&core, &gate, "/target").await;
         assert_eq!(core.deleted_keys.read().unwrap().active_reads.len(), 1);
 
-        drop(read);
+        read.abort();
+        assert!(read.await.unwrap_err().is_cancelled());
         assert!(
             core.deleted_keys.read().unwrap().active_reads.is_empty(),
             "dropping the future must release the in-flight read"
         );
 
+        gate.release();
         core.remove("/target").await.unwrap();
         assert!(core.get("/target").await.unwrap().is_none());
         assert!(cache.memory().get(&foyer_key("/target")).is_none());
@@ -755,7 +861,8 @@ mod tests {
     #[tokio::test]
     async fn in_flight_disk_read_is_not_resurrected() {
         let dir = tempfile::tempdir().unwrap();
-        let core = disk_core(&dir);
+        let gate = Arc::new(LoadGate::new());
+        let core = Arc::new(disk_core(&dir).with_load_gate(gate.clone()));
         let cache = core.get_cache().await.unwrap();
 
         core.insert("/target", Buffer::from(vec![b't'; 512 * 1024]))
@@ -763,13 +870,9 @@ mod tests {
             .unwrap();
         move_to_disk(&core, &cache, "/target").await;
 
-        // Start the read and let it park on the disk load. The read registers
-        // itself before the load, so the delete below can fence its promotion.
-        let mut read = Box::pin(core.get("/target"));
-        assert!(
-            poll_once(&mut read).await.is_pending(),
-            "the read must park on the disk load"
-        );
+        // The read registers before it loads and parks with the bytes it loaded,
+        // so the delete below lands while its promotion is still pending.
+        let read = spawn_parked_read(&core, &gate, "/target").await;
         assert_eq!(core.deleted_keys.read().unwrap().active_reads.len(), 1);
 
         // Delete the key and then evict its tombstone with unrelated deletes.
@@ -783,10 +886,11 @@ mod tests {
         );
         assert_eq!(core.deleted_len.load(Ordering::Acquire), MAX_DELETED_KEYS);
 
-        // The parked read loaded stale bytes from disk before the delete. It
-        // must neither return them nor promote them back into memory.
+        // The parked read holds bytes that predate the delete. It must neither
+        // return them nor promote them back into memory.
+        gate.release();
         assert!(
-            read.await.unwrap().is_none(),
+            read.await.unwrap().unwrap().is_none(),
             "the in-flight read must observe the delete"
         );
         assert!(
@@ -803,7 +907,8 @@ mod tests {
     #[tokio::test]
     async fn in_flight_disk_read_does_not_overwrite_a_newer_insert() {
         let dir = tempfile::tempdir().unwrap();
-        let core = disk_core(&dir);
+        let gate = Arc::new(LoadGate::new());
+        let core = Arc::new(disk_core(&dir).with_load_gate(gate.clone()));
         let cache = core.get_cache().await.unwrap();
 
         core.insert("/target", Buffer::from(vec![b'o'; 512 * 1024]))
@@ -811,16 +916,17 @@ mod tests {
             .unwrap();
         move_to_disk(&core, &cache, "/target").await;
 
-        let mut read = Box::pin(core.get("/target"));
-        assert!(poll_once(&mut read).await.is_pending());
+        let read = spawn_parked_read(&core, &gate, "/target").await;
 
-        // Rewrite the key while the older read is parked on the disk load.
+        // Rewrite the key while the older read holds the bytes it loaded.
         core.insert("/target", Buffer::from(vec![b'n'; 512 * 1024]))
             .await
             .unwrap();
 
+        gate.release();
         let value = read
             .await
+            .unwrap()
             .unwrap()
             .expect("the read must still return a value");
         assert_eq!(
@@ -839,7 +945,8 @@ mod tests {
     #[tokio::test]
     async fn in_flight_disk_read_does_not_promote_over_an_evicted_newer_insert() {
         let dir = tempfile::tempdir().unwrap();
-        let core = disk_core(&dir);
+        let gate = Arc::new(LoadGate::new());
+        let core = Arc::new(disk_core(&dir).with_load_gate(gate.clone()));
         let cache = core.get_cache().await.unwrap();
 
         core.insert("/target", Buffer::from(vec![b'o'; 512 * 1024]))
@@ -847,8 +954,7 @@ mod tests {
             .unwrap();
         move_to_disk(&core, &cache, "/target").await;
 
-        let mut read = Box::pin(core.get("/target"));
-        assert!(poll_once(&mut read).await.is_pending());
+        let read = spawn_parked_read(&core, &gate, "/target").await;
 
         // Rewrite the key, then evict the new value from memory again. The
         // older read must not put the bytes it loaded back into the cache.
@@ -863,8 +969,10 @@ mod tests {
         }
         assert!(cache.memory().get(&foyer_key("/target")).is_none());
 
+        gate.release();
         let value = read
             .await
+            .unwrap()
             .unwrap()
             .expect("the read must still return a value");
         assert_eq!(

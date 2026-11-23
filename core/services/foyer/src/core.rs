@@ -15,10 +15,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap};
 use std::fmt::Debug;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, RwLock};
 
 use foyer::BlockEngineConfig;
 use foyer::DeviceBuilder;
@@ -36,6 +37,56 @@ use super::FoyerConfig;
 use super::FoyerKey;
 use super::FoyerValue;
 
+/// Maximum number of deleted keys retained as negative-cache tombstones.
+///
+/// Foyer removes disk entries asynchronously, so recent deletes are tracked
+/// in memory to avoid reading stale entries back from disk. Bounding the set
+/// prevents unbounded memory growth across long-running delete workloads.
+const MAX_DELETED_KEYS: usize = 1024;
+
+#[derive(Default)]
+struct DeletedKeys {
+    next_seq: u64,
+    keys: HashMap<Arc<str>, u64>,
+    by_seq: BTreeMap<u64, Arc<str>>,
+}
+
+impl DeletedKeys {
+    fn contains(&self, key: &str) -> bool {
+        self.keys.contains_key(key)
+    }
+
+    fn insert(&mut self, key: &str, evicted: &mut Vec<Arc<str>>) -> usize {
+        let seq = self.next_seq;
+        self.next_seq = self.next_seq.wrapping_add(1);
+
+        let shared: Arc<str> = if let Some((existing, old_seq)) = self.keys.remove_entry(key) {
+            self.by_seq.remove(&old_seq);
+            existing
+        } else {
+            Arc::from(key)
+        };
+        self.keys.insert(shared.clone(), seq);
+        self.by_seq.insert(seq, shared);
+
+        while self.keys.len() > MAX_DELETED_KEYS {
+            let Some((_, oldest)) = self.by_seq.pop_first() else {
+                break;
+            };
+            self.keys.remove(&oldest);
+            evicted.push(oldest);
+        }
+        self.keys.len()
+    }
+
+    fn remove(&mut self, key: &str) -> usize {
+        if let Some(seq) = self.keys.remove(key) {
+            self.by_seq.remove(&seq);
+        }
+        self.keys.len()
+    }
+}
+
 /// FoyerCore holds the foyer HybridCache instance.
 ///
 /// It supports lazy initialization when constructed from URI.
@@ -43,7 +94,8 @@ use super::FoyerValue;
 pub struct FoyerCore {
     /// OnceLock for lazy cache initialization.
     cache: std::sync::OnceLock<Arc<HybridCache<FoyerKey, FoyerValue>>>,
-    deleted_keys: Arc<Mutex<HashSet<FoyerKey>>>,
+    deleted_keys: Arc<RwLock<DeletedKeys>>,
+    deleted_len: Arc<AtomicUsize>,
     /// Config
     config: FoyerConfig,
 }
@@ -82,7 +134,8 @@ impl FoyerCore {
     pub fn new(config: FoyerConfig) -> Self {
         Self {
             cache: std::sync::OnceLock::new(),
-            deleted_keys: Arc::new(Mutex::new(HashSet::new())),
+            deleted_keys: Arc::new(RwLock::new(DeletedKeys::default())),
+            deleted_len: Arc::new(AtomicUsize::new(0)),
             config,
         }
     }
@@ -155,18 +208,19 @@ impl FoyerCore {
 
     pub async fn get(&self, key: &str) -> Result<Option<Buffer>> {
         let cache = self.get_cache().await?;
-        let foyer_key = FoyerKey {
-            path: key.to_string(),
-        };
-        if self
-            .deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .contains(&foyer_key)
+        if self.deleted_len.load(Ordering::Acquire) != 0
+            && self
+                .deleted_keys
+                .read()
+                .expect("deleted keys lock poisoned")
+                .contains(key)
         {
             return Ok(None);
         }
 
+        let foyer_key = FoyerKey {
+            path: key.to_string(),
+        };
         match cache.get(&foyer_key).await {
             Ok(Some(entry)) => Ok(Some(entry.value().0.clone())),
             Ok(None) => Ok(None),
@@ -176,27 +230,106 @@ impl FoyerCore {
 
     pub async fn insert(&self, key: &str, value: Buffer) -> Result<()> {
         let cache = self.get_cache().await?;
-        let key = FoyerKey {
+        let foyer_key = FoyerKey {
             path: key.to_string(),
         };
-        cache.insert(key.clone(), FoyerValue(value));
-        self.deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .remove(&key);
+        cache.insert(foyer_key, FoyerValue(value));
+        if self.deleted_len.load(Ordering::Acquire) != 0 {
+            let mut guard = self
+                .deleted_keys
+                .write()
+                .expect("deleted keys lock poisoned");
+            let len = guard.remove(key);
+            self.deleted_len.store(len, Ordering::Release);
+        }
         Ok(())
     }
 
     pub async fn remove(&self, key: &str) -> Result<()> {
         let cache = self.get_cache().await?;
-        let key = FoyerKey {
+        let mut evicted = Vec::new();
+        {
+            let mut guard = self
+                .deleted_keys
+                .write()
+                .expect("deleted keys lock poisoned");
+            let len = guard.insert(key, &mut evicted);
+            self.deleted_len.store(len, Ordering::Release);
+        }
+        cache.remove(&FoyerKey {
             path: key.to_string(),
-        };
-        cache.remove(&key);
-        self.deleted_keys
-            .lock()
-            .expect("deleted keys lock poisoned")
-            .insert(key);
+        });
+        for oldest in evicted {
+            cache.remove(&FoyerKey {
+                path: oldest.to_string(),
+            });
+        }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deleted_keys_is_bounded_and_evicts_oldest() {
+        let mut tombstones = DeletedKeys::default();
+        let mut evicted = Vec::new();
+
+        for i in 0..(MAX_DELETED_KEYS + 32) {
+            let len = tombstones.insert(&format!("k-{i}"), &mut evicted);
+            assert!(len <= MAX_DELETED_KEYS);
+        }
+
+        assert_eq!(tombstones.keys.len(), MAX_DELETED_KEYS);
+        assert_eq!(tombstones.by_seq.len(), MAX_DELETED_KEYS);
+        assert_eq!(evicted.len(), 32);
+        assert_eq!(evicted[0].as_ref(), "k-0");
+        assert_eq!(evicted[31].as_ref(), "k-31");
+        assert!(!tombstones.contains("k-0"));
+        assert!(tombstones.contains(&format!("k-{}", MAX_DELETED_KEYS + 31)));
+
+        // Re-inserting an existing key refreshes its recency without growing size.
+        let refresh_key = "k-32";
+        evicted.clear();
+        assert_eq!(
+            tombstones.insert(refresh_key, &mut evicted),
+            MAX_DELETED_KEYS
+        );
+        assert!(evicted.is_empty());
+        assert_eq!(tombstones.insert("k-extra", &mut evicted), MAX_DELETED_KEYS);
+        assert_eq!(evicted.len(), 1);
+        assert_eq!(evicted[0].as_ref(), "k-33");
+        assert!(tombstones.contains(refresh_key));
+
+        assert_eq!(tombstones.remove(refresh_key), MAX_DELETED_KEYS - 1);
+        assert!(!tombstones.contains(refresh_key));
+    }
+
+    #[tokio::test]
+    async fn core_bounded_deletes_and_reinsert_visibility() {
+        let core = FoyerCore::new(FoyerConfig {
+            memory: Some(4 * 1024 * 1024),
+            shards: Some(4),
+            ..Default::default()
+        });
+
+        for i in 0..(MAX_DELETED_KEYS + 16) {
+            let k = format!("/obj-{i}");
+            core.insert(&k, Buffer::from("val")).await.unwrap();
+            core.remove(&k).await.unwrap();
+        }
+        assert_eq!(core.deleted_len.load(Ordering::Acquire), MAX_DELETED_KEYS);
+
+        // Re-inserting a tombstoned key makes it readable again and clears its tombstone.
+        let latest = format!("/obj-{}", MAX_DELETED_KEYS + 15);
+        assert!(core.get(&latest).await.unwrap().is_none());
+        core.insert(&latest, Buffer::from("fresh")).await.unwrap();
+        assert_eq!(core.get(&latest).await.unwrap().unwrap().to_vec(), b"fresh");
+        assert_eq!(
+            core.deleted_len.load(Ordering::Acquire),
+            MAX_DELETED_KEYS - 1
+        );
     }
 }

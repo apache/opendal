@@ -81,7 +81,8 @@ impl SqliteBuilder {
 
     /// Set the key field name of the sqlite service to read/write.
     ///
-    /// Default to `key` if not specified.
+    /// The field must have a `PRIMARY KEY` or `UNIQUE` constraint so writes can
+    /// update an existing key. Default to `key` if not specified.
     pub fn key_field(mut self, key_field: &str) -> Self {
         if !key_field.is_empty() {
             self.config.key_field = Some(key_field.to_string());
@@ -365,10 +366,15 @@ mod test {
     use opendal_core::raw::oio::ReadStream as _;
     use opendal_core::raw::oio::Write as _;
     use sqlx::SqlitePool;
+    use sqlx::sqlite::SqlitePoolOptions;
 
     async fn build_client() -> OnceCell<SqlitePool> {
         let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
-        let pool = SqlitePool::connect_with(config).await.unwrap();
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(config)
+            .await
+            .unwrap();
         OnceCell::from_value(pool)
     }
 
@@ -573,5 +579,102 @@ mod test {
 
         assert_eq!(rp.into_metadata().unwrap().content_length(), 6);
         assert_eq!(buffer.to_vec(), "你".as_bytes());
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_inserts_and_overwrites_existing_key() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("first"))
+            .await
+            .unwrap();
+        assert_eq!(
+            backend.core.get("key").await.unwrap().unwrap().to_vec(),
+            b"first"
+        );
+
+        backend
+            .core
+            .set("key", Buffer::from("second"))
+            .await
+            .unwrap();
+        assert_eq!(
+            backend.core.get("key").await.unwrap().unwrap().to_vec(),
+            b"second"
+        );
+
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM test_table")
+            .fetch_one(pool)
+            .await
+            .unwrap();
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_preserves_existing_row_on_unrelated_unique_conflict() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB UNIQUE)")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("first", Buffer::from("shared"))
+            .await
+            .unwrap();
+
+        let result = backend.core.set("second", Buffer::from("shared")).await;
+        assert!(result.is_err());
+
+        assert_eq!(
+            backend.core.get("first").await.unwrap().unwrap().to_vec(),
+            b"shared"
+        );
+        assert!(backend.core.get("second").await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_set_preserves_unmodified_columns() {
+        let backend = build_backend().await;
+        let pool = backend.core.get_client().await.unwrap();
+        sqlx::query(
+            "CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB, extra TEXT DEFAULT 'keep')",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("first"))
+            .await
+            .unwrap();
+        sqlx::query("UPDATE test_table SET extra = 'custom' WHERE key = 'key'")
+            .execute(pool)
+            .await
+            .unwrap();
+
+        backend
+            .core
+            .set("key", Buffer::from("second"))
+            .await
+            .unwrap();
+
+        let (value, extra): (Vec<u8>, String) =
+            sqlx::query_as("SELECT value, extra FROM test_table WHERE key = 'key'")
+                .fetch_one(pool)
+                .await
+                .unwrap();
+        assert_eq!(value, b"second");
+        assert_eq!(extra, "custom");
     }
 }

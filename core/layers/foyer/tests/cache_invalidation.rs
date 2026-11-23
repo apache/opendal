@@ -712,6 +712,91 @@ async fn buffered_delete_close_does_not_allow_mid_close_cache_repopulation() {
     );
 }
 
+#[tokio::test]
+async fn buffered_delete_close_reinvalidates_mid_close_write() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "v1").await.unwrap();
+    assert!(cache.contains(&key));
+
+    // Start a buffered delete of "target"; it calls `begin_delete` and pauses
+    // inside `deleter.close().await` before the backend removes "target".
+    let delete_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.delete("target").await.unwrap() }
+    });
+    delete_state.close_started.notified().await;
+
+    // A write arriving mid-close repopulates the cache before the buffered
+    // backend delete executes.
+    op.write("target", "v2").await.unwrap();
+    assert!(cache.contains(&key));
+
+    // Complete backend deletion. `DeleteGuard::drop` must re-invalidate
+    // "target" so the deleted object is not served stale from cache.
+    delete_state.finish_close.notify_one();
+    delete_task.await.unwrap();
+
+    assert!(
+        !cache.contains(&key),
+        "a write during buffered deleter close must be re-invalidated when close completes"
+    );
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
+}
+
+#[tokio::test]
+async fn cancelled_buffered_delete_close_reinvalidates_and_preserves_retry() {
+    let delete_state = Arc::new(RecursiveDeleteState::default());
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        buffered_delete: Some(delete_state.clone()),
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("target");
+
+    op.write("target", "v1").await.unwrap();
+    let mut deleter = op.deleter().await.unwrap();
+    deleter.delete("target").await.unwrap();
+
+    {
+        let close = deleter.close();
+        futures::pin_mut!(close);
+        assert!(futures::poll!(&mut close).is_pending());
+        // Mid-close write repopulates cache before `close` is cancelled.
+        op.write("target", "v2").await.unwrap();
+        assert!(cache.contains(&key));
+    }
+
+    // Dropping the in-flight `close()` future must still run `DeleteGuard::drop`
+    // and re-invalidate the key.
+    assert!(
+        !cache.contains(&key),
+        "cancelling deleter close must still re-invalidate target keys"
+    );
+
+    // Retrying `close()` after cancellation must still invalidate any write
+    // performed before the retry completes.
+    op.write("target", "v3").await.unwrap();
+    assert!(cache.contains(&key));
+    delete_state.finish_close.notify_one();
+    deleter.close().await.unwrap();
+
+    assert!(!cache.contains(&key));
+    assert_eq!(
+        op.read("target").await.unwrap_err().kind(),
+        ErrorKind::NotFound,
+    );
+}
+
 #[test]
 fn operation_types_remain_available() {
     fn assert_operation_types<

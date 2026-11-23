@@ -25,8 +25,12 @@ use opendal_core::ErrorKind;
 pub(crate) enum FetchError {
     SizeTooLarge,
     /// The key was invalidated or overwritten while this fetch was in flight.
-    /// Carry the fetched bytes back to waiting readers without caching them.
-    Stale(Buffer),
+    /// Carry the fetched bytes and the leader's read epoch back to waiting
+    /// readers without caching them.
+    Stale {
+        buffer: Buffer,
+        fetch_epoch: u64,
+    },
     Source {
         kind: ErrorKind,
         message: String,
@@ -46,7 +50,7 @@ impl std::fmt::Display for FetchError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::SizeTooLarge => write!(f, "fetched data size exceeds size limit"),
-            Self::Stale(_) => write!(f, "fetched data was invalidated while in flight"),
+            Self::Stale { .. } => write!(f, "fetched data was invalidated while in flight"),
             Self::Source { message, .. } => write!(f, "{message}"),
         }
     }
@@ -64,7 +68,7 @@ pub(crate) fn extract_err(e: FoyerError) -> Error {
                 ErrorKind::Unexpected,
                 "fetched data size exceeds size limit",
             ),
-            FetchError::Stale(_) => Error::new(
+            FetchError::Stale { .. } => Error::new(
                 ErrorKind::Unexpected,
                 "fetched data was invalidated while in flight",
             ),

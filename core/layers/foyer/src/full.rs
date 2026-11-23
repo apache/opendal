@@ -40,7 +40,7 @@ use crate::error::{FetchError, extract_err};
 pub struct FullReader {
     inner: Arc<Inner>,
     size_limit: std::ops::Range<usize>,
-    path: String,
+    key: Arc<FoyerKey>,
     args: OpRead,
 }
 
@@ -51,18 +51,15 @@ impl FullReader {
         path: String,
         args: OpRead,
     ) -> Self {
+        let key = Arc::new(FoyerKey {
+            path,
+            version: args.version().map(|v| v.to_string()),
+        });
         Self {
             inner,
             size_limit,
-            path,
+            key,
             args,
-        }
-    }
-
-    fn cache_key(&self) -> FoyerKey {
-        FoyerKey {
-            path: self.path.clone(),
-            version: self.args.version().map(|v| v.to_string()),
         }
     }
 
@@ -90,7 +87,7 @@ impl FullReader {
         let reader = self
             .inner
             .srv
-            .read(&self.inner.ctx, &self.path, self.args.clone())?;
+            .read(&self.inner.ctx, &self.key.path, self.args.clone())?;
         reader.open(range).await
     }
 
@@ -98,7 +95,7 @@ impl FullReader {
         let reader = self
             .inner
             .srv
-            .read(&self.inner.ctx, &self.path, self.args.clone())?;
+            .read(&self.inner.ctx, &self.key.path, self.args.clone())?;
         reader.read(range).await
     }
 
@@ -126,31 +123,32 @@ impl FullReader {
         // Please note that we only cache the object if it's smaller than size_limit. And we'll
         // fetch the ENTIRE object from remote to put it into cache, then slice it to the requested
         // range.
-        let key = self.cache_key();
-
         // Check invalidation and register this read atomically under one lock.
         // Cloning `read_guard` into Foyer's detached fetch closure keeps the
         // epoch pinned even if this future is dropped while the fetch runs.
-        let Some(read_guard) = self.inner.deleted_keys.begin_read(&self.inner.cache, &key) else {
+        let Some(read_guard) = self
+            .inner
+            .deleted_keys
+            .begin_read(&self.inner.cache, &self.key)
+        else {
             return Ok(None);
         };
 
         let result = self
             .inner
             .cache
-            .get_or_fetch(&key, || {
+            .get_or_fetch(self.key.as_ref(), || {
                 let inner = self.inner.clone();
                 let size_limit = self.size_limit.clone();
-                let path_clone = self.path.clone();
                 let stat_args = self.stat_args();
                 let read_args = self.args.clone();
-                let fetch_key = key.clone();
                 let fetch_guard = read_guard.clone();
                 async move {
+                    let path = &fetch_guard.key().path;
                     // read the metadata first, if it's too large, do not cache
                     let metadata = inner
                         .srv
-                        .stat(&inner.ctx, &path_clone, stat_args)
+                        .stat(&inner.ctx, path, stat_args)
                         .await
                         .map_err(FetchError::from_error)?
                         .into_metadata();
@@ -163,7 +161,7 @@ impl FullReader {
                     // fetch the ENTIRE object from remote.
                     let reader = inner
                         .srv
-                        .read(&inner.ctx, &path_clone, read_args)
+                        .read(&inner.ctx, path, read_args)
                         .map_err(FetchError::from_error)?;
                     let (_, mut stream) = reader
                         .open(BytesRange::new(0, None))
@@ -173,11 +171,18 @@ impl FullReader {
 
                     if inner
                         .deleted_keys
-                        .is_fetch_stale(&fetch_key, fetch_guard.epoch())
+                        .is_fetch_stale(fetch_guard.key(), fetch_guard.epoch())
                     {
-                        return Err(FetchError::Stale(buffer));
+                        return Err(FetchError::Stale {
+                            buffer,
+                            fetch_epoch: fetch_guard.epoch(),
+                        });
                     }
 
+                    // Foyer's `handle_target` inserts the returned entry into
+                    // the cache before completing `get_or_fetch` and dropping
+                    // the fetch state, so `ReadGuardInner::drop`'s post-read
+                    // eviction always runs after Foyer's insert.
                     Ok(FoyerValue(buffer))
                 }
             })
@@ -187,7 +192,11 @@ impl FullReader {
             Ok(entry) => Ok(Some(entry.0.clone())),
             Err(e) => match e.downcast_ref::<FetchError>() {
                 Some(FetchError::SizeTooLarge) => Ok(None),
-                Some(FetchError::Stale(buffer)) => Ok(Some(buffer.clone())),
+                Some(FetchError::Stale {
+                    buffer,
+                    fetch_epoch,
+                }) if *fetch_epoch == read_guard.epoch() => Ok(Some(buffer.clone())),
+                Some(FetchError::Stale { .. }) => Ok(None),
                 Some(FetchError::Source { kind, message }) => {
                     Err(Error::new(*kind, message.clone()))
                 }

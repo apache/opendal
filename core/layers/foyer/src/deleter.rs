@@ -70,11 +70,10 @@ impl<D: oio::Delete> oio::Delete for Deleter<D> {
     }
 
     async fn close(&mut self) -> Result<()> {
-        let delete_guard = self.inner.deleted_keys.begin_delete(
-            &self.inner.cache,
-            self.keys.clone(),
-            self.evict_keys.clone(),
-        );
+        let delete_guard =
+            self.inner
+                .deleted_keys
+                .begin_delete(&self.inner.cache, &self.keys, &self.evict_keys);
         let close_res = self.deleter.close().await;
         let clear_res = if self.recursive {
             // Foyer only supports removing exact keys or clearing the cache.

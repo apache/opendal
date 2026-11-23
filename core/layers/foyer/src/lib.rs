@@ -168,11 +168,14 @@ impl IdleTombstones {
         self.keys.contains_key(key)
     }
 
-    fn insert(&mut self, key: FoyerKey, cache: &HybridCache<FoyerKey, FoyerValue>) {
+    fn insert_shared(
+        &mut self,
+        shared_key: Arc<FoyerKey>,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+    ) {
         let seq = self.next_seq;
         self.next_seq += 1;
 
-        let shared_key = Arc::new(key);
         if let Some(old_seq) = self.keys.insert(shared_key.clone(), seq) {
             self.by_seq.remove(&old_seq);
         }
@@ -185,6 +188,10 @@ impl IdleTombstones {
             self.keys.remove(&oldest_key);
             cache.remove(oldest_key.as_ref());
         }
+    }
+
+    fn insert(&mut self, key: FoyerKey, cache: &HybridCache<FoyerKey, FoyerValue>) {
+        self.insert_shared(Arc::new(key), cache);
     }
 
     fn remove(&mut self, key: &FoyerKey) {
@@ -201,10 +208,16 @@ impl IdleTombstones {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PinnedKind {
-    /// Invalidated or evicted while older reads of this key were in flight.
+    /// Invalidated while older reads of this key were in flight.
     /// New reads bypass the cache until those reads finish, at which point the
-    /// key is removed from the cache again and released.
+    /// key is removed from the cache again and recorded in the bounded idle
+    /// tombstone history.
     Invalidate,
+    /// Evicted without marking deleted while older reads of this key were in
+    /// flight. New reads bypass the cache until those reads finish, at which
+    /// point the key is removed from the cache again and released so later
+    /// reads can refill it.
+    Evict,
     /// Overwritten by a cacheable write while older reads of this key were in
     /// flight. New reads can hit the cached entry, while older fetches abort
     /// cache insertion without evicting the newer value when they finish.
@@ -215,6 +228,93 @@ enum PinnedKind {
 struct PinnedEntry {
     epoch: u64,
     kind: PinnedKind,
+}
+
+/// Active read counts per epoch for a single cache key.
+///
+/// Most concurrent reads of a key observe the same epoch, so the single-epoch
+/// fast path avoids allocating a [`BTreeMap`] on every cache hit.
+#[derive(Debug, PartialEq, Eq)]
+enum ActiveReadEpochs {
+    Single { epoch: u64, count: usize },
+    Multiple(BTreeMap<u64, usize>),
+}
+
+impl ActiveReadEpochs {
+    fn single(epoch: u64) -> Self {
+        Self::Single { epoch, count: 1 }
+    }
+
+    fn insert(&mut self, epoch: u64) {
+        match self {
+            Self::Single {
+                epoch: existing,
+                count,
+            } if *existing == epoch => {
+                *count += 1;
+            }
+            Self::Single {
+                epoch: existing,
+                count,
+            } => {
+                let mut map = BTreeMap::new();
+                map.insert(*existing, *count);
+                map.insert(epoch, 1);
+                *self = Self::Multiple(map);
+            }
+            Self::Multiple(map) => {
+                *map.entry(epoch).or_insert(0) += 1;
+            }
+        }
+    }
+
+    /// Decrements the count for `epoch` and returns `(removed_epoch, min_active_epoch)`.
+    /// When `min_active_epoch` is `None`, the caller must remove the key from `active_reads`.
+    fn remove(&mut self, epoch: u64) -> (bool, Option<u64>) {
+        match self {
+            Self::Single {
+                epoch: existing,
+                count,
+            } => {
+                if *existing != epoch {
+                    return (false, Some(*existing));
+                }
+                if *count > 1 {
+                    *count -= 1;
+                    (false, Some(*existing))
+                } else {
+                    *count = 0;
+                    (true, None)
+                }
+            }
+            Self::Multiple(map) => {
+                let removed_epoch = match map.get_mut(&epoch) {
+                    Some(count) if *count > 1 => {
+                        *count -= 1;
+                        false
+                    }
+                    Some(_) => {
+                        map.remove(&epoch);
+                        true
+                    }
+                    None => false,
+                };
+                match map.len() {
+                    0 => (removed_epoch, None),
+                    1 => {
+                        let (&remaining_epoch, &remaining_count) =
+                            map.first_key_value().expect("map has len 1");
+                        *self = Self::Single {
+                            epoch: remaining_epoch,
+                            count: remaining_count,
+                        };
+                        (removed_epoch, Some(remaining_epoch))
+                    }
+                    _ => (removed_epoch, map.first_key_value().map(|(&e, _)| e)),
+                }
+            }
+        }
+    }
 }
 
 /// Invalidated cache keys and in-flight read/delete fences.
@@ -234,7 +334,7 @@ struct DeletedKeys {
 #[derive(Debug, Default)]
 struct DeletedKeysState {
     epoch: u64,
-    active_reads: HashMap<FoyerKey, BTreeMap<u64, usize>>,
+    active_reads: HashMap<Arc<FoyerKey>, ActiveReadEpochs>,
     pinned: HashMap<FoyerKey, PinnedEntry>,
     active_deletes: HashMap<FoyerKey, usize>,
     idle: IdleTombstones,
@@ -256,7 +356,7 @@ impl DeletedKeysState {
                     key.clone(),
                     PinnedEntry {
                         epoch: self.epoch,
-                        kind: PinnedKind::Invalidate,
+                        kind: PinnedKind::Evict,
                     },
                 );
             } else {
@@ -288,6 +388,10 @@ impl DeletedKeysState {
 struct ReadGuard(Arc<ReadGuardInner>);
 
 impl ReadGuard {
+    fn key(&self) -> &FoyerKey {
+        self.0.key.as_ref()
+    }
+
     fn epoch(&self) -> u64 {
         self.0.epoch
     }
@@ -297,7 +401,7 @@ impl ReadGuard {
 struct ReadGuardInner {
     deleted_keys: Arc<DeletedKeys>,
     cache: HybridCache<FoyerKey, FoyerValue>,
-    key: FoyerKey,
+    key: Arc<FoyerKey>,
     epoch: u64,
 }
 
@@ -309,15 +413,18 @@ impl Drop for ReadGuardInner {
 }
 
 #[derive(Debug)]
-pub(crate) struct DeleteGuard {
-    deleted_keys: Arc<DeletedKeys>,
-    cache: HybridCache<FoyerKey, FoyerValue>,
-    keys: Vec<FoyerKey>,
-    evict_keys: Vec<FoyerKey>,
+pub(crate) struct DeleteGuard<'a> {
+    deleted_keys: &'a DeletedKeys,
+    cache: &'a HybridCache<FoyerKey, FoyerValue>,
+    keys: &'a [FoyerKey],
+    evict_keys: &'a [FoyerKey],
 }
 
-impl Drop for DeleteGuard {
+impl Drop for DeleteGuard<'_> {
     fn drop(&mut self) {
+        if self.keys.is_empty() && self.evict_keys.is_empty() {
+            return;
+        }
         let mut state = self.deleted_keys.lock_state();
         for key in self.keys.iter().chain(self.evict_keys.iter()) {
             if let Some(count) = state.active_deletes.get_mut(key) {
@@ -328,7 +435,7 @@ impl Drop for DeleteGuard {
                 }
             }
         }
-        state.apply_invalidation(&self.cache, &self.keys, &self.evict_keys);
+        state.apply_invalidation(self.cache, self.keys, self.evict_keys);
     }
 }
 
@@ -342,26 +449,26 @@ impl DeletedKeys {
     fn begin_read(
         self: &Arc<Self>,
         cache: &HybridCache<FoyerKey, FoyerValue>,
-        key: &FoyerKey,
+        key: &Arc<FoyerKey>,
     ) -> Option<ReadGuard> {
         let mut state = self.lock_state();
-        if state.active_deletes.contains_key(key)
-            || state.idle.contains(key)
-            || state
-                .pinned
-                .get(key)
-                .is_some_and(|entry| entry.kind == PinnedKind::Invalidate)
+        if state.active_deletes.contains_key(key.as_ref())
+            || state.idle.contains(key.as_ref())
+            || state.pinned.get(key.as_ref()).is_some_and(|entry| {
+                matches!(entry.kind, PinnedKind::Invalidate | PinnedKind::Evict)
+            })
         {
             return None;
         }
 
         let epoch = state.epoch;
-        *state
-            .active_reads
-            .entry(key.clone())
-            .or_default()
-            .entry(epoch)
-            .or_insert(0) += 1;
+        if let Some(epochs) = state.active_reads.get_mut(key.as_ref()) {
+            epochs.insert(epoch);
+        } else {
+            state
+                .active_reads
+                .insert(key.clone(), ActiveReadEpochs::single(epoch));
+        }
 
         Some(ReadGuard(Arc::new(ReadGuardInner {
             deleted_keys: self.clone(),
@@ -371,26 +478,19 @@ impl DeletedKeys {
         })))
     }
 
-    fn finish_read(&self, cache: &HybridCache<FoyerKey, FoyerValue>, key: &FoyerKey, epoch: u64) {
+    fn finish_read(
+        &self,
+        cache: &HybridCache<FoyerKey, FoyerValue>,
+        key: &Arc<FoyerKey>,
+        epoch: u64,
+    ) {
         let mut state = self.lock_state();
-        let Some(epochs) = state.active_reads.get_mut(key) else {
+        let Some(epochs) = state.active_reads.get_mut(key.as_ref()) else {
             return;
         };
-        let removed_epoch = match epochs.get_mut(&epoch) {
-            Some(count) if *count > 1 => {
-                *count -= 1;
-                false
-            }
-            Some(_) => {
-                epochs.remove(&epoch);
-                true
-            }
-            None => false,
-        };
-
-        let min_active = epochs.first_key_value().map(|(&e, _)| e);
+        let (removed_epoch, min_active) = epochs.remove(epoch);
         if min_active.is_none() {
-            state.active_reads.remove(key);
+            state.active_reads.remove(key.as_ref());
         }
 
         if !removed_epoch || state.pinned.is_empty() {
@@ -405,15 +505,25 @@ impl DeletedKeys {
 
         let expired = state
             .pinned
-            .get(key)
+            .get(key.as_ref())
             .is_some_and(|entry| min_active.is_none_or(|min_epoch| min_epoch >= entry.epoch));
-        if expired
-            && let Some(entry) = state.pinned.remove(key)
-            && entry.kind == PinnedKind::Invalidate
-        {
-            // The last read that could have refilled this entry has finished.
-            // Drop whatever it may have inserted before releasing the pin.
-            cache.remove(key);
+        if expired && let Some(entry) = state.pinned.remove(key.as_ref()) {
+            match entry.kind {
+                PinnedKind::Invalidate => {
+                    // The last read that could have refilled this entry has finished.
+                    // Drop whatever it may have inserted and record the bounded idle
+                    // tombstone so recent invalidations keep bypassing the cache.
+                    cache.remove(key.as_ref());
+                    state.idle.insert_shared(key.clone(), cache);
+                }
+                PinnedKind::Evict => {
+                    // The last read that could have refilled this entry has finished.
+                    // Drop whatever it may have inserted and allow subsequent reads
+                    // to refill the cache.
+                    cache.remove(key.as_ref());
+                }
+                PinnedKind::Store => {}
+            }
         }
     }
 
@@ -437,20 +547,22 @@ impl DeletedKeys {
         state.apply_invalidation(cache, keys, evict_keys);
     }
 
-    pub(crate) fn begin_delete(
-        self: &Arc<Self>,
-        cache: &HybridCache<FoyerKey, FoyerValue>,
-        keys: Vec<FoyerKey>,
-        evict_keys: Vec<FoyerKey>,
-    ) -> DeleteGuard {
-        let mut state = self.lock_state();
-        state.apply_invalidation(cache, &keys, &evict_keys);
-        for key in keys.iter().chain(evict_keys.iter()) {
-            *state.active_deletes.entry(key.clone()).or_insert(0) += 1;
+    pub(crate) fn begin_delete<'a>(
+        &'a self,
+        cache: &'a HybridCache<FoyerKey, FoyerValue>,
+        keys: &'a [FoyerKey],
+        evict_keys: &'a [FoyerKey],
+    ) -> DeleteGuard<'a> {
+        if !keys.is_empty() || !evict_keys.is_empty() {
+            let mut state = self.lock_state();
+            state.apply_invalidation(cache, keys, evict_keys);
+            for key in keys.iter().chain(evict_keys.iter()) {
+                *state.active_deletes.entry(key.clone()).or_insert(0) += 1;
+            }
         }
         DeleteGuard {
-            deleted_keys: self.clone(),
-            cache: cache.clone(),
+            deleted_keys: self,
+            cache,
             keys,
             evict_keys,
         }
@@ -489,7 +601,7 @@ impl DeletedKeys {
                     evict_key.clone(),
                     PinnedEntry {
                         epoch,
-                        kind: PinnedKind::Invalidate,
+                        kind: PinnedKind::Evict,
                     },
                 );
             } else {
@@ -511,7 +623,7 @@ impl DeletedKeys {
                 key.clone(),
                 PinnedEntry {
                     epoch,
-                    kind: PinnedKind::Invalidate,
+                    kind: PinnedKind::Evict,
                 },
             );
         } else {
@@ -526,8 +638,8 @@ impl DeletedKeys {
     }
 
     #[cfg(test)]
-    fn is_empty(&self) -> bool {
-        self.len() == 0
+    fn pinned_len(&self) -> usize {
+        self.lock_state().pinned.len()
     }
 
     #[cfg(test)]
@@ -1724,9 +1836,26 @@ mod tests {
             }),
             "a fill that started before invalidation must not repopulate the cache"
         );
+        assert_eq!(
+            layer.deleted_keys.pinned_len(),
+            0,
+            "pin must be released once the invalidation readers finish"
+        );
+        assert_eq!(
+            layer.deleted_keys.len(),
+            1,
+            "released invalidation pin must transition to the bounded idle tombstone set"
+        );
+        // Recently invalidated paths keep bypassing the cache until a write repopulates them.
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        assert_eq!(stream.read_all().await.unwrap().to_vec(), b"0123456789");
         assert!(
-            layer.deleted_keys.is_empty(),
-            "tombstones must be released once the invalidation readers finish"
+            !cache.contains(&FoyerKey {
+                path: "test".to_string(),
+                version: None,
+            }),
+            "a read after invalidation pin release must still bypass the cache until a write"
         );
     }
 
@@ -1996,6 +2125,271 @@ mod tests {
             stat_before,
             "subsequent read should hit the newly written cache entry"
         );
+    }
+
+    #[test]
+    fn active_read_epochs_promotes_and_demotes() {
+        let mut epochs = ActiveReadEpochs::single(1);
+        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 1, count: 1 });
+
+        epochs.insert(1);
+        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 1, count: 2 });
+
+        // Distinct epoch promotes from Single to Multiple.
+        epochs.insert(2);
+        assert!(matches!(epochs, ActiveReadEpochs::Multiple(_)));
+
+        // Decrementing epoch 1 from 2 to 1 keeps both epochs active.
+        assert_eq!(epochs.remove(1), (false, Some(1)));
+        assert!(matches!(epochs, ActiveReadEpochs::Multiple(_)));
+
+        // Removing epoch 1 leaves only epoch 2 and demotes back to Single.
+        assert_eq!(epochs.remove(1), (true, Some(2)));
+        assert_eq!(epochs, ActiveReadEpochs::Single { epoch: 2, count: 1 });
+
+        // Removing the last epoch returns None so the caller drops the key.
+        assert_eq!(epochs.remove(2), (true, None));
+    }
+
+    #[tokio::test]
+    async fn newer_reader_joining_stale_leader_fetch_falls_back_to_origin() {
+        struct StaleJoinReader {
+            inner: oio::Reader,
+            should_gate: bool,
+            open_started: Arc<Semaphore>,
+            open_gate: Arc<Semaphore>,
+        }
+
+        impl oio::Read for StaleJoinReader {
+            async fn open(
+                &self,
+                range: BytesRange,
+            ) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+                let (rp, mut stream) = self.inner.open(range).await?;
+                if self.should_gate {
+                    let data = stream.read_all().await?;
+                    self.open_started.add_permits(1);
+                    self.open_gate.acquire().await.unwrap().forget();
+                    return Ok((rp, Box::new(data) as Box<dyn oio::ReadStreamDyn>));
+                }
+                Ok((rp, stream))
+            }
+
+            async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+                self.inner.read(range).await
+            }
+        }
+
+        #[derive(Debug)]
+        struct StaleJoinService {
+            inner: Servicer,
+            other_stat_started: Arc<Semaphore>,
+            other_stat_gate: Arc<Semaphore>,
+            other_gate_once: AtomicUsize,
+            target_open_started: Arc<Semaphore>,
+            target_open_gate: Arc<Semaphore>,
+            target_gate_once: AtomicUsize,
+        }
+
+        impl Service for StaleJoinService {
+            type Reader = StaleJoinReader;
+            type Writer = oio::Writer;
+            type Lister = oio::Lister;
+            type Deleter = oio::Deleter;
+            type Copier = oio::Copier;
+            type Composer = oio::Composer;
+
+            fn info(&self) -> ServiceInfo {
+                self.inner.info()
+            }
+
+            fn capability(&self) -> Capability {
+                self.inner.capability()
+            }
+
+            async fn create_dir(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpCreateDir,
+            ) -> Result<RpCreateDir> {
+                self.inner.create_dir(ctx, path, args).await
+            }
+
+            async fn stat(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpStat,
+            ) -> Result<RpStat> {
+                if path == "other"
+                    && self
+                        .other_gate_once
+                        .compare_exchange(1, 0, Ordering::SeqCst, Ordering::SeqCst)
+                        .is_ok()
+                {
+                    self.other_stat_started.add_permits(1);
+                    self.other_stat_gate.acquire().await.unwrap().forget();
+                }
+                self.inner.stat(ctx, path, args).await
+            }
+
+            fn read(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpRead,
+            ) -> Result<Self::Reader> {
+                let should_gate = path == "target"
+                    && self
+                        .target_gate_once
+                        .compare_exchange(1, 0, Ordering::SeqCst, Ordering::SeqCst)
+                        .is_ok();
+                Ok(StaleJoinReader {
+                    inner: self.inner.read(ctx, path, args)?,
+                    should_gate,
+                    open_started: self.target_open_started.clone(),
+                    open_gate: self.target_open_gate.clone(),
+                })
+            }
+
+            fn write(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpWrite,
+            ) -> Result<Self::Writer> {
+                self.inner.write(ctx, path, args)
+            }
+
+            fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+                self.inner.delete(ctx)
+            }
+
+            fn list(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpList,
+            ) -> Result<Self::Lister> {
+                self.inner.list(ctx, path, args)
+            }
+
+            fn copy(
+                &self,
+                ctx: &OperationContext,
+                from: &str,
+                to: &str,
+                args: OpCopy,
+            ) -> Result<Self::Copier> {
+                self.inner.copy(ctx, from, to, args)
+            }
+
+            async fn rename(
+                &self,
+                ctx: &OperationContext,
+                from: &str,
+                to: &str,
+                args: OpRename,
+            ) -> Result<RpRename> {
+                self.inner.rename(ctx, from, to, args).await
+            }
+
+            async fn presign(
+                &self,
+                ctx: &OperationContext,
+                path: &str,
+                args: OpPresign,
+            ) -> Result<RpPresign> {
+                self.inner.presign(ctx, path, args).await
+            }
+        }
+
+        let cache = memory_cache().await;
+        let mem: Servicer = Arc::new(Memory::default().build().unwrap());
+        let ctx = OperationContext::new();
+        for (path, data) in [("target", "old"), ("other", "other")] {
+            let mut w = mem.write(&ctx, path, OpWrite::new()).unwrap();
+            w.write(Buffer::from(data)).await.unwrap();
+            w.close().await.unwrap();
+        }
+
+        let other_stat_started = Arc::new(Semaphore::new(0));
+        let other_stat_gate = Arc::new(Semaphore::new(0));
+        let target_open_started = Arc::new(Semaphore::new(0));
+        let target_open_gate = Arc::new(Semaphore::new(0));
+        let srv = Arc::new(StaleJoinService {
+            inner: mem.clone(),
+            other_stat_started: other_stat_started.clone(),
+            other_stat_gate: other_stat_gate.clone(),
+            other_gate_once: AtomicUsize::new(1),
+            target_open_started: target_open_started.clone(),
+            target_open_gate: target_open_gate.clone(),
+            target_gate_once: AtomicUsize::new(1),
+        });
+        let layer = FoyerLayer::new(cache.clone());
+        let service = Arc::new(layer.layer(srv));
+        let inner = service.operation_inner(&ctx);
+
+        // Hold an active read on "other" so invalidating "other" advances the global epoch.
+        let r_other = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "other", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        other_stat_started.acquire().await.unwrap().forget();
+
+        // Leader R1 starts at epoch 0, reads "old", and pauses before returning to Foyer.
+        let r1 = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        target_open_started.acquire().await.unwrap().forget();
+
+        // Advance the global epoch via an unrelated invalidation.
+        inner.invalidate_unversioned("other".to_string());
+
+        // Newer reader R2 starts at epoch 1 and joins R1's inflight Foyer fetch.
+        let r2_reader = service.read(&ctx, "target", OpRead::default()).unwrap();
+        let r2_fut = async {
+            let (_, mut stream) = r2_reader.open(BytesRange::new(0, None)).await.unwrap();
+            stream.read_all().await.unwrap()
+        };
+        futures::pin_mut!(r2_fut);
+        assert!(futures::poll!(&mut r2_fut).is_pending());
+
+        // Update backend to "new" and invalidate "target" so R1's fetch becomes Stale.
+        let mut w = mem.write(&ctx, "target", OpWrite::new()).unwrap();
+        w.write(Buffer::from("new")).await.unwrap();
+        w.close().await.unwrap();
+        inner.invalidate_unversioned("target".to_string());
+
+        target_open_gate.add_permits(1);
+        other_stat_gate.add_permits(1);
+
+        let r2_buf = r2_fut.await;
+        let r1_buf = r1.await.unwrap();
+        let _ = r_other.await.unwrap();
+
+        assert_eq!(r1_buf.to_vec(), b"old");
+        assert_eq!(
+            r2_buf.to_vec(),
+            b"new",
+            "a newer reader joining an older leader's stale fetch must fall back to origin"
+        );
+        assert!(!cache.contains(&FoyerKey {
+            path: "target".to_string(),
+            version: None,
+        }));
     }
 
     #[test]

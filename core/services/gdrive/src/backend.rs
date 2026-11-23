@@ -398,13 +398,26 @@ impl Service for GdriveBackend {
 
                     let to_path = build_abs_path(&core.root, &to);
                     let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                    let metadata = metadata_from_gdrive_file(&meta)?;
+                    let metadata = if is_dir {
+                        MetadataBuilder::dir()
+                    } else {
+                        let size = meta.size.as_deref().ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::Unexpected,
+                                "gdrive copy response does not contain file size",
+                            )
+                        })?;
+                        MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
+                            Error::new(ErrorKind::Unexpected, "parse content length").set_source(e)
+                        })?)
+                    };
 
                     if is_dir {
                         core.cache_dir_id(&to_path, &meta.id).await;
                     } else {
                         core.cache_file_id(&to_path, &meta.id).await;
                     }
+                    let metadata = metadata.build();
                     core.record_recent_upsert(&to_path, metadata.clone()).await;
 
                     Ok(metadata)
@@ -421,13 +434,27 @@ impl Service for GdriveBackend {
 
                             let to_path = build_abs_path(&core.root, &to);
                             let is_dir = meta.mime_type == "application/vnd.google-apps.folder";
-                            let metadata = metadata_from_gdrive_file(&meta)?;
+                            let metadata = if is_dir {
+                                MetadataBuilder::dir()
+                            } else {
+                                let size = meta.size.as_deref().ok_or_else(|| {
+                                    Error::new(
+                                        ErrorKind::Unexpected,
+                                        "gdrive copy response does not contain file size",
+                                    )
+                                })?;
+                                MetadataBuilder::file(size.parse::<u64>().map_err(|e| {
+                                    Error::new(ErrorKind::Unexpected, "parse content length")
+                                        .set_source(e)
+                                })?)
+                            };
 
                             if is_dir {
                                 core.cache_dir_id(&to_path, &meta.id).await;
                             } else {
                                 core.cache_file_id(&to_path, &meta.id).await;
                             }
+                            let metadata = metadata.build();
                             core.record_recent_upsert(&to_path, metadata.clone()).await;
 
                             Ok(metadata)

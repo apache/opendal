@@ -149,7 +149,7 @@ pub struct WriteGenerator<W> {
     /// Whether a logical write stopped after the inner writer accepted part of its input.
     requires_abort: bool,
     /// A source copy that stopped after accepting part of its range.
-    pending_copy: Option<PendingCopy>,
+    pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
 }
 
@@ -379,14 +379,14 @@ impl WriteGenerator<oio::Writer> {
                 return Ok(());
             }
 
-            self.pending_copy = Some(PendingCopy {
+            self.pending_copy = Some(Box::new(PendingCopy {
                 path: path.to_string(),
                 args,
                 options,
                 range,
                 end: absolute.end,
                 offset: absolute.start,
-            });
+            }));
         }
 
         self.drive_copy().await
@@ -557,6 +557,7 @@ mod tests {
         fail_on_write: usize,
         fail_on_copy: usize,
         pending_on_copy: usize,
+        can_copy_from: bool,
     }
 
     impl Default for WriteFaults {
@@ -565,6 +566,7 @@ mod tests {
                 fail_on_write: usize::MAX,
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
+                can_copy_from: true,
             }
         }
     }
@@ -593,7 +595,7 @@ mod tests {
             Capability {
                 write_can_multi: true,
                 write_multi_min_size: Some(10),
-                write_can_copy_from: true,
+                write_can_copy_from: self.faults.can_copy_from,
                 ..self.inner.capability()
             }
         }
@@ -890,6 +892,43 @@ mod tests {
                 BytesRange::new(10, Some(10)),
                 BytesRange::new(10, Some(10)),
             ]
+        );
+        Ok(())
+    }
+
+    /// A streaming fallback must also resume after a failed chunk without
+    /// replaying source bytes.
+    #[tokio::test]
+    async fn test_retry_copy_from_resumes_after_stream_failure() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijklmnopqrst").await?;
+        let (op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_write: 2,
+                can_copy_from: false,
+                ..Default::default()
+            },
+        );
+        let mut writer = op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: (0..30).into(),
+            chunk: Some(5),
+            ..Default::default()
+        };
+
+        let err = writer
+            .copy_from_options("source", options.clone())
+            .await
+            .expect_err("second streamed chunk fails");
+        assert_eq!(err.message(), "injected flush failure");
+
+        writer.copy_from_options("source", options).await?;
+        writer.close().await?;
+
+        assert_eq!(
+            op.read("target").await?.to_vec(),
+            b"0123456789abcdefghijklmnopqrst"
         );
         Ok(())
     }

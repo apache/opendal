@@ -13,6 +13,7 @@ service. They assume an `op` built as in
 
 A few conventions used throughout:
 
+- Every I/O method takes a `context.Context` as its first argument (`ctx` below).
 - Paths are relative to the operator's root; a trailing `/` means a directory
   (`logs/app/` is a directory, `logs/app` is a file).
 - `Read` returns `[]byte`; `Write` takes `[]byte`.
@@ -23,7 +24,7 @@ A few conventions used throughout:
 ## Read a whole file
 
 ```go
-data, err := op.Read("path/to/file")
+data, err := op.Read(ctx, "path/to/file")
 if err != nil {
 	log.Fatal(err)
 }
@@ -35,7 +36,7 @@ text := string(data)
 `ReadWithRange(offset, length)` reads `length` bytes starting at `offset`:
 
 ```go
-data, err := op.Read("path/to/file", opendal.ReadWithRange(0, 1024))
+data, err := op.Read(ctx, "path/to/file", opendal.ReadWithRange(0, 1024))
 ```
 
 Use `opendal.ReadWithRangeFrom(offset)` to read from `offset` to the end.
@@ -43,7 +44,8 @@ Use `opendal.ReadWithRangeFrom(offset)` to read from `offset` to the end.
 ## Stream a large file
 
 Don't load gigabytes into memory — use a `Reader`, which implements
-`io.ReadSeekCloser`, and read in chunks.
+`io.ReadSeekCloser`, and read in chunks. Use `ReadContext` and `SeekContext`
+for per-call context cancellation.
 
 `Reader.Read` returns after one read from the storage library.
 It can return fewer bytes than the buffer can hold, even before EOF.
@@ -51,7 +53,7 @@ Process `buf[:n]` before you check the returned error.
 Use `io.ReadFull(r, buf)` if you need to fill the buffer.
 
 ```go
-r, err := op.Reader("big.bin")
+r, err := op.Reader(ctx, "big.bin")
 if err != nil {
 	log.Fatal(err)
 }
@@ -59,7 +61,7 @@ defer r.Close()
 
 buf := make([]byte, 8192)
 for {
-	n, err := r.Read(buf)
+	n, err := r.ReadContext(ctx, buf)
 	if n > 0 {
 		// process buf[:n]
 	}
@@ -75,26 +77,27 @@ for {
 ## Write a whole file
 
 ```go
-err := op.Write("path/to/file", []byte("Hello, World!"))
+_, err := op.Write(ctx, "path/to/file", []byte("Hello, World!"))
 ```
 
 ## Stream a large upload
 
 Use a `Writer` to write data in chunks. It implements `io.Writer`.
-Call `Write` for each chunk. Call `Close` to complete the write and get the object's metadata.
+Call `Write` (or `WriteContext` for per-call cancellation) for each chunk. Call
+`Close(ctx)` to complete the write and get the object's metadata.
 
 ```go
-w, err := op.Writer("big.bin")
+w, err := op.Writer(ctx, "big.bin")
 if err != nil {
 	log.Fatal(err)
 }
-if _, err := w.Write(firstChunk); err != nil {
+if _, err := w.WriteContext(ctx, firstChunk); err != nil {
 	log.Fatal(err)
 }
-if _, err := w.Write(secondChunk); err != nil {
+if _, err := w.WriteContext(ctx, secondChunk); err != nil {
 	log.Fatal(err)
 }
-if _, err := w.Close(); err != nil {
+if _, err := w.Close(ctx); err != nil {
 	log.Fatal(err)
 }
 ```
@@ -108,8 +111,8 @@ When Go selects OpenDAL's `Writer.ReadFrom` or `Reader.WriteTo`, the method
 allocates one 256 KiB buffer and reuses it until EOF or an error. It returns the
 number of bytes written, including any bytes written before an error.
 
-Both methods leave the streams open. Call `w.Close()` to complete the write and
-get the object's metadata. Check both the copy and close errors. Close the
+Both methods leave the streams open. Call `w.Close(ctx)` to complete the write
+and get the object's metadata. Check both the copy and close errors. Close the
 reader after use.
 
 `io.CopyBuffer` also uses the method's own buffer when it selects either
@@ -120,18 +123,18 @@ OpenDAL copy method.
 For large objects on services with multipart support, upload parts in parallel:
 
 ```go
-err := op.Write("big.bin", data, opendal.WriteWithConcurrent(8))
+_, err := op.Write(ctx, "big.bin", data, opendal.WriteWithConcurrent(8))
 ```
 
 ## Check existence and metadata
 
 ```go
-exists, err := op.IsExist("path/to/file")
+exists, err := op.IsExist(ctx, "path/to/file")
 if err != nil {
 	log.Fatal(err)
 }
 if exists {
-	meta, err := op.Stat("path/to/file")
+	meta, err := op.Stat(ctx, "path/to/file")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -145,13 +148,13 @@ if exists {
 `Error` after the loop:
 
 ```go
-lister, err := op.List("dir/")
+lister, err := op.List(ctx, "dir/")
 if err != nil {
 	log.Fatal(err)
 }
 defer lister.Close()
 
-for lister.Next() {
+for lister.Next(ctx) {
 	entry := lister.Entry()
 	fmt.Println(entry.Path())
 }
@@ -163,7 +166,7 @@ if err := lister.Error(); err != nil {
 ## Walk a tree recursively
 
 ```go
-lister, err := op.List("dir/", opendal.ListWithRecursive(true))
+lister, err := op.List(ctx, "dir/", opendal.ListWithRecursive(true))
 ```
 
 The iteration is identical; only the option changes.
@@ -171,8 +174,8 @@ The iteration is identical; only the option changes.
 ## Delete a file or a whole tree
 
 ```go
-err := op.Delete("path/to/file")
-err = op.Delete("a/", opendal.DeleteWithRecursive(true))
+err := op.Delete(ctx, "path/to/file")
+err = op.Delete(ctx, "a/", opendal.DeleteWithRecursive(true))
 ```
 
 `Delete` succeeds even if the path does not exist.
@@ -183,7 +186,7 @@ prefix-based services, `"a"` can also match entries under `"ab/"`.
 ## Delete many paths
 
 ```go
-err := op.Remove([]string{"a.txt", "b.txt", "c.txt"})
+err := op.Remove(ctx, []string{"a.txt", "b.txt", "c.txt"})
 ```
 
 `Remove` uses batch deletion where the service supports it. It submits the whole
@@ -195,9 +198,9 @@ It flushes pending deletions when your function returns nil and releases the
 handle on every exit, including a panic.
 
 ```go
-err := op.WithDeleter(func(d *opendal.Deleter) error {
+err := op.WithDeleter(ctx, func(d *opendal.Deleter) error {
 	for _, path := range paths {
-		if err := d.Delete(path); err != nil {
+		if err := d.Delete(ctx, path); err != nil {
 			return err
 		}
 	}
@@ -213,8 +216,8 @@ batch, so some paths may already be gone.
 versioned deletion, specify a version with `Deleter.Delete`.
 
 ```go
-err := op.WithDeleter(func(d *opendal.Deleter) error {
-	return d.Delete("a.txt", opendal.DeleteWithVersion("v1"))
+err := op.WithDeleter(ctx, func(d *opendal.Deleter) error {
+	return d.Delete(ctx, "a.txt", opendal.DeleteWithVersion("v1"))
 })
 ```
 
@@ -222,8 +225,8 @@ Use `Deleter` directly when you need to retry a failed batch. `Flush` leaves the
 handle open for retries. Always release the handle with `Close` or `Discard`.
 
 ```go
-func deleteAsDiscovered(op *opendal.Operator, paths []string) error {
-	deleter, err := op.Deleter()
+func deleteAsDiscovered(ctx context.Context, op *opendal.Operator, paths []string) error {
+	deleter, err := op.Deleter(ctx)
 	if err != nil {
 		return err
 	}
@@ -231,14 +234,14 @@ func deleteAsDiscovered(op *opendal.Operator, paths []string) error {
 	defer deleter.Discard()
 
 	for _, path := range paths {
-		if err := deleter.Delete(path); err != nil {
+		if err := deleter.Delete(ctx, path); err != nil {
 			return err
 		}
 	}
 	// A failed batch flush keeps pending paths queued for retry.
 	var flushErr error
 	for range 3 {
-		if flushErr = deleter.Flush(); flushErr == nil {
+		if flushErr = deleter.Flush(ctx); flushErr == nil {
 			break
 		}
 	}
@@ -246,14 +249,14 @@ func deleteAsDiscovered(op *opendal.Operator, paths []string) error {
 		return flushErr
 	}
 	// Close flushes pending entries and releases the handle.
-	return deleter.Close()
+	return deleter.Close(ctx)
 }
 ```
 
 ## Create a directory
 
 ```go
-err := op.CreateDir("path/to/dir/") // the trailing slash is required
+err := op.CreateDir(ctx, "path/to/dir/") // the trailing slash is required
 ```
 
 Creating a directory that already exists succeeds, and creation is recursive
@@ -262,8 +265,8 @@ Creating a directory that already exists succeeds, and creation is recursive
 ## Copy and rename
 
 ```go
-err := op.Copy("from.txt", "to.txt")
-err = op.Rename("old.txt", "new.txt")
+err := op.Copy(ctx, "from.txt", "to.txt")
+err = op.Rename(ctx, "old.txt", "new.txt")
 ```
 
 Both operate within a single operator and require a service that supports them;
@@ -277,7 +280,7 @@ your credentials. The presign methods return a standard `*net/http.Request`:
 ```go
 import "time"
 
-req, err := op.PresignRead("path/to/file", time.Hour)
+req, err := op.PresignRead(ctx, "path/to/file", time.Hour)
 if err != nil {
 	log.Fatal(err)
 }

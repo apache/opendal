@@ -25,11 +25,11 @@ import (
 
 // Stat retrieves metadata for the specified path.
 //
-// Stat is a wrapper around the C-binding function `opendal_operator_stat`.
-// When options are provided, it uses `opendal_operator_stat_with`.
+// Stat is a wrapper around the C-binding function `opendal_operator_stat_with_cancel`.
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - path: The path of the file or directory to get metadata for.
 //   - opts: Optional stat options.
 //
@@ -44,8 +44,8 @@ import (
 //
 // # Example
 //
-//	func exampleStat(op *opendal.Operator) {
-//		meta, err := op.Stat("/path/to/file")
+//	func exampleStat(ctx context.Context, op *opendal.Operator) {
+//		meta, err := op.Stat(ctx, "/path/to/file")
 //		if err != nil {
 //			if e, ok := err.(*opendal.Error); ok && e.Code() == opendal.CodeNotFound {
 //				fmt.Println("File not found")
@@ -58,28 +58,29 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Stat(path string, opts ...WithStatFn) (*Metadata, error) {
+func (op *Operator) Stat(ctx context.Context, path string, opts ...WithStatFn) (*Metadata, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 
-	if len(opts) == 0 {
-		meta, err := ffiOperatorStat.symbol(op.ctx)(inner, path)
+	var cOpts *opendalStatOptions
+	var keepAlive [][]byte
+	if len(opts) > 0 {
+		o := parseStatOptions(opts...)
+		cOpts, keepAlive, err = newOpendalStatOptions(op.ctx, o)
 		if err != nil {
 			return nil, err
 		}
-		return newMetadata(op.ctx, meta), nil
+		defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
 	}
-
-	o := parseStatOptions(opts...)
-	cOpts, keepAlive, err := newOpendalStatOptions(op.ctx, o)
-	if err != nil {
-		return nil, err
-	}
-	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	meta, err := ffiOperatorStatWith.symbol(op.ctx)(inner, path, cOpts)
+	meta, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalMetadata, error) {
+		return ffiOperatorStat.symbol(op.ctx)(inner, path, cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	if err != nil {
 		return nil, err
@@ -226,6 +227,7 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - path: The path of the file or directory to check.
 //
 // # Returns
@@ -236,7 +238,7 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //
 // # Example
 //
-//	exists, err := op.IsExist("path/to/file")
+//	exists, err := op.IsExist(ctx, "path/to/file")
 //	if err != nil {
 //		log.Fatalf("Error checking existence: %v", err)
 //	}
@@ -245,44 +247,27 @@ func newOpendalStatOptions(ctx context.Context, o *statOptions) (*opendalStatOpt
 //	} else {
 //		fmt.Println("The file does not exist")
 //	}
-func (op *Operator) IsExist(path string) (bool, error) {
+func (op *Operator) IsExist(ctx context.Context, path string) (bool, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return false, err
 	}
 	defer release()
-	return ffiOperatorIsExist.symbol(op.ctx)(inner, path)
+	return withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (bool, error) {
+		return ffiOperatorIsExist.symbol(op.ctx)(inner, path, token)
+	})
 }
 
 var ffiOperatorStat = newFFI(
-	"opendal_operator_stat",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string) (*opendalMetadata, error) {
-		return func(op *opendalOperator, path string) (*opendalMetadata, error) {
+	"opendal_operator_stat_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalStatOptions, cancel *opendalCancelToken, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string, opts *opendalStatOptions, cancel *opendalCancelToken) (*opendalMetadata, error) {
+		return func(op *opendalOperator, path string, opts *opendalStatOptions, cancel *opendalCancelToken) (*opendalMetadata, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
 			var meta *opendalMetadata
-			e := cFunc(op, bytePath, &meta)
-			runtime.KeepAlive(bytePath)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return meta, nil
-		}
-	},
-)
-
-var ffiOperatorStatWith = newFFI(
-	"opendal_operator_stat_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalStatOptions, meta **opendalMetadata) *opendalError) func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
-		return func(op *opendalOperator, path string, opts *opendalStatOptions) (*opendalMetadata, error) {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return nil, err
-			}
-			var meta *opendalMetadata
-			e := cFunc(op, bytePath, opts, &meta)
+			e := cFunc(op, bytePath, opts, cancel, &meta)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return nil, parseError(ctx, e)
@@ -293,15 +278,15 @@ var ffiOperatorStatWith = newFFI(
 )
 
 var ffiOperatorIsExist = newFFI(
-	"opendal_operator_is_exist",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, isExist *bool) *opendalError) func(op *opendalOperator, path string) (bool, error) {
-		return func(op *opendalOperator, path string) (bool, error) {
+	"opendal_operator_exists_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, cancel *opendalCancelToken, isExist *bool) *opendalError) func(op *opendalOperator, path string, cancel *opendalCancelToken) (bool, error) {
+		return func(op *opendalOperator, path string, cancel *opendalCancelToken) (bool, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return false, err
 			}
 			var isExist bool
-			e := cFunc(op, bytePath, &isExist)
+			e := cFunc(op, bytePath, cancel, &isExist)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return false, parseError(ctx, e)

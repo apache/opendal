@@ -55,6 +55,7 @@ type deleteOptions struct {
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - path: The path of the file or directory to delete.
 //   - opts: Optional functional options to configure the delete operation.
 //
@@ -64,45 +65,50 @@ type deleteOptions struct {
 //
 // # Example
 //
-//	func exampleDelete(op *opendal.Operator) {
+//	func exampleDelete(ctx context.Context, op *opendal.Operator) {
 //		// Delete without options
-//		err := op.Delete("file.txt")
+//		err := op.Delete(ctx, "file.txt")
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //
 //		// Delete with recursive option
-//		err = op.Delete("dir/", opendal.DeleteWithRecursive(true))
+//		err = op.Delete(ctx, "dir/", opendal.DeleteWithRecursive(true))
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //
 //		// Delete a specific version
-//		err = op.Delete("file.txt", opendal.DeleteWithVersion("v1"))
+//		err = op.Delete(ctx, "file.txt", opendal.DeleteWithVersion("v1"))
 //		if err != nil {
 //			log.Printf("Delete operation failed: %v", err)
 //		}
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Delete(path string, opts ...WithDeleteFn) error {
+func (op *Operator) Delete(ctx context.Context, path string, opts ...WithDeleteFn) error {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return err
 	}
 	defer release()
-
-	if len(opts) == 0 {
-		return ffiOperatorDelete.symbol(op.ctx)(inner, path)
-	}
-
-	o := parseDeleteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalDeleteOptions(op.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return err
 	}
-	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	err = ffiOperatorDeleteWith.symbol(op.ctx)(inner, path, cOpts)
+
+	var cOpts *opendalDeleteOptions
+	var keepAlive [][]byte
+	if len(opts) > 0 {
+		o := parseDeleteOptions(opts...)
+		cOpts, keepAlive, err = newOpendalDeleteOptions(op.ctx, o)
+		if err != nil {
+			return err
+		}
+		defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
+	}
+	err = withCancelToken(op.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorDelete.symbol(op.ctx)(inner, path, cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	return err
 }
@@ -136,14 +142,14 @@ func newOpendalDeleteOptions(ctx context.Context, o *deleteOptions) (*opendalDel
 }
 
 var ffiOperatorDelete = newFFI(
-	"opendal_operator_delete",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte) *opendalError) func(op *opendalOperator, path string) error {
-		return func(op *opendalOperator, path string) error {
+	"opendal_operator_delete_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalDeleteOptions, cancel *opendalCancelToken) *opendalError) func(op *opendalOperator, path string, opts *opendalDeleteOptions, cancel *opendalCancelToken) error {
+		return func(op *opendalOperator, path string, opts *opendalDeleteOptions, cancel *opendalCancelToken) error {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return err
 			}
-			e := cFunc(op, bytePath)
+			e := cFunc(op, bytePath, opts, cancel)
 			runtime.KeepAlive(bytePath)
 			return parseError(ctx, e)
 		}
@@ -169,18 +175,3 @@ var ffiDeleteOptionsSetVersion = newFFI(
 var ffiDeleteOptionsSetRecursive = newDirectFFI[func(opts *opendalDeleteOptions, recursive bool)]("opendal_delete_options_set_recursive")
 
 var ffiDeleteOptionsFree = newDirectFFI[func(opts *opendalDeleteOptions)]("opendal_delete_options_free")
-
-var ffiOperatorDeleteWith = newFFI(
-	"opendal_operator_delete_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, opts *opendalDeleteOptions) *opendalError) func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
-		return func(op *opendalOperator, path string, opts *opendalDeleteOptions) error {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return err
-			}
-			e := cFunc(op, bytePath, opts)
-			runtime.KeepAlive(bytePath)
-			return parseError(ctx, e)
-		}
-	},
-)

@@ -33,14 +33,14 @@ import (
 //
 // # Example
 //
-//	func exampleCopier(op *opendal.Operator) {
-//		copier, err := op.Copier("path/from/file", "path/to/file")
+//	func exampleCopier(ctx context.Context, op *opendal.Operator) {
+//		copier, err := op.Copier(ctx, "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //		defer copier.Close()
 //		for {
-//			n, ok, err := copier.Next()
+//			n, ok, err := copier.Next(ctx)
 //			if err != nil {
 //				log.Fatal(err)
 //			}
@@ -61,11 +61,11 @@ type Copier struct {
 
 // Copier creates a Copier to copy a file from src to dest.
 //
-// Copier is a wrapper around the C-binding function `opendal_operator_copier`.
-// When options are provided, it uses `opendal_operator_copier_with`.
+// Copier is a wrapper around the C-binding function `opendal_operator_copier_with_cancel`.
 //
 // # Parameters
 //
+//   - ctx: The context controlling cancellation and deadlines.
 //   - src: The source file path.
 //   - dest: The destination file path.
 //   - opts: Optional copy options (shared with Copy).
@@ -78,28 +78,29 @@ type Copier struct {
 //
 //   - Both src and dest must be file paths, not directories.
 //   - The returned Copier must be released with Close.
-func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error) {
+func (op *Operator) Copier(ctx context.Context, src, dest string, opts ...WithCopyFn) (*Copier, error) {
 	opInner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
+	if err := checkContext(ctx); err != nil {
+		return nil, err
+	}
 
-	if len(opts) == 0 {
-		inner, err := ffiOperatorCopier.symbol(op.ctx)(opInner, src, dest)
+	var cOpts *opendalCopyOptions
+	var keepAlive copyOptionsKeepAlive
+	if len(opts) > 0 {
+		o := parseCopyOptions(opts...)
+		cOpts, keepAlive, err = newOpendalCopyOptions(op.ctx, o)
 		if err != nil {
 			return nil, err
 		}
-		return &Copier{inner: inner, ctx: op.ctx}, nil
+		defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
 	}
-
-	o := parseCopyOptions(opts...)
-	cOpts, keepAlive, err := newOpendalCopyOptions(op.ctx, o)
-	if err != nil {
-		return nil, err
-	}
-	defer ffiCopyOptionsFree.symbol(op.ctx)(cOpts)
-	inner, err := ffiOperatorCopierWith.symbol(op.ctx)(opInner, src, dest, cOpts)
+	inner, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalCopier, error) {
+		return ffiOperatorCopier.symbol(op.ctx)(opInner, src, dest, cOpts, token)
+	})
 	// cOpts holds raw pointers into the Go buffers tracked by keepAlive.
 	// Keep them reachable until the native call above has returned.
 	runtime.KeepAlive(keepAlive)
@@ -115,7 +116,7 @@ func (op *Operator) Copier(src, dest string, opts ...WithCopyFn) (*Copier, error
 // has completed; once that happens, further calls keep returning (0, false, nil).
 // A non-nil error reports a failed copy. Calling Next on a closed Copier also
 // returns (0, false, nil).
-func (c *Copier) Next() (size uint, ok bool, err error) {
+func (c *Copier) Next(ctx context.Context) (size uint, ok bool, err error) {
 	if c == nil {
 		return 0, false, nil
 	}
@@ -124,14 +125,19 @@ func (c *Copier) Next() (size uint, ok bool, err error) {
 	if c.inner == nil {
 		return 0, false, nil
 	}
-	return ffiCopierNext.symbol(c.ctx)(c.inner)
+	err = withCancelToken(c.ctx, ctx, func(token *opendalCancelToken) error {
+		var callErr error
+		size, ok, callErr = ffiCopierNext.symbol(c.ctx)(c.inner, token)
+		return callErr
+	})
+	return size, ok, err
 }
 
 // Abort aborts the pending copy operation.
 //
 // After Abort, the Copier should still be released with Close. Calling Abort
 // on a closed Copier is a no-op.
-func (c *Copier) Abort() error {
+func (c *Copier) Abort(ctx context.Context) error {
 	if c == nil {
 		return nil
 	}
@@ -140,7 +146,9 @@ func (c *Copier) Abort() error {
 	if c.inner == nil {
 		return nil
 	}
-	return ffiCopierAbort.symbol(c.ctx)(c.inner)
+	return withCancelToken(c.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiCopierAbort.symbol(c.ctx)(c.inner, token)
+	})
 }
 
 // Close releases the resources held by the Copier. It must be called once the
@@ -161,9 +169,9 @@ func (c *Copier) Close() error {
 }
 
 var ffiOperatorCopier = newFFI(
-	"opendal_operator_copier",
-	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, copier **opendalCopier) *opendalError) func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
-		return func(op *opendalOperator, src, dest string) (*opendalCopier, error) {
+	"opendal_operator_copier_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, opts *opendalCopyOptions, cancel *opendalCancelToken, copier **opendalCopier) *opendalError) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions, cancel *opendalCancelToken) (*opendalCopier, error) {
+		return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions, cancel *opendalCancelToken) (*opendalCopier, error) {
 			byteSrc, err := BytePtrFromString(src)
 			if err != nil {
 				return nil, err
@@ -173,31 +181,7 @@ var ffiOperatorCopier = newFFI(
 				return nil, err
 			}
 			var copier *opendalCopier
-			e := cFunc(op, byteSrc, byteDest, &copier)
-			runtime.KeepAlive(byteSrc)
-			runtime.KeepAlive(byteDest)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return copier, nil
-		}
-	},
-)
-
-var ffiOperatorCopierWith = newFFI(
-	"opendal_operator_copier_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, opts *opendalCopyOptions, copier **opendalCopier) *opendalError) func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
-		return func(op *opendalOperator, src, dest string, opts *opendalCopyOptions) (*opendalCopier, error) {
-			byteSrc, err := BytePtrFromString(src)
-			if err != nil {
-				return nil, err
-			}
-			byteDest, err := BytePtrFromString(dest)
-			if err != nil {
-				return nil, err
-			}
-			var copier *opendalCopier
-			e := cFunc(op, byteSrc, byteDest, opts, &copier)
+			e := cFunc(op, byteSrc, byteDest, opts, cancel, &copier)
 			runtime.KeepAlive(byteSrc)
 			runtime.KeepAlive(byteDest)
 			if e != nil {
@@ -209,12 +193,12 @@ var ffiOperatorCopierWith = newFFI(
 )
 
 var ffiCopierNext = newFFI(
-	"opendal_copier_next",
-	func(ctx context.Context, cFunc func(c *opendalCopier, size *uint, hasNext *bool) *opendalError) func(c *opendalCopier) (uint, bool, error) {
-		return func(c *opendalCopier) (uint, bool, error) {
+	"opendal_copier_next_with_cancel",
+	func(ctx context.Context, cFunc func(c *opendalCopier, cancel *opendalCancelToken, size *uint, hasNext *bool) *opendalError) func(c *opendalCopier, cancel *opendalCancelToken) (uint, bool, error) {
+		return func(c *opendalCopier, cancel *opendalCancelToken) (uint, bool, error) {
 			var size uint
 			var hasNext bool
-			e := cFunc(c, &size, &hasNext)
+			e := cFunc(c, cancel, &size, &hasNext)
 			if e != nil {
 				return 0, false, parseError(ctx, e)
 			}
@@ -224,10 +208,10 @@ var ffiCopierNext = newFFI(
 )
 
 var ffiCopierAbort = newFFI(
-	"opendal_copier_abort",
-	func(ctx context.Context, cFunc func(c *opendalCopier) *opendalError) func(c *opendalCopier) error {
-		return func(c *opendalCopier) error {
-			e := cFunc(c)
+	"opendal_copier_abort_with_cancel",
+	func(ctx context.Context, cFunc func(c *opendalCopier, cancel *opendalCancelToken) *opendalError) func(c *opendalCopier, cancel *opendalCancelToken) error {
+		return func(c *opendalCopier, cancel *opendalCancelToken) error {
+			e := cFunc(c, cancel)
 			return parseError(ctx, e)
 		}
 	},

@@ -18,6 +18,7 @@
 package opendal_test
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/apache/opendal/bindings/go"
@@ -40,35 +41,35 @@ func testsRename(cap *opendal.Capability) []behaviorTest {
 	}
 }
 
-func testRenameFile(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameFile(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.NewFilePath()
 
-	assert.Nil(op.Rename(sourcePath, targetPath))
+	assert.Nil(op.Rename(ctx, sourcePath, targetPath))
 
-	_, err = op.Stat(sourcePath)
+	_, err = op.Stat(ctx, sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err)
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testRenameNonExistingSource(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameNonExistingSource(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath := fixture.NewFilePath()
 	targetPath := fixture.NewFilePath()
 
-	err := op.Rename(sourcePath, targetPath)
+	err := op.Rename(ctx, sourcePath, targetPath)
 	assert.NotNil(err, "rename must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 }
 
-func testRenameSourceDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameSourceDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
@@ -76,46 +77,46 @@ func testRenameSourceDir(assert *require.Assertions, op *opendal.Operator, fixtu
 	sourcePath := fixture.NewDirPath()
 	targetPth := fixture.NewFilePath()
 
-	assert.Nil(op.CreateDir(sourcePath), "create must succeed")
+	assert.Nil(op.CreateDir(ctx, sourcePath), "create must succeed")
 
-	err := op.Rename(sourcePath, targetPth)
+	err := op.Rename(ctx, sourcePath, targetPth)
 	assert.NotNil(err, "rename must fail")
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
 
-func testRenameTargetDir(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameTargetDir(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	if !op.Info().GetCapability().CreateDir() {
 		return
 	}
 
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.NewDirPath()
-	assert.Nil(op.CreateDir(targetPath))
+	assert.Nil(op.CreateDir(ctx, targetPath))
 
-	err = op.Rename(sourcePath, targetPath)
+	err = op.Rename(ctx, sourcePath, targetPath)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsADirectory, assertErrorCode(err))
 }
 
-func testRenameSelf(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameSelf(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err, "write must succeed")
 
-	err = op.Rename(sourcePath, sourcePath)
+	err = op.Rename(ctx, sourcePath, sourcePath)
 	assert.NotNil(err)
 	assert.Equal(opendal.CodeIsSameFile, assertErrorCode(err))
 }
 
-func testRenameNested(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameNested(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err, "write must succeed")
 
 	targetPath := fixture.PushPath(fmt.Sprintf(
@@ -125,36 +126,36 @@ func testRenameNested(assert *require.Assertions, op *opendal.Operator, fixture 
 		uuid.NewString(),
 	))
 
-	assert.Nil(op.Rename(sourcePath, targetPath))
+	assert.Nil(op.Rename(ctx, sourcePath, targetPath))
 
-	_, err = op.Stat(sourcePath)
+	_, err = op.Stat(ctx, sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
-	targetContent, err := op.Read(targetPath)
+	targetContent, err := op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }
 
-func testRenameOverwrite(assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
+func testRenameOverwrite(ctx context.Context, assert *require.Assertions, op *opendal.Operator, fixture *fixture) {
 	sourcePath, sourceContent, _ := fixture.NewFile()
 
-	_, err := op.Write(sourcePath, sourceContent)
+	_, err := op.Write(ctx, sourcePath, sourceContent)
 	assert.Nil(err, "write must succeed")
 
 	targetPath, targetContent, _ := fixture.NewFile()
 	assert.NotEqual(sourceContent, targetContent)
 
-	_, err = op.Write(targetPath, targetContent)
+	_, err = op.Write(ctx, targetPath, targetContent)
 	assert.Nil(err, "write must succeed")
 
-	assert.Nil(op.Rename(sourcePath, targetPath))
+	assert.Nil(op.Rename(ctx, sourcePath, targetPath))
 
-	_, err = op.Stat(sourcePath)
+	_, err = op.Stat(ctx, sourcePath)
 	assert.NotNil(err, "stat must fail")
 	assert.Equal(opendal.CodeNotFound, assertErrorCode(err))
 
-	targetContent, err = op.Read(targetPath)
+	targetContent, err = op.Read(ctx, targetPath)
 	assert.Nil(err, "read must succeed")
 	assert.Equal(sourceContent, targetContent)
 }

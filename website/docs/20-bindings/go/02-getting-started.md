@@ -37,6 +37,9 @@ go get github.com/apache/opendal-go-services/s3
 
 ```go
 import (
+	"context"
+	"log"
+
 	"github.com/apache/opendal-go-services/s3"
 	opendal "github.com/apache/opendal/bindings/go"
 )
@@ -50,7 +53,8 @@ if err != nil {
 }
 defer op.Close()
 
-if err := op.Write("hello.txt", []byte("Hello from S3!")); err != nil {
+ctx := context.Background()
+if _, err := op.Write(ctx, "hello.txt", []byte("Hello from S3!")); err != nil {
 	log.Fatal(err)
 }
 ```

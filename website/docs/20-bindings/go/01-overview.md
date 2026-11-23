@@ -32,7 +32,9 @@ Released and usable, published to
 
 - **Synchronous API** — every operation is a blocking method that returns a Go
   `error`; there is no async variant.
-- **Streaming** reads and writes through `io.ReadSeekCloser` and `io.WriteCloser`.
+- **Streaming** reads through `io.ReadSeekCloser` and `io.WriterTo`, and writes
+  through `io.Writer` and `io.ReaderFrom` (`Writer.Close(ctx)` returns object
+  metadata).
 - **Per-scheme packages** — each service is a small companion module under
   `github.com/apache/opendal-go-services/<scheme>` that you import alongside the
   binding.
@@ -56,6 +58,7 @@ go get github.com/apache/opendal-go-services/memory
 
 - **API reference**: [pkg.go.dev](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 - **Services & configuration**: [/services](/services)
+- **Upgrade guide**: [`upgrade.md`](https://github.com/apache/opendal/blob/main/bindings/go/upgrade.md)
 - **Source & examples**: [`bindings/go/`](https://github.com/apache/opendal/tree/main/bindings/go)
 - **Scheme packages**: [`opendal-go-services`](https://github.com/apache/opendal-go-services)
 

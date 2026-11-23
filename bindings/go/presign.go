@@ -26,107 +26,115 @@ import (
 	"unsafe"
 )
 
-type presignFunc func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error)
-
 // PresignRead returns a presigned HTTP request that can be used to read the object at the given path.
-func (op *Operator) PresignRead(path string, expire time.Duration, opts ...WithReadFn) (*http.Request, error) {
+func (op *Operator) PresignRead(ctx context.Context, path string, expire time.Duration, opts ...WithReadFn) (*http.Request, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-
-	if len(opts) == 0 {
-		return op.presign(inner, path, expire, ffiOperatorPresignRead.symbol(op.ctx))
-	}
-
-	o := parseReadOptions(opts...)
-	cOpts, keepAlive, err := newOpendalReadOptions(op.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
-	defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignReadWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+
+	var cOpts *opendalReadOptions
+	var keepAlive readOptionsKeepAlive
+	if len(opts) > 0 {
+		o := parseReadOptions(opts...)
+		cOpts, keepAlive, err = newOpendalReadOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiReadOptionsFree.symbol(op.ctx)(cOpts)
+	}
+	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return ffiOperatorPresignRead.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignWrite returns a presigned HTTP request that can be used to write the object at the given path.
-func (op *Operator) PresignWrite(path string, expire time.Duration, opts ...WithWriteFn) (*http.Request, error) {
+func (op *Operator) PresignWrite(ctx context.Context, path string, expire time.Duration, opts ...WithWriteFn) (*http.Request, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-
-	if len(opts) == 0 {
-		return op.presign(inner, path, expire, ffiOperatorPresignWrite.symbol(op.ctx))
-	}
-
-	o := parseWriteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalWriteOptions(op.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
-	defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignWriteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+
+	var cOpts *opendalWriteOptions
+	var keepAlive writeOptionsKeepAlive
+	if len(opts) > 0 {
+		o := parseWriteOptions(opts...)
+		cOpts, keepAlive, err = newOpendalWriteOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiWriteOptionsFree.symbol(op.ctx)(cOpts)
+	}
+	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return ffiOperatorPresignWrite.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignDelete returns a presigned HTTP request that can be used to delete the object at the given path.
-func (op *Operator) PresignDelete(path string, expire time.Duration, opts ...WithDeleteFn) (*http.Request, error) {
+func (op *Operator) PresignDelete(ctx context.Context, path string, expire time.Duration, opts ...WithDeleteFn) (*http.Request, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-
-	if len(opts) == 0 {
-		return op.presign(inner, path, expire, ffiOperatorPresignDelete.symbol(op.ctx))
-	}
-
-	o := parseDeleteOptions(opts...)
-	cOpts, keepAlive, err := newOpendalDeleteOptions(op.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
-	defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignDeleteWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+
+	var cOpts *opendalDeleteOptions
+	var keepAlive [][]byte
+	if len(opts) > 0 {
+		o := parseDeleteOptions(opts...)
+		cOpts, keepAlive, err = newOpendalDeleteOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiDeleteOptionsFree.symbol(op.ctx)(cOpts)
+	}
+	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return ffiOperatorPresignDelete.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
 	return op.buildPresignedRequest(req, err)
 }
 
 // PresignStat returns a presigned HTTP request that can be used to stat the object at the given path.
-func (op *Operator) PresignStat(path string, expire time.Duration, opts ...WithStatFn) (*http.Request, error) {
+func (op *Operator) PresignStat(ctx context.Context, path string, expire time.Duration, opts ...WithStatFn) (*http.Request, error) {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
-
-	if len(opts) == 0 {
-		return op.presign(inner, path, expire, ffiOperatorPresignStat.symbol(op.ctx))
-	}
-
-	o := parseStatOptions(opts...)
-	cOpts, keepAlive, err := newOpendalStatOptions(op.ctx, o)
-	if err != nil {
+	if err := checkContext(ctx); err != nil {
 		return nil, err
 	}
-	defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
-	req, err := ffiOperatorPresignStatWith.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts)
+
+	var cOpts *opendalStatOptions
+	var keepAlive [][]byte
+	if len(opts) > 0 {
+		o := parseStatOptions(opts...)
+		cOpts, keepAlive, err = newOpendalStatOptions(op.ctx, o)
+		if err != nil {
+			return nil, err
+		}
+		defer ffiStatOptionsFree.symbol(op.ctx)(cOpts)
+	}
+	req, err := withCancelTokenValue(op.ctx, ctx, func(token *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return ffiOperatorPresignStat.symbol(op.ctx)(inner, path, uint64(expire/time.Second), cOpts, token)
+	})
 	runtime.KeepAlive(keepAlive)
-	return op.buildPresignedRequest(req, err)
-}
-
-// presign drives one presign FFI call on inner. The caller must have
-// acquired the operator read lock, so call is resolved from op.ctx only once
-// the Operator is known to be open.
-func (op *Operator) presign(inner *opendalOperator, path string, expire time.Duration, call presignFunc) (*http.Request, error) {
-	secs := uint64(expire / time.Second)
-
-	req, err := call(inner, path, secs)
 	return op.buildPresignedRequest(req, err)
 }
 
@@ -174,34 +182,15 @@ func buildHTTPPresignedRequest(ctx context.Context, ptr *opendalPresignedRequest
 }
 
 var ffiOperatorPresignRead = newFFI(
-	"opendal_operator_presign_read",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	"opendal_operator_presign_read_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, cancel *opendalCancelToken, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
 			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, &req)
-			runtime.KeepAlive(bytePath)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return req, nil
-		}
-	},
-)
-
-var ffiOperatorPresignReadWith = newFFI(
-	"opendal_operator_presign_read_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions) (*opendalPresignedRequest, error) {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return nil, err
-			}
-			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, opts, &req)
+			e := cFunc(op, bytePath, expire, opts, cancel, &req)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return nil, parseError(ctx, e)
@@ -212,34 +201,15 @@ var ffiOperatorPresignReadWith = newFFI(
 )
 
 var ffiOperatorPresignWrite = newFFI(
-	"opendal_operator_presign_write",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	"opendal_operator_presign_write_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, cancel *opendalCancelToken, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
 			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, &req)
-			runtime.KeepAlive(bytePath)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return req, nil
-		}
-	},
-)
-
-var ffiOperatorPresignWriteWith = newFFI(
-	"opendal_operator_presign_write_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions) (*opendalPresignedRequest, error) {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return nil, err
-			}
-			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, opts, &req)
+			e := cFunc(op, bytePath, expire, opts, cancel, &req)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return nil, parseError(ctx, e)
@@ -250,34 +220,15 @@ var ffiOperatorPresignWriteWith = newFFI(
 )
 
 var ffiOperatorPresignDelete = newFFI(
-	"opendal_operator_presign_delete",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	"opendal_operator_presign_delete_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, cancel *opendalCancelToken, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
 			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, &req)
-			runtime.KeepAlive(bytePath)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return req, nil
-		}
-	},
-)
-
-var ffiOperatorPresignDeleteWith = newFFI(
-	"opendal_operator_presign_delete_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions) (*opendalPresignedRequest, error) {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return nil, err
-			}
-			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, opts, &req)
+			e := cFunc(op, bytePath, expire, opts, cancel, &req)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return nil, parseError(ctx, e)
@@ -288,34 +239,15 @@ var ffiOperatorPresignDeleteWith = newFFI(
 )
 
 var ffiOperatorPresignStat = newFFI(
-	"opendal_operator_presign_stat",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	"opendal_operator_presign_stat_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, cancel *opendalCancelToken, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
+		return func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions, cancel *opendalCancelToken) (*opendalPresignedRequest, error) {
 			bytePath, err := BytePtrFromString(path)
 			if err != nil {
 				return nil, err
 			}
 			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, &req)
-			runtime.KeepAlive(bytePath)
-			if e != nil {
-				return nil, parseError(ctx, e)
-			}
-			return req, nil
-		}
-	},
-)
-
-var ffiOperatorPresignStatWith = newFFI(
-	"opendal_operator_presign_stat_with",
-	func(ctx context.Context, cFunc func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, req **opendalPresignedRequest) *opendalError) func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
-		return func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions) (*opendalPresignedRequest, error) {
-			bytePath, err := BytePtrFromString(path)
-			if err != nil {
-				return nil, err
-			}
-			var req *opendalPresignedRequest
-			e := cFunc(op, bytePath, expire, opts, &req)
+			e := cFunc(op, bytePath, expire, opts, cancel, &req)
 			runtime.KeepAlive(bytePath)
 			if e != nil {
 				return nil, parseError(ctx, e)

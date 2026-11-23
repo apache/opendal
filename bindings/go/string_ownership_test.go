@@ -880,29 +880,42 @@ func TestPresignWithoutOptionsUsesSimpleSymbols(t *testing.T) {
 	opInner := &opendalOperator{}
 	op := &Operator{ctx: ctx, inner: opInner}
 
-	ctx = context.WithValue(ctx, ffiOperatorPresignRead.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignRead.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalReadOptions, _ *opendalCancelToken) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		if opts != nil {
+			t.Fatalf("expected nil read options, got %p", opts)
+		}
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalWriteOptions, _ *opendalCancelToken) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		if opts != nil {
+			t.Fatalf("expected nil write options, got %p", opts)
+		}
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalDeleteOptions, _ *opendalCancelToken) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		if opts != nil {
+			t.Fatalf("expected nil delete options, got %p", opts)
+		}
 		return reqInner, nil
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignStat.sym, func(op *opendalOperator, path string, expire uint64) (*opendalPresignedRequest, error) {
+	ctx = context.WithValue(ctx, ffiOperatorPresignStat.sym, func(op *opendalOperator, path string, expire uint64, opts *opendalStatOptions, _ *opendalCancelToken) (*opendalPresignedRequest, error) {
 		assertPresignCall(t, opInner, op, "file.txt", path, uint64(60), expire)
+		if opts != nil {
+			t.Fatalf("expected nil stat options, got %p", opts)
+		}
 		return reqInner, nil
 	})
 	op.ctx = ctx
 
+	bg := context.Background()
 	for name, call := range map[string]func() (*http.Request, error){
-		"read":   func() (*http.Request, error) { return op.PresignRead("file.txt", time.Minute) },
-		"write":  func() (*http.Request, error) { return op.PresignWrite("file.txt", time.Minute) },
-		"delete": func() (*http.Request, error) { return op.PresignDelete("file.txt", time.Minute) },
-		"stat":   func() (*http.Request, error) { return op.PresignStat("file.txt", time.Minute) },
+		"read":   func() (*http.Request, error) { return op.PresignRead(bg, "file.txt", time.Minute) },
+		"write":  func() (*http.Request, error) { return op.PresignWrite(bg, "file.txt", time.Minute) },
+		"delete": func() (*http.Request, error) { return op.PresignDelete(bg, "file.txt", time.Minute) },
+		"stat":   func() (*http.Request, error) { return op.PresignStat(bg, "file.txt", time.Minute) },
 	} {
 		req, err := call()
 		if err != nil {
@@ -946,7 +959,7 @@ func TestPresignReadWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideCacheControl.sym, noopReadOptionsSetString)
 	ctx = context.WithValue(ctx, ffiReadOptionsSetOverrideContentDisposition.sym, noopReadOptionsSetString)
-	ctx = context.WithValue(ctx, ffiOperatorPresignReadWith.sym, ffiOperatorPresignReadWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, req **opendalPresignedRequest) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorPresignRead.sym, ffiOperatorPresignRead.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalReadOptions, _ *opendalCancelToken, req **opendalPresignedRequest) *opendalError {
 		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertReadOptionsPointer(t, cOpts, opts)
 		if rangeOffset != 1 || rangeLength != 2 {
@@ -963,7 +976,7 @@ func TestPresignReadWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
-	_, err := op.PresignRead("file.txt", time.Minute,
+	_, err := op.PresignRead(context.Background(), "file.txt", time.Minute,
 		ReadWithRange(1, 2),
 		ReadWithVersion("v1"),
 		ReadWithOverrideContentType("text/plain"),
@@ -1003,7 +1016,7 @@ func TestPresignWriteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		assertWriteOptionsPointer(t, cOpts, opts)
 		userMetadata = pairs
 	})
-	ctx = context.WithValue(ctx, ffiOperatorPresignWriteWith.sym, ffiOperatorPresignWriteWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, req **opendalPresignedRequest) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorPresignWrite.sym, ffiOperatorPresignWrite.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalWriteOptions, _ *opendalCancelToken, req **opendalPresignedRequest) *opendalError {
 		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertWriteOptionsPointer(t, cOpts, opts)
 		if got := BytePtrToString(contentTypePtr); got != "text/plain" {
@@ -1023,7 +1036,7 @@ func TestPresignWriteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
-	_, err := op.PresignWrite("file.txt", time.Minute,
+	_, err := op.PresignWrite(context.Background(), "file.txt", time.Minute,
 		WriteWithContentType("text/plain"),
 		WriteWithUserMetadata(map[string]string{"foo": "bar"}),
 	)
@@ -1055,7 +1068,7 @@ func TestPresignStatWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideCacheControl.sym, noopStatOptionsSetString)
 	ctx = context.WithValue(ctx, ffiStatOptionsSetOverrideContentDisposition.sym, noopStatOptionsSetString)
-	ctx = context.WithValue(ctx, ffiOperatorPresignStatWith.sym, ffiOperatorPresignStatWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, req **opendalPresignedRequest) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorPresignStat.sym, ffiOperatorPresignStat.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalStatOptions, _ *opendalCancelToken, req **opendalPresignedRequest) *opendalError {
 		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertStatOptionsPointer(t, cOpts, opts)
 		if got := BytePtrToString(versionPtr); got != "v1" {
@@ -1069,7 +1082,7 @@ func TestPresignStatWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
-	_, err := op.PresignStat("file.txt", time.Minute,
+	_, err := op.PresignStat(context.Background(), "file.txt", time.Minute,
 		StatWithVersion("v1"),
 		StatWithOverrideContentType("text/plain"),
 	)
@@ -1097,7 +1110,7 @@ func TestPresignDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 		assertDeleteOptionsPointer(t, cOpts, opts)
 		versionPtr = value
 	}))
-	ctx = context.WithValue(ctx, ffiOperatorPresignDeleteWith.sym, ffiOperatorPresignDeleteWith.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, req **opendalPresignedRequest) *opendalError {
+	ctx = context.WithValue(ctx, ffiOperatorPresignDelete.sym, ffiOperatorPresignDelete.withFunc(ctx, func(op *opendalOperator, path *byte, expire uint64, opts *opendalDeleteOptions, _ *opendalCancelToken, req **opendalPresignedRequest) *opendalError {
 		assertPresignCall(t, opInner, op, "file.txt", BytePtrToString(path), uint64(60), expire)
 		assertDeleteOptionsPointer(t, cOpts, opts)
 		if !recursive {
@@ -1111,7 +1124,7 @@ func TestPresignDeleteWithOptionsKeepsStringsUntilCall(t *testing.T) {
 	}))
 
 	op := &Operator{ctx: ctx, inner: opInner}
-	_, err := op.PresignDelete("file.txt", time.Minute,
+	_, err := op.PresignDelete(context.Background(), "file.txt", time.Minute,
 		DeleteWithVersion("v1"),
 		DeleteWithRecursive(true),
 	)

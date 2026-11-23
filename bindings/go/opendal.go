@@ -30,8 +30,11 @@
 // Basic usage:
 //
 //	import (
-//		"github.com/apache/opendal/bindings/go
-//		"github.com/apache/opendal-go-services/memory
+//		"context"
+//		"log"
+//
+//		"github.com/apache/opendal-go-services/memory"
+//		opendal "github.com/apache/opendal/bindings/go"
 //	)
 //
 //	func main() {
@@ -43,8 +46,9 @@
 //		}
 //		defer op.Close()
 //
+//		ctx := context.Background()
 //		// Perform operations using the operator
-//		_, err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		_, err = op.Write(ctx, "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
@@ -125,13 +129,14 @@ type OperatorOptions map[string]string
 //		}
 //		defer op.Close() // Ensure the operator is closed when done
 //
+//		ctx := context.Background()
 //		// Perform operations using the operator
-//		_, err = op.Write("example.txt", []byte("Hello, OpenDAL!"))
+//		_, err = op.Write(ctx, "example.txt", []byte("Hello, OpenDAL!"))
 //		if err != nil {
 //			log.Fatal(err)
 //		}
 //
-//		data, err := op.Read("example.txt")
+//		data, err := op.Read(ctx, "example.txt")
 //		if err != nil {
 //			log.Fatal(err)
 //		}

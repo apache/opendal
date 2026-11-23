@@ -19,6 +19,7 @@ package opendal_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -44,29 +45,30 @@ func BenchmarkOpenDALCopy(b *testing.B) {
 			if limit := cap.WriteTotalMaxSize(); limit > 0 && limit < uint(objectSize) {
 				b.Skip("service write limit is smaller than the benchmark object")
 			}
+			ctx := context.Background()
 			source, destination := uuid.NewString(), uuid.NewString()
 			b.Cleanup(func() {
-				_ = op.Delete(source)
-				_ = op.Delete(destination)
+				_ = op.Delete(ctx, source)
+				_ = op.Delete(ctx, destination)
 			})
-			if _, err := op.Write(source, make([]byte, objectSize)); err != nil {
+			if _, err := op.Write(ctx, source, make([]byte, objectSize)); err != nil {
 				b.Fatal(err)
 			}
 			b.SetBytes(int64(objectSize))
 			b.ReportAllocs()
 			for b.Loop() {
-				r, err := op.Reader(source)
+				r, err := op.Reader(ctx, source)
 				if err != nil {
 					b.Fatal(err)
 				}
-				w, err := op.Writer(destination)
+				w, err := op.Writer(ctx, destination)
 				if err != nil {
 					_ = r.Close()
 					b.Fatal(err)
 				}
 				n, err := io.Copy(w, r)
 				readCloseErr := r.Close()
-				_, writeCloseErr := w.Close()
+				_, writeCloseErr := w.Close(ctx)
 				if err != nil || readCloseErr != nil || writeCloseErr != nil || n != int64(objectSize) {
 					b.Fatalf("copy = (%d, %v), close = (%v, %v)", n, err, readCloseErr, writeCloseErr)
 				}
@@ -105,8 +107,9 @@ func BenchmarkWriterReadFrom(b *testing.B) {
 							b.Error(err)
 						}
 					})
+					ctx := context.Background()
 					path := uuid.NewString()
-					b.Cleanup(func() { _ = op.Delete(path) })
+					b.Cleanup(func() { _ = op.Delete(ctx, path) })
 					b.SetBytes(int64(len(data)))
 					b.ReportAllocs()
 					var copyTime, closeTime time.Duration
@@ -115,7 +118,7 @@ func BenchmarkWriterReadFrom(b *testing.B) {
 						if _, err := file.Seek(0, io.SeekStart); err != nil {
 							b.Fatal(err)
 						}
-						w, err := op.Writer(path)
+						w, err := op.Writer(ctx, path)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -128,7 +131,7 @@ func BenchmarkWriterReadFrom(b *testing.B) {
 						}
 						copyTime += time.Since(copyStart)
 						closeStart := time.Now()
-						_, closeErr := w.Close()
+						_, closeErr := w.Close(ctx)
 						closeTime += time.Since(closeStart)
 						if copyErr != nil || closeErr != nil {
 							b.Fatalf("copy = %v, close = %v", copyErr, closeErr)
@@ -152,10 +155,11 @@ func BenchmarkReaderWriteTo(b *testing.B) {
 			if limit := cap.WriteTotalMaxSize(); limit > 0 && limit < uint(objectSize) {
 				b.Skip("service write limit is smaller than the benchmark object")
 			}
+			ctx := context.Background()
 			path := uuid.NewString()
-			b.Cleanup(func() { _ = op.Delete(path) })
+			b.Cleanup(func() { _ = op.Delete(ctx, path) })
 			data := make([]byte, objectSize)
-			if _, err := op.Write(path, data); err != nil {
+			if _, err := op.Write(ctx, path, data); err != nil {
 				b.Fatal(err)
 			}
 			for _, size := range []int{0, 32 << 10} {
@@ -182,7 +186,7 @@ func BenchmarkReaderWriteTo(b *testing.B) {
 						if _, err := file.Seek(0, io.SeekStart); err != nil {
 							b.Fatal(err)
 						}
-						r, err := op.Reader(path)
+						r, err := op.Reader(ctx, path)
 						if err != nil {
 							b.Fatal(err)
 						}
@@ -324,12 +328,12 @@ func NewOpenDALReadWriter(op *opendal.Operator) ReadWriter {
 }
 
 func (rw *OpenDALReadWriter) Write(path string, data []byte) error {
-	_, err := rw.Operator.Write(path, data)
+	_, err := rw.Operator.Write(context.Background(), path, data)
 	return err
 }
 
 func (rw *OpenDALReadWriter) Read(path string) ([]byte, error) {
-	return rw.Operator.Read(path)
+	return rw.Operator.Read(context.Background(), path)
 }
 
 func (rw *OpenDALReadWriter) Name() string {

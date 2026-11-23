@@ -15,6 +15,7 @@ version.
 - [User guide](https://opendal.apache.org/docs/bindings/go)
 - [API reference](https://pkg.go.dev/github.com/apache/opendal/bindings/go)
 - [Services & configuration](https://opendal.apache.org/services)
+- [Upgrade guide](./upgrade.md)
 
 ## Installation
 
@@ -34,6 +35,7 @@ go get github.com/apache/opendal-go-services/memory
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -48,17 +50,25 @@ func main() {
 	}
 	defer op.Close()
 
-	if err := op.Write("hello.txt", []byte("Hello, OpenDAL!")); err != nil {
+	ctx := context.Background()
+
+	if _, err := op.Write(ctx, "hello.txt", []byte("Hello, OpenDAL!")); err != nil {
 		log.Fatal(err)
 	}
 
-	data, err := op.Read("hello.txt")
+	data, err := op.Read(ctx, "hello.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Read content: %s\n", data)
 }
 ```
+
+## Context Cancellation
+
+All `Operator` I/O methods and non-stdlib handle methods (`Lister.Next`, `Copier.Next`, `Copier.Abort`, `Writer.Close`, `Deleter.Delete`, `Deleter.Flush`, `Deleter.Close`) take `context.Context` as their first parameter. `Reader` and `Writer` keep their standard `io.ReadSeekCloser`, `io.WriterTo`, `io.Writer`, and `io.ReaderFrom` signatures and provide `ReadContext`, `SeekContext`, and `WriteContext` for per-call cancellation.
+
+When a context is cancelled or its deadline expires, the binding signals OpenDAL's native cancel token and waits for the native call to drop its in-flight future before returning an `*opendal.Error` with `CodeCancelled` that unwraps to `context.Canceled` or `context.DeadlineExceeded`. Callers can inspect cancellations with `errors.Is(err, context.Canceled)`, `errors.Is(err, context.DeadlineExceeded)`, or `errors.As(err, &odErr)`.
 
 For the full guide — connecting to real backends, streaming, listing, presigning, retries, and error handling — see the [user guide](https://opendal.apache.org/docs/bindings/go).
 

@@ -29,8 +29,9 @@ import (
 //
 // # Parameters
 //
-//   - from: The current file path.
-//   - to: The new file path.
+//   - ctx: The context controlling cancellation and deadlines.
+//   - src: The current file path.
+//   - dest: The new file path.
 //
 // # Returns
 //
@@ -38,14 +39,14 @@ import (
 //
 // # Behavior
 //
-//   - Both 'from' and 'to' must be file paths, not directories.
-//   - If 'to' already exists, it will be overwritten.
-//   - If 'from' and 'to' are identical, an 'IsSameFile' error will be returned.
+//   - Both 'src' and 'dest' must be file paths, not directories.
+//   - If 'dest' already exists, it will be overwritten.
+//   - If 'src' and 'dest' are identical, an 'IsSameFile' error will be returned.
 //
 // # Example
 //
-//	func exampleRename(op *opendal.Operator) {
-//		err = op.Rename("path/from/file", "path/to/file")
+//	func exampleRename(ctx context.Context, op *opendal.Operator) {
+//		err := op.Rename(ctx, "path/from/file", "path/to/file")
 //		if err != nil {
 //			log.Printf("Rename operation failed: %v", err)
 //		} else {
@@ -54,20 +55,26 @@ import (
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Rename(src, dest string) error {
+func (op *Operator) Rename(ctx context.Context, src, dest string) error {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return err
 	}
 	defer release()
-	return ffiOperatorRename.symbol(op.ctx)(inner, src, dest)
+	return withCancelToken(op.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorRename.symbol(op.ctx)(inner, src, dest, token)
+	})
 }
 
 // Check verifies if the operator is functioning correctly.
 //
-// Check is a wrapper around the C-binding function `opendal_operator_check`.
+// Check is a wrapper around the C-binding function `opendal_operator_check_with_cancel`.
 // It performs a health check against the underlying backend, returning any
 // error encountered while reaching it.
+//
+// # Parameters
+//
+//   - ctx: The context controlling cancellation and deadlines.
 //
 // # Returns
 //
@@ -75,8 +82,8 @@ func (op *Operator) Rename(src, dest string) error {
 //
 // # Example
 //
-//	func exampleCheck(op *opendal.Operator) {
-//		err = op.Check()
+//	func exampleCheck(ctx context.Context, op *opendal.Operator) {
+//		err := op.Check(ctx)
 //		if err != nil {
 //			log.Printf("Operator check failed: %v", err)
 //		} else {
@@ -85,13 +92,15 @@ func (op *Operator) Rename(src, dest string) error {
 //	}
 //
 // Note: This example assumes proper error handling and import statements.
-func (op *Operator) Check() error {
+func (op *Operator) Check(ctx context.Context) error {
 	inner, release, err := op.acquire()
 	if err != nil {
 		return err
 	}
 	defer release()
-	return ffiOperatorCheck.symbol(op.ctx)(inner)
+	return withCancelToken(op.ctx, ctx, func(token *opendalCancelToken) error {
+		return ffiOperatorCheck.symbol(op.ctx)(inner, token)
+	})
 }
 
 func normalizeScheme(scheme Scheme) (*byte, error) {
@@ -150,34 +159,10 @@ var ffiOperatorOptionsSet = newFFI(
 
 var ffiOperatorOptionsFree = newDirectFFI[func(opts *operatorOptions)]("opendal_operator_options_free")
 
-var ffiOperatorCopy = newFFI(
-	"opendal_operator_copy",
-	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte) *opendalError) func(op *opendalOperator, src, dest string) (err error) {
-		return func(op *opendalOperator, src, dest string) (err error) {
-			var (
-				byteSrc  *byte
-				byteDest *byte
-			)
-			byteSrc, err = BytePtrFromString(src)
-			if err != nil {
-				return err
-			}
-			byteDest, err = BytePtrFromString(dest)
-			if err != nil {
-				return err
-			}
-			e := cFunc(op, byteSrc, byteDest)
-			runtime.KeepAlive(byteSrc)
-			runtime.KeepAlive(byteDest)
-			return parseError(ctx, e)
-		}
-	},
-)
-
 var ffiOperatorRename = newFFI(
-	"opendal_operator_rename",
-	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte) *opendalError) func(op *opendalOperator, src, dest string) (err error) {
-		return func(op *opendalOperator, src, dest string) (err error) {
+	"opendal_operator_rename_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, src, dest *byte, cancel *opendalCancelToken) *opendalError) func(op *opendalOperator, src, dest string, cancel *opendalCancelToken) (err error) {
+		return func(op *opendalOperator, src, dest string, cancel *opendalCancelToken) (err error) {
 			var (
 				byteSrc  *byte
 				byteDest *byte
@@ -190,7 +175,7 @@ var ffiOperatorRename = newFFI(
 			if err != nil {
 				return err
 			}
-			e := cFunc(op, byteSrc, byteDest)
+			e := cFunc(op, byteSrc, byteDest, cancel)
 			runtime.KeepAlive(byteSrc)
 			runtime.KeepAlive(byteDest)
 			return parseError(ctx, e)
@@ -199,10 +184,10 @@ var ffiOperatorRename = newFFI(
 )
 
 var ffiOperatorCheck = newFFI(
-	"opendal_operator_check",
-	func(ctx context.Context, cFunc func(op *opendalOperator) *opendalError) func(op *opendalOperator) error {
-		return func(op *opendalOperator) error {
-			e := cFunc(op)
+	"opendal_operator_check_with_cancel",
+	func(ctx context.Context, cFunc func(op *opendalOperator, cancel *opendalCancelToken) *opendalError) func(op *opendalOperator, cancel *opendalCancelToken) error {
+		return func(op *opendalOperator, cancel *opendalCancelToken) error {
+			e := cFunc(op, cancel)
 			return parseError(ctx, e)
 		}
 	},

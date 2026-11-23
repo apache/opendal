@@ -100,6 +100,13 @@ class IOTest < ActiveSupport::TestCase
     assert_equal "Sample", result
   end
 
+  test "#read with a huge size returns remaining bytes without over-allocating" do
+    result = @io_read.read(2**62)
+
+    assert_equal "Sample data for testing\nA line after title\n", result
+    assert_nil @io_read.read(2**62)
+  end
+
   test "#read raises ArgumentError with -1" do
     err = assert_raise(ArgumentError) { @io_read.read(-1) }
 
@@ -147,10 +154,39 @@ class IOTest < ActiveSupport::TestCase
     assert_equal "hi Sample", buffer
   end
 
+  test "#read with a buffer clears the buffer at EOF" do
+    @io_read.read
+
+    buffer = +"stale"
+    result = @io_read.read(10, buffer)
+
+    assert_nil result
+    assert_equal "", buffer
+  end
+
   test "#write writes" do
     @io_write.write("This is a sentence.")
     @io_write.close
     assert_equal "This is a sentence.", File.read("#{@root}/sample_write")
+  end
+
+  test "#write and #read round-trip binary data" do
+    payload = "\xff\xfe\x00\x01".b
+
+    written = @io_write.write(payload)
+    @io_write.close
+    assert_equal payload.bytesize, written
+
+    reader = @op.open("sample_write", "r")
+    data = reader.read
+    reader.close
+    assert_equal payload, data
+    assert_equal Encoding::ASCII_8BIT, data.encoding
+
+    dst = @op.open("sample_write_copy", "w")
+    dst.write(data)
+    dst.close
+    assert_equal payload, @op.read("sample_write_copy")
   end
 
   test "open in append mode appends to existing file" do
@@ -236,6 +272,18 @@ class IOTest < ActiveSupport::TestCase
     # should be `assert_equal Encoding::UTF_8, line.encoding`
   end
 
+  test "#readline reads binary lines and raises EOFError at EOF" do
+    File.binwrite("#{@root}/binary_lines", "ab\xff\xfe\ncd\n".b)
+    io = @op.open("binary_lines", "r")
+
+    line = io.readline
+    assert_equal "ab\xff\xfe\n".b, line
+    assert_equal Encoding::ASCII_8BIT, line.encoding
+    assert_equal "cd\n".b, io.readline
+    assert_raise(EOFError) { io.readline }
+    io.close
+  end
+
   test "#readlines reads all lines" do
     lines = @io_read.readlines
 
@@ -245,6 +293,30 @@ class IOTest < ActiveSupport::TestCase
 
   test "#tell returns position" do
     assert_equal 0, @io_read.tell
+  end
+
+  test "#seek raises on underflow and overflow" do
+    i64_min = -(1 << 63)
+    i64_max = (1 << 63) - 1
+
+    err = assert_raise(RuntimeError) { @io_read.seek(i64_min, IO::SEEK_CUR) }
+    assert_match(/before start/, err.message)
+    assert_equal 0, @io_read.tell
+
+    @io_read.seek(5, IO::SEEK_SET)
+    err = assert_raise(RuntimeError) { @io_read.seek(i64_min, IO::SEEK_END) }
+    assert_match(/before start/, err.message)
+    assert_equal 5, @io_read.tell
+
+    err = assert_raise(RuntimeError) { @io_read.seek(i64_max, IO::SEEK_END) }
+    assert_match(/overflow/i, err.message)
+    assert_equal 5, @io_read.tell
+
+    @io_read.seek(2**62, IO::SEEK_SET)
+    assert_equal 2**62, @io_read.tell
+    err = assert_raise(RuntimeError) { @io_read.seek(2**62, IO::SEEK_CUR) }
+    assert_match(/overflow/i, err.message)
+    assert_equal 2**62, @io_read.tell
   end
 
   test "#pos= moves position" do

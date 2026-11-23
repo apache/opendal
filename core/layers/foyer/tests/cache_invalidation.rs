@@ -27,7 +27,7 @@ use opendal_core::{
     Buffer, Builder, BytesRange, Capability, Error, ErrorKind, Metadata, OperationContext,
     Operator, Result,
 };
-use opendal_layer_foyer::{Deleter, FoyerKey, FoyerLayer, FoyerService, FoyerValue, Writer};
+use opendal_layer_foyer::{FoyerKey, FoyerLayer, FoyerValue};
 use opendal_service_fs::Fs;
 use std::ops::Range;
 use std::sync::Arc;
@@ -1078,18 +1078,4 @@ async fn cancelled_coalesced_waiter_does_not_deadlock_on_store() {
 
     assert!(cache.contains(&key));
     assert_eq!(op.read("target").await.unwrap().to_vec(), b"fresh");
-}
-
-#[test]
-fn operation_types_remain_available() {
-    fn assert_operation_types<
-        S: Service<
-                Deleter = Deleter<oio::Deleter>,
-                Writer = Writer<oio::Writer>,
-                Copier = oio::Copier,
-            >,
-    >() {
-    }
-
-    assert_operation_types::<FoyerService>();
 }

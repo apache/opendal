@@ -25,8 +25,7 @@ use crate::FoyerKey;
 use crate::Inner;
 use crate::error::extract_err;
 
-#[doc(hidden)]
-pub struct Deleter<D> {
+pub(crate) struct Deleter<D> {
     pub(crate) deleter: D,
     pub(crate) keys: Vec<FoyerKey>,
     /// Unversioned keys evicted by versioned deletes. These are removed from

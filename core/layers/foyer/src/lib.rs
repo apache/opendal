@@ -40,9 +40,9 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 use copier::FoyerCopier;
-pub use deleter::Deleter;
+use deleter::Deleter;
 use error::FetchError;
-pub use writer::Writer;
+use writer::Writer;
 
 /// [`FoyerKey`] is a key for the foyer cache. It implements foyer's [`Code`] trait
 /// directly, so the layer does not depend on foyer's `serde` feature (and its bincode
@@ -929,18 +929,12 @@ impl FoyerLayer {
 
 impl Layer for FoyerLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl FoyerLayer {
-    fn layer(&self, inner: Servicer) -> FoyerService {
-        FoyerService {
+        Arc::new(FoyerService {
             inner,
             cache: self.cache.clone(),
             size_limit: self.size_limit.clone(),
             deleted_keys: self.deleted_keys.clone(),
-        }
+        })
     }
 }
 
@@ -963,8 +957,7 @@ impl Inner {
 }
 
 #[derive(Debug)]
-#[doc(hidden)]
-pub struct FoyerService {
+struct FoyerService {
     inner: Servicer,
     cache: HybridCache<FoyerKey, FoyerValue>,
     size_limit: Range<usize>,
@@ -1080,9 +1073,17 @@ impl Service for FoyerService {
         args: OpRename,
     ) -> Result<RpRename> {
         let rp = self.inner.rename(ctx, from, to, args).await?;
-        let inner = self.operation_inner(ctx);
-        inner.invalidate_unversioned(from.to_string());
-        inner.invalidate_unversioned(to.to_string());
+        let keys = [
+            FoyerKey {
+                path: from.to_string(),
+                version: None,
+            },
+            FoyerKey {
+                path: to.to_string(),
+                version: None,
+            },
+        ];
+        self.deleted_keys.invalidate(&self.cache, &keys, &[]);
         Ok(rp)
     }
 
@@ -1439,9 +1440,12 @@ mod tests {
     #[tokio::test]
     async fn test_chunked_copy_invalidation_waits_for_completion() {
         let cache = memory_cache().await;
-        let layer = FoyerLayer::new(cache.clone());
-        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
-        let ctx = OperationContext::new();
+        let inner = Arc::new(Inner {
+            srv: Arc::new(Memory::default().build().unwrap()),
+            ctx: OperationContext::new(),
+            cache: cache.clone(),
+            deleted_keys: Arc::default(),
+        });
         let current = FoyerKey {
             path: "destination".to_string(),
             version: None,
@@ -1457,7 +1461,7 @@ mod tests {
                 chunks: [3, 5].into_iter(),
             },
             current.path.clone(),
-            service.operation_inner(&ctx),
+            inner,
         );
 
         assert_eq!(copier.next().await.unwrap(), Some(3));
@@ -1933,7 +1937,7 @@ mod tests {
     async fn deleted_keys_stay_bounded() {
         let cache = memory_cache().await;
         let layer = FoyerLayer::new(cache);
-        let service = layer.layer(Arc::new(Memory::default().build().unwrap()));
+        let service = layer.apply_service(Arc::new(Memory::default().build().unwrap()));
         let ctx = OperationContext::new();
 
         for i in 0..=(MAX_DELETED_KEYS * 2) {
@@ -1981,9 +1985,8 @@ mod tests {
         let state = source.state.clone();
         let gate = state.gate_stat();
         let layer = FoyerLayer::new(cache.clone());
-        let service = Arc::new(layer.layer(source));
+        let service = layer.apply_service(source);
         let ctx = OperationContext::new();
-        let inner = service.operation_inner(&ctx);
 
         let fill = tokio::spawn({
             let service = service.clone();
@@ -1996,7 +1999,14 @@ mod tests {
         });
         state.stat_started.acquire().await.unwrap().forget();
 
-        inner.invalidate_unversioned("test".to_string());
+        layer.deleted_keys.invalidate(
+            &cache,
+            &[FoyerKey {
+                path: "test".to_string(),
+                version: None,
+            }],
+            &[],
+        );
         gate.add_permits(1);
 
         let buffer = fill.await.unwrap();
@@ -2038,9 +2048,8 @@ mod tests {
         let state = source.state.clone();
         let gate = state.gate_stat_for("target");
         let layer = FoyerLayer::new(cache.clone());
-        let service = Arc::new(layer.layer(source));
+        let service = layer.apply_service(source);
         let ctx = OperationContext::new();
-        let inner = service.operation_inner(&ctx);
 
         // R1 starts reading "target" and pauses inside Foyer's fetch.
         let r1 = tokio::spawn({
@@ -2056,7 +2065,14 @@ mod tests {
 
         // An unrelated invalidation followed by a newer read R2 that finishes
         // must not lose track of R1.
-        inner.invalidate_unversioned("unrelated".to_string());
+        layer.deleted_keys.invalidate(
+            &cache,
+            &[FoyerKey {
+                path: "unrelated".to_string(),
+                version: None,
+            }],
+            &[],
+        );
         {
             let reader = service.read(&ctx, "other", OpRead::default()).unwrap();
             let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
@@ -2064,7 +2080,14 @@ mod tests {
         }
 
         // Now invalidate "target" while R1 is still in flight.
-        inner.invalidate_unversioned("target".to_string());
+        layer.deleted_keys.invalidate(
+            &cache,
+            &[FoyerKey {
+                path: "target".to_string(),
+                version: None,
+            }],
+            &[],
+        );
         gate.add_permits(1);
 
         let buffer = r1.await.unwrap();
@@ -2085,9 +2108,8 @@ mod tests {
         let state = source.state.clone();
         let gate = state.gate_stat_for("target");
         let layer = FoyerLayer::new(cache.clone());
-        let service = Arc::new(layer.layer(source));
+        let service = layer.apply_service(source);
         let ctx = OperationContext::new();
-        let inner = service.operation_inner(&ctx);
         let target_key = FoyerKey {
             path: "target".to_string(),
             version: None,
@@ -2104,7 +2126,9 @@ mod tests {
         });
         state.stat_started.acquire().await.unwrap().forget();
 
-        inner.invalidate_unversioned("target".to_string());
+        layer
+            .deleted_keys
+            .invalidate(&cache, std::slice::from_ref(&target_key), &[]);
 
         // Cancel the reader future while Foyer's detached fetch is still blocked.
         r1.abort();
@@ -2249,7 +2273,7 @@ mod tests {
             stat_calls: AtomicUsize::new(0),
         });
         let layer = FoyerLayer::new(cache.clone());
-        let service = Arc::new(layer.layer(gated.clone()));
+        let service = layer.apply_service(gated.clone());
         let target_key = FoyerKey {
             path: "target".to_string(),
             version: None,
@@ -2500,8 +2524,7 @@ mod tests {
             target_gate_once: AtomicUsize::new(1),
         });
         let layer = FoyerLayer::new(cache.clone());
-        let service = Arc::new(layer.layer(srv));
-        let inner = service.operation_inner(&ctx);
+        let service = layer.apply_service(srv);
 
         // Hold an active read on "other" so invalidating "other" advances the global epoch.
         let r_other = tokio::spawn({
@@ -2528,7 +2551,14 @@ mod tests {
         target_open_started.acquire().await.unwrap().forget();
 
         // Advance the global epoch via an unrelated invalidation.
-        inner.invalidate_unversioned("other".to_string());
+        layer.deleted_keys.invalidate(
+            &cache,
+            &[FoyerKey {
+                path: "other".to_string(),
+                version: None,
+            }],
+            &[],
+        );
 
         // Newer reader R2 starts at epoch 1 and joins R1's inflight Foyer fetch.
         let r2_reader = service.read(&ctx, "target", OpRead::default()).unwrap();
@@ -2543,7 +2573,14 @@ mod tests {
         let mut w = mem.write(&ctx, "target", OpWrite::new()).unwrap();
         w.write(Buffer::from("new")).await.unwrap();
         w.close().await.unwrap();
-        inner.invalidate_unversioned("target".to_string());
+        layer.deleted_keys.invalidate(
+            &cache,
+            &[FoyerKey {
+                path: "target".to_string(),
+                version: None,
+            }],
+            &[],
+        );
 
         target_open_gate.add_permits(1);
         other_stat_gate.add_permits(1);

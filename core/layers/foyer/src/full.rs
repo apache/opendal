@@ -81,17 +81,11 @@ impl FullReader {
             .contains(key)
     }
 
-    /// Derive the `OpStat` used for cache fill from the reader's `OpRead`, so the
-    /// stat observes the same conditions (version, if-match, ...) as the request.
+    /// Derive the `OpStat` used for cache fill from the reader's `OpRead`, so a
+    /// versioned read stats the same version it caches.
     fn stat_args(&self) -> OpStat {
         options::StatOptions {
             version: self.args.version().map(str::to_owned),
-            if_match: self.args.if_match().map(str::to_owned),
-            if_none_match: self.args.if_none_match().map(str::to_owned),
-            if_version_match: self.args.if_version_match().map(str::to_owned),
-            if_version_not_match: self.args.if_version_not_match().map(str::to_owned),
-            if_modified_since: self.args.if_modified_since(),
-            if_unmodified_since: self.args.if_unmodified_since(),
             ..Default::default()
         }
         .into()
@@ -133,22 +127,16 @@ impl FullReader {
         }
 
         // A cached entry carries no precondition, so a conditional read must
-        // not be served from it: fall back to the origin, which observes the
-        // original args. On a miss the fill below still validates the
-        // condition at the origin, so only the hit path is skipped.
+        // never use the cache. Bypass both the hit path and `get_or_fetch`:
+        // `get_or_fetch` deduplicates concurrent fills, so a conditional read
+        // that joins an unconditional fill would receive its data without the
+        // condition being checked, and an unconditional read that joins a
+        // conditional fill would inherit a condition failure that does not
+        // apply to it. Send the read straight to the origin, which observes
+        // the original args.
         // `version` is not listed here because it is part of the cache key.
-        if self.args.if_match().is_some()
-            || self.args.if_none_match().is_some()
-            || self.args.if_version_match().is_some()
-            || self.args.if_version_not_match().is_some()
-            || self.args.if_modified_since().is_some()
-            || self.args.if_unmodified_since().is_some()
-        {
-            match self.inner.cache.get(&key).await {
-                Ok(Some(_)) => return Ok(None),
-                Ok(None) => {}
-                Err(e) => return Err(extract_err(e)),
-            }
+        if self.args.is_conditional() {
+            return Ok(None);
         }
 
         let result = self

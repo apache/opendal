@@ -160,6 +160,9 @@ impl Code for FoyerValue {
 /// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
 ///   and caches the entire object if its size is within the configured
 ///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
+///   Reads with preconditions such as `if_match` or `if_none_match` bypass the
+///   cache and read directly from the service, which evaluates the condition.
+///   A conditional read never populates the cache.
 /// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
 ///   closes. A failed delete call is not invalidated. Exact-key invalidation happens before the
 ///   underlying deleter is closed, so the data remains invalidated if closing the deleter fails.
@@ -452,6 +455,8 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    use tokio::sync::{Semaphore, oneshot};
+
     use super::*;
     use crate::error::extract_err;
 
@@ -478,6 +483,11 @@ mod tests {
     #[derive(Debug)]
     struct MockReadState {
         data: Buffer,
+        etag: String,
+        stat_gate: Mutex<Option<Arc<Semaphore>>>,
+        stat_started: Arc<Semaphore>,
+        condition_gate: Mutex<Option<Arc<Semaphore>>>,
+        condition_started: Arc<Semaphore>,
         stat_calls: AtomicUsize,
         open_calls: AtomicUsize,
         read_calls: AtomicUsize,
@@ -489,6 +499,11 @@ mod tests {
         fn new(data: Buffer) -> Self {
             Self {
                 data,
+                etag: "\"etag-1\"".to_string(),
+                stat_gate: Mutex::new(None),
+                stat_started: Arc::new(Semaphore::new(0)),
+                condition_gate: Mutex::new(None),
+                condition_started: Arc::new(Semaphore::new(0)),
                 stat_calls: AtomicUsize::new(0),
                 open_calls: AtomicUsize::new(0),
                 read_calls: AtomicUsize::new(0),
@@ -497,11 +512,55 @@ mod tests {
             }
         }
 
-        fn metadata(&self) -> Metadata {
-            {
-                let metadata = MetadataBuilder::file(self.data.len() as _);
-                metadata.build()
+        fn gate_stat(&self) -> Arc<Semaphore> {
+            let gate = Arc::new(Semaphore::new(0));
+            *self.stat_gate.lock().unwrap() = Some(gate.clone());
+            gate
+        }
+
+        fn gate_condition(&self) -> Arc<Semaphore> {
+            let gate = Arc::new(Semaphore::new(0));
+            *self.condition_gate.lock().unwrap() = Some(gate.clone());
+            gate
+        }
+
+        async fn check_conditions(
+            &self,
+            if_match: Option<&str>,
+            if_none_match: Option<&str>,
+        ) -> Result<()> {
+            if if_match.is_some() || if_none_match.is_some() {
+                let gate = self.condition_gate.lock().unwrap().clone();
+                if let Some(gate) = gate {
+                    self.condition_started.add_permits(1);
+                    gate.acquire().await.unwrap().forget();
+                }
             }
+
+            if let Some(if_match) = if_match
+                && if_match != "*"
+                && if_match != self.etag
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    format!("if-match {if_match} does not match {}", self.etag),
+                ));
+            }
+            if let Some(if_none_match) = if_none_match
+                && (if_none_match == "*" || if_none_match == self.etag)
+            {
+                return Err(Error::new(
+                    ErrorKind::ConditionNotMatch,
+                    format!("if-none-match {if_none_match} matches {}", self.etag),
+                ));
+            }
+            Ok(())
+        }
+
+        fn metadata(&self) -> Metadata {
+            let mut metadata = MetadataBuilder::file(self.data.len() as _);
+            metadata.etag(self.etag.clone());
+            metadata.build()
         }
 
         fn rp_read(&self) -> RpRead {
@@ -529,11 +588,15 @@ mod tests {
     #[derive(Debug)]
     struct MockReadReader {
         state: Arc<MockReadState>,
+        args: OpRead,
     }
 
     impl oio::Read for MockReadReader {
         async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
             self.state.open_calls.fetch_add(1, Ordering::Relaxed);
+            self.state
+                .check_conditions(self.args.if_match(), self.args.if_none_match())
+                .await?;
             let buffer = self.state.read_range(range);
             Ok((
                 self.state.rp_read(),
@@ -543,6 +606,9 @@ mod tests {
 
         async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
             self.state.read_calls.fetch_add(1, Ordering::Relaxed);
+            self.state
+                .check_conditions(self.args.if_match(), self.args.if_none_match())
+                .await?;
             if range.size().is_none() {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
@@ -591,14 +657,25 @@ mod tests {
 
         async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
             self.state.stat_calls.fetch_add(1, Ordering::Relaxed);
-            *self.state.last_stat_args.lock().unwrap() = Some(args);
+            *self.state.last_stat_args.lock().unwrap() = Some(args.clone());
+
+            let gate = self.state.stat_gate.lock().unwrap().clone();
+            if let Some(gate) = gate {
+                self.state.stat_started.add_permits(1);
+                gate.acquire().await.unwrap().forget();
+            }
+
+            self.state
+                .check_conditions(args.if_match(), args.if_none_match())
+                .await?;
             Ok(RpStat::new(self.state.metadata()))
         }
 
         fn read(&self, _ctx: &OperationContext, _: &str, args: OpRead) -> Result<Self::Reader> {
-            *self.state.last_read_args.lock().unwrap() = Some(args);
+            *self.state.last_read_args.lock().unwrap() = Some(args.clone());
             Ok(MockReadReader {
                 state: self.state.clone(),
+                args,
             })
         }
 
@@ -782,18 +859,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_fill_preserves_read_args() {
+    async fn test_cache_fill_preserves_version() {
         let cache = memory_cache().await;
         let source = Arc::new(MockReadService::new("0123456789"));
         let state = source.state.clone();
-        let service = FoyerLayer::new(cache)
+        let service = FoyerLayer::new(cache.clone())
             .with_size_limit(0..100)
             .apply_service(source);
         let ctx = service_context(&service);
 
         let (_, args, _) = options::ReadOptions {
             version: Some("v1".to_owned()),
-            if_match: Some("etag-1".to_owned()),
             ..Default::default()
         }
         .into();
@@ -803,11 +879,23 @@ mod tests {
 
         let stat_args = state.last_stat_args.lock().unwrap().clone().unwrap();
         assert_eq!(stat_args.version(), Some("v1"));
-        assert_eq!(stat_args.if_match(), Some("etag-1"));
 
         let read_args = state.last_read_args.lock().unwrap().clone().unwrap();
         assert_eq!(read_args.version(), Some("v1"));
-        assert_eq!(read_args.if_match(), Some("etag-1"));
+
+        assert!(cache.contains(&FoyerKey {
+            path: "test".to_owned(),
+            version: Some("v1".to_owned()),
+        }));
+    }
+
+    fn conditional_read_args(if_match: &str) -> OpRead {
+        let (_, args, _) = options::ReadOptions {
+            if_match: Some(if_match.to_owned()),
+            ..Default::default()
+        }
+        .into();
+        args
     }
 
     #[tokio::test]
@@ -830,12 +918,9 @@ mod tests {
 
         // A conditional read must not be served from the cache: the cached
         // entry carries no condition, so only the origin can observe it.
-        let (_, args, _) = options::ReadOptions {
-            if_match: Some("etag-1".to_owned()),
-            ..Default::default()
-        }
-        .into();
-        let reader = service.read(&ctx, "test", args).unwrap();
+        let reader = service
+            .read(&ctx, "test", conditional_read_args("\"etag-1\""))
+            .unwrap();
         let (_, mut stream) = reader.open(BytesRange::from(0_u64..2)).await.unwrap();
         let buffer = stream.read_all().await.unwrap();
         assert_eq!(buffer.to_vec(), b"01");
@@ -847,6 +932,187 @@ mod tests {
         let buffer = stream.read_all().await.unwrap();
         assert_eq!(buffer.to_vec(), b"01");
         assert_eq!(state.open_calls.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_checks_precondition_on_cache_miss() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let reader = service
+            .read(&ctx, "test", conditional_read_args("\"wrong-etag\""))
+            .unwrap();
+        let err = reader
+            .open(BytesRange::new(0, None))
+            .await
+            .err()
+            .expect("a mismatched if-match must fail");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_checks_precondition_on_cache_hit() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        stream.read_all().await.unwrap();
+
+        let reader = service
+            .read(&ctx, "test", conditional_read_args("\"wrong-etag\""))
+            .unwrap();
+        let err = reader
+            .open(BytesRange::new(0, None))
+            .await
+            .err()
+            .expect("a cached entry must not satisfy a mismatched if-match");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_allows_matching_precondition() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        let reader = service
+            .read(&ctx, "test", conditional_read_args("\"etag-1\""))
+            .unwrap();
+        let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"0123456789");
+        assert_eq!(state.open_calls.load(Ordering::Relaxed), 1);
+        assert_eq!(
+            state
+                .last_read_args
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .if_match(),
+            Some("\"etag-1\"")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_read_does_not_join_in_flight_fill() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let gate = state.gate_stat();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        // Start an unconditional read and stop it inside the cache fill.
+        let fill = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+                let (_, mut stream) = reader.open(BytesRange::new(0, None)).await.unwrap();
+                stream.read_all().await.unwrap()
+            }
+        });
+        state.stat_started.acquire().await.unwrap().forget();
+
+        // Start a conditional read while the unconditional fill is in flight.
+        let (started_tx, started_rx) = oneshot::channel();
+        let conditional = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service
+                    .read(&ctx, "test", conditional_read_args("\"wrong-etag\""))
+                    .unwrap();
+                started_tx.send(()).unwrap();
+                reader.open(BytesRange::new(0, None)).await
+            }
+        });
+        started_rx.await.unwrap();
+        tokio::task::yield_now().await;
+
+        gate.add_permits(1);
+
+        let fill_buffer = fill.await.unwrap();
+        assert_eq!(fill_buffer.to_vec(), b"0123456789");
+
+        let err = conditional
+            .await
+            .unwrap()
+            .err()
+            .expect("a conditional read must not receive an unconditional fill");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+    }
+
+    #[tokio::test]
+    async fn test_unconditional_read_does_not_join_conditional_fill() {
+        let cache = memory_cache().await;
+        let source = Arc::new(MockReadService::new("0123456789"));
+        let state = source.state.clone();
+        let gate = state.gate_condition();
+        let service = FoyerLayer::new(cache)
+            .with_size_limit(0..100)
+            .apply_service(source);
+        let ctx = service_context(&service);
+
+        // Start a conditional read with a mismatched if-match and stop it
+        // inside the origin precondition check.
+        let conditional = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service
+                    .read(&ctx, "test", conditional_read_args("\"wrong-etag\""))
+                    .unwrap();
+                reader.open(BytesRange::new(0, None)).await
+            }
+        });
+        state.condition_started.acquire().await.unwrap().forget();
+
+        // Start an unconditional read while the conditional fill is in flight.
+        let (started_tx, started_rx) = oneshot::channel();
+        let fill = tokio::spawn({
+            let service = service.clone();
+            let ctx = ctx.clone();
+            async move {
+                let reader = service.read(&ctx, "test", OpRead::default()).unwrap();
+                started_tx.send(()).unwrap();
+                reader.open(BytesRange::new(0, None)).await
+            }
+        });
+        started_rx.await.unwrap();
+        tokio::task::yield_now().await;
+
+        gate.add_permits(1);
+
+        let err = conditional
+            .await
+            .unwrap()
+            .err()
+            .expect("the conditional read must fail on its precondition");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+        let (_, mut stream) = fill
+            .await
+            .unwrap()
+            .expect("an unconditional read must not inherit the conditional failure");
+        let buffer = stream.read_all().await.unwrap();
+        assert_eq!(buffer.to_vec(), b"0123456789");
     }
 
     #[tokio::test]

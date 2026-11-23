@@ -80,6 +80,11 @@ impl opendal_writer {
     /// Pass NULL for `cancel` to run without cancellation. On cancellation or failure,
     /// writes `0` to `*size` and returns an `opendal_error *` (`OPENDAL_CANCELLED` on
     /// cancellation).
+    ///
+    /// If cancelled mid-flight, the backend may already have accepted part or all of
+    /// the write; release the handle with `opendal_writer_free` and start a new writer
+    /// instead of continuing to write or close, which can duplicate or corrupt data on
+    /// streaming or append backends.
     #[no_mangle]
     pub unsafe extern "C" fn opendal_writer_write_with_cancel(
         &mut self,
@@ -136,6 +141,11 @@ impl opendal_writer {
     /// Pass NULL for `cancel` to run without cancellation. Pass NULL for `meta` to
     /// discard the written object's metadata; when non-null, `*meta` receives the
     /// allocated `opendal_metadata *` on success or NULL on cancellation or failure.
+    ///
+    /// If cancelled mid-flight, the finalization state on the backend is unknown;
+    /// release the handle with `opendal_writer_free` and start a new writer instead of
+    /// continuing to write or close, which can duplicate or corrupt data on streaming
+    /// or append backends.
     ///
     /// @param ptr The opendal_writer to close (NULL is a no-op returning NULL)
     /// @param cancel Optional cancel token, or NULL

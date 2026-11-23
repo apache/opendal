@@ -129,13 +129,14 @@ fn intern_write(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let write_opts = make_write_options(env, &options)?;
     let path = jstring_to_string(env, &path)?;
     let content = env.convert_byte_array(content)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.write_options(&path, content, write_opts).await;
         complete_future(id, move |_env| {
             result?;
@@ -170,12 +171,13 @@ fn intern_stat(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let stat_opts = make_stat_options(env, &options)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.stat_options(&path, stat_opts).await;
         complete_future(id, move |env| make_metadata(env, result?));
     });
@@ -334,11 +336,12 @@ fn intern_create_dir(
     path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.create_dir(&path).await;
         complete_future(id, move |_env| {
             result?;
@@ -373,12 +376,13 @@ fn intern_copy(
     target_path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.copy(&source_path, &target_path).await;
         complete_future(id, move |_env| {
             result?;
@@ -413,12 +417,13 @@ fn intern_rename(
     target_path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let source_path = jstring_to_string(env, &source_path)?;
     let target_path = jstring_to_string(env, &target_path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.rename(&source_path, &target_path).await;
         complete_future(id, move |_env| {
             result?;
@@ -451,11 +456,12 @@ fn intern_remove_all(
     path: JString,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.delete_with(&path).recursive(true).await;
         complete_future(id, move |_env| {
             result?;
@@ -490,11 +496,13 @@ fn intern_list(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
     let list_opts = make_list_options(env, &options)?;
-    executor_or_default(env, executor)?.spawn(async move {
+
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.list_options(&path, list_opts).await;
         complete_future(id, move |env| make_entries(env, result?));
     });
@@ -545,11 +553,12 @@ fn intern_presign_read(
     let op = unsafe { &*op }.clone();
     let expire = expire_to_duration(expire)?;
     let read_opts = make_read_options(env, &options)?;
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.presign_read_options(&path, expire, read_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
@@ -584,11 +593,12 @@ fn intern_presign_write(
     let op = unsafe { &*op }.clone();
     let expire = expire_to_duration(expire)?;
     let write_opts = make_write_options(env, &options)?;
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.presign_write_options(&path, expire, write_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
@@ -624,11 +634,12 @@ fn intern_presign_stat(
     let op = unsafe { &*op }.clone();
     let expire = expire_to_duration(expire)?;
     let stat_opts = make_stat_options(env, &options)?;
-    let id = request_id(env)?;
 
     let path = jstring_to_string(env, &path)?;
 
-    executor_or_default(env, executor)?.spawn(async move {
+    let executor = executor_or_default(env, executor)?;
+    let id = request_id(env)?;
+    executor.spawn(async move {
         let result = op.presign_stat_options(&path, expire, stat_opts).await;
         complete_future(id, move |env| make_presigned_request(env, result?));
     });
@@ -663,6 +674,11 @@ where
     let vm = JavaVM::singleton().expect("JavaVM singleton must be initialized");
     vm.attach_current_thread(|env| -> Result<()> {
         let future = get_future(env, id)?;
+        if future.is_null() {
+            // The Java future was cancelled or completed before the native
+            // operation finished, so the registry no longer holds an entry.
+            return Ok(());
+        }
         match build(env) {
             Ok(object) => {
                 env.call_method(
@@ -687,6 +703,11 @@ where
     .expect("complete future must succeed");
 }
 
+/// Allocate the Java future that will receive the native operation result.
+///
+/// Call this only after every fallible argument conversion and executor lookup
+/// has succeeded. The registry owns the new entry until the operation finishes,
+/// so allocating it earlier would leak the entry when a conversion fails.
 fn request_id(env: &mut Env) -> Result<jlong> {
     Ok(env
         .call_static_method(

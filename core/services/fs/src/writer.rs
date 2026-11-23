@@ -179,18 +179,19 @@ impl FsWriter {
         if let Some(atomic_write_dir) = &core.atomic_write_dir {
             // Fail fast on an existing destination instead of staging content
             // that the conditional commit must reject.
-            let target_exists = (op.if_not_exists() || op.append())
+            if op.if_not_exists()
                 && tokio::fs::try_exists(&target_path)
                     .await
-                    .map_err(new_std_io_error)?;
-            if op.if_not_exists() && target_exists {
+                    .map_err(new_std_io_error)?
+            {
                 return Err(Error::new(
                     ErrorKind::ConditionNotMatch,
                     "file already exists, doesn't match the condition if_not_exists",
                 ));
             }
-            // Only an unconditional append may write to an existing file in place.
-            let append_in_place = op.append() && target_exists;
+            // Unconditional append always opens the target directly so
+            // concurrent writers cannot overwrite each other when closing.
+            let append_in_place = op.append() && !op.if_not_exists();
             if !append_in_place {
                 temp_path = Some(
                     core.ensure_write_abs_path(atomic_write_dir, &build_tmp_path_of(path))
@@ -331,7 +332,7 @@ impl oio::Write for FsWriter {
         } else {
             Err(Error::new(
                 ErrorKind::Unsupported,
-                "Fs doesn't support abort if atomic_write_dir is not set",
+                "Fs doesn't support abort for non-staged writes",
             ))
         }
     }

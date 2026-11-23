@@ -63,7 +63,8 @@ pub fn new_tos_copier(
     let concurrent = args.concurrent();
 
     Ok(oio::MultipartCopier::new(
-        (ctx.executor().clone(), capability),
+        ctx.executor().clone(),
+        capability,
         TosCopier {
             core,
             ctx: ctx.clone(),

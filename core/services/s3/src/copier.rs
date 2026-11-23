@@ -68,7 +68,8 @@ pub fn new_s3_copier(
     let concurrent = args.concurrent();
 
     Ok(oio::MultipartCopier::new(
-        (ctx.executor().clone(), capability),
+        ctx.executor().clone(),
+        capability,
         S3Copier {
             core,
             ctx: ctx.clone(),

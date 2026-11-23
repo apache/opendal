@@ -129,6 +129,14 @@ available bytes. Keep using `oio::Read::read` for an exact bounded range.
 
 `raw::oio::FlatLister` has been removed. Recursive listing simulation for services without native recursive listing is provided by [`SimulateLayer`][crate::layers::SimulateLayer] (enabled automatically with the default `auto-simulate` feature). Use `SimulateLayer` instead of constructing `oio::FlatLister` directly.
 
+### Explicit executor and capability in `oio::MultipartCopier::new`
+
+`raw::oio::IntoMultipartCopyContext` has been removed, and
+`raw::oio::MultipartCopier::new` now takes `executor: Executor` and
+`capability: Capability` as explicit parameters instead of a single
+`impl IntoMultipartCopyContext` argument. Pass `executor` and `capability`
+separately when constructing a `MultipartCopier`.
+
 ## Services
 
 ### Redb requires `redb` 5

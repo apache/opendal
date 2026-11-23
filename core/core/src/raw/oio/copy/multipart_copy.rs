@@ -75,24 +75,6 @@ struct CopyInput<C: MultipartCopy> {
     range: BytesRange,
 }
 
-/// Build executor and capability inputs for [`MultipartCopier`].
-pub trait IntoMultipartCopyContext {
-    /// Convert into executor and capability.
-    fn into_multipart_copy_context(self) -> (Executor, Capability);
-}
-
-impl IntoMultipartCopyContext for Executor {
-    fn into_multipart_copy_context(self) -> (Executor, Capability) {
-        (self, Capability::default())
-    }
-}
-
-impl IntoMultipartCopyContext for (Executor, Capability) {
-    fn into_multipart_copy_context(self) -> (Executor, Capability) {
-        self
-    }
-}
-
 struct CopiedPart {
     part: MultipartPart,
     size: u64,
@@ -131,14 +113,14 @@ pub struct MultipartCopier<C: MultipartCopy> {
 impl<C: MultipartCopy> MultipartCopier<C> {
     /// Create a new MultipartCopier.
     pub fn new(
-        context: impl IntoMultipartCopyContext,
+        executor: Executor,
+        capability: Capability,
         inner: C,
         source_content_length_hint: Option<u64>,
         copy_once_threshold: u64,
         part_size: u64,
         concurrent: usize,
     ) -> Self {
-        let (executor, capability) = context.into_multipart_copy_context();
         let copier = Arc::new(inner);
         let concurrent = concurrent.max(1);
 
@@ -497,8 +479,15 @@ mod tests {
     #[tokio::test]
     async fn test_content_length_hint_skips_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier =
-            MultipartCopier::new(crate::test_executor(), inner.clone(), Some(8), 8, 8, 1);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            Some(8),
+            8,
+            8,
+            1,
+        );
 
         let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 0);
@@ -511,7 +500,15 @@ mod tests {
     #[tokio::test]
     async fn test_missing_content_length_hint_loads_source_metadata() -> Result<()> {
         let inner = TestCopy::new(8);
-        let mut copier = MultipartCopier::new(crate::test_executor(), inner.clone(), None, 8, 8, 1);
+        let mut copier = MultipartCopier::new(
+            crate::test_executor(),
+            Capability::default(),
+            inner.clone(),
+            None,
+            8,
+            8,
+            1,
+        );
 
         let metadata = copier.close().await?;
         assert_eq!(inner.source_metadata_calls.load(Ordering::Relaxed), 1);
@@ -532,7 +529,8 @@ mod tests {
         // source_size=10, part_size=1, copy_once_threshold=0 -> 10 parts needed, only 2 allowed.
         let inner = TestCopy::new(10);
         let mut copier = MultipartCopier::new(
-            /*context=*/ (crate::test_executor(), capability),
+            /*executor=*/ crate::test_executor(),
+            /*capability=*/ capability,
             /*inner=*/ inner.clone(),
             /*source_content_length_hint=*/ Some(10),
             /*copy_once_threshold=*/ 0,
@@ -632,6 +630,7 @@ mod tests {
         let state = inner.state.clone();
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner,
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -658,6 +657,7 @@ mod tests {
         let state = inner.state.clone();
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner,
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -697,6 +697,7 @@ mod tests {
         let inner = TestCopy::new(8);
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner.clone(),
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -731,6 +732,7 @@ mod tests {
         let inner = TestCopy::new(8);
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner.clone(),
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -764,6 +766,7 @@ mod tests {
         let inner = TestCopy::with_abort_failures(8, 1);
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner.clone(),
             Some(8),
             /*copy_once_threshold=*/ 0,
@@ -813,6 +816,7 @@ mod tests {
         let inner = TestCopy::new(8);
         let mut copier = MultipartCopier::new(
             crate::test_executor(),
+            Capability::default(),
             inner.clone(),
             Some(8),
             /*copy_once_threshold=*/ 0,

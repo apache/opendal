@@ -23,7 +23,9 @@ accepted values, defaults, and environment interaction.
 
 ### Credential resolution
 
-OSS tries explicit access keys, environment credentials, OIDC assume-role
+OSS tries explicit access keys, environment credentials, the OSS profile file
+(`~/.oss/credentials`), the Alibaba Cloud shared credentials and CLI config
+files, credentials from `ALIBABA_CLOUD_CREDENTIALS_URI`, OIDC assume-role
 credentials, and ECS instance RAM role credentials, in that order. The first
 provider that returns credentials is used. In ACK RRSA deployments, OIDC
 credentials therefore take precedence over the node's ECS metadata credentials.
@@ -32,6 +34,13 @@ An OSS permission error does not trigger a switch to another credential provider
 
 When `role_arn` is set in the service configuration, these providers supply the
 base credentials for the additional AK-based AssumeRole request.
+
+Set [`OssBuilder::disable_config_load`] to stop reading ambient configuration:
+the environment, `~/.oss/credentials`, the Alibaba Cloud shared credentials and
+CLI config files, and `ALIBABA_CLOUD_CREDENTIALS_URI`. Explicit access keys, OIDC
+options that are all set on the builder, and the `role_arn` flow keep working.
+ECS instance RAM role credentials still load because they come from instance
+metadata instead of local configuration.
 
 [`OssBuilder::credential_provider_chain`] replaces this entire chain, including
 the additional AssumeRole provider. Explicit access keys,
@@ -88,7 +97,7 @@ use opendal_core::reqsign_core;
 use opendal_core::reqsign_core::time::Timestamp;
 use opendal_core::reqsign_core::{Context, ProvideCredential, ProvideCredentialChain};
 use opendal_service_oss::Oss;
-use reqsign_aliyun_oss::Credential;
+use opendal_service_oss::reqsign_aliyun_oss::Credential;
 
 #[derive(Debug)]
 struct CustomStsProvider;

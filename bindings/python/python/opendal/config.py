@@ -663,6 +663,8 @@ class OssConfig(TypedDict):
     """Bucket for oss."""
     delete_max_size: NotRequired[int]
     """Deprecated: OSS delete batch capability is enabled by default. [Deprecated since 0.57.0] OSS delete batch capability is enabled by default. Use CapabilityOverrideLayer to override delete_max_size for specific endpoints."""
+    disable_config_load: NotRequired[bool]
+    """Disable loading credentials from ambient sources.  This removes the environment provider and the OSS profile, Alibaba Cloud shared credentials, Alibaba Cloud CLI config, and `ALIBABA_CLOUD_CREDENTIALS_URI` sources. Explicit access keys, OIDC options that are all set on the builder, and the `role_arn` AssumeRole flow remain enabled, and ECS instance RAM role credentials keep loading from instance metadata."""
     enable_versioning: NotRequired[bool]
     """Deprecated: OSS versioning capability is enabled by default. [Deprecated since 0.57.0] OSS versioning capability is enabled by default and this option is no longer needed."""
     endpoint: NotRequired[str]

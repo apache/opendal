@@ -2608,6 +2608,16 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
+         * <p>Disable loading credentials from ambient sources.</p>
+         * <p>This removes the environment provider and the OSS profile, Alibaba
+         * Cloud shared credentials, Alibaba Cloud CLI config, and
+         * <code>ALIBABA_CLOUD_CREDENTIALS_URI</code> sources. Explicit access keys, OIDC
+         * options that are all set on the builder, and the <code>role_arn</code> AssumeRole
+         * flow remain enabled, and ECS instance RAM role credentials keep loading
+         * from instance metadata.</p>
+         */
+        public final Boolean disableConfigLoad;
+        /**
          * <p>Deprecated: OSS versioning capability is enabled by default.</p>
          *
          * @deprecated OSS versioning capability is enabled by default and this option is no longer needed.
@@ -2717,6 +2727,9 @@ public interface ServiceConfig {
             map.put("bucket", bucket);
             if (deleteMaxSize != null) {
                 map.put("delete_max_size", String.valueOf(deleteMaxSize));
+            }
+            if (disableConfigLoad != null) {
+                map.put("disable_config_load", String.valueOf(disableConfigLoad));
             }
             if (enableVersioning != null) {
                 map.put("enable_versioning", String.valueOf(enableVersioning));

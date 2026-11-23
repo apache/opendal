@@ -77,19 +77,12 @@ impl MimeGuessLayer {
 
 impl Layer for MimeGuessLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
+        Arc::new(MimeGuessService(inner))
     }
 }
 
-impl MimeGuessLayer {
-    fn layer(&self, inner: Servicer) -> MimeGuessAccessor {
-        MimeGuessAccessor(inner)
-    }
-}
-
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct MimeGuessAccessor(Servicer);
+struct MimeGuessService(Servicer);
 
 fn mime_from_path(path: &str) -> Option<&str> {
     if path.ends_with('/') {
@@ -139,7 +132,7 @@ fn rpstat_with_mime(path: &str, rp: RpStat) -> RpStat {
     })
 }
 
-impl Service for MimeGuessAccessor {
+impl Service for MimeGuessService {
     type Reader = oio::Reader;
     type Writer = oio::Writer;
     type Lister = oio::Lister;

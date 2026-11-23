@@ -18,6 +18,8 @@
  */
 
 #include <ctime>
+#include <iterator>
+#include <limits>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -380,6 +382,274 @@ TEST(OpenDALReaderTest, ReadAndReadAtValidateArguments) {
   // Reader stays usable after rejected and zero-length reads.
   EXPECT_EQ(reader.Read(buf, sizeof(buf)), 4);
   EXPECT_EQ(std::string_view(buf, 4), "hell");
+}
+
+TEST(OpenDALReaderTest, ReaderStreamSeekCurWithinBuffer) {
+  opendal::Operator op("memory");
+  op.Write("seek_cur_buf", "0123456789");
+
+  opendal::ReaderStream stream(op.GetReader("seek_cur_buf"));
+
+  char buf[2] = {};
+  stream.read(buf, 2);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(std::string_view(buf, 2), "01");
+  EXPECT_EQ(stream.tellg(), 2);
+
+  // Seek forward within the unread buffered bytes.
+  stream.seekg(3, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 5);
+  EXPECT_EQ(stream.get(), '5');
+  EXPECT_EQ(stream.tellg(), 6);
+
+  // Seek backward within the buffered bytes.
+  stream.seekg(-1, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 5);
+  EXPECT_EQ(stream.get(), '5');
+  EXPECT_EQ(stream.tellg(), 6);
+
+  stream.seekg(-5, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 1);
+  EXPECT_EQ(stream.get(), '1');
+  EXPECT_EQ(stream.tellg(), 2);
+
+  // seekpos delegates to absolute positioning within the buffer.
+  stream.seekg(std::streampos(4));
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 4);
+  EXPECT_EQ(stream.get(), '4');
+  EXPECT_EQ(stream.tellg(), 5);
+
+  // Seek to exact buffer end (EOF).
+  stream.seekg(5, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 10);
+  EXPECT_EQ(stream.peek(), std::char_traits<char>::eof());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 10);
+}
+
+TEST(OpenDALReaderTest, ReaderStreamTellgAtEof) {
+  opendal::Operator op("memory");
+  op.Write("eof_test", "0123456789");
+
+  {
+    opendal::ReaderStream stream(op.GetReader("eof_test"));
+    std::string content(std::istreambuf_iterator<char>{stream}, {});
+    EXPECT_EQ(content, "0123456789");
+    EXPECT_EQ(stream.tellg(), 10);
+
+    // Repeated underflow/peek/get calls at EOF must not advance tellg().
+    for (int i = 0; i < 3; ++i) {
+      EXPECT_EQ(stream.peek(), std::char_traits<char>::eof());
+      stream.clear();
+      EXPECT_EQ(stream.tellg(), 10);
+    }
+    EXPECT_EQ(stream.get(), std::char_traits<char>::eof());
+    stream.clear();
+    EXPECT_EQ(stream.tellg(), 10);
+
+    // Relative seek backward from EOF works.
+    stream.seekg(-2, std::ios::cur);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(stream.tellg(), 8);
+    char tail[2] = {};
+    stream.read(tail, 2);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(std::string_view(tail, 2), "89");
+    EXPECT_EQ(stream.tellg(), 10);
+  }
+
+  {
+    // Reading past EOF leaves tellg() at content length after clear().
+    opendal::ReaderStream stream(op.GetReader("eof_test"));
+    char buf[20] = {};
+    stream.read(buf, sizeof(buf));
+    EXPECT_EQ(stream.gcount(), 10);
+    EXPECT_TRUE(stream.eof());
+    EXPECT_TRUE(stream.fail());
+    stream.clear();
+    EXPECT_EQ(stream.tellg(), 10);
+  }
+
+  {
+    op.Write("empty_test", "");
+    opendal::ReaderStream stream(op.GetReader("empty_test"));
+    EXPECT_EQ(stream.tellg(), 0);
+    EXPECT_EQ(stream.peek(), std::char_traits<char>::eof());
+    stream.clear();
+    EXPECT_EQ(stream.tellg(), 0);
+  }
+}
+
+TEST(OpenDALReaderTest, ReaderStreamFromNonZeroReaderPosition) {
+  opendal::Operator op("memory");
+  op.Write("nonzero_reader", "0123456789");
+
+  {
+    auto reader = op.GetReader("nonzero_reader");
+    char prefix[3] = {};
+    ASSERT_EQ(reader.Read(prefix, 3), 3);
+    EXPECT_EQ(std::string_view(prefix, 3), "012");
+
+    opendal::ReaderStream stream(std::move(reader));
+    EXPECT_EQ(stream.tellg(), 3);
+
+    char next[2] = {};
+    stream.read(next, 2);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(std::string_view(next, 2), "34");
+    EXPECT_EQ(stream.tellg(), 5);
+
+    stream.seekg(2, std::ios::cur);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(stream.tellg(), 7);
+    EXPECT_EQ(stream.get(), '7');
+    EXPECT_EQ(stream.tellg(), 8);
+
+    // Seek earlier than the ReaderStream's starting offset.
+    stream.seekg(-6, std::ios::cur);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(stream.tellg(), 2);
+    stream.read(next, 2);
+    ASSERT_TRUE(!!stream);
+    EXPECT_EQ(std::string_view(next, 2), "23");
+  }
+
+  {
+    auto reader = op.GetReader("nonzero_reader");
+    ASSERT_EQ(reader.Seek(6, std::ios::beg), 6);
+
+    opendal::ReaderStream stream(std::move(reader));
+    EXPECT_EQ(stream.tellg(), 6);
+    std::string rest(std::istreambuf_iterator<char>{stream}, {});
+    EXPECT_EQ(rest, "6789");
+    EXPECT_EQ(stream.tellg(), 10);
+  }
+}
+
+TEST(OpenDALReaderTest, ReaderStreamSeekBegEndErrorsAndAcrossBuffers) {
+  opendal::Operator op("memory");
+  constexpr std::size_t kSize = 20000;
+  std::string data(kSize, '\0');
+  for (std::size_t i = 0; i < kSize; ++i) {
+    data[i] = static_cast<char>((i * 31 + 7) & 0x7f);
+  }
+  op.Write("large_seek", data);
+
+  opendal::ReaderStream stream(op.GetReader("large_seek"));
+
+  // Fill initial 8192-byte buffer by reading 100 bytes.
+  std::string chunk(100, '\0');
+  stream.read(chunk.data(), chunk.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(chunk, data.substr(0, 100));
+  EXPECT_EQ(stream.tellg(), 100);
+
+  // Seek forward across the 8192-byte buffer boundary via cur.
+  stream.seekg(10000, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 10100);
+  chunk.resize(16);
+  stream.read(chunk.data(), chunk.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(chunk, data.substr(10100, 16));
+  EXPECT_EQ(stream.tellg(), 10116);
+
+  // Seek backward across the buffer boundary via cur.
+  stream.seekg(-5000, std::ios::cur);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 5116);
+  stream.read(chunk.data(), chunk.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(chunk, data.substr(5116, 16));
+  EXPECT_EQ(stream.tellg(), 5132);
+
+  // Seek via beg and end.
+  stream.seekg(0, std::ios::beg);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 0);
+  stream.read(chunk.data(), chunk.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(chunk, data.substr(0, 16));
+
+  stream.seekg(19984, std::ios::beg);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 19984);
+  stream.read(chunk.data(), chunk.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(chunk, data.substr(19984, 16));
+
+  stream.seekg(-12, std::ios::end);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), 19988);
+  std::string tail(12, '\0');
+  stream.read(tail.data(), tail.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(tail, data.substr(19988, 12));
+
+  stream.seekg(0, std::ios::end);
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(stream.tellg(), static_cast<std::streampos>(kSize));
+  EXPECT_EQ(stream.peek(), std::char_traits<char>::eof());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), static_cast<std::streampos>(kSize));
+
+  // Invalid seeks must set failbit (not badbit) and preserve position/buffer.
+  stream.seekg(500, std::ios::beg);
+  ASSERT_TRUE(!!stream);
+  std::string probe(4, '\0');
+  stream.read(probe.data(), probe.size());
+  ASSERT_TRUE(!!stream);
+  EXPECT_EQ(probe, data.substr(500, 4));
+  EXPECT_EQ(stream.tellg(), 504);
+
+  stream.seekg(-1, std::ios::beg);
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 504);
+  EXPECT_EQ(stream.get(), static_cast<unsigned char>(data[504]));
+
+  stream.seekg(-600, std::ios::cur);
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 505);
+  EXPECT_EQ(stream.get(), static_cast<unsigned char>(data[505]));
+
+  stream.seekg(-static_cast<std::streamoff>(kSize) - 1, std::ios::end);
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 506);
+  EXPECT_EQ(stream.get(), static_cast<unsigned char>(data[506]));
+
+  stream.seekg(std::streampos(-1));
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 507);
+
+  EXPECT_EQ(stream.rdbuf()->pubseekoff(0, std::ios::beg, std::ios::out),
+            std::streampos(-1));
+  EXPECT_EQ(stream.tellg(), 507);
+
+  stream.seekg((std::numeric_limits<std::streamoff>::max)(), std::ios::cur);
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 507);
+
+  stream.seekg((std::numeric_limits<std::streamoff>::max)(), std::ios::end);
+  EXPECT_TRUE(stream.fail());
+  EXPECT_FALSE(stream.bad());
+  stream.clear();
+  EXPECT_EQ(stream.tellg(), 507);
+  EXPECT_EQ(stream.get(), static_cast<unsigned char>(data[507]));
 }
 
 } // namespace opendal::test

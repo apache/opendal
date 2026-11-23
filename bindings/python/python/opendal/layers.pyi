@@ -66,11 +66,17 @@ class ConcurrentLimitLayer(Layer):
         Parameters
         ----------
         limit : int
-            Maximum number of concurrent operations allowed.
+            Maximum number of concurrent operations allowed. Must be greater
+            than ``0``.
 
         Returns
         -------
         ConcurrentLimitLayer
+
+        Raises
+        ------
+        ConfigInvalid
+            If ``limit`` is ``0``.
         """
 
 @disjoint_base

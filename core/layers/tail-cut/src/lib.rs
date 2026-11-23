@@ -306,23 +306,16 @@ impl TailCutLayer {
 
 impl Layer for TailCutLayer {
     fn apply_service(&self, inner: Servicer) -> Servicer {
-        Arc::new(self.layer(inner))
-    }
-}
-
-impl TailCutLayer {
-    fn layer(&self, inner: Servicer) -> TailCutService {
-        TailCutService {
+        Arc::new(TailCutService {
             inner,
             config: self.config.clone(),
             stats: self.stats.clone(),
-        }
+        })
     }
 }
 
-#[doc(hidden)]
 /// Service wrapper that applies tail-cut deadlines to operation calls.
-pub struct TailCutService {
+struct TailCutService {
     inner: Servicer,
     config: Arc<TailCutConfig>,
     stats: Arc<TailCutStats>,
@@ -501,9 +494,8 @@ impl Service for TailCutService {
     }
 }
 
-#[doc(hidden)]
 /// Body wrapper that applies tail-cut deadlines to streaming I/O calls.
-pub struct TailCutWrapper<R> {
+struct TailCutWrapper<R> {
     inner: R,
     size: Option<u64>,
     config: Arc<TailCutConfig>,

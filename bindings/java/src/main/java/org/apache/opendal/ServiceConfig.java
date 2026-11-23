@@ -3175,12 +3175,13 @@ public interface ServiceConfig {
          */
         public final Long deleteMaxSize;
         /**
-         * <p>Disable automatic endpoint loading and the environment/profile
+         * <p>Disable automatic endpoint loading and ambient environment/profile
          * credential providers.</p>
          * <p>This skips endpoint environment variables and removes the static
-         * environment and shared-profile credential slots. Region environment
-         * lookup and other credential providers, including AWS container
-         * credentials and EC2 instance metadata, remain enabled.</p>
+         * environment, shared-profile, SSO, web-identity, and external process
+         * credential slots. Region environment lookup and compute metadata
+         * credential providers, including AWS container credentials and EC2
+         * instance metadata, remain enabled.</p>
          */
         public final Boolean disableConfigLoad;
         /**

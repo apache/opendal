@@ -337,7 +337,10 @@ impl File {
         };
 
         let whence = match whence {
-            0 => SeekFrom::Start(pos as u64),
+            0 => SeekFrom::Start(
+                u64::try_from(pos)
+                    .map_err(|_| PyValueError::new_err(format!("negative seek value {pos}")))?,
+            ),
             1 => SeekFrom::Current(pos),
             2 => SeekFrom::End(pos),
             _ => return Err(PyValueError::new_err("invalid whence")),
@@ -833,7 +836,10 @@ impl AsyncFile {
         let state = self.0.clone();
 
         let whence = match whence {
-            0 => SeekFrom::Start(pos as u64),
+            0 => SeekFrom::Start(
+                u64::try_from(pos)
+                    .map_err(|_| PyValueError::new_err(format!("negative seek value {pos}")))?,
+            ),
             1 => SeekFrom::Current(pos),
             2 => SeekFrom::End(pos),
             _ => return Err(PyValueError::new_err("invalid whence")),

@@ -138,6 +138,19 @@ impl Service for ObjectStoreService {
     }
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        // Object stores have no directory marker objects, and
+        // `object_store::path::Path` drops a trailing slash. Looking up `foo/`
+        // would otherwise report the metadata of the regular file `foo`.
+        if path == "/" {
+            return Ok(RpStat::new(MetadataBuilder::dir().build()));
+        }
+        if path.ends_with('/') {
+            return Err(
+                Error::new(ErrorKind::NotFound, "directory has no object metadata")
+                    .with_context("path", path),
+            );
+        }
+
         let path = ObjectStorePath::from(path);
         let opts = parse_op_stat(&args)?;
         let result = self
@@ -421,6 +434,55 @@ mod tests {
         // Verify file is deleted
         let result = backend.stat(&ctx, path, OpStat::default()).await;
         assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_object_store_stat_directory_path_without_simulation() {
+        let store: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
+        let backend = ObjectStoreBuilder::new(store)
+            .build()
+            .expect("build should succeed");
+        let ctx = test_ctx();
+
+        for path in ["file", "nested/child"] {
+            let mut writer = backend
+                .write(&ctx, path, OpWrite::default())
+                .expect("write should succeed");
+            writer
+                .write(Buffer::from("content"))
+                .await
+                .expect("write content should succeed");
+            writer.close().await.expect("close should succeed");
+        }
+
+        for path in ["file/", "nested/"] {
+            let err = backend
+                .stat(&ctx, path, OpStat::default())
+                .await
+                .expect_err("stat of a directory path must not resolve to a file");
+            assert_eq!(err.kind(), ErrorKind::NotFound, "path: {path}");
+        }
+
+        let meta = backend
+            .stat(&ctx, "/", OpStat::default())
+            .await
+            .expect("stat of the root should succeed");
+        assert!(meta.into_metadata().is_dir());
+    }
+
+    #[tokio::test]
+    async fn test_object_store_stat_directory_path_with_simulation() -> anyhow::Result<()> {
+        let op = new_object_store_operator();
+        op.write("file", "content").await?;
+        op.write("nested/child", "content").await?;
+
+        assert_eq!(
+            op.stat("file/").await.unwrap_err().kind(),
+            ErrorKind::NotFound
+        );
+        assert!(op.stat("nested/").await?.is_dir());
+        assert!(op.stat("/").await?.is_dir());
+        Ok(())
     }
 
     #[tokio::test]

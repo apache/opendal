@@ -73,11 +73,11 @@ where
     T: FromPyObjectOwned<'py>,
 {
     match dict.get_item(name)? {
-        Some(v) => v
+        Some(v) if !v.is_none() => v
             .extract::<T>()
             .map(Some)
             .map_err(|err| map_exception(name, err.into())),
-        None => Ok(None),
+        _ => Ok(None),
     }
 }
 

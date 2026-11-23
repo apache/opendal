@@ -2522,7 +2522,7 @@ mod tests {
         let backend = S3Builder::default()
             .bucket("test")
             .region("us-east-1")
-            .build_backend()
+            .build_inner(S3_SCHEME)
             .unwrap();
         let request = backend
             .core

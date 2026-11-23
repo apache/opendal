@@ -34,7 +34,7 @@ use syn::{
 };
 
 use super::capability::{self, CapabilityField};
-use super::parser::Services;
+use super::parser::{S3_PROVIDER_PRESETS, Services};
 
 const SUMMARY_FIELDS: &[&str] = &[
     "stat",
@@ -204,11 +204,19 @@ pub fn extract_all(workspace_dir: &Path, services: &Services) -> Result<Capabili
 
     let mut service_docs = Vec::with_capacity(services.len());
     for name in services.keys() {
-        let core_dir = workspace_dir.join("core/core/src/services").join(name);
+        // Presets use the S3 runtime's capability declaration, not a separate crate.
+        let runtime_name = if S3_PROVIDER_PRESETS.contains(&name.as_str()) {
+            "s3"
+        } else {
+            name.as_str()
+        };
+        let core_dir = workspace_dir
+            .join("core/core/src/services")
+            .join(runtime_name);
         let dir = if core_dir.is_dir() {
             core_dir
         } else {
-            let srv_dir = workspace_dir.join("core/services").join(name);
+            let srv_dir = workspace_dir.join("core/services").join(runtime_name);
             if !srv_dir.is_dir() {
                 bail!("service directory not found for `{name}`");
             }

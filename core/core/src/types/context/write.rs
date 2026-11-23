@@ -135,8 +135,14 @@ impl PendingCopy {
     }
 }
 
-pub struct WriteGenerator<W> {
-    w: W,
+/// WriteState owns the mutable state of one logical write call.
+///
+/// It holds the raw [`oio::Writer`] opened on the composed service together with
+/// the chunk buffer, the partially accepted write tracking, and the `copy_from`
+/// continuation state. Every writer front-end hands its calls to this state so
+/// that chunking and abort rules stay identical across them.
+pub struct WriteState {
+    w: oio::Writer,
 
     ctx: Option<Arc<WriteContext>>,
 
@@ -154,8 +160,8 @@ pub struct WriteGenerator<W> {
     buffer: oio::QueueBuf,
 }
 
-impl WriteGenerator<oio::Writer> {
-    /// Create a new exact buf writer.
+impl WriteState {
+    /// Create the write state for the given write context.
     pub fn create(ctx: Arc<WriteContext>) -> Result<Self> {
         let (chunk_size, exact) = ctx.calculate_chunk_size();
         let can_copy_from = ctx.service().capability().write_can_copy_from && !ctx.args().append();
@@ -187,9 +193,7 @@ impl WriteGenerator<oio::Writer> {
             buffer: oio::QueueBuf::new(),
         }
     }
-}
 
-impl WriteGenerator<oio::Writer> {
     /// Write as much of the buffer as the next chunk can accept.
     pub async fn write(&mut self, bs: Buffer) -> Result<usize> {
         self.check_writable()?;
@@ -1666,7 +1670,7 @@ mod tests {
         rng.fill_bytes(&mut expected);
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
+        let mut w = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: Arc::new(Mutex::new(vec![])),
@@ -1694,7 +1698,7 @@ mod tests {
         setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
+        let mut w = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: Arc::new(Mutex::new(vec![])),
@@ -1725,7 +1729,7 @@ mod tests {
         setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
+        let mut w = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: Arc::new(Mutex::new(vec![])),
@@ -1768,7 +1772,7 @@ mod tests {
         setup();
 
         let buf = Arc::new(Mutex::new(vec![]));
-        let mut w = WriteGenerator::new(
+        let mut w = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: Arc::new(Mutex::new(vec![])),
@@ -1817,7 +1821,7 @@ mod tests {
 
         let buf = Arc::new(Mutex::new(vec![]));
         let buffer_size = rng.random_range(1..10);
-        let mut writer = WriteGenerator::new(
+        let mut writer = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: Arc::new(Mutex::new(vec![])),
@@ -1851,7 +1855,7 @@ mod tests {
 
     /// Test that when writing a large buffer in exact mode, it gets split into chunks.
     ///
-    /// This test verifies that WriteGenerator correctly handles large buffers by
+    /// This test verifies that WriteState correctly handles large buffers by
     /// splitting them into chunks of the configured chunk size, rather than writing
     /// everything at once.
     #[tokio::test]
@@ -1863,7 +1867,7 @@ mod tests {
 
         let buf = Arc::new(Mutex::new(vec![]));
         let write_sizes = Arc::new(Mutex::new(vec![]));
-        let mut writer = WriteGenerator::new(
+        let mut writer = WriteState::new(
             Box::new(MockWriter {
                 buf: buf.clone(),
                 write_sizes: write_sizes.clone(),

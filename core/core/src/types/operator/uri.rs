@@ -390,13 +390,13 @@ mod tests {
     #[test]
     fn parse_uri_keeps_plain_userinfo_unchanged() {
         let uri = OperatorUri::new(
-            "https://alice:{{PASSWORD_kqn7m2zn}}@example.com/share",
+            "https://alice:pl+ain-pass@example.com/share",
             Vec::<(String, String)>::new(),
         )
         .unwrap();
 
         assert_eq!(uri.username(), Some("alice"));
-        assert_eq!(uri.password(), Some("{{PASSWORD_kqn7m2zn}}"));
+        assert_eq!(uri.password(), Some("pl+ain-pass"));
         assert_eq!(uri.root(), Some("share"));
     }
 }

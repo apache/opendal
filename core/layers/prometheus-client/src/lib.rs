@@ -19,6 +19,8 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
+use std::sync::Arc;
+
 use opendal_core::OperationContext;
 use opendal_core::raw::*;
 use opendal_layer_observe_metrics_common as observe;
@@ -409,10 +411,7 @@ pub struct PrometheusClientInterceptor {
 
 impl observe::MetricsIntercept for PrometheusClientInterceptor {
     fn observe(&self, labels: observe::MetricLabels, value: observe::MetricValue) {
-        let labels = OperationLabels {
-            labels,
-            disable_label_root: self.disable_label_root,
-        };
+        let labels = OperationLabels::new(labels, self.disable_label_root);
         match value {
             observe::MetricValue::OperationBytes(v) => self
                 .operation_bytes
@@ -492,6 +491,23 @@ struct OperationLabels {
     disable_label_root: bool,
 }
 
+impl OperationLabels {
+    /// Build the label set used as the `Family` key.
+    ///
+    /// `Family` keys series by this value, so it must match the labels that
+    /// [`EncodeLabelSet::encode`] emits. When the root label is disabled,
+    /// clearing it lets operators that only differ in root share one series.
+    fn new(mut labels: observe::MetricLabels, disable_label_root: bool) -> Self {
+        if disable_label_root {
+            labels.root = Arc::from("");
+        }
+        Self {
+            labels,
+            disable_label_root,
+        }
+    }
+}
+
 impl EncodeLabelSet for OperationLabels {
     fn encode(&self, encoder: &mut LabelSetEncoder<'_>) -> std::fmt::Result {
         (observe::LABEL_SCHEME, self.labels.scheme).encode(encoder.encode_label())?;
@@ -522,5 +538,81 @@ fn register_metric(registry: &mut Registry, metric: impl Metric, value: observe:
         registry.register_with_unit(name, help, Unit::Other(unit.to_string()), metric);
     } else {
         registry.register(name, help, metric);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use opendal_layer_observe_metrics_common as observe;
+    use opendal_layer_observe_metrics_common::MetricsIntercept;
+    use prometheus_client::registry::Registry;
+
+    use super::PrometheusClientLayer;
+
+    fn observe_stat_duration(layer: &PrometheusClientLayer, root: &str) {
+        // Memory derives its namespace from an allocation address, so drive the
+        // interceptor directly to observe two roots within one namespace.
+        let labels = observe::MetricLabels {
+            scheme: "memory",
+            namespace: "test".into(),
+            root: root.into(),
+            operation: "stat",
+            ..Default::default()
+        };
+        layer.interceptor.observe(
+            labels,
+            observe::MetricValue::OperationDurationSeconds(Duration::from_millis(1)),
+        );
+    }
+
+    fn stat_duration_count_series(registry: &Registry) -> Vec<String> {
+        let mut output = String::new();
+        prometheus_client::encoding::text::encode(&mut output, registry).unwrap();
+
+        let mut series = output
+            .lines()
+            .filter(|line| line.starts_with("opendal_operation_duration_seconds_count{"))
+            .map(str::to_string)
+            .collect::<Vec<_>>();
+        series.sort();
+        series
+    }
+
+    #[test]
+    fn test_disable_label_root_merges_roots_into_one_series() {
+        let mut registry = Registry::default();
+        let layer = PrometheusClientLayer::builder()
+            .disable_label_root(true)
+            .register(&mut registry);
+
+        observe_stat_duration(&layer, "/a");
+        observe_stat_duration(&layer, "/b");
+
+        assert_eq!(
+            stat_duration_count_series(&registry),
+            vec![
+                r#"opendal_operation_duration_seconds_count{scheme="memory",namespace="test",operation="stat"} 2"#
+                    .to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_enabled_label_root_keeps_roots_as_separate_series() {
+        let mut registry = Registry::default();
+        let layer = PrometheusClientLayer::builder().register(&mut registry);
+
+        observe_stat_duration(&layer, "/a");
+        observe_stat_duration(&layer, "/b");
+
+        assert_eq!(
+            stat_duration_count_series(&registry),
+            vec![
+                r#"opendal_operation_duration_seconds_count{scheme="memory",namespace="test",root="/a",operation="stat"} 1"#.to_string(),
+                r#"opendal_operation_duration_seconds_count{scheme="memory",namespace="test",root="/b",operation="stat"} 1"#.to_string(),
+            ]
+        );
     }
 }

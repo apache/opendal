@@ -82,6 +82,17 @@ impl FtpReadStream {
 
 impl oio::ReadStream for FtpReadStream {
     async fn read(&mut self) -> Result<Buffer> {
+        // A zero-length range never reads from the server. Finish the
+        // transfer without checking the reply: closing the data connection
+        // early makes the server report an aborted transfer even though the
+        // requested range is complete.
+        if self.remaining == 0 {
+            if let Some(data_stream) = self.data_stream.take() {
+                let _ = data_stream.finish().await;
+            }
+            return Ok(Buffer::new());
+        }
+
         let Some(data_stream) = self.data_stream.as_mut() else {
             return Ok(Buffer::new());
         };

@@ -17,28 +17,40 @@
 
 use foyer::{HybridCache, HybridCacheBuilder, RecoverMode};
 use futures::StreamExt;
-use opendal_core::raw::{Service, oio};
+use opendal_core::raw::{
+    OpCopy, OpCreateDir, OpDelete, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite,
+    RpCreateDir, RpPresign, RpRename, RpStat, Service, ServiceInfo, Servicer, oio,
+};
 use opendal_core::services::Memory;
-use opendal_core::{ErrorKind, Operator};
+use opendal_core::{
+    Buffer, Builder, Capability, Error, ErrorKind, Metadata, OperationContext, Operator, Result,
+};
 use opendal_layer_foyer::{Deleter, FoyerKey, FoyerLayer, FoyerService, FoyerValue, Writer};
 use opendal_service_fs::Fs;
 use std::ops::Range;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::sync::Notify;
 
 async fn cached_fs(dir: &tempfile::TempDir) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
     cached_fs_with_limit(dir, 0..usize::MAX).await
 }
 
-async fn cached_memory_with_limit(
-    size_limit: Range<usize>,
-) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
-    let cache = HybridCacheBuilder::new()
+async fn memory_cache() -> HybridCache<FoyerKey, FoyerValue> {
+    HybridCacheBuilder::new()
         .memory(1024 * 1024)
         .with_shards(1)
         .storage()
         .with_recover_mode(RecoverMode::None)
         .build()
         .await
-        .unwrap();
+        .unwrap()
+}
+
+async fn cached_memory_with_limit(
+    size_limit: Range<usize>,
+) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
+    let cache = memory_cache().await;
     let op = Operator::new(Memory::default())
         .unwrap()
         .layer(FoyerLayer::new(cache.clone()).with_size_limit(size_limit));
@@ -49,14 +61,7 @@ async fn cached_fs_with_limit(
     dir: &tempfile::TempDir,
     size_limit: Range<usize>,
 ) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
-    let cache = HybridCacheBuilder::new()
-        .memory(1024 * 1024)
-        .with_shards(1)
-        .storage()
-        .with_recover_mode(RecoverMode::None)
-        .build()
-        .await
-        .unwrap();
+    let cache = memory_cache().await;
     let op = Operator::new(Fs::default().root(dir.path().to_str().unwrap()))
         .unwrap()
         .layer(FoyerLayer::new(cache.clone()).with_size_limit(size_limit));
@@ -322,6 +327,313 @@ async fn aborted_write_keeps_cached_entry() {
 
     assert!(cache.contains(&key));
     assert_eq!(op.read("k").await.unwrap().to_vec(), b"old");
+}
+
+#[derive(Debug, Default)]
+struct CloseFaultBuilder {
+    fail_next_close: bool,
+    pending_next_close: bool,
+    recursive_delete: Option<Arc<RecursiveDeleteState>>,
+}
+
+impl Builder for CloseFaultBuilder {
+    type Config = ();
+
+    fn build(self) -> Result<impl Service> {
+        Ok(CloseFaultService {
+            inner: Arc::new(Memory::default().build()?),
+            fail_next_close: Arc::new(AtomicBool::new(self.fail_next_close)),
+            pending_next_close: Arc::new(AtomicBool::new(self.pending_next_close)),
+            recursive_delete: self.recursive_delete,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct CloseFaultService {
+    inner: Servicer,
+    fail_next_close: Arc<AtomicBool>,
+    pending_next_close: Arc<AtomicBool>,
+    recursive_delete: Option<Arc<RecursiveDeleteState>>,
+}
+
+struct CloseFaultWriter {
+    inner: oio::Writer,
+    fail_next_close: Arc<AtomicBool>,
+    pending_next_close: Arc<AtomicBool>,
+}
+
+impl oio::Write for CloseFaultWriter {
+    async fn write(&mut self, bs: Buffer) -> Result<()> {
+        self.inner.write(bs).await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        if self.pending_next_close.swap(false, Ordering::SeqCst) {
+            std::future::pending::<()>().await;
+        }
+        if self.fail_next_close.swap(false, Ordering::SeqCst) {
+            return Err(Error::new(ErrorKind::Unexpected, "injected close failure").set_temporary());
+        }
+        self.inner.close().await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
+#[derive(Debug, Default)]
+struct RecursiveDeleteState {
+    close_started: Notify,
+    finish_close: Notify,
+    fail_close: bool,
+}
+
+struct DelayedRecursiveDeleter {
+    inner: oio::Deleter,
+    state: Option<Arc<RecursiveDeleteState>>,
+    pending: Vec<(String, OpDelete)>,
+}
+
+impl oio::Delete for DelayedRecursiveDeleter {
+    async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+        if self.state.is_some() && args.recursive() {
+            self.pending.push((path.to_string(), args));
+            return Ok(());
+        }
+        self.inner.delete(path, args).await
+    }
+
+    async fn close(&mut self) -> Result<()> {
+        let Some(state) = self.state.clone() else {
+            return self.inner.close().await;
+        };
+
+        state.close_started.notify_one();
+        state.finish_close.notified().await;
+        for (path, args) in self.pending.drain(..) {
+            self.inner.delete(&path, args).await?;
+        }
+        self.inner.close().await?;
+        if state.fail_close {
+            return Err(
+                Error::new(ErrorKind::Unexpected, "injected recursive close failure")
+                    .set_temporary(),
+            );
+        }
+        Ok(())
+    }
+}
+
+impl Service for CloseFaultService {
+    type Reader = oio::Reader;
+    type Writer = CloseFaultWriter;
+    type Lister = oio::Lister;
+    type Deleter = DelayedRecursiveDeleter;
+    type Copier = oio::Copier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> Capability {
+        self.inner.capability()
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        Ok(CloseFaultWriter {
+            inner: self.inner.write(ctx, path, args)?,
+            fail_next_close: self.fail_next_close.clone(),
+            pending_next_close: self.pending_next_close.clone(),
+        })
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        Ok(DelayedRecursiveDeleter {
+            inner: self.inner.delete(ctx)?,
+            state: self.recursive_delete.clone(),
+            pending: vec![],
+        })
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
+    }
+}
+
+async fn fault_operator(
+    builder: CloseFaultBuilder,
+) -> (Operator, HybridCache<FoyerKey, FoyerValue>) {
+    let cache = memory_cache().await;
+    let op = Operator::new(builder)
+        .unwrap()
+        .layer(FoyerLayer::new(cache.clone()));
+    (op, cache)
+}
+
+#[tokio::test]
+async fn retried_close_caches_buffered_write() {
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        fail_next_close: true,
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("key");
+
+    let mut writer = op.writer("key").await.unwrap();
+    writer.write("hello").await.unwrap();
+    let err = writer.close().await.unwrap_err();
+    assert!(err.is_temporary());
+    assert_eq!(err.message(), "injected close failure");
+    writer.close().await.unwrap();
+
+    assert!(cache.contains(&key));
+    assert_eq!(op.read("key").await.unwrap().to_vec(), b"hello");
+}
+
+#[tokio::test]
+async fn cancelled_close_preserves_buffered_write_for_retry() {
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        pending_next_close: true,
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("key");
+
+    let mut writer = op.writer("key").await.unwrap();
+    writer.write("hello").await.unwrap();
+    {
+        let close = writer.close();
+        futures::pin_mut!(close);
+        assert!(futures::poll!(&mut close).is_pending());
+    }
+    writer.close().await.unwrap();
+
+    assert!(cache.contains(&key));
+    assert_eq!(op.read("key").await.unwrap().to_vec(), b"hello");
+}
+
+async fn warm_recursive_delete_cache(op: &Operator) {
+    for (path, value) in [("dir/a", "v1"), ("dir/sub/b", "v2"), ("dir2/c", "v3")] {
+        op.write(path, value).await.unwrap();
+    }
+    for (path, value) in [("dir/a", "v1"), ("dir/sub/b", "v2"), ("dir2/c", "v3")] {
+        assert_eq!(op.read(path).await.unwrap().to_vec(), value.as_bytes());
+    }
+}
+
+async fn assert_delayed_recursive_close_clears_cache(fail_close: bool) {
+    let state = Arc::new(RecursiveDeleteState {
+        fail_close,
+        ..Default::default()
+    });
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        recursive_delete: Some(state.clone()),
+        ..Default::default()
+    })
+    .await;
+    warm_recursive_delete_cache(&op).await;
+
+    let delete = {
+        let op = op.clone();
+        tokio::spawn(async move { op.delete_with("dir/").recursive(true).await })
+    };
+    state.close_started.notified().await;
+
+    // Force the mid-close read to fetch the object that the buffered backend
+    // deleter has not removed yet and repopulate the cache.
+    let key = unversioned_key("dir/a");
+    cache.remove(&key);
+    assert_eq!(op.read("dir/a").await.unwrap().to_vec(), b"v1");
+    assert!(cache.contains(&key));
+
+    state.finish_close.notify_one();
+    let result = delete.await.unwrap();
+    if fail_close {
+        let err = result.expect_err("injected close failure must be returned");
+        assert!(err.is_temporary());
+        assert_eq!(err.message(), "injected recursive close failure");
+    } else {
+        result.unwrap();
+    }
+
+    assert!(!cache.contains(&key));
+    for path in ["dir/a", "dir/sub/b"] {
+        assert_eq!(op.read(path).await.unwrap_err().kind(), ErrorKind::NotFound);
+    }
+    assert_eq!(op.read("dir2/c").await.unwrap().to_vec(), b"v3");
+}
+
+#[tokio::test]
+async fn recursive_close_clears_cache_repopulated_before_backend_delete() {
+    assert_delayed_recursive_close_clears_cache(false).await;
+}
+
+#[tokio::test]
+async fn failed_recursive_close_clears_cache_repopulated_before_backend_delete() {
+    assert_delayed_recursive_close_clears_cache(true).await;
+}
+
+#[tokio::test]
+async fn recursive_delete_does_not_serve_cached_descendants() {
+    let (op, cache) = cached_memory_with_limit(0..usize::MAX).await;
+    warm_recursive_delete_cache(&op).await;
+
+    op.delete_with("dir/").recursive(true).await.unwrap();
+
+    for path in ["dir/a", "dir/sub/b"] {
+        assert_eq!(op.read(path).await.unwrap_err().kind(), ErrorKind::NotFound);
+        assert!(!cache.contains(&unversioned_key(path)));
+    }
+    assert_eq!(op.read("dir2/c").await.unwrap().to_vec(), b"v3");
 }
 
 #[test]

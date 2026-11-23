@@ -161,8 +161,11 @@ impl Code for FoyerValue {
 ///   and caches the entire object if its size is within the configured
 ///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
 /// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
-///   closes. A failed delete is not invalidated. Cache invalidation happens before the underlying
-///   deleter is closed, so the data remains invalidated if closing the deleter fails.
+///   closes. A failed delete call is not invalidated. Exact-key invalidation happens before the
+///   underlying deleter is closed, so the data remains invalidated if closing the deleter fails.
+///   Recursive deletes also clear the entire cache after the underlying deleter closes, including
+///   when closing fails, because Foyer does not support prefix invalidation and buffered deleters
+///   can allow concurrent reads to refill deleted objects while closing.
 /// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
 ///   cache entry for the destination.
 /// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned

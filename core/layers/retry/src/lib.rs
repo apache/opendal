@@ -726,6 +726,10 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
+                            // A completed read stays at EOF across later calls.
+                            if range.size() == Some(read) {
+                                return ((None, range, read), Ok(Buffer::new()));
+                            }
                             if range.is_suffix() && read > 0 {
                                 // Without the object size, the actual suffix length is
                                 // unknown, so advancing it can duplicate bytes that the
@@ -743,11 +747,11 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                                 range.advance(read);
                                 read = 0;
                             }
-                            if range.size() == Some(0) {
-                                return ((None, range, read), Ok(Buffer::new()));
-                            }
                             match reader.open(range).await {
-                                Ok((_, stream)) => stream,
+                                Ok((rp, stream)) => {
+                                    range = resolve_suffix_range(range, &rp);
+                                    stream
+                                }
                                 Err(err) => return ((None, range, read), Err(err)),
                             }
                         }
@@ -761,6 +765,11 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                         // There are no bytes left to fetch after a bounded range completes.
                         Err(err) if err.is_temporary() && range.size() == Some(read) => {
                             ((None, range, read), Ok(Buffer::new()))
+                        }
+                        // An unresolved suffix range cannot be advanced safely after
+                        // progress. Preserve the original error and stop retrying.
+                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => {
+                            ((None, range, read), Err(err.set_persistent()))
                         }
                         Err(err) => ((None, range, read), Err(err)),
                     }

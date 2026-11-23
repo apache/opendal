@@ -22,29 +22,23 @@ use bytes::Bytes;
 
 use super::*;
 
-#[derive(Debug, Clone, Copy)]
-enum FirstRead {
-    /// Fail before returning any bytes.
-    Error,
-    /// Return this many bytes, then fail.
-    Bytes(usize),
-}
-
 #[derive(Debug, Clone)]
 struct MockSuffixReader {
     content: Bytes,
     content_length: Option<u64>,
     ranges: Arc<Mutex<Vec<BytesRange>>>,
-    first_read: FirstRead,
+    /// For each failed open, return this many bytes before a temporary error.
+    /// Opens after this list return the full requested slice.
+    failed_reads: Vec<usize>,
 }
 
 impl MockSuffixReader {
-    fn new(content: &'static [u8], content_length: Option<u64>, first_read: FirstRead) -> Self {
+    fn new(content: &'static [u8], content_length: Option<u64>, failed_reads: Vec<usize>) -> Self {
         Self {
             content: Bytes::from_static(content),
             content_length,
             ranges: Arc::new(Mutex::new(Vec::new())),
-            first_read,
+            failed_reads,
         }
     }
 
@@ -55,10 +49,10 @@ impl MockSuffixReader {
 
 impl oio::StreamRead for MockSuffixReader {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let first = {
+        let failed_read = {
             let mut ranges = self.ranges.lock().unwrap();
             ranges.push(range);
-            ranges.len() == 1
+            self.failed_reads.get(ranges.len() - 1).copied()
         };
         let content_range = range.to_content_range(self.content.len())?;
         let rp = match self.content_length {
@@ -66,17 +60,14 @@ impl oio::StreamRead for MockSuffixReader {
             None => RpRead::default(),
         };
         let mut buf = Buffer::from(self.content.slice(content_range));
-        if first {
-            match self.first_read {
-                FirstRead::Error => buf = Buffer::new(),
-                FirstRead::Bytes(size) => buf = buf.slice(..size.min(buf.len())),
-            }
+        if let Some(size) = failed_read {
+            buf = buf.slice(..size.min(buf.len()));
         }
         Ok((
             rp,
             Box::new(MockSuffixStream {
                 buf,
-                fail_after: first,
+                fail_after: failed_read.is_some(),
             }),
         ))
     }
@@ -94,7 +85,7 @@ impl oio::ReadStream for MockSuffixStream {
         }
         if self.fail_after {
             return Err(
-                Error::new(ErrorKind::Unexpected, "temporary failure while reading")
+                Error::new(ErrorKind::RateLimited, "temporary failure while reading")
                     .set_temporary(),
             );
         }
@@ -102,21 +93,46 @@ impl oio::ReadStream for MockSuffixStream {
     }
 }
 
-fn retry_reader(
+#[derive(Default, Clone)]
+struct RetryRecorder {
+    events: Arc<Mutex<Vec<(Operation, u32)>>>,
+}
+
+impl RetryRecorder {
+    fn events(&self) -> Vec<(Operation, u32)> {
+        self.events.lock().unwrap().clone()
+    }
+}
+
+impl RetryInterceptor for RetryRecorder {
+    fn intercept(&self, event: RetryEvent<'_>) {
+        self.events.lock().unwrap().push((event.op, event.attempt));
+    }
+}
+
+fn retry_reader_with_notify<I: RetryInterceptor>(
     inner: MockSuffixReader,
-) -> RetryReader<oio::StreamReader<MockSuffixReader>, DefaultRetryInterceptor> {
+    notify: I,
+) -> RetryReader<oio::StreamReader<MockSuffixReader>, I> {
     RetryReader::new(
         oio::StreamReader::new(inner),
         RetryLayer::new()
             .with_min_delay(Duration::ZERO)
             .with_max_delay(Duration::ZERO)
+            .with_notify(notify)
             .policy,
     )
 }
 
+fn retry_reader(
+    inner: MockSuffixReader,
+) -> RetryReader<oio::StreamReader<MockSuffixReader>, DefaultRetryInterceptor> {
+    retry_reader_with_notify(inner, DefaultRetryInterceptor)
+}
+
 #[tokio::test]
 async fn suffix_larger_than_object_resumes_without_duplication() -> Result<()> {
-    let inner = MockSuffixReader::new(b"abcd", Some(4), FirstRead::Bytes(2));
+    let inner = MockSuffixReader::new(b"abcd", Some(4), vec![2]);
     let reader = retry_reader(inner);
 
     let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(6)).await?;
@@ -128,7 +144,7 @@ async fn suffix_larger_than_object_resumes_without_duplication() -> Result<()> {
 
 #[tokio::test]
 async fn suffix_within_object_resumes_without_duplication() -> Result<()> {
-    let inner = MockSuffixReader::new(b"0123456789", Some(10), FirstRead::Bytes(2));
+    let inner = MockSuffixReader::new(b"0123456789", Some(10), vec![2]);
     let reader = retry_reader(inner);
 
     let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(4)).await?;
@@ -140,7 +156,7 @@ async fn suffix_within_object_resumes_without_duplication() -> Result<()> {
 
 #[tokio::test]
 async fn known_object_size_resolves_retry_to_absolute_range() -> Result<()> {
-    let inner = MockSuffixReader::new(b"abcd", Some(4), FirstRead::Bytes(2));
+    let inner = MockSuffixReader::new(b"abcd", Some(4), vec![2]);
     let reader = retry_reader(inner.clone());
 
     let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(6)).await?;
@@ -154,24 +170,26 @@ async fn known_object_size_resolves_retry_to_absolute_range() -> Result<()> {
 }
 
 #[tokio::test]
-async fn unknown_object_size_does_not_resume_suffix_after_progress() -> Result<()> {
-    let inner = MockSuffixReader::new(b"abcd", None, FirstRead::Bytes(2));
-    let reader = retry_reader(inner.clone());
+async fn unknown_object_size_fails_without_retry_after_progress() -> Result<()> {
+    let inner = MockSuffixReader::new(b"abcd", None, vec![2]);
+    let recorder = RetryRecorder::default();
+    let reader = retry_reader_with_notify(inner.clone(), recorder.clone());
 
     let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(6)).await?;
     let err = oio::ReadStream::read_all(&mut stream)
         .await
         .expect_err("resuming an unresolved suffix range after progress is unsafe");
 
-    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert_eq!(err.kind(), ErrorKind::RateLimited);
     assert!(err.is_persistent());
+    assert!(recorder.events().is_empty());
     assert_eq!(inner.ranges(), vec![BytesRange::suffix(6)]);
     Ok(())
 }
 
 #[tokio::test]
 async fn unknown_object_size_reopens_suffix_before_progress() -> Result<()> {
-    let inner = MockSuffixReader::new(b"abcd", None, FirstRead::Error);
+    let inner = MockSuffixReader::new(b"abcd", None, vec![0]);
     let reader = retry_reader(inner.clone());
 
     let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(6)).await?;
@@ -181,6 +199,42 @@ async fn unknown_object_size_reopens_suffix_before_progress() -> Result<()> {
     assert_eq!(
         inner.ranges(),
         vec![BytesRange::suffix(6), BytesRange::suffix(6)]
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn unknown_object_size_suffix_reaches_eof_idempotently() -> Result<()> {
+    let inner = MockSuffixReader::new(b"abcd", None, vec![4]);
+    let reader = retry_reader(inner.clone());
+
+    let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(4)).await?;
+    assert_eq!(
+        oio::ReadStream::read(&mut stream).await?.to_bytes(),
+        Bytes::from_static(b"abcd")
+    );
+    assert!(oio::ReadStream::read(&mut stream).await?.is_empty());
+    assert!(oio::ReadStream::read(&mut stream).await?.is_empty());
+    assert_eq!(inner.ranges(), vec![BytesRange::suffix(4)]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn resolved_suffix_range_resumes_across_multiple_failures() -> Result<()> {
+    let inner = MockSuffixReader::new(b"0123456789", Some(10), vec![1, 2]);
+    let reader = retry_reader(inner.clone());
+
+    let (_, mut stream) = oio::Read::open(&reader, BytesRange::suffix(4)).await?;
+    let buf = oio::ReadStream::read_all(&mut stream).await?;
+
+    assert_eq!(buf.to_bytes(), Bytes::from_static(b"6789"));
+    assert_eq!(
+        inner.ranges(),
+        vec![
+            BytesRange::suffix(4),
+            BytesRange::new(7, Some(3)),
+            BytesRange::new(9, Some(1)),
+        ]
     );
     Ok(())
 }

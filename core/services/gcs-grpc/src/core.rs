@@ -16,12 +16,12 @@
 // under the License.
 
 use std::fmt::{Debug, Formatter};
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use http::header::AUTHORIZATION;
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
-use reqsign_core::{Context, Signer};
-use reqsign_google::Credential;
+use reqsign_core::{Context, ProvideCredentialDyn, Signer};
+use reqsign_google::{Credential, RequestSigner};
 use tonic::metadata::MetadataValue;
 use tonic::transport::{Channel, Endpoint};
 
@@ -41,8 +41,10 @@ pub(crate) struct GcsGrpcCore {
     pub root: String,
     pub channel_endpoint: Endpoint,
     pub channel: OnceLock<Channel>,
-    pub signer: Signer<Credential>,
     pub sign_ctx: Context,
+    pub credential_provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+    pub request_signer: Arc<RequestSigner>,
+    pub signers: HttpTransportCache<Signer<Credential>>,
     pub skip_signature: bool,
 }
 
@@ -57,6 +59,25 @@ impl Debug for GcsGrpcCore {
 }
 
 impl GcsGrpcCore {
+    fn signer(&self, ctx: &OperationContext) -> Signer<Credential> {
+        self.signers.get_or_init(ctx.http_transport(), |transport| {
+            Signer::new(
+                self.sign_ctx.clone().with_http_send(transport),
+                self.credential_provider.clone(),
+                self.request_signer.clone(),
+            )
+        })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn signer_with_context(&self, ctx: Context) -> Signer<Credential> {
+        Signer::new(
+            ctx,
+            self.credential_provider.clone(),
+            self.request_signer.clone(),
+        )
+    }
+
     pub fn bucket_resource(&self) -> String {
         format!("projects/_/buckets/{}", self.bucket)
     }
@@ -98,12 +119,7 @@ impl GcsGrpcCore {
             .body(())
             .map_err(new_request_build_error)?;
         let (mut parts, _) = req.into_parts();
-        let signer = self.signer.clone().with_context(
-            self.sign_ctx
-                .clone()
-                .with_http_send(ctx.http_transport().clone()),
-        );
-        signer
+        self.signer(ctx)
             .sign(&mut parts, None)
             .await
             .map_err(|err| new_request_sign_error(err.into()))?;

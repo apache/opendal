@@ -30,19 +30,15 @@ use log::debug;
 use log::warn;
 use md5::Digest;
 use md5::Md5;
-use reqsign_aws_v4::AssumeRoleCredentialProvider;
 use reqsign_aws_v4::Credential;
 use reqsign_aws_v4::DefaultCredentialProvider;
 use reqsign_aws_v4::ECSCredentialProvider;
-use reqsign_aws_v4::RequestSigner as AwsV4Signer;
 use reqsign_aws_v4::S3ExpressSessionConfig;
-use reqsign_aws_v4::S3ExpressSessionProvider;
 use reqsign_aws_v4::StaticCredentialProvider;
 use reqsign_core::Context;
 use reqsign_core::OsEnv;
 use reqsign_core::ProvideCredentialChain;
 use reqsign_core::ProvideCredentialDyn;
-use reqsign_core::Signer;
 use reqsign_file_read_tokio::TokioFileRead;
 use url::Url;
 
@@ -1128,61 +1124,31 @@ impl S3Builder {
             default_provider = default_provider.push_front(static_provider);
         }
 
-        let provider: Arc<dyn ProvideCredentialDyn<Credential = Credential>> = if let Some(chain) =
-            credential_providers
-        {
-            Arc::new(chain)
-        } else if let Some(role_arn) = &config.role_arn {
-            // The assume-role provider owns its STS signer, so give it a
-            // concrete HTTP sender instead of relying on a future operation
-            // context.
-            let sts_ctx = ctx.clone().with_http_send(HttpTransporter::default());
-            let sts_request_signer = AwsV4Signer::new("sts", &region);
-            let sts_signer = Signer::new(sts_ctx, default_provider, sts_request_signer);
-            let mut assume_role_provider =
-                AssumeRoleCredentialProvider::new(role_arn.clone(), sts_signer)
-                    .with_region(region.clone())
-                    .with_regional_sts_endpoint();
-
-            if let Some(external_id) = &config.external_id {
-                assume_role_provider = assume_role_provider.with_external_id(external_id.clone());
-            }
-            if let Some(role_session_name) = &config.role_session_name {
-                assume_role_provider =
-                    assume_role_provider.with_role_session_name(role_session_name.clone());
-            }
-            if let Some(duration_seconds) = config.assume_role_duration_seconds {
-                assume_role_provider = assume_role_provider.with_duration_seconds(duration_seconds);
-            }
-            if let Some(tags) = &config.assume_role_session_tags {
-                assume_role_provider = assume_role_provider
-                    .with_tags(tags.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
-            }
-            // Use AssumeRole directly so its STS error reaches the signer.
-            Arc::new(assume_role_provider)
+        let (base_provider, assume_role): (
+            Arc<dyn ProvideCredentialDyn<Credential = Credential>>,
+            Option<S3AssumeRoleConfig>,
+        ) = if let Some(chain) = credential_providers {
+            (Arc::new(chain), None)
         } else {
-            Arc::new(default_provider)
+            let assume_role = config.role_arn.map(|role_arn| S3AssumeRoleConfig {
+                role_arn,
+                external_id: config.external_id,
+                role_session_name: config.role_session_name,
+                duration_seconds: config.assume_role_duration_seconds,
+                tags: config
+                    .assume_role_session_tags
+                    .map(|tags| tags.into_iter().collect()),
+            });
+            (Arc::new(default_provider), assume_role)
         };
 
-        let signers = if is_s3_express {
-            let iam_signer = Signer::new(
-                ctx.clone(),
-                provider.clone(),
-                AwsV4Signer::new("s3express", &region).with_standard_session_token(),
-            );
-            let session_provider =
-                S3ExpressSessionProvider::new(bucket, provider).with_region(&region);
-            let session_signer = Signer::new(
-                ctx,
-                session_provider,
-                AwsV4Signer::new("s3express", &region),
-            );
-            S3Signers::Express {
-                iam: iam_signer,
-                session: session_signer,
-            }
-        } else {
-            S3Signers::General(Signer::new(ctx, provider, AwsV4Signer::new("s3", &region)))
+        let signer_spec = S3SignerSpec {
+            sign_ctx: ctx,
+            base_provider,
+            assume_role,
+            region,
+            bucket: bucket.to_string(),
+            is_express: is_s3_express,
         };
 
         Ok(S3Backend {
@@ -1310,7 +1276,8 @@ impl S3Builder {
                 skip_signature: config.skip_signature,
                 disable_list_objects_v2: config.disable_list_objects_v2,
                 enable_request_payer: config.enable_request_payer,
-                signers,
+                signer_spec,
+                signers: HttpTransportCache::new(),
                 checksum_algorithm,
                 default_acl: config.default_acl,
             }),
@@ -2813,11 +2780,9 @@ mod tests {
             .build_backend()
             .expect("S3 backend must build");
         let mut core = Arc::into_inner(backend.core).expect("S3 core must not be shared");
-        core.signers = S3Signers::General(Signer::new(
-            Context::new(),
-            provider,
-            AwsV4Signer::new("s3", "us-west-2"),
-        ));
+        core.signer_spec.base_provider = Arc::new(provider);
+        core.signer_spec.assume_role = None;
+        core.signers = HttpTransportCache::new();
         let service = Arc::new(S3Backend {
             core: Arc::new(core),
         }) as Servicer;
@@ -2939,10 +2904,9 @@ mod tests {
 
         let err = backend
             .core
-            .signers
+            .signer_spec
+            .build(ctx)
             .default()
-            .clone()
-            .with_context(ctx)
             .sign(&mut parts, None)
             .await
             .unwrap_err();
@@ -3066,10 +3030,9 @@ mod tests {
                 .into_parts();
             enabled_backend
                 .core
-                .signers
+                .signer_spec
+                .build(ctx)
                 .default()
-                .clone()
-                .with_context(ctx)
                 .sign(&mut parts, None)
                 .await
                 .unwrap_or_else(|err| {
@@ -3112,10 +3075,9 @@ mod tests {
                 .into_parts();
             let err = disabled_backend
                 .core
-                .signers
+                .signer_spec
+                .build(ctx)
                 .default()
-                .clone()
-                .with_context(ctx)
                 .sign(&mut parts, None)
                 .await
                 .expect_err("disable_config_load must not load sso or process credentials");
@@ -3162,10 +3124,9 @@ mod tests {
             .into_parts();
         enabled_backend
             .core
-            .signers
+            .signer_spec
+            .build(ctx)
             .default()
-            .clone()
-            .with_context(ctx)
             .sign(&mut parts, None)
             .await
             .expect("web identity must load without disable_config_load");
@@ -3201,10 +3162,9 @@ mod tests {
             .into_parts();
         let err = disabled_backend
             .core
-            .signers
+            .signer_spec
+            .build(ctx)
             .default()
-            .clone()
-            .with_context(ctx)
             .sign(&mut parts, None)
             .await
             .expect_err("disable_config_load must not load web identity credentials");
@@ -3250,10 +3210,9 @@ mod tests {
 
         backend
             .core
-            .signers
+            .signer_spec
+            .build(ctx)
             .default()
-            .clone()
-            .with_context(ctx)
             .sign(&mut parts, None)
             .await
             .expect("container credentials must still load when disable_config_load is set");
@@ -3357,6 +3316,261 @@ mod tests {
             .find_map(|(key, value)| (key == "X-Amz-Credential").then_some(value))
             .unwrap();
         assert_eq!(credential.split('/').next(), Some("custom-access-key"));
+    }
+
+    #[derive(Debug)]
+    struct CountingCredentialProvider {
+        calls: Arc<AtomicUsize>,
+    }
+
+    impl reqsign_core::ProvideCredential for CountingCredentialProvider {
+        type Credential = Credential;
+
+        async fn provide_credential(
+            &self,
+            ctx: &Context,
+        ) -> reqsign_core::Result<Option<Credential>> {
+            let id = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
+            StaticCredentialProvider::new(&format!("ak-{id}"), "secret-key")
+                .provide_credential(ctx)
+                .await
+        }
+    }
+
+    struct TrackingHeadTransport {
+        auth_headers: Arc<Mutex<Vec<String>>>,
+        dropped: Option<Arc<std::sync::atomic::AtomicBool>>,
+    }
+
+    impl Drop for TrackingHeadTransport {
+        fn drop(&mut self) {
+            if let Some(dropped) = &self.dropped {
+                dropped.store(true, Ordering::SeqCst);
+            }
+        }
+    }
+
+    impl HttpTransport for TrackingHeadTransport {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let auth = request
+                .headers()
+                .get(http::header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            self.auth_headers.lock().unwrap().push(auth);
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(http::header::CONTENT_LENGTH, "0")
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_transport_scoped_signer_cache_reuse_isolation_and_eviction() {
+        let loads = Arc::new(AtomicUsize::new(0));
+        let chain = ProvideCredentialChain::new().push(CountingCredentialProvider {
+            calls: loads.clone(),
+        });
+
+        let auth1 = Arc::new(Mutex::new(Vec::new()));
+        let t1 = HttpTransporter::new(TrackingHeadTransport {
+            auth_headers: auth1.clone(),
+            dropped: None,
+        });
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .credential_provider_chain(chain),
+        )
+        .unwrap()
+        .with_context(OperationContext::new().with_http_transport(t1));
+
+        // Same transport must reuse the cached signer and its credential cache.
+        op.stat("a").await.unwrap();
+        op.stat("b").await.unwrap();
+        assert_eq!(loads.load(Ordering::SeqCst), 1);
+        let h1 = auth1.lock().unwrap().clone();
+        assert_eq!(h1.len(), 2);
+        assert!(h1[0].contains("Credential=ak-1/"), "{}", h1[0]);
+        assert!(h1[1].contains("Credential=ak-1/"), "{}", h1[1]);
+
+        // A derived operator with a distinct transport must get an isolated signer.
+        let auth2 = Arc::new(Mutex::new(Vec::new()));
+        let t2_dropped = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let t2 = HttpTransporter::new(TrackingHeadTransport {
+            auth_headers: auth2.clone(),
+            dropped: Some(t2_dropped.clone()),
+        });
+        let op2 = op
+            .clone()
+            .with_context(OperationContext::new().with_http_transport(t2));
+        op2.stat("c").await.unwrap();
+        op2.stat("d").await.unwrap();
+        assert_eq!(loads.load(Ordering::SeqCst), 2);
+        let h2 = auth2.lock().unwrap().clone();
+        assert_eq!(h2.len(), 2);
+        assert!(h2[0].contains("Credential=ak-2/"), "{}", h2[0]);
+        assert!(h2[1].contains("Credential=ak-2/"), "{}", h2[1]);
+
+        // Dropping the derived operator must drop t2 immediately (no strong cycle in cache).
+        drop(op2);
+        assert!(t2_dropped.load(Ordering::SeqCst));
+
+        // Inserting a third transport prunes t2's dead entry and stays isolated.
+        let auth3 = Arc::new(Mutex::new(Vec::new()));
+        let t3 = HttpTransporter::new(TrackingHeadTransport {
+            auth_headers: auth3.clone(),
+            dropped: None,
+        });
+        let op3 = op
+            .clone()
+            .with_context(OperationContext::new().with_http_transport(t3));
+        op3.stat("e").await.unwrap();
+        assert_eq!(loads.load(Ordering::SeqCst), 3);
+        let h3 = auth3.lock().unwrap().clone();
+        assert_eq!(h3.len(), 1);
+        assert!(h3[0].contains("Credential=ak-3/"), "{}", h3[0]);
+    }
+
+    #[derive(Clone)]
+    struct AssumeRoleFlowTransport {
+        sts_access_key: &'static str,
+        ecs_calls: Arc<AtomicUsize>,
+        sts_calls: Arc<AtomicUsize>,
+        s3_auth_headers: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl AssumeRoleFlowTransport {
+        fn new(sts_access_key: &'static str) -> Self {
+            Self {
+                sts_access_key,
+                ecs_calls: Arc::new(AtomicUsize::new(0)),
+                sts_calls: Arc::new(AtomicUsize::new(0)),
+                s3_auth_headers: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+    }
+
+    impl HttpTransport for AssumeRoleFlowTransport {
+        async fn fetch(&self, request: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let host = request.uri().host().unwrap_or_default();
+            if host == "169.254.170.2" {
+                self.ecs_calls.fetch_add(1, Ordering::SeqCst);
+                let body = Buffer::from(
+                    r#"{"AccessKeyId":"ecs-ak","SecretAccessKey":"ecs-sk","Token":"ecs-token","Expiration":"2099-01-01T00:00:00Z"}"#,
+                );
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                    .unwrap());
+            }
+            if host == "sts.us-west-2.amazonaws.com" {
+                assert!(request.uri().query().unwrap().contains("Action=AssumeRole"));
+                let auth = request
+                    .headers()
+                    .get(http::header::AUTHORIZATION)
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or_default();
+                assert!(auth.contains("Credential=ecs-ak/"), "{auth}");
+                self.sts_calls.fetch_add(1, Ordering::SeqCst);
+                let xml = format!(
+                    "<AssumeRoleResponse xmlns=\"https://sts.amazonaws.com/doc/2011-06-15/\">\
+                        <AssumeRoleResult>\
+                            <Credentials>\
+                                <AccessKeyId>{}</AccessKeyId>\
+                                <SecretAccessKey>sts-sk</SecretAccessKey>\
+                                <SessionToken>sts-token</SessionToken>\
+                                <Expiration>2099-01-01T00:00:00Z</Expiration>\
+                            </Credentials>\
+                        </AssumeRoleResult>\
+                    </AssumeRoleResponse>",
+                    self.sts_access_key
+                );
+                let body = Buffer::from(xml);
+                let size = body.len() as u64;
+                return Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .body(HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)))
+                    .unwrap());
+            }
+
+            let auth = request
+                .headers()
+                .get(http::header::AUTHORIZATION)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
+            self.s3_auth_headers.lock().unwrap().push(auth);
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header(http::header::CONTENT_LENGTH, "0")
+                .body(HttpBody::new(futures::stream::empty(), Some(0)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_s3_assume_role_sts_signer_uses_operation_context_transport() {
+        let t1 = AssumeRoleFlowTransport::new("ASIATESTKEY000000001");
+        let op = Operator::new(
+            S3Builder::default()
+                .bucket("example")
+                .region("us-west-2")
+                .disable_config_load()
+                .disable_ec2_metadata()
+                .container_credentials_endpoint("http://169.254.170.2/v2/credentials/test")
+                .role_arn("arn:aws:iam::000000000000:role/example"),
+        )
+        .unwrap()
+        .with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(t1.clone())),
+        );
+
+        // Both ECS and STS requests must run over the OperationContext transport and be cached.
+        op.stat("test").await.unwrap();
+        op.stat("test").await.unwrap();
+        assert_eq!(t1.ecs_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(t1.sts_calls.load(Ordering::SeqCst), 1);
+        let h1 = t1.s3_auth_headers.lock().unwrap().clone();
+        assert_eq!(h1.len(), 2);
+        assert!(
+            h1[0].contains("Credential=ASIATESTKEY000000001/"),
+            "{}",
+            h1[0]
+        );
+        assert!(
+            h1[1].contains("Credential=ASIATESTKEY000000001/"),
+            "{}",
+            h1[1]
+        );
+
+        // A derived operator with another transport must assume role independently over t2.
+        let t2 = AssumeRoleFlowTransport::new("ASIATESTKEY000000002");
+        let op2 = op.clone().with_context(
+            OperationContext::new().with_http_transport(HttpTransporter::new(t2.clone())),
+        );
+        op2.stat("test").await.unwrap();
+        op2.stat("test").await.unwrap();
+        assert_eq!(t2.ecs_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(t2.sts_calls.load(Ordering::SeqCst), 1);
+        let h2 = t2.s3_auth_headers.lock().unwrap().clone();
+        assert_eq!(h2.len(), 2);
+        assert!(
+            h2[0].contains("Credential=ASIATESTKEY000000002/"),
+            "{}",
+            h2[0]
+        );
+        assert!(
+            h2[1].contains("Credential=ASIATESTKEY000000002/"),
+            "{}",
+            h2[1]
+        );
     }
 
     #[test]

@@ -295,10 +295,7 @@ impl oio::MultipartCopy for S3Copier {
                 operation: Operation::Copy,
             })?;
 
-        let resp = self
-            .core
-            .send(&self.ctx, req, self.core.signers.iam())
-            .await?;
+        let resp = self.core.send_iam(&self.ctx, req).await?;
 
         match resp.status() {
             StatusCode::OK => {

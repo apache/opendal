@@ -124,7 +124,7 @@ pub(crate) struct Discovery {
 
 pub(crate) type DiscoveryResult = std::result::Result<Option<Discovery>, FillError>;
 pub(crate) type FillResult = std::result::Result<Unit, FillError>;
-type Prepared = std::result::Result<Option<CachedStream>, FillError>;
+type Prepared = std::result::Result<Option<PreparedStream>, FillError>;
 
 impl CachedReader {
     fn unit_chunks(&self) -> u64 {
@@ -185,15 +185,12 @@ impl CachedReader {
                 if pointer.identity.tier != Tier::Nonce {
                     return self.prepare_verified(snapshot, pointer, range, None).await;
                 }
-                if let Some(stream) = self.cached_nonce(snapshot, pointer.clone(), range).await {
-                    return Ok(Some(stream));
+                if let Some(stream) = self.cached_nonce(snapshot, pointer, range).await {
+                    return Ok(Some(PreparedStream::Cached(stream)));
                 }
-                if self
-                    .normalized(range, pointer.metadata.content_length())
-                    .is_none()
-                {
-                    return Ok(None);
-                }
+                // Keep a fresh Tier 4 pointer intact on a miss or oversized range
+                // rather than discarding it and orphaning already-cached chunks.
+                return Ok(None);
             } else if pointer.identity.tier != Tier::Nonce {
                 let observed_at = Timestamp::now();
                 match self.stat(self.args.version()).await {
@@ -219,14 +216,20 @@ impl CachedReader {
                 offset..size.map_or(u64::MAX, |size| offset.saturating_add(size))
             }
             BytesRange::Suffix { .. } => {
-                // The suffix start depends on the total length. A native suffix
-                // response may provide it without a separate stat request.
-                let limit = BytesRange::suffix(range.size().unwrap().min(self.chunk_size));
+                // Resolve total length via `stat` when available to avoid an extra
+                // GET whose body would be discarded before aligned chunk fetching.
+                let observed_at = Timestamp::now();
                 let mut metadata = None;
-                if self.source.capability().read_with_suffix {
+                if self.source.capability().stat {
+                    match self.stat(self.args.version()).await {
+                        Ok(meta) if meta.is_file() => metadata = Some(meta),
+                        Ok(_) | Err(_) => return Ok(None),
+                    }
+                } else if self.source.capability().read_with_suffix {
+                    let limit = BytesRange::suffix(range.size().unwrap().min(self.chunk_size));
                     match self.origin()?.open(limit).await {
                         Ok((response, _)) => {
-                            metadata = response.into_metadata().filter(Metadata::is_file)
+                            metadata = response.into_metadata().filter(Metadata::is_file);
                         }
                         Err(error) if error.kind() == ErrorKind::RangeNotSatisfied => {
                             return Ok(None);
@@ -234,12 +237,14 @@ impl CachedReader {
                         Err(error) => return Err(error.into()),
                     }
                 }
-                if metadata.as_ref().and_then(Identity::verifiable).is_none() {
-                    metadata = self.stat(self.args.version()).await.ok().or(metadata);
-                }
                 let Some(metadata) = metadata else {
                     return Ok(None);
                 };
+                if Identity::verifiable(&metadata).is_some() {
+                    let pointer = Pointer::new(metadata, observed_at);
+                    self.state.publish(snapshot, &self.subject, &pointer).await;
+                    return self.prepare_verified(snapshot, pointer, range, None).await;
+                }
                 let Some(forward) = self.normalized(range, metadata.content_length()) else {
                     return Ok(None);
                 };
@@ -263,7 +268,7 @@ impl CachedReader {
         let result = self
             .state
             .discoveries
-            .run(keys, move |count| async move {
+            .run(self.context.executor(), keys, move |count| async move {
                 let end = start.saturating_add(reader.chunk_size.saturating_mul(count as u64));
                 reader.discover(snapshot, start..end.min(aligned.end)).await
             })
@@ -277,22 +282,74 @@ impl CachedReader {
             else {
                 return Ok(None);
             };
-            let Some(unit) = discovery
+            if let Some(unit) = discovery
                 .unit
                 .filter(|unit| unit.start <= bytes.start && unit.end() >= bytes.end)
-            else {
-                return Ok(None);
-            };
-            return Ok(Some(CachedStream::new(
-                self.clone(),
-                snapshot,
-                discovery.pointer,
-                bytes,
-                vec![unit],
-            )));
+            {
+                return Ok(Some(PreparedStream::Cached(CachedStream::new(
+                    self.clone(),
+                    snapshot,
+                    discovery.pointer,
+                    bytes,
+                    vec![unit],
+                ))));
+            }
+            return self
+                .prepare_nonce_fill(snapshot, discovery.pointer.metadata.content_length(), bytes)
+                .await;
         }
         self.prepare_verified(snapshot, discovery.pointer, range, discovery.unit)
             .await
+    }
+
+    async fn prepare_nonce_fill(
+        &self,
+        snapshot: Snapshot,
+        expected_length: u64,
+        requested: Range<u64>,
+    ) -> Prepared {
+        let aligned_start = requested.start / self.chunk_size * self.chunk_size;
+        let aligned_end = (((requested.end - 1) / self.chunk_size) + 1)
+            .saturating_mul(self.chunk_size)
+            .min(expected_length);
+        let observed_at = Timestamp::now();
+        let origin = self.origin()?;
+        let (response, inner) = origin
+            .open(BytesRange::new(
+                aligned_start,
+                Some(aligned_end - aligned_start),
+            ))
+            .await
+            .map_err(fill_open_error)?;
+        let Some(metadata) = response.into_metadata().filter(Metadata::is_file) else {
+            return Ok(None);
+        };
+        if metadata.content_length() != expected_length || Identity::verifiable(&metadata).is_some()
+        {
+            return Err(FillError::Changed);
+        }
+        let pointer = Pointer::new(metadata, observed_at);
+        let prefix = data_prefix(
+            snapshot.generation,
+            &self.subject,
+            pointer.identity,
+            self.chunk_size,
+        );
+        Ok(Some(PreparedStream::NonceFill(NonceFillStream {
+            reader: self.clone(),
+            snapshot,
+            pointer,
+            prefix,
+            inner,
+            aligned_offset: aligned_start,
+            aligned_end,
+            requested,
+            chunk_index: aligned_start / self.chunk_size,
+            chunk_parts: Vec::new(),
+            chunk_len: 0,
+            done: false,
+            terminal: None,
+        })))
     }
 
     async fn discover(&self, snapshot: Snapshot, aligned: Range<u64>) -> DiscoveryResult {
@@ -316,7 +373,7 @@ impl CachedReader {
             .filter(|metadata| Identity::verifiable(metadata).is_some())
         {
             metadata.clone()
-        } else {
+        } else if self.source.capability().stat {
             match self.stat(self.args.version()).await {
                 Ok(metadata) if metadata.is_file() => {
                     if response.as_ref().is_some_and(|response| {
@@ -333,10 +390,24 @@ impl CachedReader {
                         metadata
                     }
                 }
-                _ => match response {
+                Ok(_) => return Ok(None),
+                Err(error) if error.kind() == ErrorKind::NotFound => {
+                    return if response.is_some() {
+                        Err(FillError::Changed)
+                    } else {
+                        Ok(None)
+                    };
+                }
+                Err(error) if error.kind() == ErrorKind::Unsupported => match response {
                     Some(metadata) => metadata,
                     None => return Ok(None),
                 },
+                Err(error) => return Err(FillError::Unverifiable(Arc::new(error))),
+            }
+        } else {
+            match response {
+                Some(metadata) => metadata,
+                None => return Ok(None),
             }
         };
         let pointer = Pointer::new(metadata, observed_at);
@@ -346,7 +417,9 @@ impl CachedReader {
         }
         let unit = if use_body {
             let end = aligned.end.min(length);
-            let data = read_unit(&mut stream, end - aligned.start).await?;
+            let data = read_unit(&mut stream, end - aligned.start)
+                .await
+                .map_err(fill_open_error)?;
             if data.len() as u64 != end - aligned.start {
                 return Err(FillError::Changed);
             }
@@ -397,7 +470,7 @@ impl CachedReader {
                 }
             }
         }
-        Ok(Some(stream))
+        Ok(Some(PreparedStream::Cached(stream)))
     }
 
     async fn cached_nonce(
@@ -409,13 +482,18 @@ impl CachedReader {
         let bytes = self.normalized(range, pointer.metadata.content_length())?;
         let first = bytes.start / self.chunk_size;
         let last = (bytes.end - 1) / self.chunk_size;
-        if last - first >= self.unit_chunks() {
-            return None;
-        }
         let mut stream = CachedStream::new(self.clone(), snapshot, pointer, bytes, Vec::new());
-        for index in (first..=last).rev() {
-            stream.units.push(stream.cached_chunk(index).await?);
+        if last - first < self.unit_chunks() {
+            for index in (first..=last).rev() {
+                stream.units.push(stream.cached_chunk(index).await?);
+            }
+            return Some(stream);
         }
+        // Large Tier 4 range: verify both boundary chunks are present before
+        // streaming lazily from cache without reopening origin.
+        let first_unit = stream.cached_chunk(first).await?;
+        stream.cached_chunk(last).await?;
+        stream.units.push(first_unit);
         Some(stream)
     }
 
@@ -475,27 +553,18 @@ impl CachedReader {
             self.args.clone()
         };
         let range = BytesRange::new(start, Some(end - start));
-        let origin = self.source.read(&self.context, &self.path, args.clone())?;
+        let origin = self.source.read(&self.context, &self.path, args)?;
         let (response, mut stream) = origin.open(range).await.map_err(fill_open_error)?;
-        let mut verified = verify_response(&pointer, response.metadata(), version, etag)?;
-        let stat_version = if cap.stat_with_version {
-            version
-        } else {
-            self.args.version()
-        };
-        if !verified {
-            self.verify_stat(&pointer, stat_version).await?;
-            // A positioned reader can retain an open file across ranges.
-            // Start with a fresh handle after observing the path's identity.
-            let origin = self.source.read(&self.context, &self.path, args)?;
-            let (response, new_stream) = origin.open(range).await.map_err(fill_open_error)?;
-            verified = verify_response(&pointer, response.metadata(), version, etag)?;
-            stream = new_stream;
-        }
+        let verified = verify_response(&pointer, response.metadata(), version, etag)?;
         let data = read_unit(&mut stream, end - start)
             .await
             .map_err(fill_open_error)?;
         if !verified {
+            let stat_version = if cap.stat_with_version {
+                version
+            } else {
+                self.args.version()
+            };
             self.verify_stat(&pointer, stat_version).await?;
         }
         if data.len() as u64 != end - start {
@@ -645,6 +714,9 @@ impl CachedStream {
         if let Some(hit) = self.cached_chunk(first).await {
             return Ok(hit);
         }
+        if self.pointer.identity.tier == Tier::Nonce {
+            return Err(FillError::Changed);
+        }
         let last = ((self.remaining.end - 1) / chunk_size)
             .min(first.saturating_add(self.reader.unit_chunks() - 1));
         let mut keys = Vec::new();
@@ -663,11 +735,15 @@ impl CachedStream {
         self.reader
             .state
             .fills
-            .run(keys, move |count| async move {
-                reader
-                    .fetch_unit(snapshot, pointer, first * chunk_size, count)
-                    .await
-            })
+            .run(
+                self.reader.context.executor(),
+                keys,
+                move |count| async move {
+                    reader
+                        .fetch_unit(snapshot, pointer, first * chunk_size, count)
+                        .await
+                },
+            )
             .await
             .unwrap_or(Err(FillError::Changed))
     }
@@ -705,7 +781,151 @@ impl CachedStream {
     }
 }
 
-impl ReadStream for CachedStream {
+struct NonceFillStream {
+    reader: CachedReader,
+    snapshot: Snapshot,
+    pointer: Pointer,
+    prefix: String,
+    inner: Box<dyn ReadStreamDyn>,
+    aligned_offset: u64,
+    aligned_end: u64,
+    requested: Range<u64>,
+    chunk_index: u64,
+    chunk_parts: Vec<Buffer>,
+    chunk_len: usize,
+    done: bool,
+    terminal: Option<FillError>,
+}
+
+impl NonceFillStream {
+    async fn flush_chunk(&mut self) {
+        if self.chunk_len == 0 {
+            return;
+        }
+        let data: Buffer = self.chunk_parts.drain(..).flatten().collect();
+        self.chunk_len = 0;
+        let _ = self
+            .reader
+            .state
+            .cache
+            .write(&format!("{}/{:x}", self.prefix, self.chunk_index), data)
+            .await;
+        self.chunk_index += 1;
+    }
+
+    async fn finish(&mut self) {
+        self.flush_chunk().await;
+        self.reader
+            .state
+            .publish(self.snapshot, &self.reader.subject, &self.pointer)
+            .await;
+        self.done = true;
+    }
+
+    async fn next(&mut self) -> std::result::Result<Buffer, FillError> {
+        if let Some(error) = &self.terminal {
+            return Err(error.clone());
+        }
+        if self.done {
+            return Ok(Buffer::new());
+        }
+        let chunk_size = self.reader.chunk_size as usize;
+        loop {
+            let buf = match self.inner.read().await {
+                Ok(buf) => buf,
+                Err(error) => {
+                    let error = fill_open_error(error);
+                    self.terminal = Some(error.clone());
+                    return Err(error);
+                }
+            };
+            if buf.is_empty() {
+                if self.aligned_offset != self.aligned_end {
+                    let error = FillError::Changed;
+                    self.terminal = Some(error.clone());
+                    return Err(error);
+                }
+                self.finish().await;
+                return Ok(Buffer::new());
+            }
+            let buf_start = self.aligned_offset;
+            let buf_end = buf_start.saturating_add(buf.len() as u64);
+            if buf_end > self.aligned_end {
+                let error = FillError::from(Error::new(
+                    ErrorKind::Unexpected,
+                    "origin exceeded the aligned read range",
+                ));
+                self.terminal = Some(error.clone());
+                return Err(error);
+            }
+            self.aligned_offset = buf_end;
+
+            let mut remaining = buf.clone();
+            while !remaining.is_empty() {
+                let need = chunk_size - self.chunk_len;
+                let take = need.min(remaining.len());
+                self.chunk_parts.push(remaining.slice(..take));
+                self.chunk_len += take;
+                remaining = remaining.slice(take..);
+                if self.chunk_len == chunk_size {
+                    self.flush_chunk().await;
+                }
+            }
+
+            if self.aligned_offset == self.aligned_end {
+                self.finish().await;
+            }
+
+            let out_start = buf_start.max(self.requested.start);
+            let out_end = buf_end.min(self.requested.end);
+            if out_start < out_end {
+                return Ok(
+                    buf.slice((out_start - buf_start) as usize..(out_end - buf_start) as usize)
+                );
+            }
+            if self.done {
+                return Ok(Buffer::new());
+            }
+        }
+    }
+}
+
+enum PreparedStream {
+    Cached(CachedStream),
+    NonceFill(NonceFillStream),
+}
+
+impl PreparedStream {
+    fn pointer(&self) -> &Pointer {
+        match self {
+            Self::Cached(stream) => &stream.pointer,
+            Self::NonceFill(stream) => &stream.pointer,
+        }
+    }
+
+    fn into_pointer(self) -> Pointer {
+        match self {
+            Self::Cached(stream) => stream.pointer,
+            Self::NonceFill(stream) => stream.pointer,
+        }
+    }
+
+    fn has_terminal(&self) -> bool {
+        match self {
+            Self::Cached(stream) => stream.terminal.is_some(),
+            Self::NonceFill(stream) => stream.terminal.is_some(),
+        }
+    }
+
+    async fn next(&mut self) -> std::result::Result<Buffer, FillError> {
+        match self {
+            Self::Cached(stream) => stream.next().await,
+            Self::NonceFill(stream) => stream.next().await,
+        }
+    }
+}
+
+impl ReadStream for PreparedStream {
     async fn read(&mut self) -> Result<Buffer> {
         self.next().await.map_err(FillError::into_error)
     }
@@ -719,7 +939,7 @@ impl Read for CachedReader {
         }
         match prepared {
             Ok(Some(stream)) => Ok((
-                RpRead::new(stream.pointer.metadata.clone()),
+                RpRead::new(stream.pointer().metadata.clone()),
                 Box::new(stream),
             )),
             Ok(None) | Err(FillError::Unverifiable(_)) => self.origin()?.open(range).await,
@@ -750,15 +970,20 @@ impl Read for CachedReader {
                     Err(error) => return Err(error.into_error()),
                 }
             }
-            if stream.terminal.is_some() {
+            if stream.has_terminal() {
                 continue;
             }
             let data: Buffer = parts.into_iter().flatten().collect();
-            if data.len() as u64 != expected {
+            let bound = if range.is_suffix() {
+                expected.min(stream.pointer().metadata.content_length())
+            } else {
+                expected
+            };
+            if data.len() as u64 != bound {
                 // Defer exact-read EOF error classification to the source.
                 return self.origin()?.read(range).await;
             }
-            return Ok((RpRead::new(stream.pointer.metadata), data));
+            return Ok((RpRead::new(stream.into_pointer().metadata), data));
         }
         unreachable!("the second attempt returns its error")
     }

@@ -20,6 +20,7 @@ use std::future::Future;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
+use opendal_core::Executor;
 use tokio::sync::watch;
 
 pub(crate) struct Flights<K, T>(Arc<Mutex<HashMap<K, watch::Receiver<Option<T>>>>>);
@@ -35,7 +36,12 @@ where
     K: Clone + Eq + Hash + Send + Sync + 'static,
     T: Clone + Send + Sync + 'static,
 {
-    pub(crate) async fn run<F>(&self, keys: Vec<K>, fill: impl FnOnce(usize) -> F) -> Option<T>
+    pub(crate) async fn run<F>(
+        &self,
+        executor: &Executor,
+        keys: Vec<K>,
+        fill: impl FnOnce(usize) -> F,
+    ) -> Option<T>
     where
         F: Future<Output = T> + opendal_core::raw::MaybeSend + 'static,
     {
@@ -63,6 +69,35 @@ where
                     keys: reserved,
                 };
                 let future = fill(guard.keys.len());
+                let work = Arc::new(Mutex::new(Some((sender, guard, future))));
+                let spawned = {
+                    let work = work.clone();
+                    executor
+                        .inner()
+                        .try_execute(Box::pin(async move {
+                            let Some((sender, guard, future)) = work.lock().unwrap().take() else {
+                                return;
+                            };
+                            let value = future.await;
+                            sender.send_replace(Some(value));
+                            drop(guard);
+                        }))
+                        .is_ok()
+                };
+                if spawned {
+                    return receiver
+                        .wait_for(Option::is_some)
+                        .await
+                        .ok()
+                        .and_then(|value| value.as_ref().cloned());
+                }
+                let Some((sender, guard, future)) = work.lock().unwrap().take() else {
+                    return receiver
+                        .wait_for(Option::is_some)
+                        .await
+                        .ok()
+                        .and_then(|value| value.as_ref().cloned());
+                };
                 let task = async move {
                     let value = future.await;
                     sender.send_replace(Some(value));

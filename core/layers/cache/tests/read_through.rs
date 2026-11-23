@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use opendal_core::options::{DeleteOptions, ReadOptions};
-use opendal_core::raw::oio::{self, Read, ReadStream};
+use opendal_core::raw::oio::{self, Read, ReadStream, Write};
 use opendal_core::raw::*;
 use opendal_core::services::Memory;
 use opendal_core::*;
@@ -921,5 +921,783 @@ async fn buffered_deleter_invalidates_again_on_close() -> Result<()> {
         op.read("dir/a").await.unwrap_err().kind(),
         ErrorKind::NotFound
     );
+    Ok(())
+}
+
+#[tokio::test]
+async fn nonce_large_read_caches_all_chunks_and_partial_miss_preserves_pointer() -> Result<()> {
+    let probe = Probe::default();
+    let origin = memory()?.layer(probe.clone());
+    let payload: Vec<u8> = (0_u8..24).map(|i| b'a' + i).collect();
+    origin.write("big", payload.clone()).await?;
+    origin.write("pair", "abcdefgh").await?;
+
+    let cache = memory()?;
+    let op = origin.layer(
+        CacheLayer::new(cache.clone())?
+            .with_chunk_size(1)
+            .with_ttl(Duration::MAX),
+    );
+
+    // 24 chunks exceeds FILL_CHUNKS (16): cold read populates all 24 chunks via
+    // single-open NonceFillStream, and subsequent reads hit cache with zero origin reads.
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+    let reads_after_cold = probe.observed.reads.load(Ordering::Relaxed);
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+    assert_eq!(
+        op.read_with("big").range(5..20).await?.to_vec(),
+        &payload[5..20]
+    );
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        reads_after_cold,
+        "hot large Tier 4 reads must not hit origin"
+    );
+
+    // Evicting one middle chunk on a large Tier 4 object must fail with a
+    // temporary error rather than splicing from origin, then recover cleanly.
+    let mut data_keys: Vec<String> = cache
+        .list_with("v1/data/")
+        .recursive(true)
+        .await?
+        .into_iter()
+        .filter(|entry| entry.metadata().is_file())
+        .map(|entry| entry.path().to_owned())
+        .collect();
+    data_keys.sort();
+    let middle_keys: Vec<String> = data_keys
+        .into_iter()
+        .filter(|key| key.ends_with("/a"))
+        .collect();
+    assert!(
+        !middle_keys.is_empty(),
+        "chunk index 10 (0xa) must be cached"
+    );
+    for key in middle_keys {
+        cache.delete(&key).await?;
+    }
+    let err = op
+        .read("big")
+        .await
+        .expect_err("mid-stream eviction of Tier 4 chunk must not splice");
+    assert!(err.is_temporary());
+    assert_eq!(op.read("big").await?.to_vec(), payload);
+
+    // Partial miss on a fresh Tier 4 pointer must keep previously cached chunks warm
+    // instead of discarding the pointer and orphaning chunk 0.
+    let probe_pair = Probe::default();
+    let origin_pair = memory()?.layer(probe_pair.clone());
+    origin_pair.write("pair", "abcdefgh").await?;
+    let op_pair = origin_pair.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op_pair.read_with("pair").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(
+        op_pair.read_with("pair").range(4..8).await?.to_vec(),
+        b"efgh"
+    );
+    assert_eq!(probe_pair.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        op_pair.read_with("pair").range(0..4).await?.to_vec(),
+        b"abcd"
+    );
+    assert_eq!(
+        probe_pair.observed.reads.load(Ordering::Relaxed),
+        2,
+        "partial miss on chunk 1 must not invalidate chunk 0"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn cached_reader_read_serves_short_suffix_from_cache() -> Result<()> {
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/short", "hello").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    let reader = op.service().read(op.context(), "short", OpRead::new())?;
+    let (rp1, buf1) = reader.read(BytesRange::suffix(100)).await?;
+    assert_eq!(buf1.to_vec(), b"hello");
+    assert_eq!(rp1.metadata().unwrap().content_length(), 5);
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    let (rp2, buf2) = reader.read(BytesRange::suffix(100)).await?;
+    assert_eq!(buf2.to_vec(), b"hello");
+    assert_eq!(rp2.metadata().unwrap().content_length(), 5);
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "hot short suffix read must be served from cache"
+    );
+
+    // Unbounded raw `oio::Read::read` stays delegated to the source contract.
+    assert!(reader.read(BytesRange::default()).await.is_err());
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn cold_suffix_and_fs_chunk_miss_avoid_extra_opens_and_stats() -> Result<()> {
+    // Verifiable backend: cold Suffix read uses 1 stat + 1 aligned read (not 2 reads).
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/object", "0123456789").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op.read_with("object")
+            .range(BytesRange::suffix(3))
+            .await?
+            .to_vec(),
+        b"789"
+    );
+    assert_eq!(probe.observed.stats.load(Ordering::Relaxed), 1);
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    // Fs backend (empty RpRead): cold suffix uses 1 open + 2 stats (pre-stat + post-stat),
+    // and a subsequent chunk miss uses 1 open + 1 post-stat (not 2 opens + 2 stats).
+    let directory = tempfile::tempdir().unwrap();
+    let fs_probe = Probe::default();
+    let origin = Operator::new(Fs::default().root(directory.path().to_str().unwrap()))?
+        .layer(fs_probe.clone());
+    origin.write("file", "abcdefghij").await?;
+    let op = origin.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    assert_eq!(
+        op.read_with("file")
+            .range(BytesRange::suffix(2))
+            .await?
+            .to_vec(),
+        b"ij"
+    );
+    assert_eq!(fs_probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(fs_probe.observed.stats.load(Ordering::Relaxed), 2);
+
+    assert_eq!(op.read_with("file").range(0..4).await?.to_vec(), b"abcd");
+    assert_eq!(
+        fs_probe.observed.reads.load(Ordering::Relaxed),
+        2,
+        "chunk miss on Fs must open once, not twice"
+    );
+    assert_eq!(
+        fs_probe.observed.stats.load(Ordering::Relaxed),
+        3,
+        "chunk miss on Fs must run only post-read verify_stat"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn discover_retries_condition_not_match_and_does_not_cache_on_stat_error() -> Result<()> {
+    // Case A: stream.read() fails with ConditionNotMatch before any byte is yielded;
+    // discover() must map it to FillError::Changed and retry once transparently.
+    #[derive(Debug)]
+    struct FailFirstStreamLayer {
+        opens: Arc<AtomicUsize>,
+    }
+    #[derive(Debug)]
+    struct FailFirstStreamService {
+        inner: Servicer,
+        opens: Arc<AtomicUsize>,
+    }
+    struct FailFirstStreamReader {
+        inner: oio::Reader,
+        opens: Arc<AtomicUsize>,
+    }
+    struct ConditionMismatchStream;
+
+    impl ReadStream for ConditionMismatchStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            Err(Error::new(
+                ErrorKind::ConditionNotMatch,
+                "object changed during inner retry",
+            ))
+        }
+    }
+
+    impl Layer for FailFirstStreamLayer {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(FailFirstStreamService {
+                inner,
+                opens: self.opens.clone(),
+            })
+        }
+    }
+
+    impl Service for FailFirstStreamService {
+        type Reader = FailFirstStreamReader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            Ok(FailFirstStreamReader {
+                inner: self.inner.read(ctx, path, args)?,
+                opens: self.opens.clone(),
+            })
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    impl Read for FailFirstStreamReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let attempt = self.opens.fetch_add(1, Ordering::Relaxed);
+            if attempt == 0 {
+                let mut meta = MetadataBuilder::file(4);
+                meta.etag("\"v1\"");
+                return Ok((RpRead::new(meta.build()), Box::new(ConditionMismatchStream)));
+            }
+            let (rp, stream) = self.inner.open(range).await?;
+            let meta = rp
+                .into_metadata()
+                .map(|m| {
+                    let mut b = m.into_builder();
+                    b.etag("\"v2\"");
+                    b.build()
+                })
+                .unwrap();
+            Ok((RpRead::new(meta), stream))
+        }
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.inner.read(range).await
+        }
+    }
+
+    let opens = Arc::new(AtomicUsize::new(0));
+    let source = memory()?;
+    source.write("obj", "v222").await?;
+    let op = source
+        .layer(FailFirstStreamLayer {
+            opens: opens.clone(),
+        })
+        .layer(CacheLayer::new(memory()?)?.with_chunk_size(4));
+    assert_eq!(op.read("obj").await?.to_vec(), b"v222");
+    assert_eq!(opens.load(Ordering::Relaxed), 2);
+
+    // Case B: length-only RpRead followed by stat error must not publish a stale pointer.
+    #[derive(Debug)]
+    struct FailingStatLayer(ErrorKind);
+    #[derive(Debug)]
+    struct FailingStatService {
+        inner: Servicer,
+        kind: ErrorKind,
+    }
+    impl Layer for FailingStatLayer {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(FailingStatService {
+                inner,
+                kind: self.0,
+            })
+        }
+    }
+    impl Service for FailingStatService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(self.kind, "injected stat failure"))
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let source = memory()?;
+    source.write("obj", "data").await?;
+    let cache = memory()?;
+    let op = source
+        .layer(FailingStatLayer(ErrorKind::PermissionDenied))
+        .layer(CacheLayer::new(cache.clone())?.with_chunk_size(4));
+    assert_eq!(op.read("obj").await?.to_vec(), b"data");
+    assert!(
+        cache
+            .list_with("v1/meta/")
+            .recursive(true)
+            .await?
+            .is_empty(),
+        "stat failure during discovery must not publish a pointer"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn singleflight_uses_operation_context_executor() -> Result<()> {
+    struct CountingExecutor {
+        spawns: Arc<AtomicUsize>,
+    }
+
+    impl Execute for CountingExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            self.spawns.fetch_add(1, Ordering::Relaxed);
+            tokio::spawn(f);
+        }
+    }
+
+    let spawns = Arc::new(AtomicUsize::new(0));
+    let gate = Gate::new();
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        ..Probe::default()
+    };
+    let origin = memory()?.layer(probe.clone());
+    origin.write("obj", "payload").await?;
+    let op = origin
+        .layer(CacheLayer::new(memory()?)?.with_chunk_size(4))
+        .with_context(
+            OperationContext::new().with_executor(Executor::with(CountingExecutor {
+                spawns: spawns.clone(),
+            })),
+        );
+
+    let first = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    gate.entered.acquire().await.unwrap().forget();
+    first.abort();
+    assert!(first.await.unwrap_err().is_cancelled());
+
+    let second = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    gate.release.add_permits(1);
+    assert_eq!(second.await.unwrap()?.to_vec(), b"payload");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert!(
+        spawns.load(Ordering::Relaxed) >= 1,
+        "singleflight must submit fill tasks through OperationContext::executor"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn mutation_invalidation_covers_copy_from_compose_restore_and_versioned_delete() -> Result<()>
+{
+    #[derive(Debug)]
+    struct MutationHarness {
+        inner: Servicer,
+        current_version: Arc<AtomicUsize>,
+        restored: Arc<AtomicUsize>,
+    }
+
+    impl Layer for MutationHarness {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(MutationHarness {
+                inner,
+                current_version: self.current_version.clone(),
+                restored: self.restored.clone(),
+            })
+        }
+    }
+
+    struct HarnessComposer {
+        inner: Servicer,
+        ctx: OperationContext,
+        to: String,
+        parts: Vec<String>,
+    }
+
+    impl oio::Compose for HarnessComposer {
+        async fn compose(&mut self, path: &str, _: OpRead) -> Result<()> {
+            self.parts.push(path.to_owned());
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            let mut combined = Vec::new();
+            for part in &self.parts {
+                let (_, mut stream) = self
+                    .inner
+                    .read(&self.ctx, part, OpRead::new())?
+                    .open(BytesRange::default())
+                    .await?;
+                combined.extend_from_slice(&stream.read_all().await?.to_bytes());
+            }
+            let mut writer = self.inner.write(&self.ctx, &self.to, OpWrite::new())?;
+            writer.write(Buffer::from(combined)).await?;
+            writer.close().await
+        }
+    }
+
+    struct HarnessDeleter {
+        inner: Servicer,
+        ctx: OperationContext,
+        current_version: Arc<AtomicUsize>,
+    }
+
+    impl oio::Delete for HarnessDeleter {
+        async fn delete(&mut self, path: &str, args: OpDelete) -> Result<()> {
+            let mut deleter = self.inner.delete(&self.ctx)?;
+            if let Some(version) = args.version() {
+                deleter
+                    .delete(&format!("{version}/{path}"), OpDelete::new())
+                    .await?;
+                if self.current_version.load(Ordering::Relaxed).to_string() == version {
+                    self.current_version.store(2, Ordering::Relaxed);
+                }
+            } else {
+                deleter.delete(path, args).await?;
+            }
+            deleter.close().await
+        }
+
+        async fn close(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    struct HarnessReader {
+        inner: Servicer,
+        ctx: OperationContext,
+        path: String,
+        version: Option<String>,
+    }
+
+    impl Read for HarnessReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            let target = self
+                .version
+                .as_ref()
+                .map_or_else(|| self.path.clone(), |v| format!("{v}/{}", self.path));
+            let (rp, stream) = self
+                .inner
+                .read(&self.ctx, &target, OpRead::new())?
+                .open(range)
+                .await?;
+            let rp = match (rp.into_metadata(), &self.version) {
+                (Some(meta), Some(v)) => {
+                    let mut b = meta.into_builder();
+                    b.etag(format!("\"{v}\"")).version(v);
+                    RpRead::new(b.build())
+                }
+                (Some(meta), None) => RpRead::new(meta),
+                (None, _) => RpRead::default(),
+            };
+            Ok((rp, stream))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            let target = self
+                .version
+                .as_ref()
+                .map_or_else(|| self.path.clone(), |v| format!("{v}/{}", self.path));
+            self.inner
+                .read(&self.ctx, &target, OpRead::new())?
+                .read(range)
+                .await
+        }
+    }
+
+    impl Service for MutationHarness {
+        type Reader = HarnessReader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = HarnessDeleter;
+        type Copier = oio::Copier;
+        type Composer = HarnessComposer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            let mut cap = self.inner.capability();
+            cap.compose = true;
+            cap.restore = true;
+            cap.restore_with_version = true;
+            cap.read_with_version = true;
+            cap.delete_with_version = true;
+            cap.write_can_copy_from = true;
+            cap
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            if path == "ver" {
+                let v = args
+                    .version()
+                    .map(str::to_owned)
+                    .unwrap_or_else(|| self.current_version.load(Ordering::Relaxed).to_string());
+                return Ok(self
+                    .inner
+                    .stat(ctx, &format!("{v}/{path}"), OpStat::new())
+                    .await?
+                    .map_metadata(|m| {
+                        let mut b = m.into_builder();
+                        b.etag(format!("\"{v}\"")).version(v);
+                        b.build()
+                    }));
+            }
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            let version =
+                if path == "ver" {
+                    Some(args.version().map(str::to_owned).unwrap_or_else(|| {
+                        self.current_version.load(Ordering::Relaxed).to_string()
+                    }))
+                } else {
+                    None
+                };
+            Ok(HarnessReader {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                path: path.to_owned(),
+                version,
+            })
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            Ok(HarnessDeleter {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                current_version: self.current_version.clone(),
+            })
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        fn compose(
+            &self,
+            ctx: &OperationContext,
+            to: &str,
+            _: OpCompose,
+        ) -> Result<Self::Composer> {
+            Ok(HarnessComposer {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                to: to.to_owned(),
+                parts: Vec::new(),
+            })
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn restore(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpRestore,
+        ) -> Result<RpRestore> {
+            self.restored.fetch_add(1, Ordering::Relaxed);
+            let target = args
+                .version()
+                .map_or_else(|| path.to_owned(), |v| format!("{v}/{path}"));
+            let mut w = self.inner.write(ctx, &target, OpWrite::new())?;
+            w.write(Buffer::from("restored")).await?;
+            w.close().await?;
+            Ok(RpRestore::default())
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let source = memory()?;
+    source.write("src", "copied").await?;
+    source.write("dest", "old").await?;
+    source.write("p1", "hel").await?;
+    source.write("p2", "lo").await?;
+    source.write("composed", "stale").await?;
+    source.write("archived", "cold").await?;
+    source.write("1/ver", "v1data").await?;
+    source.write("2/ver", "v2data").await?;
+
+    let current_version = Arc::new(AtomicUsize::new(1));
+    let restored = Arc::new(AtomicUsize::new(0));
+    let harness = MutationHarness {
+        inner: source.service().clone(),
+        current_version: current_version.clone(),
+        restored: restored.clone(),
+    };
+    let op = source
+        .layer(harness)
+        .layer(CacheLayer::new(memory()?)?.with_ttl(Duration::MAX));
+
+    // 1. Writer::copy_from invalidates destination.
+    assert_eq!(op.read("dest").await?.to_vec(), b"old");
+    let mut writer = op.writer("dest").await?;
+    writer.copy_from("src", ..).await?;
+    writer.close().await?;
+    assert_eq!(op.read("dest").await?.to_vec(), b"copied");
+
+    // 2. compose invalidates destination.
+    assert_eq!(op.read("composed").await?.to_vec(), b"stale");
+    op.compose(["p1", "p2"], "composed").await?;
+    assert_eq!(op.read("composed").await?.to_vec(), b"hello");
+
+    // 3. restore invalidates target.
+    assert_eq!(op.read("archived").await?.to_vec(), b"cold");
+    op.restore("archived").await?;
+    assert_eq!(restored.load(Ordering::Relaxed), 1);
+    assert_eq!(op.read("archived").await?.to_vec(), b"restored");
+
+    // 4. Versioned delete invalidates both the versioned subject and unversioned current subject.
+    assert_eq!(op.read("ver").await?.to_vec(), b"v1data");
+    assert_eq!(op.read_with("ver").version("1").await?.to_vec(), b"v1data");
+    op.delete_with("ver").version("1").await?;
+    assert_eq!(
+        op.read_with("ver").version("1").await.unwrap_err().kind(),
+        ErrorKind::NotFound
+    );
+    assert_eq!(op.read("ver").await?.to_vec(), b"v2data");
+
     Ok(())
 }

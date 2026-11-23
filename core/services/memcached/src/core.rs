@@ -271,11 +271,7 @@ impl MemcachedCore {
     }
 
     pub async fn set(&self, key: &str, value: Buffer, expires: Option<Duration>) -> Result<()> {
-        let expiration = match expires {
-            Some(expires) => encode_expiration(expires)?,
-            // The builder limits the default TTL to the relative range.
-            None => self.default_ttl.map_or(0, |ttl| ttl.as_secs() as u32),
-        };
+        let expiration = resolve_expiration(expires, self.default_ttl)?;
         let mut conn = self.conn().await?;
         conn.set(&percent_encode_path(key), &value.to_vec(), expiration)
             .await
@@ -285,6 +281,17 @@ impl MemcachedCore {
         let mut conn = self.conn().await?;
 
         conn.delete(&percent_encode_path(key)).await
+    }
+}
+
+fn resolve_expiration(expires: Option<Duration>, default_ttl: Option<Duration>) -> Result<u32> {
+    if let Some(expires) = expires {
+        return encode_expiration(expires);
+    }
+
+    match default_ttl {
+        Some(ttl) if !ttl.is_zero() => encode_expiration(ttl),
+        _ => Ok(0),
     }
 }
 
@@ -323,6 +330,42 @@ fn encode_expiration(expires: Duration) -> Result<u32> {
 mod tests {
     use super::*;
     use tokio::net::TcpListener;
+
+    #[test]
+    fn resolve_memcached_expiration() {
+        assert_eq!(resolve_expiration(None, None).unwrap(), 0);
+        assert_eq!(resolve_expiration(None, Some(Duration::ZERO)).unwrap(), 0);
+
+        for ttl in [
+            Duration::from_nanos(1),
+            Duration::from_millis(1),
+            Duration::from_millis(999),
+        ] {
+            assert_eq!(resolve_expiration(None, Some(ttl)).unwrap(), 1);
+        }
+
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_secs(1))).unwrap(),
+            1
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_secs(60))).unwrap(),
+            60
+        );
+        assert_eq!(
+            resolve_expiration(None, Some(Duration::from_millis(1500))).unwrap(),
+            2
+        );
+        assert_eq!(
+            resolve_expiration(Some(Duration::from_secs(60)), Some(Duration::from_nanos(1)))
+                .unwrap(),
+            60
+        );
+
+        let err =
+            resolve_expiration(Some(Duration::ZERO), Some(Duration::from_secs(60))).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
 
     #[test]
     fn encode_memcached_expiration() {

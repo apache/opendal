@@ -168,6 +168,51 @@ async fn forwards_http_transport_error() {
     });
 }
 
+#[test]
+fn reports_nul_probe_arguments_as_empty_c_strings() {
+    assert_eq!(probe_cstring("dir/file").to_bytes(), b"dir/file");
+    assert_eq!(probe_cstring("dir\0/file").to_bytes(), b"");
+}
+
+#[tokio::test]
+async fn handles_paths_with_nul_bytes() -> Result<()> {
+    let op = Operator::new(services::Memory::default())?.layer(DtraceLayer::new());
+
+    let source = "a\0b";
+    let destination = "c\0d";
+    let nested = "dir\0/file\0";
+
+    op.write(source, "data").await?;
+    assert_eq!(op.read(source).await?.to_vec(), b"data");
+    assert!(op.stat(source).await?.is_file());
+
+    op.write(nested, "nested").await?;
+    let entries = op.list("dir\0/").await?;
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0].path(), nested);
+
+    let error = op.copy(source, destination).await.unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::Unsupported);
+
+    let error = op.rename(source, destination).await.unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::Unsupported);
+
+    op.create_dir("created\0/").await?;
+
+    let error = op
+        .presign_read(source, std::time::Duration::from_secs(60))
+        .await
+        .unwrap_err();
+    assert_eq!(error.kind(), ErrorKind::Unsupported);
+
+    op.delete(source).await?;
+    assert!(!op.exists(source).await?);
+    op.delete_with("dir\0/").recursive(true).await?;
+    assert!(!op.exists(nested).await?);
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn traces_lister_entries_and_end_of_stream() -> Result<()> {
     let op = Operator::new(services::Memory::default())?.layer(DtraceLayer::new());

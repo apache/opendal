@@ -34,32 +34,156 @@ impl MonoiofsDeleter {
 
 impl oio::OneShotDelete for MonoiofsDeleter {
     async fn delete_once(&self, path: String, _: OpDelete) -> Result<()> {
+        let is_dir_path = path.ends_with('/');
         let path = self.core.prepare_path(&path)?;
-        let meta = self
-            .core
-            .dispatch({
-                let path = path.clone();
-                move || monoio::fs::metadata(path)
-            })
-            .await;
-        match meta {
-            Ok(meta) => {
-                if meta.is_dir() {
-                    self.core
-                        .dispatch(move || monoio::fs::remove_dir(path))
-                        .await
-                        .map_err(new_std_io_error)?;
-                } else {
-                    self.core
-                        .dispatch(move || monoio::fs::remove_file(path))
-                        .await
-                        .map_err(new_std_io_error)?;
+
+        self.core
+            .dispatch(move || async move {
+                let meta = match monoio::fs::symlink_metadata(&path).await {
+                    Ok(meta) => meta,
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+                    Err(err) => return Err(new_std_io_error(err)),
+                };
+                let is_dir = meta.is_dir();
+
+                // prepare_path calls confined_join, which strips the trailing
+                // slash. Check the directory path against the target, then
+                // remove the entry identified by symlink_metadata.
+                if is_dir_path && !is_dir {
+                    let target_is_dir = if meta.is_symlink() {
+                        match monoio::fs::metadata(&path).await {
+                            Ok(target) => target.is_dir(),
+                            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                                return Ok(());
+                            }
+                            Err(err) => return Err(new_std_io_error(err)),
+                        }
+                    } else {
+                        false
+                    };
+
+                    if !target_is_dir {
+                        return Err(Error::new(
+                            ErrorKind::NotADirectory,
+                            "delete path is a directory path, but the target is a file",
+                        ));
+                    }
                 }
 
-                Ok(())
-            }
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
-            Err(err) => Err(new_std_io_error(err)),
+                let result = if is_dir {
+                    monoio::fs::remove_dir(&path).await
+                } else {
+                    monoio::fs::remove_file(&path).await
+                };
+                match result {
+                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    result => result.map_err(new_std_io_error),
+                }
+            })
+            .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_delete_missing_entry_is_a_no_op() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op = Operator::new(crate::Monoiofs::default().root(temp_dir.path().to_str().unwrap()))
+            .unwrap();
+
+        op.delete("missing").await.unwrap();
+        op.delete("missing/").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_delete_file_and_dir_paths() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let op = Operator::new(crate::Monoiofs::default().root(temp_dir.path().to_str().unwrap()))
+            .unwrap();
+
+        op.write("file.txt", "hello").await.unwrap();
+        let err = op.delete("file.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        // The file must survive: a directory path must never remove a file.
+        assert!(op.stat("file.txt").await.is_ok());
+
+        op.delete("file.txt").await.unwrap();
+        assert!(op.stat("file.txt").await.is_err());
+
+        op.create_dir("empty_dir/").await.unwrap();
+        op.delete("empty_dir/").await.unwrap();
+        assert!(op.stat("empty_dir/").await.is_err());
+
+        op.create_dir("dir_no_slash/").await.unwrap();
+        op.delete("dir_no_slash").await.unwrap();
+        assert!(op.stat("dir_no_slash/").await.is_err());
+
+        op.write("nonempty_dir/child.txt", "data").await.unwrap();
+        assert!(op.delete("nonempty_dir/").await.is_err());
+        assert!(op.stat("nonempty_dir/child.txt").await.is_ok());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_delete_symlinks() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path();
+        let op = Operator::new(crate::Monoiofs::default().root(root.to_str().unwrap())).unwrap();
+
+        // Symlink to file: directory path is rejected, file path unlinks the symlink only.
+        std::fs::write(root.join("real.txt"), b"data").unwrap();
+        std::os::unix::fs::symlink("real.txt", root.join("link.txt")).unwrap();
+        let err = op.delete("link.txt/").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        assert!(
+            std::fs::symlink_metadata(root.join("link.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+        assert_eq!(std::fs::read(root.join("real.txt")).unwrap(), b"data");
+
+        op.delete("link.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("link.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(std::fs::read(root.join("real.txt")).unwrap(), b"data");
+
+        // Symlink to dir: both file and directory paths unlink the symlink and keep the target.
+        std::fs::create_dir(root.join("realdir")).unwrap();
+        std::fs::write(root.join("realdir/keep"), b"data").unwrap();
+        for path in ["linkdir", "linkdir/"] {
+            std::os::unix::fs::symlink("realdir", root.join("linkdir")).unwrap();
+            op.delete(path).await.unwrap();
+            assert_eq!(
+                std::fs::symlink_metadata(root.join("linkdir"))
+                    .unwrap_err()
+                    .kind(),
+                std::io::ErrorKind::NotFound
+            );
+            assert_eq!(std::fs::read(root.join("realdir/keep")).unwrap(), b"data");
         }
+
+        // Dangling symlink: directory path is a no-op leaving the link, file path removes it.
+        std::os::unix::fs::symlink("nope.txt", root.join("dangle.txt")).unwrap();
+        op.delete("dangle.txt/").await.unwrap();
+        assert!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap()
+                .is_symlink()
+        );
+
+        op.delete("dangle.txt").await.unwrap();
+        assert_eq!(
+            std::fs::symlink_metadata(root.join("dangle.txt"))
+                .unwrap_err()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
     }
 }

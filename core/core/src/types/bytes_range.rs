@@ -315,7 +315,14 @@ impl FromStr for BytesRange {
                 .with_operation("BytesRange::from_str")
                 .with_context("value", value));
             }
-            Ok(BytesRange::new(start, Some(end - start + 1)))
+            // `end >= start`, so the subtraction is exact. A request for the
+            // entire addressable range (`0-u64::MAX`) spans 2^64 bytes, which
+            // does not fit in u64; saturate to u64::MAX to match
+            // `From<RangeBounds>`.
+            Ok(BytesRange::new(
+                start,
+                Some((end - start).saturating_add(1)),
+            ))
         }
     }
 }
@@ -426,8 +433,33 @@ mod tests {
     }
 
     #[test]
+    fn test_bytes_range_from_str_u64_max() -> Result<()> {
+        // A request for the entire addressable range spans 2^64 bytes, one more
+        // than u64 can hold. Saturate the size to u64::MAX, matching
+        // `From<RangeBounds>` for `..=u64::MAX`.
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            "bytes=0-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::new(0, Some(u64::MAX)),
+            BytesRange::from(0..=u64::MAX)
+        );
+        assert_eq!(
+            BytesRange::new(1, Some(u64::MAX)),
+            "bytes=1-18446744073709551615".parse::<BytesRange>()?
+        );
+        assert_eq!(
+            BytesRange::new(u64::MAX, Some(1)),
+            "bytes=18446744073709551615-18446744073709551615".parse::<BytesRange>()?
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_bytes_range_from_str_invalid_end_less_than_start() {
-        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0"];
+        let cases = vec!["bytes=100-50", "bytes=10-9", "bytes=1-0", "bytes=10-5"];
 
         for input in cases {
             let result: Result<BytesRange> = input.parse();

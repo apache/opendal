@@ -106,6 +106,20 @@ impl ServiceInfo {
 /// - Services report their supported operation set through [`Service::capability`].
 /// - The [`OperationContext`] carries layer-composed runtime resources for each
 ///   operation.
+///
+/// # Capability Validation
+///
+/// [`Operator`][crate::Operator] validates correctness-critical operation
+/// options against the composed stack's [`Service::capability`] (through
+/// `Op*::from_options` and `Op*::check`) before invoking [`Service`] methods.
+/// Implementations do not need to duplicate these capability checks for
+/// options already covered by [`Service::capability`]; instead, keep
+/// [`Service::capability`] accurate for the operations and options this
+/// service supports.
+///
+/// Callers invoking [`Service`] directly without [`Operator`][crate::Operator]
+/// do not receive automatic option capability validation and must call the
+/// corresponding `Op*::check` method themselves when needed.
 pub trait Service: Send + Sync + Debug + Unpin + 'static {
     /// Reader returned by `read`.
     type Reader: oio::Read;

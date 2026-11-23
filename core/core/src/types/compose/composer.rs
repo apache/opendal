@@ -113,16 +113,14 @@ impl Composer {
             .with_context("path", path));
         }
 
-        let args = OpRead::from_compose_source_options(&self.capability, options)
-            .map_err(|err| err.with_context("service", self.scheme))?;
         let with_context = |err: Error| {
             err.with_operation(Operation::Compose.into_static())
                 .with_context("service", self.scheme)
                 .with_context("from", &path)
                 .with_context("to", &self.to)
         };
-        crate::layers::check_compose_source_args(self.scheme, self.capability, &args)
-            .map_err(with_context)?;
+        let args =
+            OpRead::from_compose_source_options(&self.capability, options).map_err(with_context)?;
         self.composer
             .compose(&path, args)
             .await

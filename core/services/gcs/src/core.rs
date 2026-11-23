@@ -1367,7 +1367,42 @@ mod tests {
 
         GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
-            capability: Capability::default(),
+            capability: Capability {
+                write: true,
+                write_with_if_match: true,
+                write_with_if_none_match: true,
+                write_with_if_version_match: true,
+                write_with_if_version_not_match: true,
+                write_with_if_not_exists: true,
+                delete: true,
+                delete_with_version: true,
+                delete_with_if_match: true,
+                delete_with_if_none_match: true,
+                delete_with_if_version_match: true,
+                delete_with_if_version_not_match: true,
+                copy: true,
+                copy_with_if_match: true,
+                copy_with_if_none_match: true,
+                copy_with_if_version_match: true,
+                copy_with_if_version_not_match: true,
+                copy_with_if_not_exists: true,
+                copy_with_source_version: true,
+                copy_with_content_type: true,
+                copy_with_content_language: true,
+                copy_with_user_metadata: true,
+                compose: true,
+                compose_with_content_type: true,
+                compose_with_content_disposition: true,
+                compose_with_content_encoding: true,
+                compose_with_cache_control: true,
+                compose_with_user_metadata: true,
+                compose_with_if_match: true,
+                compose_with_if_none_match: true,
+                compose_with_if_version_match: true,
+                compose_with_if_version_not_match: true,
+                compose_with_if_not_exists: true,
+                ..Default::default()
+            },
             endpoint: "https://storage.googleapis.com".to_string(),
             bucket: "test-bucket".to_string(),
             root: "/".to_string(),
@@ -1385,12 +1420,12 @@ mod tests {
     }
 
     fn write_args(options: options::WriteOptions) -> OpWrite {
-        let (args, _) = OpWrite::from_options(&Capability::default(), options).unwrap();
+        let (args, _) = OpWrite::from_options(&test_core().capability, options).unwrap();
         args
     }
 
     fn copy_args(options: options::CopyOptions) -> OpCopy {
-        OpCopy::from_options(&Capability::default(), options).unwrap()
+        OpCopy::from_options(&test_core().capability, options).unwrap()
     }
 
     #[test]
@@ -1547,7 +1582,7 @@ mod tests {
             .gcs_delete_object_request(
                 "object",
                 &OpDelete::from_options(
-                    &Capability::default(),
+                    &core.capability,
                     options::DeleteOptions {
                         if_version_not_match: Some("456".to_owned()),
                         ..Default::default()
@@ -1718,7 +1753,7 @@ mod tests {
     }
 
     fn delete_args(options: options::DeleteOptions) -> OpDelete {
-        OpDelete::from_options(&Capability::default(), options).unwrap()
+        OpDelete::from_options(&test_core().capability, options).unwrap()
     }
 
     #[test]
@@ -1797,7 +1832,7 @@ mod tests {
             },
         ];
         let args = OpCompose::from_options(
-            &Capability::default(),
+            &core.capability,
             options::ComposeOptions {
                 if_version_match: Some("33".to_string()),
                 cache_control: Some("no-cache".to_string()),

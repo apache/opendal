@@ -525,7 +525,13 @@ mod tests {
         Arc::new(GcsCore {
             info: ServiceInfo::new("gcs", "/", "test-bucket"),
             capability: Capability {
+                compose: true,
+                compose_with_if_not_exists: true,
+                compose_with_content_type: true,
+                compose_with_user_metadata: true,
+                delete: true,
                 delete_max_size: Some(1),
+                delete_with_if_version_match: true,
                 ..Default::default()
             },
             endpoint: "https://storage.googleapis.com".to_string(),
@@ -550,12 +556,14 @@ mod tests {
             SharedComposeTransport(transport.clone()),
         ));
         let ctx = ctx.with_executor(Executor::with(TokioTestExecutor));
+        let core = test_core();
+        let cap = core.capability;
         let mut composer = GcsComposer::new(
-            test_core(),
+            core,
             ctx,
             "target",
             OpCompose::from_options(
-                &Capability::default(),
+                &cap,
                 options::ComposeOptions {
                     concurrent: 2,
                     ..Default::default()
@@ -640,12 +648,14 @@ mod tests {
             SharedComposeTransport(transport.clone()),
         ));
         let ctx = ctx.with_executor(Executor::with(TokioTestExecutor));
+        let core = test_core();
+        let cap = core.capability;
         let mut composer = GcsComposer::new(
-            test_core(),
+            core,
             ctx,
             "target",
             OpCompose::from_options(
-                &Capability::default(),
+                &cap,
                 options::ComposeOptions {
                     concurrent: 4,
                     ..Default::default()

@@ -273,7 +273,9 @@ impl Writer {
             ));
         }
         let limit = options.limit;
-        let (range, args, options) = options.into();
+        let (range, args, options) =
+            OpRead::from_options(&self.ctx.service().capability(), options)
+                .map_err(|err| err.with_context("service", self.ctx.service().info().scheme()))?;
         self.inner
             .copy_from(&path, args, options, range, limit)
             .await
@@ -832,6 +834,99 @@ mod tests {
         writer.close().await?;
 
         assert_eq!(op.read("f").await?.to_vec(), previous.as_bytes());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_copy_from_options_rejects_unsupported_read_options() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "hello world").await?;
+        let since = Timestamp::from_second(1_700_000_000).unwrap();
+
+        let unsupported_cases = [
+            (
+                "version",
+                options::ReadOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_match",
+                options::ReadOptions {
+                    if_match: Some("\"etag\"".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_none_match",
+                options::ReadOptions {
+                    if_none_match: Some("\"etag\"".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_version_match",
+                options::ReadOptions {
+                    if_version_match: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_version_not_match",
+                options::ReadOptions {
+                    if_version_not_match: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_modified_since",
+                options::ReadOptions {
+                    if_modified_since: Some(since),
+                    ..Default::default()
+                },
+            ),
+            (
+                "if_unmodified_since",
+                options::ReadOptions {
+                    if_unmodified_since: Some(since),
+                    ..Default::default()
+                },
+            ),
+        ];
+
+        for (name, read_options) in unsupported_cases {
+            let mut writer = op.writer("target").await?;
+            let err = writer
+                .copy_from_options("source", read_options)
+                .await
+                .expect_err(name);
+            assert_eq!(err.kind(), ErrorKind::Unsupported, "{name}: {err}");
+            assert!(err.to_string().contains(name), "{name}: {err}");
+            writer.abort().await?;
+        }
+
+        // Disabling `read_with_version` via `CapabilityOverrideLayer` rejects
+        // versioned `copy_from_options` even when the wrapped service supports it.
+        let (ctx, inner) = op.into_parts();
+        let versioned = Operator::from_parts(ctx, Arc::new(VersionedReadService { inner })).layer(
+            crate::layers::CapabilityOverrideLayer::from_overrides("read_with_version=false")?,
+        );
+        let mut writer = versioned.writer("target").await?;
+        let err = writer
+            .copy_from_options(
+                "source",
+                options::ReadOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+            )
+            .await
+            .expect_err("overridden read_with_version=false must reject copy_from_options");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(err.to_string().contains("version"));
+        writer.abort().await?;
+
         Ok(())
     }
 }

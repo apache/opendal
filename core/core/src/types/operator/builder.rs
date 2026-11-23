@@ -67,7 +67,7 @@ impl Operator {
         } else {
             op
         };
-        Ok(op.layer(CompleteLayer).layer(CorrectnessCheckLayer))
+        Ok(op.layer(CompleteLayer))
     }
 
     /// Create a new operator from given config.

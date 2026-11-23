@@ -44,7 +44,7 @@ mod linux {
     use opendal_core::options::WriteOptions;
     use opendal_core::raw::oio::{Read, ReadStreamDyn};
     use opendal_core::raw::{OpRead, OpWrite, Service};
-    use opendal_core::{Buffer, Builder, BytesRange, Executor, OperationContext};
+    use opendal_core::{Buffer, Builder, BytesRange, Capability, Executor, OperationContext};
     use opendal_executor_tokio::TokioExecutor;
     use rustix::fs::fstatfs;
 
@@ -143,7 +143,14 @@ mod linux {
             append: true,
             ..Default::default()
         };
-        let (args, _) = OpWrite::from_options(&service.capability(), options).unwrap();
+        let err = OpWrite::from_options(&service.capability(), options.clone()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let capability = Capability {
+            write_can_append: true,
+            ..service.capability()
+        };
+        let (args, _) = OpWrite::from_options(&capability, options).unwrap();
         let result = service.write(&OperationContext::new(), "data", args);
         assert_eq!(result.err().unwrap().kind(), ErrorKind::Unsupported);
         assert_eq!(fs::read(&path).unwrap(), b"original");

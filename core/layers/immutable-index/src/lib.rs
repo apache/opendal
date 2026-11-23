@@ -26,18 +26,6 @@ use std::vec::IntoIter;
 use opendal_core::raw::*;
 use opendal_core::*;
 
-/// Same contract as `CorrectnessCheckLayer`: report a list option the index
-/// cannot honor instead of silently ignoring it.
-fn new_unsupported_error(scheme: &'static str, op: Operation, args: &str) -> Error {
-    let op = op.into_static();
-
-    Error::new(
-        ErrorKind::Unsupported,
-        format!("The service {scheme} does not support the operation {op} with the arguments {args}. Please verify if the relevant flags have been enabled, or submit an issue if you believe this is incorrect."),
-    )
-    .with_operation(op)
-}
-
 /// `ImmutableIndexLayer` adds an immutable in-memory index to a storage service.
 ///
 /// Especially useful for services without list capability like HTTP.
@@ -227,30 +215,6 @@ impl Service for ImmutableIndexService {
     }
 
     fn list(&self, _ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        // CorrectnessCheckLayer sits below this layer, so reject the list
-        // options the index cannot honor instead of silently ignoring them.
-        if args.versions() {
-            return Err(new_unsupported_error(
-                self.info().scheme(),
-                Operation::List,
-                "versions",
-            ));
-        }
-        if args.deleted() {
-            return Err(new_unsupported_error(
-                self.info().scheme(),
-                Operation::List,
-                "deleted",
-            ));
-        }
-        if args.glob().is_some() {
-            return Err(new_unsupported_error(
-                self.info().scheme(),
-                Operation::List,
-                "glob",
-            ));
-        }
-
         let mut path = path;
         if path == "/" {
             path = ""
@@ -867,16 +831,15 @@ mod tests {
         Ok(())
     }
 
-    /// The option guards live in `ImmutableIndexService::list` itself, so they
-    /// must hold even when the caller drives the `Service` trait directly
-    /// without an `Operator` in front.
-    #[tokio::test]
-    async fn test_list_rejects_unsupported_options_at_service_level() -> Result<()> {
+    /// Direct `Service` callers validate against `ImmutableIndexService::capability()`
+    /// via `OpList::check`, matching the `raw::Service` capability contract.
+    #[test]
+    fn test_list_capability_rejects_unsupported_options_at_service_level() {
         let mut iil = ImmutableIndexLayer::default();
         iil.insert("file".to_string());
 
         let service = iil.apply_service(Arc::new(MockService));
-        let ctx = OperationContext::default();
+        let cap = service.capability();
 
         for args in [
             OpList::from(options::ListOptions {
@@ -889,12 +852,10 @@ mod tests {
             }),
             OpList::new().with_glob("*.txt"),
         ] {
-            let err = match service.list(&ctx, "/", args) {
-                Err(err) => err,
-                Ok(_) => panic!("unsupported options must be rejected"),
-            };
+            let err = args
+                .check(&cap)
+                .expect_err("unsupported options must be rejected by service capability");
             assert_eq!(err.kind(), ErrorKind::Unsupported);
         }
-        Ok(())
     }
 }

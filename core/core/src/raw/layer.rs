@@ -35,6 +35,19 @@ use crate::*;
 /// Hooks take `&self`, so layers that keep mutable state must use interior
 /// mutability. That state must remain `Send` and `Sync` because layers are
 /// shared across cloned operators and concurrent operations.
+///
+/// # Capability Validation
+///
+/// [`Operator`][crate::Operator] validates correctness-critical options against
+/// the outermost composed [`Service::capability`] before calling into the
+/// service stack. Layers that add, restrict, or replace operation behavior must
+/// reflect those changes in [`Service::capability`].
+///
+/// Layers that dispatch operations to a separate [`Service`] whose capability
+/// is not reflected in the outer stack's [`Service::capability`] (for example,
+/// a routing layer forwarding to target operators) must revalidate operation
+/// arguments with the corresponding `Op*::check` method against the target
+/// service's capability before dispatch.
 pub trait Layer: Send + Sync + Debug + Unpin + 'static {
     /// Intercept the operation service stack.
     ///

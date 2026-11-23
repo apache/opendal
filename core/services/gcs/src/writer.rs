@@ -676,7 +676,10 @@ mod tests {
         });
         let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
         let (op, _) = OpWrite::from_options(
-            &Capability::default(),
+            &Capability {
+                write_with_if_not_exists: true,
+                ..Default::default()
+            },
             options::WriteOptions {
                 if_not_exists: true,
                 ..Default::default()

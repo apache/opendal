@@ -528,8 +528,8 @@ impl Operator {
         path: String,
         opts: options::StatOptions,
     ) -> Result<Metadata> {
-        let args = opts.into();
-        crate::layers::check_stat_args(srv.info().scheme(), srv.capability(), &args)?;
+        let args = OpStat::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let rp = srv.stat(&ctx, &path, args).await?;
         Ok(rp.into_metadata())
     }
@@ -713,8 +713,8 @@ impl Operator {
             ));
         }
 
-        let (mut range, args, opts) = opts.into();
-        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
+        let (mut range, args, opts) = OpRead::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let reader = srv.read(&ctx, &path, args.clone())?;
         if limit == Some(0) || range.size() == Some(0) {
             return Ok(Buffer::new());
@@ -842,8 +842,8 @@ impl Operator {
             );
         }
 
-        let (args, opts) = options.into();
-        crate::layers::check_read_args(srv.info().scheme(), srv.capability(), &args)?;
+        let (args, opts) = OpRead::from_reader_options(&srv.capability(), options)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let reader = srv.read(&ctx, &path, args.clone())?;
         let read_context = ReadContext::new(ctx, srv, path, args, opts, reader);
         Ok(Reader::new(read_context))
@@ -1184,7 +1184,6 @@ impl Operator {
 
         let (args, opts) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &args)?;
         let write_context = WriteContext::new(ctx, srv, path, args, opts);
         let w = Writer::new(write_context)?;
         Ok(w)
@@ -1340,7 +1339,6 @@ impl Operator {
         let capability = srv.capability();
         let args = OpCompose::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        crate::layers::check_compose_args(srv.info().scheme(), capability, &args)?;
         Composer::create(ctx, srv, to, args)
     }
 
@@ -1601,9 +1599,6 @@ impl Operator {
         let capability = srv.capability();
         let args = OpCopy::from_options(&capability, opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        let scheme = srv.info().scheme();
-        crate::layers::check_copy_metadata_args(scheme, capability, &args)?;
-        crate::layers::check_copy_args(scheme, capability, &args)?;
         Copier::create(ctx, srv, &from, &to, args)
     }
 
@@ -1746,8 +1741,8 @@ impl Operator {
             );
         }
 
-        let args = opts.into();
-        crate::layers::check_rename_args(srv.info().scheme(), srv.capability(), &args)?;
+        let args = OpRename::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         srv.rename(&ctx, &from, &to, args).await?;
 
         Ok(())
@@ -1827,18 +1822,10 @@ impl Operator {
                 .with_context("path", path));
         }
 
-        if opts.if_not_exists && opts.version.is_none() {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "if_not_exists requires a restore version",
-            )
-            .with_operation(Operation::Restore)
-            .with_context("service", srv.info().scheme())
-            .with_context("path", path));
-        }
-
-        let args = opts.into();
-        crate::layers::check_restore_args(srv.info().scheme(), srv.capability(), &args)?;
+        let args = OpRestore::from_options(&srv.capability(), opts).map_err(|err| {
+            err.with_context("service", srv.info().scheme())
+                .with_context("path", &path)
+        })?;
         srv.restore(&ctx, &path, args).await?;
         Ok(())
     }
@@ -2392,8 +2379,8 @@ impl Operator {
         path: String,
         opts: options::ListOptions,
     ) -> Result<Lister> {
-        let args = OpList::from_options(opts)?;
-        crate::layers::check_list_args(srv.info().scheme(), srv.capability(), &args)?;
+        let args = OpList::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         Lister::create(ctx, srv, &path, args)
     }
 }
@@ -2509,7 +2496,9 @@ impl Operator {
         path: String,
         (opts, expire): (options::StatOptions, Duration),
     ) -> Result<PresignedRequest> {
-        let op = OpPresign::new(OpStat::from(opts), expire);
+        let op_stat = OpStat::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
+        let op = OpPresign::new(op_stat, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
     }
@@ -2651,7 +2640,8 @@ impl Operator {
             ));
         }
 
-        let (range, op_read, _) = opts.into();
+        let (range, op_read, _) = OpRead::from_options(&srv.capability(), opts)
+            .map_err(|err| err.with_context("service", srv.info().scheme()))?;
         let op = OpPresign::new(PresignOperation::Read(range, op_read), expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2797,7 +2787,6 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let (op_write, _) = OpWrite::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        crate::layers::check_write_args(srv.info().scheme(), srv.capability(), &op_write)?;
         let op = OpPresign::new(op_write, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())
@@ -2912,7 +2901,6 @@ impl Operator {
     ) -> Result<PresignedRequest> {
         let op_delete = OpDelete::from_options(&srv.capability(), opts)
             .map_err(|err| err.with_context("service", srv.info().scheme()))?;
-        crate::layers::check_delete_args(srv.info().scheme(), srv.capability(), &op_delete)?;
         let op = OpPresign::new(op_delete, expire);
         let rp = srv.presign(&ctx, &path, op).await?;
         Ok(rp.into_presigned_request())

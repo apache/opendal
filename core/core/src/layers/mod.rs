@@ -37,10 +37,3 @@ pub use glob::GlobLayer;
 
 mod capability_override;
 pub use capability_override::CapabilityOverrideLayer;
-
-mod correctness_check;
-pub(crate) use correctness_check::{
-    CorrectnessCheckLayer, check_compose_args, check_compose_source_args, check_copy_args,
-    check_copy_metadata_args, check_delete_args, check_list_args, check_read_args,
-    check_rename_args, check_restore_args, check_stat_args, check_write_args,
-};

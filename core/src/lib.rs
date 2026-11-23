@@ -452,7 +452,7 @@ pub mod services {
     #[cfg(feature = "services-r2")]
     pub use opendal_service_s3::{R2, R2_SCHEME, R2Config, register_r2_service};
     #[cfg(feature = "services-s3")]
-    pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service};
+    pub use opendal_service_s3::{S3, S3_SCHEME, S3Config, register_s3_service, reqsign_aws_v4};
     #[cfg(feature = "services-seafile")]
     pub use opendal_service_seafile::*;
     #[cfg(feature = "services-sftp")]
@@ -498,7 +498,9 @@ mod service_feature_tests {
 
         #[cfg(feature = "services-s3")]
         {
-            let _ = services::S3::default();
+            let chain =
+                reqsign_core::ProvideCredentialChain::<services::reqsign_aws_v4::Credential>::new();
+            let _ = services::S3::default().credential_provider_chain(chain);
             assert!(schemes.contains("s3"));
         }
         #[cfg(not(feature = "services-s3"))]

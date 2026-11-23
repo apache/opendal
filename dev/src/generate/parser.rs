@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::fs::read_dir;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use syn::{
     Expr, ExprLit, Field, GenericArgument, Item, Lit, LitStr, Meta, PathArguments, Type, TypePath,
@@ -30,24 +30,20 @@ use syn::{
 
 pub type Services = HashMap<String, Service>;
 
-pub const S3_PROVIDER_PRESETS: &[&str] = &["minio", "r2"];
-
 pub fn service_feature(service: &str) -> String {
     format!("services-{}", service.replace('_', "-"))
 }
 
 pub fn sorted_services(services: Services, test: impl Fn(&str) -> bool) -> Services {
     let mut srvs = Services::new();
-    for (k, srv) in services.into_iter() {
+    for (k, mut srv) in services.into_iter() {
         if !test(k.as_str()) {
             continue;
         }
 
         // Sort configs by name (lexicographically)
-        let mut sorted = srv.config;
-        sorted.sort_by(|a, b| a.name.cmp(&b.name));
-
-        srvs.insert(k, Service { config: sorted });
+        srv.config.sort_by(|a, b| a.name.cmp(&b.name));
+        srvs.insert(k, srv);
     }
     srvs
 }
@@ -55,6 +51,8 @@ pub fn sorted_services(services: Services, test: impl Fn(&str) -> bool) -> Servi
 /// Service represents a service supported by opendal core, like `s3` and `fs`
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Service {
+    /// Directory containing the configuration and runtime source files.
+    pub source_dir: PathBuf,
     /// All configurations for this service.
     pub config: Vec<Config>,
 }
@@ -269,8 +267,12 @@ fn insert_service(map: &mut Services, service: String, path: &Path) -> Result<()
         path: path.to_string_lossy().to_string(),
         content,
     };
-    let parsed = parser.parse().context(format!("path: {path:?}"))?;
-    map.insert(service, parsed);
+    let config = parser.parse_fields().context(format!("path: {path:?}"))?;
+    let source_dir = path
+        .parent()
+        .context("config path has no parent directory")?
+        .to_path_buf();
+    map.insert(service, Service { source_dir, config });
     Ok(())
 }
 
@@ -304,7 +306,7 @@ pub struct ServiceParser {
 /// ```
 impl ServiceParser {
     /// Parse the content of this service.
-    fn parse(&self) -> Result<Service> {
+    fn parse_fields(&self) -> Result<Vec<Config>> {
         log::debug!("service {} parse started", self.service);
 
         let ast = syn::parse_file(&self.content)?;
@@ -331,7 +333,7 @@ impl ServiceParser {
         }
 
         log::debug!("service {} parse finished", self.service);
-        Ok(Service { config })
+        Ok(config)
     }
 
     /// TODO: Add comment parse support.
@@ -844,10 +846,10 @@ impl Debug for S3Config {
             content: content.to_string(),
         };
 
-        let service = parser.parse().unwrap();
-        assert_eq!(service.config.len(), 26);
+        let config = parser.parse_fields().unwrap();
+        assert_eq!(config.len(), 26);
         assert_eq!(
-            service.config[21],
+            config[21],
             Config {
                 name: "batch_max_operations".to_string(),
                 value: ConfigType::Usize,
@@ -870,7 +872,7 @@ Please tune this value based on services' document."
             },
         );
         assert_eq!(
-            service.config[25],
+            config[25],
             Config {
                 name: "disable_write_with_if_match".to_string(),
                 value: ConfigType::Bool,

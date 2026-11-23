@@ -26,7 +26,7 @@
 //! all expect. Adding a new binding is a matter of adding an entry to
 //! [`BINDINGS`] plus a snippet renderer in [`render_examples`].
 
-use crate::generate::parser::{AttrDeprecated, Config, ConfigType, S3_PROVIDER_PRESETS, Services};
+use crate::generate::parser::{AttrDeprecated, Config, ConfigType, Services};
 use anyhow::{Context, Result};
 use regex::Regex;
 use serde::Serialize;
@@ -202,15 +202,14 @@ pub fn generate(workspace_dir: PathBuf, services: Services) -> Result<()> {
 
         let mut examples = Vec::new();
         for (binding, support) in BINDINGS.iter().zip(support.iter()) {
-            // Go loads one dynamic package per scheme, while these presets share
-            // the Rust S3 crate and don't have standalone Go service packages.
-            let enabled =
-                !matches!(binding.id, "go") || !S3_PROVIDER_PRESETS.contains(&scheme.as_str());
-            let enabled = enabled
-                && match support {
-                    None => binding.id != "go" || !matches!(scheme.as_str(), "hf3fs" | "smb"),
-                    Some(set) => set.contains(&scheme),
-                };
+            let enabled = match support {
+                // Go needs a published opendal-go-services package for each scheme.
+                None if binding.id == "go" => {
+                    !matches!(scheme.as_str(), "hf3fs" | "minio" | "r2" | "smb")
+                }
+                None => true,
+                Some(set) => set.contains(&scheme),
+            };
             if !enabled {
                 continue;
             }

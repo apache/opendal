@@ -59,10 +59,19 @@ use opendal_core::*;
 /// - Adding `TimeoutLayer` before `RetryLayer` applies the timeout to each individual attempt so
 ///   `RetryLayer` can retry timed-out attempts.
 /// - Adding `TimeoutLayer` after `RetryLayer` bounds total time across all retries of a single
-///   call. Dropping an in-flight retry future preserves the underlying handle state, and callers
-///   still follow each handle's recovery contract (for example, calling `Writer::abort` after an
-///   interrupted write, or reopening a read stream after cancelled or exhausted recovery when
-///   using [`RetryBudget`]).
+///   call.
+///
+/// Dropping an in-flight retry future keeps the underlying handle usable instead of poisoning
+/// `RetryLayer`, and callers still follow each handle's recovery contract:
+///
+/// - `Writer`: dropping an in-flight `Writer::write` or `Writer::close` future keeps the handle
+///   usable for cleanup, but a streaming or append body may have already persisted part of that
+///   call. Call `Writer::abort` and start a new writer instead of continuing to write or close,
+///   which can duplicate or corrupt data.
+/// - `Deleter`, `Copier`, and `Lister`: these handles can continue their normal recovery (for
+///   example, retrying `Deleter::close` to flush buffered deletes, calling `Copier::abort`, or
+///   continuing to poll a `Lister`).
+/// - Readers with [`RetryBudget`]: reopen a read stream after cancelled or exhausted recovery.
 ///
 /// ```no_run
 /// # use std::time::Duration;

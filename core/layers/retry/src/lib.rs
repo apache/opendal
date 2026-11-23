@@ -44,6 +44,14 @@ use opendal_core::*;
 /// If the operation still fails, the layer marks the error as `Persistent` to
 /// indicate that retries did not resolve it.
 ///
+/// When reopening a read stream after a temporary error, `RetryLayer` checks
+/// that the reopened object identity matches the previously observed metadata.
+/// If the object's identity changes or can no longer be verified (for example,
+/// a strong validator disappears, or a mid-stream resume only has a weak ETag
+/// without a matching `version`), `RetryLayer` returns a non-temporary
+/// [`ErrorKind::Conflict`] instead of splicing bytes across different
+/// versions.
+///
 /// # Stateful operation bodies
 ///
 /// While retrying stateful operation bodies, please make sure either:
@@ -643,6 +651,7 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
             .policy
             .retry(Operation::Read, || self.inner.open(range))
             .await?;
+        let identity = ReadStreamIdentity::from_rp(&rp);
         let range = resolve_range(range, &rp);
         Ok((
             rp,
@@ -651,6 +660,9 @@ impl<R: oio::Read + 'static, I: RetryInterceptor> oio::Read for RetryReader<R, I
                 stream: Some(stream),
                 range,
                 read: 0,
+                has_progress: false,
+                identity,
+                terminal_conflict: None,
                 policy: self.policy.clone(),
                 deposited: self.deposited.clone(),
             }),
@@ -700,18 +712,137 @@ fn resolve_range(range: BytesRange, rp: &RpRead) -> BytesRange {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ReadStreamEtag {
+    Strong(String),
+    Weak(String),
+}
+
+impl ReadStreamEtag {
+    fn from_raw(etag: &str) -> Self {
+        // RFC 9110 section 8.8.3 defines the weak indicator `W/` as case-sensitive.
+        if etag.starts_with("W/\"") {
+            Self::Weak(etag.to_owned())
+        } else {
+            Self::Strong(etag.to_owned())
+        }
+    }
+
+    fn is_strong(&self) -> bool {
+        matches!(self, Self::Strong(_))
+    }
+
+    fn is_weak(&self) -> bool {
+        matches!(self, Self::Weak(_))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ReadStreamIdentity {
+    version: Option<String>,
+    etag: Option<ReadStreamEtag>,
+    last_modified: Option<Timestamp>,
+    content_length: Option<u64>,
+}
+
+impl ReadStreamIdentity {
+    fn from_rp(rp: &RpRead) -> Option<Self> {
+        let metadata = rp.metadata()?;
+        let identity = Self {
+            version: metadata.version().map(str::to_owned),
+            etag: metadata.etag().map(ReadStreamEtag::from_raw),
+            last_modified: metadata.last_modified(),
+            content_length: metadata.is_file().then_some(metadata.content_length()),
+        };
+        (identity.version.is_some()
+            || identity.etag.is_some()
+            || identity.last_modified.is_some()
+            || identity.content_length.is_some())
+        .then_some(identity)
+    }
+
+    fn has_strong_etag(&self) -> bool {
+        self.etag.as_ref().is_some_and(ReadStreamEtag::is_strong)
+    }
+
+    fn has_weak_etag(&self) -> bool {
+        self.etag.as_ref().is_some_and(ReadStreamEtag::is_weak)
+    }
+
+    fn has_strong_validator(&self) -> bool {
+        self.version.is_some() || self.has_strong_etag()
+    }
+
+    /// Return `true` when this identity carries a weak ETag without a strong
+    /// `version` validator. Per RFC 9110 sections 8.8.1, 8.8.3, and 13.1.1, a
+    /// weak ETag is not a strong validator and does not guarantee byte-for-byte
+    /// identity across range requests.
+    fn has_unverified_weak_etag(&self) -> bool {
+        self.has_weak_etag() && self.version.is_none()
+    }
+
+    /// Compare a previously observed identity (`self`) with a reopened stream's
+    /// identity (`other`).
+    ///
+    /// - Every validator present in both responses must match; any mismatch
+    ///   (including a weak ETag change even when `version` matches) rejects.
+    /// - When `has_progress` is `true` (at least one byte has already been
+    ///   yielded), a weak ETag cannot justify byte splicing unless both
+    ///   responses carry a matching `version`.
+    /// - If `self` had a strong validator (`version` or strong ETag), at least
+    ///   one strong validator must remain present and match in `other` so a
+    ///   reopen cannot silently downgrade to `content_length` or
+    ///   `last_modified` alone.
+    /// - Otherwise, at least one validator field must overlap and match.
+    fn matches(&self, other: &Self, has_progress: bool) -> bool {
+        if matches!((&self.version, &other.version), (Some(a), Some(b)) if a != b)
+            || matches!((&self.etag, &other.etag), (Some(a), Some(b)) if a != b)
+            || matches!((self.last_modified, other.last_modified), (Some(a), Some(b)) if a != b)
+            || matches!((self.content_length, other.content_length), (Some(a), Some(b)) if a != b)
+        {
+            return false;
+        }
+
+        let version_overlap = self.version.is_some() && other.version.is_some();
+        let strong_etag_overlap = self.has_strong_etag() && other.has_strong_etag();
+
+        if has_progress && (self.has_weak_etag() || other.has_weak_etag()) && !version_overlap {
+            return false;
+        }
+
+        if self.has_strong_validator() {
+            return version_overlap || strong_etag_overlap;
+        }
+
+        let etag_overlap = self.etag.is_some() && other.etag.is_some();
+        let last_modified_overlap = self.last_modified.is_some() && other.last_modified.is_some();
+        let content_length_overlap =
+            self.content_length.is_some() && other.content_length.is_some();
+
+        etag_overlap || last_modified_overlap || content_length_overlap
+    }
+}
+
 #[doc(hidden)]
 pub struct RetryReadStream<R, I> {
     reader: Arc<R>,
     stream: Option<Box<dyn oio::ReadStreamDyn>>,
     range: BytesRange,
     read: u64,
+    has_progress: bool,
+    identity: Option<ReadStreamIdentity>,
+    terminal_conflict: Option<&'static str>,
     policy: RetryPolicy<I>,
     deposited: Option<Arc<AtomicBool>>,
 }
 
 impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I> {
     async fn read(&mut self) -> Result<Buffer> {
+        if let Some(message) = self.terminal_conflict {
+            return Err(Error::new(ErrorKind::Conflict, message)
+                .with_operation("RetryReadStream::read")
+                .set_persistent());
+        }
         let stream = self.stream.take();
         if stream.is_none() && self.policy.budget.is_some() && self.range.size() != Some(self.read)
         {
@@ -722,31 +853,53 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
             );
         }
         let reader = &self.reader;
-        let initial = (stream, self.range, self.read);
-        let ((stream, range, read), result) = self
+        let initial = (
+            stream,
+            self.range,
+            self.read,
+            self.has_progress,
+            self.identity.clone(),
+            None,
+        );
+        let ((stream, range, read, has_progress, identity, terminal_conflict), result) = self
             .policy
             .retry_with_context(
                 Operation::Read,
                 initial,
-                |(stream, mut range, mut read)| async move {
+                |(stream, mut range, mut read, mut has_progress, mut identity, terminal_conflict)| async move {
                     let mut stream = match stream {
                         Some(stream) => stream,
                         None => {
                             // A completed read stays at EOF across later calls.
                             if range.size() == Some(read) {
-                                return ((None, range, read), Ok(Buffer::new()));
+                                return (
+                                    (None, range, read, has_progress, identity, terminal_conflict),
+                                    Ok(Buffer::new()),
+                                );
                             }
                             if range.is_suffix() && read > 0 {
                                 // Without the object size, the actual suffix length is
                                 // unknown, so advancing it can duplicate bytes that the
                                 // caller has already received.
                                 return (
-                                    (None, range, read),
+                                    (None, range, read, has_progress, identity, terminal_conflict),
                                     Err(Error::new(
                                         ErrorKind::Unexpected,
                                         "cannot resume a suffix range after progress without the object size",
                                     )
                                     .with_operation("RetryReadStream::read")),
+                                );
+                            }
+                            if has_progress
+                                && identity
+                                    .as_ref()
+                                    .is_some_and(ReadStreamIdentity::has_unverified_weak_etag)
+                            {
+                                let message = "cannot resume read stream with weak etag";
+                                return (
+                                    (None, range, read, has_progress, identity, Some(message)),
+                                    Err(Error::new(ErrorKind::Conflict, message)
+                                        .with_operation("RetryReadStream::read")),
                                 );
                             }
                             if !range.is_suffix() {
@@ -755,29 +908,118 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
                             }
                             match reader.open(range).await {
                                 Ok((rp, stream)) => {
+                                    let reopened_identity = ReadStreamIdentity::from_rp(&rp);
+                                    match (&identity, &reopened_identity) {
+                                        (Some(expected), Some(actual))
+                                            if !expected.matches(actual, has_progress) =>
+                                        {
+                                            let message = "object changed during read stream retry";
+                                            return (
+                                                (
+                                                    None,
+                                                    range,
+                                                    read,
+                                                    has_progress,
+                                                    identity,
+                                                    Some(message),
+                                                ),
+                                                Err(Error::new(ErrorKind::Conflict, message)
+                                                    .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        (Some(_), None) => {
+                                            let message =
+                                                "object identity missing during read stream retry";
+                                            return (
+                                                (
+                                                    None,
+                                                    range,
+                                                    read,
+                                                    has_progress,
+                                                    identity,
+                                                    Some(message),
+                                                ),
+                                                Err(Error::new(ErrorKind::Conflict, message)
+                                                    .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        (None, Some(actual))
+                                            if has_progress
+                                                && actual.has_unverified_weak_etag() =>
+                                        {
+                                            let message =
+                                                "cannot resume read stream with weak etag";
+                                            return (
+                                                (
+                                                    None,
+                                                    range,
+                                                    read,
+                                                    has_progress,
+                                                    identity,
+                                                    Some(message),
+                                                ),
+                                                Err(Error::new(ErrorKind::Conflict, message)
+                                                    .with_operation("RetryReadStream::read")),
+                                            );
+                                        }
+                                        (None, _) => {
+                                            identity = reopened_identity;
+                                        }
+                                        (Some(_), Some(_)) => {}
+                                    }
                                     range = resolve_range(range, &rp);
                                     stream
                                 }
-                                Err(err) => return ((None, range, read), Err(err)),
+                                Err(err) => {
+                                    return (
+                                        (
+                                            None,
+                                            range,
+                                            read,
+                                            has_progress,
+                                            identity,
+                                            terminal_conflict,
+                                        ),
+                                        Err(err),
+                                    );
+                                }
                             }
                         }
                     };
 
                     match stream.read().await {
                         Ok(buf) => {
-                            read += buf.len() as u64;
-                            ((Some(stream), range, read), Ok(buf))
+                            if !buf.is_empty() {
+                                read += buf.len() as u64;
+                                has_progress = true;
+                            }
+                            (
+                                (
+                                    Some(stream),
+                                    range,
+                                    read,
+                                    has_progress,
+                                    identity,
+                                    terminal_conflict,
+                                ),
+                                Ok(buf),
+                            )
                         }
                         // There are no bytes left to fetch after the resolved range completes.
-                        Err(err) if err.is_temporary() && range.size() == Some(read) => {
-                            ((None, range, read), Ok(Buffer::new()))
-                        }
+                        Err(err) if err.is_temporary() && range.size() == Some(read) => (
+                            (None, range, read, has_progress, identity, terminal_conflict),
+                            Ok(Buffer::new()),
+                        ),
                         // An unresolved suffix range cannot be advanced safely after
                         // progress. Preserve the original error and stop retrying.
-                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => {
-                            ((None, range, read), Err(err.set_persistent()))
-                        }
-                        Err(err) => ((None, range, read), Err(err)),
+                        Err(err) if err.is_temporary() && range.is_suffix() && read > 0 => (
+                            (None, range, read, has_progress, identity, terminal_conflict),
+                            Err(err.set_persistent()),
+                        ),
+                        Err(err) => (
+                            (None, range, read, has_progress, identity, terminal_conflict),
+                            Err(err),
+                        ),
                     }
                 },
             )
@@ -786,6 +1028,9 @@ impl<R: oio::Read, I: RetryInterceptor> oio::ReadStream for RetryReadStream<R, I
         self.stream = stream;
         self.range = range;
         self.read = read;
+        self.has_progress = has_progress;
+        self.identity = identity;
+        self.terminal_conflict = terminal_conflict;
 
         let buf = result?;
         if (buf.is_empty() || range.size() == Some(read))
@@ -962,6 +1207,7 @@ impl<C: oio::Copy, I: RetryInterceptor> oio::Copy for RetryWrapper<C, I> {
 #[cfg(test)]
 mod tests {
     mod budget;
+    mod identity;
     mod range;
 
     use std::sync::Mutex;

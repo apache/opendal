@@ -73,6 +73,10 @@ Rake::TestTask.new("test:base") do |t|
   t.test_files = FileList["test/*_test.rb"]
 end
 
+Rake::TestTask.new("test:package") do |t|
+  t.test_files = FileList["test/package/*_test.rb"]
+end
+
 Rake::TestTask.new("test:service") do |t|
   t.libs << "lib"
   t.libs << "test"
@@ -161,26 +165,22 @@ namespace :native do
     compile_extension("#{NATIVE_BUILD_DIR}/#{ruby_version}")
   end
 
-  desc "Package the precompiled extensions for #{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}"
+  desc "Package conventional and ABI-specific gems for #{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}"
   task PACKAGE_NAME do
-    platform = ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)
-    Rake::Task["native:#{PACKAGE_NAME}:#{platform}"].invoke
-  end
+    abort "Native packaging requires RubyGems 4.1 or later" if Gem::Version.new(Gem::VERSION) < Gem::Version.new("4.1")
 
-  task "#{PACKAGE_NAME}:#{ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)}" do
     missing_paths = NATIVE_EXTENSION_PATHS.reject { |path| File.file?(File.join(NATIVE_BUILD_DIR, path)) }
     unless missing_paths.empty?
       abort "Missing native extensions. Run rake native:compile with each supported Ruby.\n#{missing_paths.join("\n")}"
     end
 
     platform = ENV.fetch("OPENDAL_RUBY_PLATFORM", Gem::Platform.local.to_s)
-    spec = GEMSPEC.dup
-    spec.platform = Gem::Platform.new(platform)
-    spec.extensions.clear
-    # New Ruby ABIs need their own extension. The source gem has no upper bound.
-    spec.required_ruby_version = [*spec.required_ruby_version.as_list, "< 4.1.dev"]
     extension_paths = NATIVE_EXTENSION_PATHS.map { |path| "lib/#{EXTENSION}/#{path}" }
-    spec.files |= extension_paths
+    native_files = GEMSPEC.files.reject do |path|
+      path.start_with?("src/", "core/") ||
+        %w[Cargo.toml Cargo.lock build.rs].include?(path) ||
+        path.match?(%r{\Alib/opendal_ruby/\d+\.\d+/opendal_ruby\.(so|bundle)\z})
+    end
 
     FileUtils.mkdir_p "pkg"
     begin
@@ -188,8 +188,27 @@ namespace :native do
         FileUtils.mkdir_p File.dirname(destination)
         FileUtils.cp File.join(NATIVE_BUILD_DIR, source), destination
       end
-      gem_file = Gem::Package.build(spec)
-      FileUtils.mv gem_file, "pkg/#{File.basename(gem_file)}"
+
+      [nil, *NATIVE_RUBY_VERSIONS].each do |ruby_version|
+        spec = GEMSPEC.dup
+        spec.platform = Gem::Platform.new(platform)
+        spec.extensions = []
+        spec.requirements = []
+        # Conventional gems retain every supported ABI for older clients.
+        spec.required_ruby_version = if ruby_version
+          "~> #{ruby_version}.0"
+        else
+          [*GEMSPEC.required_ruby_version.as_list, "< 4.1.dev"]
+        end
+        spec.files = if ruby_version
+          native_files | ["lib/#{EXTENSION}/#{ruby_version}/#{EXTENSION_FILE}"]
+        else
+          native_files | extension_paths
+        end
+
+        gem_file = Gem::Package.build(spec, content_addressable: !ruby_version.nil?)
+        FileUtils.mv gem_file, "pkg/#{File.basename(gem_file)}"
+      end
     ensure
       FileUtils.rm_f extension_paths
     end

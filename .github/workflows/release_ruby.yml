@@ -32,6 +32,7 @@ on:
       - "bindings/ruby/Rakefile"
       - "bindings/ruby/lib/opendal.rb"
       - "bindings/ruby/opendal.gemspec"
+      - "bindings/ruby/test/package/**"
   # Rubygems doesn't have a staging environment, and Rubygems don't provide a
   # public registry. Most gems follow a pre-release tag convention. But
   # OpenDAL doesn't want pre-releases to a publish registry beyond
@@ -90,10 +91,12 @@ jobs:
           VERSION=$(bundle exec rake version)
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          echo "## Ruby gem built successfully! 📦" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          printf '**Ref:** %s\n' "${GITHUB_REF_NAME:-$GITHUB_REF}" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Version:** $VERSION" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Ruby gem built successfully! 📦"
+            echo ""
+            printf '**Ref:** %s\n' "${GITHUB_REF_NAME:-$GITHUB_REF}"
+            echo "**Version:** $VERSION"
+          } >> "$GITHUB_STEP_SUMMARY"
 
   smoke-test:
     needs: build
@@ -169,22 +172,12 @@ jobs:
           rustup default stable
           rustup target add ${{ matrix.rust_target }}
 
-      - name: Setup Ruby 3.3
-        id: ruby-3-3
-        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
-        with:
-          ruby-version: "3.3"
-          bundler-cache: true
-          working-directory: bindings/ruby
-
-      - name: Compile the Ruby 3.3 extension
-        run: bundle exec rake native:compile
-
       - name: Setup Ruby 3.4
         id: ruby-3-4
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "3.4"
+          bundler: "4.1.0"
           bundler-cache: true
           working-directory: bindings/ruby
 
@@ -196,11 +189,28 @@ jobs:
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: "4.0"
+          bundler: "4.1.0"
           bundler-cache: true
           working-directory: bindings/ruby
 
-      - name: Compile the Ruby 4.0 extension and package the native gem
-        run: bundle exec rake native:compile native:opendal
+      - name: Compile the Ruby 4.0 extension
+        run: bundle exec rake native:compile
+
+      - name: Setup Ruby 3.3 for packaging
+        id: ruby-3-3
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
+        with:
+          ruby-version: "3.3"
+          rubygems: "4.1.0"
+          bundler: "4.1.0"
+          bundler-cache: true
+          working-directory: bindings/ruby
+
+      - name: Compile the Ruby 3.3 extension
+        run: bundle exec rake native:compile
+
+      - name: Package and verify the native gems
+        run: bundle exec rake native:opendal test:package
 
       - name: Smoke test the native gem on each Ruby version
         env:
@@ -208,8 +218,9 @@ jobs:
           RUBY_34: ${{ steps.ruby-3-4.outputs.ruby-prefix }}
           RUBY_40: ${{ steps.ruby-4-0.outputs.ruby-prefix }}
         run: |
+          gem_file="pkg/opendal-$(bundle exec rake version)-$OPENDAL_RUBY_PLATFORM.gem"
           for prefix in "$RUBY_33" "$RUBY_34" "$RUBY_40"; do
-            "$prefix/bin/ruby" "$prefix/bin/gem" install --local pkg/opendal-*.gem --no-document
+            "$prefix/bin/ruby" "$prefix/bin/gem" install --local "$gem_file" --no-document
             "$prefix/bin/ruby" -ropendal -rtmpdir <<'RUBY'
           Dir.mktmpdir do |root|
             op = OpenDal::Operator.new("fs", {"root" => root})
@@ -258,6 +269,8 @@ jobs:
       - name: Setup Ruby and install dependencies
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
+          rubygems: "4.1.0"
+          bundler: "4.1.0"
           bundler-cache: true
           working-directory: bindings/ruby
 
@@ -280,8 +293,10 @@ jobs:
 
       - name: Log Release
         run: |
-          echo "## Ruby binding released! 🚀" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Version:** $(bundle exec rake version)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Check out the [RubyGems page](https://rubygems.org/gems/opendal) for more details." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Ruby binding released! 🚀"
+            echo ""
+            echo "**Version:** $(bundle exec rake version)"
+            echo ""
+            echo "Check out the [RubyGems page](https://rubygems.org/gems/opendal) for more details."
+          } >> "$GITHUB_STEP_SUMMARY"

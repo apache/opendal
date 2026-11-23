@@ -18,16 +18,20 @@
 # frozen_string_literal: true
 
 tracked_files_or_glob = lambda do |dir|
-  git_dir = File.join(dir, ".git")
+  git_files = begin
+    IO.popen(["git", "-C", dir, "ls-files", "-z"], err: File::NULL, &:read).split("\x0")
+  rescue Errno::ENOENT
+    []
+  end
 
-  if File.exist?(git_dir)
-    IO.popen(["git", "-C", dir, "ls-files", "-z"], &:read).split("\x0")
-  else
+  if git_files.empty?
     Dir.chdir(dir) do
       Dir.glob("**/*", File::FNM_DOTMATCH).reject do |f|
         File.directory?(f)
       end
     end
+  else
+    git_files
   end
 end
 

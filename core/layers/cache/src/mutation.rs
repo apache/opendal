@@ -132,12 +132,26 @@ impl Delete for CacheDeleter {
         self.state.begin_mutation(&subjects).await;
         let result = self.inner.delete(path, args).await;
         if result.is_ok() {
-            self.subjects.extend(subjects);
+            self.subjects.extend(subjects.iter().copied());
             self.recursive |= recursive;
-        } else if recursive {
+            // Invalidate immediately for deleters that commit during `delete`,
+            // while keeping the targets tracked so `close` invalidates again
+            // for buffered deleters that flush on `close`.
+            if recursive {
+                self.state.bump_generation().await;
+            } else {
+                self.state.invalidate(&subjects).await;
+            }
+        } else if self.recursive || recursive {
             self.state.bump_generation().await;
         } else {
-            self.state.invalidate(&subjects).await;
+            let mut to_invalidate: Vec<_> = self.subjects.iter().copied().collect();
+            for subject in subjects {
+                if !self.subjects.contains(&subject) {
+                    to_invalidate.push(subject);
+                }
+            }
+            self.state.invalidate(&to_invalidate).await;
         }
         result
     }
@@ -148,7 +162,7 @@ impl Delete for CacheDeleter {
         let result = self.inner.close().await;
         if self.recursive {
             self.state.bump_generation().await;
-        } else {
+        } else if !subjects.is_empty() {
             self.state.invalidate(&subjects).await;
         }
         if result.is_ok() {

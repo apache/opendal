@@ -26,7 +26,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::{self};
 use std::iter::FusedIterator;
-use std::mem;
 use std::ops::Bound;
 use std::ops::RangeBounds;
 use std::pin::Pin;
@@ -119,7 +118,12 @@ pub struct Buffer(Inner);
 
 #[derive(Clone)]
 enum Inner {
-    Contiguous(Bytes),
+    // `data` starts at the logical start of this buffer and keeps bytes before
+    // `pos` so that `Seek` can move the read position backwards.
+    Contiguous {
+        data: Bytes,
+        pos: usize,
+    },
     // the logic view of the buffer starts at `parts[idx][offset]` and spans `size` bytes
     // across subsequent `parts`
     //
@@ -128,11 +132,14 @@ enum Inner {
     //   so `Buf::chunk` never returns an empty slice while `size > 0`.
     // - `size == 0` iff the view is exhausted, in which case `idx` may equal
     //   `parts.len()`.
+    // - `origin` is the position of the logical start within `parts` and is never
+    //   greater than the current position.
     NonContiguous {
         parts: Arc<[Bytes]>,
         size: usize,
         idx: usize,
         offset: usize,
+        origin: usize,
     },
 }
 
@@ -141,21 +148,23 @@ impl Debug for Buffer {
         let mut b = f.debug_struct("Buffer");
 
         match &self.0 {
-            Inner::Contiguous(bs) => {
+            Inner::Contiguous { data, pos } => {
                 b.field("type", &"contiguous");
-                b.field("size", &bs.len());
+                b.field("size", &(data.len() - pos));
             }
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                origin,
             } => {
                 b.field("type", &"non_contiguous");
                 b.field("parts", &parts);
                 b.field("size", &size);
                 b.field("idx", &idx);
                 b.field("offset", &offset);
+                b.field("origin", &origin);
             }
         }
         b.finish_non_exhaustive()
@@ -174,14 +183,17 @@ impl Buffer {
     /// This operation is const and no allocation will be performed.
     #[inline]
     pub const fn new() -> Self {
-        Self(Inner::Contiguous(Bytes::new()))
+        Self(Inner::Contiguous {
+            data: Bytes::new(),
+            pos: 0,
+        })
     }
 
     /// Get the length of the buffer.
     #[inline]
     pub fn len(&self) -> usize {
         match &self.0 {
-            Inner::Contiguous(b) => b.remaining(),
+            Inner::Contiguous { data, pos } => data.len() - pos,
             Inner::NonContiguous { size, .. } => *size,
         }
     }
@@ -192,6 +204,75 @@ impl Buffer {
         self.len() == 0
     }
 
+    /// Returns the position of the first byte in this buffer's logical view.
+    fn view_start(&self) -> usize {
+        match &self.0 {
+            Inner::Contiguous { .. } => 0,
+            Inner::NonContiguous { origin, .. } => *origin,
+        }
+    }
+
+    /// Returns the current read position within the backing storage.
+    fn read_position(&self) -> usize {
+        match &self.0 {
+            Inner::Contiguous { pos, .. } => *pos,
+            Inner::NonContiguous {
+                parts, idx, offset, ..
+            } => parts[..*idx].iter().map(Bytes::len).sum::<usize>() + *offset,
+        }
+    }
+
+    /// Moves the read position to `position` and sets the remaining length to
+    /// `end - position`.
+    fn set_read_position(&mut self, position: usize, end: usize) {
+        debug_assert!(position <= end);
+
+        match &mut self.0 {
+            Inner::Contiguous { pos, .. } => *pos = position,
+            Inner::NonContiguous {
+                parts,
+                size,
+                idx,
+                offset,
+                ..
+            } => {
+                let mut remaining = position;
+                let mut new_idx = 0;
+                while new_idx < parts.len() {
+                    let part_len = parts[new_idx].len();
+                    if remaining < part_len {
+                        break;
+                    }
+                    remaining -= part_len;
+                    new_idx += 1;
+                }
+
+                *idx = new_idx;
+                *offset = remaining;
+                *size = end - position;
+            }
+        }
+    }
+
+    /// Rebases the logical view to start at the current read position.
+    fn rebase(&mut self) {
+        match &mut self.0 {
+            Inner::Contiguous { data, pos } => {
+                *data = data.slice(*pos..);
+                *pos = 0;
+            }
+            Inner::NonContiguous {
+                parts,
+                idx,
+                offset,
+                origin,
+                ..
+            } => {
+                *origin = parts[..*idx].iter().map(Bytes::len).sum::<usize>() + *offset;
+            }
+        }
+    }
+
     /// Build a `Buffer` from multiple `Bytes` parts.
     ///
     /// Empty parts are dropped so that `NonContiguous` buffers always start
@@ -199,10 +280,11 @@ impl Buffer {
     /// `Contiguous` to avoid the `Arc` allocation.
     fn from_parts(parts: Vec<Bytes>) -> Self {
         match parts.len() {
-            0 => Self(Inner::Contiguous(Bytes::new())),
-            1 => Self(Inner::Contiguous(
-                parts.into_iter().next().expect("len checked"),
-            )),
+            0 => Self::new(),
+            1 => Self(Inner::Contiguous {
+                data: parts.into_iter().next().expect("len checked"),
+                pos: 0,
+            }),
             _ => {
                 let size = parts.iter().map(Bytes::len).sum();
                 Self(Inner::NonContiguous {
@@ -210,6 +292,7 @@ impl Buffer {
                     size,
                     idx: 0,
                     offset: 0,
+                    origin: 0,
                 })
             }
         }
@@ -221,12 +304,13 @@ impl Buffer {
     /// available for use.
     pub fn count(&self) -> usize {
         match &self.0 {
-            Inner::Contiguous(_) => 1,
+            Inner::Contiguous { .. } => 1,
             Inner::NonContiguous {
                 parts,
                 idx,
                 size,
                 offset,
+                ..
             } => {
                 if *size == 0 {
                     return 0;
@@ -250,12 +334,13 @@ impl Buffer {
     /// Get current [`Bytes`].
     pub fn current(&self) -> Bytes {
         match &self.0 {
-            Inner::Contiguous(inner) => inner.clone(),
+            Inner::Contiguous { data, pos } => data.slice(*pos..),
             Inner::NonContiguous {
                 parts,
                 idx,
                 offset,
                 size,
+                ..
             } => {
                 if *size == 0 || *idx >= parts.len() {
                     return Bytes::new();
@@ -274,7 +359,10 @@ impl Buffer {
     #[inline]
     pub fn truncate(&mut self, len: usize) {
         match &mut self.0 {
-            Inner::Contiguous(bs) => bs.truncate(len),
+            Inner::Contiguous { data, pos } => {
+                let end = pos.saturating_add(len).min(data.len());
+                data.truncate(end);
+            }
             Inner::NonContiguous { size, .. } => {
                 *size = (*size).min(len);
             }
@@ -314,6 +402,7 @@ impl Buffer {
         let mut ret = self.clone();
         ret.truncate(end);
         ret.advance(begin);
+        ret.rebase();
         ret
     }
 
@@ -325,12 +414,13 @@ impl Buffer {
     #[inline]
     pub fn to_bytes(&self) -> Bytes {
         match &self.0 {
-            Inner::Contiguous(bytes) => bytes.clone(),
+            Inner::Contiguous { data, pos } => data.slice(*pos..),
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 if *size == 0 || *idx >= parts.len() {
                     return Bytes::new();
@@ -364,12 +454,13 @@ impl Buffer {
     #[inline]
     pub fn to_io_slice(&self) -> Vec<IoSlice<'_>> {
         match &self.0 {
-            Inner::Contiguous(bs) => vec![IoSlice::new(bs.chunk())],
+            Inner::Contiguous { data, pos } => vec![IoSlice::new(&data[*pos..])],
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 let mut ret = Vec::with_capacity(parts.len() - *idx);
                 let mut new_offset = *offset;
@@ -415,6 +506,9 @@ impl Buffer {
 
         let head = self.slice(..at);
         self.advance(at);
+        if at > 0 {
+            self.rebase();
+        }
         head
     }
 
@@ -471,42 +565,57 @@ impl Buffer {
 impl From<Vec<u8>> for Buffer {
     #[inline]
     fn from(bs: Vec<u8>) -> Self {
-        Self(Inner::Contiguous(bs.into()))
+        Self(Inner::Contiguous {
+            data: bs.into(),
+            pos: 0,
+        })
     }
 }
 
 impl From<Bytes> for Buffer {
     #[inline]
     fn from(bs: Bytes) -> Self {
-        Self(Inner::Contiguous(bs))
+        Self(Inner::Contiguous { data: bs, pos: 0 })
     }
 }
 
 impl From<String> for Buffer {
     #[inline]
     fn from(s: String) -> Self {
-        Self(Inner::Contiguous(Bytes::from(s)))
+        Self(Inner::Contiguous {
+            data: Bytes::from(s),
+            pos: 0,
+        })
     }
 }
 
 impl From<&'static [u8]> for Buffer {
     #[inline]
     fn from(s: &'static [u8]) -> Self {
-        Self(Inner::Contiguous(Bytes::from_static(s)))
+        Self(Inner::Contiguous {
+            data: Bytes::from_static(s),
+            pos: 0,
+        })
     }
 }
 
 impl From<&'static str> for Buffer {
     #[inline]
     fn from(s: &'static str) -> Self {
-        Self(Inner::Contiguous(Bytes::from_static(s.as_bytes())))
+        Self(Inner::Contiguous {
+            data: Bytes::from_static(s.as_bytes()),
+            pos: 0,
+        })
     }
 }
 
 impl FromIterator<u8> for Buffer {
     #[inline]
     fn from_iter<T: IntoIterator<Item = u8>>(iter: T) -> Self {
-        Self(Inner::Contiguous(Bytes::from_iter(iter)))
+        Self(Inner::Contiguous {
+            data: Bytes::from_iter(iter),
+            pos: 0,
+        })
     }
 }
 
@@ -537,6 +646,7 @@ impl From<Arc<[Bytes]>> for Buffer {
                 size,
                 idx: 0,
                 offset: 0,
+                origin: 0,
             });
         }
 
@@ -562,12 +672,13 @@ impl Buf for Buffer {
     #[inline]
     fn chunk(&self) -> &[u8] {
         match &self.0 {
-            Inner::Contiguous(b) => b.chunk(),
+            Inner::Contiguous { data, pos } => &data[*pos..],
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 if *size == 0 {
                     return &[];
@@ -583,12 +694,12 @@ impl Buf for Buffer {
     #[inline]
     fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
         match &self.0 {
-            Inner::Contiguous(b) => {
+            Inner::Contiguous { data, pos } => {
                 if dst.is_empty() {
                     return 0;
                 }
 
-                dst[0] = IoSlice::new(b.chunk());
+                dst[0] = IoSlice::new(&data[*pos..]);
                 1
             }
             Inner::NonContiguous {
@@ -596,6 +707,7 @@ impl Buf for Buffer {
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 if dst.is_empty() {
                     return 0;
@@ -622,12 +734,20 @@ impl Buf for Buffer {
     #[inline]
     fn advance(&mut self, cnt: usize) {
         match &mut self.0 {
-            Inner::Contiguous(b) => b.advance(cnt),
+            Inner::Contiguous { data, pos } => {
+                assert!(
+                    cnt <= data.len() - *pos,
+                    "cannot advance past {cnt} bytes, only {} bytes left",
+                    data.len() - *pos
+                );
+                *pos += cnt;
+            }
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 assert!(
                     cnt <= *size,
@@ -664,11 +784,13 @@ impl Iterator for Buffer {
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {
-            Inner::Contiguous(bs) => {
-                if bs.is_empty() {
+            Inner::Contiguous { data, pos } => {
+                if *pos == data.len() {
                     None
                 } else {
-                    Some(mem::take(bs))
+                    let buf = data.slice(*pos..);
+                    *pos = data.len();
+                    Some(buf)
                 }
             }
             Inner::NonContiguous {
@@ -676,6 +798,7 @@ impl Iterator for Buffer {
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 if *size == 0 {
                     return None;
@@ -699,8 +822,8 @@ impl Iterator for Buffer {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         match &self.0 {
-            Inner::Contiguous(bs) => {
-                if bs.is_empty() {
+            Inner::Contiguous { data, pos } => {
+                if *pos == data.len() {
                     (0, Some(0))
                 } else {
                     (1, Some(1))
@@ -738,49 +861,59 @@ impl Read for Buffer {
     }
 }
 
+/// [`Seek`] positions are relative to the start of the buffer's current logical
+/// view. [`Buf`] and [`Read`] move a cursor forward within that view without
+/// discarding the bytes behind it, so they remain reachable by seeking back.
+/// [`Buffer::slice`] and [`Buffer::split_to`] start a new view at the selected
+/// position, while [`Buffer::clone`] keeps the view and cursor of the original.
 impl Seek for Buffer {
     fn seek(&mut self, pos: SeekFrom) -> io::Result<u64> {
-        let len = self.len() as u64;
+        let start = self.view_start();
+        let position = self.read_position();
+        let end_position = position + self.len();
+        let current = (position - start) as u64;
+        let end = (end_position - start) as u64;
+
         let new_pos = match pos {
             SeekFrom::Start(offset) => offset,
             SeekFrom::End(offset) => {
                 if offset < 0 {
-                    len.checked_sub(offset.unsigned_abs())
-                        .ok_or(io::Error::new(
+                    end.checked_sub(offset.unsigned_abs()).ok_or_else(|| {
+                        io::Error::new(
                             io::ErrorKind::InvalidInput,
                             "invalid seek to a negative position",
-                        ))?
+                        )
+                    })?
                 } else {
-                    len.checked_add(offset as u64).ok_or(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "seek out of bounds",
-                    ))?
+                    end.checked_add(offset as u64).ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "seek out of bounds")
+                    })?
                 }
             }
             SeekFrom::Current(offset) => {
-                let current_pos = (len - self.remaining() as u64) as i64;
-                let new_pos = current_pos.checked_add(offset).ok_or(io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "seek out of bounds",
-                ))?;
-                if new_pos < 0 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        "invalid seek to a negative position",
-                    ));
+                if offset < 0 {
+                    current.checked_sub(offset.unsigned_abs()).ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "invalid seek to a negative position",
+                        )
+                    })?
+                } else {
+                    current.checked_add(offset as u64).ok_or_else(|| {
+                        io::Error::new(io::ErrorKind::InvalidInput, "seek out of bounds")
+                    })?
                 }
-                new_pos as u64
             }
         };
 
-        if new_pos > len {
+        if new_pos > end {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "seek out of bounds",
             ));
         }
 
-        self.advance((new_pos - (len - self.remaining() as u64)) as usize);
+        self.set_read_position(start + new_pos as usize, end_position);
         Ok(new_pos)
     }
 }
@@ -788,12 +921,13 @@ impl Seek for Buffer {
 impl BufRead for Buffer {
     fn fill_buf(&mut self) -> io::Result<&[u8]> {
         let chunk = match &self.0 {
-            Inner::Contiguous(b) => b.chunk(),
+            Inner::Contiguous { data, pos } => &data[*pos..],
             Inner::NonContiguous {
                 parts,
                 size,
                 idx,
                 offset,
+                ..
             } => {
                 if *size == 0 {
                     return Ok(&[]);
@@ -1514,6 +1648,153 @@ mod tests {
         let mut buffer = Buffer::from(vec![Bytes::from("OutOfBounds")]);
         let result = buffer.seek(SeekFrom::Start(100));
         assert!(result.is_err());
+    }
+
+    /// Returns one contiguous and one non-contiguous buffer with the same content.
+    fn seek_test_buffers() -> [Buffer; 2] {
+        let buffers = [
+            Buffer::from(Bytes::from_static(b"abcdef")),
+            Buffer::from(vec![Bytes::from_static(b"abc"), Bytes::from_static(b"def")]),
+        ];
+        assert!(matches!(buffers[0].0, Inner::Contiguous { .. }));
+        assert!(matches!(buffers[1].0, Inner::NonContiguous { .. }));
+        buffers
+    }
+
+    #[test]
+    fn test_seek_rewinds_after_read() {
+        for mut buffer in seek_test_buffers() {
+            let mut output = [0; 2];
+            buffer.read_exact(&mut output).unwrap();
+            assert_eq!(&output, b"ab");
+            assert_eq!(buffer.remaining(), 4);
+            assert_eq!(buffer.len(), 4);
+            assert_eq!(buffer.to_bytes(), Bytes::from_static(b"cdef"));
+
+            assert_eq!(buffer.seek(SeekFrom::Start(0)).unwrap(), 0);
+            assert_eq!(buffer.stream_position().unwrap(), 0);
+            assert_eq!(buffer.remaining(), 6);
+            assert_eq!(buffer.len(), 6);
+
+            let mut output = Vec::new();
+            buffer.read_to_end(&mut output).unwrap();
+            assert_eq!(&output, b"abcdef");
+            assert_eq!(buffer.remaining(), 0);
+        }
+    }
+
+    #[test]
+    #[allow(clippy::seek_from_current)]
+    fn test_seek_positions() {
+        for mut buffer in seek_test_buffers() {
+            let mut output = [0; 2];
+            buffer.read_exact(&mut output).unwrap();
+            assert_eq!(&output, b"ab");
+
+            assert_eq!(buffer.seek(SeekFrom::Current(0)).unwrap(), 2);
+            assert_eq!(buffer.seek(SeekFrom::Current(-1)).unwrap(), 1);
+            assert_eq!(buffer.stream_position().unwrap(), 1);
+
+            let mut output = [0; 1];
+            buffer.read_exact(&mut output).unwrap();
+            assert_eq!(&output, b"b");
+
+            assert_eq!(buffer.seek(SeekFrom::End(-2)).unwrap(), 4);
+            buffer.read_exact(&mut output).unwrap();
+            assert_eq!(&output, b"e");
+
+            assert_eq!(buffer.seek(SeekFrom::End(0)).unwrap(), 6);
+            assert_eq!(buffer.read(&mut output).unwrap(), 0);
+            assert_eq!(buffer.seek(SeekFrom::Start(6)).unwrap(), 6);
+            assert_eq!(buffer.read(&mut output).unwrap(), 0);
+
+            // Failed seeks must leave the cursor where it was.
+            assert!(buffer.seek(SeekFrom::Start(7)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(1)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(-7)).is_err());
+            assert!(buffer.seek(SeekFrom::End(1)).is_err());
+            assert!(buffer.seek(SeekFrom::End(-7)).is_err());
+            assert!(buffer.seek(SeekFrom::Start(u64::MAX)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(i64::MAX)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(i64::MIN)).is_err());
+            assert!(buffer.seek(SeekFrom::End(i64::MAX)).is_err());
+            assert!(buffer.seek(SeekFrom::End(i64::MIN)).is_err());
+            assert_eq!(buffer.stream_position().unwrap(), 6);
+        }
+    }
+
+    #[test]
+    #[allow(clippy::seek_from_current)]
+    fn test_seek_with_buf_and_bufread() {
+        for mut buffer in seek_test_buffers() {
+            let first = buffer.fill_buf().unwrap();
+            assert!(first.len() >= 2);
+            buffer.consume(2);
+            assert_eq!(buffer.remaining(), 4);
+            assert_eq!(buffer.seek(SeekFrom::Current(0)).unwrap(), 2);
+            assert_eq!(buffer.seek(SeekFrom::Start(0)).unwrap(), 0);
+            assert_eq!(buffer.to_bytes(), Bytes::from_static(b"abcdef"));
+        }
+
+        for mut buffer in seek_test_buffers() {
+            buffer.advance(2);
+            assert_eq!(buffer.remaining(), 4);
+            assert_eq!(buffer.seek(SeekFrom::Start(0)).unwrap(), 0);
+            let mut output = Vec::new();
+            buffer.read_to_end(&mut output).unwrap();
+            assert_eq!(&output, b"abcdef");
+        }
+    }
+
+    #[test]
+    fn test_seek_preserves_buffer_views() {
+        for mut buffer in seek_test_buffers() {
+            assert_eq!(buffer.len(), 6);
+            assert_eq!(buffer.remaining(), 6);
+            assert_eq!(buffer.to_bytes(), Bytes::from_static(b"abcdef"));
+
+            let mut slice = buffer.slice(1..4);
+            assert_eq!(slice.len(), 3);
+            assert_eq!(slice.to_bytes(), Bytes::from_static(b"bcd"));
+            // Seeking a slice is relative to the slice, not the original buffer.
+            assert_eq!(slice.seek(SeekFrom::End(0)).unwrap(), 3);
+            assert_eq!(slice.seek(SeekFrom::Start(0)).unwrap(), 0);
+            let mut output = Vec::new();
+            slice.read_to_end(&mut output).unwrap();
+            assert_eq!(&output, b"bcd");
+
+            let mut output = [0; 2];
+            buffer.read_exact(&mut output).unwrap();
+            assert_eq!(&output, b"ab");
+            assert_eq!(buffer.len(), 4);
+            assert_eq!(buffer.remaining(), 4);
+            assert_eq!(buffer.to_bytes(), Bytes::from_static(b"cdef"));
+
+            // A clone keeps both the view and the cursor of the original.
+            let mut cloned = buffer.clone();
+            assert_eq!(cloned.len(), 4);
+            assert_eq!(cloned.to_bytes(), Bytes::from_static(b"cdef"));
+            assert_eq!(cloned.seek(SeekFrom::Start(0)).unwrap(), 0);
+            let mut output = Vec::new();
+            cloned.read_to_end(&mut output).unwrap();
+            assert_eq!(&output, b"abcdef");
+        }
+    }
+
+    #[test]
+    #[allow(clippy::seek_from_current)]
+    fn test_seek_empty_buffer() {
+        for mut buffer in [Buffer::new(), Buffer::from(Vec::<Bytes>::new())] {
+            assert!(buffer.is_empty());
+            assert_eq!(buffer.seek(SeekFrom::Start(0)).unwrap(), 0);
+            assert_eq!(buffer.seek(SeekFrom::Current(0)).unwrap(), 0);
+            assert_eq!(buffer.seek(SeekFrom::End(0)).unwrap(), 0);
+            assert!(buffer.seek(SeekFrom::Start(1)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(1)).is_err());
+            assert!(buffer.seek(SeekFrom::Current(-1)).is_err());
+            assert!(buffer.seek(SeekFrom::End(1)).is_err());
+            assert!(buffer.seek(SeekFrom::End(-1)).is_err());
+        }
     }
 
     #[test]

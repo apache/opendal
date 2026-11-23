@@ -22,7 +22,6 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::io::Read;
 
-use futures::AsyncReadExt;
 use futures::TryStreamExt;
 use napi::bindgen_prelude::*;
 use opendal::options::{
@@ -339,11 +338,11 @@ impl Operator {
     pub async fn write(
         &self,
         path: String,
-        content: Either<Buffer, String>,
+        #[napi(ts_arg_type = "Buffer | string")] content: Either<OwnedBuffer, String>,
         options: Option<options::WriteOptions>,
     ) -> Result<Metadata> {
         let c = match content {
-            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::A(buf) => buf.0,
             Either::B(s) => s.into_bytes(),
         };
         let options = WriteOptions::try_from(options.unwrap_or_default())?;
@@ -1058,10 +1057,19 @@ impl Reader {
     /// Read bytes from this reader into the given buffer.
     ///
     /// Wait for the promise to settle before accessing the buffer again.
-    #[napi]
-    pub async fn read(&self, mut buf: Buffer) -> Result<usize> {
-        let mut inner = self.inner.lock().await;
-        inner.read(buf.as_mut()).await.map_err(format_napi_error)
+    #[napi(ts_return_type = "Promise<bigint>")]
+    pub async fn read(
+        &self,
+        #[napi(ts_arg_type = "Buffer")] buf: ReadTarget,
+    ) -> Result<ReadIntoBuffer> {
+        let chunk = self
+            .inner
+            .lock()
+            .await
+            .read_buffer(buf.requested_len)
+            .await
+            .map_err(format_napi_error)?;
+        Ok(ReadIntoBuffer { target: buf, chunk })
     }
 
     /// Read up to `maxBytes` bytes from the same cursor as `read`.
@@ -1081,6 +1089,136 @@ impl Reader {
             .await
             .map_err(format_napi_error)?;
         Ok((!chunk.is_empty()).then_some(ReadChunk(chunk)))
+    }
+}
+
+/// Copies a JS `Buffer` into an owned `Vec<u8>` on the JS thread so async
+/// writes never read from an `ArrayBuffer` that JS may detach or mutate.
+pub struct OwnedBuffer(Vec<u8>);
+
+impl TypeName for OwnedBuffer {
+    fn type_name() -> &'static str {
+        "Buffer"
+    }
+
+    fn value_type() -> ValueType {
+        ValueType::Object
+    }
+}
+
+impl ValidateNapiValue for OwnedBuffer {
+    unsafe fn validate(
+        env: napi::sys::napi_env,
+        napi_val: napi::sys::napi_value,
+    ) -> Result<napi::sys::napi_value> {
+        unsafe { BufferSlice::validate(env, napi_val) }
+    }
+}
+
+impl FromNapiValue for OwnedBuffer {
+    unsafe fn from_napi_value(
+        env: napi::sys::napi_env,
+        napi_val: napi::sys::napi_value,
+    ) -> Result<Self> {
+        let slice = unsafe { BufferSlice::from_napi_value(env, napi_val)? };
+        Ok(Self(slice.as_ref().to_vec()))
+    }
+}
+
+/// Rooted JS `Buffer` destination whose requested length is captured on the JS
+/// thread so background async reads never touch V8's backing store.
+pub struct ReadTarget {
+    buf: Buffer,
+    requested_len: usize,
+}
+
+impl TypeName for ReadTarget {
+    fn type_name() -> &'static str {
+        "Buffer"
+    }
+
+    fn value_type() -> ValueType {
+        ValueType::Object
+    }
+}
+
+impl ValidateNapiValue for ReadTarget {
+    unsafe fn validate(
+        env: napi::sys::napi_env,
+        napi_val: napi::sys::napi_value,
+    ) -> Result<napi::sys::napi_value> {
+        unsafe { Buffer::validate(env, napi_val) }
+    }
+}
+
+impl FromNapiValue for ReadTarget {
+    unsafe fn from_napi_value(
+        env: napi::sys::napi_env,
+        napi_val: napi::sys::napi_value,
+    ) -> Result<Self> {
+        unsafe { Buffer::validate(env, napi_val)? };
+        let mut data = std::ptr::null_mut();
+        let mut requested_len = 0usize;
+        napi::check_status!(
+            unsafe {
+                napi::sys::napi_get_buffer_info(env, napi_val, &mut data, &mut requested_len)
+            },
+            "Failed to get Buffer pointer and length"
+        )?;
+        let buf = unsafe { Buffer::from_napi_value(env, napi_val)? };
+        Ok(Self { buf, requested_len })
+    }
+}
+
+/// Copies an async read result into the caller's JS `Buffer` on the JS thread
+/// at Promise resolution after re-checking the live backing store.
+pub struct ReadIntoBuffer {
+    target: ReadTarget,
+    chunk: opendal::Buffer,
+}
+
+impl ToNapiValue for ReadIntoBuffer {
+    unsafe fn to_napi_value(env: napi::sys::napi_env, val: Self) -> Result<napi::sys::napi_value> {
+        let js_buf = unsafe { Buffer::to_napi_value(env, val.target.buf)? };
+        let mut data = std::ptr::null_mut();
+        let mut current_len = 0usize;
+        napi::check_status!(
+            unsafe { napi::sys::napi_get_buffer_info(env, js_buf, &mut data, &mut current_len) },
+            "Failed to get Buffer pointer and length"
+        )?;
+
+        let copied = val.chunk.len();
+        if current_len < val.target.requested_len || current_len < copied {
+            return Err(Error::new(
+                Status::GenericFailure,
+                "Destination buffer was detached or shrunk while read was in progress",
+            ));
+        }
+
+        if copied > 0 {
+            if data.is_null() {
+                return Err(Error::new(
+                    Status::GenericFailure,
+                    "Destination buffer backing store is unavailable",
+                ));
+            }
+            let mut offset = 0;
+            for part in val.chunk {
+                // SAFETY: `napi_get_buffer_info` just returned a live pointer
+                // of at least `copied` bytes on the JS thread, and `part` is an
+                // owned OpenDAL chunk disjoint from V8's ArrayBuffer memory.
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        part.as_ptr(),
+                        data.cast::<u8>().add(offset),
+                        part.len(),
+                    );
+                }
+                offset += part.len();
+            }
+        }
+
+        unsafe { usize::to_napi_value(env, copied) }
     }
 }
 
@@ -1202,9 +1340,12 @@ impl Writer {
     /// await writer.close();
     /// ```
     #[napi]
-    pub async fn write(&self, content: Either<Buffer, String>) -> Result<()> {
+    pub async fn write(
+        &self,
+        #[napi(ts_arg_type = "Buffer | string")] content: Either<OwnedBuffer, String>,
+    ) -> Result<()> {
         let c = match content {
-            Either::A(buf) => buf.as_ref().to_owned(),
+            Either::A(buf) => buf.0,
             Either::B(s) => s.into_bytes(),
         };
         let mut inner = self.inner.lock().await;

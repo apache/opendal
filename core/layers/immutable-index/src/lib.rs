@@ -117,7 +117,7 @@ impl ImmutableIndexService {
     fn children_flat(&self, path: &str) -> Vec<String> {
         self.vec
             .iter()
-            .filter(|v| v.starts_with(path) && v.as_str() != path)
+            .filter(|v| !v.is_empty() && v.starts_with(path))
             .cloned()
             .collect()
     }
@@ -126,13 +126,14 @@ impl ImmutableIndexService {
         let mut res = HashSet::new();
 
         for i in self.vec.iter() {
-            // `/xyz` should not belong to `/abc`
-            if !i.starts_with(path) {
+            // The root is represented by an empty path, so an empty key must
+            // not be emitted as an entry.
+            if i.is_empty() {
                 continue;
             }
 
-            // remove `/abc` if self
-            if i == path {
+            // `/xyz` should not belong to `/abc`
+            if !i.starts_with(path) {
                 continue;
             }
 
@@ -499,6 +500,52 @@ mod tests {
         assert_eq!(map["file"], EntryMode::Unknown);
         assert_eq!(map["dir/"], EntryMode::DIR);
         assert_eq!(map["dir_without_prefix/"], EntryMode::DIR);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_exact_file() -> Result<()> {
+        setup();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["file", "file-1"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let entries = op.list("file").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["file", "file-1"]);
+
+        let entries = op.list_with("file").recursive(true).await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["file", "file-1"]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_list_exact_dir() -> Result<()> {
+        setup();
+
+        let mut iil = ImmutableIndexLayer::default();
+        for i in ["dir/", "dir/file", "dir/sub/", "dir/sub/file"] {
+            iil.insert(i.to_string())
+        }
+
+        let op = build_operator(iil);
+
+        let entries = op.list("dir/").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/", "dir/file", "dir/sub/"]);
+
+        let entries = op.list_with("dir/").recursive(true).await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/", "dir/file", "dir/sub/", "dir/sub/file"]);
+
+        let entries = op.list("dir").await?;
+        let paths = entries.iter().map(|e| e.path()).collect::<Vec<_>>();
+        assert_eq!(paths, vec!["dir/"]);
         Ok(())
     }
 

@@ -15,12 +15,16 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::io;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context as TaskContext, Poll};
 
 use anyhow::{Context, Result};
 use opendal::raw::{self, oio};
 use opendal::{OperationContext, Operator, services};
 use tempfile::TempDir;
+use tokio::io::{AsyncRead, ReadBuf};
 use unftp_core::auth::DefaultUser;
 use unftp_core::storage::{ErrorKind, StorageBackend};
 use unftp_sbe_opendal::OpendalStorage;
@@ -188,6 +192,27 @@ async fn read_file(storage: &OpendalStorage, path: &str) -> Result<String> {
     Ok(content)
 }
 
+/// An input that yields `remaining` bytes and then fails, to exercise aborted puts.
+struct FailingReader {
+    remaining: usize,
+}
+
+impl AsyncRead for FailingReader {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _cx: &mut TaskContext<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        if self.remaining == 0 {
+            return Poll::Ready(Err(io::Error::other("injected read failure")));
+        }
+        let n = self.remaining.min(buf.remaining());
+        buf.put_slice(&vec![b'x'; n]);
+        self.remaining -= n;
+        Poll::Ready(Ok(()))
+    }
+}
+
 /// `start_pos == 0` stores the input verbatim, whether the file exists or not.
 #[tokio::test]
 async fn put_overwrites_at_start_position_zero() -> Result<()> {
@@ -278,6 +303,152 @@ async fn put_rejects_offset_on_non_append_backend() -> Result<()> {
         .expect_err("put at start_pos 3 must fail on a non-append backend");
     assert_eq!(err.kind(), ErrorKind::CommandNotImplemented);
     assert_eq!(read_file(&storage, "file").await?, "abc");
+    Ok(())
+}
+
+/// A read failure after data was written must abort the writer instead of
+/// committing a truncated object.
+#[tokio::test]
+async fn put_read_error_preserves_existing_content() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "old".as_bytes(), "file", 0)
+        .await
+        .context("put old")?;
+
+    let err = storage
+        .put(
+            &user,
+            FailingReader {
+                remaining: 300 * 1024,
+            },
+            "file",
+            0,
+        )
+        .await
+        .expect_err("put must fail when the input read fails");
+    assert_eq!(err.kind(), ErrorKind::LocalError);
+    assert_eq!(read_file(&storage, "file").await?, "old");
+    Ok(())
+}
+
+/// A failed put must not leave a partial object behind when none existed.
+#[tokio::test]
+async fn put_read_error_does_not_create_file() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    let err = storage
+        .put(
+            &user,
+            FailingReader {
+                remaining: 300 * 1024,
+            },
+            "file",
+            0,
+        )
+        .await
+        .expect_err("put must fail when the input read fails");
+    assert_eq!(err.kind(), ErrorKind::LocalError);
+    assert!(storage.metadata(&user, "file").await.is_err());
+    Ok(())
+}
+
+/// Filesystem writes can abort cleanly when they are staged for atomic commit.
+#[tokio::test]
+async fn put_read_error_preserves_existing_content_on_fs() -> Result<()> {
+    let temp = tempfile::tempdir()?;
+    let root = temp.path().join("root");
+    let staging = temp.path().join("staging");
+    std::fs::create_dir(&root)?;
+    std::fs::create_dir(&staging)?;
+    let fs = services::Fs::default()
+        .root(root.to_str().context("non-UTF-8 test root")?)
+        .atomic_write_dir(staging.to_str().context("non-UTF-8 staging dir")?);
+    let storage = OpendalStorage::new(Operator::new(fs)?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "old".as_bytes(), "file", 0)
+        .await
+        .context("put old")?;
+
+    let err = storage
+        .put(
+            &user,
+            FailingReader {
+                remaining: 300 * 1024,
+            },
+            "file",
+            0,
+        )
+        .await
+        .expect_err("put must fail when the input read fails");
+    assert_eq!(err.kind(), ErrorKind::LocalError);
+    assert_eq!(read_file(&storage, "file").await?, "old");
+    Ok(())
+}
+
+/// `rmd` must delete only the named directory. A prefix-based service would
+/// otherwise also remove siblings such as `dd/`.
+#[tokio::test]
+async fn rmd_deletes_only_the_named_directory() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    for (path, content) in [("d/a", "a"), ("d/sub/x", "x"), ("dd/b", "b")] {
+        storage
+            .put(&user, content.as_bytes(), path, 0)
+            .await
+            .with_context(|| format!("put {path}"))?;
+    }
+
+    storage.rmd(&user, "d").await.context("rmd d")?;
+
+    assert!(storage.metadata(&user, "d/a").await.is_err());
+    assert!(storage.metadata(&user, "d/sub/x").await.is_err());
+    assert_eq!(read_file(&storage, "dd/b").await?, "b");
+
+    // A trailing slash identifies the same directory and remains scoped.
+    storage
+        .put(&user, "a".as_bytes(), "d/a", 0)
+        .await
+        .context("restore d/a")?;
+    storage.rmd(&user, "d/").await.context("rmd d/")?;
+    assert!(storage.metadata(&user, "d/a").await.is_err());
+    assert_eq!(read_file(&storage, "dd/b").await?, "b");
+    Ok(())
+}
+
+#[tokio::test]
+async fn rmd_rejects_root_missing_and_file_paths() -> Result<()> {
+    let storage = OpendalStorage::new(Operator::new(services::Memory::default())?);
+    let user = DefaultUser;
+
+    storage
+        .put(&user, "keep".as_bytes(), "file", 0)
+        .await
+        .context("put file")?;
+
+    for path in ["/", ""] {
+        let err = storage
+            .rmd(&user, path)
+            .await
+            .expect_err("rmd of the root must fail");
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    }
+
+    for path in ["missing", "file"] {
+        let err = storage
+            .rmd(&user, path)
+            .await
+            .expect_err("rmd of a non-directory must fail");
+        assert_eq!(err.kind(), ErrorKind::PermanentDirectoryNotAvailable);
+    }
+
+    assert_eq!(read_file(&storage, "file").await?, "keep");
     Ok(())
 }
 

@@ -64,8 +64,7 @@ use unftp_core::storage::{self, Error, StorageBackend};
 
 use futures::StreamExt;
 use tokio::io::AsyncReadExt;
-use tokio::io::AsyncWriteExt;
-use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
+use tokio_util::compat::FuturesAsyncReadCompatExt;
 
 #[derive(Debug, Clone)]
 pub struct OpendalStorage {
@@ -137,22 +136,50 @@ fn convert_path(path: &Path) -> storage::Result<&str> {
     })
 }
 
-async fn copy_read_write_loop<R, W>(input: &mut R, output: &mut W) -> std::io::Result<u64>
+async fn copy_read_write_loop<R>(
+    input: &mut R,
+    output: &mut opendal::Writer,
+) -> storage::Result<u64>
 where
     R: tokio::io::AsyncRead + Unpin + ?Sized,
-    W: tokio::io::AsyncWrite + Unpin + ?Sized,
 {
+    const COPY_BUFFER_SIZE: usize = 256 * 1024;
+
     let mut copied = 0u64;
-    let mut buf = [0u8; 8 * 1024];
+    let mut buf = vec![0u8; COPY_BUFFER_SIZE];
+    let mut filled = 0;
 
     loop {
-        let n = input.read(&mut buf).await?;
+        let n = input.read(&mut buf[filled..]).await.map_err(|err| {
+            Error::new(
+                storage::ErrorKind::LocalError,
+                format!("Failed to read data: {err}"),
+            )
+        })?;
         if n == 0 {
+            if filled > 0 {
+                output.write(buf[..filled].to_vec()).await.map_err(|err| {
+                    Error::new(
+                        storage::ErrorKind::LocalError,
+                        format!("Failed to write data: {err}"),
+                    )
+                })?;
+                copied += filled as u64;
+            }
             return Ok(copied);
         }
 
-        output.write_all(&buf[..n]).await?;
-        copied += n as u64;
+        filled += n;
+        if filled == buf.len() {
+            output.write(buf[..filled].to_vec()).await.map_err(|err| {
+                Error::new(
+                    storage::ErrorKind::LocalError,
+                    format!("Failed to write data: {err}"),
+                )
+            })?;
+            copied += filled as u64;
+            filled = 0;
+        }
     }
 }
 
@@ -266,27 +293,24 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         }
         .map_err(convert_err)?;
 
-        let mut w = writer.into_futures_async_write().compat_write();
-        // Avoid `tokio::io::copy`'s pending-read flush path and keep buffering policy explicit.
-        let copy_result = copy_read_write_loop(&mut input, &mut w).await;
-        let shutdown_result = w.shutdown().await;
-        match (copy_result, shutdown_result) {
-            (Ok(len), Ok(())) => Ok(len),
-            (Err(copy_err), Ok(())) => Err(Error::new(
-                storage::ErrorKind::LocalError,
-                format!("Failed to copy data: {}", copy_err),
-            )),
-            (Ok(_), Err(shutdown_err)) => Err(Error::new(
-                storage::ErrorKind::LocalError,
-                format!("Failed to shutdown writer: {}", shutdown_err),
-            )),
-            (Err(copy_err), Err(shutdown_err)) => Err(Error::new(
-                storage::ErrorKind::LocalError,
-                format!(
-                    "Failed to copy data: {} AND failed to shutdown writer: {}",
-                    copy_err, shutdown_err
-                ),
-            )),
+        let mut writer = writer;
+        match copy_read_write_loop(&mut input, &mut writer).await {
+            Ok(len) => {
+                writer.close().await.map_err(convert_err)?;
+                Ok(len)
+            }
+            Err(copy_err) => {
+                // The writer is still open, so abort it to discard buffered
+                // and uploaded data. Some services do not support abort;
+                // report that failure without hiding the original error.
+                match writer.abort().await {
+                    Ok(()) => Err(copy_err),
+                    Err(abort_err) => Err(Error::new(
+                        copy_err.kind(),
+                        format!("{copy_err} AND failed to abort writer: {abort_err}"),
+                    )),
+                }
+            }
         }
     }
 
@@ -315,9 +339,25 @@ impl<User: UserDetail> StorageBackend<User> for OpendalStorage {
         self.op.rename(from, to).await.map_err(convert_err)
     }
 
-    async fn rmd<P: AsRef<Path> + Send + Debug>(&self, _: &User, path: P) -> storage::Result<()> {
+    async fn rmd<P: AsRef<Path> + Send + Debug>(
+        &self,
+        user: &User,
+        path: P,
+    ) -> storage::Result<()> {
+        let path = opendal::raw::normalize_path(convert_path(path.as_ref())?);
+        if path == "/" {
+            return Err(Error::new(
+                storage::ErrorKind::PermissionDenied,
+                "cannot remove the FTP root directory",
+            ));
+        }
+
+        // Recursive deletion without a trailing slash is a prefix match on
+        // services such as memory and can remove siblings like `dd/`.
+        let directory = format!("{}/", path.trim_end_matches('/'));
+        self.cwd(user, directory.as_str()).await?;
         self.op
-            .delete_with(convert_path(path.as_ref())?)
+            .delete_with(&directory)
             .recursive(true)
             .await
             .map_err(convert_err)

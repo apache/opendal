@@ -23,7 +23,7 @@ use dav_server::fs::{DavFile, OpenOptions};
 use dav_server::fs::{DavMetaData, FsResult};
 use dav_server::fs::{FsError, FsFuture};
 use futures::FutureExt;
-use futures::{AsyncReadExt, AsyncSeekExt, StreamExt};
+use futures::{AsyncReadExt, AsyncSeekExt};
 use opendal_core::{ErrorKind, FuturesAsyncReader, Operator, Writer};
 
 use super::metadata::OpendalMetaData;
@@ -68,48 +68,6 @@ enum State {
 }
 
 impl OpendalFile {
-    /// Return whether `dir_path` (ending with `/`) exists as an explicit
-    /// directory marker or an implicit prefix with children.
-    async fn dir_exists(op: &Operator, dir_path: &str) -> FsResult<bool> {
-        let capability = op.info().capability();
-        if capability.stat {
-            match op.stat(dir_path).await {
-                Ok(meta) => {
-                    if meta.is_dir() {
-                        return Ok(true);
-                    }
-                }
-                Err(err) if err.kind() == ErrorKind::NotADirectory => return Ok(false),
-                Err(err) if err.kind() == ErrorKind::NotFound => {}
-                Err(err) => return Err(convert_error(err)),
-            }
-        }
-
-        if capability.list {
-            let mut lister = match op.lister_with(dir_path).limit(1).await {
-                Ok(lister) => lister,
-                Err(err)
-                    if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
-                {
-                    return Ok(false);
-                }
-                Err(err) => return Err(convert_error(err)),
-            };
-            match lister.next().await {
-                Some(Ok(_)) => return Ok(true),
-                Some(Err(err))
-                    if matches!(err.kind(), ErrorKind::NotFound | ErrorKind::NotADirectory) =>
-                {
-                    return Ok(false);
-                }
-                Some(Err(err)) => return Err(convert_error(err)),
-                None => return Ok(false),
-            }
-        }
-
-        Ok(false)
-    }
-
     /// Create a new opendal file.
     pub async fn open(op: Operator, path: String, options: OpenOptions) -> FsResult<Self> {
         if path.is_empty() || path.ends_with('/') {
@@ -126,7 +84,7 @@ impl OpendalFile {
                     }
                     Err(err) if err.kind() == ErrorKind::NotFound => {
                         let dir_path = format!("{path}/");
-                        if Self::dir_exists(&op, &dir_path).await? {
+                        if dir_exists(&op, &dir_path).await? {
                             return Err(FsError::Forbidden);
                         }
                         return Err(FsError::NotFound);
@@ -135,7 +93,7 @@ impl OpendalFile {
                 }
             } else {
                 let dir_path = format!("{path}/");
-                if Self::dir_exists(&op, &dir_path).await? {
+                if dir_exists(&op, &dir_path).await? {
                     return Err(FsError::Forbidden);
                 }
             }
@@ -154,7 +112,7 @@ impl OpendalFile {
             // separate keys, so writing `dir` would otherwise shadow the
             // collection in `metadata` and `PROPFIND`.
             let dir_path = format!("{path}/");
-            if Self::dir_exists(&op, &dir_path).await? {
+            if dir_exists(&op, &dir_path).await? {
                 return Err(if options.create_new {
                     FsError::Exists
                 } else {

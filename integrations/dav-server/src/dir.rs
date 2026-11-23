@@ -21,7 +21,7 @@ use dav_server::fs::{DavDirEntry, DavMetaData, FsResult};
 use futures::StreamExt;
 use futures::{FutureExt, Stream};
 use opendal_core::raw::normalize_path;
-use opendal_core::{Entry, Lister, Operator};
+use opendal_core::{Entry, ErrorKind, Lister, Operator};
 use std::pin::Pin;
 use std::task::Poll::Ready;
 use std::task::{Context, Poll, ready};
@@ -80,16 +80,29 @@ impl OpendalDirEntry {
 
 impl DavDirEntry for OpendalDirEntry {
     fn name(&self) -> Vec<u8> {
-        self.dir_entry.name().as_bytes().to_vec()
+        self.dir_entry
+            .name()
+            .trim_end_matches('/')
+            .as_bytes()
+            .to_vec()
     }
 
     fn metadata(&self) -> dav_server::fs::FsFuture<'_, Box<dyn DavMetaData>> {
         async move {
-            self.op
-                .stat(self.dir_entry.path())
-                .await
-                .map(|metadata| Box::new(OpendalMetaData::new(metadata)) as Box<dyn DavMetaData>)
-                .map_err(convert_error)
+            match self.op.stat(self.dir_entry.path()).await {
+                Ok(metadata) => {
+                    Ok(Box::new(OpendalMetaData::new(metadata)) as Box<dyn DavMetaData>)
+                }
+                Err(err)
+                    if err.kind() == ErrorKind::NotFound && self.dir_entry.metadata().is_dir() =>
+                {
+                    Ok(
+                        Box::new(OpendalMetaData::new(self.dir_entry.metadata().clone()))
+                            as Box<dyn DavMetaData>,
+                    )
+                }
+                Err(err) => Err(convert_error(err)),
+            }
         }
         .boxed()
     }

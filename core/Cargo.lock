@@ -7344,6 +7344,7 @@ dependencies = [
  "opendal-executor-tokio",
  "opendal-http-transport-cyper",
  "opendal-http-transport-reqwest",
+ "opendal-layer-aimd",
  "opendal-layer-async-backtrace",
  "opendal-layer-await-tree",
  "opendal-layer-cache",
@@ -7598,6 +7599,17 @@ dependencies = [
  "http-body 1.1.0",
  "opendal-core",
  "reqwest 0.13.5",
+ "tokio",
+]
+
+[[package]]
+name = "opendal-layer-aimd"
+version = "0.59.5"
+dependencies = [
+ "asyncband",
+ "futures",
+ "http 1.5.0",
+ "opendal-core",
  "tokio",
 ]
 

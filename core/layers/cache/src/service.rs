@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::sync::{Arc, RwLock};
+
 use opendal_core::raw::*;
 use opendal_core::{Capability, ErrorKind, OperationContext, Result};
 
@@ -57,7 +59,7 @@ impl Service for CacheService {
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         let subject = subject(&self.info(), path, args.version());
         let state = &self.layer.state;
-        let epoch = state.epoch(&subject).await;
+        let epoch = state.epoch(&subject);
         let observed_at = Timestamp::now();
         let result = self.inner.stat(ctx, path, args).await;
         if result
@@ -106,6 +108,7 @@ impl Service for CacheService {
             subject,
             chunk_size: self.layer.chunk_size as u64,
             ttl,
+            last_pointer: Arc::new(RwLock::new(None)),
         }))
     }
 
@@ -160,7 +163,7 @@ impl Service for CacheService {
     ) -> Result<RpRename> {
         let info = self.info();
         let subjects = [subject(&info, from, None), subject(&info, to, None)];
-        self.layer.state.begin_mutation(&subjects).await;
+        self.layer.state.begin_mutation(&subjects);
         let result = self.inner.rename(ctx, from, to, args).await;
         self.layer.state.invalidate(&subjects).await;
         result
@@ -177,7 +180,7 @@ impl Service for CacheService {
         if let Some(version) = args.version() {
             subjects.push(subject(&info, path, Some(version)));
         }
-        self.layer.state.begin_mutation(&subjects).await;
+        self.layer.state.begin_mutation(&subjects);
         let result = self.inner.restore(ctx, path, args).await;
         self.layer.state.invalidate(&subjects).await;
         result

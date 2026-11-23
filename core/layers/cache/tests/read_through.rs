@@ -49,6 +49,7 @@ struct Observations {
 struct Probe {
     observed: Arc<Observations>,
     gate: Option<Arc<Gate>>,
+    stat_gate: Option<Arc<Gate>>,
     version: Option<Arc<AtomicUsize>>,
     faults: Option<Arc<AtomicUsize>>,
     expose_version: bool,
@@ -143,6 +144,10 @@ impl Service for ObservedService {
 
     async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
         self.probe.observed.stats.fetch_add(1, Ordering::Relaxed);
+        if let Some(gate) = &self.probe.stat_gate {
+            gate.entered.add_permits(1);
+            let _ = gate.release.acquire().await.unwrap();
+        }
         let (path, version) = self.selection(path, args.version());
         Ok(self
             .inner
@@ -1872,5 +1877,466 @@ async fn mutation_invalidation_covers_copy_from_compose_restore_and_versioned_de
     );
     assert_eq!(op.read("ver").await?.to_vec(), b"v2data");
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn expired_revalidation_and_cold_suffix_stat_coalesce_via_singleflight() -> Result<()> {
+    // 1. Expired TTL revalidation coalesces concurrent readers into a single origin stat.
+    let stat_gate = Gate::new();
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        stat_gate: Some(stat_gate.clone()),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/hot", "abcdefgh").await?;
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::ZERO),
+    );
+    // Initial cold read populates pointer and chunks without calling stat.
+    assert_eq!(op.read("hot").await?.to_vec(), b"abcdefgh");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(probe.observed.stats.load(Ordering::Relaxed), 0);
+
+    // Fire 8 concurrent reads against the expired pointer.
+    let mut tasks = Vec::new();
+    for _ in 0..8 {
+        let op = op.clone();
+        tasks.push(tokio::spawn(async move { op.read("hot").await }));
+    }
+    let _ = stat_gate.entered.acquire().await.unwrap();
+    // Give sibling tasks a turn to join the in-flight revalidation before releasing.
+    for _ in 0..16 {
+        tokio::task::yield_now().await;
+    }
+    stat_gate.release.add_permits(8);
+    for task in tasks {
+        assert_eq!(task.await.unwrap()?.to_vec(), b"abcdefgh");
+    }
+    assert_eq!(
+        probe.observed.stats.load(Ordering::Relaxed),
+        1,
+        "concurrent expired-TTL readers must coalesce into one origin stat"
+    );
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "revalidated readers must reuse cached chunks without extra origin reads"
+    );
+
+    // 2. Cold Suffix reads coalesce their initial length-discovery stat into one origin stat.
+    let suffix_gate = Gate::new();
+    let suffix_probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        stat_gate: Some(suffix_gate.clone()),
+        ..Probe::default()
+    };
+    let suffix_source = memory()?;
+    suffix_source.write("1/parquet", "0123456789abcdef").await?;
+    let suffix_op = suffix_source.layer(suffix_probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    let mut suffix_tasks = Vec::new();
+    for _ in 0..8 {
+        let op = suffix_op.clone();
+        suffix_tasks.push(tokio::spawn(async move {
+            op.read_with("parquet").range(BytesRange::suffix(4)).await
+        }));
+    }
+    let _ = suffix_gate.entered.acquire().await.unwrap();
+    for _ in 0..16 {
+        tokio::task::yield_now().await;
+    }
+    suffix_gate.release.add_permits(8);
+    for task in suffix_tasks {
+        assert_eq!(task.await.unwrap()?.to_vec(), b"cdef");
+    }
+    assert_eq!(
+        suffix_probe.observed.stats.load(Ordering::Relaxed),
+        1,
+        "concurrent cold suffix readers must coalesce into one origin stat"
+    );
+    assert_eq!(
+        suffix_probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "concurrent cold suffix readers must coalesce chunk fills"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn observe_stat_preserves_matching_and_unrelated_cold_publish_but_blocks_stale() -> Result<()>
+{
+    let gate = Gate::new();
+    let version = Arc::new(AtomicUsize::new(1));
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        version: Some(version.clone()),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/target", "v1target").await?;
+    source.write("1/stale", "v1stale!").await?;
+    source.write("2/stale", "v2stale!").await?;
+
+    let op = source.clone().layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Part 1: Concurrent unrelated `stat` (including misses across all shards) and a
+    // matching same-subject `stat` must NOT cancel cold-read pointer publication.
+    let cold_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("target").await }
+    });
+    let _ = gate.entered.acquire().await.unwrap();
+    // Run missing stats across many paths to hit every shard, plus a matching stat on `target`.
+    for i in 0..300 {
+        let _ = op.stat(&format!("unrelated-{i}")).await;
+    }
+    assert_eq!(op.stat("target").await?.etag(), Some("\"1\""));
+    gate.release.add_permits(1);
+    assert_eq!(cold_task.await.unwrap()?.to_vec(), b"v1target");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+
+    // Pointer must have been published so the next read hits cache.
+    assert_eq!(op.read("target").await?.to_vec(), b"v1target");
+    assert_eq!(
+        probe.observed.reads.load(Ordering::Relaxed),
+        1,
+        "unrelated or matching stat must not cancel cold-read pointer publish"
+    );
+
+    // Part 2: A newer contradicting `stat` on the SAME subject MUST suppress stale publish.
+    let stale_gate = Gate::new();
+    let stale_version = Arc::new(AtomicUsize::new(1));
+    let stale_probe = Probe {
+        gate: Some(stale_gate.clone()),
+        version: Some(stale_version.clone()),
+        ..Probe::default()
+    };
+    let stale_op = source.layer(stale_probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    let stale_reader = stale_op.reader("stale").await?;
+    let stale_task = tokio::spawn({
+        let reader = stale_reader.clone();
+        async move { reader.read(0..8).await }
+    });
+    let _ = stale_gate.entered.acquire().await.unwrap();
+    // Flip origin to version 2 while the V1 cold read is still in flight, then observe via stat.
+    stale_version.store(2, Ordering::Relaxed);
+    assert_eq!(stale_op.stat("stale").await?.etag(), Some("\"2\""));
+    stale_gate.release.add_permits(1);
+    assert_eq!(stale_task.await.unwrap()?.to_vec(), b"v1stale!");
+
+    // Because `stat` observed version 2, the stale V1 pointer must neither be published
+    // to shared cache nor remembered in the reused Reader's local pointer cache.
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(stale_reader.read(0..8).await?.to_vec(), b"v2stale!");
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(stale_op.read("stale").await?.to_vec(), b"v2stale!");
+    assert_eq!(stale_probe.observed.reads.load(Ordering::Relaxed), 2);
+    Ok(())
+}
+
+#[tokio::test]
+async fn partial_chunk_miss_reuses_cached_trailing_chunks_without_rereading() -> Result<()> {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[derive(Debug, Clone, Default)]
+    struct KeyCounter {
+        reads: Arc<Mutex<HashMap<String, usize>>>,
+        writes: Arc<Mutex<HashMap<String, usize>>>,
+    }
+    impl KeyCounter {
+        fn read_exact(&self, key: &str) -> usize {
+            self.reads.lock().unwrap().get(key).copied().unwrap_or(0)
+        }
+        fn read_prefix(&self, prefix: &str) -> usize {
+            self.reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with(prefix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn read_chunk(&self, index: u64) -> usize {
+            let suffix = format!("{index:x}");
+            self.reads
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with("v1/data/") && k.rsplit('/').next() == Some(&suffix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn write_chunk(&self, index: u64) -> usize {
+            let suffix = format!("{index:x}");
+            self.writes
+                .lock()
+                .unwrap()
+                .iter()
+                .filter(|(k, _)| k.starts_with("v1/data/") && k.rsplit('/').next() == Some(&suffix))
+                .map(|(_, v)| *v)
+                .sum()
+        }
+        fn clear(&self) {
+            self.reads.lock().unwrap().clear();
+            self.writes.lock().unwrap().clear();
+        }
+    }
+    impl Layer for KeyCounter {
+        fn apply_service(&self, inner: Servicer) -> Servicer {
+            Arc::new(KeyCounterService {
+                inner,
+                reads: self.reads.clone(),
+                writes: self.writes.clone(),
+            })
+        }
+    }
+    #[derive(Debug)]
+    struct KeyCounterService {
+        inner: Servicer,
+        reads: Arc<Mutex<HashMap<String, usize>>>,
+        writes: Arc<Mutex<HashMap<String, usize>>>,
+    }
+    impl Service for KeyCounterService {
+        type Reader = oio::Reader;
+        type Writer = oio::Writer;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            *self
+                .reads
+                .lock()
+                .unwrap()
+                .entry(path.to_owned())
+                .or_default() += 1;
+            self.inner.read(ctx, path, args)
+        }
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            *self
+                .writes
+                .lock()
+                .unwrap()
+                .entry(path.to_owned())
+                .or_default() += 1;
+            self.inner.write(ctx, path, args)
+        }
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+        fn compose(
+            &self,
+            ctx: &OperationContext,
+            to: &str,
+            args: OpCompose,
+        ) -> Result<Self::Composer> {
+            self.inner.compose(ctx, to, args)
+        }
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+        async fn restore(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpRestore,
+        ) -> Result<RpRestore> {
+            self.inner.restore(ctx, path, args).await
+        }
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let probe = Probe {
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "aaaabbbbcccc").await?;
+
+    let counter = KeyCounter::default();
+    let cache = memory()?.layer(counter.clone());
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(cache.clone())?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Warm only chunks 1 and 2 (`4..12`), leaving chunk 0 uncached.
+    assert_eq!(
+        op.read_with("obj").range(4..12).await?.to_vec(),
+        b"bbbbcccc"
+    );
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 1);
+    assert_eq!(counter.write_chunk(0), 0);
+    assert_eq!(counter.write_chunk(1), 1);
+    assert_eq!(counter.write_chunk(2), 1);
+
+    // Now read the full object (`0..12`). Chunk 0 misses and is filled from origin,
+    // while chunks 1 and 2 must each be read from cache only once (never discarded & re-read).
+    counter.clear();
+    assert_eq!(op.read("obj").await?.to_vec(), b"aaaabbbbcccc");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 2);
+    assert_eq!(
+        counter.write_chunk(0),
+        1,
+        "only missing chunk 0 must be written during partial miss fill"
+    );
+    assert_eq!(
+        counter.write_chunk(1),
+        0,
+        "cached chunk 1 must not be rewritten during partial miss fill"
+    );
+    assert_eq!(
+        counter.write_chunk(2),
+        0,
+        "cached chunk 2 must not be rewritten during partial miss fill"
+    );
+    assert_eq!(
+        counter.read_chunk(1),
+        1,
+        "chunk 1 must be read from cache once"
+    );
+    assert_eq!(
+        counter.read_chunk(2),
+        1,
+        "chunk 2 must be read from cache once"
+    );
+
+    // Reusing one Reader across multiple ranges caches v1/meta and v1/gen in the reader
+    // and invalidates immediately when a local mutation runs.
+    counter.clear();
+    let reader = op.reader("obj").await?;
+    for offset in [0u64, 4, 8, 0, 4] {
+        let buf = reader.read(offset..offset + 4).await?;
+        assert_eq!(buf.len(), 4);
+    }
+    assert_eq!(
+        counter.read_exact("v1/gen"),
+        0,
+        "steady-state hot reads must reuse cached generation"
+    );
+    assert_eq!(
+        counter.read_prefix("v1/meta/"),
+        1,
+        "reused Reader must resolve v1/meta once across multiple range reads"
+    );
+
+    // Mutating through the operator invalidates the reused Reader's cached pointer.
+    let origin_mem = memory()?;
+    origin_mem.write("mut", "old-data").await?;
+    let mut_op = origin_mem.layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+    let mut_reader = mut_op.reader("mut").await?;
+    assert_eq!(mut_reader.read(0..8).await?.to_vec(), b"old-data");
+    mut_op.write("mut", "new-data").await?;
+    assert_eq!(mut_reader.read(0..8).await?.to_vec(), b"new-data");
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn singleflight_truncation_discards_non_contiguous_prefetched_chunks() -> Result<()> {
+    let gate = Gate::new();
+    let probe = Probe {
+        gate: Some(gate.clone()),
+        version: Some(Arc::new(AtomicUsize::new(1))),
+        ..Probe::default()
+    };
+    let source = memory()?;
+    source.write("1/obj", "aaaabbbbcccc").await?;
+
+    let op = source.layer(probe.clone()).layer(
+        CacheLayer::new(memory()?)?
+            .with_chunk_size(4)
+            .with_ttl(Duration::MAX),
+    );
+
+    // Warm only chunk 2 (`8..12`), leaving chunks 0 and 1 uncached.
+    gate.release.add_permits(1);
+    assert_eq!(op.read_with("obj").range(8..12).await?.to_vec(), b"cccc");
+    let _ = gate.entered.acquire().await.unwrap();
+
+    // Hold an in-flight fill of chunk 1 (`4..8`) so a concurrent `0..12` reader's
+    // singleflight `[chunk 0, chunk 1]` is truncated to `[chunk 0]` while chunk 2
+    // was prefetched from cache.
+    let chunk1_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read_with("obj").range(4..8).await }
+    });
+    let _ = gate.entered.acquire().await.unwrap();
+
+    let full_task = tokio::spawn({
+        let op = op.clone();
+        async move { op.read("obj").await }
+    });
+    // Wait until `full_task` enters origin for truncated chunk 0, then release both.
+    let _ = gate.entered.acquire().await.unwrap();
+    gate.release.add_permits(2);
+
+    assert_eq!(chunk1_task.await.unwrap()?.to_vec(), b"bbbb");
+    assert_eq!(full_task.await.unwrap()?.to_vec(), b"aaaabbbbcccc");
+    assert_eq!(probe.observed.reads.load(Ordering::Relaxed), 3);
     Ok(())
 }

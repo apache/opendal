@@ -29,7 +29,8 @@ and returns the API error.
 
 Copy accepts file sources and rejects existing directory destinations. After
 a successful copy, the service looks up the destination metadata by path and
-checks its file ID against the copy response.
+checks its file ID against the copy response. Once Baidu acknowledges the copy,
+a retry of this lookup reuses the returned ID.
 Baidu's native move rejects an existing destination, so the service omits rename.
 
 Delete targets the exact file or directory. Ordinary deletion checks a directory

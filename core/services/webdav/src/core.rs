@@ -67,6 +67,14 @@ static HEADER_DEPTH: &str = "Depth";
 ///
 /// reference: [RFC4918: 10.3.  Destination Header](https://datatracker.ietf.org/doc/html/rfc4918#section-10.3)
 static HEADER_DESTINATION: &str = "Destination";
+/// The WebDAV `If` header for conditional requests with state tokens or entity tags.
+///
+/// Used as a tagged-list precondition (`<{url}> (...)`) for weak ETags on PUT and DELETE
+/// because HTTP `If-Match` requires strong comparison and some servers (such as Apache
+/// `mod_dav`) also apply strong comparison to `If-None-Match` on non-GET/HEAD methods.
+///
+/// reference: [RFC4918: 10.4.  If Header](https://datatracker.ietf.org/doc/html/rfc4918#section-10.4)
+static HEADER_IF: &str = "If";
 /// The header to specify the overwrite behavior of the query
 ///
 /// The Overwrite request header specifies whether the server should
@@ -246,27 +254,13 @@ impl WebdavCore {
             req = req.header(header::CONTENT_DISPOSITION, v)
         }
 
-        if let Some(etag) = args.if_match() {
-            if let Some(weak) = etag.strip_prefix("W/") {
-                // The DAV If header expects a single entity tag inside the list.
-                let opaque_tag = weak.strip_prefix('"').and_then(|tag| tag.strip_suffix('"'));
-                if !opaque_tag.is_some_and(|tag| {
-                    tag.bytes()
-                        .all(|byte| matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff))
-                }) {
-                    return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
-                }
-                req = req.header("If", format!("([{etag}])"));
-            } else {
-                req = req.header(header::IF_MATCH, etag);
-            }
-        }
-
-        if args.if_not_exists() {
-            req = req.header(header::IF_NONE_MATCH, "*");
-        } else if let Some(etag) = args.if_none_match() {
-            req = req.header(header::IF_NONE_MATCH, etag);
-        }
+        req = apply_etag_preconditions(
+            req,
+            &url,
+            args.if_not_exists(),
+            args.if_match(),
+            args.if_none_match(),
+        )?;
 
         let req = req
             .extension(Operation::Write)
@@ -332,9 +326,7 @@ impl WebdavCore {
             req = req.header(header::AUTHORIZATION, auth.clone())
         }
 
-        if let Some(if_match) = args.if_match() {
-            req = req.header(header::IF_MATCH, if_match);
-        }
+        req = apply_etag_preconditions(req, &url, false, args.if_match(), None)?;
 
         let req = req
             .extension(Operation::Delete)
@@ -524,6 +516,68 @@ impl WebdavCore {
             )),
         }
     }
+}
+
+fn validate_weak_etag(etag: &str) -> Result<()> {
+    // RFC 9110 §8.8.3 defines entity-tag = [ weak ] DQUOTE *etagc DQUOTE,
+    // where etagc = %x21 / %x23-7E / obs-text. Also reject `]` and `)` because
+    // RFC 4918 §10.4.2 wraps entity-tags inside `([etag])` and servers such as
+    // Apache mod_dav (`dav_process_if_header()`) scan for `]` and `)` without
+    // quote awareness, terminating the condition list early.
+    let opaque_tag = etag
+        .strip_prefix("W/")
+        .and_then(|weak| weak.strip_prefix('"'))
+        .and_then(|tag| tag.strip_suffix('"'));
+    if !opaque_tag.is_some_and(|tag| {
+        tag.bytes().all(|byte| {
+            matches!(byte, b'!' | 0x23..=0x7e | 0x80..=0xff) && !matches!(byte, b']' | b')')
+        })
+    }) {
+        return Err(Error::new(ErrorKind::ConfigInvalid, "Invalid weak ETag"));
+    }
+    Ok(())
+}
+
+/// Apply ETag preconditions for mutating WebDAV requests (PUT and DELETE).
+///
+/// Strong ETags and `*` use standard HTTP `If-Match` / `If-None-Match` headers.
+/// Weak ETags (`W/"..."`) are encoded as a single tagged-list WebDAV `If` header
+/// (`<{url}> (...)`) targeting the resource URI so parent collections are not
+/// evaluated on DELETE or new-file PUT. Weak `if_none_match` also retains
+/// `If-None-Match` for non-DAV HTTP servers that implement RFC 9110 weak matching.
+fn apply_etag_preconditions(
+    mut req: http::request::Builder,
+    url: &str,
+    if_not_exists: bool,
+    if_match: Option<&str>,
+    if_none_match: Option<&str>,
+) -> Result<http::request::Builder> {
+    let mut dav_if = Vec::new();
+
+    if let Some(etag) = if_match.map(str::trim) {
+        if etag.starts_with("W/") {
+            validate_weak_etag(etag)?;
+            dav_if.push(format!("[{etag}]"));
+        } else {
+            req = req.header(header::IF_MATCH, etag);
+        }
+    }
+
+    if if_not_exists {
+        req = req.header(header::IF_NONE_MATCH, "*");
+    } else if let Some(etag) = if_none_match.map(str::trim) {
+        if etag.starts_with("W/") {
+            validate_weak_etag(etag)?;
+            dav_if.push(format!("Not [{etag}]"));
+        }
+        req = req.header(header::IF_NONE_MATCH, etag);
+    }
+
+    if !dav_if.is_empty() {
+        req = req.header(HEADER_IF, format!("<{url}> ({})", dav_if.join(" ")));
+    }
+
+    Ok(req)
 }
 
 /// Build a PROPPATCH request body to set user-defined metadata.

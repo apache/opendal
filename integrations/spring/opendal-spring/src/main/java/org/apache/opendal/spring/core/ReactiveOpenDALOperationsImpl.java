@@ -34,16 +34,16 @@ public class ReactiveOpenDALOperationsImpl<T> implements ReactiveOpenDALOperatio
 
     @Override
     public Mono<Void> write(String path, T entity) {
-        return Mono.fromFuture(asyncOperator.write(path, serializer.serialize(entity)));
+        return Mono.fromFuture(() -> asyncOperator.write(path, serializer.serialize(entity)));
     }
 
     @Override
     public Mono<T> read(String path) {
-        return Mono.fromFuture(asyncOperator.read(path)).map(serializer::deserialize);
+        return Mono.fromFuture(() -> asyncOperator.read(path)).map(serializer::deserialize);
     }
 
     @Override
     public Mono<Void> delete(String path) {
-        return Mono.fromFuture(asyncOperator.delete(path));
+        return Mono.fromFuture(() -> asyncOperator.delete(path));
     }
 }

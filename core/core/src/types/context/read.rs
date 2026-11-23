@@ -22,7 +22,7 @@ use crate::raw::oio::Read as _;
 use crate::raw::*;
 use crate::*;
 
-/// ReadContext holds the immutable context for give read operation.
+/// ReadContext holds the immutable context for a given read operation.
 pub struct ReadContext {
     /// The composed context used to execute operations.
     ctx: OperationContext,
@@ -34,7 +34,7 @@ pub struct ReadContext {
     args: OpRead,
     /// Options for the reader.
     options: OpReader,
-    /// Raw reader returned by [`Access::read`].
+    /// Raw reader returned by [`Service::read`].
     reader: oio::Reader,
     /// Complete object metadata observed from successful read opens.
     metadata: OnceLock<Metadata>,

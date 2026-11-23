@@ -39,7 +39,7 @@ log = { workspace = true }
 opendal-core = { path = "../../core", version = "0.59.5", default-features = false }
 rustls-native-certs = "0.8"
 serde = { workspace = true, features = ["derive"] }
-suppaftp = { version = "10.0.2", default-features = false, features = [
+suppaftp = { version = "13.0.0", default-features = false, features = [
   "tokio-rustls-ring",
 ] }
 tokio = { workspace = true, features = ["io-util", "macros", "time"] }

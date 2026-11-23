@@ -1399,6 +1399,41 @@ mod tests {
         Ok(())
     }
 
+    /// A non-recursive listing can emit a self-entry for an empty directory.
+    /// The flat lister must still yield that directory exactly once, in
+    /// post-order.
+    #[tokio::test]
+    async fn servicer_flat_lister_does_not_duplicate_empty_subdirectory_self_entry() -> Result<()> {
+        let srv = Arc::new(MockService {
+            capability: Capability {
+                list: true,
+                ..Default::default()
+            },
+            tree: Some(Arc::new(TreeState {
+                tree: HashMap::from([
+                    (
+                        "/".to_string(),
+                        vec![
+                            ("a/one.txt".to_string(), false),
+                            ("empty/".to_string(), true),
+                        ],
+                    ),
+                    ("empty/".to_string(), vec![("empty/".to_string(), true)]),
+                ]),
+                ..Default::default()
+            })),
+        }) as Servicer;
+        let mut lister = ServicerFlatLister::new(OperationContext::new(), srv, "/", OpList::new());
+
+        let mut paths = Vec::new();
+        while let Some(entry) = oio::List::next(&mut lister).await? {
+            paths.push(entry.path().to_string());
+        }
+
+        assert_eq!(paths, ["a/one.txt", "empty/", "/"]);
+        Ok(())
+    }
+
     /// An empty or missing top-level prefix must list as empty instead of
     /// yielding the prefix directory itself.
     #[tokio::test]

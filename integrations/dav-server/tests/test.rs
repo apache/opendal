@@ -36,6 +36,7 @@ use opendal_core::{
     Buffer, Capability, Error, ErrorKind, Metadata, MetadataBuilder, OperationContext,
 };
 use std::fs;
+use std::io::SeekFrom;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -364,6 +365,7 @@ impl Service for AbortTrackingService {
     fn capability(&self) -> Capability {
         Capability {
             write: true,
+            write_can_append: true,
             ..Default::default()
         }
     }
@@ -466,7 +468,10 @@ impl oio::Write for AbortTrackingWriter {
     }
 }
 
-async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<AtomicBool>) {
+async fn open_file_with_failure(
+    failure: Failure,
+    append: bool,
+) -> (Box<dyn DavFile>, Arc<AtomicBool>) {
     let aborted = Arc::new(AtomicBool::new(false));
     let service = AbortTrackingService {
         failure,
@@ -478,6 +483,7 @@ async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<Atom
             &DavPath::new("/failed-upload").unwrap(),
             OpenOptions {
                 write: true,
+                append,
                 ..OpenOptions::default()
             },
         )
@@ -488,35 +494,47 @@ async fn open_file_with_failure(failure: Failure) -> (Box<dyn DavFile>, Arc<Atom
 
 #[tokio::test]
 async fn test_failed_write_aborts_before_returning() {
-    for write_buf in [false, true] {
-        let (mut file, aborted) = open_file_with_failure(Failure::Write).await;
-        // Exercise the backend write even if the adapter buffers incoming bytes.
-        let body = Bytes::from(vec![1; 1024 * 1024]);
-        let result = if write_buf {
-            file.write_buf(Box::new(body)).await
-        } else {
-            file.write_bytes(body).await
-        };
+    for append in [false, true] {
+        for write_buf in [false, true] {
+            let (mut file, aborted) = open_file_with_failure(Failure::Write, append).await;
+            // Exercise the backend write even if the adapter buffers incoming bytes.
+            let body = Bytes::from(vec![1; 1024 * 1024]);
+            let result = if write_buf {
+                file.write_buf(Box::new(body)).await
+            } else {
+                file.write_bytes(body).await
+            };
 
-        assert!(matches!(result, Err(FsError::GeneralFailure)));
-        assert!(
-            aborted.load(Ordering::Relaxed),
-            "write failure must abort the writer"
-        );
-        assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+            assert!(matches!(result, Err(FsError::GeneralFailure)));
+            assert!(
+                aborted.load(Ordering::Relaxed),
+                "write failure must abort the writer"
+            );
+            assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+            assert!(matches!(
+                file.seek(SeekFrom::Current(0)).await,
+                Err(FsError::GeneralFailure)
+            ));
+        }
     }
 }
 
 #[tokio::test]
 async fn test_failed_close_aborts_before_returning() {
-    let (mut file, aborted) = open_file_with_failure(Failure::Close).await;
-    file.write_bytes(Bytes::from_static(b"body")).await.unwrap();
+    for append in [false, true] {
+        let (mut file, aborted) = open_file_with_failure(Failure::Close, append).await;
+        file.write_bytes(Bytes::from_static(b"body")).await.unwrap();
 
-    assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
-    assert!(
-        aborted.load(Ordering::Relaxed),
-        "close failure must abort the writer"
-    );
+        assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+        assert!(
+            aborted.load(Ordering::Relaxed),
+            "close failure must abort the writer"
+        );
+        assert!(matches!(
+            file.seek(SeekFrom::Current(0)).await,
+            Err(FsError::GeneralFailure)
+        ));
+    }
 }
 
 /// Wrapper that advertises `rename` but rejects it with `IsADirectory`,
@@ -814,5 +832,92 @@ async fn test_collection_move_without_backend_rename() -> Result<()> {
             .await,
         Err(FsError::NotImplemented)
     ));
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_append_seek_and_cursor_accounting() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let builder = Fs::default().root(root.path().to_str().unwrap());
+    let op = Operator::new(builder)?;
+    op.write("append.txt", "abc").await?;
+
+    let webdavfs = OpendalFs::new(op.clone());
+    let path = DavPath::new("/append.txt")?;
+
+    let mut file = webdavfs
+        .open(
+            &path,
+            OpenOptions {
+                write: true,
+                append: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await?;
+
+    // Before writing, Start(0) (used by dav-server), Start(eof), Current(0), and End(0)
+    // all succeed and report the current append offset.
+    assert_eq!(file.seek(SeekFrom::Start(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::End(0)).await?, 3);
+    assert_eq!(file.seek(SeekFrom::Start(3)).await?, 3);
+
+    // Random seeks away from the append position must fail.
+    assert!(matches!(
+        file.seek(SeekFrom::Start(1)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        file.seek(SeekFrom::Current(-1)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        file.seek(SeekFrom::End(-1)).await,
+        Err(FsError::NotImplemented)
+    ));
+
+    file.write_bytes(Bytes::from_static(b"d")).await?;
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 4);
+    assert_eq!(file.seek(SeekFrom::End(0)).await?, 4);
+    assert_eq!(file.seek(SeekFrom::Start(4)).await?, 4);
+    assert!(matches!(
+        file.seek(SeekFrom::Start(0)).await,
+        Err(FsError::NotImplemented)
+    ));
+
+    file.write_buf(Box::new(Bytes::from_static(b"ef"))).await?;
+    assert_eq!(file.seek(SeekFrom::Current(0)).await?, 6);
+
+    file.flush().await?;
+    assert!(matches!(
+        file.seek(SeekFrom::Current(0)).await,
+        Err(FsError::GeneralFailure)
+    ));
+    assert!(matches!(file.flush().await, Err(FsError::GeneralFailure)));
+
+    assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
+
+    // Non-append writers reject all seeks (including Start(0)) without modifying the file.
+    let mut writer = webdavfs
+        .open(
+            &path,
+            OpenOptions {
+                write: true,
+                ..OpenOptions::default()
+            },
+        )
+        .await?;
+    assert!(matches!(
+        writer.seek(SeekFrom::Start(0)).await,
+        Err(FsError::NotImplemented)
+    ));
+    assert!(matches!(
+        writer.seek(SeekFrom::Start(2)).await,
+        Err(FsError::NotImplemented)
+    ));
+    drop(writer);
+
+    assert_eq!(op.read("append.txt").await?.to_bytes().as_ref(), b"abcdef");
     Ok(())
 }

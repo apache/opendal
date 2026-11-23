@@ -452,3 +452,105 @@ async fn move_non_empty_collection() -> Result<()> {
     assert_eq!(get.body().as_ref(), content);
     Ok(())
 }
+
+#[tokio::test]
+async fn sabredav_patch_append_and_unsupported_ranges() -> Result<()> {
+    const SABREDAV_PARTIAL_UPDATE: &str = "application/x-sabredav-partialupdate";
+
+    let dav = WebDav::new().await?;
+    dav.send(
+        dav.request("PUT", "/append.txt"),
+        b"abc",
+        StatusCode::CREATED,
+    )
+    .await?;
+
+    // Legal SabreDAV append PATCH: dav-server opens with append=true and calls seek(Start(0)).
+    let patch_append = dav
+        .request("PATCH", "/append.txt")
+        .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+        .header("X-Update-Range", "append")
+        .header(header::CONTENT_LENGTH, "1");
+    dav.send(patch_append, b"d", StatusCode::NO_CONTENT).await?;
+
+    let get = dav
+        .send(dav.request("GET", "/append.txt"), b"", StatusCode::OK)
+        .await?;
+    assert_eq!(get.body().as_ref(), b"abcd");
+
+    // Subsequent append continues from the updated end of the file.
+    let patch_append_more = dav
+        .request("PATCH", "/append.txt")
+        .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+        .header("X-Update-Range", "append")
+        .header(header::CONTENT_LENGTH, "2");
+    dav.send(patch_append_more, b"ef", StatusCode::NO_CONTENT)
+        .await?;
+
+    let get = dav
+        .send(dav.request("GET", "/append.txt"), b"", StatusCode::OK)
+        .await?;
+    assert_eq!(get.body().as_ref(), b"abcdef");
+
+    // Append PATCH targeting a non-existent file creates it with 201 Created.
+    let patch_create = dav
+        .request("PATCH", "/new-append.txt")
+        .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+        .header("X-Update-Range", "append")
+        .header(header::CONTENT_LENGTH, "2");
+    dav.send(patch_create, b"hi", StatusCode::CREATED).await?;
+    let get_new = dav
+        .send(dav.request("GET", "/new-append.txt"), b"", StatusCode::OK)
+        .await?;
+    assert_eq!(get_new.body().as_ref(), b"hi");
+
+    // Unsupported non-append range PATCHes (both non-zero and zero start offsets)
+    // must fail with 416 without truncating or corrupting the file.
+    for update_range in ["bytes=1-2", "bytes=0-1"] {
+        let patch_range = dav
+            .request("PATCH", "/append.txt")
+            .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+            .header("X-Update-Range", update_range)
+            .header(header::CONTENT_LENGTH, "2");
+        dav.send(patch_range, b"XY", StatusCode::RANGE_NOT_SATISFIABLE)
+            .await?;
+    }
+
+    // Conflicting append + non-zero Content-Range must fail without appending at EOF.
+    let patch_conflicting_range = dav
+        .request("PATCH", "/append.txt")
+        .header(header::CONTENT_TYPE, SABREDAV_PARTIAL_UPDATE)
+        .header("X-Update-Range", "append")
+        .header(header::CONTENT_RANGE, "bytes 1-1/6")
+        .header(header::CONTENT_LENGTH, "1");
+    dav.send(
+        patch_conflicting_range,
+        b"Z",
+        StatusCode::RANGE_NOT_SATISFIABLE,
+    )
+    .await?;
+
+    // Unsupported partial PUT at offset 0 must also fail without truncating the file.
+    let partial_put_zero = dav
+        .request("PUT", "/append.txt")
+        .header(header::CONTENT_RANGE, "bytes 0-1/6")
+        .header(header::CONTENT_LENGTH, "2");
+    dav.send(partial_put_zero, b"XY", StatusCode::RANGE_NOT_SATISFIABLE)
+        .await?;
+
+    // Verify file content stayed intact and range GET works on the appended file.
+    let get = dav
+        .send(dav.request("GET", "/append.txt"), b"", StatusCode::OK)
+        .await?;
+    assert_eq!(get.body().as_ref(), b"abcdef");
+
+    let range_get = dav
+        .request("GET", "/append.txt")
+        .header(header::RANGE, "bytes=2-4");
+    let response = dav
+        .send(range_get, b"", StatusCode::PARTIAL_CONTENT)
+        .await?;
+    assert_eq!(response.headers()[header::CONTENT_RANGE], "bytes 2-4/6");
+    assert_eq!(response.body().as_ref(), b"cde");
+    Ok(())
+}

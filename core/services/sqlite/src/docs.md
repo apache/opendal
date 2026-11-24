@@ -20,6 +20,9 @@ replaces an existing destination by default. With
 `rename_with(...).if_not_exists(true)`, an existing destination causes
 `ConditionNotMatch` and both files remain unchanged.
 
+Deleting a directory path returns `ErrorKind::Unexpected` when child keys exist
+under that directory, leaving existing entries intact.
+
 ## Configuration
 
 Use [`crate::SqliteConfig`] for serializable configuration and this builder's

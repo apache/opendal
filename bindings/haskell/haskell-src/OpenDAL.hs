@@ -75,8 +75,7 @@ module OpenDAL
 where
 
 import Colog (LogAction, Message, Msg (Msg), (<&))
-import Control.Exception (SomeException, catch, finally, mask_, onException)
-import Control.Monad (when)
+import Control.Exception (finally, mask_, onException)
 import Control.Monad.Except (ExceptT, MonadError, MonadTrans, runExceptT, throwError)
 import Control.Monad.Reader (MonadIO, MonadReader, ReaderT, ask, liftIO, runReaderT)
 import Control.Monad.Trans (MonadTrans (lift))
@@ -90,7 +89,7 @@ import Data.Text (pack)
 import Data.Time (UTCTime, parseTimeM, zonedTimeToUTC)
 import Data.Time.Format (defaultTimeLocale)
 import Foreign
-import Foreign.C.String (CString)
+import Foreign.C.String (CString, peekCString)
 import qualified GHC.Foreign as GHCForeign
 import GHC.IO.Encoding (utf8)
 import GHC.Stack (emptyCallStack)
@@ -123,10 +122,7 @@ data OperatorConfig = OperatorConfig
     ocScheme :: String,
     -- | The config for the operator services. For example, "endpoint" and "access_key_id" for s3. The config is same as rust core.
     ocConfig :: HashMap String String,
-    -- | Enable logging for this operator and set the process-wide log action.
-    -- Successful construction with a log action replaces the previous action.
-    -- Log delivery already in progress can finish with the previous action.
-    -- Concurrent operations can invoke the action concurrently.
+    -- | The log action for the operator. If it's `Nothing`, the operator won't enable logging.
     ocLogAction :: Maybe (LogAction IO Message)
   }
 
@@ -435,13 +431,16 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
         allocaArray (length keysAndValues) $ \cKeysPtr ->
           allocaArray (length keysAndValues) $ \cValuesPtr ->
             alloca $ \ffiResultPtr -> mask_ $ do
-              pokeArray cKeysPtr cKeys
-              pokeArray cValuesPtr cValues
+              -- Once Rust registers the logger the callback is owned by the
+              -- global Rust logger for the rest of the process. We
+              -- deliberately never call freeHaskellFunPtr: if registration
+              -- succeeded, freeing it would leave a dangling pointer.
               logFnPtr <- case maybeLogger of
                 Just logger -> wrapLogFn (logFn logger)
                 Nothing -> return nullFunPtr
-              -- The non-interruptible FFI call takes the callback only on success.
-              c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr c_free_log_fn ffiResultPtr
+              pokeArray cKeysPtr cKeys
+              pokeArray cValuesPtr cValues
+              c_via_map_ffi cScheme cKeysPtr cValuesPtr (fromIntegral $ length keysAndValues) logFnPtr ffiResultPtr
               ffiResult <- peek ffiResultPtr
               if ffiCode ffiResult == 0
                 then do
@@ -450,19 +449,11 @@ newOperator (OperatorConfig scheme hashMap maybeLogger) = do
                       <$> newForeignPtr c_free_operator (dataPtr ffiResult)
                       `onException` freeOperator (dataPtr ffiResult)
                   return $ Right op
-                else do
-                  when (logFnPtr /= nullFunPtr) (freeHaskellFunPtr logFnPtr)
-                  Left <$> parseError ffiResult
+                else Left <$> parseError ffiResult
   where
-    logFn logger enumSeverity cStr =
-      when (cStr /= nullPtr) $
-        ( do
-            str <- peekUtf8CString cStr
-            logger <& Msg (toEnum (fromIntegral enumSeverity)) emptyCallStack (pack str)
-        )
-          `catch` ignoreLogException
-    ignoreLogException :: SomeException -> IO ()
-    ignoreLogException _ = return ()
+    logFn logger enumSeverity cStr = do
+      str <- peekCString cStr
+      logger <& Msg (toEnum (fromIntegral enumSeverity)) emptyCallStack (pack str)
 
 -- $raw-operations
 -- Functions for performing raw OpenDAL operations are defined below.

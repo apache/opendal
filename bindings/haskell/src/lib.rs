@@ -25,7 +25,7 @@ use std::os::raw::c_char;
 use std::sync::LazyLock;
 
 use ::opendal as od;
-use logger::{FlushLogsGuard, FreeLogCallback, LogCallback};
+use logger::HsLogger;
 use od::layers::LoggingLayer;
 use od::layers::RetryLayer;
 use od::options;
@@ -60,10 +60,6 @@ unsafe fn c_str_arg<'a>(ptr: *const c_char) -> Option<&'a str> {
 /// * `scheme` points to a nul-terminated string, or is null.
 /// * When `len > 0`, `keys` and `values` point to arrays of `len` valid
 ///   nul-terminated strings.
-/// * On success, Rust takes ownership of `callback` when present. It must
-///   remain valid until `free_callback` is invoked with it. The destructor
-///   must remain valid and may run on any thread draining logs through the
-///   Haskell FFI. On failure, ownership remains with the caller.
 /// * `result` is a valid pointer with space for one `FFIResult`.
 ///
 /// # Panics
@@ -76,8 +72,7 @@ pub unsafe extern "C" fn via_map_ffi(
     keys: *const *const c_char,
     values: *const *const c_char,
     len: usize,
-    callback: Option<LogCallback>,
-    free_callback: FreeLogCallback,
+    callback: Option<extern "C" fn(u32, *const c_char)>,
     result: *mut FFIResult<od::blocking::Operator>,
 ) {
     unsafe {
@@ -124,9 +119,18 @@ pub unsafe extern "C" fn via_map_ffi(
             map.insert(key, value);
         }
 
-        // Validate and construct the operator before touching global logger
-        // state so a failed `newOperator` call never mutates or poisons logging.
-        let op = match od::Operator::via_iter(scheme, map) {
+        if let Some(callback) = callback
+            && let Err(e) = log::set_boxed_logger(Box::new(HsLogger { callback }))
+                .map(|()| log::set_max_level(log::LevelFilter::Debug))
+        {
+            *result = FFIResult::err_with_source(
+                "Failed to register logger",
+                od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
+            );
+            return;
+        }
+
+        let res = match od::Operator::via_iter(scheme, map) {
             Ok(mut operator) => {
                 operator = operator.layer(RetryLayer::new());
                 if callback.is_some() {
@@ -136,31 +140,14 @@ pub unsafe extern "C" fn via_map_ffi(
                 let handle = RUNTIME.handle();
                 let _enter = handle.enter();
                 match od::blocking::Operator::new(operator) {
-                    Ok(op) => op,
-                    Err(e) => {
-                        *result =
-                            FFIResult::err_with_source("Failed to create blocking Operator", e);
-                        return;
-                    }
+                    Ok(op) => FFIResult::ok(op),
+                    Err(e) => FFIResult::err_with_source("Failed to create blocking Operator", e),
                 }
             }
-            Err(e) => {
-                *result = FFIResult::err_with_source("Failed to create Operator", e);
-                return;
-            }
+            Err(e) => FFIResult::err_with_source("Failed to create Operator", e),
         };
 
-        if let Some(callback) = callback
-            && let Err(e) = logger::install_logger(callback, free_callback)
-        {
-            *result = FFIResult::err_with_source(
-                "Failed to register logger",
-                od::Error::new(od::ErrorKind::Unexpected, e.to_string().as_str()),
-            );
-            return;
-        }
-
-        *result = FFIResult::ok(op);
+        *result = res;
     }
 }
 
@@ -206,7 +193,6 @@ pub unsafe extern "C" fn blocking_read(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.read(path_str) {
             Ok(bytes) => FFIResult::ok(ByteSlice::from_vec(bytes.to_vec())),
             Err(e) => FFIResult::err_with_source("Failed to read", e),
@@ -271,7 +257,6 @@ pub unsafe extern "C" fn blocking_write(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.write(path_str, bytes) {
             Ok(_) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to write", e),
@@ -310,7 +295,6 @@ pub unsafe extern "C" fn blocking_is_exist(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.exists(path_str) {
             Ok(exist) => FFIResult::ok(exist),
             Err(e) => FFIResult::err_with_source("Failed to check if path exists", e),
@@ -347,7 +331,6 @@ pub unsafe extern "C" fn blocking_create_dir(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.create_dir(path_str) {
             Ok(()) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to create directory", e),
@@ -393,7 +376,6 @@ pub unsafe extern "C" fn blocking_copy(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.copy(path_from_str, path_to_str) {
             Ok(_) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to copy", e),
@@ -439,7 +421,6 @@ pub unsafe extern "C" fn blocking_rename(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.rename(path_from_str, path_to_str) {
             Ok(()) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to rename", e),
@@ -476,7 +457,6 @@ pub unsafe extern "C" fn blocking_delete(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.delete(path_str) {
             Ok(()) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to delete", e),
@@ -515,7 +495,6 @@ pub unsafe extern "C" fn blocking_stat(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.stat(path_str) {
             Ok(meta) => FFIResult::ok(meta.into()),
             Err(e) => FFIResult::err_with_source("Failed to stat", e),
@@ -554,7 +533,6 @@ pub unsafe extern "C" fn blocking_list(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.lister(path_str) {
             Ok(lister) => FFIResult::ok(lister),
             Err(e) => FFIResult::err_with_source("Failed to list", e),
@@ -593,7 +571,6 @@ pub unsafe extern "C" fn blocking_scan(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.lister_options(
             path_str,
             options::ListOptions {
@@ -629,7 +606,6 @@ pub unsafe extern "C" fn lister_next(
             &mut *lister
         };
 
-        let _flush = FlushLogsGuard;
         let res = match lister.next() {
             Some(Ok(item)) => FFIResult::ok_with_ptr(into_raw_c_string(item.path())),
             Some(Err(e)) => FFIResult::err_with_source("Failed to get next item", e),
@@ -710,7 +686,6 @@ pub unsafe extern "C" fn blocking_remove_all(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = {
             use od::options::DeleteOptions;
             match op.delete_options(
@@ -760,7 +735,6 @@ pub unsafe extern "C" fn blocking_writer(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.writer(path_str) {
             Ok(writer) => FFIResult::ok(writer),
             Err(e) => FFIResult::err_with_source("Failed to create writer", e),
@@ -807,7 +781,6 @@ pub unsafe extern "C" fn blocking_writer_append(
             ..Default::default()
         };
 
-        let _flush = FlushLogsGuard;
         let res = match op.writer_options(path_str, opts) {
             Ok(writer) => FFIResult::ok(writer),
             Err(e) => FFIResult::err_with_source("Failed to create append writer", e),
@@ -847,7 +820,6 @@ pub unsafe extern "C" fn writer_write(
             }
         };
 
-        let _flush = FlushLogsGuard;
         let res = match writer.write(bytes) {
             Ok(_) => FFIResult::ok(()),
             Err(e) => FFIResult::err_with_source("Failed to write with writer", e),
@@ -878,7 +850,6 @@ pub unsafe extern "C" fn writer_close(
             &mut *writer
         };
 
-        let _flush = FlushLogsGuard;
         let res = match writer.close() {
             Ok(meta) => FFIResult::ok(meta.into()),
             Err(e) => FFIResult::err_with_source("Failed to close writer", e),
@@ -906,7 +877,6 @@ pub unsafe extern "C" fn free_writer(writer: *mut blocking::Writer) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use logger::ErasedLogCallback;
     use std::ffi::CStr;
     use std::ptr;
     use types::{free_bool, free_byteslice, free_metadata, free_string};
@@ -918,8 +888,6 @@ mod tests {
         let op = od::blocking::Operator::new(operator).unwrap();
         Box::into_raw(Box::new(op))
     }
-
-    extern "C" fn unused_free_callback(_: ErasedLogCallback) {}
 
     #[test]
     fn ffi_result_layout_matches_abi() {
@@ -944,7 +912,6 @@ mod tests {
                 values.as_ptr(),
                 1,
                 None,
-                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::FFIError);
@@ -965,7 +932,6 @@ mod tests {
                 ptr::null(),
                 2,
                 None,
-                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::FFIError);
@@ -984,7 +950,6 @@ mod tests {
                 ptr::null(),
                 0,
                 None,
-                unused_free_callback,
                 &mut result,
             );
             assert_eq!(result.code, result::FFIErrorCode::Ok);
@@ -1260,142 +1225,6 @@ mod tests {
             });
 
             free_operator(op);
-        }
-    }
-
-    #[test]
-    fn logger_lifecycle_failed_build_and_second_operator() {
-        use std::sync::atomic::AtomicBool;
-        use std::sync::atomic::AtomicUsize;
-        use std::sync::atomic::Ordering;
-
-        static CB1_COUNT: AtomicUsize = AtomicUsize::new(0);
-        static CB2_COUNT: AtomicUsize = AtomicUsize::new(0);
-        static RELEASED_COUNT: AtomicUsize = AtomicUsize::new(0);
-        static CB_FAIL_COUNT: AtomicUsize = AtomicUsize::new(0);
-        static INVOKED_ON_TOKIO_THREAD: AtomicBool = AtomicBool::new(false);
-
-        extern "C" fn cb1(_level: u32, msg: *const c_char) {
-            assert!(!msg.is_null());
-            if tokio::runtime::Handle::try_current().is_ok() {
-                INVOKED_ON_TOKIO_THREAD.store(true, Ordering::SeqCst);
-            }
-            CB1_COUNT.fetch_add(1, Ordering::SeqCst);
-        }
-
-        extern "C" fn cb2(_level: u32, msg: *const c_char) {
-            assert!(!msg.is_null());
-            if tokio::runtime::Handle::try_current().is_ok() {
-                INVOKED_ON_TOKIO_THREAD.store(true, Ordering::SeqCst);
-            }
-            CB2_COUNT.fetch_add(1, Ordering::SeqCst);
-        }
-
-        extern "C" fn cb_fail(_level: u32, _msg: *const c_char) {
-            CB_FAIL_COUNT.fetch_add(1, Ordering::SeqCst);
-        }
-
-        extern "C" fn release_callback(callback: ErasedLogCallback) {
-            if callback as usize == cb1 as LogCallback as usize {
-                RELEASED_COUNT.fetch_add(1, Ordering::SeqCst);
-            } else {
-                RELEASED_COUNT.fetch_add(100, Ordering::SeqCst);
-            }
-        }
-
-        RELEASED_COUNT.store(0, Ordering::SeqCst);
-        CB1_COUNT.store(0, Ordering::SeqCst);
-        CB2_COUNT.store(0, Ordering::SeqCst);
-        CB_FAIL_COUNT.store(0, Ordering::SeqCst);
-        INVOKED_ON_TOKIO_THREAD.store(false, Ordering::SeqCst);
-
-        unsafe {
-            // 1. Failing operator construction must not install or poison the logger.
-            let mut bad_result = FFIResult::<od::blocking::Operator>::default();
-            via_map_ffi(
-                c"nonexistent-scheme".as_ptr(),
-                ptr::null(),
-                ptr::null(),
-                0,
-                Some(cb_fail),
-                release_callback,
-                &mut bad_result,
-            );
-            assert_ne!(bad_result.code, result::FFIErrorCode::Ok);
-            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 0);
-            free_string(bad_result.error_message);
-
-            // 2. First valid operator with logging succeeds and invokes cb1 on caller thread.
-            let mut op1_result = FFIResult::<od::blocking::Operator>::default();
-            via_map_ffi(
-                c"memory".as_ptr(),
-                ptr::null(),
-                ptr::null(),
-                0,
-                Some(cb1),
-                release_callback,
-                &mut op1_result,
-            );
-            assert_eq!(op1_result.code, result::FFIErrorCode::Ok);
-            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 0);
-            let op1 = op1_result.data_ptr;
-
-            let mut write_result = FFIResult::<()>::default();
-            blocking_write(op1, c"log/a".as_ptr(), c"v".as_ptr(), 1, &mut write_result);
-            assert_eq!(write_result.code, result::FFIErrorCode::Ok);
-            assert!(CB1_COUNT.load(Ordering::SeqCst) > 0);
-            assert_eq!(CB_FAIL_COUNT.load(Ordering::SeqCst), 0);
-
-            // 3. Replacing the logger releases the previously installed callback.
-            let mut op2_result = FFIResult::<od::blocking::Operator>::default();
-            via_map_ffi(
-                c"memory".as_ptr(),
-                ptr::null(),
-                ptr::null(),
-                0,
-                Some(cb2),
-                release_callback,
-                &mut op2_result,
-            );
-            assert_eq!(op2_result.code, result::FFIErrorCode::Ok);
-            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 1);
-            let op2 = op2_result.data_ptr;
-
-            let cb1_before = CB1_COUNT.load(Ordering::SeqCst);
-            let mut write2_result = FFIResult::<()>::default();
-            blocking_write(op2, c"log/b".as_ptr(), c"v".as_ptr(), 1, &mut write2_result);
-            assert_eq!(write2_result.code, result::FFIErrorCode::Ok);
-            assert!(CB2_COUNT.load(Ordering::SeqCst) > 0);
-            assert_eq!(CB1_COUNT.load(Ordering::SeqCst), cb1_before);
-
-            // 4. Subsequent failed operator construction must not replace cb2.
-            let mut bad2_result = FFIResult::<od::blocking::Operator>::default();
-            via_map_ffi(
-                c"nonexistent-scheme".as_ptr(),
-                ptr::null(),
-                ptr::null(),
-                0,
-                Some(cb_fail),
-                release_callback,
-                &mut bad2_result,
-            );
-            assert_ne!(bad2_result.code, result::FFIErrorCode::Ok);
-            assert_eq!(RELEASED_COUNT.load(Ordering::SeqCst), 1);
-            free_string(bad2_result.error_message);
-
-            let cb2_before = CB2_COUNT.load(Ordering::SeqCst);
-            let mut read2_result = FFIResult::<ByteSlice>::default();
-            blocking_read(op2, c"log/b".as_ptr(), &mut read2_result);
-            assert_eq!(read2_result.code, result::FFIErrorCode::Ok);
-            free_byteslice(read2_result.data_ptr);
-            assert!(CB2_COUNT.load(Ordering::SeqCst) > cb2_before);
-            assert_eq!(CB_FAIL_COUNT.load(Ordering::SeqCst), 0);
-
-            // All log callbacks must execute on FFI caller threads, never on a Tokio worker thread.
-            assert!(!INVOKED_ON_TOKIO_THREAD.load(Ordering::SeqCst));
-
-            free_operator(op1);
-            free_operator(op2);
         }
     }
 }

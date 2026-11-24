@@ -21,12 +21,10 @@
 -- repetition, especially after forcing the garbage collector.
 module ResourceTest (resourceTests) where
 
-import Colog (LogAction (LogAction))
 import Control.Exception (bracket)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
-import Data.IORef (modifyIORef', newIORef, readIORef)
 import GHC.IO.Encoding (getForeignEncoding, latin1, setForeignEncoding)
 import OpenDAL
 import System.Mem (performGC)
@@ -44,8 +42,7 @@ resourceTests =
       testCase "testListerExhaustion" testListerExhaustion,
       testCase "testForeignPtrFinalizers" testForeignPtrFinalizers,
       testCase "testRepeatedWriterClose" testRepeatedWriterClose,
-      testCase "testUtf8UnderLatin1Encoding" testUtf8UnderLatin1Encoding,
-      testCase "testLoggerLifecycle" testLoggerLifecycle
+      testCase "testUtf8UnderLatin1Encoding" testUtf8UnderLatin1Encoding
     ]
 
 testRepeatedReadOps :: Assertion
@@ -190,58 +187,6 @@ testUtf8UnderLatin1Encoding =
             Right (Just p) -> go (p : acc)
             Right Nothing -> return acc
             Left err -> assertFailure $ "lister error: " ++ show err
-
-testLoggerLifecycle :: Assertion
-testLoggerLifecycle = do
-  let mkCounterLogger ref = LogAction (\_ -> modifyIORef' ref (+ (1 :: Int)))
-      mkConfig scheme logger =
-        OperatorConfig
-          { ocScheme = scheme,
-            ocConfig = HashMap.empty,
-            ocLogAction = Just logger
-          }
-
-  -- Failed operator construction must not poison subsequent logger registration.
-  failedCount <- newIORef (0 :: Int)
-  newOperator (mkConfig "invalid-scheme-for-logger-test" (mkCounterLogger failedCount)) >>= \case
-    Left _ -> return ()
-    Right _ -> assertFailure "Expected invalid scheme to fail"
-
-  -- First operator with logging succeeds and delivers log records.
-  count1 <- newIORef (0 :: Int)
-  Right op1 <- newOperator (mkConfig "memory" (mkCounterLogger count1))
-  writeOpRaw op1 "log-key-1" "hello" ?= Right ()
-  readOpRaw op1 "log-key-1" ?= Right "hello"
-  n1 <- readIORef count1
-  assertBool "expected first logger to receive log messages" (n1 > 0)
-
-  -- Second operator with logging succeeds and switches to the new callback.
-  count2 <- newIORef (0 :: Int)
-  Right op2 <- newOperator (mkConfig "memory" (mkCounterLogger count2))
-  writeOpRaw op2 "log-key-2" "world" ?= Right ()
-  readOpRaw op2 "log-key-2" ?= Right "world"
-  n2 <- readIORef count2
-  assertBool "expected second logger to receive log messages" (n2 > 0)
-
-  -- Subsequent failed operator construction must keep the active logger intact.
-  newOperator (mkConfig "invalid-scheme-after-logger" (mkCounterLogger failedCount)) >>= \case
-    Left _ -> return ()
-    Right _ -> assertFailure "Expected invalid scheme to fail"
-  beforeOp2 <- readIORef count2
-  writeOpRaw op2 "log-key-3" "still-works" ?= Right ()
-  afterOp2 <- readIORef count2
-  assertBool "expected active logger to remain intact after failed newOperator" (afterOp2 > beforeOp2)
-  nFailed <- readIORef failedCount
-  nFailed @?= 0
-
-  -- Exceptions thrown inside a LogAction must never unwind across the C boundary.
-  Right op3 <- newOperator (mkConfig "memory" (LogAction (\_ -> fail "boom from log action")))
-  writeOpRaw op3 "log-key-throw" "ok" ?= Right ()
-  readOpRaw op3 "log-key-throw" ?= Right "ok"
-
-  -- Restore a quiet no-op logger so later tests do not trigger the throwing logger.
-  Right _ <- newOperator (mkConfig "memory" (LogAction (\_ -> return ())))
-  performGC
 
 -- helper function
 

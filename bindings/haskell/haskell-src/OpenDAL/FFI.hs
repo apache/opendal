@@ -160,20 +160,9 @@ instance Storable FFIMetadata where
     pokeByteOff ptr ffiMetadataETagOffset eTag
     pokeByteOff ptr ffiMetadataLastModifiedOffset lastModified
 
-foreign import ccall safe "via_map_ffi"
+foreign import ccall "via_map_ffi"
   c_via_map_ffi ::
-    CString ->
-    Ptr CString ->
-    Ptr CString ->
-    CSize ->
-    FunPtr (CUInt -> CString -> IO ()) ->
-    FunPtr (FunPtr () -> IO ()) ->
-    Ptr (FFIResult RawOperator) ->
-    IO ()
-
--- Rust calls the RTS destructor when the retired callback is no longer in use.
-foreign import ccall "&hs_free_fun_ptr"
-  c_free_log_fn :: FunPtr (FunPtr () -> IO ())
+    CString -> Ptr CString -> Ptr CString -> CSize -> FunPtr (CUInt -> CString -> IO ()) -> Ptr (FFIResult RawOperator) -> IO ()
 
 foreign import ccall "wrapper"
   wrapLogFn :: (CUInt -> CString -> IO ()) -> IO (FunPtr (CUInt -> CString -> IO ()))

@@ -2206,6 +2206,76 @@ mod tests {
         .expect("test should not hang");
     }
 
+    #[tokio::test]
+    async fn test_read_open_and_stream_tail_cut_errors_report_read_operation() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let layer = TailCutLayer::builder()
+                .percentile(95)
+                .safety_factor(1.0)
+                .min_samples(1)
+                .min_deadline(Duration::from_millis(20))
+                .max_deadline(Duration::from_secs(5))
+                .build();
+
+            let range = BytesRange::new(0, Some(16 * 1024));
+            let fast_reader = TailCutWrapper::new(
+                SplitLatencyReader {
+                    open_delay: Duration::from_millis(1),
+                    chunk_delay: Duration::from_millis(1),
+                    chunks: 1,
+                    read_delay: Duration::from_millis(1),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+
+            let (_, mut fast_stream) = oio::Read::open(&fast_reader, range).await.unwrap();
+            let chunk = fast_stream.read_dyn().await.unwrap();
+            assert_eq!(chunk.len(), 16 * 1024);
+
+            let slow_open_reader = TailCutWrapper::new(
+                SplitLatencyReader {
+                    open_delay: Duration::from_millis(80),
+                    chunk_delay: Duration::from_millis(1),
+                    chunks: 0,
+                    read_delay: Duration::from_millis(1),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+            let open_err = match oio::Read::open(&slow_open_reader, range).await {
+                Ok(_) => panic!("slow Read::open must be cancelled by tail cut"),
+                Err(err) => err,
+            };
+            assert_eq!(open_err.kind(), ErrorKind::Unexpected);
+            assert!(open_err.is_temporary());
+            assert!(open_err.to_string().contains("at read"));
+            assert!(open_err.to_string().contains("io cancelled by tail cut"));
+
+            let slow_stream_reader = TailCutWrapper::new(
+                SplitLatencyReader {
+                    open_delay: Duration::from_millis(1),
+                    chunk_delay: Duration::from_millis(80),
+                    chunks: 1,
+                    read_delay: Duration::from_millis(1),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+            let (_, mut slow_stream) = oio::Read::open(&slow_stream_reader, range).await.unwrap();
+            let stream_err = slow_stream
+                .read_dyn()
+                .await
+                .expect_err("slow ReadStream::read must be cancelled by tail cut");
+            assert_eq!(stream_err.kind(), ErrorKind::Unexpected);
+            assert!(stream_err.is_temporary());
+            assert!(stream_err.to_string().contains("at read"));
+            assert!(stream_err.to_string().contains("io cancelled by tail cut"));
+        })
+        .await
+        .expect("test should not hang");
+    }
+
     struct SizeSensitiveWriter {
         small_delay: Duration,
         large_delay: Duration,

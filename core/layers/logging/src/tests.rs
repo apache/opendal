@@ -761,6 +761,8 @@ fn logs_writer_copy_from_unbounded_range_without_panicking() {
     let mut writer = srv
         .write(&ctx, "dest", OpWrite::default())
         .expect("write must succeed");
+    block_on(writer.copy_from_dyn("src", OpRead::default(), BytesRange::from(0..12)))
+        .expect("bounded copy_from must succeed");
     let err = block_on(writer.copy_from_dyn("src", OpRead::default(), BytesRange::from(0..)))
         .expect_err("unbounded copy_from must return inner error");
 
@@ -775,8 +777,11 @@ fn logs_writer_copy_from_unbounded_range_without_panicking() {
     assert_eq!(event.operation, Operation::Write);
     assert_context(event, "path", "dest");
     assert_context(event, "source", "src");
-    assert_context(event, "written", "0");
-    assert_context(event, "size", "0");
+    assert_context(event, "written", "12");
+    assert!(
+        event.context.iter().all(|(key, _)| key != "size"),
+        "unbounded copy_from must not log a fabricated size"
+    );
     assert!(
         event
             .err

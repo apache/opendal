@@ -391,9 +391,13 @@ impl Service for TimeoutService {
 
 thread_local! {
     // Tracks which TimeoutLayer instances have already installed an operation
-    // deadline during a synchronous `Execute::timeout()` walk so each layer's
-    // `apply_context` default yields to its own operation-level deadline
-    // without clobbering tighter deadlines from other stacked TimeoutLayers.
+    // deadline during `Execute::timeout()` so each layer's `apply_context`
+    // default yields to its own operation-level deadline without clobbering
+    // tighter deadlines from other stacked TimeoutLayers.
+    //
+    // Invariant: `Execute::timeout()` must remain a synchronous stack walk
+    // without `.await` points, and any wrapping executor in the stack must
+    // forward `timeout()` synchronously to its inner executor.
     static OVERRIDDEN_LAYER_IDS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -647,8 +651,10 @@ impl<C: oio::Compose> oio::Compose for TimeoutWrapper<C> {
 #[cfg(test)]
 mod tests {
     use std::future::pending;
+    use std::sync::atomic::AtomicUsize;
 
     use futures::StreamExt;
+    use opendal_layer_retry::RetryLayer;
     use tokio::time::{Instant, sleep, timeout};
 
     use super::*;
@@ -657,6 +663,8 @@ mod tests {
     struct MockService {
         stat_delay: Duration,
         write_part_delay: Duration,
+        slow_part_attempts: Option<usize>,
+        write_part_calls: Arc<AtomicUsize>,
     }
 
     impl Service for MockService {
@@ -709,7 +717,11 @@ mod tests {
         fn write(&self, ctx: &OperationContext, _: &str, args: OpWrite) -> Result<Self::Writer> {
             Ok(oio::MultipartWriter::new(
                 ctx.executor().clone(),
-                MockMultipartUpload(self.write_part_delay),
+                MockMultipartUpload {
+                    delay: self.write_part_delay,
+                    slow_part_attempts: self.slow_part_attempts,
+                    calls: self.write_part_calls.clone(),
+                },
                 args.concurrent(),
             ))
         }
@@ -767,7 +779,11 @@ mod tests {
         }
     }
 
-    struct MockMultipartUpload(Duration);
+    struct MockMultipartUpload {
+        delay: Duration,
+        slow_part_attempts: Option<usize>,
+        calls: Arc<AtomicUsize>,
+    }
 
     impl oio::MultipartWrite for MockMultipartUpload {
         async fn write_once(&self, _: u64, _: Buffer) -> Result<Metadata> {
@@ -785,7 +801,11 @@ mod tests {
             size: u64,
             _: Buffer,
         ) -> Result<oio::MultipartPart> {
-            sleep(self.0).await;
+            let attempt = self.calls.fetch_add(1, Ordering::SeqCst);
+            let should_delay = self.slow_part_attempts.is_none_or(|limit| attempt < limit);
+            if should_delay {
+                sleep(self.delay).await;
+            }
             Ok(oio::MultipartPart {
                 part_number,
                 etag: part_number.to_string(),
@@ -1162,6 +1182,69 @@ mod tests {
                 .expect("stacked timeout layers must configure an executor timeout")
                 .await;
             assert_eq!(start.elapsed(), Duration::from_secs(1));
+        })
+        .await
+        .expect("test should not hang");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stacked_timeout_layers_around_retry_layer() {
+        timeout(Duration::from_secs(15), async {
+            // Transient stall: inner 1s timeout cancels the stalled part attempt
+            // so RetryLayer retries it and finishes within the outer 5s deadline.
+            let calls = Arc::new(AtomicUsize::new(0));
+            let service = MockService {
+                write_part_delay: Duration::from_secs(3),
+                slow_part_attempts: Some(1),
+                write_part_calls: calls.clone(),
+                ..Default::default()
+            };
+            let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+            let op = Operator::from_parts(ctx, Arc::new(service))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)))
+                .layer(RetryLayer::default())
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(5)));
+
+            let mut writer = op.writer_with("test").concurrent(2).await.unwrap();
+            writer.write("a").await.unwrap();
+            let start = Instant::now();
+            writer.write("b").await.unwrap();
+            sleep(Duration::from_millis(200)).await;
+
+            let meta = writer.close().await.unwrap();
+            assert_eq!(meta.content_length(), 2);
+            // 1s inner timeout + 1s default RetryLayer backoff; faster than the 3s stall.
+            assert_eq!(start.elapsed(), Duration::from_secs(2));
+            assert_eq!(calls.load(Ordering::SeqCst), 3);
+
+            // Persistent stall: inner 1s timeout triggers retries while the outer 5s
+            // deadline still bounds the overall retried `close()` call.
+            let calls = Arc::new(AtomicUsize::new(0));
+            let service = MockService {
+                write_part_delay: Duration::from_secs(3),
+                write_part_calls: calls.clone(),
+                ..Default::default()
+            };
+            let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+            let op = Operator::from_parts(ctx, Arc::new(service))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)))
+                .layer(RetryLayer::default())
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(5)));
+
+            let mut writer = op.writer_with("test").concurrent(2).await.unwrap();
+            writer.write("a").await.unwrap();
+            writer.write("b").await.unwrap();
+            sleep(Duration::from_millis(200)).await;
+
+            let close_start = Instant::now();
+            let err = writer.close().await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), "io operation timeout reached");
+            assert_eq!(close_start.elapsed(), Duration::from_secs(5));
+            assert!(
+                calls.load(Ordering::SeqCst) > 2,
+                "inner timeout must have triggered retries before outer timeout fired"
+            );
         })
         .await
         .expect("test should not hang");

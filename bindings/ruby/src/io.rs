@@ -36,6 +36,7 @@ use magnus::RString;
 use magnus::Value;
 use magnus::io::FMode;
 use magnus::method;
+use magnus::prelude::*;
 use magnus::scan_args::scan_args;
 
 use crate::*;
@@ -250,40 +251,56 @@ impl Io {
     /// @param buffer [String, nil] The output buffer to append to.
     fn read(ruby: &Ruby, rb_self: &Self, args: &[Value]) -> Result<Option<RString>, Error> {
         let args = scan_args::<(), (Option<Option<i64>>, Option<RString>), (), (), (), ()>(args)?;
-        let (option_size, mut option_output_buffer) = args.optional;
+        let (option_size, option_output_buffer) = args.optional;
         let size = option_size.unwrap_or_default(); // allow nil
 
-        let mut handle = rb_self.0.borrow_mut();
+        let buffer: Option<bytes::Bytes> = {
+            let mut handle = rb_self.0.borrow_mut();
 
-        if let FileState::Reader(reader) = &mut handle.state {
-            let buffer: Option<bytes::Bytes> = match size {
-                Some(size) => {
-                    if size < 0 {
-                        return Err(Error::new(
-                            ruby.exception_arg_error(),
-                            format!("negative length {} given", size),
-                        ));
+            let FileState::Reader(reader) = &mut handle.state else {
+                return Err(Error::new(
+                    ruby.exception_runtime_error(),
+                    "I/O operation failed for reading on write-only file.",
+                ));
+            };
+
+            if let Some(size) = size
+                && size < 0
+            {
+                return Err(Error::new(
+                    ruby.exception_arg_error(),
+                    format!("negative length {size} given"),
+                ));
+            }
+
+            // Reject frozen output buffers before advancing the reader so a
+            // frozen buffer raises without consuming stream bytes.
+            if let Some(output_buffer) = option_output_buffer {
+                output_buffer.check_frozen()?;
+            }
+
+            match size {
+                Some(0) => {
+                    drop(handle);
+                    // Ruby returns the given output buffer object for a zero-length read.
+                    if let Some(output_buffer) = option_output_buffer {
+                        output_buffer.drop_bytes(output_buffer.len())?;
+                        return Ok(Some(output_buffer));
                     }
-                    if size == 0 {
-                        // Ruby returns the given output buffer object for a zero-length read.
-                        if let Some(output_buffer) = option_output_buffer.as_mut() {
-                            output_buffer.drop_bytes(output_buffer.len())?;
-                            return Ok(Some(*output_buffer));
-                        }
-                        Some(bytes::Bytes::new())
+                    Some(bytes::Bytes::new())
+                }
+                Some(size) => {
+                    let mut bs = Vec::new();
+                    reader
+                        .by_ref()
+                        .take(size as u64)
+                        .read_to_end(&mut bs)
+                        .map_err(|err| format_io_error(ruby, err))?;
+                    if bs.is_empty() {
+                        // when called at end of file, read(positive_integer) returns nil.
+                        None
                     } else {
-                        let mut bs = Vec::new();
-                        reader
-                            .by_ref()
-                            .take(size as u64)
-                            .read_to_end(&mut bs)
-                            .map_err(|err| format_io_error(ruby, err))?;
-                        if bs.is_empty() {
-                            // when called at end of file, read(positive_integer) returns nil.
-                            None
-                        } else {
-                            Some(bs.into())
-                        }
+                        Some(bs.into())
                     }
                 }
                 None => {
@@ -293,22 +310,23 @@ impl Io {
                         .map_err(|err| format_io_error(ruby, err))?;
                     Some(buffer.into())
                 }
-            };
-
-            if let Some(output_buffer) = option_output_buffer.as_mut() {
-                match buffer.as_ref() {
-                    Some(inner) => output_buffer.cat(inner),
-                    None => output_buffer.drop_bytes(output_buffer.len())?,
-                }
             }
+        };
 
-            Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
-        } else {
-            Err(Error::new(
-                ruby.exception_runtime_error(),
-                "I/O operation failed for reading on write-only file.",
-            ))
+        if let Some(output_buffer) = option_output_buffer {
+            match buffer.as_ref() {
+                Some(inner) => {
+                    // `RString::cat` calls `rb_str_cat` without `rb_sys::protect`.
+                    // Call protected `modify_expand` first after releasing the `RefCell`
+                    // borrow to validate mutability and reserve capacity cleanly.
+                    output_buffer.modify_expand(inner.len())?;
+                    output_buffer.cat(inner);
+                }
+                None => output_buffer.drop_bytes(output_buffer.len())?,
+            }
         }
+
+        Ok(buffer.map(|inner| ruby.str_from_slice(&inner)))
     }
 
     /// @yard

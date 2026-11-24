@@ -54,7 +54,7 @@ module OpenDal
 
       begin
         seek(0, ::IO::SEEK_END)
-        tell == position
+        position >= tell
       ensure
         seek(position, ::IO::SEEK_SET)
       end
@@ -66,8 +66,13 @@ module OpenDal
     # @return [Integer]
     def length
       current_position = tell
-      seek(0, ::IO::SEEK_END)
-      tell.tap { self.pos = current_position }
+
+      begin
+        seek(0, ::IO::SEEK_END)
+        tell
+      ensure
+        seek(current_position, ::IO::SEEK_SET)
+      end
     end
 
     alias_method :size, :length

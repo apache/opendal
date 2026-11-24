@@ -133,8 +133,8 @@ impl Service for AsyncBacktraceService {
     type Writer = AsyncBacktraceWrapper<oio::Writer>;
     type Lister = AsyncBacktraceWrapper<oio::Lister>;
     type Deleter = AsyncBacktraceWrapper<oio::Deleter>;
-    type Copier = oio::Copier;
-    type Composer = oio::Composer;
+    type Copier = AsyncBacktraceWrapper<oio::Copier>;
+    type Composer = AsyncBacktraceWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -145,7 +145,9 @@ impl Service for AsyncBacktraceService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        self.inner
+            .compose(ctx, to, args)
+            .map(AsyncBacktraceWrapper::new)
     }
 
     #[async_backtrace::framed]
@@ -177,7 +179,9 @@ impl Service for AsyncBacktraceService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        self.inner.copy(ctx, from, to, args)
+        self.inner
+            .copy(ctx, from, to, args)
+            .map(AsyncBacktraceWrapper::new)
     }
 
     #[async_backtrace::framed]
@@ -297,6 +301,35 @@ impl<R: oio::Delete> oio::Delete for AsyncBacktraceWrapper<R> {
 
     #[async_backtrace::framed]
     async fn close(&mut self) -> Result<()> {
+        self.inner.close().await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for AsyncBacktraceWrapper<C> {
+    #[async_backtrace::framed]
+    async fn next(&mut self) -> Result<Option<usize>> {
+        self.inner.next().await
+    }
+
+    #[async_backtrace::framed]
+    async fn close(&mut self) -> Result<Metadata> {
+        self.inner.close().await
+    }
+
+    #[async_backtrace::framed]
+    async fn abort(&mut self) -> Result<()> {
+        self.inner.abort().await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for AsyncBacktraceWrapper<C> {
+    #[async_backtrace::framed]
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        self.inner.compose(path, args).await
+    }
+
+    #[async_backtrace::framed]
+    async fn close(&mut self) -> Result<Metadata> {
         self.inner.close().await
     }
 }

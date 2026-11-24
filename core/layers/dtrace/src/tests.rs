@@ -32,10 +32,12 @@ use super::*;
 thread_local! {
     // Tokio's current-thread test runtime keeps operation futures on the test thread.
     static PROBES: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
+    static PROBE_ARGS: RefCell<Vec<(&'static str, Vec<isize>)>> = const { RefCell::new(Vec::new()) };
 }
 
-pub(super) fn record_probe(name: &'static str) {
+pub(super) fn record_probe(name: &'static str, args: &[isize]) {
     PROBES.with_borrow_mut(|probes| probes.push(name));
+    PROBE_ARGS.with_borrow_mut(|probes| probes.push((name, args.to_vec())));
 }
 
 struct TestTransport(Mutex<Option<Result<Response<HttpBody>>>>);
@@ -320,6 +322,174 @@ async fn traces_deleter_and_preserves_results() -> Result<()> {
                 "deleter_close_ok",
             ]
         );
+    });
+    Ok(())
+}
+
+#[derive(Debug)]
+struct MockWriteService {
+    abort_error: Mutex<Option<Error>>,
+}
+
+impl Service for MockWriteService {
+    type Reader = ();
+    type Writer = MockWriter;
+    type Lister = ();
+    type Deleter = ();
+    type Copier = ();
+    type Composer = ();
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::new("mock", "/", "mock")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability {
+            write: true,
+            write_can_copy_from: true,
+            ..Default::default()
+        }
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        unimplemented!()
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        unimplemented!()
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        unimplemented!()
+    }
+
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+        unimplemented!()
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        unimplemented!()
+    }
+
+    fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+        unimplemented!()
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        unimplemented!()
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        unimplemented!()
+    }
+
+    fn write(&self, _ctx: &OperationContext, _path: &str, _args: OpWrite) -> Result<Self::Writer> {
+        Ok(MockWriter {
+            abort_error: self.abort_error.lock().unwrap().take(),
+        })
+    }
+}
+
+struct MockWriter {
+    abort_error: Option<Error>,
+}
+
+impl oio::Write for MockWriter {
+    async fn write(&mut self, _bs: Buffer) -> Result<()> {
+        Ok(())
+    }
+
+    async fn copy_from(&mut self, _path: &str, _args: OpRead, _range: BytesRange) -> Result<()> {
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        Ok(MetadataBuilder::file(0).build())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        match self.abort_error.take() {
+            Some(err) => Err(err),
+            None => Ok(()),
+        }
+    }
+}
+
+#[tokio::test]
+async fn traces_writer_write_length_and_abort_probes() -> Result<()> {
+    let ctx = OperationContext::default();
+
+    let ok_service = DtraceLayer::new().apply_service(Arc::new(MockWriteService {
+        abort_error: Mutex::new(None),
+    }));
+    let mut writer = ok_service.write(&ctx, "dir/file", OpWrite::default())?;
+    oio::Write::write(&mut writer, Buffer::from("hello world")).await?;
+    oio::Write::copy_from(
+        &mut writer,
+        "dir/src",
+        OpRead::default(),
+        BytesRange::new(0, Some(42)),
+    )
+    .await?;
+    oio::Write::copy_from(
+        &mut writer,
+        "dir/src",
+        OpRead::default(),
+        BytesRange::from(..),
+    )
+    .await?;
+    oio::Write::abort(&mut writer).await?;
+
+    let err_service = DtraceLayer::new().apply_service(Arc::new(MockWriteService {
+        abort_error: Mutex::new(Some(Error::new(ErrorKind::Unexpected, "abort failed"))),
+    }));
+    let mut failing_writer = err_service.write(&ctx, "dir/file", OpWrite::default())?;
+    let err = oio::Write::abort(&mut failing_writer).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+    PROBE_ARGS.with_borrow(|probes| {
+        let names: Vec<_> = probes.iter().map(|(name, _)| *name).collect();
+        assert_eq!(
+            names,
+            [
+                "write_start",
+                "write_end",
+                "writer_write_start",
+                "writer_write_ok",
+                "writer_write_start",
+                "writer_write_ok",
+                "writer_write_start",
+                "writer_write_ok",
+                "writer_abort_start",
+                "writer_abort_ok",
+                "write_start",
+                "write_end",
+                "writer_abort_start",
+                "writer_abort_error",
+            ]
+        );
+
+        let write_ok_lengths: Vec<_> = probes
+            .iter()
+            .filter(|(name, _)| *name == "writer_write_ok")
+            .map(|(_, args)| {
+                assert_eq!(args.len(), 2, "writer_write_ok must pass (path, length)");
+                assert_ne!(args[0], 0);
+                args[1]
+            })
+            .collect();
+        assert_eq!(write_ok_lengths, [11, 42, 0]);
     });
     Ok(())
 }

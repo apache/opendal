@@ -192,3 +192,192 @@ fn frames_tasks_and_preserves_executor_behavior() {
     );
     assert_eq!(*state.sleep_duration.lock().unwrap(), Some(duration));
 }
+
+#[derive(Debug)]
+struct CopyComposeTestService;
+
+impl Service for CopyComposeTestService {
+    type Reader = ();
+    type Writer = ();
+    type Lister = ();
+    type Deleter = ();
+    type Copier = SuspendingCopier;
+    type Composer = SuspendingComposer;
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::new("mock", "/", "mock")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability {
+            copy: true,
+            compose: true,
+            ..Default::default()
+        }
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        unimplemented!()
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        unimplemented!()
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        unimplemented!()
+    }
+
+    fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+        unimplemented!()
+    }
+
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+        unimplemented!()
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        unimplemented!()
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        unimplemented!()
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        unimplemented!()
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+    ) -> Result<Self::Copier> {
+        Ok(SuspendingCopier)
+    }
+
+    fn compose(
+        &self,
+        _ctx: &OperationContext,
+        _to: &str,
+        _args: OpCompose,
+    ) -> Result<Self::Composer> {
+        Ok(SuspendingComposer)
+    }
+}
+
+async fn yield_once() {
+    let mut yielded = false;
+    future::poll_fn(|cx| {
+        if !yielded {
+            yielded = true;
+            cx.waker().wake_by_ref();
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
+    })
+    .await;
+}
+
+struct SuspendingCopier;
+
+impl oio::Copy for SuspendingCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        yield_once().await;
+        Ok(Some(3))
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        yield_once().await;
+        Ok(MetadataBuilder::file(3).build())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        yield_once().await;
+        Ok(())
+    }
+}
+
+struct SuspendingComposer;
+
+impl oio::Compose for SuspendingComposer {
+    async fn compose(&mut self, _path: &str, _args: OpRead) -> Result<()> {
+        yield_once().await;
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        yield_once().await;
+        Ok(MetadataBuilder::file(4).build())
+    }
+}
+
+#[test]
+fn frames_suspended_copier_and_composer_operations() {
+    let service = AsyncBacktraceLayer::new().apply_service(Arc::new(CopyComposeTestService));
+    let ctx = OperationContext::default();
+    let mut cx = Context::from_waker(Waker::noop());
+
+    let mut copier = service.copy(&ctx, "src", "dst", OpCopy::default()).unwrap();
+    {
+        let mut fut = pin!(oio::Copy::next(&mut copier));
+        assert!(fut.as_mut().poll(&mut cx).is_pending());
+        let dump = async_backtrace::taskdump_tree(true);
+        assert!(dump.contains("Copy>::next"), "{dump}");
+        assert!(matches!(fut.poll(&mut cx), Poll::Ready(Ok(Some(3)))));
+    }
+    {
+        let mut fut = pin!(oio::Copy::close(&mut copier));
+        assert!(fut.as_mut().poll(&mut cx).is_pending());
+        let dump = async_backtrace::taskdump_tree(true);
+        assert!(dump.contains("Copy>::close"), "{dump}");
+        let Poll::Ready(Ok(meta)) = fut.poll(&mut cx) else {
+            panic!("copier close did not complete");
+        };
+        assert_eq!(meta.content_length(), 3);
+    }
+    {
+        let mut fut = pin!(oio::Copy::abort(&mut copier));
+        assert!(fut.as_mut().poll(&mut cx).is_pending());
+        let dump = async_backtrace::taskdump_tree(true);
+        assert!(dump.contains("Copy>::abort"), "{dump}");
+        assert!(matches!(fut.poll(&mut cx), Poll::Ready(Ok(()))));
+    }
+
+    let mut composer = service.compose(&ctx, "dst", OpCompose::default()).unwrap();
+    {
+        let mut fut = pin!(oio::Compose::compose(
+            &mut composer,
+            "part1",
+            OpRead::default()
+        ));
+        assert!(fut.as_mut().poll(&mut cx).is_pending());
+        let dump = async_backtrace::taskdump_tree(true);
+        assert!(dump.contains("Compose>::compose"), "{dump}");
+        assert!(matches!(fut.poll(&mut cx), Poll::Ready(Ok(()))));
+    }
+    {
+        let mut fut = pin!(oio::Compose::close(&mut composer));
+        assert!(fut.as_mut().poll(&mut cx).is_pending());
+        let dump = async_backtrace::taskdump_tree(true);
+        assert!(dump.contains("Compose>::close"), "{dump}");
+        let Poll::Ready(Ok(meta)) = fut.poll(&mut cx) else {
+            panic!("composer close did not complete");
+        };
+        assert_eq!(meta.content_length(), 4);
+    }
+}

@@ -35,6 +35,9 @@ use tracing::Level;
 use tracing::Span;
 use tracing::span;
 
+#[cfg(test)]
+mod tests;
+
 /// `TracingLayer` traces every operation with
 /// [tracing](https://docs.rs/tracing/).
 ///
@@ -232,8 +235,8 @@ impl Service for TracingService {
     type Writer = TracingWrapper<oio::Writer>;
     type Lister = TracingWrapper<oio::Lister>;
     type Deleter = TracingWrapper<oio::Deleter>;
-    type Copier = oio::Copier;
-    type Composer = oio::Composer;
+    type Copier = TracingWrapper<oio::Copier>;
+    type Composer = TracingWrapper<oio::Composer>;
 
     fn info(&self) -> ServiceInfo {
         self.inner.info()
@@ -244,7 +247,9 @@ impl Service for TracingService {
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        self.inner.compose(ctx, to, args)
+        let span = span!(Level::DEBUG, "compose", to, ?args);
+        span.in_scope(|| self.inner.compose(ctx, to, args))
+            .map(|c| TracingWrapper::new(span, c))
     }
 
     async fn create_dir(
@@ -282,8 +287,8 @@ impl Service for TracingService {
         args: OpCopy,
     ) -> Result<Self::Copier> {
         let span = span!(Level::DEBUG, "copy", from, to, ?args);
-        let _guard = span.enter();
-        self.inner.copy(ctx, from, to, args)
+        span.in_scope(|| self.inner.copy(ctx, from, to, args))
+            .map(|c| TracingWrapper::new(span, c))
     }
 
     async fn rename(
@@ -408,5 +413,39 @@ impl<R: oio::Delete> oio::Delete for TracingWrapper<R> {
 
     async fn close(&mut self) -> Result<()> {
         self.inner.close().instrument(self.span.clone()).await
+    }
+}
+
+impl<C: oio::Copy> oio::Copy for TracingWrapper<C> {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        async { self.inner.next().await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        async { self.inner.abort().await }
+            .instrument(self.span.clone())
+            .await
+    }
+}
+
+impl<C: oio::Compose> oio::Compose for TracingWrapper<C> {
+    async fn compose(&mut self, path: &str, args: OpRead) -> Result<()> {
+        async { self.inner.compose(path, args).await }
+            .instrument(self.span.clone())
+            .await
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        async { self.inner.close().await }
+            .instrument(self.span.clone())
+            .await
     }
 }

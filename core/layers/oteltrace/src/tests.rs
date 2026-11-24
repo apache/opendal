@@ -336,3 +336,251 @@ async fn executor_propagates_submission_context_to_task() {
     task.await;
     executor.timeout().unwrap().await;
 }
+
+#[derive(Debug)]
+struct CopyComposeService;
+
+impl Service for CopyComposeService {
+    type Reader = ();
+    type Writer = ();
+    type Lister = ();
+    type Deleter = ();
+    type Copier = RecordingCopier;
+    type Composer = RecordingComposer;
+
+    fn info(&self) -> ServiceInfo {
+        ServiceInfo::new("mock", "/", "mock")
+    }
+
+    fn capability(&self) -> Capability {
+        Capability {
+            copy: true,
+            compose: true,
+            ..Default::default()
+        }
+    }
+
+    async fn create_dir(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        unimplemented!()
+    }
+
+    async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+        unimplemented!()
+    }
+
+    fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+        unimplemented!()
+    }
+
+    fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+        unimplemented!()
+    }
+
+    fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+        unimplemented!()
+    }
+
+    fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+        unimplemented!()
+    }
+
+    async fn rename(
+        &self,
+        _: &OperationContext,
+        _: &str,
+        _: &str,
+        _: OpRename,
+    ) -> Result<RpRename> {
+        unimplemented!()
+    }
+
+    async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+        unimplemented!()
+    }
+
+    fn copy(
+        &self,
+        _ctx: &OperationContext,
+        _from: &str,
+        _to: &str,
+        _args: OpCopy,
+    ) -> Result<Self::Copier> {
+        TraceContext::current()
+            .span()
+            .add_event("copier.create", vec![]);
+        Ok(RecordingCopier { done: false })
+    }
+
+    fn compose(
+        &self,
+        _ctx: &OperationContext,
+        _to: &str,
+        _args: OpCompose,
+    ) -> Result<Self::Composer> {
+        TraceContext::current()
+            .span()
+            .add_event("composer.create", vec![]);
+        Ok(RecordingComposer { count: 0 })
+    }
+}
+
+struct RecordingCopier {
+    done: bool,
+}
+
+impl oio::Copy for RecordingCopier {
+    async fn next(&mut self) -> Result<Option<usize>> {
+        tokio::task::yield_now().await;
+        TraceContext::current()
+            .span()
+            .add_event("copier.next", vec![]);
+        let tracer = global::tracer("test");
+        let _child = tracer.start("mock.copier.next");
+        if self.done {
+            Ok(None)
+        } else {
+            self.done = true;
+            Ok(Some(12))
+        }
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        tokio::task::yield_now().await;
+        TraceContext::current()
+            .span()
+            .add_event("copier.close", vec![]);
+        let tracer = global::tracer("test");
+        let _child = tracer.start("mock.copier.close");
+        Ok(MetadataBuilder::file(12).build())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        tokio::task::yield_now().await;
+        TraceContext::current()
+            .span()
+            .add_event("copier.abort", vec![]);
+        let tracer = global::tracer("test");
+        let _child = tracer.start("mock.copier.abort");
+        Ok(())
+    }
+}
+
+struct RecordingComposer {
+    count: u64,
+}
+
+impl oio::Compose for RecordingComposer {
+    async fn compose(&mut self, _path: &str, _args: OpRead) -> Result<()> {
+        tokio::task::yield_now().await;
+        TraceContext::current()
+            .span()
+            .add_event("composer.compose", vec![]);
+        let tracer = global::tracer("test");
+        let _child = tracer.start("mock.composer.compose");
+        self.count += 1;
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        tokio::task::yield_now().await;
+        TraceContext::current()
+            .span()
+            .add_event("composer.close", vec![]);
+        let tracer = global::tracer("test");
+        let _child = tracer.start("mock.composer.close");
+        Ok(MetadataBuilder::file(self.count).build())
+    }
+}
+
+#[test]
+fn traces_copy_and_compose_across_stateful_bodies() {
+    let (result, spans) = collect_spans(async {
+        let service = OtelTraceLayer::new().apply_service(Arc::new(CopyComposeService));
+        let ctx = OperationContext::default();
+        let tracer = global::tracer("test");
+
+        let copy_cx = TraceContext::new().with_span(tracer.start("test.copy"));
+        let mut copier = {
+            let _guard = copy_cx.attach();
+            service.copy(&ctx, "src", "dst", OpCopy::default())?
+        };
+        assert_eq!(oio::Copy::next(&mut copier).await?, Some(12));
+        assert_eq!(oio::Copy::next(&mut copier).await?, None);
+        let copy_meta = oio::Copy::close(&mut copier).await?;
+        drop(copier);
+
+        let abort_cx = TraceContext::new().with_span(tracer.start("test.copy_abort"));
+        let mut aborted = {
+            let _guard = abort_cx.attach();
+            service.copy(&ctx, "src", "dst2", OpCopy::default())?
+        };
+        oio::Copy::abort(&mut aborted).await?;
+        drop(aborted);
+
+        let compose_cx = TraceContext::new().with_span(tracer.start("test.compose"));
+        let mut composer = {
+            let _guard = compose_cx.attach();
+            service.compose(&ctx, "out", OpCompose::default())?
+        };
+        oio::Compose::compose(&mut composer, "part1", OpRead::default()).await?;
+        let compose_meta = oio::Compose::close(&mut composer).await?;
+        drop(composer);
+
+        Ok::<_, Error>((copy_meta.content_length(), compose_meta.content_length()))
+    });
+    assert_eq!(result.unwrap(), (12, 1));
+
+    let child = |parent: &SpanData, name| {
+        spans
+            .iter()
+            .find(|span| span.name == name && span.parent_span_id == parent.span_context.span_id())
+            .unwrap_or_else(|| panic!("missing {name} span under {}", parent.name))
+    };
+
+    let copy_root = spans.iter().find(|s| s.name == "test.copy").unwrap();
+    let copy_span = child(copy_root, "copy");
+    assert!(copy_span.attributes.contains(&KeyValue::new("from", "src")));
+    assert!(copy_span.attributes.contains(&KeyValue::new("to", "dst")));
+    let copy_events: Vec<_> = copy_span.events.iter().map(|e| e.name.as_ref()).collect();
+    assert_eq!(
+        copy_events,
+        [
+            "copier.create",
+            "copier.next",
+            "copier.next",
+            "copier.close"
+        ]
+    );
+    child(copy_span, "mock.copier.next");
+    child(copy_span, "mock.copier.close");
+
+    let abort_root = spans.iter().find(|s| s.name == "test.copy_abort").unwrap();
+    let abort_span = child(abort_root, "copy");
+    let abort_events: Vec<_> = abort_span.events.iter().map(|e| e.name.as_ref()).collect();
+    assert_eq!(abort_events, ["copier.create", "copier.abort"]);
+    child(abort_span, "mock.copier.abort");
+
+    let compose_root = spans.iter().find(|s| s.name == "test.compose").unwrap();
+    let compose_span = child(compose_root, "compose");
+    assert!(
+        compose_span
+            .attributes
+            .contains(&KeyValue::new("to", "out"))
+    );
+    let compose_events: Vec<_> = compose_span
+        .events
+        .iter()
+        .map(|e| e.name.as_ref())
+        .collect();
+    assert_eq!(
+        compose_events,
+        ["composer.create", "composer.compose", "composer.close"]
+    );
+    child(compose_span, "mock.composer.compose");
+    child(compose_span, "mock.composer.close");
+}

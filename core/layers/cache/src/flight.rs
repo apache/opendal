@@ -91,8 +91,8 @@ where
                                 let sender = work.sender;
                                 let guard = work.guard;
                                 let value = work.future.await;
-                                sender.send_replace(Some(value));
                                 drop(guard);
+                                sender.send_replace(Some(value));
                             }))
                             .is_ok()
                     };
@@ -113,8 +113,8 @@ where
                     let sender = work.sender;
                     let guard = work.guard;
                     let value = work.future.await;
-                    sender.send_replace(Some(value));
                     drop(guard);
+                    sender.send_replace(Some(value));
                 };
                 #[cfg(not(target_arch = "wasm32"))]
                 if let Ok(runtime) = tokio::runtime::Handle::try_current() {
@@ -159,6 +159,8 @@ impl<K: Eq + Hash, T> Drop for Reservation<K, T> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::task::{Context, Poll, Wake, Waker};
     use std::time::Duration;
 
     use opendal_core::Execute;
@@ -171,6 +173,14 @@ mod tests {
 
     impl Execute for AbandoningExecutor {
         fn execute(&self, _f: BoxedStaticFuture<()>) {}
+    }
+
+    struct TokioSpawnExecutor;
+
+    impl Execute for TokioSpawnExecutor {
+        fn execute(&self, f: BoxedStaticFuture<()>) {
+            tokio::spawn(f);
+        }
     }
 
     struct QueuingExecutor {
@@ -248,5 +258,185 @@ mod tests {
             flights.0.lock().unwrap().is_empty(),
             "flight map must be empty after abandoned leader and recovered waiter"
         );
+    }
+
+    struct CheckEmptyWaker<K, T> {
+        flights: Arc<Flights<K, T>>,
+        woken_count: Arc<AtomicUsize>,
+        saw_non_empty: Arc<AtomicBool>,
+        woken: Arc<Notify>,
+    }
+
+    impl<K: Send + Sync, T: Send + Sync> Wake for CheckEmptyWaker<K, T> {
+        fn wake(self: Arc<Self>) {
+            self.wake_by_ref();
+        }
+
+        fn wake_by_ref(self: &Arc<Self>) {
+            let empty = self
+                .flights
+                .0
+                .try_lock()
+                .is_ok_and(|pending| pending.is_empty());
+            if !empty {
+                self.saw_non_empty.store(true, Ordering::SeqCst);
+            }
+            self.woken_count.fetch_add(1, Ordering::SeqCst);
+            self.woken.notify_one();
+        }
+    }
+
+    #[tokio::test]
+    async fn completed_flight_clears_reservation_before_waking_waiters() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let executors = [Executor::with(TokioSpawnExecutor), Executor::new()];
+            for executor in executors {
+                let flights: Arc<Flights<u64, usize>> = Arc::new(Flights::default());
+                let calls = Arc::new(AtomicUsize::new(0));
+                let entered = Arc::new(Notify::new());
+                let release = Arc::new(Notify::new());
+
+                let leader = tokio::spawn({
+                    let flights = flights.clone();
+                    let executor = executor.clone();
+                    let entered = entered.clone();
+                    let release = release.clone();
+                    let calls = calls.clone();
+                    async move {
+                        flights
+                            .run(&executor, vec![1], move |_| async move {
+                                let id = calls.fetch_add(1, Ordering::Relaxed) + 1;
+                                entered.notify_one();
+                                release.notified().await;
+                                id
+                            })
+                            .await
+                    }
+                });
+
+                entered.notified().await;
+
+                // Poll the waiter once with a custom waker so it deterministically
+                // attaches to the in-flight reservation and inspects the flight map
+                // synchronously when `sender.send_replace` wakes it.
+                let woken_count = Arc::new(AtomicUsize::new(0));
+                let saw_non_empty = Arc::new(AtomicBool::new(false));
+                let woken = Arc::new(Notify::new());
+                let waker = Waker::from(Arc::new(CheckEmptyWaker {
+                    flights: flights.clone(),
+                    woken_count: woken_count.clone(),
+                    saw_non_empty: saw_non_empty.clone(),
+                    woken: woken.clone(),
+                }));
+                let mut waiter = Box::pin(flights.run(&executor, vec![1], {
+                    let calls = calls.clone();
+                    move |_| async move { calls.fetch_add(1, Ordering::Relaxed) + 1 }
+                }));
+                let mut cx = Context::from_waker(&waker);
+                assert!(
+                    matches!(waiter.as_mut().poll(&mut cx), Poll::Pending),
+                    "waiter must join the active flight before leader finishes"
+                );
+
+                release.notify_one();
+                woken.notified().await;
+
+                assert!(
+                    woken_count.load(Ordering::SeqCst) >= 1,
+                    "waiter waker must be invoked when flight completes"
+                );
+                assert!(
+                    !saw_non_empty.load(Ordering::SeqCst),
+                    "reservation must be removed before waking waiters"
+                );
+
+                let waiter_value = waiter.await.expect("waiter result");
+                let leader_value = leader.await.unwrap().expect("leader result");
+                assert_eq!(waiter_value, leader_value);
+                assert_eq!(calls.load(Ordering::Relaxed), 1);
+
+                // Immediate retry must start a new flight instead of replaying `leader_value`.
+                let second = flights
+                    .run(&executor, vec![1], {
+                        let calls = calls.clone();
+                        move |_| async move { calls.fetch_add(1, Ordering::Relaxed) + 1 }
+                    })
+                    .await
+                    .expect("retry result");
+                assert!(flights.0.lock().unwrap().is_empty());
+                assert_ne!(
+                    second, leader_value,
+                    "retry must not replay completed flight"
+                );
+            }
+        })
+        .await
+        .expect("completed_flight_clears_reservation_before_waking_waiters timed out");
+    }
+
+    #[tokio::test]
+    async fn panicking_flight_clears_reservation_before_waking_waiters() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let executors = [Executor::with(TokioSpawnExecutor), Executor::new()];
+            for executor in executors {
+                let flights: Arc<Flights<u64, u64>> = Arc::new(Flights::default());
+                let entered = Arc::new(Notify::new());
+                let release = Arc::new(Notify::new());
+
+                let leader = tokio::spawn({
+                    let flights = flights.clone();
+                    let executor = executor.clone();
+                    let entered = entered.clone();
+                    let release = release.clone();
+                    async move {
+                        flights
+                            .run(&executor, vec![1, 2], move |_| async move {
+                                entered.notify_one();
+                                release.notified().await;
+                                panic!("simulated flight panic");
+                            })
+                            .await
+                    }
+                });
+
+                entered.notified().await;
+
+                let woken_count = Arc::new(AtomicUsize::new(0));
+                let saw_non_empty = Arc::new(AtomicBool::new(false));
+                let woken = Arc::new(Notify::new());
+                let waker = Waker::from(Arc::new(CheckEmptyWaker {
+                    flights: flights.clone(),
+                    woken_count: woken_count.clone(),
+                    saw_non_empty: saw_non_empty.clone(),
+                    woken: woken.clone(),
+                }));
+                let mut waiter = Box::pin(
+                    flights.run(&executor, vec![1, 2], |count| async move { count as u64 }),
+                );
+                let mut cx = Context::from_waker(&waker);
+                assert!(
+                    matches!(waiter.as_mut().poll(&mut cx), Poll::Pending),
+                    "waiter must join the active flight before leader panics"
+                );
+
+                release.notify_one();
+                woken.notified().await;
+
+                assert!(
+                    woken_count.load(Ordering::SeqCst) >= 1,
+                    "waiter waker must be invoked when flight panics"
+                );
+                assert!(
+                    !saw_non_empty.load(Ordering::SeqCst),
+                    "panicking flight must clear reservations before waking waiters"
+                );
+
+                assert_eq!(leader.await.unwrap(), None);
+                assert_eq!(waiter.await, Some(2));
+                assert!(flights.0.lock().unwrap().is_empty());
+            }
+        })
+        .await
+        .expect("panicking_flight_clears_reservation_before_waking_waiters timed out");
     }
 }

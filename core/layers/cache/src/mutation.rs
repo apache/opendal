@@ -33,18 +33,18 @@ pub(crate) struct Mutation<T> {
 
 impl Write for Mutation<oio::Writer> {
     async fn write(&mut self, data: Buffer) -> Result<()> {
+        // In-place and append writers can mutate storage before `close`, while
+        // buffered or multipart writers commit on `close`. Guard both paths.
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.write(data).await;
-        if result.is_err() {
-            self.state.invalidate(&[self.destination]).await;
-        }
+        self.state.invalidate(&[self.destination]).await;
         result
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.copy_from(path, args, range).await;
-        if result.is_err() {
-            self.state.invalidate(&[self.destination]).await;
-        }
+        self.state.invalidate(&[self.destination]).await;
         result
     }
 
@@ -56,6 +56,7 @@ impl Write for Mutation<oio::Writer> {
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.abort().await;
         self.state.invalidate(&[self.destination]).await;
         result
@@ -64,10 +65,11 @@ impl Write for Mutation<oio::Writer> {
 
 impl Copy for Mutation<oio::Copier> {
     async fn next(&mut self) -> Result<Option<usize>> {
+        // One-shot copiers commit the destination during `next`, while
+        // multipart copiers commit on `close`. Guard both paths.
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.next().await;
-        if result.is_err() {
-            self.state.invalidate(&[self.destination]).await;
-        }
+        self.state.invalidate(&[self.destination]).await;
         result
     }
 
@@ -79,6 +81,7 @@ impl Copy for Mutation<oio::Copier> {
     }
 
     async fn abort(&mut self) -> Result<()> {
+        self.state.begin_mutation(&[self.destination]);
         let result = self.inner.abort().await;
         self.state.invalidate(&[self.destination]).await;
         result

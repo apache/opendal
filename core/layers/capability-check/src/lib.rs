@@ -137,11 +137,25 @@ impl Service for CapabilityCheckService {
                 "content_disposition",
             ));
         }
+        if !capability.write_with_content_encoding && args.content_encoding().is_some() {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Write,
+                "content_encoding",
+            ));
+        }
         if !capability.write_with_content_language && args.content_language().is_some() {
             return Err(new_unsupported_error(
                 &info,
                 Operation::Write,
                 "content_language",
+            ));
+        }
+        if !capability.write_with_user_metadata && args.user_metadata().is_some() {
+            return Err(new_unsupported_error(
+                &info,
+                Operation::Write,
+                "user_metadata",
             ));
         }
 
@@ -429,7 +443,21 @@ mod tests {
 
         let err = op
             .writer_with("path")
+            .content_encoding("gzip")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .writer_with("path")
             .content_language("en")
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = op
+            .writer_with("path")
+            .user_metadata([("k".to_string(), "v".to_string())])
             .await
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
@@ -439,7 +467,9 @@ mod tests {
             write_with_content_type: true,
             write_with_cache_control: true,
             write_with_content_disposition: true,
+            write_with_content_encoding: true,
             write_with_content_language: true,
+            write_with_user_metadata: true,
             ..Default::default()
         });
         let res = op.writer_with("path").content_type("type").await;
@@ -454,7 +484,16 @@ mod tests {
             .await;
         assert!(res.is_ok());
 
+        let res = op.writer_with("path").content_encoding("gzip").await;
+        assert!(res.is_ok());
+
         let res = op.writer_with("path").content_language("en").await;
+        assert!(res.is_ok());
+
+        let res = op
+            .writer_with("path")
+            .user_metadata([("k".to_string(), "v".to_string())])
+            .await;
         assert!(res.is_ok());
     }
 

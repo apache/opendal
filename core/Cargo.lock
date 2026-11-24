@@ -7856,6 +7856,7 @@ dependencies = [
  "log",
  "logforth",
  "opendal-core",
+ "opendal-layer-sanity-check",
  "tokio",
 ]
 

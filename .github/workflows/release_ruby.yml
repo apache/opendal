@@ -137,10 +137,11 @@ jobs:
       matrix:
         ruby-version: ["3.3", "3.4", "4.0"]
         target:
-          - os: ubuntu-24.04
+          # Build against the oldest tested glibc so gems also load on newer Ubuntu runners.
+          - os: ubuntu-22.04
             platform: x86_64-linux
             rust_target: x86_64-unknown-linux-gnu
-          - os: ubuntu-24.04-arm
+          - os: ubuntu-22.04-arm
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
           # Publish a versionless macOS platform gem. RubyGems matches
@@ -181,17 +182,20 @@ jobs:
           name: opendal-ruby-extension-${{ matrix.target.platform }}-${{ matrix.ruby-version }}
           path: bindings/ruby/tmp/native/
           if-no-files-found: error
-          retention-days: 30
+          # Keep intermediate extensions for 7 days for debugging.
+          retention-days: 7
 
   package-native:
     name: Package ${{ matrix.target.platform }}
+    # Assemble all three ABI builds into gems without recompiling the extensions.
     needs: build-native
     strategy:
       fail-fast: false
       matrix:
         target:
-          - os: ubuntu-24.04
+          - os: ubuntu-latest
             platform: x86_64-linux
+          # GitHub has no ubuntu-latest-arm label.
           - os: ubuntu-24.04-arm
             platform: aarch64-linux
           - os: macos-latest
@@ -233,7 +237,7 @@ jobs:
           retention-days: 30
 
   smoke-test-native:
-    name: Smoke test ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby-version }} / ${{ matrix.format }}
+    name: Smoke test ${{ matrix.target.os }} / ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby-version }} / ${{ matrix.format }}
     needs: package-native
     strategy:
       fail-fast: false
@@ -241,12 +245,32 @@ jobs:
         ruby-version: ["3.3", "3.4", "4.0"]
         format: [conventional, content-addressable]
         target:
-          - os: ubuntu-24.04
+          - os: ubuntu-latest
             platform: x86_64-linux
           - os: ubuntu-24.04-arm
             platform: aarch64-linux
           - os: macos-latest
             platform: arm64-darwin
+        include:
+          # Check both gem formats on older Ubuntu releases with the minimum supported Ruby.
+          - target: { os: ubuntu-24.04, platform: x86_64-linux }
+            ruby-version: "3.3"
+            format: conventional
+          - target: { os: ubuntu-24.04, platform: x86_64-linux }
+            ruby-version: "3.3"
+            format: content-addressable
+          - target: { os: ubuntu-22.04, platform: x86_64-linux }
+            ruby-version: "3.3"
+            format: conventional
+          - target: { os: ubuntu-22.04, platform: x86_64-linux }
+            ruby-version: "3.3"
+            format: content-addressable
+          - target: { os: ubuntu-22.04-arm, platform: aarch64-linux }
+            ruby-version: "3.3"
+            format: conventional
+          - target: { os: ubuntu-22.04-arm, platform: aarch64-linux }
+            ruby-version: "3.3"
+            format: content-addressable
 
     runs-on: ${{ matrix.target.os }}
 
@@ -259,6 +283,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Ruby for installation
+        # These tests use RubyGems directly and need no Bundler dependencies or cache.
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
@@ -271,7 +296,35 @@ jobs:
           path: bindings/ruby/pkg/
 
       - name: Install and smoke test the native gem
-        run: ruby test/package/smoke.rb
+        run: |
+          gem_file=$(ruby <<'RUBY'
+          require "rubygems/package"
+
+          ruby_abi = RUBY_VERSION.split(".").first(2).join(".")
+          gem_format = ENV.fetch("OPENDAL_RUBY_GEM_FORMAT")
+          requirement = case gem_format
+          when "conventional"
+            Gem::Requirement.new(">= 3.3", "< 4.1.dev")
+          when "content-addressable"
+            Gem::Requirement.new("~> #{ruby_abi}.0")
+          else
+            abort "Unknown native gem format: #{gem_format}"
+          end
+          platform = Gem::Platform.new(ENV.fetch("OPENDAL_RUBY_PLATFORM"))
+          source_spec = Gem::Specification.load("opendal.gemspec")
+          gem_files = Dir.glob("pkg/#{source_spec.name}-#{source_spec.version}-*.gem").select do |path|
+            spec = Gem::Package.new(path).spec
+            spec.platform == platform && spec.required_ruby_version == requirement
+          end
+          abort "Expected one #{gem_format} gem for #{platform} / Ruby #{ruby_abi}, found #{gem_files.size}" unless gem_files.one?
+          puts gem_files.first
+          RUBY
+          )
+
+          export GEM_HOME="$RUNNER_TEMP/opendal-gem-smoke" GEM_PATH="$RUNNER_TEMP/opendal-gem-smoke"
+          unset RUBYOPT RUBYLIB BUNDLE_GEMFILE
+          gem install --local "$gem_file" --no-document
+          ruby test/package/smoke.rb "$gem_file"
 
   publish:
     # RC tags only build artifacts for release verification. RubyGems does not

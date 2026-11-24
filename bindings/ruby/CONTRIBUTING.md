@@ -49,10 +49,15 @@ bundle exec rake native:opendal test:package
 This produces one conventional platform gem and one content-addressable gem
 for each Ruby ABI in `pkg/`. The source gem still uses `bundle exec rake build`.
 
-Install and smoke-test the gem for the active Ruby ABI with RubyGems 4.1 or later:
+Install a packaged gem for the active Ruby ABI into an isolated gem directory,
+then smoke-test it with RubyGems 4.1 or later. Replace the example filename with
+the conventional platform gem or the content-addressable gem for that ABI:
 
 ```shell
-OPENDAL_RUBY_GEM_FORMAT=content-addressable ruby test/package/smoke.rb
+gem_file=pkg/opendal-VERSION-PLATFORM_OR_CONTENT_ADDRESS.gem
+export GEM_HOME="$(ruby -rtmpdir -e 'puts Dir.mktmpdir("opendal-gem-smoke-")')"
+export GEM_PATH="$GEM_HOME"
+unset RUBYOPT RUBYLIB BUNDLE_GEMFILE
+gem install --local "$gem_file" --no-document
+ruby test/package/smoke.rb "$gem_file"
 ```
-
-Use `OPENDAL_RUBY_GEM_FORMAT=conventional` to check the multi-ABI gem instead.

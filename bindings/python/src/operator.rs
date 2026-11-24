@@ -25,6 +25,7 @@ use pyo3::exceptions::PyValueError;
 use pyo3::types::PyBytes;
 use pyo3::types::PyDelta;
 use pyo3::types::PyDict;
+use pyo3::types::PyList;
 use pyo3::types::PyString;
 use pyo3::types::PyTuple;
 use pyo3::types::PyType;
@@ -144,16 +145,21 @@ fn extract_delete_paths(paths: &Bound<'_, PyAny>) -> PyResult<Vec<String>> {
         .collect()
 }
 
-/// Convert a config value into the string form core's config deserializer
-/// consumes.
-///
-/// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
-/// `bool`, `int`, `datetime.timedelta`, `os.PathLike`, and `list`/`tuple` of those
-/// (`,`-joined, as core parses `Vec`). A nested `dict` has no flat-map form and is rejected.
-fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
-    // `str` before the list branch (a `str` is also a sequence); `bool` before
-    // `int` (a Python `bool` also extracts as `int`); `dict` before the list
-    // branch so a map is rejected rather than read as its keys.
+fn is_python_mapping(value: &Bound<PyAny>) -> PyResult<bool> {
+    if value.cast::<PyDict>().is_ok() {
+        return Ok(true);
+    }
+    let py = value.py();
+    let mapping = py
+        .import(pyo3::intern!(py, "collections.abc"))?
+        .getattr(pyo3::intern!(py, "Mapping"))?;
+    value.is_instance(&mapping)
+}
+
+fn config_scalar_to_string(value: &Bound<PyAny>) -> PyResult<String> {
+    let py = value.py();
+    // `bool` must be checked before `i128` because a Python `bool` also
+    // extracts as an integer.
     if let Ok(s) = value.extract::<String>() {
         Ok(s)
     } else if let Ok(b) = value.extract::<bool>() {
@@ -163,7 +169,7 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
     } else if let Ok(delta) = value.cast::<PyDelta>() {
         // Use the base descriptors so the stable ABI reads the stored components
         // even if a timedelta subclass overrides the attributes.
-        let delta_type = value.py().get_type::<PyDelta>();
+        let delta_type = py.get_type::<PyDelta>();
         let component = |name: &str| -> PyResult<i128> {
             delta_type
                 .getattr(name)?
@@ -174,23 +180,52 @@ fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
             + component("seconds")? * 1_000_000
             + component("microseconds")?;
         Ok(format!("{micros}us"))
-    } else if value.cast::<PyDict>().is_ok() {
+    } else if is_python_mapping(value)? {
         Err(Unsupported::new_err(
             "a map-valued config field cannot be built via from_config; leave it unset",
         ))
-    } else if let Ok(items) = value.extract::<Vec<Bound<PyAny>>>() {
-        let parts = items
-            .iter()
-            .map(config_value_to_string)
-            .collect::<PyResult<Vec<_>>>()?;
-        Ok(parts.join(","))
-    } else if let Ok(path) = value.extract::<PathBuf>() {
-        Ok(path.to_string_lossy().into_owned())
+    } else if value.hasattr(pyo3::intern!(py, "__fspath__"))? {
+        let fspath = py
+            .import(pyo3::intern!(py, "os"))?
+            .getattr(pyo3::intern!(py, "fspath"))?
+            .call1((value,))?;
+        if let Ok(path) = fspath.extract::<String>() {
+            Ok(path)
+        } else {
+            Err(Unsupported::new_err(
+                "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
+            ))
+        }
     } else {
         Err(Unsupported::new_err(
             "unsupported config value type; pass a str, bool, int, datetime.timedelta, os.PathLike, or list of those",
         ))
     }
+}
+
+/// Convert a config value into the string form core's config deserializer
+/// consumes.
+///
+/// Accepts the native types the `opendal.config` TypedDicts declare: `str`,
+/// `bool`, `int`, `datetime.timedelta`, `os.PathLike[str]`, and flat
+/// `list`/`tuple` of those (`,`-joined, as core parses `Vec`). Nested
+/// collections and mappings have no flat-map form and are rejected.
+fn config_value_to_string(value: &Bound<PyAny>) -> PyResult<String> {
+    if let Ok(list) = value.cast::<PyList>() {
+        let parts = list
+            .iter()
+            .map(|item| config_scalar_to_string(&item))
+            .collect::<PyResult<Vec<_>>>()?;
+        return Ok(parts.join(","));
+    }
+    if let Ok(tuple) = value.cast::<PyTuple>() {
+        let parts = tuple
+            .iter()
+            .map(|item| config_scalar_to_string(&item))
+            .collect::<PyResult<Vec<_>>>()?;
+        return Ok(parts.join(","));
+    }
+    config_scalar_to_string(value)
 }
 
 /// Extract `(scheme, config_map)` from a typed service config dict.
@@ -371,7 +406,10 @@ impl Operator {
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
     /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
+    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+    /// converted to the string form core consumes. ``bytes``-like objects,
+    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
+    /// ``Unsupported``.
     ///
     /// Parameters
     /// ----------
@@ -448,6 +486,9 @@ impl Operator {
     ///
     /// Raises
     /// ------
+    /// TypeError
+    ///     If `**kwargs` contains an unknown keyword argument, an option that
+    ///     does not apply to `mode`, or a value with an incompatible type.
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
@@ -474,17 +515,11 @@ impl Operator {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
-        let reader_opts = kwargs
-            .map(|v| v.extract::<ReadOptions>())
-            .transpose()?
-            .unwrap_or_default();
-
-        let writer_opts = kwargs
-            .map(|v| v.extract::<WriteOptions>())
-            .transpose()?
-            .unwrap_or_default();
-
         if matches!(mode, OpenMode::Read) {
+            let reader_opts = kwargs
+                .map(ReadOptions::from_open_kwargs)
+                .transpose()?
+                .unwrap_or_default();
             check_runtime_process()?;
             let range = reader_opts.make_range();
             let r = py
@@ -495,7 +530,10 @@ impl Operator {
                 .map_err(format_pyerr)?;
             Ok(File::new_reader(r))
         } else {
-            let mut writer_opts = writer_opts;
+            let mut writer_opts = kwargs
+                .map(|v| v.extract::<WriteOptions>())
+                .transpose()?
+                .unwrap_or_default();
             mode.apply_write_options(&mut writer_opts)?;
             // Keep small writes coalesced without the std::io adapter when
             // neither the caller nor the service supplies a nonzero chunk size.
@@ -583,9 +621,9 @@ impl Operator {
         concurrent: Option<usize>,
         chunk: Option<usize>,
         gap: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<u64>,
         prefetch: Option<usize>,
-        size: Option<usize>,
+        size: Option<u64>,
         if_match: Option<String>,
         if_none_match: Option<String>,
         if_modified_since: Option<jiff::Timestamp>,
@@ -1246,7 +1284,10 @@ impl AsyncOperator {
     /// ``scheme`` key selects the service, so a static type checker rejects a
     /// wrong scheme, a missing required key, an unknown key, and a wrong value
     /// type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-    /// ``os.PathLike``, ``list``) are converted to the string form core consumes.
+    /// ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+    /// converted to the string form core consumes. ``bytes``-like objects,
+    /// non-dict ``Mapping``s, nested sequences, and other iterables raise
+    /// ``Unsupported``.
     ///
     /// Parameters
     /// ----------
@@ -1319,6 +1360,9 @@ impl AsyncOperator {
     ///
     /// Raises
     /// ------
+    /// TypeError
+    ///     If `**kwargs` contains an unknown keyword argument, an option that
+    ///     does not apply to `mode`, or a value with an incompatible type.
     /// ValueError
     ///     If the mode is invalid or unsupported, including text (`"t"`) and
     ///     update (`"+"`) modes, or if the mode conflicts with `append` or
@@ -1345,18 +1389,13 @@ impl AsyncOperator {
         let this = self.core.clone();
         let path = path.to_string_lossy().to_string();
 
-        let reader_opts = kwargs
-            .map(|v| v.extract::<ReadOptions>())
-            .transpose()?
-            .unwrap_or_default();
+        if matches!(mode, OpenMode::Read) {
+            let reader_opts = kwargs
+                .map(ReadOptions::from_open_kwargs)
+                .transpose()?
+                .unwrap_or_default();
 
-        let writer_opts = kwargs
-            .map(|v| v.extract::<WriteOptions>())
-            .transpose()?
-            .unwrap_or_default();
-
-        future_into_py(py, async move {
-            if matches!(mode, OpenMode::Read) {
+            future_into_py(py, async move {
                 let range = reader_opts.make_range();
                 let reader = this
                     .reader_options(&path, reader_opts.into())
@@ -1368,9 +1407,15 @@ impl AsyncOperator {
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_reader(r))
-            } else {
-                let mut writer_opts = writer_opts;
-                mode.apply_write_options(&mut writer_opts)?;
+            })
+        } else {
+            let mut writer_opts = kwargs
+                .map(|v| v.extract::<WriteOptions>())
+                .transpose()?
+                .unwrap_or_default();
+            mode.apply_write_options(&mut writer_opts)?;
+
+            future_into_py(py, async move {
                 // Keep small writes coalesced when neither the caller nor the
                 // service supplies a chunk size. The core treats zero as unset.
                 if matches!(writer_opts.chunk, None | Some(0))
@@ -1383,8 +1428,8 @@ impl AsyncOperator {
                     .await
                     .map_err(format_pyerr)?;
                 Ok(AsyncFile::new_writer(writer))
-            }
-        })
+            })
+        }
     }
 
     /// Read all or a selected range of bytes from a file.
@@ -1453,9 +1498,9 @@ impl AsyncOperator {
         concurrent: Option<usize>,
         chunk: Option<usize>,
         gap: Option<usize>,
-        offset: Option<usize>,
+        offset: Option<u64>,
         prefetch: Option<usize>,
-        size: Option<usize>,
+        size: Option<u64>,
         if_match: Option<String>,
         if_none_match: Option<String>,
         if_modified_since: Option<jiff::Timestamp>,

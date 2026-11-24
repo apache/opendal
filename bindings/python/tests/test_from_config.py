@@ -16,8 +16,10 @@
 # under the License.
 
 import pickle
+from collections import UserDict
 from datetime import timedelta
 from pathlib import PurePosixPath
+from types import MappingProxyType
 
 import pytest
 
@@ -114,3 +116,68 @@ def test_from_config_timedelta_precision(operator_type, duration, expected):
     )
     _, args = operator.__reduce__()
     assert args[1]["probe_duration"] == expected
+
+
+def test_from_config_stringifies_flat_list_and_tuple():
+    op = opendal.Operator.from_config(
+        {
+            "scheme": "memory",
+            "probe_list": ["a", "b"],
+            "probe_tuple": (
+                "x",
+                1,
+                True,
+                PurePosixPath("/p"),
+                timedelta(seconds=1),
+            ),
+        }  # type: ignore[arg-type]
+    )
+    _, args = op.__reduce__()
+    assert args[1]["probe_list"] == "a,b"
+    assert args[1]["probe_tuple"] == "x,1,true,/p,1000000us"
+
+
+class BytesPathLike:
+    def __fspath__(self) -> bytes:
+        """Return a bytes path."""
+        return b"/tmp/bytes-path"
+
+
+def _make_cyclic_list() -> list[object]:
+    cyclic: list[object] = []
+    cyclic.append(cyclic)
+    return cyclic
+
+
+@pytest.mark.parametrize("operator_type", [opendal.Operator, opendal.AsyncOperator])
+@pytest.mark.parametrize(
+    "bad_value",
+    [
+        b"/tmp/foo",
+        bytearray(b"/tmp/foo"),
+        memoryview(b"/tmp/foo"),
+        BytesPathLike(),
+        {"a": "1"},
+        MappingProxyType({"a": "1", "b": "2"}),
+        UserDict({"a": "1"}),
+        {"a", "b"},
+        frozenset({"a", "b"}),
+        [["nested"]],
+        (("nested",),),
+        _make_cyclic_list(),
+        [b"/tmp/foo"],
+        [MappingProxyType({"a": "1"})],
+    ],
+)
+def test_from_config_rejects_unsupported_values(operator_type, bad_value):
+    with pytest.raises(Unsupported):
+        operator_type.from_config(
+            {"scheme": "memory", "probe": bad_value}  # type: ignore[arg-type]
+        )
+
+
+def test_from_config_rejects_bytes_root_for_fs():
+    with pytest.raises(Unsupported):
+        opendal.Operator.from_config(
+            {"scheme": "fs", "root": b"/tmp/foo"}  # type: ignore[arg-type]
+        )

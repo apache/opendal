@@ -81,9 +81,7 @@ class AsyncFile:
         coroutine
             An awaitable that returns the bytes read from the stream.
         """
-    def read_buffered(
-        self, /, size: SupportsIndex
-    ) -> collections.abc.Awaitable[bytes]:
+    def read_buffered(self, /, size: SupportsIndex) -> collections.abc.Awaitable[bytes]:
         """
         Read up to `size` bytes by combining immediately available data.
 

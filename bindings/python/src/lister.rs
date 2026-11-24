@@ -334,20 +334,37 @@ impl AsyncLister {
     fn __aiter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
         slf
     }
-    fn __anext__(slf: PyRefMut<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
+    fn __anext__(slf: PyRef<'_, Self>) -> PyResult<Option<Py<PyAny>>> {
         check_runtime_process()?;
         slf.reconcile_deliveries(slf.py())?;
 
-        if let Some(mut state) = slf.state.try_lock() {
-            let mut requeued = slf.requeued.lock().unwrap();
-            if !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted {
-                let py = slf.py();
-                let future = pyo3_async_runtimes::get_running_loop(py)?
-                    .call_method0(pyo3::intern!(py, "create_future"))?;
-                let entry = requeued
-                    .pop_front()
-                    .map(Ok)
-                    .or_else(|| state.buffered.pop_front());
+        let has_ready = if let Some(state) = slf.state.try_lock() {
+            let requeued = slf.requeued.lock().unwrap();
+            !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted
+        } else {
+            false
+        };
+
+        if has_ready {
+            let py = slf.py();
+            let future = pyo3_async_runtimes::get_running_loop(py)?
+                .call_method0(pyo3::intern!(py, "create_future"))?;
+            let next_item = if let Some(mut state) = slf.state.try_lock() {
+                let mut requeued = slf.requeued.lock().unwrap();
+                if !requeued.is_empty() || !state.buffered.is_empty() || state.exhausted {
+                    Some(
+                        requeued
+                            .pop_front()
+                            .map(Ok)
+                            .or_else(|| state.buffered.pop_front()),
+                    )
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            if let Some(entry) = next_item {
                 let result = match entry {
                     Some(Ok(entry)) => Entry::new(entry).into_py_any(py),
                     Some(Err(err)) => Err(format_pyerr(err)),

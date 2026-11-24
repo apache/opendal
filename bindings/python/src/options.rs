@@ -43,11 +43,11 @@ pub struct ReadOptions {
     /// The gap between each chunk.
     pub gap: Option<usize>,
     /// The offset of the file.
-    pub offset: Option<usize>,
+    pub offset: Option<u64>,
     /// The number of completed chunks to buffer during concurrent reads.
     pub prefetch: Option<usize>,
     /// The size of the file.
-    pub size: Option<usize>,
+    pub size: Option<u64>,
     /// The ETag of the file.
     pub if_match: Option<String>,
     /// The ETag of the file.
@@ -88,11 +88,71 @@ fn downcast_kwargs<'a, 'py>(obj: Borrowed<'a, 'py, PyAny>) -> PyResult<pyo3::Bou
         .map_err(|_| PyErr::new::<PyTypeError, _>("Invalid type to convert, expected dict"))
 }
 
+const OPEN_READ_OPTION_KEYS: &[&str] = &[
+    "version",
+    "concurrent",
+    "chunk",
+    "gap",
+    "offset",
+    "prefetch",
+    "size",
+    "if_match",
+    "if_none_match",
+    "if_modified_since",
+    "if_unmodified_since",
+];
+
+const READ_OPTION_KEYS: &[&str] = &[
+    "version",
+    "concurrent",
+    "chunk",
+    "gap",
+    "offset",
+    "prefetch",
+    "size",
+    "if_match",
+    "if_none_match",
+    "if_modified_since",
+    "if_unmodified_since",
+    "content_type",
+    "cache_control",
+    "content_disposition",
+];
+
+const WRITE_OPTION_KEYS: &[&str] = &[
+    "append",
+    "chunk",
+    "concurrent",
+    "cache_control",
+    "content_type",
+    "content_disposition",
+    "content_encoding",
+    "if_match",
+    "if_none_match",
+    "if_not_exists",
+    "user_metadata",
+];
+
+fn reject_unknown_kwargs(dict: &pyo3::Bound<'_, PyDict>, allowed: &[&str]) -> PyResult<()> {
+    for key in dict.keys() {
+        let name = key
+            .extract::<String>()
+            .map_err(|_| PyTypeError::new_err("keyword argument names must be strings"))?;
+        if !allowed.contains(&name.as_str()) {
+            return Err(PyTypeError::new_err(format!(
+                "open() got an unexpected keyword argument '{name}'"
+            )));
+        }
+    }
+    Ok(())
+}
+
 impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
     type Error = PyErr;
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
         let dict = downcast_kwargs(obj)?;
+        reject_unknown_kwargs(&dict, READ_OPTION_KEYS)?;
 
         Ok(Self {
             version: extract_optional(&dict, "version")?,
@@ -114,11 +174,36 @@ impl<'a, 'py> FromPyObject<'a, 'py> for ReadOptions {
 }
 
 impl ReadOptions {
-    pub fn make_range(&self) -> BytesRange {
-        let offset = self.offset.unwrap_or_default() as u64;
-        let size = self.size.map(|v| v as u64);
+    /// Extract reader options for `open(..., "rb")`.
+    ///
+    /// Rejects response header overrides (`content_type`, `cache_control`,
+    /// `content_disposition`) because `ocore::options::ReaderOptions` ignores
+    /// them; callers should use `read()` for response header overrides.
+    pub fn from_open_kwargs(dict: &pyo3::Bound<'_, PyDict>) -> PyResult<Self> {
+        reject_unknown_kwargs(dict, OPEN_READ_OPTION_KEYS)?;
 
-        BytesRange::new(offset, size)
+        Ok(Self {
+            version: extract_optional(dict, "version")?,
+            concurrent: extract_optional(dict, "concurrent")?,
+            chunk: extract_optional(dict, "chunk")?,
+            gap: extract_optional(dict, "gap")?,
+            offset: extract_optional(dict, "offset")?,
+            prefetch: extract_optional(dict, "prefetch")?,
+            size: extract_optional(dict, "size")?,
+            if_match: extract_optional(dict, "if_match")?,
+            if_none_match: extract_optional(dict, "if_none_match")?,
+            if_modified_since: extract_optional(dict, "if_modified_since")?,
+            if_unmodified_since: extract_optional(dict, "if_unmodified_since")?,
+            content_type: None,
+            cache_control: None,
+            content_disposition: None,
+        })
+    }
+
+    pub fn make_range(&self) -> BytesRange {
+        let offset = self.offset.unwrap_or_default();
+
+        BytesRange::new(offset, self.size)
     }
 
     /// Validate the options before selecting the reader path for prefetching.
@@ -170,6 +255,7 @@ impl<'a, 'py> FromPyObject<'a, 'py> for WriteOptions {
 
     fn extract(obj: Borrowed<'a, 'py, PyAny>) -> Result<Self, Self::Error> {
         let dict = downcast_kwargs(obj)?;
+        reject_unknown_kwargs(&dict, WRITE_OPTION_KEYS)?;
 
         Ok(Self {
             append: extract_optional(&dict, "append")?,
@@ -428,5 +514,42 @@ impl From<DeleteOptions> for ocore::options::DeleteOptions {
             if_match: opts.if_match,
             ..Default::default()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_read_options_make_range_preserves_u64_values_above_u32_max() {
+        const FIVE_GIB: u64 = 5 * 1024 * 1024 * 1024;
+        const SIX_GIB: u64 = 6 * 1024 * 1024 * 1024;
+
+        let opts = ReadOptions {
+            offset: Some(FIVE_GIB),
+            size: Some(SIX_GIB),
+            ..Default::default()
+        };
+        let range = opts.make_range();
+        assert_eq!(range.offset(), FIVE_GIB);
+        assert_eq!(range.size(), Some(SIX_GIB));
+        assert_eq!(range, BytesRange::new(FIVE_GIB, Some(SIX_GIB)));
+
+        let open_ended = ReadOptions {
+            offset: Some(u64::from(u32::MAX) + 1),
+            size: None,
+            ..Default::default()
+        };
+        assert_eq!(open_ended.make_range().offset(), u64::from(u32::MAX) + 1);
+        assert_eq!(open_ended.make_range().size(), None);
+
+        let default_offset = ReadOptions {
+            offset: None,
+            size: Some(FIVE_GIB),
+            ..Default::default()
+        };
+        assert_eq!(default_offset.make_range().offset(), 0);
+        assert_eq!(default_offset.make_range().size(), Some(FIVE_GIB));
     }
 }

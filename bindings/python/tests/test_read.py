@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import asyncio
 import io
 import os
-import sys
 from datetime import timedelta
 from pathlib import Path
 from random import choices, randint
@@ -490,10 +490,22 @@ def test_sync_readinto_readonly_empty_buffer(operator):
         operator.delete(filename)
 
 
-@pytest.mark.skipif(sys.maxsize < (1 << 63) - 1, reason="requires 64-bit usize")
 def test_sync_open_range_overflow_raises_range_not_satisfied():
     op = opendal.Operator("memory")
     op.write("test", b"hello")
+
+    large_offset = (1 << 32) + 1024
+    with op.open("test", "rb", offset=0, size=large_offset) as reader:
+        assert reader.read(5) == b"hello"
+
+    with (
+        op.open("test", "rb", offset=large_offset, size=1024) as reader,
+        pytest.raises(OSError, match="RangeNotSatisfied"),
+    ):
+        reader.read()
+
+    with pytest.raises(RangeNotSatisfied):
+        op.read("test", offset=large_offset, size=1024)
 
     with pytest.raises(RangeNotSatisfied):
         op.open("test", "rb", offset=(1 << 64) - 1, size=1)
@@ -506,10 +518,20 @@ def test_sync_open_range_overflow_raises_range_not_satisfied():
 
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(sys.maxsize < (1 << 63) - 1, reason="requires 64-bit usize")
 async def test_async_open_range_overflow_raises_range_not_satisfied():
     aop = opendal.AsyncOperator("memory")
     await aop.write("test", b"hello")
+
+    large_offset = (1 << 32) + 1024
+    async with await aop.open("test", "rb", offset=0, size=large_offset) as reader:
+        assert await reader.read(5) == b"hello"
+
+    async with await aop.open("test", "rb", offset=large_offset, size=1024) as reader:
+        with pytest.raises(OSError, match="RangeNotSatisfied"):
+            await reader.read()
+
+    with pytest.raises(RangeNotSatisfied):
+        await aop.read("test", offset=large_offset, size=1024)
 
     with pytest.raises(RangeNotSatisfied):
         await aop.open("test", "rb", offset=(1 << 64) - 1, size=1)
@@ -519,3 +541,47 @@ async def test_async_open_range_overflow_raises_range_not_satisfied():
 
     with pytest.raises(RangeNotSatisfied):
         await aop.read("test", offset=(1 << 64) - 1, size=1)
+
+
+@pytest.mark.asyncio
+async def test_async_file_reentrant_calls_do_not_raise_already_borrowed():
+    aop = opendal.AsyncOperator("memory")
+    await aop.write("test", b"abcdef")
+
+    async with await aop.open("test", "rb") as reader:
+        reentrant_tasks: list[asyncio.Future[int]] = []
+
+        class ReentrantInt:
+            def __index__(self) -> int:
+                reentrant_tasks.append(asyncio.ensure_future(reader.tell()))
+                return 3
+
+        assert await reader.seek(ReentrantInt()) == 3
+        assert await reentrant_tasks[0] in (0, 3)
+        assert await reader.read() == b"def"
+
+    loop = asyncio.get_running_loop()
+    original_create_future = loop.create_future
+    writer = await aop.open("reentrant_write", "wb")
+    nested_calls: list[asyncio.Future[object]] = []
+    entered = False
+
+    def reentrant_create_future() -> asyncio.Future[object]:
+        nonlocal entered
+        if not entered:
+            entered = True
+            nested_calls.append(asyncio.ensure_future(writer.tell()))
+            nested_calls.append(asyncio.ensure_future(writer.writable()))
+        return original_create_future()
+
+    loop.create_future = reentrant_create_future
+    try:
+        assert await writer.write(b"hello") == 5
+        await asyncio.gather(*nested_calls)
+        entered = False
+        await writer.close()
+    finally:
+        loop.create_future = original_create_future
+        await asyncio.gather(*nested_calls, return_exceptions=True)
+
+    assert await aop.read("reentrant_write") == b"hello"

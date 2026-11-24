@@ -215,7 +215,10 @@ class AsyncOperator:
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike``, ``list``) are converted to the string form core consumes.
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------
@@ -346,6 +349,9 @@ class AsyncOperator:
 
         Raises
         ------
+        TypeError
+            If `**kwargs` contains an unknown keyword argument, an option that
+            does not apply to `mode`, or a value with an incompatible type.
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or
@@ -934,7 +940,10 @@ class Operator:
         ``scheme`` key selects the service, so a static type checker rejects a
         wrong scheme, a missing required key, an unknown key, and a wrong value
         type. Non-string values (``bool``, ``int``, ``datetime.timedelta``,
-        ``os.PathLike``, ``list``) are converted to the string form core consumes.
+        ``os.PathLike[str]``, and flat ``list`` or ``tuple`` of those) are
+        converted to the string form core consumes. ``bytes``-like objects,
+        non-dict ``Mapping``s, nested sequences, and other iterables raise
+        ``Unsupported``.
 
         Parameters
         ----------
@@ -1063,6 +1072,9 @@ class Operator:
 
         Raises
         ------
+        TypeError
+            If `**kwargs` contains an unknown keyword argument, an option that
+            does not apply to `mode`, or a value with an incompatible type.
         ValueError
             If the mode is invalid or unsupported, including text (`"t"`) and
             update (`"+"`) modes, or if the mode conflicts with `append` or

@@ -821,7 +821,20 @@ impl HfCore {
                         } else {
                             range
                         };
-                        let resp = self.resolve(ctx, path, resolve_range, mode).await?;
+                        let resp = match self.resolve(ctx, path, resolve_range, mode).await {
+                            Ok(resp) => resp,
+                            Err(err)
+                                if mode == HfDownloadMode::Xet
+                                    && err.kind() == ErrorKind::RangeNotSatisfied =>
+                            {
+                                // A 0-byte non-XET file rejects the `bytes=0-0`
+                                // probe with 416. Fall back to HTTP with the
+                                // caller's original range.
+                                *state = ResolvedFile::NotXet;
+                                continue;
+                            }
+                            Err(err) => return Err(err),
+                        };
                         let resp = match HfReadResponse::from_response(resp, mode).await? {
                             HfReadResponse::Xet(info) => {
                                 *state = ResolvedFile::Xet(info.clone());
@@ -1816,6 +1829,36 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_xet_token_request_encodes_slashed_revision() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let (mut core, ctx, mock_client) = create_test_core(
+                HfRepoType::Dataset,
+                "squad",
+                "refs/convert/parquet",
+                "https://huggingface.co",
+            );
+            core.token = Some("hf_dummy".to_string());
+            mock_client.set_xet_token_expires_at(u64::MAX);
+
+            core.cached_xet_token(&ctx, XetTokenScope::Read).await?;
+            assert_eq!(
+                mock_client.get_captured_url(),
+                "https://huggingface.co/api/datasets/squad/xet-read-token/refs%2Fconvert%2Fparquet"
+            );
+
+            core.cached_xet_token(&ctx, XetTokenScope::Write).await?;
+            assert_eq!(
+                mock_client.get_captured_url(),
+                "https://huggingface.co/api/datasets/squad/xet-write-token/refs%2Fconvert%2Fparquet"
+            );
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
     #[test]
     fn test_parse_error_branch_update_conflict_is_temporary() {
         let (parts, _) = Response::builder()
@@ -2011,7 +2054,7 @@ mod uri {
                         self.repo_type.as_plural_str(),
                         self.repo_id,
                         token_type,
-                        self.revision(),
+                        percent_encode_revision(self.revision()),
                     )
                 }
             }
@@ -2086,7 +2129,7 @@ mod uri {
 
                 if first_two.contains('@') {
                     let (repo_id, rev_and_path) = path.split_once('@').unwrap();
-                    let rev_and_path = rev_and_path.replace("%2F", "/");
+                    let rev_and_path = rev_and_path.replace("%2F", "/").replace("%2f", "/");
                     let (revision, path_in_repo) = Self::parse_revision(&rev_and_path);
                     (repo_id.to_string(), Some(revision), path_in_repo)
                 } else {
@@ -2096,7 +2139,7 @@ mod uri {
                     (repo_id, None, path_in_repo)
                 }
             } else if let Some((repo_id, rev)) = path.split_once('@') {
-                let rev = rev.replace("%2F", "/");
+                let rev = rev.replace("%2F", "/").replace("%2f", "/");
                 (repo_id.to_string(), Some(rev), String::new())
             } else {
                 (path, None, String::new())
@@ -2545,6 +2588,68 @@ mod uri {
                 p.file_tree_url("https://huggingface.co", false, None),
                 "https://huggingface.co/api/buckets/user/bucket/tree/data?expand=True&recursive=false"
             );
+        }
+
+        #[test]
+        fn test_xet_token_url_encodes_slashed_revisions() {
+            let dataset = HfRepo::new(
+                HfRepoType::Dataset,
+                "squad".to_string(),
+                Some("refs/convert/parquet".to_string()),
+            );
+            assert_eq!(
+                dataset.xet_token_url("https://huggingface.co", XetTokenScope::Read),
+                "https://huggingface.co/api/datasets/squad/xet-read-token/refs%2Fconvert%2Fparquet"
+            );
+            assert_eq!(
+                dataset.xet_token_url("https://huggingface.co", XetTokenScope::Write),
+                "https://huggingface.co/api/datasets/squad/xet-write-token/refs%2Fconvert%2Fparquet"
+            );
+
+            let model = HfRepo::new(
+                HfRepoType::Model,
+                "org/model".to_string(),
+                Some("refs/pr/10".to_string()),
+            );
+            assert_eq!(
+                model.xet_token_url("https://huggingface.co", XetTokenScope::Read),
+                "https://huggingface.co/api/models/org/model/xet-read-token/refs%2Fpr%2F10"
+            );
+
+            let space = HfRepo::new(
+                HfRepoType::Space,
+                "org/space".to_string(),
+                Some("feature/v1.0".to_string()),
+            );
+            assert_eq!(
+                space.xet_token_url("https://huggingface.co", XetTokenScope::Write),
+                "https://huggingface.co/api/spaces/org/space/xet-write-token/feature%2Fv1%2E0"
+            );
+        }
+
+        #[test]
+        fn resolve_encoded_revision_lowercase() {
+            let p = resolve("username/my_model@refs%2fpr%2f10");
+            assert_eq!(p.repo.repo_type, HfRepoType::Model);
+            assert_eq!(p.repo.repo_id, "username/my_model");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
+            assert_eq!(p.path, "");
+
+            let p =
+                resolve("datasets/username/my_dataset@refs%2fconvert%2fparquet/train/data.parquet");
+            assert_eq!(p.repo.repo_type, HfRepoType::Dataset);
+            assert_eq!(p.repo.repo_id, "username/my_dataset");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/convert/parquet"));
+            assert_eq!(p.path, "train/data.parquet");
+
+            let p = resolve("gpt2@refs%2fpr%2f10");
+            assert_eq!(p.repo.repo_type, HfRepoType::Model);
+            assert_eq!(p.repo.repo_id, "gpt2");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
+            assert_eq!(p.path, "");
+
+            let p = resolve("username/my_model@refs%2Fpr%2f10");
+            assert_eq!(p.repo.revision.as_deref(), Some("refs/pr/10"));
         }
     }
 }

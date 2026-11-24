@@ -19,8 +19,13 @@ import COpenDAL
 import Foundation
 
 public struct OperatorError: Error {
-    let code: UInt32
-    let message: Data
+    public let code: UInt32
+    public let message: Data
+
+    init(code: UInt32, message: Data) {
+        self.code = code
+        self.message = message
+    }
 
     /// Creates an `OperatorError` by copying the code and message out
     /// of a `opendal_error` and freeing it afterwards.
@@ -61,7 +66,14 @@ public class Operator {
             throw OperatorError(consuming: err)
         }
 
-        self.nativeOp = UnsafePointer(op!)
+        guard let op else {
+            throw OperatorError(
+                code: OPENDAL_UNEXPECTED.rawValue,
+                message: Data("opendal_operator_new returned null operator without an error".utf8)
+            )
+        }
+
+        self.nativeOp = UnsafePointer(op)
     }
 
     public func blockingWrite(_ data: inout Data, to path: String) throws {
@@ -77,7 +89,9 @@ public class Operator {
                     capacity: UInt(dataPointer.count)
                 )
             return withUnsafePointer(to: bytes) { bytesPointer in
-                opendal_operator_write(nativeOp, path, bytesPointer)
+                withExtendedLifetime(self) { op in
+                    opendal_operator_write(op.nativeOp, path, bytesPointer)
+                }
             }
         }
 
@@ -88,7 +102,10 @@ public class Operator {
 
     public func blockingRead(_ path: String) throws -> Data {
         var data = opendal_bytes()
-        if let err = opendal_operator_read(nativeOp, path, &data) {
+        let ret = withExtendedLifetime(self) { op in
+            opendal_operator_read(op.nativeOp, path, &data)
+        }
+        if let err = ret {
             throw OperatorError(consuming: err)
         }
 

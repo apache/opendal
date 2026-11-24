@@ -96,7 +96,7 @@ describe('basic io with memory', function () {
 
     it('create dir', function () use ($op) {
         $op->create_dir('test/');
-        expect(is_dir('/tmp/test'))->toBeTrue();
+        expect($op->is_exist('test/'))->toEqual(1);
     });
 });
 
@@ -110,9 +110,9 @@ describe('binary safe IO with fs', function () {
         expect($bytesArray)->toBeArray();
 
         $op->write_binary('test.txt', $bytesArray);
-        $content = $op->read('test.txt');
+        $readContent = $op->read('test.txt');
 
-        expect($content)->toBeString()->toEqual($content);
+        expect($readContent)->toBeString()->toEqual($content);
     });
 });
 
@@ -126,8 +126,8 @@ describe('binary safe IO with memory', function () {
         expect($bytesArray)->toBeArray();
 
         $op->write_binary('test.txt', $bytesArray);
-        $content = $op->read('test.txt');
+        $readContent = $op->read('test.txt');
 
-        expect($content)->toBeString()->toEqual($content);
+        expect($readContent)->toBeString()->toEqual($content);
     });
 });

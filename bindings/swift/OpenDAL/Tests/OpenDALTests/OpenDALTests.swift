@@ -16,9 +16,8 @@
 // under the License.
 
 import COpenDAL
+import OpenDAL
 import XCTest
-
-@testable import OpenDAL
 
 final class OpenDALTests: XCTestCase {
     func testSimple() throws {
@@ -76,6 +75,21 @@ final class OpenDALTests: XCTestCase {
             let message = String(data: opendalError.message, encoding: .utf8)
             XCTAssertNotNil(message)
             XCTAssertFalse(message!.isEmpty)
+        }
+    }
+
+    func testTemporaryOperatorLifetime() throws {
+        var testContents = Data([1, 2, 3, 4])
+        try Operator(scheme: "memory").blockingWrite(&testContents, to: "temp")
+
+        XCTAssertThrowsError(try Operator(scheme: "memory").blockingRead("temp")) { error in
+            guard let opendalError = error as? OperatorError else {
+                XCTFail("expected OperatorError, got \(error)")
+                return
+            }
+
+            XCTAssertEqual(opendalError.code, OPENDAL_NOT_FOUND.rawValue)
+            XCTAssertFalse(opendalError.message.isEmpty)
         }
     }
 }

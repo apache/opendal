@@ -22,11 +22,8 @@ use ::opendal as od;
 use ext_php_rs::binary::Binary;
 use ext_php_rs::builders::ClassBuilder;
 use ext_php_rs::class::RegisteredClass;
-use ext_php_rs::convert::FromZval;
 use ext_php_rs::exception::PhpException;
-use ext_php_rs::flags::DataType;
 use ext_php_rs::prelude::*;
-use ext_php_rs::types::Zval;
 use ext_php_rs::zend::ce;
 
 static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
@@ -169,14 +166,6 @@ impl Metadata {
 #[php_class]
 #[php(name = "OpenDAL\\EntryMode")]
 pub struct EntryMode(od::EntryMode);
-
-impl<'b> FromZval<'b> for EntryMode {
-    const TYPE: DataType = DataType::Object(Some("OpenDAL\\EntryMode"));
-
-    fn from_zval(zval: &'b Zval) -> Option<Self> {
-        zval.object().and_then(|obj| obj.get_property("mode").ok())
-    }
-}
 
 #[php_impl]
 #[php(change_method_case = "none")]

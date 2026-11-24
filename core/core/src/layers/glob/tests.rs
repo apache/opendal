@@ -198,7 +198,6 @@ async fn native_glob_receives_the_original_list_options() -> Result<()> {
 
 #[tokio::test]
 async fn recursive_services_filter_one_listing() -> Result<()> {
-    // A recursive object listing returns keys only, no directory entries.
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&[
@@ -219,8 +218,7 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
         ["t/p=1/a.parquet", "t/p=2/x/c.parquet"]
     );
-    // Parents that exist only as key prefixes still match, once each.
-    let entries = op.list_with("/").glob("t/*/").await?;
+    let entries = op.list_with("/").glob("*/*/").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
         ["t/p=1/", "t/p=2/", "t/q=3/"]
@@ -242,7 +240,7 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
 
     let requests = inner.requests.lock().unwrap();
     assert_eq!(requests.len(), 3);
-    for ((path, args), expected) in requests.iter().zip(["t/", "t/", "t/"]) {
+    for ((path, args), expected) in requests.iter().zip(["t/p=", "/", "t/"]) {
         assert_eq!(path, expected);
         assert!(args.recursive());
         assert_eq!(args.glob(), None);
@@ -253,7 +251,6 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
 
 #[tokio::test]
 async fn walking_services_keep_the_guided_listing() -> Result<()> {
-    // Recursive but not flat, as fs: recursion walks directories anyway.
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&["t/a.parquet"])
@@ -274,7 +271,6 @@ async fn walking_services_keep_the_guided_listing() -> Result<()> {
 
 #[tokio::test]
 async fn flat_listing_requires_recursive_listing() -> Result<()> {
-    // A layer that disables recursion leaves the flat hint stale.
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&["t/a.parquet"])
@@ -301,9 +297,30 @@ async fn single_component_patterns_list_one_directory() -> Result<()> {
     let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
     let entries = op.list_with("t/").glob("*.parquet").await?;
     assert_eq!(entries[0].path(), "t/a.parquet");
+    op.list_with("/").glob("t/a*").await?;
     let requests = inner.requests.lock().unwrap();
-    assert_eq!(requests.len(), 1);
-    assert!(!requests[0].1.recursive());
+    assert_eq!(requests.len(), 2);
+    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    assert_eq!(requests[1].0, "t/a");
+    Ok(())
+}
+
+#[tokio::test]
+async fn flat_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
+    let op = Operator::new(Memory::default())?;
+    for path in ["t/a", "t/ab/c", "v/a/b"] {
+        op.write(path, "data").await?;
+    }
+    let entries = op.list_with("t/a").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/a", "t/ab/", "t/ab/c"]
+    );
+    let entries = op.list_with("v/a/b").glob("**").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["v/a/b"]
+    );
     Ok(())
 }
 

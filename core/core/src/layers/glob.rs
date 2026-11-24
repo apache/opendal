@@ -27,12 +27,12 @@ use crate::*;
 ///
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
-/// to skip unrelated directories. On services whose recursive listing is one
-/// flat key listing (`list_with_recursive_flat`), a pattern that spans
-/// directories filters one recursive listing instead, since listing each
-/// directory would cost one request per directory. With a cursor, versions, or
-/// delete markers, it filters an underlying listing to preserve the service's
-/// cursor and entries.
+/// to skip unrelated directories. On services that set
+/// `list_with_recursive_flat`, a pattern that spans directories filters one
+/// recursive listing, because a walk costs one request per directory. These
+/// services also list only keys that start with the literal text of the pattern.
+/// With a cursor, versions, or delete markers, it filters an underlying listing
+/// to preserve the service's cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -182,26 +182,25 @@ impl Service for GlobService {
         }
         let prefix = if path == "/" { "" } else { path };
 
-        // A flat recursive listing returns a whole subtree in one paged request
-        // stream. Walking it directory by directory would turn one request into
-        // one request per visited directory, so filter the subtree instead.
-        // Services that recurse by walking directories keep the guided walk,
-        // which skips directories the pattern cannot match.
         let capability = self.inner.capability();
-        if pattern.spans_directories()
-            && capability.list_with_recursive
-            && capability.list_with_recursive_flat
+        let flat = capability.list_with_recursive && capability.list_with_recursive_flat;
+        if flat
+            && pattern.spans_directories_from(position)
             && (position == 0 || directory.starts_with(prefix))
         {
             args.set_recursive(true);
-            // Prefix listings cannot skip to a literal directory the prefix does not cover.
             let root = if directory.starts_with(prefix) {
                 directory
             } else {
                 path.to_owned()
             };
+            let list_path = if root.ends_with('/') {
+                key_prefix(&root, pattern.literal_prefix_at(position))
+            } else {
+                root.clone()
+            };
             return Ok(Box::new(FilteredLister {
-                inner: self.inner.list(ctx, &root, args)?,
+                inner: self.inner.list(ctx, &list_path, args)?,
                 pattern,
                 base: base.to_owned(),
                 root,
@@ -212,8 +211,14 @@ impl Service for GlobService {
 
         args.set_recursive(false);
         let directories = if position == 0 || directory.starts_with(prefix) {
+            let list_path = if flat {
+                key_prefix(&directory, pattern.literal_prefix_at(position))
+            } else {
+                directory.clone()
+            };
             vec![Directory {
                 path: directory,
+                list_path,
                 positions: vec![position],
                 lister: None,
                 discovered: false,
@@ -234,6 +239,7 @@ impl Service for GlobService {
 
 struct Directory {
     path: String,
+    list_path: String,
     positions: Vec<usize>,
     lister: Option<oio::Lister>,
     /// Found while listing a parent rather than requested by the caller.
@@ -248,7 +254,7 @@ impl Directory {
         args: &OpList,
     ) -> Result<Option<oio::Entry>> {
         if self.lister.is_none() {
-            self.lister = Some(inner.list(ctx, &self.path, args.clone())?);
+            self.lister = Some(inner.list(ctx, &self.list_path, args.clone())?);
         }
         self.lister
             .as_mut()
@@ -309,6 +315,7 @@ impl List for GuidedLister {
             if is_dir && self.pattern.can_descend(&positions) {
                 self.directories.push(Directory {
                     path: entry.path().to_owned(),
+                    list_path: entry.path().to_owned(),
                     positions,
                     lister: None,
                     discovered: true,
@@ -326,18 +333,17 @@ struct FilteredLister {
     inner: oio::Lister,
     pattern: GlobPattern,
     base: String,
-    /// The listed directory itself is never a match, as in guided listing.
+    /// The listed directory. It never matches, as in guided listing.
     root: String,
-    /// Directories already seen in a recursive listing. Object stores list keys,
-    /// so parents that exist only as key prefixes are matched here, as a guided
-    /// listing would see them as common prefixes.
+    /// Object stores list keys only, so parents that exist only as key prefixes
+    /// are synthesized once each, as a guided listing sees them.
     implied: Option<HashSet<String>>,
     pending: Option<oio::Entry>,
 }
 
 impl FilteredLister {
     fn accepts(&self, path: &str, is_dir: bool) -> bool {
-        path != self.root
+        (path != self.root || !self.root.ends_with('/'))
             && relative_child(path, &self.base)
                 .is_some_and(|relative| self.pattern.matches(relative, is_dir))
     }
@@ -397,6 +403,14 @@ impl List for FilteredLister {
                 return Ok(Some(entry));
             }
         }
+    }
+}
+
+fn key_prefix(directory: &str, prefix: &str) -> String {
+    match (directory, prefix) {
+        (_, "") => directory.to_owned(),
+        ("/", _) => prefix.to_owned(),
+        _ => format!("{directory}{prefix}"),
     }
 }
 

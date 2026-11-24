@@ -21,6 +21,11 @@ import Foreign
 import Foreign.C.String
 import Foreign.C.Types
 
+alignUp :: Int -> Int -> Int
+alignUp offset align
+  | align <= 1 = offset
+  | otherwise = ((offset + align - 1) `div` align) * align
+
 data RawOperator
 
 data RawLister
@@ -34,54 +39,78 @@ data FFIResult a = FFIResult
   }
   deriving (Show)
 
+ffiResultCodeOffset :: Int
+ffiResultCodeOffset = 0
+
+ffiResultDataPtrOffset :: Int
+ffiResultDataPtrOffset =
+  alignUp (ffiResultCodeOffset + sizeOf (undefined :: CUInt)) (alignment (undefined :: Ptr ()))
+
+ffiResultErrorMessageOffset :: Int
+ffiResultErrorMessageOffset =
+  alignUp (ffiResultDataPtrOffset + sizeOf (undefined :: Ptr ())) (alignment (undefined :: CString))
+
+ffiResultAlignment :: Int
+ffiResultAlignment =
+  maximum
+    [ alignment (undefined :: CUInt),
+      alignment (undefined :: Ptr ()),
+      alignment (undefined :: CString)
+    ]
+
+ffiResultSize :: Int
+ffiResultSize =
+  alignUp (ffiResultErrorMessageOffset + sizeOf (undefined :: CString)) ffiResultAlignment
+
 instance Storable (FFIResult a) where
-  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: Ptr ()) + sizeOf (undefined :: CString)
-  alignment _ = alignment (undefined :: CSize)
+  sizeOf _ = ffiResultSize
+  alignment _ = ffiResultAlignment
   peek ptr = do
-    s <- peekByteOff ptr codeOffset
-    d <- peekByteOff ptr dataPtrOffset
-    errMsg <- peekByteOff ptr errorMessageOffset
+    s <- peekByteOff ptr ffiResultCodeOffset
+    d <- peekByteOff ptr ffiResultDataPtrOffset
+    errMsg <- peekByteOff ptr ffiResultErrorMessageOffset
     return $ FFIResult s d errMsg
-    where
-      codeOffset = 0
-      dataPtrOffset = sizeOf (undefined :: CSize)
-      errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
   poke ptr (FFIResult s d errMsg) = do
-    pokeByteOff ptr codeOffset s
-    pokeByteOff ptr dataPtrOffset d
-    pokeByteOff ptr errorMessageOffset errMsg
-    where
-      codeOffset = 0
-      dataPtrOffset = sizeOf (undefined :: CSize)
-      errorMessageOffset = dataPtrOffset + sizeOf (undefined :: Ptr ())
+    pokeByteOff ptr ffiResultCodeOffset s
+    pokeByteOff ptr ffiResultDataPtrOffset d
+    pokeByteOff ptr ffiResultErrorMessageOffset errMsg
 
 data ByteSlice = ByteSlice
   { bsData :: Ptr CChar,
     bsLen :: CSize
   }
 
+byteSliceDataOffset :: Int
+byteSliceDataOffset = 0
+
+byteSliceLenOffset :: Int
+byteSliceLenOffset =
+  alignUp (byteSliceDataOffset + sizeOf (undefined :: Ptr CChar)) (alignment (undefined :: CSize))
+
+byteSliceAlignment :: Int
+byteSliceAlignment =
+  max (alignment (undefined :: Ptr CChar)) (alignment (undefined :: CSize))
+
+byteSliceSize :: Int
+byteSliceSize =
+  alignUp (byteSliceLenOffset + sizeOf (undefined :: CSize)) byteSliceAlignment
+
 instance Storable ByteSlice where
-  sizeOf _ = sizeOf (undefined :: Ptr CChar) + sizeOf (undefined :: CSize)
-  alignment _ = alignment (undefined :: CSize)
+  sizeOf _ = byteSliceSize
+  alignment _ = byteSliceAlignment
   peek ptr = do
-    bsDataPtr <- peekByteOff ptr dataOffset
-    len <- peekByteOff ptr lenOffset
+    bsDataPtr <- peekByteOff ptr byteSliceDataOffset
+    len <- peekByteOff ptr byteSliceLenOffset
     return $ ByteSlice bsDataPtr len
-    where
-      dataOffset = 0
-      lenOffset = sizeOf (undefined :: Ptr ())
   poke ptr (ByteSlice bsDataPtr len) = do
-    pokeByteOff ptr dataOffset bsDataPtr
-    pokeByteOff ptr lenOffset len
-    where
-      dataOffset = 0
-      lenOffset = sizeOf (undefined :: Ptr ())
+    pokeByteOff ptr byteSliceDataOffset bsDataPtr
+    pokeByteOff ptr byteSliceLenOffset len
 
 data FFIMetadata = FFIMetadata
   { ffiMode :: CUInt,
     ffiCacheControl :: CString,
     ffiContentDisposition :: CString,
-    ffiContentLength :: CULong,
+    ffiContentLength :: Word64,
     ffiContentMD5 :: CString,
     ffiContentType :: CString,
     ffiETag :: CString,
@@ -89,50 +118,82 @@ data FFIMetadata = FFIMetadata
   }
   deriving (Show)
 
+ffiMetadataModeOffset :: Int
+ffiMetadataModeOffset = 0
+
+ffiMetadataCacheControlOffset :: Int
+ffiMetadataCacheControlOffset =
+  alignUp (ffiMetadataModeOffset + sizeOf (undefined :: CUInt)) (alignment (undefined :: CString))
+
+ffiMetadataContentDispositionOffset :: Int
+ffiMetadataContentDispositionOffset =
+  alignUp (ffiMetadataCacheControlOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataContentLengthOffset :: Int
+ffiMetadataContentLengthOffset =
+  alignUp (ffiMetadataContentDispositionOffset + sizeOf (undefined :: CString)) (alignment (undefined :: Word64))
+
+ffiMetadataContentMD5Offset :: Int
+ffiMetadataContentMD5Offset =
+  alignUp (ffiMetadataContentLengthOffset + sizeOf (undefined :: Word64)) (alignment (undefined :: CString))
+
+ffiMetadataContentTypeOffset :: Int
+ffiMetadataContentTypeOffset =
+  alignUp (ffiMetadataContentMD5Offset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataETagOffset :: Int
+ffiMetadataETagOffset =
+  alignUp (ffiMetadataContentTypeOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataLastModifiedOffset :: Int
+ffiMetadataLastModifiedOffset =
+  alignUp (ffiMetadataETagOffset + sizeOf (undefined :: CString)) (alignment (undefined :: CString))
+
+ffiMetadataAlignment :: Int
+ffiMetadataAlignment =
+  maximum
+    [ alignment (undefined :: CUInt),
+      alignment (undefined :: CString),
+      alignment (undefined :: Word64)
+    ]
+
+ffiMetadataSize :: Int
+ffiMetadataSize =
+  alignUp (ffiMetadataLastModifiedOffset + sizeOf (undefined :: CString)) ffiMetadataAlignment
+
 instance Storable FFIMetadata where
-  sizeOf _ = sizeOf (undefined :: CSize) + sizeOf (undefined :: CString) * 6 + sizeOf (undefined :: CULong)
-  alignment _ = alignment (undefined :: CSize)
+  sizeOf _ = ffiMetadataSize
+  alignment _ = ffiMetadataAlignment
   peek ptr = do
-    mode <- peekByteOff ptr modeOffset
-    cacheControl <- peekByteOff ptr cacheControlOffset
-    contentDisposition <- peekByteOff ptr contentDispositionOffset
-    contentLength <- peekByteOff ptr contentLengthOffset
-    contentMD5 <- peekByteOff ptr contentMD5Offset
-    contentType <- peekByteOff ptr contentTypeOffset
-    eTag <- peekByteOff ptr eTagOffset
-    lastModified <- peekByteOff ptr lastModifiedOffset
+    mode <- peekByteOff ptr ffiMetadataModeOffset
+    cacheControl <- peekByteOff ptr ffiMetadataCacheControlOffset
+    contentDisposition <- peekByteOff ptr ffiMetadataContentDispositionOffset
+    contentLength <- peekByteOff ptr ffiMetadataContentLengthOffset
+    contentMD5 <- peekByteOff ptr ffiMetadataContentMD5Offset
+    contentType <- peekByteOff ptr ffiMetadataContentTypeOffset
+    eTag <- peekByteOff ptr ffiMetadataETagOffset
+    lastModified <- peekByteOff ptr ffiMetadataLastModifiedOffset
     return $ FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified
-    where
-      modeOffset = 0
-      cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
-      contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
-      contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
-      contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-      contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
-      eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
-      lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
   poke ptr (FFIMetadata mode cacheControl contentDisposition contentLength contentMD5 contentType eTag lastModified) = do
-    pokeByteOff ptr modeOffset mode
-    pokeByteOff ptr cacheControlOffset cacheControl
-    pokeByteOff ptr contentDispositionOffset contentDisposition
-    pokeByteOff ptr contentLengthOffset contentLength
-    pokeByteOff ptr contentMD5Offset contentMD5
-    pokeByteOff ptr contentTypeOffset contentType
-    pokeByteOff ptr eTagOffset eTag
-    pokeByteOff ptr lastModifiedOffset lastModified
-    where
-      modeOffset = 0
-      cacheControlOffset = modeOffset + sizeOf (undefined :: CSize)
-      contentDispositionOffset = cacheControlOffset + sizeOf (undefined :: CString)
-      contentLengthOffset = contentDispositionOffset + sizeOf (undefined :: CString)
-      contentMD5Offset = contentLengthOffset + sizeOf (undefined :: CULong)
-      contentTypeOffset = contentMD5Offset + sizeOf (undefined :: CString)
-      eTagOffset = contentTypeOffset + sizeOf (undefined :: CString)
-      lastModifiedOffset = eTagOffset + sizeOf (undefined :: CString)
+    pokeByteOff ptr ffiMetadataModeOffset mode
+    pokeByteOff ptr ffiMetadataCacheControlOffset cacheControl
+    pokeByteOff ptr ffiMetadataContentDispositionOffset contentDisposition
+    pokeByteOff ptr ffiMetadataContentLengthOffset contentLength
+    pokeByteOff ptr ffiMetadataContentMD5Offset contentMD5
+    pokeByteOff ptr ffiMetadataContentTypeOffset contentType
+    pokeByteOff ptr ffiMetadataETagOffset eTag
+    pokeByteOff ptr ffiMetadataLastModifiedOffset lastModified
 
 foreign import ccall "via_map_ffi"
   c_via_map_ffi ::
-    CString -> Ptr CString -> Ptr CString -> CSize -> FunPtr (CUInt -> CString -> IO ()) -> Ptr (FFIResult RawOperator) -> IO ()
+    CString ->
+    Ptr CString ->
+    Ptr CString ->
+    CSize ->
+    FunPtr (CUInt -> CString -> IO ()) ->
+    Ptr (FunPtr (CUInt -> CString -> IO ())) ->
+    Ptr (FFIResult RawOperator) ->
+    IO ()
 
 foreign import ccall "wrapper"
   wrapLogFn :: (CUInt -> CString -> IO ()) -> IO (FunPtr (CUInt -> CString -> IO ()))

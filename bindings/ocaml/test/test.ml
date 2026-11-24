@@ -35,6 +35,23 @@ let read_string bo path =
   test_check_result (Operator.read bo path)
   |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string
 
+let contains_substring s sub =
+  let len_s = String.length s in
+  let len_sub = String.length sub in
+  let rec check i =
+    if i > len_s - len_sub then false
+    else if String.sub s i len_sub = sub then true
+    else check (i + 1)
+  in
+  if len_sub = 0 then true else check 0
+
+let assert_utf8_error label = function
+  | Ok _ -> assert_failure (label ^ ": expected UTF-8 error, got Ok")
+  | Error err ->
+      assert_bool
+        (Printf.sprintf "%s: expected UTF-8 error, got %S" label err)
+        (contains_substring err "UTF-8")
+
 (** Basic operator creation tests *)
 let test_new_block_operator _ = ignore new_test_block_operator
 
@@ -403,16 +420,6 @@ let test_complex_workflow test_ctxt =
   let readme_str =
     readme_data |> Array.to_seq |> Bytes.of_seq |> Bytes.to_string
   in
-  let contains_substring s sub =
-    let len_s = String.length s in
-    let len_sub = String.length sub in
-    let rec check i =
-      if i > len_s - len_sub then false
-      else if String.sub s i len_sub = sub then true
-      else check (i + 1)
-    in
-    if len_sub = 0 then true else check 0
-  in
   assert_bool "README should contain project info"
     (contains_substring readme_str "My Project");
 
@@ -429,6 +436,98 @@ let test_complex_workflow test_ctxt =
 
   (* Clean up *)
   ignore (test_check_result (Operator.remove_all bo "project/"))
+
+(** Test that non-UTF-8 strings return Result.Error instead of aborting across
+    FFI *)
+let test_invalid_utf8_rejected _ =
+  let bad = "\xff" in
+  assert_utf8_error "new_operator scheme" (Operator.new_operator bad []);
+  assert_utf8_error "new_operator config key"
+    (Operator.new_operator "memory" [ (bad, "value") ]);
+  assert_utf8_error "new_operator config value"
+    (Operator.new_operator "memory" [ ("key", bad) ]);
+  assert_utf8_error "new_operator shadowed invalid config value"
+    (Operator.new_operator "memory" [ ("root", bad); ("root", "/valid") ]);
+
+  let bo = new_test_memory_operator () in
+  ignore
+    (test_check_result
+       (Operator.write bo "keep.txt" (Bytes.of_string "keep me")));
+
+  assert_utf8_error "list" (Operator.list bo bad);
+  assert_utf8_error "lister" (Operator.lister bo bad);
+  assert_utf8_error "stat" (Operator.stat bo bad);
+  assert_utf8_error "is_exist" (Operator.is_exist bo bad);
+  assert_utf8_error "create_dir" (Operator.create_dir bo bad);
+  assert_utf8_error "read" (Operator.read bo bad);
+  assert_utf8_error "reader" (Operator.reader bo bad);
+  assert_utf8_error "write" (Operator.write bo bad (Bytes.of_string "data"));
+  assert_utf8_error "writer" (Operator.writer bo bad);
+  assert_utf8_error "copy from" (Operator.copy bo bad "dst");
+  assert_utf8_error "copy to" (Operator.copy bo "keep.txt" bad);
+  assert_utf8_error "rename from" (Operator.rename bo bad "dst");
+  assert_utf8_error "rename to" (Operator.rename bo "keep.txt" bad);
+  assert_utf8_error "delete" (Operator.delete bo bad);
+  assert_utf8_error "remove" (Operator.remove bo [| "keep.txt"; bad |]);
+  assert_equal true (Operator.is_exist bo "keep.txt" |> test_check_result);
+  assert_utf8_error "remove_all" (Operator.remove_all bo bad)
+
+(** Test that duplicate config keys keep last-wins behavior *)
+let test_config_duplicate_key_last_wins _ =
+  let bo =
+    Operator.new_operator "memory" [ ("root", "/first"); ("root", "/second") ]
+    |> test_check_result
+  in
+  let info = Operator.info bo in
+  assert_equal "/second/" (Operator.OperatorInfo.root info)
+
+(** Test interleaved operations across shared Operator/Writer/Reader/Lister
+    handles *)
+let test_shared_handles_interleaved _ =
+  let bo = new_test_memory_operator () in
+  ignore (test_check_result (Operator.create_dir bo "dir/"));
+  let writer = Operator.writer bo "dir/stream.txt" |> test_check_result in
+  ignore
+    (test_check_result
+       (Operator.Writer.write writer (Bytes.of_string "alpha-")));
+  ignore
+    (test_check_result
+       (Operator.write bo "dir/other.txt" (Bytes.of_string "x")));
+  ignore
+    (test_check_result (Operator.Writer.write writer (Bytes.of_string "beta")));
+  let close_meta = Operator.Writer.close writer |> test_check_result in
+  assert_equal 10L (Operator.Metadata.content_length close_meta);
+
+  let reader = Operator.reader bo "dir/stream.txt" |> test_check_result in
+  let buf_head = Bytes.create 5 in
+  let buf_tail = Bytes.create 4 in
+  assert_equal 5 (Operator.Reader.pread reader buf_head 0L |> test_check_result);
+  assert_equal 4 (Operator.Reader.pread reader buf_tail 6L |> test_check_result);
+  assert_equal "alpha" (Bytes.to_string buf_head);
+  assert_equal "beta" (Bytes.to_string buf_tail);
+
+  let lister = Operator.lister bo "dir/" |> test_check_result in
+  let rec collect acc =
+    match Operator.Lister.next lister with
+    | Ok (Some entry) ->
+        let meta = Operator.Entry.metadata entry in
+        let item =
+          ( Operator.Entry.path entry,
+            Operator.Entry.name entry,
+            Operator.Metadata.is_file meta )
+        in
+        collect (item :: acc)
+    | Ok None -> acc
+    | Error err -> assert_failure err
+  in
+  let entries = collect [] |> List.sort compare in
+  assert_equal
+    [
+      ("dir/", "dir/", false);
+      ("dir/other.txt", "other.txt", true);
+      ("dir/stream.txt", "stream.txt", true);
+    ]
+    entries
 
 let suite =
   "OCaml OpenDAL Test Suite"
@@ -455,6 +554,10 @@ let suite =
          "test_remove" >:: test_remove;
          "test_check" >:: test_check;
          "test_complex_workflow" >:: test_complex_workflow;
+         "test_invalid_utf8_rejected" >:: test_invalid_utf8_rejected;
+         "test_config_duplicate_key_last_wins"
+         >:: test_config_duplicate_key_last_wins;
+         "test_shared_handles_interleaved" >:: test_shared_handles_interleaved;
        ]
 
 let () = run_test_tt_main suite

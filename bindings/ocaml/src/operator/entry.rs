@@ -19,18 +19,18 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("entry -> string ")]
-pub fn entry_path(entry: &mut Entry) -> String {
+pub fn entry_path(entry: &Entry) -> String {
     entry.0.path().to_string()
 }
 
 #[ocaml::func]
 #[ocaml::sig("entry -> string ")]
-pub fn entry_name(entry: &mut Entry) -> String {
+pub fn entry_name(entry: &Entry) -> String {
     entry.0.name().to_string()
 }
 
 #[ocaml::func]
 #[ocaml::sig("entry -> metadata ")]
-pub fn entry_metadata(entry: &mut Entry) -> ocaml::Pointer<Metadata> {
+pub fn entry_metadata(entry: &Entry) -> ocaml::Pointer<Metadata> {
     Metadata(entry.0.metadata().clone()).into()
 }

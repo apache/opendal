@@ -154,12 +154,6 @@ impl FsCore {
         let to_path = self.root_join(to_trimmed)?;
         match tokio::fs::metadata(&to_path).await {
             Ok(to_meta) => {
-                if to_meta.is_dir() {
-                    return Err(Error::new(
-                        ErrorKind::IsADirectory,
-                        "copy target is a directory",
-                    ));
-                }
                 if is_same_file(&from, &from_meta, &to_path, &to_meta).await {
                     return Err(Error::new(
                         ErrorKind::IsSameFile,
@@ -226,7 +220,7 @@ impl FsCore {
 
         tokio::fs::rename(from, to)
             .await
-            .map_err(parse_rename_error)?;
+            .map_err(new_std_io_error)?;
         Ok(())
     }
 
@@ -420,12 +414,10 @@ pub(super) fn publish_staged_file(from: &Path, to: &Path) -> Result<()> {
             // the staging entry already; the destination is still published.
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(()),
             // The destination was published, but the staging file is orphaned
-            // now. Report it instead of leaking it silently, and mark it
-            // permanent so retries do not re-run hard_link against the
-            // already-published destination.
-            Err(err) => Err(new_std_io_error(err)
-                .set_permanent()
-                .with_context("service_operation", "RemoveStagedFile")),
+            // now. Report the error so the caller can clean up the staged file.
+            Err(err) => {
+                Err(new_std_io_error(err).with_context("service_operation", "RemoveStagedFile"))
+            }
             Ok(()) => Ok(()),
         }
     }

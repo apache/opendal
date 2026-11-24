@@ -53,33 +53,24 @@ impl Builder for CompfsBuilder {
     type Config = CompfsConfig;
 
     fn build(self) -> Result<impl Service> {
-        let root = match self.config.root.filter(|s| !s.is_empty()) {
+        let root = match self.config.root {
             Some(root) => Ok(root),
-            None => Err(
-                Error::new(ErrorKind::ConfigInvalid, "root is not specified")
-                    .with_operation("Builder::build"),
-            ),
+            None => Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "root is not specified",
+            )),
         }?;
 
         // If root dir does not exist, we must create it.
-        match std::fs::metadata(&root) {
-            Ok(meta) if !meta.is_dir() => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "root is not a directory")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.as_str()),
-                );
-            }
-            Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "create root dir failed")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.as_str())
-                        .set_source(e)
-                })?;
-            }
-            Err(_) => {}
+        if let Err(e) = std::fs::metadata(&root)
+            && e.kind() == std::io::ErrorKind::NotFound
+        {
+            std::fs::create_dir_all(&root).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "create root dir failed")
+                    .with_operation("Builder::build")
+                    .with_context("root", root.as_str())
+                    .set_source(e)
+            })?;
         }
 
         let dispatcher = Dispatcher::new().map_err(|_| {
@@ -227,19 +218,13 @@ impl Service for CompfsBackend {
                     "copy source is a directory",
                 ));
             }
-            if let Some(to_meta) = to_meta {
-                if to_meta.is_dir() {
-                    return Err(Error::new(
-                        ErrorKind::IsADirectory,
-                        "copy target is a directory",
-                    ));
-                }
-                if is_same_file(&core, &from, &from_meta, &to, &to_meta).await? {
-                    return Err(Error::new(
-                        ErrorKind::IsSameFile,
-                        "copy source and destination refer to the same file",
-                    ));
-                }
+            if let Some(to_meta) = to_meta
+                && is_same_file(&core, &from, &from_meta, &to, &to_meta).await?
+            {
+                return Err(Error::new(
+                    ErrorKind::IsSameFile,
+                    "copy source and destination refer to the same file",
+                ));
             }
 
             core.exec(move || async move {
@@ -407,64 +392,10 @@ fn parse_conditional_rename_error(err: rustix::io::Errno) -> Error {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::time::Duration;
 
     use super::*;
-
-    #[test]
-    fn test_builder_config_validation() {
-        let temp = tempfile::tempdir().unwrap();
-        let file_path = temp.path().join("not_a_dir");
-        std::fs::write(&file_path, b"data").unwrap();
-        let valid_root = temp.path().join("valid_root");
-        std::fs::create_dir(&valid_root).unwrap();
-
-        let err = CompfsBuilder::default().root("").build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let cfg = CompfsConfig::from_iter([("root".to_string(), String::new())]).unwrap();
-        let err = cfg.into_builder().build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let err = CompfsBuilder::default()
-            .root(file_path.to_str().unwrap())
-            .build()
-            .err()
-            .unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let backend = CompfsBuilder::default()
-            .root(valid_root.to_str().unwrap())
-            .build()
-            .unwrap();
-        assert_eq!(backend.info().scheme(), COMPFS_SCHEME);
-
-        let missing_root = temp.path().join("created_root");
-        let backend = CompfsBuilder::default()
-            .root(missing_root.to_str().unwrap())
-            .build()
-            .unwrap();
-        assert_eq!(backend.info().scheme(), COMPFS_SCHEME);
-        assert!(missing_root.is_dir());
-    }
-
-    #[tokio::test]
-    async fn test_copy_target_directory_returns_is_a_directory() {
-        tokio::time::timeout(Duration::from_secs(30), async {
-            let temp_dir = tempfile::tempdir().unwrap();
-            let root = temp_dir.path();
-            std::fs::write(root.join("src"), b"source contents").unwrap();
-            std::fs::create_dir(root.join("dir")).unwrap();
-            let op = Operator::new(CompfsBuilder::default().root(root.to_str().unwrap())).unwrap();
-
-            let err = op.copy("src", "dir").await.unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
-            assert!(!err.is_temporary(), "{err:?}");
-            assert_eq!(std::fs::read(root.join("src")).unwrap(), b"source contents");
-        })
-        .await
-        .unwrap();
-    }
 
     #[cfg(unix)]
     #[tokio::test]

@@ -56,33 +56,19 @@ impl Builder for MonoiofsBuilder {
     type Config = MonoiofsConfig;
 
     fn build(self) -> Result<impl Service> {
-        let root = self
-            .config
-            .root
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from)
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "root is not specified")
+        let root = self.config.root.map(PathBuf::from).ok_or(
+            Error::new(ErrorKind::ConfigInvalid, "root is not specified")
+                .with_operation("Builder::build"),
+        )?;
+        if let Err(e) = std::fs::metadata(&root)
+            && e.kind() == io::ErrorKind::NotFound
+        {
+            std::fs::create_dir_all(&root).map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "create root dir failed")
                     .with_operation("Builder::build")
+                    .with_context("root", root.to_string_lossy())
+                    .set_source(e)
             })?;
-        match std::fs::metadata(&root) {
-            Ok(meta) if !meta.is_dir() => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "root is not a directory")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy()),
-                );
-            }
-            Ok(_) => {}
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                std::fs::create_dir_all(&root).map_err(|e| {
-                    Error::new(ErrorKind::Unexpected, "create root dir failed")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy())
-                        .set_source(e)
-                })?;
-            }
-            Err(_) => {}
         }
         let root = root.canonicalize().map_err(|e| {
             Error::new(
@@ -253,19 +239,13 @@ impl Service for MonoiofsBackend {
                     "copy source is a directory",
                 ));
             }
-            if let Some(to_meta) = to_meta {
-                if to_meta.is_dir() {
-                    return Err(Error::new(
-                        ErrorKind::IsADirectory,
-                        "copy target is a directory",
-                    ));
-                }
-                if is_same_file(&from, &from_meta, &to_path, &to_meta) {
-                    return Err(Error::new(
-                        ErrorKind::IsSameFile,
-                        "copy source and destination refer to the same file",
-                    ));
-                }
+            if let Some(to_meta) = to_meta
+                && is_same_file(&from, &from_meta, &to_path, &to_meta)
+            {
+                return Err(Error::new(
+                    ErrorKind::IsSameFile,
+                    "copy source and destination refer to the same file",
+                ));
             }
             let to = core.prepare_write_path(&to).await?;
             core.dispatch({
@@ -308,13 +288,7 @@ impl Service for MonoiofsBackend {
                 }
             })
             .await
-            .map_err(|err: io::Error| {
-                if err.kind() == io::ErrorKind::IsADirectory {
-                    Error::new(ErrorKind::IsADirectory, "copy path is a directory").set_source(err)
-                } else {
-                    new_std_io_error(err)
-                }
-            })
+            .map_err(new_std_io_error)
             .map(|size| {
                 let metadata = MetadataBuilder::file(size);
                 metadata.build()
@@ -364,46 +338,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::MONOIOFS_SCHEME;
 
-    #[test]
-    fn test_builder_config_validation() {
-        let temp = tempfile::tempdir().unwrap();
-        let file_path = temp.path().join("not_a_dir");
-        std::fs::write(&file_path, b"data").unwrap();
-        let valid_root = temp.path().join("valid_root");
-        std::fs::create_dir(&valid_root).unwrap();
-
-        let err = MonoiofsBuilder::default().root("").build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let cfg = MonoiofsConfig::from_iter([("root".to_string(), String::new())]).unwrap();
-        let err = cfg.into_builder().build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let err = MonoiofsBuilder::default()
-            .root(file_path.to_str().unwrap())
-            .build()
-            .err()
-            .unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let backend = MonoiofsBuilder::default()
-            .root(valid_root.to_str().unwrap())
-            .build()
-            .unwrap();
-        assert_eq!(backend.info().scheme(), MONOIOFS_SCHEME);
-
-        let missing_root = temp.path().join("created_root");
-        let backend = MonoiofsBuilder::default()
-            .root(missing_root.to_str().unwrap())
-            .build()
-            .unwrap();
-        assert_eq!(backend.info().scheme(), MONOIOFS_SCHEME);
-        assert!(missing_root.is_dir());
-    }
-
-    #[cfg(unix)]
     #[tokio::test]
     async fn test_copy_same_file_alias_preserves_data() {
         tokio::time::timeout(Duration::from_secs(30), async {

@@ -38,31 +38,19 @@ pub struct PersyBuilder {
 impl PersyBuilder {
     /// Set the path to the persy data directory. Will create if not exists.
     pub fn datafile(mut self, path: &str) -> Self {
-        self.config.datafile = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.datafile = Some(path.into());
         self
     }
 
     /// Set the name of the persy segment. Will create if not exists.
     pub fn segment(mut self, path: &str) -> Self {
-        self.config.segment = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.segment = Some(path.into());
         self
     }
 
     /// Set the name of the persy index. Will create if not exists.
     pub fn index(mut self, path: &str) -> Self {
-        self.config.index = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.index = Some(path.into());
         self
     }
 }
@@ -71,25 +59,17 @@ impl Builder for PersyBuilder {
     type Config = PersyConfig;
 
     fn build(self) -> Result<impl Service> {
-        let datafile_path = self
-            .config
-            .datafile
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
-                    .with_context("service", PERSY_SCHEME)
-            })?;
+        let datafile_path = self.config.datafile.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "datafile is required but not set")
+                .with_context("service", PERSY_SCHEME)
+        })?;
 
-        let segment = self
-            .config
-            .segment
-            .filter(|v| !v.is_empty())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
-                    .with_context("service", PERSY_SCHEME)
-            })?;
+        let segment = self.config.segment.ok_or_else(|| {
+            Error::new(ErrorKind::ConfigInvalid, "segment is required but not set")
+                .with_context("service", PERSY_SCHEME)
+        })?;
 
-        let index = self.config.index.filter(|v| !v.is_empty()).ok_or_else(|| {
+        let index = self.config.index.ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "index is required but not set")
                 .with_context("service", PERSY_SCHEME)
         })?;
@@ -318,70 +298,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_empty_config_fields_rejected() -> Result<()> {
-        let dir = TempDir::new();
-        let datafile = dir.path().join("db.persy");
-        let datafile_str = datafile.to_str().expect("valid utf-8 path");
-
-        // Builder setters reject empty values.
-        let err = PersyBuilder::default()
-            .datafile("")
-            .segment("data")
-            .index("index")
-            .build()
-            .expect_err("empty datafile must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = PersyBuilder::default()
-            .datafile(datafile_str)
-            .datafile("")
-            .segment("data")
-            .index("index")
-            .build()
-            .expect_err("clearing datafile to empty must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = PersyBuilder::default()
-            .datafile(datafile_str)
-            .segment("")
-            .index("index")
-            .build()
-            .expect_err("empty segment must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = PersyBuilder::default()
-            .datafile(datafile_str)
-            .segment("data")
-            .index("")
-            .build()
-            .expect_err("empty index must fail");
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        // Config deserialization rejects empty values too.
-        for (datafile, segment, index) in [
-            ("", "data", "index"),
-            (datafile_str, "", "index"),
-            (datafile_str, "data", ""),
-        ] {
-            let err = PersyConfig::from_iter([
-                ("datafile".to_string(), datafile.to_string()),
-                ("segment".to_string(), segment.to_string()),
-                ("index".to_string(), index.to_string()),
-            ])?
-            .into_builder()
-            .build()
-            .expect_err("empty config field must fail");
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        assert!(
-            !datafile.exists(),
-            "rejected config must not create datafile"
-        );
-        Ok(())
-    }
-
     #[tokio::test]
     async fn test_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
         tokio::time::timeout(Duration::from_secs(10), async {
@@ -404,8 +320,7 @@ mod tests {
             );
 
             let mut root_writer = service.write(&ctx, "/", OpWrite::default())?;
-            let root_meta = root_writer.close().await?;
-            assert_eq!(root_meta.mode(), EntryMode::DIR);
+            root_writer.close().await?;
             assert_eq!(
                 service
                     .stat(&ctx, "/", OpStat::default())

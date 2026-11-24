@@ -61,11 +61,9 @@ impl FsBuilder {
     ///   a hard link elsewhere. Both need the staging directory and the
     ///   destination on the same filesystem.
     pub fn atomic_write_dir(mut self, dir: &str) -> Self {
-        self.config.atomic_write_dir = if dir.is_empty() {
-            None
-        } else {
-            Some(dir.to_string())
-        };
+        if !dir.is_empty() {
+            self.config.atomic_write_dir = Some(dir.to_string());
+        }
 
         self
     }
@@ -91,12 +89,7 @@ impl Builder for FsBuilder {
             ));
         }
 
-        let root = match self
-            .config
-            .root
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from)
-        {
+        let root = match self.config.root.map(PathBuf::from) {
             Some(root) => Ok(root),
             None => Err(Error::new(
                 ErrorKind::ConfigInvalid,
@@ -105,44 +98,10 @@ impl Builder for FsBuilder {
         }?;
         debug!("backend use root {}", root.to_string_lossy());
 
-        let atomic_write_dir = self
-            .config
-            .atomic_write_dir
-            .filter(|s| !s.is_empty())
-            .map(PathBuf::from);
-
-        let root_exists = match std::fs::metadata(&root) {
-            Ok(meta) if !meta.is_dir() => {
-                return Err(
-                    Error::new(ErrorKind::ConfigInvalid, "root is not a directory")
-                        .with_operation("Builder::build")
-                        .with_context("root", root.to_string_lossy()),
-                );
-            }
-            Ok(_) => true,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-            Err(_) => true,
-        };
-
-        let atomic_write_dir_exists = match &atomic_write_dir {
-            Some(d) => match std::fs::metadata(d) {
-                Ok(meta) if !meta.is_dir() => {
-                    return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "atomic_write_dir is not a directory",
-                    )
-                    .with_operation("Builder::build")
-                    .with_context("atomic_write_dir", d.to_string_lossy()));
-                }
-                Ok(_) => true,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-                Err(_) => true,
-            },
-            None => true,
-        };
-
-        // If root dir does not exist, we must create it.
-        if !root_exists {
+        // If root dir is not exist, we must create it.
+        if let Err(e) = std::fs::metadata(&root)
+            && e.kind() == std::io::ErrorKind::NotFound
+        {
             std::fs::create_dir_all(&root).map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "create root dir failed")
                     .with_operation("Builder::build")
@@ -151,8 +110,13 @@ impl Builder for FsBuilder {
             })?;
         }
 
-        // If atomic write dir does not exist, we must create it.
-        if !atomic_write_dir_exists && let Some(d) = &atomic_write_dir {
+        let atomic_write_dir = self.config.atomic_write_dir.map(PathBuf::from);
+
+        // If atomic write dir is not exist, we must create it.
+        if let Some(d) = &atomic_write_dir
+            && let Err(e) = std::fs::metadata(d)
+            && e.kind() == std::io::ErrorKind::NotFound
+        {
             std::fs::create_dir_all(d).map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "create atomic write dir failed")
                     .with_operation("Builder::build")
@@ -351,63 +315,4 @@ pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
 pub(crate) fn read_at(f: &File, buf: &mut [u8], offset: u64) -> Result<usize> {
     use std::os::unix::fs::FileExt;
     f.read_at(buf, offset).map_err(new_std_io_error)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_builder_config_validation() {
-        let temp = tempfile::tempdir().unwrap();
-        let file_path = temp.path().join("not_a_dir");
-        std::fs::write(&file_path, b"data").unwrap();
-        let valid_root = temp.path().join("valid_root");
-        std::fs::create_dir(&valid_root).unwrap();
-
-        // Empty root is rejected with ConfigInvalid both via builder and from_iter.
-        let err = FsBuilder::default().root("").build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        let cfg = FsConfig::from_iter([("root".to_string(), String::new())]).unwrap();
-        let err = cfg.into_builder().build().err().unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        // Empty atomic_write_dir via from_iter is treated as unset.
-        let cfg = FsConfig::from_iter([
-            ("root".to_string(), valid_root.to_str().unwrap().to_string()),
-            ("atomic_write_dir".to_string(), String::new()),
-        ])
-        .unwrap();
-        let backend = cfg.into_builder().build().unwrap();
-        assert!(backend.info().scheme() == FS_SCHEME);
-
-        // Passing an empty string to atomic_write_dir() clears a previously set path.
-        let backend = FsBuilder::default()
-            .root(valid_root.to_str().unwrap())
-            .atomic_write_dir(file_path.to_str().unwrap())
-            .atomic_write_dir("")
-            .build()
-            .unwrap();
-        assert!(backend.info().scheme() == FS_SCHEME);
-
-        // Existing regular file as root is rejected with ConfigInvalid.
-        let err = FsBuilder::default()
-            .root(file_path.to_str().unwrap())
-            .build()
-            .err()
-            .unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-
-        // Existing regular file as atomic_write_dir is rejected before creating root.
-        let new_root = temp.path().join("should_not_be_created");
-        let err = FsBuilder::default()
-            .root(new_root.to_str().unwrap())
-            .atomic_write_dir(file_path.to_str().unwrap())
-            .build()
-            .err()
-            .unwrap();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid, "{err:?}");
-        assert!(!new_root.exists());
-    }
 }

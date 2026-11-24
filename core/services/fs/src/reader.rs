@@ -70,16 +70,7 @@ impl oio::PositionRead for FsReader {
                 (File::open(&path).map_err(new_std_io_error)?, None)
             };
             #[cfg(not(target_os = "linux"))]
-            let file = File::open(&path).map_err(|err| {
-                #[cfg(windows)]
-                if err.kind() == std::io::ErrorKind::PermissionDenied
-                    && std::fs::metadata(&path).is_ok_and(|meta| meta.is_dir())
-                {
-                    return Error::new(ErrorKind::IsADirectory, "read path is a directory")
-                        .set_source(err);
-                }
-                new_std_io_error(err)
-            })?;
+            let file = File::open(path).map_err(new_std_io_error)?;
 
             let metadata = file.metadata().map_err(new_std_io_error)?;
             if metadata.is_dir() {

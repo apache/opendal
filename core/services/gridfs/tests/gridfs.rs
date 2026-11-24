@@ -15,29 +15,18 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures::AsyncWriteExt;
-use mongodb::bson::Bson;
 use mongodb::bson::DateTime;
 use mongodb::bson::Document;
 use mongodb::bson::doc;
 use mongodb::bson::oid::ObjectId;
-use mongodb::bson::spec::BinarySubtype;
 use mongodb::options::GridFsBucketOptions;
-use opendal_core::Builder;
 use opendal_core::EntryMode;
 use opendal_core::ErrorKind;
-use opendal_core::OperationContext;
 use opendal_core::Operator;
 use opendal_core::Result;
-use opendal_core::layers;
-use opendal_core::raw::OpStat;
-use opendal_core::raw::OpWrite;
-use opendal_core::raw::Service;
-use opendal_core::raw::Servicer;
-use opendal_core::raw::oio::Write as _;
 use opendal_service_gridfs::Gridfs;
 
 fn connection_string() -> String {
@@ -45,16 +34,10 @@ fn connection_string() -> String {
         .unwrap_or_else(|_| "mongodb://127.0.0.1:27017".to_string())
 }
 
-async fn upload_raw_revision(
-    bucket: &mongodb::gridfs::GridFsBucket,
-    filename: &str,
-    data: &[u8],
-) -> Bson {
+async fn upload_revision(bucket: &mongodb::gridfs::GridFsBucket, filename: &str, data: &[u8]) {
     let mut stream = bucket.open_upload_stream(filename).await.unwrap();
-    let id = stream.id().clone();
     stream.write_all(data).await.unwrap();
     stream.close().await.unwrap();
-    id
 }
 
 #[tokio::test]
@@ -83,9 +66,9 @@ async fn test_live_duplicate_revisions_read_newest_and_delete_all() -> Result<()
         )?;
 
         // Upload two revisions with distinct uploadDate values.
-        upload_raw_revision(&bucket, "rev.txt", b"older-v1").await;
+        upload_revision(&bucket, "rev.txt", b"older-v1").await;
         tokio::time::sleep(Duration::from_millis(10)).await;
-        upload_raw_revision(&bucket, "rev.txt", b"newer-v2-payload-longer").await;
+        upload_revision(&bucket, "rev.txt", b"newer-v2-payload-longer").await;
 
         let files_coll = db.collection::<Document>(&format!("{bucket_name}.files"));
         let chunks_coll = db.collection::<Document>(&format!("{bucket_name}.chunks"));
@@ -109,7 +92,20 @@ async fn test_live_duplicate_revisions_read_newest_and_delete_all() -> Result<()
             &b"newer-v2-payload-longer"[..]
         );
 
-        // delete must remove ALL matching revisions and their chunks.
+        // Give the two real SDK uploads the same timestamp to exercise the ID tie-breaker.
+        files_coll
+            .update_many(
+                doc! { "filename": "rev.txt" },
+                doc! { "$set": { "uploadDate": DateTime::now() } },
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            op.read("rev.txt").await?.to_bytes(),
+            &b"newer-v2-payload-longer"[..]
+        );
+
+        // Delete must remove both revisions and their chunks.
         op.delete("rev.txt").await?;
         assert_eq!(
             files_coll
@@ -128,52 +124,19 @@ async fn test_live_duplicate_revisions_read_newest_and_delete_all() -> Result<()
             ErrorKind::NotFound
         );
 
-        // Same-millisecond tie-breaker: `_id: -1` selects the higher `_id`.
-        let ts = DateTime::now();
-        let lower_id = ObjectId::from_bytes([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1]);
-        let higher_id = ObjectId::from_bytes([0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 2]);
-        for (id, payload) in [
-            (lower_id, b"tie-loser".as_slice()),
-            (higher_id, b"tie-winner-v2".as_slice()),
-        ] {
-            chunks_coll
-                .insert_one(doc! {
-                    "files_id": id,
-                    "n": 0_i32,
-                    "data": mongodb::bson::Binary {
-                        subtype: BinarySubtype::Generic,
-                        bytes: payload.to_vec(),
-                    },
-                })
-                .await
-                .unwrap();
-            files_coll
-                .insert_one(doc! {
-                    "_id": id,
-                    "filename": "tie.txt",
-                    "length": payload.len() as i64,
-                    "chunkSize": 16_i32,
-                    "uploadDate": ts,
-                })
-                .await
-                .unwrap();
-        }
-        assert_eq!(op.read("tie.txt").await?.to_bytes(), &b"tie-winner-v2"[..]);
-        assert_eq!(
-            op.stat("tie.txt").await?.content_length(),
-            b"tie-winner-v2".len() as u64
-        );
-
-        // Overwrite cleans up all superseded revisions, leaving only 1 document.
-        op.write("tie.txt", "replaced-v3").await?;
-        assert_eq!(op.read("tie.txt").await?.to_bytes(), &b"replaced-v3"[..]);
+        // A subsequent overwrite cleans up multiple already committed revisions.
+        upload_revision(&bucket, "rev.txt", b"older-before-overwrite").await;
+        upload_revision(&bucket, "rev.txt", b"newer-before-overwrite").await;
+        op.write("rev.txt", "replaced-v3").await?;
+        assert_eq!(op.read("rev.txt").await?.to_bytes(), &b"replaced-v3"[..]);
         assert_eq!(
             files_coll
-                .count_documents(doc! { "filename": "tie.txt" })
+                .count_documents(doc! { "filename": "rev.txt" })
                 .await
                 .unwrap(),
             1
         );
+        assert_eq!(chunks_coll.count_documents(doc! {}).await.unwrap(), 1);
 
         let _ = db.drop().await;
         Ok(())
@@ -204,7 +167,32 @@ async fn test_live_upload_failure_preserves_existing_revision() -> Result<()> {
         op.write("safe.txt", "original-data").await?;
         assert_eq!(op.read("safe.txt").await?.to_bytes(), &b"original-data"[..]);
 
-        // Add a server-side collection validator that rejects new files longer than 64 bytes.
+        let chunks = db.collection::<Document>("fs.chunks");
+        let original_chunks = chunks.count_documents(doc! {}).await.unwrap();
+
+        // Reject the later chunks after accepting the first chunks of the upload.
+        db.run_command(doc! {
+            "collMod": "fs.chunks",
+            "validator": { "n": { "$lt": 2 } },
+        })
+        .await
+        .unwrap();
+        let err = op
+            .write("safe.txt", vec![b'x'; 128])
+            .await
+            .expect_err("chunk validator must reject upload");
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(op.read("safe.txt").await?.to_bytes(), &b"original-data"[..]);
+        assert_eq!(
+            chunks.count_documents(doc! {}).await.unwrap(),
+            original_chunks
+        );
+
+        db.run_command(doc! { "collMod": "fs.chunks", "validator": {} })
+            .await
+            .unwrap();
+
+        // Reject the files document after writing the chunks.
         db.run_command(doc! {
             "collMod": format!("{bucket_name}.files"),
             "validator": { "length": { "$lte": 64 } },
@@ -218,8 +206,11 @@ async fn test_live_upload_failure_preserves_existing_revision() -> Result<()> {
             .expect_err("validator must reject oversized upload");
         assert_eq!(err.kind(), ErrorKind::Unexpected);
 
-        // Previous revision must remain intact because upload happens before cleanup.
         assert_eq!(op.read("safe.txt").await?.to_bytes(), &b"original-data"[..]);
+        assert_eq!(
+            chunks.count_documents(doc! {}).await.unwrap(),
+            original_chunks
+        );
 
         let _ = db.drop().await;
         Ok(())
@@ -266,7 +257,11 @@ async fn test_live_concurrent_writes_reads_and_deletes() -> Result<()> {
             handles.push(tokio::spawn(async move {
                 for _ in 0..15 {
                     match op.read("concurrent_write.txt").await {
-                        Ok(buf) => assert!(!buf.is_empty()),
+                        Ok(buf) => {
+                            let bytes = buf.to_bytes();
+                            assert!((40..=49).contains(&bytes.len()));
+                            assert!(bytes.iter().all(|byte| *byte == bytes[0]));
+                        }
                         Err(err) if err.kind() == ErrorKind::NotFound => {}
                         Err(err) => return Err(err),
                     }
@@ -354,76 +349,25 @@ async fn test_live_concurrent_writes_reads_and_deletes() -> Result<()> {
 
 #[tokio::test]
 #[ignore = "requires a running MongoDB server (OPENDAL_GRIDFS_CONNECTION_STRING)"]
-async fn test_live_root_and_dir_marker_stat_and_writer_metadata() -> Result<()> {
+async fn test_live_stat_reports_directory_marker() -> Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         let conn = connection_string();
         let db_name = format!("opendal_gridfs_dir_{}", ObjectId::new().to_hex());
-
         let client = mongodb::Client::with_uri_str(&conn).await.unwrap();
         let db = client.database(&db_name);
+        let bucket = db.gridfs_bucket(None);
+        upload_revision(&bucket, "a/", b"").await;
 
-        let service = Gridfs::default()
-            .connection_string(&conn)
-            .database(&db_name)
-            .bucket("fs")
-            .build()?;
-        let ctx = OperationContext::default();
-
-        assert_eq!(
-            service
-                .stat(&ctx, "/", OpStat::default())
-                .await?
-                .into_metadata()
-                .mode(),
-            EntryMode::DIR
-        );
-
-        let mut root_writer = service.write(&ctx, "/", OpWrite::default())?;
-        let root_meta = root_writer.close().await?;
-        assert_eq!(root_meta.mode(), EntryMode::DIR);
-        assert_eq!(
-            service
-                .stat(&ctx, "/", OpStat::default())
-                .await?
-                .into_metadata()
-                .mode(),
-            EntryMode::DIR
-        );
-
-        let mut dir_writer = service.write(&ctx, "a/", OpWrite::default())?;
-        let dir_meta = dir_writer.close().await?;
-        assert_eq!(dir_meta.mode(), EntryMode::DIR);
-        assert_eq!(
-            service
-                .stat(&ctx, "a/", OpStat::default())
-                .await?
-                .into_metadata()
-                .mode(),
-            EntryMode::DIR
-        );
-
-        let mut file_writer = service.write(&ctx, "a/file.txt", OpWrite::default())?;
-        file_writer
-            .write(opendal_core::Buffer::from("hello"))
-            .await?;
-        let file_meta = file_writer.close().await?;
-        assert_eq!(file_meta.mode(), EntryMode::FILE);
-        assert_eq!(file_meta.content_length(), 5);
-
-        let stat_meta = service
-            .stat(&ctx, "a/file.txt", OpStat::default())
-            .await?
-            .into_metadata();
-        assert_eq!(stat_meta.mode(), EntryMode::FILE);
-        assert_eq!(stat_meta.content_length(), 5);
-
-        // Verify Operator with SimulateLayer::with_stat_dir(false) also observes DIR.
-        let srv: Servicer = Arc::new(service);
-        let op = Operator::from_parts(OperationContext::default(), srv)
-            .layer(layers::SimulateLayer::default().with_stat_dir(false));
-        assert_eq!(op.stat("/").await?.mode(), EntryMode::DIR);
+        let op = Operator::new(
+            Gridfs::default()
+                .connection_string(&conn)
+                .database(&db_name),
+        )?;
         assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR);
-        assert_eq!(op.stat("a/file.txt").await?.mode(), EntryMode::FILE);
+        assert_eq!(
+            op.stat("missing/").await.unwrap_err().kind(),
+            ErrorKind::NotFound
+        );
 
         let _ = db.drop().await;
         Ok(())

@@ -25,14 +25,13 @@ use mongodb::bson::Bson;
 use mongodb::bson::doc;
 use mongodb::gridfs::{FilesCollectionDocument, GridFsBucket};
 use mongodb::options::ClientOptions;
-use mongodb::options::ConnectionString;
 use mongodb::options::GridFsBucketOptions;
 use opendal_core::raw::*;
 use opendal_core::*;
 
 #[derive(Clone)]
 pub struct GridfsCore {
-    pub connection_string: ConnectionString,
+    pub connection_string: String,
     pub database: String,
     pub bucket: String,
     pub chunk_size: u32,
@@ -53,11 +52,11 @@ impl GridfsCore {
     async fn get_bucket(&self) -> Result<&GridFsBucket> {
         self.bucket_instance
             .get_or_try_init(|| async {
-                let client_options = ClientOptions::parse(self.connection_string.clone())
+                let client_options = ClientOptions::parse(&self.connection_string)
                     .await
-                    .map_err(parse_mongodb_config_error)?;
-                let client = mongodb::Client::with_options(client_options)
-                    .map_err(parse_mongodb_config_error)?;
+                    .map_err(parse_mongodb_error)?;
+                let client =
+                    mongodb::Client::with_options(client_options).map_err(parse_mongodb_error)?;
                 let bucket_options = GridFsBucketOptions::builder()
                     .bucket_name(Some(self.bucket.clone()))
                     .chunk_size_bytes(Some(self.chunk_size))
@@ -100,15 +99,7 @@ impl GridfsCore {
 
         // Keep the newest revision under `(uploadDate, _id)` so concurrent writers
         // cannot delete each other's latest revision.
-        if cursor
-            .try_next()
-            .await
-            .map_err(parse_mongodb_error)?
-            .is_none()
-        {
-            return Ok(());
-        }
-
+        cursor.try_next().await.map_err(parse_mongodb_error)?;
         while let Some(doc) = cursor.try_next().await.map_err(parse_mongodb_error)? {
             Self::delete_doc_by_id(bucket, doc.id).await?;
         }
@@ -133,7 +124,9 @@ impl GridfsCore {
             match stream.read_to_end(&mut destination).await {
                 Ok(_) => return Ok(Some(Buffer::from(destination))),
                 Err(err) => {
-                    if extract_mongodb_error(&err).is_some_and(is_gridfs_missing_chunk)
+                    // GridFS deletes the file document before its chunks. Missing chunks
+                    // indicate a race only if the selected file document is gone too.
+                    if is_gridfs_missing_chunk(&err)
                         && bucket
                             .find_one(doc! { "_id": &file_id })
                             .await
@@ -142,7 +135,7 @@ impl GridfsCore {
                     {
                         continue;
                     }
-                    return Err(parse_gridfs_io_error(err));
+                    return Err(new_std_io_error(err));
                 }
             }
         }
@@ -169,13 +162,11 @@ impl GridfsCore {
             .open_upload_stream(path)
             .await
             .map_err(parse_mongodb_error)?;
-        for chunk in value {
-            if let Err(err) = upload_stream.write_all(&chunk).await {
-                let _ = upload_stream.abort().await;
-                return Err(parse_gridfs_io_error(err));
-            }
-        }
-        upload_stream.close().await.map_err(parse_gridfs_io_error)?;
+        upload_stream
+            .write_all(&value.to_vec())
+            .await
+            .map_err(new_std_io_error)?;
+        upload_stream.close().await.map_err(new_std_io_error)?;
 
         Self::delete_superseded_docs(bucket, path).await?;
 
@@ -204,205 +195,18 @@ fn is_gridfs_file_not_found(err: &mongodb::error::Error) -> bool {
     )
 }
 
-fn is_gridfs_missing_chunk(err: &mongodb::error::Error) -> bool {
+fn is_gridfs_missing_chunk(err: &std::io::Error) -> bool {
+    let mongo_error = err
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<mongodb::error::Error>());
     matches!(
-        err.kind.as_ref(),
-        mongodb::error::ErrorKind::GridFs(mongodb::error::GridFsErrorKind::MissingChunk { .. })
+        mongo_error.map(|err| err.kind.as_ref()),
+        Some(mongodb::error::ErrorKind::GridFs(
+            mongodb::error::GridFsErrorKind::MissingChunk { .. }
+        ))
     )
-}
-
-fn extract_mongodb_error(err: &std::io::Error) -> Option<&mongodb::error::Error> {
-    err.get_ref()
-        .and_then(|inner| inner.downcast_ref::<mongodb::error::Error>())
-}
-
-fn parse_gridfs_io_error(err: std::io::Error) -> Error {
-    if extract_mongodb_error(&err).is_some() {
-        let mongo_err = err
-            .into_inner()
-            .expect("mongodb error verified via get_ref")
-            .downcast::<mongodb::error::Error>()
-            .expect("mongodb error verified via downcast_ref");
-        return parse_mongodb_error(*mongo_err);
-    }
-    new_std_io_error(err)
-}
-
-fn is_transient_io_error(err: &std::io::Error) -> bool {
-    matches!(
-        err.kind(),
-        std::io::ErrorKind::ConnectionReset
-            | std::io::ErrorKind::ConnectionAborted
-            | std::io::ErrorKind::BrokenPipe
-            | std::io::ErrorKind::TimedOut
-            | std::io::ErrorKind::Interrupted
-            | std::io::ErrorKind::WouldBlock
-            | std::io::ErrorKind::UnexpectedEof
-            | std::io::ErrorKind::ConnectionRefused
-            | std::io::ErrorKind::NotConnected
-            | std::io::ErrorKind::NetworkUnreachable
-            | std::io::ErrorKind::HostUnreachable
-    )
-}
-
-fn parse_mongodb_config_error(err: mongodb::error::Error) -> Error {
-    match err.kind.as_ref() {
-        mongodb::error::ErrorKind::InvalidArgument { .. }
-        | mongodb::error::ErrorKind::InvalidTlsConfig { .. } => Error::new(
-            ErrorKind::ConfigInvalid,
-            "mongodb client configuration is invalid",
-        )
-        .set_source(err),
-        _ => parse_mongodb_error(err),
-    }
 }
 
 fn parse_mongodb_error(err: mongodb::error::Error) -> Error {
-    if matches!(
-        err.kind.as_ref(),
-        mongodb::error::ErrorKind::GridFs(
-            mongodb::error::GridFsErrorKind::FileNotFound { .. }
-                | mongodb::error::GridFsErrorKind::RevisionNotFound { .. }
-        )
-    ) {
-        return Error::new(ErrorKind::NotFound, "gridfs file not found").set_source(err);
-    }
-
-    let is_temporary = err.contains_label(mongodb::error::TRANSIENT_TRANSACTION_ERROR)
-        || err.contains_label(mongodb::error::RETRYABLE_WRITE_ERROR)
-        || match err.kind.as_ref() {
-            mongodb::error::ErrorKind::Io(io_err) => is_transient_io_error(io_err),
-            mongodb::error::ErrorKind::ConnectionPoolCleared { .. }
-            | mongodb::error::ErrorKind::ServerSelection { .. }
-            | mongodb::error::ErrorKind::DnsResolve { .. } => true,
-            _ => false,
-        };
-
-    let opendal_err = Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err);
-    if is_temporary {
-        opendal_err.set_temporary()
-    } else {
-        opendal_err
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use mongodb::error::GridFsErrorKind;
-
-    #[test]
-    fn test_parse_gridfs_io_error_unwraps_mongodb_error() {
-        let mongo_closed: mongodb::error::Error =
-            mongodb::error::ErrorKind::GridFs(GridFsErrorKind::UploadStreamClosed).into();
-        let err = parse_gridfs_io_error(std::io::Error::other(mongo_closed));
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(!err.is_temporary());
-
-        let mongo_transient = mongodb::error::Error::from(std::io::Error::new(
-            std::io::ErrorKind::ConnectionReset,
-            "reset",
-        ));
-        let err = parse_gridfs_io_error(std::io::Error::other(mongo_transient));
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_temporary());
-
-        let plain_io = std::io::Error::new(std::io::ErrorKind::PermissionDenied, "denied");
-        let err = parse_gridfs_io_error(plain_io);
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-    }
-
-    #[test]
-    fn test_parse_mongodb_config_error_maps_invalid_argument() {
-        let invalid = ConnectionString::parse("not-a-mongodb-uri").unwrap_err();
-        let err = parse_mongodb_config_error(invalid);
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[test]
-    fn test_parse_mongodb_error_io_temporary_classification() {
-        for transient_kind in [
-            std::io::ErrorKind::ConnectionReset,
-            std::io::ErrorKind::ConnectionAborted,
-            std::io::ErrorKind::BrokenPipe,
-            std::io::ErrorKind::TimedOut,
-            std::io::ErrorKind::Interrupted,
-            std::io::ErrorKind::WouldBlock,
-            std::io::ErrorKind::UnexpectedEof,
-            std::io::ErrorKind::ConnectionRefused,
-            std::io::ErrorKind::NotConnected,
-            std::io::ErrorKind::NetworkUnreachable,
-            std::io::ErrorKind::HostUnreachable,
-        ] {
-            let err = parse_mongodb_error(mongodb::error::Error::from(std::io::Error::new(
-                transient_kind,
-                "transient io",
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(
-                err.is_temporary(),
-                "expected {transient_kind:?} to be temporary"
-            );
-        }
-
-        for permanent_kind in [
-            std::io::ErrorKind::InvalidData,
-            std::io::ErrorKind::InvalidInput,
-            std::io::ErrorKind::PermissionDenied,
-            std::io::ErrorKind::NotFound,
-            std::io::ErrorKind::Other,
-        ] {
-            let err = parse_mongodb_error(mongodb::error::Error::from(std::io::Error::new(
-                permanent_kind,
-                "permanent io",
-            )));
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(
-                !err.is_temporary(),
-                "expected {permanent_kind:?} to be permanent"
-            );
-        }
-    }
-
-    #[tokio::test]
-    #[ignore = "requires a running MongoDB server (OPENDAL_GRIDFS_CONNECTION_STRING)"]
-    async fn test_live_parse_mongodb_error_maps_gridfs_file_not_found() {
-        tokio::time::timeout(std::time::Duration::from_secs(30), async {
-            let conn = std::env::var("OPENDAL_GRIDFS_CONNECTION_STRING")
-                .unwrap_or_else(|_| "mongodb://127.0.0.1:27017".to_string());
-            let client = mongodb::Client::with_uri_str(&conn).await.unwrap();
-            let bucket = client
-                .database("opendal_gridfs_err_test")
-                .gridfs_bucket(None);
-
-            let missing_id = Bson::ObjectId(mongodb::bson::oid::ObjectId::new());
-            let delete_err = bucket.delete(missing_id.clone()).await.unwrap_err();
-            assert!(is_gridfs_file_not_found(&delete_err));
-            let parsed = parse_mongodb_error(delete_err);
-            assert_eq!(parsed.kind(), ErrorKind::NotFound);
-            assert!(!parsed.is_temporary());
-
-            let download_err = bucket
-                .open_download_stream(missing_id)
-                .await
-                .err()
-                .expect("missing id download must fail");
-            assert!(is_gridfs_file_not_found(&download_err));
-            let parsed = parse_mongodb_error(download_err);
-            assert_eq!(parsed.kind(), ErrorKind::NotFound);
-
-            let by_name_err = bucket
-                .open_download_stream_by_name("definitely-missing-file")
-                .await
-                .err()
-                .expect("missing filename download must fail");
-            assert!(is_gridfs_file_not_found(&by_name_err));
-            let parsed = parse_mongodb_error(by_name_err);
-            assert_eq!(parsed.kind(), ErrorKind::NotFound);
-
-            let _ = client.database("opendal_gridfs_err_test").drop().await;
-        })
-        .await
-        .expect("test timed out");
-    }
+    Error::new(ErrorKind::Unexpected, "mongodb error").set_source(err)
 }

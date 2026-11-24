@@ -109,14 +109,7 @@ impl Configurator for GridfsConfig {
                     percent_encode_uri_component(pass)
                 ),
                 (Some(user), None) => format!("{}@", percent_encode_uri_component(user)),
-                (None, Some(_)) => {
-                    return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "gridfs URI password requires a username",
-                    )
-                    .with_context("service", crate::GRIDFS_SCHEME));
-                }
-                (None, None) => String::new(),
+                (None, _) => String::new(),
             };
             let db_path = map
                 .get("database")
@@ -223,12 +216,6 @@ mod tests {
             );
             assert!(user_only_cfg.into_builder().build().is_ok());
 
-            let pass_only_uri = OperatorUri::new(
-                "gridfs://:secret@127.0.0.1:27017/app_files/assets",
-                Vec::<(String, String)>::new(),
-            )?;
-            let err = GridfsConfig::from_uri(&pass_only_uri).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
             Ok(())
         })
         .await

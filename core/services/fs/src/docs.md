@@ -55,7 +55,7 @@ When `glob` is set, the service evaluates the pattern natively during directory
 traversal, entering leading literal directories directly and skipping
 subdirectories that cannot match. Discovered subdirectories that become
 unreadable or disappear during traversal are skipped, while errors on the
-starting directory are returned.
+starting and leading literal directories are returned.
 
 ## Delete
 

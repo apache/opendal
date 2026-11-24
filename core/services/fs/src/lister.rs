@@ -294,6 +294,8 @@ impl GlobLister {
         }
 
         let in_prefix = position == 0 || directory.starts_with(prefix);
+        // Since `directory` ends with `/`, when it sits strictly before `start_after` and is not
+        // a prefix of it, every descendant also sorts before `start_after`, so an empty lister is safe.
         let in_cursor = position == 0
             || start_after.as_deref().is_none_or(|marker| {
                 directory.as_str() > marker || marker.starts_with(directory.as_str())
@@ -627,6 +629,72 @@ mod tests {
         let entries = op.list_with("/").glob("**/*.jpg").await.unwrap();
         let paths: Vec<_> = entries.iter().map(|entry| entry.path()).collect();
         assert_eq!(paths, ["dir/photo.jpg"]);
+    }
+
+    #[tokio::test]
+    async fn glob_follows_leading_literal_symlink_consistently_with_start_after() {
+        let root = tempfile::tempdir().unwrap();
+        let op = Operator::new_without_glob_simulation(
+            Fs::default().root(root.path().to_str().unwrap()),
+        )
+        .unwrap();
+        op.write("dir/photo.jpg", "data").await.unwrap();
+        op.write("dir/sub/deep.jpg", "data").await.unwrap();
+        std::os::unix::fs::symlink("dir", root.path().join("alias")).unwrap();
+
+        let mut recursive: Vec<_> = op
+            .list_with("/")
+            .glob("alias/**/*.jpg")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        recursive.sort_unstable();
+        assert_eq!(recursive, ["alias/photo.jpg", "alias/sub/deep.jpg"]);
+
+        for (glob, marker, expected) in [
+            (
+                "alias/**/*.jpg",
+                "",
+                vec!["alias/photo.jpg", "alias/sub/deep.jpg"],
+            ),
+            (
+                "alias/**/*.jpg",
+                "alias/",
+                vec!["alias/photo.jpg", "alias/sub/deep.jpg"],
+            ),
+            (
+                "alias/**/*.jpg",
+                "alias/photo.jpg",
+                vec!["alias/sub/deep.jpg"],
+            ),
+            ("alias/*", "", vec!["alias/photo.jpg", "alias/sub/"]),
+            ("alias/*", "alias/", vec!["alias/photo.jpg", "alias/sub/"]),
+            ("alias/*", "alias/photo.jpg", vec!["alias/sub/"]),
+        ] {
+            let paths: Vec<_> = op
+                .list_with("/")
+                .glob(glob)
+                .start_after(marker)
+                .await
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.path().to_owned())
+                .collect();
+            assert_eq!(paths, expected, "glob={glob:?}, start_after={marker:?}");
+        }
+
+        let mut shallow: Vec<_> = op
+            .list_with("/")
+            .glob("alias/*")
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.path().to_owned())
+            .collect();
+        shallow.sort_unstable();
+        assert_eq!(shallow, ["alias/photo.jpg", "alias/sub/"]);
     }
 
     #[tokio::test]

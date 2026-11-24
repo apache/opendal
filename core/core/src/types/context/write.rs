@@ -139,19 +139,6 @@ impl PendingCopy {
     }
 }
 
-enum WriteLifecycle {
-    /// The writer is active and can accept writes, copies, close, or abort.
-    Active,
-    /// A close has been initiated and can be retried or aborted.
-    Closing,
-    /// An abort has been requested and underlying cleanup is pending retry.
-    Aborting,
-    /// The writer has closed successfully.
-    Closed,
-    /// The writer has been aborted and cleaned up.
-    Aborted,
-}
-
 /// WriteState owns the mutable state of one logical write call.
 ///
 /// It holds the raw [`oio::Writer`] opened on the composed service together with
@@ -170,10 +157,10 @@ pub struct WriteState {
     exact: bool,
     /// Whether the composed writer can copy source ranges directly.
     can_copy_from: bool,
-    /// Explicit terminal/in-progress lifecycle state of this write call.
-    lifecycle: WriteLifecycle,
     /// Whether a logical write stopped after the inner writer accepted part of its input.
     requires_abort: bool,
+    /// Whether abort discarded local data but the underlying cleanup is still pending.
+    abort_pending: bool,
     /// A source copy that stopped after accepting part of its range.
     pending_copy: Option<Box<PendingCopy>>,
     buffer: oio::QueueBuf,
@@ -192,8 +179,8 @@ impl WriteState {
             chunk_size,
             exact,
             can_copy_from,
-            lifecycle: WriteLifecycle::Active,
             requires_abort: false,
+            abort_pending: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         })
@@ -208,8 +195,8 @@ impl WriteState {
             chunk_size,
             exact,
             can_copy_from: false,
-            lifecycle: WriteLifecycle::Active,
             requires_abort: false,
+            abort_pending: false,
             pending_copy: None,
             buffer: oio::QueueBuf::new(),
         }
@@ -237,32 +224,7 @@ impl WriteState {
     }
 
     fn check_writable(&mut self) -> Result<()> {
-        self.check_active()?;
-        self.check_no_pending_copy()
-    }
-
-    fn check_closable(&mut self) -> Result<()> {
-        match self.lifecycle {
-            WriteLifecycle::Active | WriteLifecycle::Closing => {}
-            WriteLifecycle::Closed => {
-                return Err(Error::new(ErrorKind::Unexpected, "writer has been closed"));
-            }
-            WriteLifecycle::Aborting | WriteLifecycle::Aborted => {
-                return Err(Error::new(ErrorKind::Unexpected, "writer has been aborted"));
-            }
-        }
-
-        if self.requires_abort {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "writer must be aborted after a partially accepted write",
-            ));
-        }
-
-        self.check_no_pending_copy()
-    }
-
-    fn check_no_pending_copy(&mut self) -> Result<()> {
+        self.check_not_aborted()?;
         self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
         if self.pending_copy.is_some() {
             return Err(Error::new(
@@ -274,23 +236,13 @@ impl WriteState {
         Ok(())
     }
 
-    fn check_active(&self) -> Result<()> {
-        match self.lifecycle {
-            WriteLifecycle::Active => {}
-            WriteLifecycle::Closing => {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "writer is closing and cannot accept more writes",
-                ));
-            }
-            WriteLifecycle::Closed => {
-                return Err(Error::new(ErrorKind::Unexpected, "writer has been closed"));
-            }
-            WriteLifecycle::Aborting | WriteLifecycle::Aborted => {
-                return Err(Error::new(ErrorKind::Unexpected, "writer has been aborted"));
-            }
+    fn check_not_aborted(&self) -> Result<()> {
+        if self.abort_pending {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer cannot accept data or close while abort is pending",
+            ));
         }
-
         if self.requires_abort {
             return Err(Error::new(
                 ErrorKind::Unexpected,
@@ -411,7 +363,7 @@ impl WriteState {
     ) -> Result<()> {
         const MAX_COPY_FROM_SIZE: u64 = 5 * 1024 * 1024 * 1024;
 
-        self.check_active()?;
+        self.check_not_aborted()?;
         self.pending_copy.take_if(|copy| !copy.has_accepted_bytes());
 
         if let Some(copy) = &self.pending_copy {
@@ -636,35 +588,21 @@ impl WriteState {
 
     /// Finish the write process.
     pub async fn close(&mut self) -> Result<Metadata> {
-        self.check_closable()?;
-        self.lifecycle = WriteLifecycle::Closing;
+        self.check_writable()?;
         if !self.buffer.is_empty() {
             self.flush_buffer(None).await?;
         }
-        let meta = self.w.close().await?;
-        self.lifecycle = WriteLifecycle::Closed;
-        Ok(meta)
+        self.w.close().await
     }
 
     /// Abort the write process.
     pub async fn abort(&mut self) -> Result<()> {
-        match self.lifecycle {
-            WriteLifecycle::Closed => {
-                return Err(Error::new(ErrorKind::Unexpected, "writer has been closed"));
-            }
-            WriteLifecycle::Aborted => return Ok(()),
-            WriteLifecycle::Active | WriteLifecycle::Closing | WriteLifecycle::Aborting => {}
-        }
-
-        // Transition before clearing buffered/copy state so a failed or canceled
-        // abort can only be retried via `abort()` and can never fall back to
-        // writing or closing a truncated upload.
-        self.lifecycle = WriteLifecycle::Aborting;
+        // A failed or canceled abort cannot restore the buffered bytes or copy offset.
+        self.abort_pending = true;
         self.buffer.clear();
         self.pending_copy = None;
-        self.requires_abort = false;
         self.w.abort().await?;
-        self.lifecycle = WriteLifecycle::Aborted;
+        self.abort_pending = false;
         Ok(())
     }
 }
@@ -733,6 +671,7 @@ mod tests {
         fail_on_write: usize,
         fail_on_copy: usize,
         pending_on_copy: usize,
+        fail_first_abort: bool,
         can_copy_from: bool,
         read_with_if_match: bool,
         /// Report this content length from `stat` instead of the real one.
@@ -745,6 +684,7 @@ mod tests {
                 fail_on_write: usize::MAX,
                 fail_on_copy: usize::MAX,
                 pending_on_copy: usize::MAX,
+                fail_first_abort: false,
                 can_copy_from: true,
                 read_with_if_match: false,
                 stat_content_length: None,
@@ -902,6 +842,11 @@ mod tests {
         }
 
         async fn abort(&mut self) -> Result<()> {
+            if std::mem::take(&mut self.faults.fail_first_abort) {
+                return Err(
+                    Error::new(ErrorKind::Unexpected, "injected abort failure").set_temporary()
+                );
+            }
             self.writer.abort().await
         }
     }
@@ -1126,6 +1071,62 @@ mod tests {
             op.read("target").await?.to_vec(),
             b"0123456789abcdefghijklmnopqrst"
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_writer_does_not_commit_partial_copy_after_failed_abort() -> Result<()> {
+        let op = Operator::new(services::Memory::default())?;
+        op.write("source", "0123456789abcdefghijABCDEFGHIJ").await?;
+        let (fault_op, _, _) = with_write_faults(
+            &op,
+            WriteFaults {
+                fail_on_write: 2,
+                fail_first_abort: true,
+                can_copy_from: false,
+                ..Default::default()
+            },
+        );
+        let mut writer = fault_op.writer_with("target").chunk(10).await?;
+        let options = crate::options::ReadOptions {
+            range: (0..30).into(),
+            chunk: Some(5),
+            ..Default::default()
+        };
+
+        let err = writer
+            .copy_from_options("source", options.clone())
+            .await
+            .expect_err("second streamed chunk fails");
+        assert_eq!(err.message(), "injected flush failure");
+        assert!(
+            writer
+                .close()
+                .await
+                .expect_err("copy is incomplete")
+                .is_persistent()
+        );
+        let err = writer.abort().await.expect_err("first abort fails");
+        assert_eq!(err.message(), "injected abort failure");
+        assert!(err.is_temporary());
+
+        let close = writer.close().await;
+        let stored = op.read("target").await;
+        assert_eq!(
+            stored
+                .expect_err("close after failed abort committed a partial copy")
+                .kind(),
+            ErrorKind::NotFound
+        );
+        assert_eq!(
+            close.expect_err("cleanup is still pending").kind(),
+            ErrorKind::Unexpected
+        );
+        assert!(writer.write("extra").await.is_err());
+        assert!(writer.copy_from_options("source", options).await.is_err());
+
+        writer.abort().await?;
+        assert!(!op.exists("target").await?);
         Ok(())
     }
 
@@ -2275,480 +2276,6 @@ mod tests {
         tokio::time::timeout(std::time::Duration::from_secs(5), test)
             .await
             .expect("write with write_multi_max_size=0 must not hang")?;
-        Ok(())
-    }
-
-    #[derive(Default)]
-    struct LifecycleCalls {
-        writes: usize,
-        closes: usize,
-        aborts: usize,
-        close_failures: usize,
-        abort_failures: usize,
-    }
-
-    struct LifecycleMockWriter {
-        calls: Arc<std::sync::Mutex<LifecycleCalls>>,
-    }
-
-    impl LifecycleMockWriter {
-        fn new(
-            close_failures: usize,
-            abort_failures: usize,
-        ) -> (Self, Arc<std::sync::Mutex<LifecycleCalls>>) {
-            let calls = Arc::new(std::sync::Mutex::new(LifecycleCalls {
-                close_failures,
-                abort_failures,
-                ..Default::default()
-            }));
-            (
-                Self {
-                    calls: calls.clone(),
-                },
-                calls,
-            )
-        }
-    }
-
-    impl Write for LifecycleMockWriter {
-        async fn write(&mut self, _: Buffer) -> Result<()> {
-            self.calls.lock().unwrap().writes += 1;
-            Ok(())
-        }
-
-        async fn close(&mut self) -> Result<Metadata> {
-            let mut calls = self.calls.lock().unwrap();
-            calls.closes += 1;
-            if calls.close_failures > 0 {
-                calls.close_failures -= 1;
-                return Err(
-                    Error::new(ErrorKind::Unexpected, "transient close failure").set_temporary()
-                );
-            }
-            Ok(MetadataBuilder::unknown().build())
-        }
-
-        async fn abort(&mut self) -> Result<()> {
-            let mut calls = self.calls.lock().unwrap();
-            calls.aborts += 1;
-            if calls.abort_failures > 0 {
-                calls.abort_failures -= 1;
-                return Err(
-                    Error::new(ErrorKind::Unexpected, "transient abort failure").set_temporary()
-                );
-            }
-            Ok(())
-        }
-    }
-
-    #[derive(Clone, Debug)]
-    struct FailingAbortWrapper {
-        inner: Servicer,
-        abort_failures: Arc<std::sync::Mutex<usize>>,
-        abort_calls: Arc<std::sync::Mutex<usize>>,
-        close_calls: Arc<std::sync::Mutex<usize>>,
-    }
-
-    struct FailingAbortWriter {
-        inner: oio::Writer,
-        abort_failures: Arc<std::sync::Mutex<usize>>,
-        abort_calls: Arc<std::sync::Mutex<usize>>,
-        close_calls: Arc<std::sync::Mutex<usize>>,
-    }
-
-    impl Write for FailingAbortWriter {
-        async fn write(&mut self, bs: Buffer) -> Result<()> {
-            self.inner.write(bs).await
-        }
-
-        async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-            self.inner.copy_from(path, args, range).await
-        }
-
-        async fn close(&mut self) -> Result<Metadata> {
-            *self.close_calls.lock().unwrap() += 1;
-            self.inner.close().await
-        }
-
-        async fn abort(&mut self) -> Result<()> {
-            let should_fail = {
-                *self.abort_calls.lock().unwrap() += 1;
-                let mut remaining = self.abort_failures.lock().unwrap();
-                if *remaining > 0 {
-                    *remaining -= 1;
-                    true
-                } else {
-                    false
-                }
-            };
-            if should_fail {
-                return Err(
-                    Error::new(ErrorKind::Unexpected, "transient abort failure").set_temporary()
-                );
-            }
-            self.inner.abort().await
-        }
-    }
-
-    impl Service for FailingAbortWrapper {
-        type Reader = oio::Reader;
-        type Writer = FailingAbortWriter;
-        type Lister = oio::Lister;
-        type Deleter = oio::Deleter;
-        type Copier = oio::Copier;
-        type Composer = ();
-
-        fn info(&self) -> ServiceInfo {
-            self.inner.info()
-        }
-
-        fn capability(&self) -> Capability {
-            self.inner.capability()
-        }
-
-        async fn create_dir(
-            &self,
-            ctx: &OperationContext,
-            path: &str,
-            args: OpCreateDir,
-        ) -> Result<RpCreateDir> {
-            self.inner.create_dir(ctx, path, args).await
-        }
-
-        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
-            self.inner.stat(ctx, path, args).await
-        }
-
-        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-            self.inner.read(ctx, path, args)
-        }
-
-        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-            Ok(FailingAbortWriter {
-                inner: self.inner.write(ctx, path, args)?,
-                abort_failures: self.abort_failures.clone(),
-                abort_calls: self.abort_calls.clone(),
-                close_calls: self.close_calls.clone(),
-            })
-        }
-
-        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-            self.inner.delete(ctx)
-        }
-
-        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-            self.inner.list(ctx, path, args)
-        }
-
-        fn copy(
-            &self,
-            ctx: &OperationContext,
-            from: &str,
-            to: &str,
-            args: OpCopy,
-        ) -> Result<Self::Copier> {
-            self.inner.copy(ctx, from, to, args)
-        }
-
-        async fn rename(
-            &self,
-            ctx: &OperationContext,
-            from: &str,
-            to: &str,
-            args: OpRename,
-        ) -> Result<RpRename> {
-            self.inner.rename(ctx, from, to, args).await
-        }
-
-        async fn presign(
-            &self,
-            ctx: &OperationContext,
-            path: &str,
-            args: OpPresign,
-        ) -> Result<RpPresign> {
-            self.inner.presign(ctx, path, args).await
-        }
-    }
-
-    #[tokio::test]
-    async fn test_write_state_rejects_operations_after_close() -> Result<()> {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let (mock, calls) = LifecycleMockWriter::new(0, 0);
-            let mut state = WriteState::new(Box::new(mock), None, false);
-
-            state.write(Buffer::from("hello")).await?;
-            state.close().await?;
-
-            let err = state
-                .write(Buffer::from("world"))
-                .await
-                .expect_err("write after close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .write_all(Buffer::from("world"))
-                .await
-                .expect_err("write_all after close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .copy_from(
-                    "source",
-                    OpRead::new(),
-                    OpReader::new(),
-                    BytesRange::new(0, Some(5)),
-                    None,
-                )
-                .await
-                .expect_err("copy_from after close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state.close().await.expect_err("second close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .abort()
-                .await
-                .expect_err("abort after close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let calls = calls.lock().unwrap();
-            assert_eq!(calls.writes, 1);
-            assert_eq!(calls.closes, 1);
-            assert_eq!(calls.aborts, 0);
-            Ok::<(), Error>(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    #[tokio::test]
-    async fn test_write_state_rejects_operations_after_abort() -> Result<()> {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let (mock, calls) = LifecycleMockWriter::new(0, 0);
-            let mut state = WriteState::new(Box::new(mock), None, false);
-
-            state.write(Buffer::from("hello")).await?;
-            state.abort().await?;
-            state.abort().await?;
-
-            let err = state
-                .write(Buffer::from("world"))
-                .await
-                .expect_err("write after abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .write_all(Buffer::from("world"))
-                .await
-                .expect_err("write_all after abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .copy_from(
-                    "source",
-                    OpRead::new(),
-                    OpReader::new(),
-                    BytesRange::new(0, Some(5)),
-                    None,
-                )
-                .await
-                .expect_err("copy_from after abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = state
-                .close()
-                .await
-                .expect_err("close after abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let calls = calls.lock().unwrap();
-            assert_eq!(calls.writes, 1);
-            assert_eq!(calls.closes, 0);
-            assert_eq!(calls.aborts, 1);
-            Ok::<(), Error>(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    #[tokio::test]
-    async fn test_write_state_failed_close_remains_retryable_and_abortable() -> Result<()> {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let (mock, calls) = LifecycleMockWriter::new(1, 0);
-            let mut state = WriteState::new(Box::new(mock), Some(16), false);
-            state.write(Buffer::from("hello")).await?;
-
-            let err = state
-                .close()
-                .await
-                .expect_err("first close must fail transiently");
-            assert!(err.is_temporary());
-
-            let err = state
-                .write(Buffer::from("late"))
-                .await
-                .expect_err("write while closing must fail even with chunk buffer");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            state.close().await?;
-
-            let err = state
-                .close()
-                .await
-                .expect_err("close after successful retry must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            {
-                let calls = calls.lock().unwrap();
-                assert_eq!(calls.writes, 1);
-                assert_eq!(calls.closes, 2);
-                assert_eq!(calls.aborts, 0);
-            }
-
-            let (mock, calls) = LifecycleMockWriter::new(1, 0);
-            let mut state = WriteState::new(Box::new(mock), None, false);
-            state.write(Buffer::from("hello")).await?;
-
-            let err = state
-                .close()
-                .await
-                .expect_err("first close must fail transiently");
-            assert!(err.is_temporary());
-
-            state.abort().await?;
-
-            let err = state
-                .close()
-                .await
-                .expect_err("close after aborting failed close must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let calls = calls.lock().unwrap();
-            assert_eq!(calls.closes, 1);
-            assert_eq!(calls.aborts, 1);
-            Ok::<(), Error>(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    #[tokio::test]
-    async fn test_writer_failed_abort_after_partial_copy_blocks_write_and_close() -> Result<()> {
-        tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            let op = Operator::new(services::Memory::default())?;
-            op.write("source", "0123456789abcdefghij").await?;
-            let (fault_op, _, _) = with_write_faults(
-                &op,
-                WriteFaults {
-                    can_copy_from: true,
-                    fail_on_copy: 2,
-                    ..Default::default()
-                },
-            );
-
-            let abort_failures = Arc::new(std::sync::Mutex::new(1usize));
-            let abort_calls = Arc::new(std::sync::Mutex::new(0usize));
-            let close_calls = Arc::new(std::sync::Mutex::new(0usize));
-            let (ctx, inner) = fault_op.into_parts();
-            let wrapped = Operator::from_parts(
-                ctx,
-                Arc::new(FailingAbortWrapper {
-                    inner,
-                    abort_failures,
-                    abort_calls: abort_calls.clone(),
-                    close_calls: close_calls.clone(),
-                }),
-            );
-
-            let mut writer = wrapped.writer_with("target").chunk(10).await?;
-            let err = writer
-                .copy_from("source", 0..20)
-                .await
-                .expect_err("second native copy part must fail");
-            assert!(err.is_temporary());
-
-            let err = writer
-                .abort()
-                .await
-                .expect_err("first abort must fail transiently");
-            assert!(err.is_temporary());
-
-            let err = writer
-                .write("extra")
-                .await
-                .expect_err("write after failed abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = writer
-                .copy_from("source", 0..20)
-                .await
-                .expect_err("copy_from after failed abort must fail");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            let err = writer
-                .close()
-                .await
-                .expect_err("close after failed abort must not commit truncated upload");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(err.is_permanent());
-
-            writer.abort().await?;
-            writer.abort().await?;
-
-            assert_eq!(*abort_calls.lock().unwrap(), 2);
-            assert_eq!(*close_calls.lock().unwrap(), 0);
-            assert!(!op.exists("target").await?);
-            Ok::<(), Error>(())
-        })
-        .await
-        .expect("test timed out")
-    }
-
-    #[cfg(feature = "blocking")]
-    #[test]
-    fn test_blocking_writer_rejects_write_and_close_after_close() -> Result<()> {
-        let rt = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let bop = {
-            let _guard = rt.enter();
-            let op = Operator::new(services::Memory::default())?;
-            blocking::Operator::new(op)?
-        };
-
-        let mut writer = bop.writer("target")?;
-        writer.write("hello")?;
-        writer.close()?;
-
-        let err = writer
-            .close()
-            .expect_err("second close on blocking::Writer must fail");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_permanent());
-
-        let err = writer
-            .write("world")
-            .expect_err("write after close on blocking::Writer must fail");
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-        assert!(err.is_permanent());
-
-        assert_eq!(bop.read("target")?.to_bytes(), "hello");
         Ok(())
     }
 }

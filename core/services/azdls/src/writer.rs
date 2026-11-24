@@ -78,14 +78,16 @@ impl AzdlsWriter {
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
+                let if_not_exists =
+                    self.op.if_not_exists() || self.op.if_none_match().map(str::trim) == Some("*");
                 let err = parse_error(
                     ErrorContext::new(ServiceOperation("CreateFile"))
                         .with_caller_condition(self.op.is_conditional())
-                        .with_if_not_exists(self.op.if_not_exists()),
+                        .with_if_not_exists(if_not_exists),
                     resp,
                 )
                 .with_operation("Backend::azdls_create_request");
-                if err.kind() == ErrorKind::AlreadyExists {
+                if !self.op.is_conditional() && err.kind() == ErrorKind::AlreadyExists {
                     Ok(())
                 } else {
                     Err(err)
@@ -219,5 +221,231 @@ impl oio::AppendWrite for AzdlsWriter {
                     .with_operation("Backend::azdls_append_request"),
             ),
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use bytes::Bytes;
+    use http::{Method, Response, StatusCode, header::IF_NONE_MATCH};
+    use opendal_core::ErrorKind;
+
+    use crate::backend::test_util::{ScriptedTransport, test_operator};
+
+    #[tokio::test]
+    async fn write_if_none_match_wildcard_fails_on_path_already_exists_without_overwriting() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"The specified path already exists."}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("exists.txt", "new")
+            .if_none_match("*")
+            .await
+            .expect_err("write with if_none_match('*') must fail on 409 PathAlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert!(
+            err.to_string()
+                .contains("The specified path already exists.")
+        );
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::PUT);
+        assert!(requests[0].uri.contains("resource=file"));
+        assert_eq!(requests[0].headers[IF_NONE_MATCH], "*");
+    }
+
+    #[tokio::test]
+    async fn write_if_not_exists_fails_on_path_already_exists_without_overwriting() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"The specified path already exists."}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("exists.txt", "new")
+            .if_not_exists(true)
+            .await
+            .expect_err("write with if_not_exists must fail on 409 PathAlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(transport.requests().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn write_if_none_match_etag_never_swallows_already_exists_or_precondition_failed() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"exists"}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("exists.txt", "new")
+            .if_none_match("\"etag-1\"")
+            .await
+            .expect_err("conditional write must not swallow AlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].headers[IF_NONE_MATCH], "\"etag-1\"");
+
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::PRECONDITION_FAILED)
+                .header("x-ms-error-code", "ConditionNotMet")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"ConditionNotMet","message":"The condition specified using HTTP conditional header(s) is not met."}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("exists.txt", "new")
+            .if_none_match("\"etag-1\"")
+            .await
+            .expect_err("conditional write must fail on 412 ConditionNotMet");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(transport.requests().len(), 1);
+    }
+
+    #[tokio::test]
+    async fn write_unconditional_swallows_already_exists_and_overwrites() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"exists"}}"#,
+                ))
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::new())
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        op.write("exists.txt", "hello")
+            .await
+            .expect("unconditional write must proceed after 409 PathAlreadyExists");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 3);
+        assert_eq!(requests[0].method, Method::PUT);
+        assert!(!requests[0].headers.contains_key(IF_NONE_MATCH));
+        assert_eq!(requests[1].method, Method::PATCH);
+        assert!(requests[1].uri.contains("action=append"));
+        assert_eq!(requests[2].method, Method::PATCH);
+        assert!(requests[2].uri.contains("action=flush"));
+    }
+
+    #[tokio::test]
+    async fn append_preserves_unconditional_create_and_rejects_conditional_already_exists() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"exists"}}"#,
+                ))
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .body(Bytes::new())
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        op.write_with("log.txt", "hello")
+            .append(true)
+            .await
+            .expect("unconditional append must proceed after 409 PathAlreadyExists");
+        assert_eq!(transport.requests().len(), 3);
+
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"exists"}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("log.txt", "hello")
+            .append(true)
+            .if_none_match("*")
+            .await
+            .expect_err("conditional append must not swallow 409 PathAlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(transport.requests().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn write_with_if_not_exists_and_if_none_match_sends_single_if_none_match_header() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::CREATED)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(Bytes::new())
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        op.write_with("new.txt", "hello")
+            .if_not_exists(true)
+            .if_none_match("\"etag-1\"")
+            .await
+            .expect("write must succeed");
+
+        let requests = transport.requests();
+        let headers: Vec<_> = requests[0]
+            .headers
+            .get_all(IF_NONE_MATCH)
+            .iter()
+            .map(|v| v.to_str().unwrap())
+            .collect();
+        assert_eq!(headers, vec!["*"]);
     }
 }

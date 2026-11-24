@@ -54,9 +54,90 @@ impl oio::OneShotDelete for AzdlsDeleter {
         .with_delete_match_condition(args.if_match().is_some());
 
         match status {
-            StatusCode::OK => Ok(()),
+            StatusCode::OK | StatusCode::ACCEPTED => Ok(()),
             StatusCode::NOT_FOUND if args.if_match().is_none() => Ok(()),
             _ => Err(parse_error(error_ctx, resp)),
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use bytes::Bytes;
+    use http::{Method, Response, StatusCode};
+    use opendal_core::ErrorKind;
+
+    use crate::backend::AzdlsBuilder;
+    use crate::backend::test_util::{ScriptedTransport, test_operator, test_operator_with_builder};
+
+    #[tokio::test]
+    async fn recursive_delete_accepts_202_accepted() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .body(Bytes::new())
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        op.delete_with("dir/")
+            .recursive(true)
+            .await
+            .expect("recursive delete must accept 202 Accepted");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].method, Method::DELETE);
+        assert!(requests[0].uri.contains("recursive=true"));
+    }
+
+    #[tokio::test]
+    async fn recursive_delete_paginated_202_accepted_follows_continuation() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .header("x-ms-continuation", "tok-1")
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::ACCEPTED)
+                .header("x-ms-continuation", "  ")
+                .body(Bytes::new())
+                .unwrap(),
+        ]);
+        let op =
+            test_operator_with_builder(AzdlsBuilder::default().enable_hns(true), transport.clone());
+
+        op.delete_with("dir/")
+            .recursive(true)
+            .await
+            .expect("paginated recursive delete returning 202 Accepted must succeed");
+
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[0].uri.contains("recursive=true"));
+        assert!(requests[0].uri.contains("paginated=true"));
+        assert!(requests[1].uri.contains("continuation=tok-1"));
+    }
+
+    #[tokio::test]
+    async fn delete_with_if_match_404_returns_condition_not_match() {
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header("x-ms-error-code", "PathNotFound")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathNotFound","message":"The specified path does not exist."}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .delete_with("missing.txt")
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("conditional delete on 404 must fail with ConditionNotMatch");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
     }
 }

@@ -271,12 +271,18 @@ impl AzdlsBuilder {
         }?;
         debug!("backend use filesystem {}", filesystem);
 
-        let endpoint = match &self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone().trim_end_matches('/').to_string()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", AZDLS_SCHEME)),
-        }?;
+        let endpoint = self
+            .config
+            .endpoint
+            .as_deref()
+            .map(|endpoint| endpoint.trim().trim_end_matches('/'))
+            .filter(|endpoint| !endpoint.is_empty())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", AZDLS_SCHEME)
+            })?;
         debug!("backend use endpoint {}", endpoint);
 
         let account_name = self
@@ -586,6 +592,91 @@ impl Service for AzdlsBackend {
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) mod test_util {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    use bytes::Bytes;
+    use http::{HeaderMap, Method, Request, Response};
+    use opendal_core::*;
+
+    use super::AzdlsBuilder;
+
+    #[derive(Debug, Clone)]
+    pub(crate) struct RecordedRequest {
+        pub(crate) method: Method,
+        pub(crate) uri: String,
+        pub(crate) headers: HeaderMap,
+    }
+
+    #[derive(Clone)]
+    pub(crate) struct ScriptedTransport {
+        responses: Arc<Mutex<VecDeque<Response<Bytes>>>>,
+        requests: Arc<Mutex<Vec<RecordedRequest>>>,
+    }
+
+    impl ScriptedTransport {
+        pub(crate) fn new(responses: Vec<Response<Bytes>>) -> Self {
+            Self {
+                responses: Arc::new(Mutex::new(VecDeque::from(responses))),
+                requests: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        pub(crate) fn requests(&self) -> Vec<RecordedRequest> {
+            self.requests.lock().unwrap().clone()
+        }
+    }
+
+    impl HttpTransport for ScriptedTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(RecordedRequest {
+                method: req.method().clone(),
+                uri: req.uri().to_string(),
+                headers: req.headers().clone(),
+            });
+
+            let resp = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected HTTP request");
+            let (parts, body) = resp.into_parts();
+            let size = body.len() as u64;
+            let stream_body = if body.is_empty() {
+                HttpBody::new(futures::stream::iter(std::iter::empty()), Some(0))
+            } else {
+                HttpBody::new(
+                    futures::stream::iter(vec![Ok(Buffer::from(body))]),
+                    Some(size),
+                )
+            };
+            Ok(Response::from_parts(parts, stream_body))
+        }
+    }
+
+    pub(crate) fn test_operator(transport: ScriptedTransport) -> Operator {
+        test_operator_with_builder(AzdlsBuilder::default(), transport)
+    }
+
+    pub(crate) fn test_operator_with_builder(
+        builder: AzdlsBuilder,
+        transport: ScriptedTransport,
+    ) -> Operator {
+        Operator::new(
+            builder
+                .filesystem("test")
+                .endpoint("https://myaccount.dfs.core.windows.net")
+                .account_name("test")
+                .account_key("dGVzdGtleQ=="),
+        )
+        .expect("azdls operator must build")
+        .with_context(OperationContext::new().with_http_transport(HttpTransporter::new(transport)))
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
 
@@ -726,5 +817,40 @@ mod tests {
         );
         assert_eq!(az_cli.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
         assert_eq!(http.captured.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn build_rejects_empty_or_slash_only_endpoint() {
+        for endpoint in [None, Some(""), Some("///"), Some("   "), Some(" /// ")] {
+            let err = AzdlsConfig {
+                filesystem: "fs".to_string(),
+                endpoint: endpoint.map(str::to_string),
+                ..Default::default()
+            }
+            .into_builder()
+            .build_backend()
+            .expect_err(&format!("endpoint {endpoint:?} must be rejected"));
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        let err = AzdlsBuilder::default()
+            .filesystem("fs")
+            .endpoint("///")
+            .build_backend()
+            .expect_err("slash-only builder endpoint must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let backend = AzdlsConfig {
+            filesystem: "fs".to_string(),
+            endpoint: Some("https://myaccount.dfs.core.windows.net///".to_string()),
+            ..Default::default()
+        }
+        .into_builder()
+        .build_backend()
+        .expect("valid endpoint with trailing slashes must succeed");
+        assert_eq!(
+            backend.core.endpoint,
+            "https://myaccount.dfs.core.windows.net"
+        );
     }
 }

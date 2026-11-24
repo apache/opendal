@@ -124,8 +124,7 @@
 //!     internally). A failed, dropped, or cancelled `put_part` future poisons
 //!     the upload so subsequent `put_part` and `complete` calls fail with
 //!     [`object_store::Error::Generic`]; call `abort` to clean up where
-//!     supported. Calling `complete` with parts still in flight also fails and
-//!     poisons the upload.
+//!     supported. Await all `put_part` futures before calling `complete`.
 //! - **Metadata, attributes, tags, and extensions**:
 //!   - `e_tag` and `version` on [`object_store::ObjectMeta`] and
 //!     [`object_store::PutResult`] are populated only when the backend returns
@@ -165,9 +164,9 @@
 //!     the full prefix recursively and filters locally by encoded
 //!     [`object_store::path::Path`] order instead of pushing a cursor down to
 //!     the backend.
-//!   - When list entries omit `last_modified`, `list`, `list_with_offset`, and
-//!     `list_with_delimiter` issue an extra `stat` call per object to complete
-//!     [`object_store::ObjectMeta`].
+//!   - When list entries omit `last_modified`, `list` uses the Unix epoch.
+//!     `list_with_offset` and `list_with_delimiter` issue an extra `stat` call
+//!     for each returned object whose timestamp is missing.
 //!   - Listing order is backend-defined and not guaranteed to be sorted.
 //! - **Optional `object_store` traits, error mapping, and `new_amazon_s3`**:
 //!   - [`OpendalStore`] does not implement [`object_store::multipart::MultipartStore`],

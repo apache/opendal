@@ -45,7 +45,7 @@ Operations available through `Operator`:
 - **copy** — copy a path (supported only on backends that expose this capability)
 - **info** — inspect operator details (`OperatorInfo`: scheme, root, name, and capabilities)
 
-All operations return Zig errors (`OpendalError`) rather than raw C error codes.
+Storage operations map C error codes to Zig errors in `OpendalError`.
 
 The binding also exposes the raw C API under the `opendal.c` namespace for cases where
 the thin layer does not yet cover what you need.

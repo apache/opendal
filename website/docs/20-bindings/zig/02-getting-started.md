@@ -22,9 +22,15 @@ no external service.
 ```zig file=bindings/zig/examples/getting_started.zig region=quickstart
 ```
 
-`Operator.init` takes the service scheme as a string and an optional pointer to an
-`opendal_operator_options` struct for service-specific configuration. Passing `null`
-uses defaults.
+`Operator.init` takes a NUL-terminated service scheme and an optional pointer to
+an `opendal_operator_options` struct. Passing `null` uses defaults.
+
+Scheme and path parameters use `[:0]const u8`. String literals work directly. To
+construct a path at runtime, use `std.fmt.allocPrintZ` or `allocator.dupeZ` and
+free it when you are done.
+
+`read` returns a `Bytes` owner. Use `slice()` to access the data, then call
+`deinit()` when you are done.
 
 ## Listing a directory
 
@@ -52,6 +58,10 @@ while (try lister.next()) |entry| {
 }
 ```
 
+`Entry.name()` and `Entry.path()` return `OwnedString` values. Keep the owner
+alive while using its slice. You can pass `path.slice()` directly to operations
+such as `read` or `stat`.
+
 ## Passing service options
 
 Service-specific configuration is set through the C API's `opendal_operator_options`.
@@ -72,11 +82,12 @@ defer op.deinit();
 
 ## Error handling
 
-Every operation returns a Zig error union. The binding maps C error codes to named
-Zig errors in the `OpendalError` set. The table below shows common variants;
-the full set (including `error.IsDirectory`, `error.IsNotDirectory`, `error.RateLimited`,
-`error.IsSameFile`, `error.ConditionNotMatch`, `error.RangeNotSatisfied`, and others)
-is defined in `src/opendal.zig`.
+`Operator.init` returns `error.OperatorInitFailed` if it cannot construct the
+operator. Storage operations map C error codes to named Zig errors in the
+`OpendalError` set. The table below shows common variants. The full set, including
+`error.IsDirectory`, `error.IsNotDirectory`, `error.RateLimited`,
+`error.IsSameFile`, `error.ConditionNotMatch`, and `error.RangeNotSatisfied`, is
+defined in `src/opendal.zig`.
 
 | Zig error | Meaning |
 |---|---|
@@ -84,7 +95,7 @@ is defined in `src/opendal.zig`.
 | `error.PermissionDenied` | Access denied |
 | `error.AlreadyExists` | Path already exists |
 | `error.Unsupported` | Backend does not support the operation |
-| `error.ConfigInvalid` | Operator configuration is invalid |
+| `error.ConfigInvalid` | Invalid backend or operation configuration |
 | `error.Unexpected` | Unclassified error from the backend |
 
 Handle them with a standard `catch` or `try`:

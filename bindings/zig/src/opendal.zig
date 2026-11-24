@@ -19,11 +19,12 @@ const std = @import("std");
 pub const c = @import("opendal_c_header");
 
 /// Owns a NUL-terminated string allocated by the underlying Rust library.
-/// Call `deinit()` to release the buffer; `slice()` is valid only until `deinit()` is called.
+/// Keep a single owner for the allocation. Call `deinit()` after using the slices
+/// returned by `slice()`.
 pub const OwnedString = struct {
     ptr: [*c]u8,
 
-    pub fn slice(self: OwnedString) []const u8 {
+    pub fn slice(self: OwnedString) [:0]const u8 {
         if (self.ptr == null) {
             return "";
         }
@@ -39,7 +40,8 @@ pub const OwnedString = struct {
 };
 
 /// Owns a byte buffer allocated by the underlying Rust library.
-/// Call `deinit()` to release the buffer; `slice()` is valid only until `deinit()` is called.
+/// Keep a single owner for the allocation. Call `deinit()` after using the slices
+/// returned by `slice()`.
 pub const Bytes = struct {
     inner: c.opendal_bytes,
 
@@ -52,11 +54,6 @@ pub const Bytes = struct {
 
     pub fn deinit(self: *Bytes) void {
         c.opendal_bytes_free(&self.inner);
-        self.inner = .{
-            .data = null,
-            .len = 0,
-            .capacity = 0,
-        };
     }
 };
 
@@ -64,15 +61,13 @@ pub const Operator = struct {
     inner: *c.opendal_operator,
 
     pub fn init(scheme: [:0]const u8, options: ?*c.opendal_operator_options) !Operator {
-        var op: ?*c.opendal_operator = null;
-        if (c.opendal_operator_new(scheme.ptr, options, @ptrCast(&op))) |err| {
-            defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+        var op: [*c]c.opendal_operator = null;
+        if (c.opendal_operator_new(scheme.ptr, options, &op)) |err| {
+            c.opendal_error_free(err);
+            return error.OperatorInitFailed;
         }
-        if (op) |inner| {
-            return .{ .inner = inner };
-        }
-        return error.OperatorInitFailed;
+        if (op == null) return error.OperatorInitFailed;
+        return .{ .inner = op };
     }
 
     pub fn deinit(self: *Operator) void {
@@ -92,7 +87,7 @@ pub const Operator = struct {
         }
         if (c.opendal_operator_write(self.inner, path.ptr, &bytes)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
     }
 
@@ -104,7 +99,7 @@ pub const Operator = struct {
         };
         if (c.opendal_operator_read(self.inner, path.ptr, &data)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
         return .{ .inner = data };
     }
@@ -112,57 +107,55 @@ pub const Operator = struct {
     pub fn delete(self: *const Operator, path: [:0]const u8) !void {
         if (c.opendal_operator_delete(self.inner, path.ptr)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
     }
 
     pub fn stat(self: *const Operator, path: [:0]const u8) !Metadata {
-        var meta: ?*c.opendal_metadata = null;
-        if (c.opendal_operator_stat(self.inner, path.ptr, @ptrCast(&meta))) |err| {
+        var meta: [*c]c.opendal_metadata = null;
+        if (c.opendal_operator_stat(self.inner, path.ptr, &meta)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
-        const m = meta orelse return error.Unexpected;
-        return .{ .inner = m };
+        return .{ .inner = meta };
     }
 
     pub fn exists(self: *const Operator, path: [:0]const u8) !bool {
         var is_exist: bool = false;
         if (c.opendal_operator_is_exist(self.inner, path.ptr, &is_exist)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
         return is_exist;
     }
 
     pub fn list(self: *const Operator, path: [:0]const u8) !Lister {
-        var lister: ?*c.opendal_lister = null;
-        if (c.opendal_operator_list(self.inner, path.ptr, @ptrCast(&lister))) |err| {
+        var lister: [*c]c.opendal_lister = null;
+        if (c.opendal_operator_list(self.inner, path.ptr, &lister)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
-        const l = lister orelse return error.Unexpected;
-        return .{ .inner = l };
+        return .{ .inner = lister };
     }
 
     pub fn createDir(self: *const Operator, path: [:0]const u8) !void {
         if (c.opendal_operator_create_dir(self.inner, path.ptr)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
     }
 
     pub fn rename(self: *const Operator, src: [:0]const u8, dest: [:0]const u8) !void {
         if (c.opendal_operator_rename(self.inner, src.ptr, dest.ptr)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
     }
 
     pub fn copy(self: *const Operator, src: [:0]const u8, dest: [:0]const u8) !void {
         if (c.opendal_operator_copy(self.inner, src.ptr, dest.ptr)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
     }
 
@@ -209,15 +202,13 @@ pub const Lister = struct {
     }
 
     pub fn next(self: *const Lister) !?Entry {
-        var entry: ?*c.opendal_entry = null;
-        if (c.opendal_lister_next(self.inner, @ptrCast(&entry))) |err| {
+        var entry: [*c]c.opendal_entry = null;
+        if (c.opendal_lister_next(self.inner, &entry)) |err| {
             defer c.opendal_error_free(err);
-            return codeToError(err.*.code);
+            return errorFromCode(err.*.code);
         }
-        if (entry) |e| {
-            return Entry{ .inner = e };
-        }
-        return null;
+        if (entry == null) return null;
+        return Entry{ .inner = entry };
     }
 };
 
@@ -276,13 +267,9 @@ pub const Metadata = struct {
         return OwnedString{ .ptr = ptr };
     }
 
-    /// Returns the last-modified timestamp in milliseconds since the Unix epoch, if present.
-    pub fn lastModified(self: *const Metadata) ?i64 {
-        const ms = c.opendal_metadata_last_modified_ms(self.inner);
-        if (ms == -1) {
-            return null;
-        }
-        return ms;
+    /// Returns the last-modified timestamp in milliseconds since the Unix epoch, or `-1` if absent.
+    pub fn lastModified(self: *const Metadata) i64 {
+        return c.opendal_metadata_last_modified_ms(self.inner);
     }
 };
 
@@ -320,7 +307,12 @@ pub const OpendalError = error{
     Cancelled,
 };
 
-pub fn codeToError(code: c.opendal_code) OpendalError {
+/// Converts a C error code to a Zig error. Unrecognized codes return `error.Unexpected`.
+pub fn codeToError(code: c.opendal_code) OpendalError!void {
+    return errorFromCode(code);
+}
+
+fn errorFromCode(code: c.opendal_code) OpendalError {
     return switch (code) {
         c.OPENDAL_UNEXPECTED => error.Unexpected,
         c.OPENDAL_UNSUPPORTED => error.Unsupported,
@@ -363,21 +355,21 @@ const testing = std.testing;
 
 test "Error Tests" {
     // C code to Zig error
-    try testing.expectEqual(OpendalError.Unexpected, codeToError(c.OPENDAL_UNEXPECTED));
-    try testing.expectEqual(OpendalError.Unsupported, codeToError(c.OPENDAL_UNSUPPORTED));
-    try testing.expectEqual(OpendalError.ConfigInvalid, codeToError(c.OPENDAL_CONFIG_INVALID));
-    try testing.expectEqual(OpendalError.NotFound, codeToError(c.OPENDAL_NOT_FOUND));
-    try testing.expectEqual(OpendalError.PermissionDenied, codeToError(c.OPENDAL_PERMISSION_DENIED));
-    try testing.expectEqual(OpendalError.IsDirectory, codeToError(c.OPENDAL_IS_A_DIRECTORY));
-    try testing.expectEqual(OpendalError.IsNotDirectory, codeToError(c.OPENDAL_NOT_A_DIRECTORY));
-    try testing.expectEqual(OpendalError.AlreadyExists, codeToError(c.OPENDAL_ALREADY_EXISTS));
-    try testing.expectEqual(OpendalError.RateLimited, codeToError(c.OPENDAL_RATE_LIMITED));
-    try testing.expectEqual(OpendalError.IsSameFile, codeToError(c.OPENDAL_IS_SAME_FILE));
-    try testing.expectEqual(OpendalError.ConditionNotMatch, codeToError(c.OPENDAL_CONDITION_NOT_MATCH));
-    try testing.expectEqual(OpendalError.RangeNotSatisfied, codeToError(c.OPENDAL_RANGE_NOT_SATISFIED));
-    try testing.expectEqual(OpendalError.Conflict, codeToError(c.OPENDAL_CONFLICT));
-    try testing.expectEqual(OpendalError.Cancelled, codeToError(c.OPENDAL_CANCELLED));
-    try testing.expectEqual(OpendalError.Unexpected, codeToError(999));
+    try testing.expectError(error.Unexpected, codeToError(c.OPENDAL_UNEXPECTED));
+    try testing.expectError(error.Unsupported, codeToError(c.OPENDAL_UNSUPPORTED));
+    try testing.expectError(error.ConfigInvalid, codeToError(c.OPENDAL_CONFIG_INVALID));
+    try testing.expectError(error.NotFound, codeToError(c.OPENDAL_NOT_FOUND));
+    try testing.expectError(error.PermissionDenied, codeToError(c.OPENDAL_PERMISSION_DENIED));
+    try testing.expectError(error.IsDirectory, codeToError(c.OPENDAL_IS_A_DIRECTORY));
+    try testing.expectError(error.IsNotDirectory, codeToError(c.OPENDAL_NOT_A_DIRECTORY));
+    try testing.expectError(error.AlreadyExists, codeToError(c.OPENDAL_ALREADY_EXISTS));
+    try testing.expectError(error.RateLimited, codeToError(c.OPENDAL_RATE_LIMITED));
+    try testing.expectError(error.IsSameFile, codeToError(c.OPENDAL_IS_SAME_FILE));
+    try testing.expectError(error.ConditionNotMatch, codeToError(c.OPENDAL_CONDITION_NOT_MATCH));
+    try testing.expectError(error.RangeNotSatisfied, codeToError(c.OPENDAL_RANGE_NOT_SATISFIED));
+    try testing.expectError(error.Conflict, codeToError(c.OPENDAL_CONFLICT));
+    try testing.expectError(error.Cancelled, codeToError(c.OPENDAL_CANCELLED));
+    try testing.expectError(error.Unexpected, codeToError(999));
 
     // Zig error to C code
     try testing.expectEqual(c.OPENDAL_UNEXPECTED, errorToCode(error.Unexpected));
@@ -411,6 +403,8 @@ test "operator basic operations" {
     // Initialize a operator for "memory" backend, with no options
     var op = try Operator.init("memory", null);
     defer op.deinit();
+
+    try testing.expectError(error.NotFound, op.read("/testpath"));
 
     // Prepare some data to be written
     const data = "this_string_length_is_24";
@@ -489,6 +483,7 @@ test "operator advanced operations" {
         defer entry_name.deinit();
         try testing.expect(entry_path.slice().len > 0);
         try testing.expect(entry_name.slice().len > 0);
+        try testing.expect(try op.exists(entry_path.slice()));
     }
     try testing.expectEqual(count, 2);
 
@@ -536,7 +531,7 @@ test "metadata optional fields" {
     defer meta.deinit();
     try testing.expect(meta.contentType() == null);
     try testing.expect(meta.etag() == null);
-    try testing.expect(meta.lastModified() == null);
+    try testing.expectEqual(@as(i64, -1), meta.lastModified());
 
     const opts = c.opendal_write_options_new();
     defer c.opendal_write_options_free(opts);
@@ -549,7 +544,7 @@ test "metadata optional fields" {
     };
     if (c.opendal_operator_write_with(op.inner, "/typed.txt", &raw_bytes, opts)) |err| {
         defer c.opendal_error_free(err);
-        return codeToError(err.*.code);
+        return errorFromCode(err.*.code);
     }
     defer op.delete("/typed.txt") catch {};
 
@@ -595,7 +590,7 @@ test "runtime sentinel path" {
 }
 
 test "operator init invalid scheme" {
-    try testing.expectError(error.Unsupported, Operator.init("nonexistent_scheme", null));
+    try testing.expectError(error.OperatorInitFailed, Operator.init("nonexistent_scheme", null));
 }
 
 test "sync operations" {

@@ -53,6 +53,24 @@ impl Debug for MongodbConfig {
     }
 }
 
+fn percent_encode_userinfo(value: &str) -> String {
+    const HEX: &[u8; 16] = b"0123456789ABCDEF";
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if matches!(
+            byte,
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~'
+        ) {
+            encoded.push(byte as char);
+        } else {
+            encoded.push('%');
+            encoded.push(HEX[(byte >> 4) as usize] as char);
+            encoded.push(HEX[(byte & 0x0f) as usize] as char);
+        }
+    }
+    encoded
+}
+
 impl opendal_core::Configurator for MongodbConfig {
     type Builder = MongodbBuilder;
 
@@ -61,7 +79,19 @@ impl opendal_core::Configurator for MongodbConfig {
 
         if let Some(authority) = uri.authority() {
             map.entry("connection_string".to_string())
-                .or_insert_with(|| format!("mongodb://{authority}"));
+                .or_insert_with(|| {
+                    let userinfo = match (uri.username(), uri.password()) {
+                        (Some(user), Some(pass)) => format!(
+                            "{}:{}@",
+                            percent_encode_userinfo(user),
+                            percent_encode_userinfo(pass)
+                        ),
+                        (Some(user), None) => format!("{}@", percent_encode_userinfo(user)),
+                        (None, Some(pass)) => format!(":{}@", percent_encode_userinfo(pass)),
+                        (None, None) => String::new(),
+                    };
+                    format!("mongodb://{userinfo}{authority}")
+                });
         }
 
         if let Some(path) = uri.root()
@@ -83,7 +113,8 @@ impl opendal_core::Configurator for MongodbConfig {
             if let Some(rest) = segments.next()
                 && !rest.is_empty()
             {
-                map.insert("root".to_string(), rest.to_string());
+                map.entry("root".to_string())
+                    .or_insert_with(|| rest.to_string());
             }
         }
 
@@ -98,6 +129,7 @@ impl opendal_core::Configurator for MongodbConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use mongodb::options::ConnectionString;
     use opendal_core::Configurator;
     use opendal_core::OperatorUri;
 
@@ -117,5 +149,69 @@ mod tests {
         assert_eq!(cfg.database.as_deref(), Some("analytics"));
         assert_eq!(cfg.collection.as_deref(), Some("events"));
         assert_eq!(cfg.root.as_deref(), Some("session"));
+    }
+
+    #[test]
+    fn from_uri_preserves_and_percent_encodes_credentials() {
+        let uri = OperatorUri::new(
+            "mongodb://alice%40corp.com:p%40ss%3Aword%251@127.0.0.1:27017/analytics/events",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = MongodbConfig::from_uri(&uri).unwrap();
+        let conn_str = cfg.connection_string.as_deref().unwrap();
+        assert_eq!(
+            conn_str,
+            "mongodb://alice%40corp.com:p%40ss%3Aword%251@127.0.0.1:27017"
+        );
+
+        let parsed = ConnectionString::parse(conn_str).unwrap();
+        let cred = parsed.credential.unwrap();
+        assert_eq!(cred.username.as_deref(), Some("alice@corp.com"));
+        assert_eq!(cred.password.as_deref(), Some("p@ss:word%1"));
+
+        let user_only_uri = OperatorUri::new(
+            "mongodb://alice@127.0.0.1:27017/analytics/events",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let user_only_cfg = MongodbConfig::from_uri(&user_only_uri).unwrap();
+        assert_eq!(
+            user_only_cfg.connection_string.as_deref(),
+            Some("mongodb://alice@127.0.0.1:27017")
+        );
+
+        let pass_only_uri = OperatorUri::new(
+            "mongodb://:only%23pass@127.0.0.1:27017/analytics/events",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let pass_only_cfg = MongodbConfig::from_uri(&pass_only_uri).unwrap();
+        assert_eq!(
+            pass_only_cfg.connection_string.as_deref(),
+            Some("mongodb://:only%23pass@127.0.0.1:27017")
+        );
+    }
+
+    #[test]
+    fn from_uri_preserves_explicit_options_over_uri_components() {
+        let uri = OperatorUri::new(
+            "mongodb://root:secret@mongo.internal:27017/analytics/events/session?root=override",
+            vec![(
+                "connection_string".to_string(),
+                "mongodb://custom:27018".to_string(),
+            )],
+        )
+        .unwrap();
+
+        let cfg = MongodbConfig::from_uri(&uri).unwrap();
+        assert_eq!(
+            cfg.connection_string.as_deref(),
+            Some("mongodb://custom:27018")
+        );
+        assert_eq!(cfg.database.as_deref(), Some("analytics"));
+        assert_eq!(cfg.collection.as_deref(), Some("events"));
+        assert_eq!(cfg.root.as_deref(), Some("override"));
     }
 }

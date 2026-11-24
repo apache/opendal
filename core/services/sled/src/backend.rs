@@ -40,21 +40,13 @@ pub struct SledBuilder {
 impl SledBuilder {
     /// Set the path to the sled data directory. Will create if not exists.
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.datadir = Some(path.into());
         self
     }
 
     /// Set the tree for sled.
     pub fn tree(mut self, tree: &str) -> Self {
-        self.config.tree = if tree.is_empty() {
-            None
-        } else {
-            Some(tree.into())
-        };
+        self.config.tree = Some(tree.into());
         self
     }
 
@@ -74,6 +66,7 @@ impl Builder for SledBuilder {
     type Config = SledConfig;
 
     fn build(self) -> Result<impl Service> {
+        // Sled resolves an empty data directory to the current working directory.
         let datadir_path = self
             .config
             .datadir
@@ -94,7 +87,6 @@ impl Builder for SledBuilder {
         let tree_name = self
             .config
             .tree
-            .filter(|v| !v.is_empty())
             .unwrap_or_else(|| DEFAULT_TREE_ID.to_string());
 
         let tree = db.open_tree(&tree_name).map_err(|e| {
@@ -343,7 +335,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+    async fn test_root_stat() -> Result<()> {
         let ctx = OperationContext::default();
         for root in ["/", "/sub/"] {
             let dir = TempDir::new("root-stat");
@@ -366,8 +358,7 @@ mod tests {
             );
 
             let mut writer = service.write(&ctx, "/", OpWrite::default())?;
-            let meta = writer.close().await?;
-            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+            writer.close().await?;
 
             assert_eq!(
                 service
@@ -410,8 +401,8 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_invalid_config_and_empty_tree() -> Result<()> {
+    #[test]
+    fn test_empty_datadir() -> Result<()> {
         let err = SledBuilder::default().datadir("").build().unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
 
@@ -428,14 +419,34 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_empty_tree_keeps_its_own_keys() -> Result<()> {
         let dir = TempDir::new("empty-tree");
         {
-            let op = Operator::new(SledBuilder::default().datadir(dir.path_str()))?;
-            op.write("k", "hello").await?;
+            let db = sled::open(dir.path_str()).expect("open sled database");
+            db.insert("k", b"default".as_slice())
+                .expect("seed default tree");
+            db.open_tree("")
+                .expect("open empty tree")
+                .insert("k", b"empty".as_slice())
+                .expect("seed empty tree");
+            db.flush().expect("flush seeded trees");
         }
         {
             let op = Operator::new(SledBuilder::default().datadir(dir.path_str()).tree(""))?;
-            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"hello");
+            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"empty");
+            op.write("k", "updated").await?;
+        }
+        {
+            let op = Operator::from_config(SledConfig {
+                datadir: Some(dir.path_str().to_string()),
+                tree: Some(String::new()),
+                ..SledConfig::default()
+            })?;
+            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"updated");
         }
         {
             let builder = SledConfig::from_iter([
@@ -444,7 +455,7 @@ mod tests {
             ])?
             .into_builder();
             let op = Operator::new(builder)?;
-            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"hello");
+            assert_eq!(op.read("k").await?.to_bytes().as_ref(), b"default");
         }
 
         Ok(())

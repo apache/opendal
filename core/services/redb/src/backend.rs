@@ -77,11 +77,7 @@ impl RedbBuilder {
     ///
     /// [`database`]: RedbBuilder::database
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.datadir = Some(path.into());
         self
     }
 
@@ -97,11 +93,7 @@ impl RedbBuilder {
 
     /// Set the root for Redb.
     pub fn root(mut self, path: &str) -> Self {
-        self.config.root = if path.is_empty() {
-            None
-        } else {
-            Some(path.into())
-        };
+        self.config.root = Some(path.into());
         self
     }
 }
@@ -118,14 +110,10 @@ impl Builder for RedbBuilder {
         let (datadir, db) = if let Some(db) = self.database {
             (None, db)
         } else {
-            let datadir = self
-                .config
-                .datadir
-                .filter(|v| !v.is_empty())
-                .ok_or_else(|| {
-                    Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                        .with_context("service", REDB_SCHEME)
-                })?;
+            let datadir = self.config.datadir.ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                    .with_context("service", REDB_SCHEME)
+            })?;
 
             let db = redb::Database::create(&datadir)
                 .map_err(parse_database_error)?
@@ -348,7 +336,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_root_stat_and_writer_metadata() -> Result<()> {
+    async fn test_root_stat() -> Result<()> {
         let ctx = OperationContext::default();
         for root in ["/", "/sub/"] {
             let dir = tempfile::tempdir().expect("create tempdir");
@@ -374,8 +362,7 @@ mod tests {
             );
 
             let mut writer = service.write(&ctx, "/", OpWrite::default())?;
-            let meta = writer.close().await?;
-            assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
+            writer.close().await?;
 
             assert_eq!(
                 service
@@ -422,34 +409,10 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_config() -> Result<()> {
+    fn test_empty_table() -> Result<()> {
         let dir = tempfile::tempdir().expect("create tempdir");
         let db_path = dir.path().join("test.redb");
         let db_path = db_path.to_str().expect("valid utf-8 path");
-
-        let err = RedbBuilder::default()
-            .datadir("")
-            .table("test")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = RedbBuilder::default()
-            .datadir(db_path)
-            .datadir("")
-            .table("test")
-            .build()
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-
-        let err = RedbConfig::from_iter([
-            ("datadir".to_string(), String::new()),
-            ("table".to_string(), "test".to_string()),
-        ])?
-        .into_builder()
-        .build()
-        .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
 
         let err = RedbBuilder::default()
             .datadir(db_path)

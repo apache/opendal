@@ -19,25 +19,14 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("writer -> bytes -> (unit, string) Result.t ")]
-pub fn writer_write(writer: &Writer, bs: &[u8]) -> Result<(), String> {
-    let mut writer = writer
-        .0
-        .lock()
-        .map_err(|_| "writer mutex poisoned".to_string())?;
+pub fn writer_write(writer: &mut Writer, bs: &[u8]) -> Result<(), String> {
     // Core may retain the buffer after this call, but `bs` points into the OCaml
     // heap and can be mutated or moved by the GC. Hand over an owned copy.
-    map_res_error(writer.write(bs.to_vec()))
+    map_res_error(writer.0.write(bs.to_vec()))
 }
 
 #[ocaml::func]
 #[ocaml::sig("writer -> (metadata, string) Result.t ")]
-pub fn writer_close(writer: &Writer) -> Result<ocaml::Pointer<Metadata>, String> {
-    let meta = {
-        let mut writer = writer
-            .0
-            .lock()
-            .map_err(|_| "writer mutex poisoned".to_string())?;
-        map_res_error(writer.close())?
-    };
-    Ok(Metadata(meta).into())
+pub fn writer_close(writer: &mut Writer) -> Result<ocaml::Pointer<Metadata>, String> {
+    map_res_error(writer.0.close()).map(|m| Metadata(m).into())
 }

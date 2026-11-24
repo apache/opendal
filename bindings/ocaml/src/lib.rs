@@ -23,11 +23,11 @@ use ::opendal as od;
 mod operator;
 mod seek_from;
 
-static RUNTIME: LazyLock<Result<tokio::runtime::Runtime, String>> = LazyLock::new(|| {
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
     tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
-        .map_err(|e| format!("failed to initialize tokio runtime: {e}"))
+        .unwrap()
 });
 
 pub fn new_operator(scheme: &str, map: HashMap<String, String>) -> Result<od::Operator, od::Error> {

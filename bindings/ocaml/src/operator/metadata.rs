@@ -19,49 +19,49 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> bool ")]
-pub fn metadata_is_file(metadata: &Metadata) -> bool {
+pub fn metadata_is_file(metadata: &mut Metadata) -> bool {
     metadata.0.is_file()
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> bool ")]
-pub fn metadata_is_dir(metadata: &Metadata) -> bool {
+pub fn metadata_is_dir(metadata: &mut Metadata) -> bool {
     metadata.0.is_dir()
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> int64 ")]
-pub fn metadata_content_length(metadata: &Metadata) -> u64 {
+pub fn metadata_content_length(metadata: &mut Metadata) -> u64 {
     metadata.0.content_length()
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> string option ")]
-pub fn metadata_content_md5(metadata: &Metadata) -> Option<String> {
+pub fn metadata_content_md5(metadata: &mut Metadata) -> Option<String> {
     metadata.0.content_md5().map(String::from)
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> string option ")]
-pub fn metadata_content_type(metadata: &Metadata) -> Option<String> {
+pub fn metadata_content_type(metadata: &mut Metadata) -> Option<String> {
     metadata.0.content_type().map(String::from)
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> string option ")]
-pub fn metadata_content_disposition(metadata: &Metadata) -> Option<String> {
+pub fn metadata_content_disposition(metadata: &mut Metadata) -> Option<String> {
     metadata.0.content_disposition().map(String::from)
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> string option ")]
-pub fn metadata_etag(metadata: &Metadata) -> Option<String> {
+pub fn metadata_etag(metadata: &mut Metadata) -> Option<String> {
     metadata.0.etag().map(String::from)
 }
 
 #[ocaml::func]
 #[ocaml::sig("metadata -> int64 option ")]
-pub fn metadata_last_modified(metadata: &Metadata) -> Option<i64> {
+pub fn metadata_last_modified(metadata: &mut Metadata) -> Option<i64> {
     metadata
         .0
         .last_modified()

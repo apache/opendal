@@ -17,8 +17,6 @@
 
 // For ocaml-rs, the build order in the same build group is the order of the file names.
 // In order to use the type in the function in the generated ocaml file, it must be defined on the first generated file.
-use std::sync::Mutex;
-
 use super::*;
 
 #[ocaml::sig]
@@ -30,11 +28,11 @@ pub struct Reader(pub(crate) od::blocking::Reader);
 ocaml::custom!(Reader);
 
 #[ocaml::sig]
-pub struct Writer(pub(crate) Mutex<od::blocking::Writer>);
+pub struct Writer(pub(crate) od::blocking::Writer);
 ocaml::custom!(Writer);
 
 #[ocaml::sig]
-pub struct Lister(pub(crate) Mutex<od::blocking::Lister>);
+pub struct Lister(pub(crate) od::blocking::Lister);
 ocaml::custom!(Lister);
 
 #[ocaml::sig]

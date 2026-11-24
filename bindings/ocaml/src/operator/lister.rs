@@ -19,15 +19,8 @@ use super::*;
 
 #[ocaml::func]
 #[ocaml::sig("lister -> (entry option, string) Result.t ")]
-pub fn lister_next(lister: &Lister) -> Result<Option<ocaml::Pointer<Entry>>, String> {
-    let next = {
-        let mut lister = lister
-            .0
-            .lock()
-            .map_err(|_| "lister mutex poisoned".to_string())?;
-        lister.next()
-    };
-    match next {
+pub fn lister_next(lister: &mut Lister) -> Result<Option<ocaml::Pointer<Entry>>, String> {
+    match lister.0.next() {
         Some(Ok(entry)) => Ok(Some(Entry(entry).into())),
         Some(Err(e)) => Err(e.to_string()),
         None => Ok(None),

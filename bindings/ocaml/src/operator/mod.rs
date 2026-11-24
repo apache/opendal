@@ -25,7 +25,6 @@ mod reader;
 mod writer;
 
 use std::collections::LinkedList;
-use std::sync::Mutex;
 
 use _type::*;
 
@@ -47,9 +46,9 @@ pub fn operator(
 
     let op = map_res_error(new_operator(scheme, configs))?;
 
-    let runtime = RUNTIME.as_ref().map_err(|e| e.clone())?;
-    let _enter = runtime.enter();
-    let blocking_op = map_res_error(od::blocking::Operator::new(op))?;
+    let handle = RUNTIME.handle();
+    let _enter = handle.enter();
+    let blocking_op = od::blocking::Operator::new(op.clone()).unwrap();
 
     Ok(Operator(blocking_op).into())
 }
@@ -57,7 +56,7 @@ pub fn operator(
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (entry array, string) Result.t ")]
 pub fn blocking_list(
-    operator: &Operator,
+    operator: &mut Operator,
     path: &[u8],
 ) -> Result<Vec<ocaml::Pointer<Entry>>, String> {
     let path = parse_utf8(path, "path")?;
@@ -71,49 +70,58 @@ pub fn blocking_list(
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (lister, string) Result.t ")]
-pub fn blocking_lister(operator: &Operator, path: &[u8]) -> Result<ocaml::Pointer<Lister>, String> {
+pub fn blocking_lister(
+    operator: &mut Operator,
+    path: &[u8],
+) -> Result<ocaml::Pointer<Lister>, String> {
     let path = parse_utf8(path, "path")?;
-    map_res_error(operator.0.lister(path)).map(|op| Lister(Mutex::new(op)).into())
+    map_res_error(operator.0.lister(path)).map(|op| Lister(op).into())
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (metadata, string) Result.t ")]
-pub fn blocking_stat(operator: &Operator, path: &[u8]) -> Result<ocaml::Pointer<Metadata>, String> {
+pub fn blocking_stat(
+    operator: &mut Operator,
+    path: &[u8],
+) -> Result<ocaml::Pointer<Metadata>, String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.stat(path).map(|m| Metadata(m).into()))
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (bool, string) Result.t ")]
-pub fn blocking_is_exist(operator: &Operator, path: &[u8]) -> Result<bool, String> {
+pub fn blocking_is_exist(operator: &mut Operator, path: &[u8]) -> Result<bool, String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.exists(path))
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (bool, string) Result.t ")]
-pub fn blocking_create_dir(operator: &Operator, path: &[u8]) -> Result<bool, String> {
+pub fn blocking_create_dir(operator: &mut Operator, path: &[u8]) -> Result<bool, String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.create_dir(path)).map(|()| true)
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (char array, string) Result.t ")]
-pub fn blocking_read(operator: &Operator, path: &[u8]) -> Result<Vec<u8>, String> {
+pub fn blocking_read(operator: &mut Operator, path: &[u8]) -> Result<Vec<u8>, String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.read(path).map(|v| v.to_vec()))
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (reader, string) Result.t ")]
-pub fn blocking_reader(operator: &Operator, path: &[u8]) -> Result<ocaml::Pointer<Reader>, String> {
+pub fn blocking_reader(
+    operator: &mut Operator,
+    path: &[u8],
+) -> Result<ocaml::Pointer<Reader>, String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.reader(path)).map(|op| Reader(op).into())
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> bytes -> (unit, string) Result.t ")]
-pub fn blocking_write(operator: &Operator, path: &[u8], bs: &[u8]) -> Result<(), String> {
+pub fn blocking_write(operator: &mut Operator, path: &[u8], bs: &[u8]) -> Result<(), String> {
     let path = parse_utf8(path, "path")?;
     // Core may retain the buffer after this call, but `bs` points into the OCaml
     // heap and can be mutated or moved by the GC. Hand over an owned copy.
@@ -122,22 +130,25 @@ pub fn blocking_write(operator: &Operator, path: &[u8], bs: &[u8]) -> Result<(),
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (writer, string) Result.t ")]
-pub fn blocking_writer(operator: &Operator, path: &[u8]) -> Result<ocaml::Pointer<Writer>, String> {
+pub fn blocking_writer(
+    operator: &mut Operator,
+    path: &[u8],
+) -> Result<ocaml::Pointer<Writer>, String> {
     let path = parse_utf8(path, "path")?;
-    map_res_error(operator.0.writer(path)).map(|op| Writer(Mutex::new(op)).into())
+    map_res_error(operator.0.writer(path)).map(|op| Writer(op).into())
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> string -> (unit, string) Result.t ")]
-pub fn blocking_copy(operator: &Operator, from: &[u8], to: &[u8]) -> Result<(), String> {
+pub fn blocking_copy(operator: &mut Operator, from: &[u8], to: &[u8]) -> Result<(), String> {
     let from = parse_utf8(from, "from")?;
     let to = parse_utf8(to, "to")?;
-    map_res_error(operator.0.copy(from, to).map(|_| ()))
+    map_res_error(operator.0.copy(from, to)).map(|_| ())
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> string -> (unit, string) Result.t ")]
-pub fn blocking_rename(operator: &Operator, from: &[u8], to: &[u8]) -> Result<(), String> {
+pub fn blocking_rename(operator: &mut Operator, from: &[u8], to: &[u8]) -> Result<(), String> {
     let from = parse_utf8(from, "from")?;
     let to = parse_utf8(to, "to")?;
     map_res_error(operator.0.rename(from, to))
@@ -145,14 +156,14 @@ pub fn blocking_rename(operator: &Operator, from: &[u8], to: &[u8]) -> Result<()
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (unit, string) Result.t ")]
-pub fn blocking_delete(operator: &Operator, path: &[u8]) -> Result<(), String> {
+pub fn blocking_delete(operator: &mut Operator, path: &[u8]) -> Result<(), String> {
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.delete(path))
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string array -> (unit, string) Result.t ")]
-pub fn blocking_remove(operator: &Operator, path: Vec<&[u8]>) -> Result<(), String> {
+pub fn blocking_remove(operator: &mut Operator, path: Vec<&[u8]>) -> Result<(), String> {
     let paths = path
         .into_iter()
         .map(|p| parse_utf8(p, "path"))
@@ -162,7 +173,7 @@ pub fn blocking_remove(operator: &Operator, path: Vec<&[u8]>) -> Result<(), Stri
 
 #[ocaml::func]
 #[ocaml::sig("operator -> string -> (unit, string) Result.t ")]
-pub fn blocking_remove_all(operator: &Operator, path: &[u8]) -> Result<(), String> {
+pub fn blocking_remove_all(operator: &mut Operator, path: &[u8]) -> Result<(), String> {
     use opendal::options::DeleteOptions;
     let path = parse_utf8(path, "path")?;
     map_res_error(operator.0.delete_options(
@@ -176,18 +187,18 @@ pub fn blocking_remove_all(operator: &Operator, path: &[u8]) -> Result<(), Strin
 
 #[ocaml::func]
 #[ocaml::sig("operator -> (unit, string) Result.t ")]
-pub fn blocking_check(operator: &Operator) -> Result<(), String> {
+pub fn blocking_check(operator: &mut Operator) -> Result<(), String> {
     map_res_error(operator.0.check())
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator -> operator_info ")]
-pub fn operator_info(operator: &Operator) -> ocaml::Pointer<OperatorInfo> {
+pub fn operator_info(operator: &mut Operator) -> ocaml::Pointer<OperatorInfo> {
     OperatorInfo(operator.0.info()).into()
 }
 
 #[ocaml::func]
 #[ocaml::sig("operator_info -> capability ")]
-pub fn operator_info_capability(info: &OperatorInfo) -> ocaml::Pointer<Capability> {
+pub fn operator_info_capability(info: &mut OperatorInfo) -> ocaml::Pointer<Capability> {
     Capability(info.0.capability()).into()
 }

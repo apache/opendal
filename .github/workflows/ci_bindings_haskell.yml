@@ -108,6 +108,60 @@ jobs:
             ~/.cabal/store
             bindings/haskell/dist-newstyle
 
+  test-windows-metadata:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: bindings/haskell
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install native x64 GHC and Cabal
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $toolchain = "$env:RUNNER_TEMP/haskell"
+          New-Item -ItemType Directory -Path $toolchain | Out-Null
+          $ghc = 'ghc-9.4.8-x86_64-unknown-mingw32'
+          $cabal = 'cabal-install-3.16.1.0'
+          curl.exe -fsSL --retry 3 "https://downloads.haskell.org/ghc/9.4.8/$ghc.tar.xz" -o "$toolchain/ghc.tar.xz"
+          tar.exe -xf "$toolchain/ghc.tar.xz" -C "$toolchain"
+          curl.exe -fsSL --retry 3 "https://downloads.haskell.org/cabal/$cabal/$cabal-x86_64-windows.zip" -o "$toolchain/cabal.zip"
+          Expand-Archive "$toolchain/cabal.zip" "$toolchain/cabal"
+          "$toolchain/$ghc/bin" >> $env:GITHUB_PATH
+          "$toolchain/cabal" >> $env:GITHUB_PATH
+      - name: Build Rust DLL
+        run: cargo build --target x86_64-pc-windows-msvc
+      - name: Run metadata test against the DLL
+        shell: bash
+        # Link the focused test directly to the Rust DLL. Setup.hs configures
+        # Unix rpath for Cabal's library build. Keep the dependencies and GHC
+        # extensions in sync with opendal.cabal.
+        run: |
+          ghc --info
+          mkdir -p dist-newstyle
+          cabal_config=dist-newstyle/metadata-cabal.config
+          cat > "$cabal_config" <<'EOF'
+          repository hackage-direct
+            url: https://hackage.haskell.org/
+            secure: False
+          active-repositories: hackage-direct
+          EOF
+          cabal --config-file="$cabal_config" update --ignore-project
+          cabal --config-file="$cabal_config" install --ignore-project --lib --package-env=./metadata-test.env \
+            bytestring mtl text time unordered-containers co-log network tasty tasty-hunit \
+            --constraint='bytestring >= 0.11.4 && < 0.12' --constraint='mtl >= 2.2.2 && < 2.3' \
+            --constraint='text >= 2.0.2 && < 2.1' --constraint='time >= 1.11.1 && < 1.12' \
+            --constraint='unordered-containers >= 0.2.19 && < 0.3' --constraint='co-log >= 0.5 && < 0.7' \
+            --constraint='network >= 3.2 && < 3.3' --constraint='tasty >= 1.5 && < 1.6' \
+            --constraint='tasty-hunit >= 0.10.1 && < 0.11'
+          rust_dir=target/x86_64-pc-windows-msvc/debug
+          ghc --make -threaded -ihaskell-src -outputdir dist-newstyle/metadata-test \
+            -package-env metadata-test.env -XOverloadedStrings -XForeignFunctionInterface \
+            -XDerivingStrategies -XGeneralizedNewtypeDeriving -XLambdaCase \
+            -L"$rust_dir" -l:opendal_hs.dll.lib -o "$rust_dir/metadata-test.exe" test/MetadataTest.hs
+          "$rust_dir/metadata-test.exe"
+
   package:
     # GHC's hsc2hs links with -fuse-ld=gold, which Ubuntu 26.04's
     # binutils no longer ships.

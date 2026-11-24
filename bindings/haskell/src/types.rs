@@ -207,7 +207,7 @@ mod tests {
     }
 
     #[test]
-    fn metadata_layout_matches_haskell_storable_formula() {
+    fn metadata_layout_matches_c_field_types() {
         assert_eq!(size_of::<EntryMode>(), size_of::<c_uint>());
         assert_eq!(align_of::<EntryMode>(), align_of::<c_uint>());
 

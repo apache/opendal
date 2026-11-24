@@ -249,80 +249,34 @@ impl HdfsNativeCore {
     }
 }
 
-fn classify_rpc_error(class: &str) -> (ErrorKind, bool) {
-    if class.contains("FileNotFoundException") {
-        (ErrorKind::NotFound, false)
-    } else if class.contains("AccessControlException")
-        || class.contains("AuthorizationException")
-        || class.contains("SaslException")
-        || class.contains("GSSException")
-        || class.contains("InvalidToken")
-    {
-        (ErrorKind::PermissionDenied, false)
-    } else if class.contains("ParentNotDirectoryException") {
-        (ErrorKind::NotADirectory, false)
-    } else if class.contains("RetriableException")
-        || class.contains("StandbyException")
-        || class.contains("ObserverRetryOnActiveException")
-        || class.contains("SafeModeException")
-    {
-        (ErrorKind::Unexpected, true)
-    } else {
-        (ErrorKind::Unexpected, false)
-    }
-}
-
 /// Parse hdfs-native error into opendal::Error.
 pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
     let (kind, retryable, msg) = match &hdfs_error {
-        HdfsError::IOError(err) => {
-            let (kind, retryable) = match err.kind() {
-                std::io::ErrorKind::NotFound => (ErrorKind::NotFound, false),
-                std::io::ErrorKind::PermissionDenied => (ErrorKind::PermissionDenied, false),
-                std::io::ErrorKind::AlreadyExists => (ErrorKind::AlreadyExists, false),
-                std::io::ErrorKind::IsADirectory => (ErrorKind::IsADirectory, false),
-                std::io::ErrorKind::NotADirectory => (ErrorKind::NotADirectory, false),
-                std::io::ErrorKind::Unsupported => (ErrorKind::Unsupported, false),
-                std::io::ErrorKind::TimedOut
-                | std::io::ErrorKind::Interrupted
-                | std::io::ErrorKind::ConnectionRefused
-                | std::io::ErrorKind::ConnectionReset
-                | std::io::ErrorKind::ConnectionAborted
-                | std::io::ErrorKind::NotConnected
-                | std::io::ErrorKind::BrokenPipe
-                | std::io::ErrorKind::WouldBlock
-                | std::io::ErrorKind::UnexpectedEof
-                | std::io::ErrorKind::HostUnreachable
-                | std::io::ErrorKind::NetworkUnreachable
-                | std::io::ErrorKind::AddrNotAvailable => (ErrorKind::Unexpected, true),
-                _ => (ErrorKind::Unexpected, false),
-            };
-            (kind, retryable, err.to_string())
-        }
+        HdfsError::IOError(err) => (ErrorKind::Unexpected, false, err.to_string()),
         HdfsError::DataTransferError(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::ChecksumError => (ErrorKind::Unexpected, false, hdfs_error.to_string()),
+        HdfsError::ChecksumError => (
+            ErrorKind::Unexpected,
+            false,
+            "checksums didn't match".to_string(),
+        ),
         HdfsError::UrlParseError(err) => (ErrorKind::Unexpected, false, err.to_string()),
         HdfsError::AlreadyExists(msg) => (ErrorKind::AlreadyExists, false, msg.clone()),
         HdfsError::OperationFailed(msg) => (ErrorKind::Unexpected, false, msg.clone()),
-        HdfsError::RPCError(class, msg) | HdfsError::FatalRPCError(class, msg) => {
-            let (kind, retryable) = classify_rpc_error(class);
-            let message = if msg.is_empty() {
-                class.clone()
+        HdfsError::RPCError(msg0, msg1) => {
+            if msg0.contains("java.io.FileNotFoundException") {
+                (ErrorKind::NotFound, false, msg1.clone())
             } else {
-                format!("{class}: {msg}")
-            };
-            (kind, retryable, message)
-        }
-        HdfsError::SASLError(_) | HdfsError::GSSAPIError(..) | HdfsError::NoSASLMechanism => {
-            (ErrorKind::PermissionDenied, false, hdfs_error.to_string())
-        }
-        HdfsError::UnsupportedFeature(_) | HdfsError::UnsupportedErasureCodingPolicy(_) => {
-            (ErrorKind::Unsupported, false, hdfs_error.to_string())
+                (ErrorKind::Unexpected, false, msg1.clone())
+            }
         }
         HdfsError::FileNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::BlocksNotFound(msg) => (ErrorKind::NotFound, false, msg.clone()),
         HdfsError::IsADirectoryError(msg) => (ErrorKind::IsADirectory, false, msg.clone()),
-        _ => (ErrorKind::Unexpected, false, hdfs_error.to_string()),
+        _ => (
+            ErrorKind::Unexpected,
+            false,
+            "unexpected error from hdfs".to_string(),
+        ),
     };
 
     let mut err = Error::new(kind, msg).set_source(hdfs_error);
@@ -332,206 +286,4 @@ pub fn parse_hdfs_error(hdfs_error: HdfsError) -> Error {
     }
 
     err
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io;
-
-    use super::*;
-
-    #[test]
-    fn parse_rpc_errors_classifies_java_exceptions_and_preserves_context() {
-        let cases = [
-            (
-                "java.io.FileNotFoundException",
-                "file missing",
-                ErrorKind::NotFound,
-                false,
-            ),
-            (
-                "org.apache.hadoop.security.AccessControlException",
-                "permission denied for /secret",
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                "org.apache.hadoop.security.authorize.AuthorizationException",
-                "user is not authorized",
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                "javax.security.sasl.SaslException",
-                "SASL negotiation failed",
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                "org.ietf.jgss.GSSException",
-                "ticket expired",
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                "org.apache.hadoop.security.token.SecretManager$InvalidToken",
-                "invalid delegation token",
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                "org.apache.hadoop.fs.ParentNotDirectoryException",
-                "/a/b is not a directory",
-                ErrorKind::NotADirectory,
-                false,
-            ),
-            (
-                "org.apache.hadoop.ipc.RetriableException",
-                "please retry",
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                "org.apache.hadoop.ipc.StandbyException",
-                "NameNode is in standby",
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                "org.apache.hadoop.ipc.ObserverRetryOnActiveException",
-                "retry on active",
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                "org.apache.hadoop.hdfs.server.namenode.SafeModeException",
-                "NameNode is in safe mode",
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (
-                "org.apache.hadoop.hdfs.protocol.NSQuotaExceededException",
-                "quota exceeded",
-                ErrorKind::Unexpected,
-                false,
-            ),
-        ];
-
-        for (class, msg, expected_kind, expected_temp) in cases {
-            for hdfs_err in [
-                HdfsError::RPCError(class.to_string(), msg.to_string()),
-                HdfsError::FatalRPCError(class.to_string(), msg.to_string()),
-            ] {
-                let err = parse_hdfs_error(hdfs_err);
-                assert_eq!(err.kind(), expected_kind, "class={class}");
-                assert_eq!(err.is_temporary(), expected_temp, "class={class}");
-                let rendered = err.to_string();
-                assert!(rendered.contains(class), "missing class in {rendered}");
-                assert!(rendered.contains(msg), "missing msg in {rendered}");
-            }
-        }
-    }
-
-    #[test]
-    fn parse_auth_and_unsupported_errors() {
-        let sasl = parse_hdfs_error(HdfsError::SASLError("bad handshake".to_string()));
-        assert_eq!(sasl.kind(), ErrorKind::PermissionDenied);
-        assert!(!sasl.is_temporary());
-        assert!(sasl.to_string().contains("bad handshake"));
-
-        let no_mech = parse_hdfs_error(HdfsError::NoSASLMechanism);
-        assert_eq!(no_mech.kind(), ErrorKind::PermissionDenied);
-        assert!(!no_mech.is_temporary());
-        assert!(no_mech.to_string().contains("No valid SASL mechanism"));
-
-        let unsupported =
-            parse_hdfs_error(HdfsError::UnsupportedFeature("hedged reads".to_string()));
-        assert_eq!(unsupported.kind(), ErrorKind::Unsupported);
-        assert!(!unsupported.is_temporary());
-        assert!(unsupported.to_string().contains("hedged reads"));
-
-        let ec = parse_hdfs_error(HdfsError::UnsupportedErasureCodingPolicy(
-            "RS-10-4".to_string(),
-        ));
-        assert_eq!(ec.kind(), ErrorKind::Unsupported);
-        assert!(!ec.is_temporary());
-        assert!(ec.to_string().contains("RS-10-4"));
-    }
-
-    #[test]
-    fn parse_io_errors_maps_permanent_and_temporary_kinds() {
-        let cases = [
-            (io::ErrorKind::NotFound, ErrorKind::NotFound, false),
-            (
-                io::ErrorKind::PermissionDenied,
-                ErrorKind::PermissionDenied,
-                false,
-            ),
-            (
-                io::ErrorKind::AlreadyExists,
-                ErrorKind::AlreadyExists,
-                false,
-            ),
-            (io::ErrorKind::IsADirectory, ErrorKind::IsADirectory, false),
-            (
-                io::ErrorKind::NotADirectory,
-                ErrorKind::NotADirectory,
-                false,
-            ),
-            (io::ErrorKind::Unsupported, ErrorKind::Unsupported, false),
-            (io::ErrorKind::InvalidInput, ErrorKind::Unexpected, false),
-            (io::ErrorKind::TimedOut, ErrorKind::Unexpected, true),
-            (io::ErrorKind::Interrupted, ErrorKind::Unexpected, true),
-            (
-                io::ErrorKind::ConnectionRefused,
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (io::ErrorKind::ConnectionReset, ErrorKind::Unexpected, true),
-            (
-                io::ErrorKind::ConnectionAborted,
-                ErrorKind::Unexpected,
-                true,
-            ),
-            (io::ErrorKind::BrokenPipe, ErrorKind::Unexpected, true),
-            (io::ErrorKind::WouldBlock, ErrorKind::Unexpected, true),
-            (io::ErrorKind::UnexpectedEof, ErrorKind::Unexpected, true),
-        ];
-
-        for (io_kind, expected_kind, expected_temp) in cases {
-            let err = parse_hdfs_error(HdfsError::IOError(io::Error::new(
-                io_kind,
-                format!("detail for {io_kind:?}"),
-            )));
-            assert_eq!(err.kind(), expected_kind, "io_kind={io_kind:?}");
-            assert_eq!(err.is_temporary(), expected_temp, "io_kind={io_kind:?}");
-            assert!(err.to_string().contains(&format!("detail for {io_kind:?}")));
-        }
-    }
-
-    #[test]
-    fn parse_fallback_errors_preserve_original_message() {
-        let cases = [
-            (HdfsError::InvalidPath("/bad/path".to_string()), "/bad/path"),
-            (
-                HdfsError::InvalidArgument("missing fs.defaultFS".to_string()),
-                "missing fs.defaultFS",
-            ),
-            (
-                HdfsError::InternalError("unexpected block state".to_string()),
-                "unexpected block state",
-            ),
-            (HdfsError::TrashNotEnabled, "Trash is not enabled"),
-        ];
-
-        for (hdfs_err, needle) in cases {
-            let err = parse_hdfs_error(hdfs_err);
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-            assert!(!err.is_temporary());
-            assert!(
-                err.to_string().contains(needle),
-                "expected {needle:?} in {err}"
-            );
-        }
-    }
 }

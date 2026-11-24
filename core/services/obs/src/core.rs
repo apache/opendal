@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
@@ -118,6 +119,22 @@ impl ObsCore {
         req: Request<Buffer>,
     ) -> Result<Response<Buffer>> {
         ctx.http_transport().send(req).await
+    }
+
+    /// Parse HTTP response headers, including `x-obs-meta-*` user metadata
+    /// and `x-obs-version-id`, into [`Metadata`].
+    pub fn parse_metadata(&self, path: &str, headers: &HeaderMap) -> Result<Metadata> {
+        let mut meta = parse_into_metadata(path, headers)?.into_builder();
+        let user_meta = parse_prefixed_headers(headers, constants::X_OBS_META_PREFIX);
+        if !user_meta.is_empty() {
+            meta.user_metadata(user_meta);
+        }
+
+        if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
+            meta.version(v);
+        }
+
+        Ok(meta.build())
     }
 }
 
@@ -355,7 +372,7 @@ impl ObsCore {
         let p = build_absolute_path(&self.root, path);
         let mut url = QueryPairsWriter::new(&self.endpoint);
 
-        if !path.is_empty() {
+        if !p.is_empty() {
             url = url.push("prefix", &percent_encode_path(&p));
         }
         if !delimiter.is_empty() {
@@ -563,6 +580,8 @@ pub struct CompleteMultipartUploadResult {
     pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
+    pub code: String,
+    pub message: String,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -573,6 +592,7 @@ pub struct ListObjectsOutput {
     pub contents: Vec<ListObjectsOutputContent>,
     pub common_prefixes: Vec<CommonPrefix>,
     pub marker: String,
+    pub is_truncated: Option<bool>,
     pub next_marker: Option<String>,
 }
 
@@ -747,7 +767,8 @@ mod tests {
         assert_eq!(out.name, "examplebucket".to_string());
         assert_eq!(out.prefix, "obj".to_string());
         assert_eq!(out.marker, "obj002".to_string());
-        assert_eq!(out.next_marker, Some("obj004".to_string()),);
+        assert_eq!(out.next_marker, Some("obj004".to_string()));
+        assert_eq!(out.is_truncated, Some(false));
         assert_eq!(
             out.contents
                 .iter()
@@ -795,6 +816,67 @@ mod tests {
             "RkRCRDJENDc5MzdGQkQ4OUY3MTI4NTQ3NDk2Mjg0M0FBQUFBQUFBYmJiYmJiYmJD"
         );
     }
+
+    #[test]
+    fn test_parse_error_status_mapping_and_body_preservation() {
+        let range_resp = Response::builder()
+            .status(StatusCode::RANGE_NOT_SATISFIABLE)
+            .body(Buffer::from(
+                "<Error><Code>InvalidRange</Code><Message>The requested range is not satisfiable</Message></Error>",
+            ))
+            .unwrap();
+        let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), range_resp);
+        assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+        assert!(!err.is_temporary());
+        assert!(err.to_string().contains("InvalidRange"));
+
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::from(
+                    "<Error><Code>AccessDenied</Code><Message>Access Denied</Message></Error>",
+                ))
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("HeadObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
+
+        let html_502 = Response::builder()
+            .status(StatusCode::BAD_GATEWAY)
+            .body(Buffer::from("<html><body>502 Bad Gateway</body></html>"))
+            .unwrap();
+        let err = parse_error(
+            ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+            html_502,
+        );
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(err.to_string().contains("502 Bad Gateway"));
+    }
+
+    #[test]
+    fn test_parse_metadata_includes_user_metadata_and_version_id() {
+        let core = test_core(true, empty_credential_provider());
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, "12".parse().unwrap());
+        headers.insert(CONTENT_TYPE, "text/plain".parse().unwrap());
+        headers.insert(constants::X_OBS_VERSION_ID, "ver-123".parse().unwrap());
+        headers.insert("x-obs-meta-author", "alice".parse().unwrap());
+        headers.insert("x-obs-meta-env", "prod".parse().unwrap());
+
+        let meta = core
+            .parse_metadata("dir/file.txt", &headers)
+            .expect("metadata must parse");
+        assert_eq!(meta.content_length(), 12);
+        assert_eq!(meta.content_type(), Some("text/plain"));
+        assert_eq!(meta.version(), Some("ver-123"));
+        let user_meta = meta
+            .user_metadata()
+            .expect("x-obs-meta-* headers must be parsed");
+        assert_eq!(user_meta.get("author"), Some("alice"));
+        assert_eq!(user_meta.get("env"), Some("prod"));
+    }
 }
 
 use bytes::Buf;
@@ -831,10 +913,11 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (kind, retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED => {
             (ErrorKind::ConditionNotMatch, false)
         }
+        StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::INTERNAL_SERVER_ERROR
         | StatusCode::BAD_GATEWAY
         | StatusCode::SERVICE_UNAVAILABLE
@@ -846,8 +929,14 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     };
 
     let message = match de::from_reader::<_, ObsError>(bs.clone().reader()) {
-        Ok(obs_error) => format!("{obs_error:?}"),
-        Err(_) => String::from_utf8_lossy(&bs).into_owned(),
+        Ok(obs_error)
+            if !obs_error.code.is_empty()
+                || !obs_error.message.is_empty()
+                || !obs_error.request_id.is_empty() =>
+        {
+            format!("{obs_error:?}")
+        }
+        _ => String::from_utf8_lossy(&bs).into_owned(),
     };
 
     let mut err = Error::new(kind, message);

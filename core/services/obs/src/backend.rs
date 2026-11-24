@@ -15,7 +15,6 @@
 // specific language governing permissions and limitations
 // under the License.
 
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -33,7 +32,6 @@ use reqsign_huaweicloud_obs::StaticCredentialProvider;
 
 use super::OBS_SCHEME;
 use super::config::ObsConfig;
-use super::core::constants;
 use super::core::parse_error;
 use super::core::{ErrorContext, ObsCore};
 use super::deleter::ObsDeleter;
@@ -361,35 +359,7 @@ impl Service for ObsBackend {
 
         // The response is very similar to azblob.
         match status {
-            StatusCode::OK => {
-                let meta = parse_into_metadata(path, headers)?;
-                let user_meta = headers
-                    .iter()
-                    .filter_map(|(name, _)| {
-                        name.as_str()
-                            .strip_prefix(constants::X_OBS_META_PREFIX)
-                            .and_then(|stripped_key| {
-                                parse_header_to_str(headers, name)
-                                    .unwrap_or(None)
-                                    .map(|val| (stripped_key.to_string(), val.to_string()))
-                            })
-                    })
-                    .collect::<HashMap<_, _>>();
-
-                let mut meta = meta.into_builder();
-                if !user_meta.is_empty() {
-                    meta.user_metadata(user_meta);
-                }
-
-                if let Some(v) = parse_header_to_str(headers, constants::X_OBS_VERSION_ID)? {
-                    meta.version(v);
-                }
-
-                Ok(RpStat::new(meta.build()))
-            }
-            StatusCode::NOT_FOUND if path.ends_with('/') => {
-                Ok(RpStat::new(MetadataBuilder::dir().build()))
-            }
+            StatusCode::OK => Ok(RpStat::new(self.core.parse_metadata(path, headers)?)),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject")),
                 resp,
@@ -659,5 +629,107 @@ mod tests {
                 .unwrap()
                 .starts_with("OBS static-access-key-id:")
         );
+    }
+
+    struct StaticHeadTransport {
+        status: StatusCode,
+        headers: Vec<(&'static str, &'static str)>,
+        body: &'static [u8],
+    }
+
+    impl HttpTransport for StaticHeadTransport {
+        async fn fetch(&self, _: http::Request<Buffer>) -> Result<http::Response<HttpBody>> {
+            let buf = Buffer::from(bytes::Bytes::from_static(self.body));
+            let size = buf.len() as u64;
+            let mut builder = http::Response::builder().status(self.status);
+            for (k, v) in &self.headers {
+                builder = builder.header(*k, *v);
+            }
+            Ok(builder
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(buf)]),
+                    Some(size),
+                ))
+                .expect("mock response must build"))
+        }
+    }
+
+    fn test_backend() -> impl Service {
+        ObsBuilder::default()
+            .bucket("example-bucket")
+            .endpoint("https://obs.cn-north-4.myhuaweicloud.com")
+            .skip_signature()
+            .disable_config_load()
+            .build()
+            .expect("obs backend must build")
+    }
+
+    #[tokio::test]
+    async fn stat_returns_not_found_for_missing_trailing_slash_path() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let backend = test_backend();
+            let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                StaticHeadTransport {
+                    status: StatusCode::NOT_FOUND,
+                    headers: vec![],
+                    body: b"",
+                },
+            ));
+
+            let err = backend
+                .stat(&ctx, "missing/", OpStat::default())
+                .await
+                .expect_err("404 on trailing-slash path must return NotFound");
+
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert!(!err.is_temporary());
+        })
+        .await
+        .expect("test must not time out");
+    }
+
+    #[tokio::test]
+    async fn stat_parses_user_metadata_version_and_401_error() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let backend = test_backend();
+            let ok_ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                StaticHeadTransport {
+                    status: StatusCode::OK,
+                    headers: vec![
+                        ("content-length", "7"),
+                        ("x-obs-version-id", "v-77"),
+                        ("x-obs-meta-team", "storage"),
+                    ],
+                    body: b"",
+                },
+            ));
+
+            let meta = backend
+                .stat(&ok_ctx, "file.txt", OpStat::default())
+                .await
+                .expect("stat must succeed")
+                .into_metadata();
+            assert_eq!(meta.content_length(), 7);
+            assert_eq!(meta.version(), Some("v-77"));
+            let user_meta = meta
+                .user_metadata()
+                .expect("x-obs-meta-* headers must be parsed");
+            assert_eq!(user_meta.get("team"), Some("storage"));
+
+            let unauth_ctx = OperationContext::new().with_http_transport(HttpTransporter::new(
+                StaticHeadTransport {
+                    status: StatusCode::UNAUTHORIZED,
+                    headers: vec![],
+                    body: b"",
+                },
+            ));
+            let err = backend
+                .stat(&unauth_ctx, "file.txt", OpStat::default())
+                .await
+                .expect_err("401 must fail");
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+        })
+        .await
+        .expect("test must not time out");
     }
 }

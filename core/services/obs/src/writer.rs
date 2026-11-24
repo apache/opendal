@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::HeaderMap;
 use http::HeaderValue;
+use http::Response;
 use http::StatusCode;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -173,27 +173,34 @@ impl oio::MultipartWrite for ObsWriter {
             })
             .collect();
 
-        let mut resp = self
+        let resp = self
             .core
             .obs_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts)
             .await?;
 
-        let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
-
-        let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(resp.body_mut().reader())
-                .map_err(new_xml_deserialize_error)?;
-        meta.etag(&result.etag);
-
-        let status = resp.status();
-
-        match status {
-            StatusCode::OK => Ok(meta.build()),
-            _ => Err(parse_error(
+        if resp.status() != StatusCode::OK {
+            return Err(parse_error(
                 ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
                 resp,
-            )),
+            ));
         }
+
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
+        let result: CompleteMultipartUploadResult =
+            quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
+        if !result.code.is_empty() || result.etag.is_empty() {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload")),
+                Response::from_parts(parts, Buffer::from(bs)),
+            ));
+        }
+
+        let mut meta = Self::parse_metadata(&parts.headers)?.into_builder();
+        meta.etag(&result.etag);
+
+        Ok(meta.build())
     }
 
     async fn abort_part(&self, upload_id: &str) -> Result<()> {
@@ -265,5 +272,201 @@ impl oio::AppendWrite for ObsWriter {
                 resp,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use bytes::Bytes;
+    use futures::stream;
+    use http::Request;
+    use opendal_core::raw::oio::MultipartWrite;
+
+    use super::*;
+    use crate::backend::ObsBackend;
+    use crate::backend::ObsBuilder;
+
+    const TEST_TIMEOUT: Duration = Duration::from_secs(5);
+
+    struct StaticCompleteTransport {
+        status: StatusCode,
+        body: &'static [u8],
+        version_id: Option<&'static str>,
+    }
+
+    impl HttpTransport for StaticCompleteTransport {
+        async fn fetch(&self, _: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let buf = Buffer::from(Bytes::from_static(self.body));
+            let size = buf.len() as u64;
+            let mut builder = Response::builder().status(self.status);
+            if let Some(version_id) = self.version_id {
+                builder = builder.header(constants::X_OBS_VERSION_ID, version_id);
+            }
+            Ok(builder
+                .body(HttpBody::new(stream::iter(vec![Ok(buf)]), Some(size)))
+                .expect("mock response must build"))
+        }
+    }
+
+    fn test_writer(transport: StaticCompleteTransport) -> ObsWriter {
+        let service = ObsBuilder::default()
+            .bucket("example-bucket")
+            .endpoint("https://obs.cn-north-4.myhuaweicloud.com")
+            .skip_signature()
+            .disable_config_load()
+            .build()
+            .expect("obs backend must build");
+        let backend = (&service as &dyn std::any::Any)
+            .downcast_ref::<ObsBackend>()
+            .expect("builder must produce ObsBackend");
+        let ctx = OperationContext::new().with_http_transport(HttpTransporter::new(transport));
+        ObsWriter::new(backend.core.clone(), ctx, "test.bin", OpWrite::default())
+    }
+
+    fn sample_parts() -> Vec<oio::MultipartPart> {
+        vec![oio::MultipartPart {
+            part_number: 1,
+            etag: "\"part-etag-1\"".to_string(),
+            checksum: None,
+            size: None,
+        }]
+    }
+
+    #[tokio::test]
+    async fn complete_part_preserves_retryability_on_non_xml_502() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            for html_body in [
+                b"<!DOCTYPE html><html><body>502 Bad Gateway</body></html>".as_slice(),
+                b"<html><body>502 Bad Gateway</body></html>".as_slice(),
+            ] {
+                let writer = test_writer(StaticCompleteTransport {
+                    status: StatusCode::BAD_GATEWAY,
+                    body: html_body,
+                    version_id: None,
+                });
+
+                let err = writer
+                    .complete_part("upload-1", &sample_parts())
+                    .await
+                    .expect_err("502 response must fail");
+
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+                assert!(err.is_temporary(), "502 error must remain retryable");
+                assert!(
+                    err.to_string().contains("502 Bad Gateway"),
+                    "error message must preserve response body: {err}"
+                );
+            }
+        })
+        .await
+        .expect("test must not time out");
+    }
+
+    #[tokio::test]
+    async fn complete_part_preserves_xml_error_details_on_404() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let writer = test_writer(StaticCompleteTransport {
+                status: StatusCode::NOT_FOUND,
+                body: br#"<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>NoSuchUpload</Code>
+    <Message>The specified upload does not exist.</Message>
+    <RequestId>req-404-upload</RequestId>
+</Error>"#,
+                version_id: None,
+            });
+
+            let err = writer
+                .complete_part("upload-missing", &sample_parts())
+                .await
+                .expect_err("404 response must fail");
+
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+            assert!(!err.is_temporary());
+            let msg = err.to_string();
+            assert!(msg.contains("NoSuchUpload"), "missing Code in {msg}");
+            assert!(
+                msg.contains("The specified upload does not exist."),
+                "missing Message in {msg}"
+            );
+            assert!(msg.contains("req-404-upload"), "missing RequestId in {msg}");
+        })
+        .await
+        .expect("test must not time out");
+    }
+
+    #[tokio::test]
+    async fn complete_part_rejects_200_ok_xml_error_and_empty_etag() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let err = test_writer(StaticCompleteTransport {
+                status: StatusCode::OK,
+                body: br#"<?xml version="1.0" encoding="UTF-8"?>
+<Error>
+    <Code>InternalError</Code>
+    <Message>We encountered an internal error.</Message>
+    <RequestId>req-200-err</RequestId>
+</Error>"#,
+                version_id: None,
+            })
+            .complete_part("upload-1", &sample_parts())
+            .await
+            .expect_err("200 OK <Error> must fail");
+
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            let msg = err.to_string();
+            assert!(msg.contains("InternalError"), "missing Code in {msg}");
+            assert!(
+                msg.contains("We encountered an internal error."),
+                "missing Message in {msg}"
+            );
+
+            for empty_etag_body in [
+                b"<CompleteMultipartUploadResult/>".as_slice(),
+                b"<CompleteMultipartUploadResult><ETag></ETag></CompleteMultipartUploadResult>"
+                    .as_slice(),
+            ] {
+                let err = test_writer(StaticCompleteTransport {
+                    status: StatusCode::OK,
+                    body: empty_etag_body,
+                    version_id: None,
+                })
+                .complete_part("upload-1", &sample_parts())
+                .await
+                .expect_err("empty ETag must fail");
+
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+            }
+        })
+        .await
+        .expect("test must not time out");
+    }
+
+    #[tokio::test]
+    async fn complete_part_returns_etag_and_version_on_valid_200() {
+        tokio::time::timeout(TEST_TIMEOUT, async {
+            let writer = test_writer(StaticCompleteTransport {
+                status: StatusCode::OK,
+                body: br#"<?xml version="1.0" encoding="UTF-8"?>
+<CompleteMultipartUploadResult>
+    <Location>https://example-bucket.obs.cn-north-4.myhuaweicloud.com/test.bin</Location>
+    <Bucket>example-bucket</Bucket>
+    <Key>test.bin</Key>
+    <ETag>"final-etag-123"</ETag>
+</CompleteMultipartUploadResult>"#,
+                version_id: Some("ver-99"),
+            });
+
+            let meta = writer
+                .complete_part("upload-1", &sample_parts())
+                .await
+                .expect("valid complete response must succeed");
+
+            assert_eq!(meta.etag(), Some("\"final-etag-123\""));
+            assert_eq!(meta.version(), Some("ver-99"));
+        })
+        .await
+        .expect("test must not time out");
     }
 }

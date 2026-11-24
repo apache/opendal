@@ -45,4 +45,5 @@ reqsign-huaweicloud-obs = { version = "3.1.0", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+futures = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }

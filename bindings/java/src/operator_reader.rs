@@ -90,9 +90,13 @@ pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_createBytes
 /// It must not be used after this call.
 #[unsafe(no_mangle)]
 pub unsafe extern "system" fn Java_org_apache_opendal_OperatorReader_disposeReader<'local>(
-    _: EnvUnowned<'local>,
+    mut env: EnvUnowned<'local>,
     _: JClass<'local>,
     reader: *mut blocking::Reader,
 ) {
-    unsafe { drop(Box::from_raw(reader)) };
+    env.with_env(|_| -> crate::Result<()> {
+        unsafe { drop(Box::from_raw(reader)) };
+        Ok(())
+    })
+    .resolve::<ThrowException>()
 }

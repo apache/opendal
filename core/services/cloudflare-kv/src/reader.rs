@@ -76,18 +76,23 @@ impl oio::StreamRead for CloudflareKvReader {
                 ));
             }
 
+            let meta_bs = meta_resp.clone().into_body();
             let cf_response: CfKvStatResponse =
-                serde_json::from_reader(meta_resp.into_body().reader())
-                    .map_err(new_json_deserialize_error)?;
+                serde_json::from_reader(meta_bs.reader()).map_err(new_json_deserialize_error)?;
 
-            if !cf_response.success && cf_response.result.is_some() {
-                return Err(Error::new(
-                    ErrorKind::Unexpected,
-                    "cloudflare_kv read this key failed for reason we don't know",
+            if !cf_response.success {
+                return Err(parse_error(
+                    ErrorContext::new(ServiceOperation("GetMetadata")),
+                    meta_resp,
                 ));
             }
 
-            let metadata = cf_response.result.unwrap();
+            let metadata = cf_response.result.ok_or_else(|| {
+                Error::new(
+                    ErrorKind::Unexpected,
+                    "cloudflare_kv metadata is missing for conditional read",
+                )
+            })?;
 
             // Check if_match condition
             if let Some(if_match) = &args.if_match()
@@ -143,5 +148,116 @@ impl oio::StreamRead for CloudflareKvReader {
             RpRead::new(metadata),
             Box::new(buffer) as Box<dyn oio::ReadStreamDyn>,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::Response;
+    use opendal_core::raw::oio::StreamRead;
+
+    use super::*;
+    use crate::CLOUDFLARE_KV_SCHEME;
+    use crate::core::CloudflareKvCore;
+
+    struct SequenceTransport {
+        responses: Mutex<VecDeque<(StatusCode, String)>>,
+    }
+
+    impl SequenceTransport {
+        fn new(responses: Vec<(StatusCode, &str)>) -> Self {
+            Self {
+                responses: Mutex::new(
+                    responses
+                        .into_iter()
+                        .map(|(status, body)| (status, body.to_string()))
+                        .collect(),
+                ),
+            }
+        }
+    }
+
+    impl HttpTransport for SequenceTransport {
+        async fn fetch(&self, _req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            let (status, body_str) = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected extra HTTP request");
+            let body = Buffer::from(body_str);
+            let len = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_backend() -> CloudflareKvBackend {
+        CloudflareKvBackend {
+            core: Arc::new(CloudflareKvCore {
+                api_token: "Bearer test-token".to_string(),
+                account_id: "acc123".to_string(),
+                namespace_id: "ns456".to_string(),
+                expiration_ttl: None,
+                info: ServiceInfo::new(CLOUDFLARE_KV_SCHEME, "/", ""),
+                capability: Capability::default(),
+            }),
+        }
+    }
+
+    #[tokio::test]
+    async fn conditional_read_handles_error_or_missing_metadata_without_panic() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let backend = test_backend();
+            let (_, args, _) = <(BytesRange, OpRead, OpReader)>::from(options::ReadOptions {
+                if_match: Some("etag-1".to_string()),
+                ..Default::default()
+            });
+
+            // success: false with result: null must return Err instead of panicking.
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::OK, "hello"),
+                    (StatusCode::OK, r#"{"success":false,"result":null}"#),
+                ]),
+            ));
+            let reader = CloudflareKvReader::new(backend.clone(), ctx, "a.txt", args.clone());
+            let err = reader.open(BytesRange::from(..)).await.err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+            // success: false with structured Cloudflare error code classifies error.
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::OK, "hello"),
+                    (
+                        StatusCode::OK,
+                        r#"{"success":false,"result":null,"errors":[{"code":10000}]}"#,
+                    ),
+                ]),
+            ));
+            let reader = CloudflareKvReader::new(backend.clone(), ctx, "a.txt", args.clone());
+            let err = reader.open(BytesRange::from(..)).await.err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+            // success: true with result: null must return Err instead of panicking.
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                SequenceTransport::new(vec![
+                    (StatusCode::OK, "hello"),
+                    (StatusCode::OK, r#"{"success":true,"result":null}"#),
+                ]),
+            ));
+            let reader = CloudflareKvReader::new(backend, ctx, "a.txt", args);
+            let err = reader.open(BytesRange::from(..)).await.err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+        })
+        .await
+        .unwrap();
     }
 }

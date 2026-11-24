@@ -8158,10 +8158,12 @@ name = "opendal-service-cloudflare-kv"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -8199,6 +8201,7 @@ name = "opendal-service-d1"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "serde",
@@ -8377,6 +8380,7 @@ name = "opendal-service-ghac"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "ghac",
  "http 1.5.0",
  "log",
@@ -8530,6 +8534,7 @@ name = "opendal-service-ipfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8543,6 +8548,7 @@ name = "opendal-service-ipmfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8634,6 +8640,7 @@ dependencies = [
  "flume 0.12.0",
  "monoio",
  "opendal-core",
+ "rustix 1.1.6",
  "serde",
  "tempfile",
  "tokio",
@@ -8933,12 +8940,12 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "hmac 0.13.0",
  "http 1.5.0",
  "log",
  "md-5 0.11.0",
  "opendal-core",
- "quick-xml",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -8951,6 +8958,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8964,10 +8972,10 @@ name = "opendal-service-vercel-blob"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
- "quick-xml",
  "serde",
  "serde_json",
  "tokio",

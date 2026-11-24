@@ -49,6 +49,16 @@ impl Debug for D1Core {
 
 const CLOUDFLARE_API_BASE_URL: &str = "https://api.cloudflare.com/client/v4";
 
+pub(crate) fn quote_ident(ident: &str) -> Result<String> {
+    if ident.is_empty() || ident.contains('\0') {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            "d1 sql identifier must be non-empty and must not contain NUL bytes",
+        ));
+    }
+    Ok(format!("\"{}\"", ident.replace('"', "\"\"")))
+}
+
 impl D1Core {
     fn create_d1_query_request(
         &self,
@@ -86,11 +96,11 @@ impl D1Core {
         // can contain special characters.
         // Read more https://www.sqlite.org/quirks.html#double_quoted_string_literals
         //
-        // We uses identifier quote for trusted table and field configuration to ensure correctness.
-        let query = format!(
-            r#"SELECT "{}" FROM "{}" WHERE "{}" = ? LIMIT 1"#,
-            self.value_field, self.table, self.key_field
-        );
+        // We use identifier quoting with doubled `"` escaping for table and field configuration.
+        let value_field = quote_ident(&self.value_field)?;
+        let table = quote_ident(&self.table)?;
+        let key_field = quote_ident(&self.key_field)?;
+        let query = format!("SELECT {value_field} FROM {table} WHERE {key_field} = ? LIMIT 1");
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Read, "Get")?;
 
@@ -101,7 +111,7 @@ impl D1Core {
                 let body = resp.into_body();
                 let bs = body.to_bytes();
                 let d1_response = D1Response::parse(&bs)?;
-                Ok(d1_response.get_result(&self.value_field))
+                d1_response.get_result(&self.value_field)
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Query")),
@@ -111,9 +121,11 @@ impl D1Core {
     }
 
     pub async fn get_length(&self, ctx: &OperationContext, path: &str) -> Result<Option<usize>> {
+        let value_field = quote_ident(&self.value_field)?;
+        let table = quote_ident(&self.table)?;
+        let key_field = quote_ident(&self.key_field)?;
         let query = format!(
-            r#"SELECT LENGTH(CAST("{}" AS BLOB)) AS "content_length" FROM "{}" WHERE "{}" = ? LIMIT 1"#,
-            self.value_field, self.table, self.key_field
+            r#"SELECT LENGTH(CAST({value_field} AS BLOB)) AS "content_length" FROM {table} WHERE {key_field} = ? LIMIT 1"#
         );
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Stat, "Stat")?;
@@ -135,14 +147,14 @@ impl D1Core {
     }
 
     pub async fn set(&self, ctx: &OperationContext, path: &str, value: Buffer) -> Result<()> {
-        let table = &self.table;
-        let key_field = &self.key_field;
-        let value_field = &self.value_field;
+        let table = quote_ident(&self.table)?;
+        let key_field = quote_ident(&self.key_field)?;
+        let value_field = quote_ident(&self.value_field)?;
         let query = format!(
-            r#"INSERT INTO "{table}" ("{key_field}", "{value_field}")
+            r#"INSERT INTO {table} ({key_field}, {value_field})
                 VALUES (?, ?)
-                ON CONFLICT ("{key_field}")
-                    DO UPDATE SET "{value_field}" = EXCLUDED."{value_field}""#,
+                ON CONFLICT ({key_field})
+                    DO UPDATE SET {value_field} = EXCLUDED.{value_field}"#,
         );
 
         let params = vec![path.into(), value.to_vec().into()];
@@ -151,7 +163,12 @@ impl D1Core {
         let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let body = resp.into_body();
+                let bs = body.to_bytes();
+                let _ = D1Response::parse(&bs)?;
+                Ok(())
+            }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Query")),
                 resp,
@@ -160,17 +177,21 @@ impl D1Core {
     }
 
     pub async fn delete(&self, ctx: &OperationContext, path: &str) -> Result<()> {
-        let query = format!(
-            r#"DELETE FROM "{}" WHERE "{}" = ?"#,
-            self.table, self.key_field
-        );
+        let table = quote_ident(&self.table)?;
+        let key_field = quote_ident(&self.key_field)?;
+        let query = format!("DELETE FROM {table} WHERE {key_field} = ?");
         let req =
             self.create_d1_query_request(&query, vec![path.into()], Operation::Delete, "Delete")?;
 
         let resp = ctx.http_transport().send(req).await?;
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::PARTIAL_CONTENT => Ok(()),
+            StatusCode::OK | StatusCode::PARTIAL_CONTENT => {
+                let body = resp.into_body();
+                let bs = body.to_bytes();
+                let _ = D1Response::parse(&bs)?;
+                Ok(())
+            }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Query")),
                 resp,
@@ -202,8 +223,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        // Some services (like owncloud) return 403 while file locked.
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -217,8 +238,10 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
         .map(|d1_err| (format!("{d1_err:?}"), Some(d1_err)))
         .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
-    if let Some(d1_err) = d1_err {
-        (kind, retryable) = parse_d1_error_code(d1_err.errors).unwrap_or((kind, retryable));
+    if let Some(d1_err) = d1_err
+        && let Some(errors) = d1_err.errors.as_deref()
+    {
+        (kind, retryable) = parse_d1_error_code(errors).unwrap_or((kind, retryable));
     }
 
     let mut err = Error::new(kind, message);
@@ -233,7 +256,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     err
 }
 
-pub fn parse_d1_error_code(errors: Vec<D1Error>) -> Option<(ErrorKind, bool)> {
+pub fn parse_d1_error_code(errors: &[D1Error]) -> Option<(ErrorKind, bool)> {
     if errors.is_empty() {
         return None;
     }
@@ -246,5 +269,211 @@ pub fn parse_d1_error_code(errors: Vec<D1Error>) -> Option<(ErrorKind, bool)> {
         // Authentication error.
         10000 => Some((ErrorKind::PermissionDenied, false)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use futures::stream;
+
+    use super::*;
+
+    struct D1MockTransport {
+        sent_sql: Arc<Mutex<Vec<String>>>,
+        responses: Mutex<VecDeque<(StatusCode, String)>>,
+    }
+
+    impl D1MockTransport {
+        fn new(responses: Vec<(StatusCode, &str)>) -> (Self, Arc<Mutex<Vec<String>>>) {
+            let sent_sql = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    sent_sql: sent_sql.clone(),
+                    responses: Mutex::new(
+                        responses
+                            .into_iter()
+                            .map(|(status, body)| (status, body.to_string()))
+                            .collect(),
+                    ),
+                },
+                sent_sql,
+            )
+        }
+    }
+
+    impl HttpTransport for D1MockTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let payload: Value =
+                serde_json::from_slice(&req.into_body().to_bytes()).expect("valid JSON request");
+            if let Some(sql) = payload.get("sql").and_then(Value::as_str) {
+                self.sent_sql.lock().unwrap().push(sql.to_string());
+            }
+
+            let (status, body_str) = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected extra D1 HTTP request");
+            let body = Buffer::from(body_str);
+            let len = body.len() as u64;
+            Response::builder()
+                .status(status)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_core(table: &str, key_field: &str, value_field: &str) -> D1Core {
+        D1Core {
+            authorization: Some("Bearer d1-sentinel-secret".to_string()),
+            account_id: "acc123".to_string(),
+            database_id: "db456".to_string(),
+            table: table.to_string(),
+            key_field: key_field.to_string(),
+            value_field: value_field.to_string(),
+        }
+    }
+
+    #[test]
+    fn core_debug_redacts_authorization() {
+        let core = test_core("kv", "key", "value");
+        let debug = format!("{core:?}");
+        assert!(!debug.contains("d1-sentinel-secret"));
+        assert!(debug.contains("kv"));
+    }
+
+    #[tokio::test]
+    async fn set_and_delete_fail_on_200_ok_with_success_false() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = test_core("kv", "key", "value");
+
+            let (transport, _) = D1MockTransport::new(vec![
+                (
+                    StatusCode::OK,
+                    r#"{"success":false,"result":[],"errors":[{"code":7500,"message":"no such column"}]}"#,
+                ),
+                (
+                    StatusCode::OK,
+                    r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
+                ),
+            ]);
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+            let set_err = core
+                .set(&ctx, "k1", Buffer::from("hello"))
+                .await
+                .unwrap_err();
+            assert_eq!(set_err.kind(), ErrorKind::NotFound);
+
+            let del_err = core.delete(&ctx, "k1").await.unwrap_err();
+            assert_eq!(del_err.kind(), ErrorKind::PermissionDenied);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn queries_escape_double_quotes_in_sql_identifiers() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = test_core(r#"my"table"#, r#"key"col"#, r#"val"col"#);
+
+            let (transport, sent_sql) = D1MockTransport::new(vec![
+                (
+                    StatusCode::OK,
+                    r#"{"success":true,"result":[{"results":[{"val\"col":[65,66]}]}],"errors":[]}"#,
+                ),
+                (
+                    StatusCode::OK,
+                    r#"{"success":true,"result":[{"results":[{"content_length":2}]}],"errors":[]}"#,
+                ),
+                (
+                    StatusCode::OK,
+                    r#"{"success":true,"result":[{"results":[]}],"errors":[]}"#,
+                ),
+                (
+                    StatusCode::OK,
+                    r#"{"success":true,"result":[{"results":[]}],"errors":[]}"#,
+                ),
+            ]);
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+            let got = core.get(&ctx, "p").await.unwrap().unwrap();
+            assert_eq!(got.to_bytes().as_ref(), b"AB");
+            assert_eq!(core.get_length(&ctx, "p").await.unwrap(), Some(2));
+            core.set(&ctx, "p", Buffer::from("AB")).await.unwrap();
+            core.delete(&ctx, "p").await.unwrap();
+
+            let sqls = sent_sql.lock().unwrap();
+            assert_eq!(sqls.len(), 4);
+            assert_eq!(
+                sqls[0],
+                r#"SELECT "val""col" FROM "my""table" WHERE "key""col" = ? LIMIT 1"#
+            );
+            assert_eq!(
+                sqls[1],
+                r#"SELECT LENGTH(CAST("val""col" AS BLOB)) AS "content_length" FROM "my""table" WHERE "key""col" = ? LIMIT 1"#
+            );
+            assert!(sqls[2].contains(r#"INSERT INTO "my""table" ("key""col", "val""col")"#));
+            assert!(sqls[2].contains(r#"ON CONFLICT ("key""col")"#));
+            assert!(sqls[2].contains(r#"DO UPDATE SET "val""col" = EXCLUDED."val""col""#));
+            assert_eq!(sqls[3], r#"DELETE FROM "my""table" WHERE "key""col" = ?"#);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[test]
+    fn parse_error_handles_null_result_and_maps_401_403_429() {
+        let resp_auth = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Buffer::from(
+                r#"{"success":false,"result":null,"errors":[{"code":10000,"message":"Authentication error"}]}"#,
+            ))
+            .unwrap();
+        let err_auth = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_auth);
+        assert_eq!(err_auth.kind(), ErrorKind::PermissionDenied);
+        assert!(!err_auth.is_temporary());
+
+        let resp_missing_result = Response::builder()
+            .status(StatusCode::BAD_REQUEST)
+            .body(Buffer::from(
+                r#"{"success":false,"errors":[{"code":7500,"message":"no such column"}]}"#,
+            ))
+            .unwrap();
+        let err_missing = parse_error(
+            ErrorContext::new(ServiceOperation("Query")),
+            resp_missing_result,
+        );
+        assert_eq!(err_missing.kind(), ErrorKind::NotFound);
+        assert!(!err_missing.is_temporary());
+
+        let resp_401 = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Buffer::from("unauthorized"))
+            .unwrap();
+        let err_401 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_401);
+        assert_eq!(err_401.kind(), ErrorKind::PermissionDenied);
+        assert!(!err_401.is_temporary());
+
+        let resp_403 = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(Buffer::from("forbidden"))
+            .unwrap();
+        let err_403 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_403);
+        assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
+        assert!(!err_403.is_temporary());
+
+        let resp_429 = Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .body(Buffer::from("rate limited"))
+            .unwrap();
+        let err_429 = parse_error(ErrorContext::new(ServiceOperation("Query")), resp_429);
+        assert_eq!(err_429.kind(), ErrorKind::RateLimited);
+        assert!(err_429.is_temporary());
     }
 }

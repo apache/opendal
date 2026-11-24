@@ -32,14 +32,16 @@ is queued.
 
 Weekly preparation reads the merged PRs between the last published source commit
 and the fixed cutoff. It validates their optional breaking change declarations,
-then calls `update-version --patch --breaking <package>` for each affected package.
-Unmarked PRs require no release metadata and retain the normal patch policy.
+then calls `update-version --patch` and adds `--breaking <package>` for each
+affected package in `dev/src/release/package.rs`. Unmarked PRs require no release
+metadata and retain the normal patch policy.
 
 Each package receives at least a patch increment from the latest published final
-GitHub Release. Declared breaking changes require an incompatible increment:
-minor for `0.x` packages, major for stable `1.x` and later packages (`0.0.x` follows
-Cargo's patch compatibility boundary). Multiple breaking PRs increment a package
-only once. Higher configured versions and new package versions are preserved.
+GitHub Release. For a declared breaking change to a release package, the weekly
+plan increments the minor version for `0.x` packages and the major version for
+stable `1.x` and later packages. Packages at `0.0.x` follow Cargo's patch
+compatibility boundary. Multiple breaking PRs increment a package only once.
+Higher configured versions and new package versions are preserved.
 Public dependency compatibility changes also raise affected integration versions;
 a core breaking change does not automatically require an incompatible binding
 version. Existing manifest and dependency update code applies the resulting plan.
@@ -68,9 +70,16 @@ Migration:
 - Replace `old_api()` with `new_api()`.
 ```
 
-Use comma-separated package names from `dev/src/release/package.rs`. Include
-bindings whose public behavior changes even when their source files do not.
-Explain the migration or the available alternatives for removed functionality.
+Use comma-separated package names from `dev/src/release/package.rs`. You can also
+declare `bindings/zig` on its own or alongside those packages. The candidate plan
+records the Zig migration instructions, and the candidate discussion and final
+release notes identify Zig as a component with no standalone artifact in the
+release. A Zig-only declaration keeps the normal patch policy. A mixed
+declaration applies breaking increments to the listed release packages.
+
+Include bindings whose public behavior changes even when their source files do
+not. Explain the migration or the available alternatives for removed
+functionality.
 The **Breaking change declaration** CI check provides feedback on the label,
 package names and migration text on PR changes and label/description edits. It
 does not add a required merge check. Weekly preparation validates declarations

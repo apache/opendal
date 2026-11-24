@@ -51,6 +51,12 @@ yielding its entries. This can increase latency and memory usage for large
 directories. With `start_after` unset, the traversal follows the order of
 entries from the filesystem.
 
+When `glob` is set, the service evaluates the pattern natively during directory
+traversal, entering leading literal directories directly and skipping
+subdirectories that cannot match. Discovered subdirectories that become
+unreadable or disappear during traversal are skipped, while errors on the
+starting and leading literal directories are returned.
+
 ## Delete
 
 Recursive deletion targets the named filesystem entry. Deleting `a/`

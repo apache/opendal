@@ -23,6 +23,12 @@ You can run the base tests with the following command:
 ./mvnw clean verify
 ```
 
+Run the JNI panic regression tests with the test-only native fixture enabled.
+
+```shell
+./mvnw test -Dtest=NativePanicTest -Dopendal.test-native-panics=true
+```
+
 ## Code style
 
 This project uses [spotless](https://github.com/diffplug/spotless) for code formatting so that all developers share a consistent code style without bikeshedding on it.

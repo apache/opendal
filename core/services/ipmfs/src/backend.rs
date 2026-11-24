@@ -105,6 +105,7 @@ impl IpmfsBuilder {
     ///
     /// Default: http://localhost:5001
     pub fn endpoint(mut self, endpoint: &str) -> Self {
+        let endpoint = endpoint.trim_end_matches('/');
         self.config.endpoint = if endpoint.is_empty() {
             None
         } else {
@@ -124,8 +125,11 @@ impl Builder for IpmfsBuilder {
         let endpoint = self
             .config
             .endpoint
-            .clone()
-            .unwrap_or_else(|| "http://localhost:5001".to_string());
+            .as_deref()
+            .map(|v| v.trim_end_matches('/'))
+            .filter(|v| !v.is_empty())
+            .unwrap_or("http://localhost:5001")
+            .to_string();
 
         let info = ServiceInfo::new(IPMFS_SCHEME, &root, "");
         let capability = Capability {
@@ -147,8 +151,8 @@ impl Builder for IpmfsBuilder {
         let core = Arc::new(IpmfsCore {
             info: accessor_info,
             capability,
-            root: root.to_string(),
-            endpoint: endpoint.to_string(),
+            root,
+            endpoint,
         });
 
         Ok(IpmfsBackend { core })
@@ -270,7 +274,7 @@ impl Service for IpmfsBackend {
 
     fn list(&self, ctx: &OperationContext, path: &str, _: OpList) -> Result<Self::Lister> {
         let output: oio::PageLister<IpmfsLister> = {
-            let l = IpmfsLister::new(self.core.clone(), ctx.clone(), &self.core.root, path);
+            let l = IpmfsLister::new(self.core.clone(), ctx.clone(), path);
             Ok(oio::PageLister::new(l))
         }?;
 
@@ -323,4 +327,110 @@ struct IpfsStatResponse {
     size: u64,
     #[serde(rename = "Type")]
     file_type: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::{Request, Response};
+
+    use super::*;
+
+    struct RecordingStatTransport {
+        urls: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for RecordingStatTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.urls
+                .lock()
+                .expect("mutex poisoned")
+                .push(req.uri().to_string());
+
+            let body = Buffer::from(r#"{"Size":12,"Type":"file"}"#);
+            let len = body.len() as u64;
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .unwrap())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_build_trims_trailing_slash_from_config_endpoint() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for raw_endpoint in ["http://127.0.0.1:5001/", "http://127.0.0.1:5001///"] {
+                let urls = Arc::new(Mutex::new(Vec::new()));
+                let config =
+                    IpmfsConfig::from_iter([("endpoint".to_string(), raw_endpoint.to_string())])?;
+                let op = Operator::new(config.into_builder())?.with_context(
+                    OperationContext::new().with_http_transport(HttpTransporter::new(
+                        RecordingStatTransport { urls: urls.clone() },
+                    )),
+                );
+
+                let meta = op.stat("file.txt").await?;
+                assert_eq!(meta.mode(), EntryMode::FILE);
+                assert_eq!(meta.content_length(), 12);
+
+                let recorded = urls.lock().expect("mutex poisoned");
+                assert_eq!(
+                    recorded.as_slice(),
+                    &["http://127.0.0.1:5001/api/v0/files/stat?arg=/file.txt"]
+                );
+            }
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn test_build_empty_endpoint_uses_default() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for raw_endpoint in [Some(""), Some("///"), None] {
+                let urls = Arc::new(Mutex::new(Vec::new()));
+                let pairs: Vec<(String, String)> = match raw_endpoint {
+                    Some(ep) => vec![("endpoint".to_string(), ep.to_string())],
+                    None => vec![],
+                };
+                let config = IpmfsConfig::from_iter(pairs)?;
+                let op = Operator::new(config.into_builder())?.with_context(
+                    OperationContext::new().with_http_transport(HttpTransporter::new(
+                        RecordingStatTransport { urls: urls.clone() },
+                    )),
+                );
+
+                let meta = op.stat("file.txt").await?;
+                assert_eq!(meta.mode(), EntryMode::FILE);
+
+                let recorded = urls.lock().expect("mutex poisoned");
+                assert_eq!(
+                    recorded.as_slice(),
+                    &["http://localhost:5001/api/v0/files/stat?arg=/file.txt"]
+                );
+            }
+
+            let urls = Arc::new(Mutex::new(Vec::new()));
+            let op = Operator::new(IpmfsBuilder::default().endpoint("///"))?.with_context(
+                OperationContext::new().with_http_transport(HttpTransporter::new(
+                    RecordingStatTransport { urls: urls.clone() },
+                )),
+            );
+            op.stat("file.txt").await?;
+            let recorded = urls.lock().expect("mutex poisoned");
+            assert_eq!(
+                recorded.as_slice(),
+                &["http://localhost:5001/api/v0/files/stat?arg=/file.txt"]
+            );
+
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
 }

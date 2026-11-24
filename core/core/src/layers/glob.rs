@@ -15,9 +15,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
-use crate::raw::glob_matcher::GlobPattern;
 use crate::raw::oio::{self, List};
 use crate::raw::*;
 use crate::*;
@@ -26,8 +26,11 @@ use crate::*;
 ///
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
-/// to skip unrelated directories. With a cursor, versions, or delete markers,
-/// it filters an underlying listing to preserve the service's cursor and entries.
+/// to skip unrelated directories. If the walk would list every directory below
+/// the leading literal directories of the pattern, as for `t/**/*.parquet`, and
+/// the service supports recursive listing, the layer filters one recursive
+/// listing instead. With a cursor, versions, or delete markers, it filters an
+/// underlying listing to preserve the service's cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -155,10 +158,12 @@ impl Service for GlobService {
                 inner: self.inner.list(ctx, path, args)?,
                 pattern,
                 base: base.to_owned(),
+                root: base.to_owned(),
+                implied: None,
+                pending: None,
             }));
         }
 
-        args.set_recursive(false);
         let mut directory = if base == "/" {
             String::new()
         } else {
@@ -174,7 +179,32 @@ impl Service for GlobService {
             directory.push('/');
         }
         let prefix = if path == "/" { "" } else { path };
-        let directories = if position == 0 || directory.starts_with(prefix) {
+        let can_match = position == 0 || directory.starts_with(prefix);
+
+        // A recursive listing reads every key below `root`. It costs no more
+        // requests than the walk only if the walk lists every directory too.
+        if can_match
+            && self.inner.capability().list_with_recursive
+            && pattern.walks_whole_subtree(position)
+        {
+            args.set_recursive(true);
+            let root = if directory.starts_with(prefix) {
+                directory
+            } else {
+                path.to_owned()
+            };
+            return Ok(Box::new(FilteredLister {
+                inner: self.inner.list(ctx, &root, args)?,
+                pattern,
+                base: base.to_owned(),
+                root,
+                implied: Some(ImpliedDirectories::default()),
+                pending: None,
+            }));
+        }
+
+        args.set_recursive(false);
+        let directories = if can_match {
             vec![Directory {
                 path: directory,
                 positions: vec![position],
@@ -289,18 +319,91 @@ struct FilteredLister {
     inner: oio::Lister,
     pattern: GlobPattern,
     base: String,
+    /// The listed path. As in the guided listing, a listed directory is not
+    /// returned.
+    root: String,
+    implied: Option<ImpliedDirectories>,
+    pending: Option<oio::Entry>,
+}
+
+/// Object stores return only keys. The guided listing also returns each
+/// directory that exists only as a key prefix.
+#[derive(Default)]
+struct ImpliedDirectories {
+    returned: HashSet<String>,
+    /// A directory whose parents and itself are already checked.
+    checked: String,
+}
+
+impl FilteredLister {
+    /// Return the next unchecked parent of `entry` that matches, else `entry` if
+    /// it matches. After a parent, `entry` waits in `pending`.
+    fn take_next(&mut self, entry: oio::Entry) -> Option<oio::Entry> {
+        let root = self.root.as_str();
+        let accepts = |path: &str, is_dir: bool| {
+            !(path == root && root.ends_with('/'))
+                && relative_child(path, &self.base)
+                    .is_some_and(|relative| self.pattern.matches(relative, is_dir))
+        };
+        let path = entry.path();
+        let is_dir = entry.mode().is_dir();
+        let Some(implied) = &mut self.implied else {
+            return accepts(path, is_dir).then_some(entry);
+        };
+
+        let listed = if root == "/" { 0 } else { root.len() };
+        let end = path.trim_end_matches('/').len();
+        let start = shared_directory_len(&implied.checked, path).min(end);
+        for (index, _) in path[start..end].match_indices('/') {
+            let parent = &path[..=start + index];
+            if parent.len() > listed && !implied.returned.contains(parent) && accepts(parent, true)
+            {
+                implied.returned.insert(parent.to_owned());
+                implied.checked.clear();
+                implied.checked.push_str(parent);
+                let parent = oio::Entry::new(parent, MetadataBuilder::dir().build());
+                self.pending = Some(entry);
+                return Some(parent);
+            }
+        }
+
+        let directory_len = if is_dir {
+            path.len()
+        } else {
+            path.rfind('/').map_or(0, |index| index + 1)
+        };
+        implied.checked.clear();
+        implied.checked.push_str(&path[..directory_len]);
+        if !accepts(path, is_dir) || (is_dir && !implied.returned.insert(path.to_owned())) {
+            return None;
+        }
+        Some(entry)
+    }
+}
+
+/// Length of the longest shared prefix of `a` and `b` that ends with `/`.
+fn shared_directory_len(a: &str, b: &str) -> usize {
+    let shared = a.bytes().zip(b.bytes()).take_while(|(a, b)| a == b).count();
+    a.as_bytes()[..shared]
+        .iter()
+        .rposition(|&byte| byte == b'/')
+        .map_or(0, |index| index + 1)
 }
 
 impl List for FilteredLister {
     async fn next(&mut self) -> Result<Option<oio::Entry>> {
-        while let Some(entry) = self.inner.next().await? {
-            if let Some(path) = relative_child(entry.path(), &self.base)
-                && self.pattern.matches(path, entry.mode().is_dir())
-            {
+        loop {
+            let entry = match self.pending.take() {
+                Some(entry) => entry,
+                None => match self.inner.next().await? {
+                    Some(entry) => entry,
+                    None => return Ok(None),
+                },
+            };
+            if let Some(entry) = self.take_next(entry) {
                 return Ok(Some(entry));
             }
         }
-        Ok(None)
     }
 }
 

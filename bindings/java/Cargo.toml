@@ -30,6 +30,9 @@ rust-version = "1.91"
 crate-type = ["cdylib", "staticlib"]
 doc = false
 
+[features]
+test-native-panics = []
+
 [dependencies]
 jni = { version = "0.22.4" }
 # opendal-java won't be published to crates.io, we always use the local version

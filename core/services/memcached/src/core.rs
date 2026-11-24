@@ -214,10 +214,13 @@ impl ManageObject for MemcacheConnectionManager {
         o: &mut Self::Object,
         _: &ObjectStatus,
     ) -> Result<(), Self::Error> {
-        match o.version().await {
-            Ok(_) => Ok(()),
-            Err(err) => Err(err),
+        if o.is_poisoned() {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "memcached connection is poisoned",
+            ));
         }
+        o.version().await.map(|_| ())
     }
 }
 
@@ -439,5 +442,194 @@ mod tests {
 
         let _ = std::fs::remove_file(path);
         Ok(())
+    }
+
+    async fn read_binary_request(
+        stream: &mut TcpStream,
+    ) -> std::io::Result<(binary::PacketHeader, Vec<u8>)> {
+        use tokio::io::AsyncReadExt;
+
+        let mut header_buf = [0u8; 24];
+        stream.read_exact(&mut header_buf).await?;
+        let header = binary::PacketHeader::from_bytes(header_buf);
+        let mut body = vec![0u8; header.total_body_length as usize];
+        stream.read_exact(&mut body).await?;
+        Ok((header, body))
+    }
+
+    async fn write_binary_response(
+        stream: &mut TcpStream,
+        opcode: u8,
+        status: u16,
+        opaque: u32,
+        extras: &[u8],
+        value: &[u8],
+    ) -> std::io::Result<()> {
+        use tokio::io::AsyncWriteExt;
+
+        let header = binary::PacketHeader {
+            magic: binary::Magic::Response as u8,
+            opcode,
+            extras_length: extras.len() as u8,
+            vbucket_id_or_status: status,
+            total_body_length: (extras.len() + value.len()) as u32,
+            opaque,
+            ..Default::default()
+        };
+        stream.write_all(&header.to_bytes()).await?;
+        stream.write_all(extras).await?;
+        stream.write_all(value).await?;
+        stream.flush().await
+    }
+
+    #[tokio::test]
+    async fn cancelled_pooled_request_discards_socket_and_prevents_cross_key_leak() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tokio::sync::oneshot;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let accepted_conns = Arc::new(AtomicUsize::new(0));
+        let accepted_conns_server = Arc::clone(&accepted_conns);
+
+        let (req1_received_tx, req1_received_rx) = oneshot::channel::<()>();
+        let (release_reply1_tx, release_reply1_rx) = oneshot::channel::<()>();
+        let (reply1_written_tx, reply1_written_rx) = oneshot::channel::<()>();
+
+        let server_task = tokio::spawn(async move {
+            // Connection #1: receives GET /foo, waits until cancelled, then writes stale reply.
+            let (mut conn1, _) = listener.accept().await.unwrap();
+            accepted_conns_server.fetch_add(1, Ordering::SeqCst);
+            let (req1, body1) = read_binary_request(&mut conn1).await.unwrap();
+            assert_eq!(req1.opcode, binary::Opcode::Get as u8);
+            assert_eq!(body1, b"/foo");
+            let _ = req1_received_tx.send(());
+            let _ = release_reply1_rx.await;
+            // Best-effort write: the client already dropped the future, so the stale reply
+            // lands in the kernel socket buffer while conn1 sits idle in the pool.
+            let _ = write_binary_response(
+                &mut conn1,
+                binary::Opcode::Get as u8,
+                binary::constants::OK_STATUS,
+                req1.opaque,
+                &[0, 0, 0, 0],
+                b"secret-foo-value",
+            )
+            .await;
+            let _ = reply1_written_tx.send(());
+
+            // Connection #2: pool must discard poisoned conn1 and open a fresh connection.
+            let (mut conn2, _) = listener.accept().await.unwrap();
+            accepted_conns_server.fetch_add(1, Ordering::SeqCst);
+            let (req2, body2) = read_binary_request(&mut conn2).await.unwrap();
+            assert_eq!(req2.opcode, binary::Opcode::Get as u8);
+            assert_eq!(body2, b"/bar");
+            write_binary_response(
+                &mut conn2,
+                binary::Opcode::Get as u8,
+                binary::constants::OK_STATUS,
+                req2.opaque,
+                &[0, 0, 0, 0],
+                b"value-of-bar",
+            )
+            .await
+            .unwrap();
+        });
+
+        let core = MemcachedCore::new(Endpoint::Tcp(addr), None, None, None, Some(1));
+
+        // Start GET /foo and deterministically cancel it mid-flight once the request is on the wire.
+        let mut req1_received_rx = req1_received_rx;
+        tokio::select! {
+            _ = core.get("/foo") => panic!("first request should have been cancelled before replying"),
+            res = &mut req1_received_rx => res.unwrap(),
+        }
+
+        // Let the server write the delayed /foo reply into conn1's socket buffer.
+        release_reply1_tx.send(()).unwrap();
+        reply1_written_rx.await.unwrap();
+
+        // Next caller must never observe VERSION bytes or stale /foo data.
+        let got = core
+            .get("/bar")
+            .await
+            .unwrap()
+            .expect("expected /bar value");
+        assert_eq!(got.to_bytes().as_ref(), b"value-of-bar");
+        assert_eq!(accepted_conns.load(Ordering::SeqCst), 2);
+
+        server_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn pooled_connection_recovers_after_server_error_with_body() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap().to_string();
+        let accepted_conns = Arc::new(AtomicUsize::new(0));
+        let accepted_conns_server = Arc::clone(&accepted_conns);
+
+        let server_task = tokio::spawn(async move {
+            let (mut conn, _) = listener.accept().await.unwrap();
+            accepted_conns_server.fetch_add(1, Ordering::SeqCst);
+
+            // 1. SET /big -> 0x0003 Value too large with ASCII error body.
+            let (set_req, _) = read_binary_request(&mut conn).await.unwrap();
+            assert_eq!(set_req.opcode, binary::Opcode::Set as u8);
+            write_binary_response(
+                &mut conn,
+                binary::Opcode::Set as u8,
+                0x0003,
+                set_req.opaque,
+                &[],
+                b"Object too large for cache",
+            )
+            .await
+            .unwrap();
+
+            // 2. Pool recycles the same connection via VERSION health check.
+            let (ver_req, _) = read_binary_request(&mut conn).await.unwrap();
+            assert_eq!(ver_req.opcode, binary::Opcode::Version as u8);
+            write_binary_response(
+                &mut conn,
+                binary::Opcode::Version as u8,
+                binary::constants::OK_STATUS,
+                ver_req.opaque,
+                &[],
+                b"1.6.29",
+            )
+            .await
+            .unwrap();
+
+            // 3. Subsequent GET /ok on the same connection returns clean value.
+            let (get_req, get_body) = read_binary_request(&mut conn).await.unwrap();
+            assert_eq!(get_req.opcode, binary::Opcode::Get as u8);
+            assert_eq!(get_body, b"/ok");
+            write_binary_response(
+                &mut conn,
+                binary::Opcode::Get as u8,
+                binary::constants::OK_STATUS,
+                get_req.opaque,
+                &[0, 0, 0, 0],
+                b"ok-value",
+            )
+            .await
+            .unwrap();
+        });
+
+        let core = MemcachedCore::new(Endpoint::Tcp(addr), None, None, None, Some(1));
+
+        let err = core
+            .set("/big", Buffer::from("oversized"), None)
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+        let got = core.get("/ok").await.unwrap().expect("expected /ok value");
+        assert_eq!(got.to_bytes().as_ref(), b"ok-value");
+        assert_eq!(accepted_conns.load(Ordering::SeqCst), 1);
+
+        server_task.await.unwrap();
     }
 }

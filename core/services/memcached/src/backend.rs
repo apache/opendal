@@ -111,6 +111,14 @@ impl Builder for MemcachedBuilder {
     type Config = MemcachedConfig;
 
     fn build(self) -> Result<impl Service> {
+        if self.config.connection_pool_max_size == Some(0) {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "connection_pool_max_size must be greater than zero",
+            )
+            .with_context("service", MEMCACHED_SCHEME));
+        }
+
         let default_ttl = match self.default_ttl {
             Some(ttl) => Some(ttl),
             None => self
@@ -425,5 +433,32 @@ mod tests {
                 .expect_err("a ttl over thirty days must be rejected");
             assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
         }
+    }
+
+    #[test]
+    fn build_rejects_zero_connection_pool_max_size() {
+        let cfg = MemcachedConfig {
+            endpoint: Some("tcp://127.0.0.1:11211".to_string()),
+            connection_pool_max_size: Some(0),
+            ..Default::default()
+        };
+
+        let err = cfg
+            .into_builder()
+            .build()
+            .expect_err("connection_pool_max_size = 0 must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let uri = OperatorUri::new(
+            "memcached://127.0.0.1:11211/?connection_pool_max_size=0",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+        let err = MemcachedConfig::from_uri(&uri)
+            .unwrap()
+            .into_builder()
+            .build()
+            .expect_err("URI connection_pool_max_size = 0 must be rejected");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

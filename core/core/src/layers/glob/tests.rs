@@ -209,19 +209,15 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
     });
     let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
 
-    let entries = op
-        .list_with("/")
-        .glob("t/p=*/**/*.parquet")
-        .limit(2)
-        .await?;
+    let entries = op.list_with("/").glob("t/*/**/*.parquet").limit(2).await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
-        ["t/p=1/a.parquet", "t/p=2/x/c.parquet"]
+        ["t/p=1/a.parquet", "t/p=2/x/c.parquet", "t/q=3/d.parquet"]
     );
-    let entries = op.list_with("/").glob("*/*/").await?;
+    let entries = op.list_with("/").glob("*/**/").await?;
     assert_eq!(
         entries.iter().map(Entry::path).collect::<Vec<_>>(),
-        ["t/p=1/", "t/p=2/", "t/q=3/"]
+        ["t/", "t/p=1/", "t/p=2/", "t/p=2/x/", "t/q=3/"]
     );
     let entries = op.list_with("t/").glob("**").await?;
     assert_eq!(
@@ -240,7 +236,7 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
 
     let requests = inner.requests.lock().unwrap();
     assert_eq!(requests.len(), 3);
-    for ((path, args), expected) in requests.iter().zip(["t/p=", "/", "t/"]) {
+    for ((path, args), expected) in requests.iter().zip(["t/", "/", "t/"]) {
         assert_eq!(path, expected);
         assert!(args.recursive());
         assert_eq!(args.glob(), None);
@@ -289,7 +285,7 @@ async fn flat_listing_requires_recursive_listing() -> Result<()> {
 }
 
 #[tokio::test]
-async fn single_component_patterns_list_one_directory() -> Result<()> {
+async fn flat_services_walk_patterns_that_skip_directories() -> Result<()> {
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&["t/a.parquet", "t/b.json"])
@@ -297,11 +293,16 @@ async fn single_component_patterns_list_one_directory() -> Result<()> {
     let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
     let entries = op.list_with("t/").glob("*.parquet").await?;
     assert_eq!(entries[0].path(), "t/a.parquet");
-    op.list_with("/").glob("t/a*").await?;
+    for pattern in ["t/*", "t/*/*.parquet", "t/p=*/**", "t/*/x/**"] {
+        op.list_with("/").glob(pattern).await?;
+    }
     let requests = inner.requests.lock().unwrap();
-    assert_eq!(requests.len(), 2);
-    assert!(requests.iter().all(|(_, args)| !args.recursive()));
-    assert_eq!(requests[1].0, "t/a");
+    assert_eq!(requests.len(), 5);
+    assert!(
+        requests
+            .iter()
+            .all(|(path, args)| path == "t/" && !args.recursive())
+    );
     Ok(())
 }
 

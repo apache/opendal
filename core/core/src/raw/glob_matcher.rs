@@ -17,9 +17,6 @@
 
 use crate::{Error, ErrorKind, Result};
 
-/// Backslashes and drive prefixes can have path semantics on some services.
-const PATH_SEMANTIC_CHARS: [char; 2] = ['\\', ':'];
-
 #[derive(Debug)]
 pub(crate) struct GlobPattern {
     segments: Vec<Segment>,
@@ -66,31 +63,24 @@ impl GlobPattern {
         self.segments[..self.segments.len().saturating_sub(terminal_components)]
             .iter()
             .map_while(|segment| match segment {
-                Segment::Literal(value) if !value.contains(PATH_SEMANTIC_CHARS) => {
-                    Some(value.as_str())
-                }
+                // Backslashes and drive prefixes can have path semantics on some services.
+                Segment::Literal(value) if !value.contains(['\\', ':']) => Some(value.as_str()),
                 _ => None,
             })
     }
 
     pub(crate) fn spans_directories(&self) -> bool {
-        self.spans_directories_from(0)
+        self.segments.len() > 1 || matches!(self.segments[0], Segment::Recursive)
     }
 
-    /// Whether a match below a directory at `position` can be more than one component deep.
-    pub(crate) fn spans_directories_from(&self, position: usize) -> bool {
-        position + 1 < self.segments.len()
-            || matches!(self.segments.get(position), Some(Segment::Recursive))
-    }
-
-    /// Every name that matches the component at `position` starts with this text.
-    pub(crate) fn literal_prefix_at(&self, position: usize) -> &str {
-        let prefix = match self.segments.get(position) {
-            Some(Segment::Literal(literal)) => literal,
-            Some(Segment::Glob(matcher)) => &matcher.prefix,
-            _ => "",
-        };
-        prefix.split(PATH_SEMANTIC_CHARS).next().unwrap_or_default()
+    /// Whether a guided walk from a directory at `position` lists every directory below it.
+    pub(crate) fn walks_whole_subtree(&self, position: usize) -> bool {
+        self.segments[position..]
+            .iter()
+            .find(
+                |segment| !matches!(segment, Segment::Glob(matcher) if matcher.matches_any_name()),
+            )
+            .is_some_and(|segment| matches!(segment, Segment::Recursive))
     }
 
     /// Advance every viable pattern position against one path component.
@@ -164,7 +154,6 @@ impl Segment {
 #[derive(Debug)]
 struct SegmentMatcher {
     tokens: Vec<Token>,
-    prefix: String,
 }
 
 #[derive(Debug)]
@@ -234,14 +223,11 @@ impl SegmentMatcher {
         if !alternations.is_empty() {
             return Err(invalid("unterminated alternation in glob pattern"));
         }
-        let prefix = tokens
-            .iter()
-            .map_while(|token| match token {
-                Token::Literal(ch) => Some(*ch),
-                _ => None,
-            })
-            .collect();
-        Ok(Self { tokens, prefix })
+        Ok(Self { tokens })
+    }
+
+    fn matches_any_name(&self) -> bool {
+        matches!(self.tokens.as_slice(), [Token::Star])
     }
 
     fn literal(&self) -> Option<String> {

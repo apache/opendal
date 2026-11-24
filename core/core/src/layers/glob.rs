@@ -28,11 +28,11 @@ use crate::*;
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
 /// to skip unrelated directories. On services that set
-/// `list_with_recursive_flat`, a pattern that spans directories filters one
-/// recursive listing, because a walk costs one request per directory. These
-/// services also list only keys that start with the literal text of the pattern.
-/// With a cursor, versions, or delete markers, it filters an underlying listing
-/// to preserve the service's cursor and entries.
+/// `list_with_recursive_flat`, the walk costs one request per directory. When the
+/// walk visits every directory below the leading literal directories of the
+/// pattern, as for `t/**/*.parquet`, the layer filters one recursive listing
+/// instead. With a cursor, versions, or delete markers, it filters an underlying
+/// listing to preserve the service's cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -183,9 +183,9 @@ impl Service for GlobService {
         let prefix = if path == "/" { "" } else { path };
 
         let capability = self.inner.capability();
-        let flat = capability.list_with_recursive && capability.list_with_recursive_flat;
-        if flat
-            && pattern.spans_directories_from(position)
+        if capability.list_with_recursive
+            && capability.list_with_recursive_flat
+            && pattern.walks_whole_subtree(position)
             && (position == 0 || directory.starts_with(prefix))
         {
             args.set_recursive(true);
@@ -194,13 +194,8 @@ impl Service for GlobService {
             } else {
                 path.to_owned()
             };
-            let list_path = if root.ends_with('/') {
-                key_prefix(&root, pattern.literal_prefix_at(position))
-            } else {
-                root.clone()
-            };
             return Ok(Box::new(FilteredLister {
-                inner: self.inner.list(ctx, &list_path, args)?,
+                inner: self.inner.list(ctx, &root, args)?,
                 pattern,
                 base: base.to_owned(),
                 root,
@@ -211,14 +206,8 @@ impl Service for GlobService {
 
         args.set_recursive(false);
         let directories = if position == 0 || directory.starts_with(prefix) {
-            let list_path = if flat {
-                key_prefix(&directory, pattern.literal_prefix_at(position))
-            } else {
-                directory.clone()
-            };
             vec![Directory {
                 path: directory,
-                list_path,
                 positions: vec![position],
                 lister: None,
                 discovered: false,
@@ -239,7 +228,6 @@ impl Service for GlobService {
 
 struct Directory {
     path: String,
-    list_path: String,
     positions: Vec<usize>,
     lister: Option<oio::Lister>,
     /// Found while listing a parent rather than requested by the caller.
@@ -254,7 +242,7 @@ impl Directory {
         args: &OpList,
     ) -> Result<Option<oio::Entry>> {
         if self.lister.is_none() {
-            self.lister = Some(inner.list(ctx, &self.list_path, args.clone())?);
+            self.lister = Some(inner.list(ctx, &self.path, args.clone())?);
         }
         self.lister
             .as_mut()
@@ -315,7 +303,6 @@ impl List for GuidedLister {
             if is_dir && self.pattern.can_descend(&positions) {
                 self.directories.push(Directory {
                     path: entry.path().to_owned(),
-                    list_path: entry.path().to_owned(),
                     positions,
                     lister: None,
                     discovered: true,
@@ -403,14 +390,6 @@ impl List for FilteredLister {
                 return Ok(Some(entry));
             }
         }
-    }
-}
-
-fn key_prefix(directory: &str, prefix: &str) -> String {
-    match (directory, prefix) {
-        (_, "") => directory.to_owned(),
-        ("/", _) => prefix.to_owned(),
-        _ => format!("{directory}{prefix}"),
     }
 }
 

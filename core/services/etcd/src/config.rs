@@ -97,10 +97,21 @@ impl opendal_core::Configurator for EtcdConfig {
                 .or_insert_with(|| format!("http://{authority}"));
         }
 
+        if let Some(username) = uri.username() {
+            map.entry("username".to_string())
+                .or_insert_with(|| username.to_string());
+        }
+
+        if let Some(password) = uri.password() {
+            map.entry("password".to_string())
+                .or_insert_with(|| password.to_string());
+        }
+
         if let Some(root) = uri.root()
             && !root.is_empty()
         {
-            map.insert("root".to_string(), root.to_string());
+            map.entry("root".to_string())
+                .or_insert_with(|| root.to_string());
         }
 
         Self::from_iter(map)
@@ -128,5 +139,36 @@ mod tests {
         let cfg = EtcdConfig::from_uri(&uri).unwrap();
         assert_eq!(cfg.endpoints.as_deref(), Some("http://127.0.0.1:2379"));
         assert_eq!(cfg.root.as_deref(), Some("app/config"));
+    }
+
+    #[test]
+    fn from_uri_preserves_credentials_and_query_root() {
+        let uri = OperatorUri::new(
+            "etcd://alice:s3cr3t@127.0.0.1:2379/path/root?root=/explicit/root",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = EtcdConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.endpoints.as_deref(), Some("http://127.0.0.1:2379"));
+        assert_eq!(cfg.username.as_deref(), Some("alice"));
+        assert_eq!(cfg.password.as_deref(), Some("s3cr3t"));
+        assert_eq!(cfg.root.as_deref(), Some("/explicit/root"));
+
+        let debug_str = format!("{cfg:?}");
+        assert!(!debug_str.contains("s3cr3t"));
+    }
+
+    #[test]
+    fn from_uri_prefers_explicit_credential_options() {
+        let uri = OperatorUri::new(
+            "etcd://alice:uri-pass@127.0.0.1:2379/app?username=bob&password=opt-pass",
+            Vec::<(String, String)>::new(),
+        )
+        .unwrap();
+
+        let cfg = EtcdConfig::from_uri(&uri).unwrap();
+        assert_eq!(cfg.username.as_deref(), Some("bob"));
+        assert_eq!(cfg.password.as_deref(), Some("opt-pass"));
     }
 }

@@ -56,11 +56,15 @@ impl EtcdLister {
             keys.push(key);
         }
 
-        Ok(Self {
+        Ok(Self::from_keys(root, abs_path, keys))
+    }
+
+    fn from_keys(root: String, path: String, keys: Vec<String>) -> Self {
+        Self {
             root,
-            path: abs_path,
+            path,
             iter: keys.into_iter(),
-        })
+        }
     }
 }
 
@@ -68,9 +72,14 @@ impl oio::List for EtcdLister {
     async fn next(&mut self) -> Result<Option<Entry>> {
         for key in self.iter.by_ref() {
             if key.starts_with(&self.path) {
-                let path = build_relative_path(&self.root, &key);
+                let path = if key == self.root {
+                    "/".to_string()
+                } else {
+                    let rel = build_relative_path(&self.root, &key);
+                    if rel.is_empty() { "/".to_string() } else { rel }
+                };
 
-                let metadata = if key.ends_with('/') {
+                let metadata = if path.ends_with('/') {
                     MetadataBuilder::dir()
                 } else {
                     MetadataBuilder::unknown()
@@ -115,5 +124,80 @@ impl oio::List for EtcdLazyLister {
             .expect("lister must be initialized")
             .next()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+    use opendal_core::raw::oio::List as _;
+
+    #[tokio::test]
+    async fn lister_handles_root_key_without_panicking() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut lister = EtcdLister::from_keys(
+                "/".to_string(),
+                String::new(),
+                vec![
+                    "/".to_string(),
+                    "file".to_string(),
+                    "dir/".to_string(),
+                    "dir/nested".to_string(),
+                ],
+            );
+
+            let mut entries = Vec::new();
+            while let Some(entry) = lister.next().await? {
+                entries.push((entry.path().to_string(), entry.mode()));
+            }
+
+            assert_eq!(
+                entries,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("file".to_string(), EntryMode::Unknown),
+                    ("dir/".to_string(), EntryMode::DIR),
+                    ("dir/nested".to_string(), EntryMode::Unknown),
+                ]
+            );
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
+    }
+
+    #[tokio::test]
+    async fn lister_handles_subroot_marker_and_filters_prefix() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut lister = EtcdLister::from_keys(
+                "/sub/".to_string(),
+                "sub/".to_string(),
+                vec![
+                    "sub/".to_string(),
+                    "sub/file".to_string(),
+                    "sub/dir/".to_string(),
+                    "other/key".to_string(),
+                ],
+            );
+
+            let mut entries = Vec::new();
+            while let Some(entry) = lister.next().await? {
+                entries.push((entry.path().to_string(), entry.mode()));
+            }
+
+            assert_eq!(
+                entries,
+                vec![
+                    ("/".to_string(), EntryMode::DIR),
+                    ("file".to_string(), EntryMode::Unknown),
+                    ("dir/".to_string(), EntryMode::DIR),
+                ]
+            );
+            Ok(())
+        })
+        .await
+        .expect("test timed out")
     }
 }

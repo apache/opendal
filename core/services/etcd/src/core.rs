@@ -20,9 +20,11 @@ use asyncband::pool::ObjectStatus;
 use asyncband::pool::bounded;
 use etcd_client::Client;
 use etcd_client::ConnectOptions;
+use etcd_client::Error as EtcdError;
 use etcd_client::KvClient;
 use std::fmt::Debug;
 use std::sync::Arc;
+use tonic::Code;
 
 use opendal_core::raw::*;
 use opendal_core::{Buffer, Error, ErrorKind, Result};
@@ -62,7 +64,6 @@ impl ManageObject for Manager {
 #[derive(Clone)]
 pub struct EtcdCore {
     endpoints: Vec<String>,
-    options: ConnectOptions,
     max_decoding_message_size: Option<usize>,
     client: Arc<bounded::Pool<Manager>>,
 }
@@ -71,7 +72,6 @@ impl Debug for EtcdCore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("EtcdCore")
             .field("endpoints", &self.endpoints.join(","))
-            .field("options", &self.options.clone())
             .field("max_decoding_message_size", &self.max_decoding_message_size)
             .finish_non_exhaustive()
     }
@@ -87,16 +87,20 @@ impl EtcdCore {
             bounded::PoolConfig::new(64),
             Manager {
                 endpoints: endpoints.clone(),
-                options: options.clone(),
+                options,
             },
         );
 
         Self {
             endpoints,
-            options,
             max_decoding_message_size,
             client,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn endpoints(&self) -> &[String] {
+        &self.endpoints
     }
 
     pub async fn conn(&self) -> Result<bounded::Object<Manager>> {
@@ -173,10 +177,165 @@ impl EtcdCore {
     }
 }
 
-use etcd_client::Error as EtcdError;
-
 pub fn format_etcd_error(e: EtcdError) -> Error {
-    Error::new(ErrorKind::Unexpected, e.to_string().as_str())
-        .set_source(e)
-        .set_temporary()
+    let (kind, temporary) = match &e {
+        EtcdError::GRpcStatus(status) => match status.code() {
+            Code::PermissionDenied | Code::Unauthenticated => (ErrorKind::PermissionDenied, false),
+            Code::InvalidArgument
+                if status.message().contains("authentication failed")
+                    || status.message().contains("user name is empty") =>
+            {
+                (ErrorKind::PermissionDenied, false)
+            }
+            Code::NotFound => (ErrorKind::NotFound, false),
+            Code::AlreadyExists => (ErrorKind::AlreadyExists, false),
+            Code::ResourceExhausted => (ErrorKind::RateLimited, true),
+            Code::Unavailable
+            | Code::DeadlineExceeded
+            | Code::Aborted
+            | Code::Cancelled
+            | Code::Unknown => (ErrorKind::Unexpected, true),
+            _ => (ErrorKind::Unexpected, false),
+        },
+        EtcdError::InvalidArgs(_)
+        | EtcdError::InvalidUri(_)
+        | EtcdError::InvalidMetadataValue(_) => (ErrorKind::ConfigInvalid, false),
+        EtcdError::TransportError(_) | EtcdError::IoError(_) => (ErrorKind::Unexpected, true),
+        _ => (ErrorKind::Unexpected, false),
+    };
+
+    let err = Error::new(kind, e.to_string()).set_source(e);
+    if temporary { err.set_temporary() } else { err }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tonic::Status;
+
+    #[test]
+    fn debug_omits_connect_options_password() {
+        let options = ConnectOptions::new().with_user("alice", "s3cr3t-pass");
+        let core = EtcdCore::new(vec!["http://127.0.0.1:2379".to_string()], options, None);
+        let debug_str = format!("{core:?}");
+        assert!(debug_str.contains("http://127.0.0.1:2379"));
+        assert!(!debug_str.contains("s3cr3t-pass"));
+    }
+
+    #[test]
+    fn format_etcd_error_classifies_grpc_and_client_errors() {
+        let cases = [
+            (
+                EtcdError::GRpcStatus(Status::unauthenticated("bad token")),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::permission_denied("forbidden")),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::invalid_argument(
+                    "etcdserver: authentication failed, invalid user ID or password",
+                )),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::invalid_argument("etcdserver: user name is empty")),
+                ErrorKind::PermissionDenied,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::not_found("missing")),
+                ErrorKind::NotFound,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::already_exists("exists")),
+                ErrorKind::AlreadyExists,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::resource_exhausted("quota exceeded")),
+                ErrorKind::RateLimited,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::unavailable("leader election")),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::deadline_exceeded("timeout")),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::aborted("txn aborted")),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::cancelled("cancelled")),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::unknown("unknown")),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::invalid_argument("key is not provided")),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::failed_precondition("failed precondition")),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::out_of_range("compacted")),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::unimplemented("unimplemented")),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                EtcdError::GRpcStatus(Status::data_loss("corrupt")),
+                ErrorKind::Unexpected,
+                false,
+            ),
+            (
+                EtcdError::InvalidArgs("empty endpoints".to_string()),
+                ErrorKind::ConfigInvalid,
+                false,
+            ),
+            (
+                EtcdError::IoError(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionReset,
+                    "reset",
+                )),
+                ErrorKind::Unexpected,
+                true,
+            ),
+            (
+                EtcdError::Internal("internal error".to_string()),
+                ErrorKind::Unexpected,
+                false,
+            ),
+        ];
+
+        for (input, expected_kind, expected_temporary) in cases {
+            let err = format_etcd_error(input);
+            assert_eq!(err.kind(), expected_kind, "error: {err}");
+            assert_eq!(err.is_temporary(), expected_temporary, "error: {err}");
+        }
+    }
 }

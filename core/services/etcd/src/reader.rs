@@ -39,6 +39,12 @@ impl oio::StreamRead for EtcdReader {
         let backend = &self.backend;
         let path = self.path.as_str();
         let abs_path = build_absolute_path(&backend.info.root(), path);
+        if abs_path.is_empty() || abs_path.ends_with('/') {
+            return Err(Error::new(
+                ErrorKind::IsADirectory,
+                "cannot read a directory",
+            ));
+        }
 
         match backend.core.get(&abs_path).await? {
             Some(buffer) => {

@@ -8253,6 +8253,7 @@ dependencies = [
  "opendal-core",
  "serde",
  "tokio",
+ "tonic 0.14.5",
 ]
 
 [[package]]

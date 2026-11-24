@@ -98,7 +98,7 @@ impl HdfsCore {
         &self,
         path: &str,
         op: &OpWrite,
-    ) -> Result<(String, Option<String>, hdrs::AsyncFile, bool, u64)> {
+    ) -> Result<(String, Option<String>, hdrs::AsyncFile, u64)> {
         let target_path = build_rooted_absolute_path(&self.root, path);
         let mut initial_size = 0;
         let target_exists = match self.client.metadata(&target_path) {
@@ -143,7 +143,7 @@ impl HdfsCore {
             .await
             .map_err(new_std_io_error)?;
 
-        Ok((target_path, tmp_path, f, target_exists, initial_size))
+        Ok((target_path, tmp_path, f, initial_size))
     }
 
     pub fn hdfs_list(&self, path: &str) -> Result<Option<hdrs::Readdir>> {
@@ -163,7 +163,13 @@ impl HdfsCore {
 
     pub fn hdfs_rename(&self, from: &str, to: &str, args: &OpRename) -> Result<()> {
         let from_path = build_rooted_absolute_path(&self.root, from);
-        self.client.metadata(&from_path).map_err(new_std_io_error)?;
+        let from_meta = self.client.metadata(&from_path).map_err(new_std_io_error)?;
+        if !from_meta.is_file() {
+            return Err(
+                Error::new(ErrorKind::IsADirectory, "from path should be a file")
+                    .with_context("from", &from_path),
+            );
+        }
 
         let to_path = build_rooted_absolute_path(&self.root, to);
         let result = self.client.metadata(&to_path);

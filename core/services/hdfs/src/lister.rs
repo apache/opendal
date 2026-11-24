@@ -27,6 +27,16 @@ pub struct HdfsLister {
     current_path: Option<String>,
 }
 
+fn normalize_dir_entry_path(path: &str) -> String {
+    if path.is_empty() || path == "/" {
+        "/".to_string()
+    } else if path.ends_with('/') {
+        path.to_string()
+    } else {
+        format!("{path}/")
+    }
+}
+
 impl HdfsLister {
     pub fn new(root: &str, rd: hdrs::Readdir, path: &str) -> Self {
         Self {
@@ -34,7 +44,7 @@ impl HdfsLister {
 
             rd,
 
-            current_path: Some(path.to_string()),
+            current_path: Some(normalize_dir_entry_path(path)),
         }
     }
 }
@@ -64,5 +74,25 @@ impl oio::List for HdfsLister {
         };
 
         Ok(Some(entry))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_dir_entry_path_ensures_trailing_slash() {
+        assert_eq!(normalize_dir_entry_path(""), "/");
+        assert_eq!(normalize_dir_entry_path("/"), "/");
+        assert_eq!(normalize_dir_entry_path("sub/"), "sub/");
+        assert_eq!(normalize_dir_entry_path("sub"), "sub/");
+        assert_eq!(normalize_dir_entry_path("a/b"), "a/b/");
+
+        let entry = oio::Entry::new(
+            &normalize_dir_entry_path("sub"),
+            MetadataBuilder::dir().build(),
+        );
+        assert_eq!(entry.path(), "sub/");
     }
 }

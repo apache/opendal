@@ -106,6 +106,10 @@ impl HdfsBuilder {
     }
 }
 
+fn normalize_atomic_write_dir(dir: Option<&str>) -> Option<String> {
+    dir.filter(|d| !d.is_empty()).map(normalize_root)
+}
+
 impl Builder for HdfsBuilder {
     type Config = HdfsConfig;
 
@@ -113,8 +117,8 @@ impl Builder for HdfsBuilder {
         debug!("backend build started: {:?}", self);
 
         let name_node = match &self.config.name_node {
-            Some(v) => v,
-            None => {
+            Some(v) if !v.is_empty() => v,
+            _ => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "name node is empty")
                     .with_context("service", HDFS_SCHEME));
             }
@@ -142,7 +146,7 @@ impl Builder for HdfsBuilder {
             client.create_dir(&root).map_err(new_std_io_error)?
         }
 
-        let atomic_write_dir = self.config.atomic_write_dir;
+        let atomic_write_dir = normalize_atomic_write_dir(self.config.atomic_write_dir.as_deref());
 
         // If atomic write dir is not exist, we must create it.
         if let Some(d) = &atomic_write_dir
@@ -297,5 +301,41 @@ impl Service for HdfsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_rejects_empty_name_node() {
+        let cfg = HdfsConfig::from_iter([("name_node".to_string(), "".to_string())]).unwrap();
+        let Err(err) = cfg.into_builder().build() else {
+            panic!("empty name_node must fail with ConfigInvalid");
+        };
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+    }
+
+    #[test]
+    fn normalize_atomic_write_dir_adds_root_and_trailing_slash() {
+        assert_eq!(normalize_atomic_write_dir(None), None);
+        assert_eq!(normalize_atomic_write_dir(Some("")), None);
+        assert_eq!(
+            normalize_atomic_write_dir(Some("/tmp/atomic")).as_deref(),
+            Some("/tmp/atomic/")
+        );
+        assert_eq!(
+            normalize_atomic_write_dir(Some("tmp/atomic")).as_deref(),
+            Some("/tmp/atomic/")
+        );
+        assert_eq!(
+            normalize_atomic_write_dir(Some("/tmp/atomic/")).as_deref(),
+            Some("/tmp/atomic/")
+        );
+
+        let dir = normalize_atomic_write_dir(Some("/tmp/atomic")).unwrap();
+        let tmp_path = build_rooted_absolute_path(&dir, &build_tmp_path_of("dir/file.txt"));
+        assert!(tmp_path.starts_with("/tmp/atomic/"));
     }
 }

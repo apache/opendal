@@ -38,7 +38,13 @@ pub(super) struct SmbWriter {
     core: Arc<SmbCore>,
     path: String,
     op: OpWrite,
-    inner: Option<SmbWriteHandle>,
+    state: SmbWriteState,
+}
+
+enum SmbWriteState {
+    Idle,
+    Open(SmbWriteHandle),
+    Closed,
 }
 
 struct SmbWriteHandle {
@@ -53,12 +59,18 @@ impl SmbWriter {
             core,
             path: path.to_string(),
             op,
-            inner: None,
+            state: SmbWriteState::Idle,
         }
     }
 
-    async fn inner(&mut self) -> Result<&mut SmbWriteHandle> {
-        if self.inner.is_none() {
+    async fn open(&mut self) -> Result<&mut SmbWriteHandle> {
+        if matches!(self.state, SmbWriteState::Closed) {
+            return Err(Error::new(
+                ErrorKind::Unexpected,
+                "writer is already closed",
+            ));
+        }
+        if matches!(self.state, SmbWriteState::Idle) {
             let target = self.core.path(&self.path)?;
             if let Some((parent, _)) = self.path.rsplit_once('/') {
                 self.core.create_dir(parent).await?;
@@ -116,19 +128,24 @@ impl SmbWriter {
                     ));
                 }
             };
-            self.inner = Some(SmbWriteHandle {
+            self.state = SmbWriteState::Open(SmbWriteHandle {
                 file: RuntimeResource::new(file),
                 offset: 0,
                 max_write_size,
             });
         }
-        Ok(self.inner.as_mut().expect("writer is initialized"))
+        match &mut self.state {
+            SmbWriteState::Open(handle) => Ok(handle),
+            SmbWriteState::Idle | SmbWriteState::Closed => {
+                unreachable!("writer state was checked to be open")
+            }
+        }
     }
 }
 
 impl oio::Write for SmbWriter {
     async fn write(&mut self, mut buffer: Buffer) -> Result<()> {
-        let handle = self.inner().await?;
+        let handle = self.open().await?;
         while buffer.has_remaining() {
             let chunk = buffer.chunk();
             let size = chunk.len().min(handle.max_write_size);
@@ -150,8 +167,12 @@ impl oio::Write for SmbWriter {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let handle = self.inner().await?;
+        let handle = self.open().await?;
         handle.file.flush().await.map_err(new_std_io_error)?;
+        let SmbWriteState::Open(handle) = std::mem::replace(&mut self.state, SmbWriteState::Closed)
+        else {
+            unreachable!("writer state was checked to be open");
+        };
         let info = handle.file.query_info::<FileAllInformation>().await;
         handle.file.close().await.map_err(parse_smb_error)?;
         let info = info.map_err(parse_smb_error)?;

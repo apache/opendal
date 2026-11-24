@@ -263,8 +263,14 @@ impl Service for SmbBackend {
         let target = self.core.path(to)?;
         let parent = to.rsplit_once('/').map(|(parent, _)| parent.to_string());
         let core = self.core.clone();
-        Ok(oio::OneShotCopier::new(async move {
-            SmbCopier::copy(core, source, target, parent, op).await
+        // Recreate the copy future so retry layers can rerun after a temporary error.
+        Ok(oio::OneShotCopier::new_with(move || {
+            let core = core.clone();
+            let source = source.clone();
+            let target = target.clone();
+            let parent = parent.clone();
+            let op = op.clone();
+            async move { SmbCopier::copy(core, source, target, parent, op).await }
         }))
     }
 
@@ -277,9 +283,6 @@ impl Service for SmbBackend {
     ) -> Result<RpRename> {
         let source = self.core.path(from)?;
         let target = self.core.path(to)?;
-        if let Some((parent, _)) = to.rsplit_once('/') {
-            self.core.create_dir(parent).await?;
-        }
         let client = self.core.client().await?;
         let args = FileCreateArgs::make_open_existing(FileAccessMask::new().with_delete(true));
         let resource = client
@@ -305,22 +308,29 @@ impl Service for SmbBackend {
                 ));
             }
         };
-        let result = file
-            .set_info(FileRenameInformation {
+        let result = async {
+            if let Some((parent, _)) = to.rsplit_once('/') {
+                self.core.create_dir(parent).await?;
+            }
+            file.set_info(FileRenameInformation {
                 replace_if_exists: (!op.if_not_exists()).into(),
                 root_directory: 0,
                 file_name: target.path().unwrap_or_default().into(),
             })
-            .await;
-        file.close().await.map_err(parse_smb_error)?;
-        result.map_err(|error| {
-            let error = parse_smb_error(error);
-            if op.if_not_exists() && error.kind() == ErrorKind::AlreadyExists {
-                Error::new(ErrorKind::ConditionNotMatch, "file already exists").set_source(error)
-            } else {
-                error
-            }
-        })?;
+            .await
+            .map_err(|error| {
+                let error = parse_smb_error(error);
+                if op.if_not_exists() && error.kind() == ErrorKind::AlreadyExists {
+                    Error::new(ErrorKind::ConditionNotMatch, "file already exists")
+                        .set_source(error)
+                } else {
+                    error
+                }
+            })
+        }
+        .await;
+        let close_result = file.close().await.map_err(parse_smb_error);
+        result.and(close_result)?;
         Ok(RpRename::default())
     }
 
@@ -377,5 +387,43 @@ mod tests {
             .build()
             .unwrap();
         assert_eq!(backend.info().root().as_ref(), "/documents/reports/");
+    }
+
+    #[tokio::test]
+    async fn copy_recreates_future_on_retry() {
+        use std::time::Duration;
+
+        use opendal_core::raw::oio::Copy;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+
+        let backend = SmbBuilder::default()
+            .endpoint(&format!("127.0.0.1:{port}"))
+            .share("data")
+            .user("user")
+            .build()
+            .unwrap();
+        let ctx = OperationContext::default();
+        let mut copier = backend
+            .copy(&ctx, "source", "target", OpCopy::default())
+            .unwrap();
+
+        let first = tokio::time::timeout(Duration::from_secs(5), copier.close())
+            .await
+            .expect("first copy attempt should not hang")
+            .unwrap_err();
+        let second = tokio::time::timeout(Duration::from_secs(5), copier.close())
+            .await
+            .expect("retried copy attempt should not hang")
+            .unwrap_err();
+
+        assert_eq!(first.kind(), ErrorKind::Unexpected);
+        assert_eq!(second.kind(), ErrorKind::Unexpected);
+        assert!(
+            !second.message().contains("already been consumed"),
+            "retried copier must invoke the factory instead of failing as consumed: {second}"
+        );
     }
 }

@@ -23,6 +23,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, RwLock};
 
+use asyncband::once::OnceCell;
 use foyer::BlockEngineConfig;
 use foyer::DeviceBuilder;
 use foyer::FsDeviceBuilder;
@@ -36,6 +37,7 @@ use opendal_core::Error;
 use opendal_core::ErrorKind;
 use opendal_core::Result;
 
+use super::FOYER_SCHEME;
 use super::FoyerConfig;
 use super::FoyerKey;
 use super::FoyerValue;
@@ -281,8 +283,8 @@ impl LoadGate {
 /// It supports lazy initialization when constructed from URI.
 #[derive(Clone)]
 pub struct FoyerCore {
-    /// OnceLock for lazy cache initialization.
-    cache: std::sync::OnceLock<Arc<HybridCache<FoyerKey, FoyerValue>>>,
+    /// Async single-flight cell for lazy cache initialization, shared across clones.
+    cache: Arc<OnceCell<Arc<HybridCache<FoyerKey, FoyerValue>>>>,
     /// Tombstones, mutation epochs, and in-flight disk reads.
     ///
     /// Every mutation of the underlying cache (`insert` and `remove`) and every
@@ -296,6 +298,9 @@ pub struct FoyerCore {
     /// Test-only park point between a cold read's disk load and its fence.
     #[cfg(test)]
     load_gate: Option<Arc<LoadGate>>,
+    /// Test-only counter tracking how many times cache initialization runs.
+    #[cfg(test)]
+    init_count: Arc<AtomicUsize>,
 }
 
 impl Debug for FoyerCore {
@@ -309,6 +314,9 @@ impl Debug for FoyerCore {
 const FOYER_DEFAULT_MEMORY_BYTES: usize = 1024 * 1024 * 1024;
 const FOYER_DEFAULT_DISK_FILE_SIZE: usize = 1024 * 1024;
 const FOYER_DEFAULT_SHARDS: usize = 1;
+/// Foyer block engine page alignment (4 KiB) and default blob index size (4 KiB).
+const FOYER_PAGE_SIZE: usize = 4096;
+const FOYER_BLOB_INDEX_SIZE: usize = 4096;
 
 fn parse_recover_mode(mode_str: &str) -> Result<RecoverMode> {
     match mode_str.to_lowercase().as_str() {
@@ -321,85 +329,176 @@ fn parse_recover_mode(mode_str: &str) -> Result<RecoverMode> {
                 "invalid recover_mode: {}, expected 'none', 'quiet', or 'strict'",
                 mode_str
             ),
-        )),
+        )
+        .with_context("service", FOYER_SCHEME)),
     }
 }
 
+fn validate_config(config: &FoyerConfig) -> Result<()> {
+    if config.shards == Some(0) {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, "shards must be greater than zero")
+                .with_context("service", FOYER_SCHEME),
+        );
+    }
+
+    if let Some(ref mode_str) = config.recover_mode
+        && !mode_str.is_empty()
+    {
+        parse_recover_mode(mode_str)?;
+    }
+
+    if let Some(ref disk_path) = config.disk_path
+        && disk_path.is_empty()
+    {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, "disk_path must not be empty")
+                .with_context("service", FOYER_SCHEME),
+        );
+    }
+
+    let effective_file_size = match config.disk_file_size {
+        Some(0) => {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "disk_file_size must be greater than zero",
+            )
+            .with_context("service", FOYER_SCHEME));
+        }
+        Some(size) => {
+            let aligned = size
+                .checked_add(FOYER_PAGE_SIZE - 1)
+                .map(|v| v & !(FOYER_PAGE_SIZE - 1))
+                .ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "disk_file_size overflows page alignment",
+                    )
+                    .with_context("service", FOYER_SCHEME)
+                })?;
+            if aligned <= FOYER_BLOB_INDEX_SIZE {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    format!(
+                        "disk_file_size must be larger than {FOYER_BLOB_INDEX_SIZE} bytes after {FOYER_PAGE_SIZE}-byte page alignment"
+                    ),
+                )
+                .with_context("service", FOYER_SCHEME));
+            }
+            aligned
+        }
+        None => FOYER_DEFAULT_DISK_FILE_SIZE,
+    };
+
+    if let Some(capacity) = config.disk_capacity {
+        if capacity == 0 {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "disk_capacity must be greater than zero",
+            )
+            .with_context("service", FOYER_SCHEME));
+        }
+        let aligned_capacity = capacity - capacity % FOYER_PAGE_SIZE;
+        if aligned_capacity < effective_file_size {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                format!(
+                    "disk_capacity ({aligned_capacity} bytes aligned down to {FOYER_PAGE_SIZE}-byte pages) must be at least disk_file_size ({effective_file_size} bytes aligned up to {FOYER_PAGE_SIZE}-byte pages)"
+                ),
+            )
+            .with_context("service", FOYER_SCHEME));
+        }
+    }
+
+    Ok(())
+}
+
 impl FoyerCore {
-    /// Create a new FoyerCore with a pre-built cache.
-    ///
-    /// This is used when the user provides a `HybridCache` via `Foyer::new(cache)`.
-    pub fn new(config: FoyerConfig) -> Self {
-        Self {
-            cache: std::sync::OnceLock::new(),
+    /// Validate configuration and create a new [`FoyerCore`].
+    pub fn try_new(config: FoyerConfig) -> Result<Self> {
+        validate_config(&config)?;
+        Ok(Self {
+            cache: Arc::new(OnceCell::new()),
             deleted_keys: Arc::new(RwLock::new(DeletedKeys::default())),
             deleted_len: Arc::new(AtomicUsize::new(0)),
             config,
             #[cfg(test)]
             load_gate: None,
-        }
+            #[cfg(test)]
+            init_count: Arc::new(AtomicUsize::new(0)),
+        })
     }
 
     /// Initialize the cache with the given pre-built instance.
-    pub(crate) fn with_cache(self, cache: Arc<HybridCache<FoyerKey, FoyerValue>>) -> Self {
-        let _ = self.cache.set(cache);
+    pub(crate) fn with_cache(mut self, cache: Arc<HybridCache<FoyerKey, FoyerValue>>) -> Self {
+        self.cache = Arc::new(OnceCell::from_value(cache));
         self
     }
 
-    /// Get the cache, initializing lazily if needed.
+    /// Get the cache, initializing lazily at most once across concurrent callers.
     async fn get_cache(&self) -> Result<Arc<HybridCache<FoyerKey, FoyerValue>>> {
-        if let Some(cache) = self.cache.get() {
-            return Ok(cache.clone());
-        }
+        self.cache
+            .get_or_try_init(|| async {
+                #[cfg(test)]
+                self.init_count.fetch_add(1, Ordering::SeqCst);
 
-        let memory = self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES);
-        let shards = self.config.shards.unwrap_or(FOYER_DEFAULT_SHARDS);
-        let recover_mode = if let Some(ref mode_str) = self.config.recover_mode {
-            parse_recover_mode(mode_str)?
-        } else {
-            RecoverMode::None
-        };
+                let memory = self.config.memory.unwrap_or(FOYER_DEFAULT_MEMORY_BYTES);
+                let shards = self.config.shards.unwrap_or(FOYER_DEFAULT_SHARDS);
+                let recover_mode = match self.config.recover_mode.as_deref() {
+                    Some(mode_str) if !mode_str.is_empty() => parse_recover_mode(mode_str)?,
+                    _ => RecoverMode::None,
+                };
 
-        let mut builder = HybridCacheBuilder::new()
-            .memory(memory)
-            .with_shards(shards)
-            .storage()
-            .with_recover_mode(recover_mode);
+                let mut builder = HybridCacheBuilder::new()
+                    .memory(memory)
+                    .with_shards(shards)
+                    .storage()
+                    .with_recover_mode(recover_mode);
 
-        // Configure disk storage if disk_path is provided
-        if let Some(ref disk_path) = self.config.disk_path {
-            let path = PathBuf::from(disk_path);
+                // Configure disk storage if disk_path is provided
+                if let Some(ref disk_path) = self.config.disk_path {
+                    let path = PathBuf::from(disk_path);
 
-            let mut device = FsDeviceBuilder::new(path);
+                    // Pre-create the directory because foyer's FsDeviceBuilder::build
+                    // eagerly evaluates `create_dir_all(&self.dir).unwrap()` inside
+                    // `Option::unwrap_or` even when `capacity` is configured.
+                    std::fs::create_dir_all(&path).map_err(|e| {
+                        Error::new(
+                            ErrorKind::Unexpected,
+                            "failed to create foyer cache directory",
+                        )
+                        .with_context("disk_path", disk_path)
+                        .set_source(e)
+                    })?;
 
-            if let Some(capacity) = self.config.disk_capacity {
-                device = device.with_capacity(capacity);
-            }
+                    let mut device = FsDeviceBuilder::new(path);
 
-            let block_size = self
-                .config
-                .disk_file_size
-                .unwrap_or(FOYER_DEFAULT_DISK_FILE_SIZE);
-            let device = device.build().map_err(|e| {
-                Error::new(ErrorKind::Unexpected, "failed to build foyer cache device")
-                    .set_source(e)
-            })?;
+                    if let Some(capacity) = self.config.disk_capacity {
+                        device = device.with_capacity(capacity);
+                    }
 
-            builder = builder
-                .with_engine_config(BlockEngineConfig::new(device).with_block_size(block_size));
-        }
+                    let block_size = self
+                        .config
+                        .disk_file_size
+                        .unwrap_or(FOYER_DEFAULT_DISK_FILE_SIZE);
+                    let device = device.build().map_err(|e| {
+                        Error::new(ErrorKind::Unexpected, "failed to build foyer cache device")
+                            .set_source(e)
+                    })?;
 
-        let cache = Arc::new(builder.build().await.map_err(|e| {
-            Error::new(ErrorKind::Unexpected, "failed to build foyer cache").set_source(e)
-        })?);
+                    builder = builder.with_engine_config(
+                        BlockEngineConfig::new(device).with_block_size(block_size),
+                    );
+                }
 
-        if self.cache.set(cache.clone()).is_err() {
-            return self.cache.get().cloned().ok_or_else(|| {
-                Error::new(ErrorKind::Unexpected, "failed to initialize foyer cache")
-            });
-        }
+                let cache = builder.build().await.map_err(|e| {
+                    Error::new(ErrorKind::Unexpected, "failed to build foyer cache").set_source(e)
+                })?;
 
-        Ok(cache)
+                Ok(Arc::new(cache))
+            })
+            .await
+            .cloned()
     }
 
     /// Park cold reads after their disk load, for tests.
@@ -596,15 +695,16 @@ mod tests {
     use super::*;
 
     fn memory_core() -> FoyerCore {
-        FoyerCore::new(FoyerConfig {
+        FoyerCore::try_new(FoyerConfig {
             memory: Some(4 * 1024 * 1024),
             shards: Some(4),
             ..Default::default()
         })
+        .unwrap()
     }
 
     fn disk_core(dir: &tempfile::TempDir) -> FoyerCore {
-        FoyerCore::new(FoyerConfig {
+        FoyerCore::try_new(FoyerConfig {
             // The memory cache capacity is an entry count, not a byte size.
             memory: Some(4),
             shards: Some(1),
@@ -613,6 +713,7 @@ mod tests {
             disk_file_size: Some(4 * 1024 * 1024),
             ..Default::default()
         })
+        .unwrap()
     }
 
     /// Poll a future exactly once without yielding to the runtime.
@@ -1039,9 +1140,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn concurrent_insert_and_remove_linearize_per_key() {
         let core = memory_core();
-        // Initialize the cache before cloning: a clone made before the first
-        // `get_cache` call owns an independent `OnceLock` and would build its
-        // own cache instead of sharing this one.
         core.get_cache().await.unwrap();
 
         for round in 0..32 {
@@ -1129,5 +1227,81 @@ mod tests {
                 "evicting a tombstone must not delete a freshly inserted value"
             );
         }
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_cold_start_initializes_disk_cache_once() {
+        const WORKERS: usize = 16;
+
+        let dir = tempfile::tempdir().unwrap();
+        let core = disk_core(&dir);
+        let barrier = Arc::new(tokio::sync::Barrier::new(WORKERS));
+
+        let mut handles = Vec::with_capacity(WORKERS);
+        for i in 0..WORKERS {
+            // Clone before first initialization to verify clones share the same OnceCell.
+            let worker_core = core.clone();
+            let barrier = barrier.clone();
+            handles.push(tokio::spawn(async move {
+                barrier.wait().await;
+                let cache = worker_core.get_cache().await.unwrap();
+                let key = format!("/cold-{i}");
+                let value = format!("payload-{i}");
+                worker_core
+                    .insert(&key, Buffer::from(value.clone()))
+                    .await
+                    .unwrap();
+                let got = worker_core.get(&key).await.unwrap().unwrap();
+                assert_eq!(got.to_vec(), value.as_bytes());
+                cache
+            }));
+        }
+
+        let mut caches = Vec::with_capacity(WORKERS);
+        for handle in handles {
+            caches.push(handle.await.unwrap());
+        }
+
+        assert_eq!(
+            core.init_count.load(Ordering::SeqCst),
+            1,
+            "concurrent cold-start callers must run cache initialization exactly once"
+        );
+        for cache in &caches[1..] {
+            assert!(
+                Arc::ptr_eq(&caches[0], cache),
+                "all concurrent callers must observe the same HybridCache instance"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn failed_init_does_not_poison_once_cell() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocked_path = dir.path().join("blocked");
+        std::fs::write(&blocked_path, b"not a directory").unwrap();
+
+        let core = FoyerCore::try_new(FoyerConfig {
+            memory: Some(16),
+            shards: Some(1),
+            disk_path: Some(blocked_path.to_string_lossy().into_owned()),
+            disk_capacity: Some(16 * 1024 * 1024),
+            disk_file_size: Some(1024 * 1024),
+            ..Default::default()
+        })
+        .unwrap();
+
+        let err = core.get("/k").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(core.init_count.load(Ordering::SeqCst), 1);
+
+        // Clearing the transient obstruction allows a subsequent call to initialize cleanly.
+        std::fs::remove_file(&blocked_path).unwrap();
+        core.insert("/k", Buffer::from("recovered")).await.unwrap();
+        assert_eq!(
+            core.get("/k").await.unwrap().unwrap().to_vec(),
+            b"recovered"
+        );
+        assert_eq!(core.init_count.load(Ordering::SeqCst), 2);
     }
 }

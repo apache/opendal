@@ -8268,6 +8268,7 @@ dependencies = [
 name = "opendal-service-foyer"
 version = "0.59.5"
 dependencies = [
+ "asyncband",
  "foyer",
  "log",
  "opendal",

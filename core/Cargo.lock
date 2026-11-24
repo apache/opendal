@@ -8530,6 +8530,7 @@ name = "opendal-service-ipfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8543,6 +8544,7 @@ name = "opendal-service-ipmfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

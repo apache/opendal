@@ -128,6 +128,7 @@ impl Builder for HdfsNativeBuilder {
 
                     write: true,
                     write_can_append: true,
+                    write_with_if_not_exists: true,
 
                     create_dir: true,
                     delete: true,

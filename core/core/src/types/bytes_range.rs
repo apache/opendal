@@ -287,26 +287,30 @@ impl FromStr for BytesRange {
                 .with_context("value", value));
         }
 
-        let parse_int_error = |e: std::num::ParseIntError| {
-            Error::new(ErrorKind::Unexpected, "header range is invalid")
-                .with_operation("BytesRange::from_str")
-                .with_context("value", value)
-                .set_source(e)
+        let parse_int = |input: &str| {
+            if input.is_empty() || !input.bytes().all(|b| b.is_ascii_digit()) {
+                return Err(Error::new(ErrorKind::Unexpected, "header range is invalid")
+                    .with_operation("BytesRange::from_str")
+                    .with_context("value", value));
+            }
+            input.parse::<u64>().map_err(|e| {
+                Error::new(ErrorKind::Unexpected, "header range is invalid")
+                    .with_operation("BytesRange::from_str")
+                    .with_context("value", value)
+                    .set_source(e)
+            })
         };
 
         if v[1].is_empty() {
             // <range-start>-
-            Ok(BytesRange::new(
-                v[0].parse().map_err(parse_int_error)?,
-                None,
-            ))
+            Ok(BytesRange::new(parse_int(v[0])?, None))
         } else if v[0].is_empty() {
             // -<suffix-length>
-            Ok(BytesRange::suffix(v[1].parse().map_err(parse_int_error)?))
+            Ok(BytesRange::suffix(parse_int(v[1])?))
         } else {
             // <range-start>-<range-end>
-            let start: u64 = v[0].parse().map_err(parse_int_error)?;
-            let end: u64 = v[1].parse().map_err(parse_int_error)?;
+            let start = parse_int(v[0])?;
+            let end = parse_int(v[1])?;
             if end < start {
                 return Err(Error::new(
                     ErrorKind::Unexpected,
@@ -474,6 +478,24 @@ mod tests {
                 result.is_err(),
                 "expected error for invalid range {input}, got {result:?}"
             );
+        }
+    }
+
+    #[test]
+    fn test_bytes_range_from_str_rejects_leading_plus() {
+        let cases = [
+            "bytes=+0-10",
+            "bytes=0-+10",
+            "bytes=+0-+5",
+            "bytes=-+10",
+            "bytes=+10-",
+        ];
+
+        for input in cases {
+            let err = input
+                .parse::<BytesRange>()
+                .expect_err("leading plus sign must be rejected");
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
         }
     }
 

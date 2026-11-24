@@ -8183,6 +8183,7 @@ name = "opendal-service-cos"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

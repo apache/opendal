@@ -17,9 +17,9 @@
 
 use std::sync::Arc;
 
-use bytes::Buf;
 use http::HeaderMap;
 use http::HeaderValue;
+use http::Response;
 use http::StatusCode;
 
 use super::core::parse_error;
@@ -176,12 +176,10 @@ impl oio::MultipartWrite for CosWriter {
             })
             .collect();
 
-        let mut resp = self
+        let resp = self
             .core
             .cos_complete_multipart_upload(&self.ctx, &self.path, upload_id, parts, &self.op)
             .await?;
-
-        let mut meta = Self::parse_metadata(resp.headers())?.into_builder();
 
         let status = resp.status();
         if status != StatusCode::OK {
@@ -192,9 +190,38 @@ impl oio::MultipartWrite for CosWriter {
             ));
         }
 
+        // COS can return HTTP 200 OK with an XML `<Error>` body when late multipart
+        // assembly fails, so check for an error code or missing ETag before succeeding.
+        let (parts, body) = resp.into_parts();
+        let bs = body.to_bytes();
+
         let result: CompleteMultipartUploadResult =
-            quick_xml::de::from_reader(resp.body_mut().reader())
-                .map_err(new_xml_deserialize_error)?;
+            quick_xml::de::from_reader(bs.as_ref()).map_err(new_xml_deserialize_error)?;
+        if !result.code.is_empty() {
+            return Err(parse_error(
+                ErrorContext::new(ServiceOperation("CompleteMultipartUpload"))
+                    .with_if_not_exists(self.op.if_not_exists()),
+                Response::from_parts(parts, Buffer::from(bs)),
+            ));
+        }
+        if result.etag.is_empty() {
+            let msg = if result.message.is_empty() {
+                "CompleteMultipartUpload response missing ETag".to_string()
+            } else {
+                format!(
+                    "CompleteMultipartUpload failed without error code: {}",
+                    result.message
+                )
+            };
+            return Err(with_error_response_context(
+                Error::new(ErrorKind::Unexpected, msg)
+                    .with_context("service_operation", "CompleteMultipartUpload")
+                    .set_temporary(),
+                parts,
+            ));
+        }
+
+        let mut meta = Self::parse_metadata(&parts.headers)?.into_builder();
         meta.etag(&result.etag);
         Ok(meta.build())
     }
@@ -262,5 +289,124 @@ impl oio::AppendWrite for CosWriter {
                 resp,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::Request;
+
+    use super::*;
+    use crate::core::test_support::test_core;
+    use opendal_core::raw::oio::MultipartWrite;
+    use opendal_core::*;
+
+    #[derive(Clone)]
+    struct CompletePartTransport {
+        status: StatusCode,
+        body: &'static str,
+    }
+
+    impl HttpTransport for CompletePartTransport {
+        async fn fetch(&self, _req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let buf = Buffer::from(self.body);
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn complete_part_rejects_200_xml_errors_and_empty_etag() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = test_core("/");
+            let parts = [oio::MultipartPart {
+                part_number: 1,
+                etag: "\"part1\"".to_string(),
+                checksum: None,
+                size: None,
+            }];
+
+            let cases = [
+                (
+                    "<Error><Code>InternalError</Code><Message>assembly failed</Message></Error>",
+                    false,
+                    ErrorKind::Unexpected,
+                    true,
+                ),
+                (
+                    "<Error><Code>ServiceUnavailable</Code><Message>busy</Message></Error>",
+                    false,
+                    ErrorKind::Unexpected,
+                    true,
+                ),
+                (
+                    "<Error><Code>AccessDenied</Code><Message>denied</Message></Error>",
+                    false,
+                    ErrorKind::PermissionDenied,
+                    false,
+                ),
+                (
+                    "<Error><Code>FileAlreadyExists</Code><Message>exists</Message></Error>",
+                    true,
+                    ErrorKind::ConditionNotMatch,
+                    false,
+                ),
+                (
+                    "<CompleteMultipartUploadResult/>",
+                    false,
+                    ErrorKind::Unexpected,
+                    true,
+                ),
+                (
+                    "<Error><Message>missing code</Message></Error>",
+                    false,
+                    ErrorKind::Unexpected,
+                    true,
+                ),
+            ];
+
+            for (body, if_not_exists, expected_kind, expected_temporary) in cases {
+                let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                    CompletePartTransport {
+                        status: StatusCode::OK,
+                        body,
+                    },
+                ));
+                let (op, _) = OpWrite::from_options(
+                    &core.capability,
+                    options::WriteOptions {
+                        if_not_exists,
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+                let writer = CosWriter::new(core.clone(), ctx, "object.bin", op);
+                let err = writer
+                    .complete_part("upload-1", &parts)
+                    .await
+                    .expect_err("complete_part must reject 200-OK XML error / empty ETag");
+                assert_eq!(err.kind(), expected_kind, "body={body}");
+                assert_eq!(err.is_temporary(), expected_temporary, "body={body}");
+            }
+
+            // A valid 200 OK CompleteMultipartUploadResult with non-empty ETag succeeds.
+            let ok_ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                CompletePartTransport {
+                    status: StatusCode::OK,
+                    body: "<CompleteMultipartUploadResult><Location>loc</Location><Bucket>test-bucket</Bucket><Key>object.bin</Key><ETag>\"abc-2\"</ETag></CompleteMultipartUploadResult>",
+                },
+            ));
+            let writer = CosWriter::new(core, ok_ctx, "object.bin", OpWrite::default());
+            let meta = writer.complete_part("upload-1", &parts).await.unwrap();
+            assert_eq!(meta.etag(), Some("\"abc-2\""));
+        })
+        .await
+        .expect("test timed out");
     }
 }

@@ -19,6 +19,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::Bytes;
+use http::HeaderMap;
 use http::Request;
 use http::Response;
 use http::header::CACHE_CONTROL;
@@ -43,7 +44,25 @@ use opendal_core::*;
 pub mod constants {
     pub const COS_QUERY_VERSION_ID: &str = "versionId";
 
+    pub const X_COS_META_PREFIX: &str = "x-cos-meta-";
     pub const X_COS_VERSION_ID: &str = "x-cos-version-id";
+}
+
+pub(crate) fn parse_object_metadata(path: &str, headers: &HeaderMap) -> Result<Metadata> {
+    let mut meta = parse_into_metadata(path, headers)?.into_builder();
+
+    let user_meta = parse_prefixed_headers(headers, constants::X_COS_META_PREFIX);
+    if !user_meta.is_empty() {
+        meta.user_metadata(user_meta);
+    }
+
+    if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
+        && v != "null"
+    {
+        meta.version(v);
+    }
+
+    Ok(meta.build())
 }
 
 pub struct CosCore {
@@ -146,7 +165,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -260,7 +279,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -301,7 +320,7 @@ impl CosCore {
             query_args.push(format!(
                 "{}={}",
                 constants::COS_QUERY_VERSION_ID,
-                percent_decode_path(version)
+                percent_encode_path(version)
             ))
         }
         if !query_args.is_empty() {
@@ -690,6 +709,8 @@ pub struct CompleteMultipartUploadResult {
     pub key: String,
     #[serde(rename = "ETag")]
     pub etag: String,
+    pub code: String,
+    pub message: String,
 }
 
 #[derive(Default, Debug, Deserialize)]
@@ -697,6 +718,7 @@ pub struct CompleteMultipartUploadResult {
 pub struct ListObjectsOutput {
     pub name: String,
     pub prefix: String,
+    pub is_truncated: Option<bool>,
     pub contents: Vec<ListObjectsOutputContent>,
     pub common_prefixes: Vec<CommonPrefix>,
     pub marker: String,
@@ -807,6 +829,7 @@ mod tests {
 
         assert_eq!(out.name, "examplebucket".to_string());
         assert_eq!(out.prefix, "obj".to_string());
+        assert_eq!(out.is_truncated, Some(false));
         assert_eq!(out.marker, "obj002".to_string());
         assert_eq!(out.next_marker, Some("obj004".to_string()),);
         assert_eq!(
@@ -931,7 +954,7 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::RANGE_NOT_SATISFIABLE => (ErrorKind::RangeNotSatisfied, false),
         StatusCode::PRECONDITION_FAILED | StatusCode::NOT_MODIFIED if ctx.caller_condition => {
             (ErrorKind::ConditionNotMatch, false)
@@ -948,6 +971,15 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     if let Some(cos_error) = &cos_error {
         match cos_error.code.as_str() {
+            "AccessDenied" => {
+                (kind, retryable) = (ErrorKind::PermissionDenied, false);
+            }
+            "InternalError" | "ServiceUnavailable" | "RequestTimeout" => {
+                (kind, retryable) = (ErrorKind::Unexpected, true);
+            }
+            "SlowDown" => {
+                (kind, retryable) = (ErrorKind::RateLimited, true);
+            }
             "PreconditionFailed" if ctx.caller_condition => {
                 (kind, retryable) = (ErrorKind::ConditionNotMatch, false);
             }
@@ -1051,5 +1083,200 @@ mod error_tests {
             parse_cos_error(unconditional, StatusCode::CONFLICT, "UnknownConflict").kind(),
             ErrorKind::Unexpected
         );
+    }
+
+    #[test]
+    fn test_parse_error_unauthorized_and_forbidden() {
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::new())
+                .expect("response must build");
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied, "status {status}");
+            assert!(!err.is_temporary(), "status {status}");
+        }
+    }
+
+    #[test]
+    fn test_parse_error_200_ok_xml_codes() {
+        let ctx = ErrorContext::new(ServiceOperation("CompleteMultipartUpload"));
+        for code in ["InternalError", "ServiceUnavailable", "RequestTimeout"] {
+            let err = parse_cos_error(ctx, StatusCode::OK, code);
+            assert_eq!(err.kind(), ErrorKind::Unexpected, "code {code}");
+            assert!(err.is_temporary(), "code {code}");
+        }
+
+        let slow_down = parse_cos_error(ctx, StatusCode::OK, "SlowDown");
+        assert_eq!(slow_down.kind(), ErrorKind::RateLimited);
+        assert!(slow_down.is_temporary());
+
+        let denied = parse_cos_error(ctx, StatusCode::OK, "AccessDenied");
+        assert_eq!(denied.kind(), ErrorKind::PermissionDenied);
+        assert!(!denied.is_temporary());
+    }
+
+    #[test]
+    fn test_parse_object_metadata_parses_user_metadata_and_version() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_LENGTH, "42".parse().unwrap());
+        headers.insert("x-cos-meta-author", "alice".parse().unwrap());
+        headers.insert("x-cos-meta-env", "prod".parse().unwrap());
+        headers.insert(constants::X_COS_VERSION_ID, "v1+2".parse().unwrap());
+
+        let meta = parse_object_metadata("file.txt", &headers).unwrap();
+        assert_eq!(meta.content_length(), 42);
+        assert_eq!(meta.version(), Some("v1+2"));
+        let user_meta = meta.user_metadata().expect("user metadata must be present");
+        assert_eq!(user_meta.get("author"), Some("alice"));
+        assert_eq!(user_meta.get("env"), Some("prod"));
+
+        let mut null_version_headers = HeaderMap::new();
+        null_version_headers.insert(CONTENT_LENGTH, "0".parse().unwrap());
+        null_version_headers.insert(constants::X_COS_VERSION_ID, "null".parse().unwrap());
+        let null_meta = parse_object_metadata("file.txt", &null_version_headers).unwrap();
+        assert_eq!(null_meta.version(), None);
+        assert!(null_meta.user_metadata().is_none());
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_support {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
+    use futures::stream;
+    use http::Method;
+    use reqsign_core::OsEnv;
+    use reqsign_file_read_tokio::TokioFileRead;
+    use reqsign_tencent_cos::StaticCredentialProvider;
+
+    use super::*;
+
+    pub(crate) fn test_core(root: &str) -> Arc<CosCore> {
+        let root = normalize_root(root);
+        let bucket = "test-bucket".to_string();
+        let endpoint = format!("https://{bucket}.cos.ap-guangzhou.myqcloud.com");
+        let sign_ctx = Context::new().with_file_read(TokioFileRead).with_env(OsEnv);
+        let credential_provider = Arc::new(StaticCredentialProvider::new(
+            "test-secret-id",
+            "test-secret-key",
+        ));
+        let request_signer = Arc::new(RequestSigner::new());
+        let info = ServiceInfo::new(crate::COS_SCHEME, &root, &bucket);
+
+        Arc::new(CosCore {
+            info,
+            capability: Capability {
+                stat: true,
+                stat_with_version: true,
+                read: true,
+                read_with_version: true,
+                write: true,
+                write_can_multi: true,
+                write_with_if_not_exists: true,
+                delete: true,
+                delete_with_version: true,
+                list: true,
+                list_with_recursive: true,
+                list_with_versions: true,
+                list_with_deleted: true,
+                presign: true,
+                presign_stat: true,
+                presign_read: true,
+                presign_write: true,
+                ..Default::default()
+            },
+            bucket,
+            root,
+            endpoint,
+            sign_ctx,
+            credential_provider,
+            request_signer,
+            signers: HttpTransportCache::new(),
+        })
+    }
+
+    #[derive(Clone)]
+    struct CaptureTransport {
+        requests: Arc<Mutex<Vec<(Method, String)>>>,
+        status: StatusCode,
+    }
+
+    impl HttpTransport for CaptureTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((req.method().clone(), req.uri().to_string()));
+            Response::builder()
+                .status(self.status)
+                .body(HttpBody::new(stream::empty(), Some(0)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn version_id_is_percent_encoded_in_get_head_and_delete() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let core = test_core("/");
+            let version = "v1+a&b=c%2Bd#e f";
+            let expected_query = "versionId=v1%2Ba%26b%3Dc%252Bd%23e%20f";
+
+            let (_, get_args, _) = OpRead::from_options(
+                &core.capability,
+                options::ReadOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let get_req = core
+                .cos_get_object_request("dir/file.txt", BytesRange::from(..), &get_args)
+                .unwrap();
+            assert_eq!(get_req.uri().query(), Some(expected_query));
+
+            let head_args = OpStat::from_options(
+                &core.capability,
+                options::StatOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let head_req = core
+                .cos_head_object_request("dir/file.txt", &head_args)
+                .unwrap();
+            assert_eq!(head_req.uri().query(), Some(expected_query));
+
+            let requests = Arc::new(Mutex::new(Vec::new()));
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                CaptureTransport {
+                    requests: requests.clone(),
+                    status: StatusCode::NO_CONTENT,
+                },
+            ));
+            let del_args = OpDelete::from_options(
+                &core.capability,
+                options::DeleteOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let resp = core
+                .cos_delete_object(&ctx, "dir/file.txt", &del_args)
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::NO_CONTENT);
+
+            let captured = requests.lock().unwrap();
+            assert_eq!(captured.len(), 1);
+            assert_eq!(captured[0].0, Method::DELETE);
+            let uri: http::Uri = captured[0].1.parse().unwrap();
+            assert_eq!(uri.query(), Some(expected_query));
+        })
+        .await
+        .expect("test timed out");
     }
 }

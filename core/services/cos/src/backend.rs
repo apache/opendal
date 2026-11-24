@@ -342,23 +342,7 @@ impl Service for CosBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let mut meta = parse_into_metadata(path, headers)?.into_builder();
-
-                let user_meta = parse_prefixed_headers(headers, "x-cos-meta-");
-                if !user_meta.is_empty() {
-                    meta.user_metadata(user_meta);
-                }
-
-                if let Some(v) = parse_header_to_str(headers, constants::X_COS_VERSION_ID)?
-                    && v != "null"
-                {
-                    meta.version(v);
-                }
-
-                Ok(RpStat::new(meta.build()))
-            }
+            StatusCode::OK => Ok(RpStat::new(parse_object_metadata(path, resp.headers())?)),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject"))
                     .with_caller_condition(args.is_conditional()),
@@ -715,5 +699,71 @@ mod tests {
                 "expected an error for {raw}"
             );
         }
+    }
+
+    #[tokio::test]
+    async fn presign_read_and_stat_percent_encode_version_id() {
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            let backend = CosBackend {
+                core: crate::core::test_support::test_core("/"),
+            };
+            let ctx = OperationContext::default();
+            let version = "v1+a&b=c%2Bd#e f";
+            let encoded = "versionId=v1%2Ba%26b%3Dc%252Bd%23e%20f";
+
+            let (_, read_op, _) = OpRead::from_options(
+                &backend.capability(),
+                options::ReadOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let presigned_read = backend
+                .presign(
+                    &ctx,
+                    "dir/file.txt",
+                    OpPresign::new(
+                        PresignOperation::Read(BytesRange::from(..), read_op),
+                        std::time::Duration::from_secs(60),
+                    ),
+                )
+                .await
+                .unwrap()
+                .into_presigned_request();
+            let read_query = presigned_read.uri().query().unwrap_or_default();
+            assert!(
+                read_query.contains(encoded),
+                "presigned read query must encode versionId: {read_query}"
+            );
+
+            let stat_op = OpStat::from_options(
+                &backend.capability(),
+                options::StatOptions {
+                    version: Some(version.to_string()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+            let presigned_stat = backend
+                .presign(
+                    &ctx,
+                    "dir/file.txt",
+                    OpPresign::new(
+                        PresignOperation::Stat(stat_op),
+                        std::time::Duration::from_secs(60),
+                    ),
+                )
+                .await
+                .unwrap()
+                .into_presigned_request();
+            let stat_query = presigned_stat.uri().query().unwrap_or_default();
+            assert!(
+                stat_query.contains(encoded),
+                "presigned stat query must encode versionId: {stat_query}"
+            );
+        })
+        .await
+        .expect("test timed out");
     }
 }

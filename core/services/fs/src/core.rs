@@ -154,6 +154,12 @@ impl FsCore {
         let to_path = self.root_join(to_trimmed)?;
         match tokio::fs::metadata(&to_path).await {
             Ok(to_meta) => {
+                if to_meta.is_dir() {
+                    return Err(Error::new(
+                        ErrorKind::IsADirectory,
+                        "copy target is a directory",
+                    ));
+                }
                 if is_same_file(&from, &from_meta, &to_path, &to_meta).await {
                     return Err(Error::new(
                         ErrorKind::IsSameFile,

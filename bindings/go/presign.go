@@ -28,10 +28,10 @@ import (
 )
 
 func presignExpireSeconds(expire time.Duration) (uint64, error) {
-	if expire <= 0 {
-		return 0, errors.New("presign expire must be positive")
+	if expire < 0 {
+		return 0, errors.New("presign expire must be non-negative")
 	}
-	if expire < time.Second {
+	if expire > 0 && expire < time.Second {
 		return 0, errors.New("presign expire must be at least 1 second")
 	}
 	return uint64(expire / time.Second), nil

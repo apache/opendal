@@ -149,7 +149,6 @@ func TestPresignExpireValidation(t *testing.T) {
 		-time.Hour,
 		-time.Second,
 		-time.Nanosecond,
-		0,
 		time.Nanosecond,
 		500 * time.Millisecond,
 		time.Second - time.Nanosecond,
@@ -171,6 +170,7 @@ func TestPresignExpireValidation(t *testing.T) {
 		expire time.Duration
 		want   uint64
 	}{
+		{0, 0},
 		{time.Second, 1},
 		{1500 * time.Millisecond, 1},
 		{time.Hour, 3600},
@@ -178,7 +178,8 @@ func TestPresignExpireValidation(t *testing.T) {
 	for _, tc := range validCases {
 		ctx, reqInner, _ := presignTestContext(t, "GET", "https://example.com/valid")
 		opInner := newTestOperatorHandle()
-		var gotRead, gotWrite, gotDelete, gotStat uint64
+		notCalled := uint64(math.MaxUint64)
+		gotRead, gotWrite, gotDelete, gotStat := notCalled, notCalled, notCalled, notCalled
 		ctx = context.WithValue(ctx, ffiOperatorPresignRead.sym, func(_ *opendalOperator, _ string, expire uint64, _ *opendalReadOptions, _ *opendalCancelToken) (*opendalPresignedRequest, error) {
 			gotRead = expire
 			return reqInner, nil

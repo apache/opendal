@@ -30,8 +30,6 @@ use jni::objects::JValue;
 use jni::sys::jlong;
 use jni::sys::jsize;
 use opendal::Entry;
-use opendal::Error;
-use opendal::ErrorKind;
 use opendal::Operator;
 use opendal::blocking;
 
@@ -557,7 +555,7 @@ fn intern_presign_read(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let expire = expire_to_duration(expire)?;
+    let expire = Duration::from_nanos(expire as u64);
     let read_opts = make_read_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -597,7 +595,7 @@ fn intern_presign_write(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let expire = expire_to_duration(expire)?;
+    let expire = Duration::from_nanos(expire as u64);
     let write_opts = make_write_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -638,7 +636,7 @@ fn intern_presign_stat(
     options: JObject,
 ) -> Result<jlong> {
     let op = unsafe { &*op }.clone();
-    let expire = expire_to_duration(expire)?;
+    let expire = Duration::from_nanos(expire as u64);
     let stat_opts = make_stat_options(env, &options)?;
 
     let path = jstring_to_string(env, &path)?;
@@ -651,18 +649,6 @@ fn intern_presign_stat(
     });
 
     Ok(id)
-}
-
-/// Converts a Java nanosecond expiry to a [`Duration`], rejecting values that only
-/// become valid after wrapping to `u64`.
-fn expire_to_duration(expire: jlong) -> Result<Duration> {
-    let nanos = u64::try_from(expire).map_err(|_| {
-        Error::new(
-            ErrorKind::ConfigInvalid,
-            "presign duration must be non-negative",
-        )
-    })?;
-    Ok(Duration::from_nanos(nanos))
 }
 
 /// Complete the Java `CompletableFuture` identified by `id`.

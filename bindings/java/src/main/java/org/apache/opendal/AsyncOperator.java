@@ -43,7 +43,6 @@ import java.util.function.LongUnaryOperator;
  * <p>The default executor uses the same worker context class loader behavior as {@link AsyncExecutor}.</p>
  */
 public class AsyncOperator extends NativeObject {
-    private static final Duration MAX_DURATION = Duration.ofNanos(Long.MAX_VALUE);
 
     /**
      * Singleton to hold all outstanding futures.
@@ -271,7 +270,8 @@ public class AsyncOperator extends NativeObject {
      * @param duration how long the presigned request remains valid.
      * @param options the read options to include in the presigned request.
      * @return the presigned request.
-     * @throws IllegalArgumentException if the duration is negative or longer than {@link Long#MAX_VALUE} nanoseconds.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
      */
     public CompletableFuture<PresignedRequest> presignRead(String path, Duration duration, ReadOptions options) {
         final long expire = toNanos(duration);
@@ -293,7 +293,8 @@ public class AsyncOperator extends NativeObject {
      * @param duration how long the presigned request remains valid.
      * @param options the write options to include in the presigned request.
      * @return the presigned request.
-     * @throws IllegalArgumentException if the duration is negative or longer than {@link Long#MAX_VALUE} nanoseconds.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
      */
     public CompletableFuture<PresignedRequest> presignWrite(String path, Duration duration, WriteOptions options) {
         final long expire = toNanos(duration);
@@ -315,7 +316,8 @@ public class AsyncOperator extends NativeObject {
      * @param duration how long the presigned request remains valid.
      * @param options the stat options to include in the presigned request.
      * @return the presigned request.
-     * @throws IllegalArgumentException if the duration is negative or longer than {@link Long#MAX_VALUE} nanoseconds.
+     * @throws IllegalArgumentException if the duration is negative.
+     * @throws ArithmeticException if the duration exceeds {@link Long#MAX_VALUE} nanoseconds.
      */
     public CompletableFuture<PresignedRequest> presignStat(String path, Duration duration, StatOptions options) {
         final long expire = toNanos(duration);
@@ -326,13 +328,12 @@ public class AsyncOperator extends NativeObject {
     /**
      * Converts a presign duration to the nanosecond count the native layer expects.
      *
-     * <p>The native layer interprets the value as an unsigned 64-bit count, so a negative
-     * duration would become a multi-century expiry instead of an error. Durations longer
-     * than {@link Long#MAX_VALUE} nanoseconds do not fit in the native parameter at all.
+     * <p>The native layer interprets the value as an unsigned 64-bit count, so reject
+     * negative durations before passing the value to JNI.
      */
     private static long toNanos(Duration duration) {
-        if (duration.isNegative() || duration.compareTo(MAX_DURATION) > 0) {
-            throw new IllegalArgumentException("duration must be between zero and Long.MAX_VALUE nanoseconds");
+        if (duration.isNegative()) {
+            throw new IllegalArgumentException("duration must be non-negative");
         }
         return duration.toNanos();
     }

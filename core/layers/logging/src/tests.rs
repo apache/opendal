@@ -306,7 +306,35 @@ impl oio::Copy for MockCopier {
     }
 }
 
-/// Service that supports `compose` and `copy` for logging tests.
+/// Writer that rejects unbounded `copy_from` ranges with an error.
+#[derive(Debug, Default)]
+struct MockWriter;
+
+impl oio::Write for MockWriter {
+    async fn write(&mut self, _: Buffer) -> Result<()> {
+        Ok(())
+    }
+
+    async fn copy_from(&mut self, _: &str, _: OpRead, range: BytesRange) -> Result<()> {
+        if range.size().is_none() {
+            return Err(Error::new(
+                ErrorKind::RangeNotSatisfied,
+                "unbounded copy_from range",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn close(&mut self) -> Result<Metadata> {
+        Ok(MetadataBuilder::file(0).build())
+    }
+
+    async fn abort(&mut self) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Service that supports `write`, `compose`, and `copy` for logging tests.
 #[derive(Debug, Default)]
 struct MockService {
     fail_init: bool,
@@ -326,7 +354,7 @@ impl MockService {
 
 impl Service for MockService {
     type Reader = ();
-    type Writer = ();
+    type Writer = MockWriter;
     type Lister = ();
     type Deleter = ();
     type Copier = MockCopier;
@@ -358,7 +386,7 @@ impl Service for MockService {
     }
 
     fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
-        Self::unsupported()
+        Ok(MockWriter)
     }
 
     fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
@@ -721,5 +749,39 @@ fn logs_copy_close_failure_and_preserves_error() {
             .as_deref()
             .unwrap_or("")
             .contains("mock copy close failed")
+    );
+}
+
+#[test]
+fn logs_writer_copy_from_unbounded_range_without_panicking() {
+    let interceptor = RecordingInterceptor::default();
+    let srv = layered_service(&interceptor, MockService::default());
+    let ctx = OperationContext::default();
+
+    let mut writer = srv
+        .write(&ctx, "dest", OpWrite::default())
+        .expect("write must succeed");
+    let err = block_on(writer.copy_from_dyn("src", OpRead::default(), BytesRange::from(0..)))
+        .expect_err("unbounded copy_from must return inner error");
+
+    assert_eq!(err.kind(), ErrorKind::RangeNotSatisfied);
+    assert!(err.to_string().contains("unbounded copy_from range"));
+
+    let events = interceptor.events();
+    let event = events
+        .iter()
+        .find(|event| event.message == "failed")
+        .expect("a failed event must be logged");
+    assert_eq!(event.operation, Operation::Write);
+    assert_context(event, "path", "dest");
+    assert_context(event, "source", "src");
+    assert_context(event, "written", "0");
+    assert_context(event, "size", "0");
+    assert!(
+        event
+            .err
+            .as_deref()
+            .unwrap_or("")
+            .contains("unbounded copy_from range")
     );
 }

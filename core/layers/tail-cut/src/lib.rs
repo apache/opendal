@@ -393,7 +393,7 @@ impl Service for TailCutService {
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
         self.inner
             .compose(ctx, to, args)
-            .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
+            .map(|c| TailCutWrapper::new(c, self.config.clone(), self.stats.clone()))
     }
 
     async fn create_dir(
@@ -413,13 +413,13 @@ impl Service for TailCutService {
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
         self.inner
             .read(ctx, path, args)
-            .map(|r| TailCutWrapper::new(r, None, self.config.clone(), self.stats.clone()))
+            .map(|r| TailCutWrapper::new(r, self.config.clone(), self.stats.clone()))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
         self.inner
             .write(ctx, path, args)
-            .map(|w| TailCutWrapper::new(w, None, self.config.clone(), self.stats.clone()))
+            .map(|w| TailCutWrapper::new(w, self.config.clone(), self.stats.clone()))
     }
 
     fn copy(
@@ -431,7 +431,7 @@ impl Service for TailCutService {
     ) -> Result<Self::Copier> {
         self.inner
             .copy(ctx, from, to, args)
-            .map(|c| TailCutWrapper::new(c, None, self.config.clone(), self.stats.clone()))
+            .map(|c| TailCutWrapper::new(c, self.config.clone(), self.stats.clone()))
     }
 
     async fn rename(
@@ -471,13 +471,13 @@ impl Service for TailCutService {
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
         self.inner
             .delete(ctx)
-            .map(|d| TailCutWrapper::new(d, None, self.config.clone(), self.stats.clone()))
+            .map(|d| TailCutWrapper::new(d, self.config.clone(), self.stats.clone()))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.inner
             .list(ctx, path, args)
-            .map(|l| TailCutWrapper::new(l, None, self.config.clone(), self.stats.clone()))
+            .map(|l| TailCutWrapper::new(l, self.config.clone(), self.stats.clone()))
     }
 
     async fn presign(
@@ -498,32 +498,29 @@ impl Service for TailCutService {
 /// Body wrapper that applies tail-cut deadlines to streaming I/O calls.
 struct TailCutWrapper<R> {
     inner: R,
-    size: Option<u64>,
     config: Arc<TailCutConfig>,
     stats: Arc<TailCutStats>,
 }
 
 impl<R> TailCutWrapper<R> {
-    fn new(
-        inner: R,
-        size: Option<u64>,
-        config: Arc<TailCutConfig>,
-        stats: Arc<TailCutStats>,
-    ) -> Self {
+    fn new(inner: R, config: Arc<TailCutConfig>, stats: Arc<TailCutStats>) -> Self {
         Self {
             inner,
-            size,
             config,
             stats,
         }
     }
 
-    fn calculate_deadline(&self, op: Operation) -> Option<Duration> {
-        self.calculate_deadline_for(op, self.size)
+    fn calculate_deadline(&self, key: impl Into<StatKey>) -> Option<Duration> {
+        self.calculate_deadline_for(key, None)
     }
 
-    fn calculate_deadline_for(&self, op: Operation, size: Option<u64>) -> Option<Duration> {
-        let op_stats = self.stats.stats_for(op);
+    fn calculate_deadline_for(
+        &self,
+        key: impl Into<StatKey>,
+        size: Option<u64>,
+    ) -> Option<Duration> {
+        let op_stats = self.stats.stats_for(key);
 
         if op_stats.total_samples(size, self.config.window) < self.config.min_samples {
             return None;
@@ -542,12 +539,13 @@ impl<R> TailCutWrapper<R> {
         percentile: u8,
         stats: &Arc<TailCutStats>,
         size: Option<u64>,
-        op: Operation,
+        key: impl Into<StatKey>,
         fut: F,
     ) -> Result<T>
     where
         F: std::future::Future<Output = Result<T>>,
     {
+        let key = key.into();
         let start = Instant::now();
 
         let result = if let Some(dl) = deadline {
@@ -555,7 +553,7 @@ impl<R> TailCutWrapper<R> {
                 Ok(res) => res,
                 Err(_) => Err(
                     Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
-                        .with_operation(op)
+                        .with_operation(key.operation())
                         .with_context("percentile", format!("P{}", percentile))
                         .with_context("deadline", format!("{:?}", dl))
                         .set_temporary(),
@@ -567,7 +565,7 @@ impl<R> TailCutWrapper<R> {
 
         if result.is_ok() {
             let latency = start.elapsed();
-            stats.stats_for(op).record(size, latency);
+            stats.stats_for(key).record(size, latency);
         }
 
         result
@@ -591,12 +589,13 @@ impl<R> TailCutWrapper<R> {
         percentile: u8,
         stats: &Arc<TailCutStats>,
         size: Option<u64>,
-        op: Operation,
+        key: impl Into<StatKey>,
         fut: F,
     ) -> Result<T>
     where
         F: std::future::Future<Output = Result<T>>,
     {
+        let key = key.into();
         let start = Instant::now();
         let tracked = YieldTrackingFuture::new(fut);
 
@@ -606,7 +605,7 @@ impl<R> TailCutWrapper<R> {
                 Err(_) => (
                     Err(
                         Error::new(ErrorKind::Unexpected, "io cancelled by tail cut")
-                            .with_operation(op)
+                            .with_operation(key.operation())
                             .with_context("percentile", format!("P{}", percentile))
                             .with_context("deadline", format!("{:?}", dl))
                             .set_temporary(),
@@ -621,7 +620,7 @@ impl<R> TailCutWrapper<R> {
 
         if yielded && result.is_ok() {
             let latency = start.elapsed();
-            stats.stats_for(op).record(size, latency);
+            stats.stats_for(key).record(size, latency);
         }
 
         result
@@ -660,13 +659,13 @@ impl<F: Future> Future for YieldTrackingFuture<F> {
 
 impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
     async fn read(&mut self) -> Result<Buffer> {
-        let deadline = self.calculate_deadline_for(Operation::Read, self.size);
+        let deadline = self.calculate_deadline(StatKey::ReadStream);
         Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
-            Operation::Read,
+            None,
+            StatKey::ReadStream,
             self.inner.read(),
         )
         .await
@@ -675,14 +674,13 @@ impl<R: oio::ReadStream> oio::ReadStream for TailCutWrapper<R> {
 
 impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
     async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
-        let size = range.size();
-        let deadline = self.calculate_deadline_for(Operation::Read, size);
+        let deadline = self.calculate_deadline(StatKey::ReadOpen);
         let (rp, stream) = Self::with_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
-            size,
-            Operation::Read,
+            None,
+            StatKey::ReadOpen,
             self.inner.open(range),
         )
         .await?;
@@ -691,7 +689,6 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
             rp,
             Box::new(TailCutWrapper::new(
                 stream,
-                size,
                 self.config.clone(),
                 self.stats.clone(),
             )) as Box<dyn oio::ReadStreamDyn>,
@@ -715,12 +712,13 @@ impl<R: oio::Read> oio::Read for TailCutWrapper<R> {
 
 impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
-        let deadline = self.calculate_deadline(Operation::Write);
+        let size = Some(bs.len() as u64);
+        let deadline = self.calculate_deadline_for(Operation::Write, size);
         Self::with_buffered_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            size,
             Operation::Write,
             self.inner.write(bs),
         )
@@ -728,12 +726,13 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        let deadline = self.calculate_deadline(Operation::Write);
+        let size = range.size();
+        let deadline = self.calculate_deadline_for(Operation::Write, size);
         Self::with_io_deadline(
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            size,
             Operation::Write,
             self.inner.copy_from(path, args, range),
         )
@@ -746,7 +745,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Write,
             self.inner.close(),
         )
@@ -759,7 +758,7 @@ impl<R: oio::Write> oio::Write for TailCutWrapper<R> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Write,
             self.inner.abort(),
         )
@@ -774,7 +773,7 @@ impl<R: oio::List> oio::List for TailCutWrapper<R> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::List,
             self.inner.next(),
         )
@@ -789,7 +788,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Delete,
             self.inner.delete(path, args),
         )
@@ -802,7 +801,7 @@ impl<R: oio::Delete> oio::Delete for TailCutWrapper<R> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Delete,
             self.inner.close(),
         )
@@ -817,7 +816,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Copy,
             self.inner.next(),
         )
@@ -830,7 +829,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Copy,
             self.inner.close(),
         )
@@ -843,7 +842,7 @@ impl<C: oio::Copy> oio::Copy for TailCutWrapper<C> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Copy,
             self.inner.abort(),
         )
@@ -858,7 +857,7 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Compose,
             self.inner.compose(path, args),
         )
@@ -871,11 +870,34 @@ impl<C: oio::Compose> oio::Compose for TailCutWrapper<C> {
             deadline,
             self.config.percentile,
             &self.stats,
-            self.size,
+            None,
             Operation::Compose,
             self.inner.close(),
         )
         .await
+    }
+}
+
+/// Identifies a dedicated latency histogram slot in [`TailCutStats`].
+#[derive(Clone, Copy, Debug)]
+enum StatKey {
+    Operation(Operation),
+    ReadOpen,
+    ReadStream,
+}
+
+impl From<Operation> for StatKey {
+    fn from(op: Operation) -> Self {
+        Self::Operation(op)
+    }
+}
+
+impl StatKey {
+    fn operation(self) -> Operation {
+        match self {
+            Self::Operation(op) => op,
+            Self::ReadOpen | Self::ReadStream => Operation::Read,
+        }
     }
 }
 
@@ -884,34 +906,46 @@ struct TailCutStats {
     // One dedicated histogram per `Operation` variant. `Info` carries no
     // traffic and also holds future `#[non_exhaustive]` variants.
     operations: [Arc<OperationStats>; 12],
+    // Dedicated histograms so stream open (TTFB) and per-chunk stream reads
+    // stay isolated from full-range `Read::read` baselines.
+    read_open: Arc<OperationStats>,
+    read_stream: Arc<OperationStats>,
 }
 
 impl TailCutStats {
     fn new() -> Self {
         Self {
             operations: std::array::from_fn(|_| Arc::new(OperationStats::new())),
+            read_open: Arc::new(OperationStats::new()),
+            read_stream: Arc::new(OperationStats::new()),
         }
     }
 
-    fn stats_for(&self, op: Operation) -> &Arc<OperationStats> {
-        let idx = match op {
-            Operation::Info => 0,
-            Operation::CreateDir => 1,
-            Operation::Read => 2,
-            Operation::Write => 3,
-            Operation::Copy => 4,
-            Operation::Compose => 5,
-            Operation::Rename => 6,
-            Operation::Restore => 7,
-            Operation::Stat => 8,
-            Operation::Delete => 9,
-            Operation::List => 10,
-            Operation::Presign => 11,
-            // New variants must not reuse a live operation's baseline before
-            // they get a dedicated histogram.
-            _ => 0,
-        };
-        &self.operations[idx]
+    fn stats_for(&self, key: impl Into<StatKey>) -> &Arc<OperationStats> {
+        match key.into() {
+            StatKey::ReadOpen => &self.read_open,
+            StatKey::ReadStream => &self.read_stream,
+            StatKey::Operation(op) => {
+                let idx = match op {
+                    Operation::Info => 0,
+                    Operation::CreateDir => 1,
+                    Operation::Read => 2,
+                    Operation::Write => 3,
+                    Operation::Copy => 4,
+                    Operation::Compose => 5,
+                    Operation::Rename => 6,
+                    Operation::Restore => 7,
+                    Operation::Stat => 8,
+                    Operation::Delete => 9,
+                    Operation::List => 10,
+                    Operation::Presign => 11,
+                    // New variants must not reuse a live operation's baseline before
+                    // they get a dedicated histogram.
+                    _ => 0,
+                };
+                &self.operations[idx]
+            }
+        }
     }
 }
 
@@ -1518,6 +1552,14 @@ mod tests {
             );
             seen.push(stats);
         }
+        for key in [StatKey::ReadOpen, StatKey::ReadStream] {
+            let stats = Arc::as_ptr(layer.stats.stats_for(key));
+            assert!(
+                !seen.contains(&stats),
+                "{key:?} must not share latency stats with another operation"
+            );
+            seen.push(stats);
+        }
     }
 
     #[tokio::test]
@@ -1600,7 +1642,6 @@ mod tests {
     ) -> TailCutWrapper<oio::Deleter> {
         TailCutWrapper::new(
             Box::new(inner) as oio::Deleter,
-            None,
             layer.config.clone(),
             layer.stats.clone(),
         )
@@ -1692,7 +1733,6 @@ mod tests {
 
         let mut composer = TailCutWrapper::new(
             Box::new(BufferedComposer { buffered: 0 }) as oio::Composer,
-            None,
             layer.config.clone(),
             layer.stats.clone(),
         );
@@ -1907,7 +1947,6 @@ mod tests {
         });
         let mut lister = TailCutWrapper::new(
             Box::new(lister) as oio::Lister,
-            None,
             layer.config.clone(),
             layer.stats.clone(),
         );
@@ -1957,7 +1996,6 @@ mod tests {
         });
         let mut writer = TailCutWrapper::new(
             Box::new(writer) as oio::Writer,
-            None,
             layer.config.clone(),
             layer.stats.clone(),
         );
@@ -2004,14 +2042,14 @@ mod tests {
             .min_deadline(Duration::from_millis(10))
             .max_deadline(Duration::from_secs(1))
             .build();
-        let stats = layer.stats.stats_for(Operation::Read);
+        let stream_stats = layer.stats.stats_for(StatKey::ReadStream);
+        let read_stats = layer.stats.stats_for(Operation::Read);
 
         let mut stream = TailCutWrapper::new(
             MixedReadStream {
                 buffered_chunks: 2,
                 delay: Duration::from_millis(25),
             },
-            None,
             layer.config.clone(),
             layer.stats.clone(),
         );
@@ -2026,9 +2064,235 @@ mod tests {
             .expect("the healthy read must not be cancelled by buffered chunks");
         assert!(eof.is_empty());
         assert_eq!(
-            stats.total_samples(None, layer.config.window),
+            stream_stats.total_samples(None, layer.config.window),
             1,
             "only the async read should be sampled"
         );
+        assert_eq!(
+            read_stats.total_samples(None, layer.config.window),
+            0,
+            "stream chunks must not pollute range read stats"
+        );
+    }
+
+    struct ChunkedAsyncStream {
+        remaining: usize,
+        chunk_delay: Duration,
+    }
+
+    impl oio::ReadStream for ChunkedAsyncStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            if self.remaining == 0 {
+                return Ok(Buffer::new());
+            }
+            self.remaining -= 1;
+            tokio::time::sleep(self.chunk_delay).await;
+            Ok(Buffer::from(vec![0u8; 16 * 1024]))
+        }
+    }
+
+    struct SplitLatencyReader {
+        open_delay: Duration,
+        chunk_delay: Duration,
+        chunks: usize,
+        read_delay: Duration,
+    }
+
+    impl oio::Read for SplitLatencyReader {
+        async fn open(&self, _: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            tokio::time::sleep(self.open_delay).await;
+            Ok((
+                RpRead::default(),
+                Box::new(ChunkedAsyncStream {
+                    remaining: self.chunks,
+                    chunk_delay: self.chunk_delay,
+                }),
+            ))
+        }
+
+        async fn read(&self, _: BytesRange) -> Result<(RpRead, Buffer)> {
+            tokio::time::sleep(self.read_delay).await;
+            Ok((RpRead::default(), Buffer::from("ok")))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_read_chunks_do_not_cancel_full_range_read_or_open() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let layer = TailCutLayer::builder()
+                .percentile(95)
+                .safety_factor(1.0)
+                .min_samples(10)
+                .min_deadline(Duration::from_millis(20))
+                .max_deadline(Duration::from_secs(5))
+                .build();
+
+            let range = BytesRange::new(0, Some(32 * 1024 * 1024));
+            let fast_open_reader = TailCutWrapper::new(
+                SplitLatencyReader {
+                    open_delay: Duration::from_millis(1),
+                    chunk_delay: Duration::from_millis(1),
+                    chunks: 20,
+                    read_delay: Duration::from_millis(80),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+
+            let (_, mut stream) = oio::Read::open(&fast_open_reader, range).await.unwrap();
+            for _ in 0..20 {
+                let chunk = stream.read_dyn().await.unwrap();
+                assert_eq!(chunk.len(), 16 * 1024);
+            }
+
+            let window = layer.config.window;
+            assert_eq!(
+                layer
+                    .stats
+                    .stats_for(StatKey::ReadOpen)
+                    .total_samples(None, window),
+                1
+            );
+            assert_eq!(
+                layer
+                    .stats
+                    .stats_for(StatKey::ReadStream)
+                    .total_samples(None, window),
+                20
+            );
+            assert_eq!(
+                layer
+                    .stats
+                    .stats_for(Operation::Read)
+                    .total_samples(range.size(), window),
+                0
+            );
+
+            // Fast per-chunk reads must not collapse the deadline of full-range `Read::read`.
+            oio::Read::read(&fast_open_reader, range)
+                .await
+                .expect("healthy full-range read must not be cancelled by stream chunk samples");
+            assert_eq!(
+                layer
+                    .stats
+                    .stats_for(Operation::Read)
+                    .total_samples(range.size(), window),
+                1
+            );
+
+            // Fast per-chunk reads must also not collapse the deadline of `Read::open`.
+            let slow_open_reader = TailCutWrapper::new(
+                SplitLatencyReader {
+                    open_delay: Duration::from_millis(80),
+                    chunk_delay: Duration::from_millis(1),
+                    chunks: 0,
+                    read_delay: Duration::from_millis(1),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+            oio::Read::open(&slow_open_reader, range)
+                .await
+                .expect("healthy read open must not be cancelled by stream chunk samples");
+            assert_eq!(
+                layer
+                    .stats
+                    .stats_for(StatKey::ReadOpen)
+                    .total_samples(None, window),
+                2
+            );
+        })
+        .await
+        .expect("test should not hang");
+    }
+
+    struct SizeSensitiveWriter {
+        small_delay: Duration,
+        large_delay: Duration,
+    }
+
+    impl oio::Write for SizeSensitiveWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            let delay = if bs.len() <= 4 * 1024 {
+                self.small_delay
+            } else {
+                self.large_delay
+            };
+            tokio::time::sleep(delay).await;
+            Ok(())
+        }
+
+        async fn copy_from(&mut self, _: &str, _: OpRead, range: BytesRange) -> Result<()> {
+            let delay = if range.size().is_some_and(|s| s <= 4 * 1024) {
+                self.small_delay
+            } else {
+                self.large_delay
+            };
+            tokio::time::sleep(delay).await;
+            Ok(())
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_small_writes_do_not_cancel_large_write_or_copy_from() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let layer = TailCutLayer::builder()
+                .percentile(95)
+                .safety_factor(1.0)
+                .min_samples(10)
+                .min_deadline(Duration::from_millis(20))
+                .max_deadline(Duration::from_secs(5))
+                .build();
+
+            let mut writer = TailCutWrapper::new(
+                SizeSensitiveWriter {
+                    small_delay: Duration::from_millis(1),
+                    large_delay: Duration::from_millis(80),
+                },
+                layer.config.clone(),
+                layer.stats.clone(),
+            );
+
+            let small_size = 1024u64;
+            let large_size = 2 * 1024 * 1024u64;
+
+            for _ in 0..15 {
+                oio::Write::write(&mut writer, Buffer::from(vec![0u8; small_size as usize]))
+                    .await
+                    .unwrap();
+            }
+
+            let stats = layer.stats.stats_for(Operation::Write);
+            let window = layer.config.window;
+            assert_eq!(stats.total_samples(Some(small_size), window), 15);
+            assert_eq!(stats.total_samples(Some(large_size), window), 0);
+            assert_eq!(stats.total_samples(None, window), 0);
+
+            oio::Write::write(&mut writer, Buffer::from(vec![0u8; large_size as usize]))
+                .await
+                .expect("large write must not be cancelled by small write samples");
+            assert_eq!(stats.total_samples(Some(large_size), window), 1);
+
+            oio::Write::copy_from(
+                &mut writer,
+                "src",
+                OpRead::new(),
+                BytesRange::new(0, Some(large_size)),
+            )
+            .await
+            .expect("large copy_from must not be cancelled by small write samples");
+            assert_eq!(stats.total_samples(Some(large_size), window), 2);
+            assert_eq!(stats.total_samples(None, window), 0);
+        })
+        .await
+        .expect("test should not hang");
     }
 }

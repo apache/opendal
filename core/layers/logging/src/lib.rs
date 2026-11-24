@@ -746,9 +746,7 @@ impl<W: oio::Write, I: LoggingInterceptor> oio::Write for LoggingWriter<W, I> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        let size = range
-            .size()
-            .expect("writer copy range must be absolute and bounded");
+        let size = range.size().unwrap_or_default();
 
         match self.inner.copy_from(path, args, range).await {
             Ok(()) => {

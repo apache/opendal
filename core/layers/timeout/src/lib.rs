@@ -19,10 +19,11 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, doc(auto_cfg))]
 #![deny(missing_docs)]
-use std::borrow::Cow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use futures::future::Either;
@@ -149,14 +150,22 @@ use opendal_core::*;
 /// limit.
 #[derive(Clone, Debug)]
 pub struct TimeoutLayer {
+    id: u64,
     timeout: Duration,
     io_timeout: Duration,
     operation_timeouts: HashMap<Operation, Duration>,
 }
 
+static NEXT_LAYER_ID: AtomicU64 = AtomicU64::new(1);
+
+fn next_layer_id() -> u64 {
+    NEXT_LAYER_ID.fetch_add(1, Ordering::Relaxed)
+}
+
 impl Default for TimeoutLayer {
     fn default() -> Self {
         Self {
+            id: next_layer_id(),
             timeout: Duration::from_secs(60),
             io_timeout: Duration::from_secs(10),
             operation_timeouts: HashMap::new(),
@@ -172,12 +181,14 @@ impl TimeoutLayer {
 
     /// Set the default timeout for control operations such as `stat` and `rename`.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.id = next_layer_id();
         self.timeout = timeout;
         self
     }
 
     /// Set the default timeout for I/O body methods and concurrent I/O tasks.
     pub fn with_io_timeout(mut self, timeout: Duration) -> Self {
+        self.id = next_layer_id();
         self.io_timeout = timeout;
         self
     }
@@ -194,6 +205,7 @@ impl TimeoutLayer {
     ///
     /// Each call replaces any previous override for the same operation.
     pub fn with_operation_timeout(mut self, operation: Operation, timeout: Duration) -> Self {
+        self.id = next_layer_id();
         self.operation_timeouts.insert(operation, timeout);
         self
     }
@@ -208,7 +220,7 @@ impl Layer for TimeoutLayer {
     }
 
     fn apply_context(&self, _srv: Servicer, inner: OperationContext) -> OperationContext {
-        TimeoutExecutor::wrap_context(&inner, self.io_timeout)
+        TimeoutExecutor::wrap_context(&inner, self.io_timeout, self.id, false)
     }
 }
 
@@ -242,19 +254,18 @@ impl TimeoutService {
         .await
     }
 
-    fn io_context<'a>(
-        &self,
-        ctx: &'a OperationContext,
-        op: Operation,
-    ) -> (Duration, Cow<'a, OperationContext>) {
-        let Some(&timeout) = self.config.operation_timeouts.get(&op) else {
-            return (self.config.io_timeout, Cow::Borrowed(ctx));
-        };
+    fn io_context(&self, ctx: &OperationContext, op: Operation) -> (Duration, OperationContext) {
+        let timeout = self
+            .config
+            .operation_timeouts
+            .get(&op)
+            .copied()
+            .unwrap_or(self.config.io_timeout);
 
         // Bodies such as MultipartWriter retain the executor for their individual tasks.
         (
             timeout,
-            Cow::Owned(TimeoutExecutor::wrap_context(ctx, timeout)),
+            TimeoutExecutor::wrap_context(ctx, timeout, self.config.id, true),
         )
     }
 }
@@ -290,16 +301,16 @@ impl Service for TimeoutService {
     }
 
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::Read);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::Read);
         self.inner
-            .read(&ctx, path, args)
+            .read(&io_ctx, path, args)
             .map(|r| TimeoutWrapper::new(r, timeout, ctx.executor().clone()))
     }
 
     fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::Write);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::Write);
         self.inner
-            .write(&ctx, path, args)
+            .write(&io_ctx, path, args)
             .map(|r| TimeoutWrapper::new(r, timeout, ctx.executor().clone()))
     }
 
@@ -310,16 +321,16 @@ impl Service for TimeoutService {
         to: &str,
         args: OpCopy,
     ) -> Result<Self::Copier> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::Copy);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::Copy);
         self.inner
-            .copy(&ctx, from, to, args)
+            .copy(&io_ctx, from, to, args)
             .map(|c| TimeoutWrapper::new(c, timeout, ctx.executor().clone()))
     }
 
     fn compose(&self, ctx: &OperationContext, to: &str, args: OpCompose) -> Result<Self::Composer> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::Compose);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::Compose);
         self.inner
-            .compose(&ctx, to, args)
+            .compose(&io_ctx, to, args)
             .map(|c| TimeoutWrapper::new(c, timeout, ctx.executor().clone()))
     }
 
@@ -354,16 +365,16 @@ impl Service for TimeoutService {
     }
 
     fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::Delete);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::Delete);
         self.inner
-            .delete(&ctx)
+            .delete(&io_ctx)
             .map(|r| TimeoutWrapper::new(r, timeout, ctx.executor().clone()))
     }
 
     fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
-        let (timeout, ctx) = self.io_context(ctx, Operation::List);
+        let (timeout, io_ctx) = self.io_context(ctx, Operation::List);
         self.inner
-            .list(&ctx, path, args)
+            .list(&io_ctx, path, args)
             .map(|r| TimeoutWrapper::new(r, timeout, ctx.executor().clone()))
     }
 
@@ -378,16 +389,60 @@ impl Service for TimeoutService {
     }
 }
 
+thread_local! {
+    // Tracks which TimeoutLayer instances have already installed an operation
+    // deadline during a synchronous `Execute::timeout()` walk so each layer's
+    // `apply_context` default yields to its own operation-level deadline
+    // without clobbering tighter deadlines from other stacked TimeoutLayers.
+    static OVERRIDDEN_LAYER_IDS: RefCell<Vec<u64>> = const { RefCell::new(Vec::new()) };
+}
+
+struct OverrideGuard;
+
+impl OverrideGuard {
+    fn enter(layer_id: u64) -> Self {
+        OVERRIDDEN_LAYER_IDS.with(|ids| ids.borrow_mut().push(layer_id));
+        Self
+    }
+}
+
+impl Drop for OverrideGuard {
+    fn drop(&mut self) {
+        OVERRIDDEN_LAYER_IDS.with(|ids| {
+            let _ = ids.borrow_mut().pop();
+        });
+    }
+}
+
+fn is_layer_overridden(layer_id: u64) -> bool {
+    OVERRIDDEN_LAYER_IDS.with(|ids| ids.borrow().contains(&layer_id))
+}
+
+fn race_timeouts(a: BoxedStaticFuture<()>, b: BoxedStaticFuture<()>) -> BoxedStaticFuture<()> {
+    Box::pin(async move {
+        let _ = select(a, b).await;
+    })
+}
+
 struct TimeoutExecutor {
     exec: Arc<dyn Execute>,
     timeout: Duration,
+    layer_id: u64,
+    is_operation_override: bool,
 }
 
 impl TimeoutExecutor {
-    fn wrap_context(ctx: &OperationContext, timeout: Duration) -> OperationContext {
+    fn wrap_context(
+        ctx: &OperationContext,
+        timeout: Duration,
+        layer_id: u64,
+        is_operation_override: bool,
+    ) -> OperationContext {
         ctx.with_executor(Executor::with(Self {
             exec: ctx.executor().clone().into_inner(),
             timeout,
+            layer_id,
+            is_operation_override,
         }))
     }
 }
@@ -402,7 +457,22 @@ impl Execute for TimeoutExecutor {
     }
 
     fn timeout(&self) -> Option<BoxedStaticFuture<()>> {
-        Some(timer(self.exec.as_ref(), self.timeout))
+        if !self.is_operation_override && is_layer_overridden(self.layer_id) {
+            return self.exec.timeout();
+        }
+
+        let inner = {
+            let _guard = self
+                .is_operation_override
+                .then(|| OverrideGuard::enter(self.layer_id));
+            self.exec.timeout()
+        };
+        let mine = timer(self.exec.as_ref(), self.timeout);
+
+        Some(match inner {
+            Some(inner) => race_timeouts(mine, inner),
+            None => mine,
+        })
     }
 
     fn sleep(&self, duration: Duration) -> Option<BoxedStaticFuture<()>> {
@@ -978,5 +1048,122 @@ mod tests {
         let err = res.unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unexpected);
         assert!(err.to_string().contains("timeout"));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stacked_timeout_layers_preserve_shorter_inner_io_timeout() {
+        timeout(Duration::from_secs(10), async {
+            let service = MockService {
+                write_part_delay: Duration::from_secs(3),
+                ..Default::default()
+            };
+            let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+            let op = Operator::from_parts(ctx, Arc::new(service))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(5)));
+
+            let mut writer = op.writer_with("test").concurrent(2).await.unwrap();
+            writer.write("a").await.unwrap();
+            let start = Instant::now();
+            writer.write("b").await.unwrap();
+            sleep(Duration::from_millis(200)).await;
+
+            let err = writer.close().await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), "write part timeout");
+            assert_eq!(start.elapsed(), Duration::from_secs(1));
+        })
+        .await
+        .expect("test should not hang");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stacked_timeout_layers_preserve_shorter_outer_io_timeout_over_inner_override() {
+        timeout(Duration::from_secs(10), async {
+            let service = MockService {
+                write_part_delay: Duration::from_secs(3),
+                ..Default::default()
+            };
+            let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+            let op = Operator::from_parts(ctx, Arc::new(service))
+                .layer(
+                    TimeoutLayer::new()
+                        .with_io_timeout(Duration::from_secs(10))
+                        .with_operation_timeout(Operation::Write, Duration::from_secs(5)),
+                )
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)));
+
+            let mut writer = op.writer_with("test").concurrent(2).await.unwrap();
+            writer.write("a").await.unwrap();
+            let start = Instant::now();
+            writer.write("b").await.unwrap();
+            sleep(Duration::from_millis(200)).await;
+
+            let err = writer.close().await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), "write part timeout");
+            assert_eq!(start.elapsed(), Duration::from_secs(1));
+        })
+        .await
+        .expect("test should not hang");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stacked_timeout_layers_honor_inner_write_override_longer_than_its_io_timeout() {
+        timeout(Duration::from_secs(15), async {
+            for (part_secs, should_succeed) in [(3, true), (6, false)] {
+                let service = MockService {
+                    write_part_delay: Duration::from_secs(part_secs),
+                    ..Default::default()
+                };
+                let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+                let op = Operator::from_parts(ctx, Arc::new(service))
+                    .layer(
+                        TimeoutLayer::new()
+                            .with_io_timeout(Duration::from_secs(1))
+                            .with_operation_timeout(Operation::Write, Duration::from_secs(5)),
+                    )
+                    .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(10)));
+
+                let mut writer = op.writer_with("test").concurrent(2).await.unwrap();
+                writer.write("a").await.unwrap();
+                let start = Instant::now();
+                writer.write("b").await.unwrap();
+                sleep(Duration::from_secs(1)).await;
+
+                let result = writer.close().await;
+                if should_succeed {
+                    assert_eq!(result.unwrap().content_length(), 2);
+                } else {
+                    let err = result.unwrap_err();
+                    assert_eq!(err.kind(), ErrorKind::Unexpected);
+                    assert_eq!(err.message(), "write part timeout");
+                    assert_eq!(start.elapsed(), Duration::from_secs(5));
+                }
+            }
+        })
+        .await
+        .expect("test should not hang");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_stacked_timeout_layers_context_executor_uses_shorter_timeout() {
+        timeout(Duration::from_secs(10), async {
+            let ctx = OperationContext::default().with_executor(Executor::with(TestExecutor));
+            let op = Operator::from_parts(ctx, Arc::new(MockService::default()))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(1)))
+                .layer(TimeoutLayer::new().with_io_timeout(Duration::from_secs(5)));
+
+            let start = Instant::now();
+            op.context()
+                .executor()
+                .inner()
+                .timeout()
+                .expect("stacked timeout layers must configure an executor timeout")
+                .await;
+            assert_eq!(start.elapsed(), Duration::from_secs(1));
+        })
+        .await
+        .expect("test should not hang");
     }
 }

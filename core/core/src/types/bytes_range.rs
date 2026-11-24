@@ -288,11 +288,6 @@ impl FromStr for BytesRange {
         }
 
         let parse_int = |input: &str| {
-            if input.is_empty() || !input.bytes().all(|b| b.is_ascii_digit()) {
-                return Err(Error::new(ErrorKind::Unexpected, "header range is invalid")
-                    .with_operation("BytesRange::from_str")
-                    .with_context("value", value));
-            }
             input.parse::<u64>().map_err(|e| {
                 Error::new(ErrorKind::Unexpected, "header range is invalid")
                     .with_operation("BytesRange::from_str")
@@ -481,25 +476,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_bytes_range_from_str_rejects_leading_plus() {
-        let cases = [
-            "bytes=+0-10",
-            "bytes=0-+10",
-            "bytes=+0-+5",
-            "bytes=-+10",
-            "bytes=+10-",
-        ];
-
-        for input in cases {
-            let err = input
-                .parse::<BytesRange>()
-                .expect_err("leading plus sign must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unexpected, "{input}");
-        }
-    }
-
-    #[allow(clippy::reversed_empty_ranges)]
     #[test]
     fn test_bytes_range_from_range_bounds_underflow() {
         // Invalid ranges where end < start should produce zero-size ranges

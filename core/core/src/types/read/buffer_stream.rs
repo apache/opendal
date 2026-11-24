@@ -709,39 +709,21 @@ impl Stream for BufferStream {
                             };
                             if let Some(max_size) = max_size {
                                 let chunk_len = buf.len() as u64;
-                                match this.read.checked_add(chunk_len) {
-                                    Some(next_read) if next_read <= max_size => {
-                                        this.state = State::Idle(Some(reader));
-                                        this.read = next_read;
-                                        return Poll::Ready(Some(Ok(buf)));
-                                    }
-                                    Some(next_read) => {
-                                        this.state = State::Done;
-                                        return Poll::Ready(Some(Err(check_complete(
-                                            Some(max_size),
-                                            next_read,
-                                        )
-                                        .unwrap_err())));
-                                    }
-                                    None => {
-                                        this.state = State::Done;
-                                        return Poll::Ready(Some(Err(Error::new(
-                                            ErrorKind::Unexpected,
-                                            "reader got too much data",
-                                        )
-                                        .with_context("expect", max_size)
-                                        .with_context(
-                                            "actual",
-                                            u128::from(this.read) + u128::from(chunk_len),
-                                        ))));
-                                    }
+                                if chunk_len > max_size.saturating_sub(this.read) {
+                                    this.state = State::Done;
+                                    let actual = this.read.saturating_add(chunk_len);
+                                    return Poll::Ready(Some(Err(Error::new(
+                                        ErrorKind::Unexpected,
+                                        "reader got too much data",
+                                    )
+                                    .with_context("expect", max_size)
+                                    .with_context("actual", actual))));
                                 }
-                            }
-                            this.state = State::Idle(Some(reader));
-                            if let Some(remaining) = remaining {
+                            } else if let Some(remaining) = remaining {
                                 buf.truncate((buf.len() as u64).min(remaining) as usize);
                             }
-                            this.read = this.read.saturating_add(buf.len() as u64);
+                            this.state = State::Idle(Some(reader));
+                            this.read += buf.len() as u64;
                             Poll::Ready(Some(Ok(buf)))
                         }
                         Err(err) => {

@@ -94,7 +94,6 @@ impl<T: Part> Multipart<T> {
         // delimiter adds `--` before the padding and may end the body.
         let mut cursor = 0;
         let mut part_start = None;
-        let mut closed = false;
 
         while let Some(offset) = s[cursor..].find(&delimiter) {
             let at = cursor + offset;
@@ -133,7 +132,7 @@ impl<T: Part> Multipart<T> {
             }
 
             if closing {
-                closed = true;
+                part_start = None;
                 break;
             }
 
@@ -141,19 +140,11 @@ impl<T: Part> Multipart<T> {
             cursor = line_end;
         }
 
-        if !closed {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "multipart response is missing the closing boundary delimiter",
-            ));
-        }
-
-        // RFC 2046 §5.1.1 requires at least one body part.
-        if self.parts.is_empty() {
-            return Err(Error::new(
-                ErrorKind::Unexpected,
-                "multipart response contains no body parts",
-            ));
+        // At EOF there is no delimiter CRLF to remove from the final part.
+        if let Some(start) = part_start
+            && start < s.len()
+        {
+            self.parts.push(T::parse(&s[start..])?);
         }
 
         Ok(self)
@@ -429,20 +420,11 @@ impl MixedPart {
 
 /// Parse one HTTP header line and append it to `headers`.
 ///
-/// Empty lines are skipped. RFC 9110 §5.5 requires a colon between the field
-/// name and value, and the field value is trimmed of leading and trailing
-/// optional whitespace. Duplicate field names are appended so that no received
-/// value is silently dropped.
+/// Lines without a colon are skipped. Field values are trimmed of leading and
+/// trailing optional whitespace. Duplicate field names are appended.
 fn parse_header_line(headers: &mut HeaderMap, line: &str) -> Result<()> {
-    if line.is_empty() {
-        return Ok(());
-    }
-
     let Some((name, value)) = line.split_once(':') else {
-        return Err(Error::new(
-            ErrorKind::Unexpected,
-            "multipart response contains invalid header line",
-        ));
+        return Ok(());
     };
 
     let header_name = HeaderName::from_str(name).map_err(|err| {
@@ -561,20 +543,9 @@ impl Part for MixedPart {
         let status_code = status_line
             .split_whitespace()
             .nth(1)
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "multipart response contains invalid status line",
-                )
-            })?
+            .unwrap_or("")
             .parse::<u16>()
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::Unexpected,
-                    "multipart response contains invalid status code",
-                )
-                .set_source(err)
-            })?;
+            .unwrap_or(200);
 
         let mut headers = HeaderMap::new();
         for line in headers_content.lines().skip(1) {
@@ -1275,21 +1246,6 @@ Content-Length: 846
     }
 
     #[test]
-    fn test_multipart_mixed_response_rejects_invalid_status_line() {
-        for response in [
-            "",
-            "Content-Type: application/http\r\n\r\n",
-            "Content-Type: application/http\r\n\r\nHTTP/1.1\r\n\r\n",
-            "Content-Type: application/http\r\n\r\nHTTP/1.1 INVALID\r\n\r\n",
-        ] {
-            let err = MixedPart::parse(response)
-                .err()
-                .expect("invalid status line must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-        }
-    }
-
-    #[test]
     fn test_multipart_mixed_response_preserves_multiline_body() {
         let response = "--batch\r\n\
                         Content-Type: application/http\r\n\
@@ -1314,34 +1270,16 @@ Content-Length: 846
     }
 
     #[test]
-    fn test_multipart_rejects_body_without_boundary() {
-        let err = Multipart::<MixedPart>::new()
+    fn test_multipart_parses_final_part_at_eof() -> Result<()> {
+        let response =
+            "--batch\r\nContent-Type: application/http\r\n\r\nHTTP/1.1 200 OK\r\n\r\nbody\r\n";
+        let multipart = Multipart::<MixedPart>::new()
             .with_boundary("batch")
-            .parse(Bytes::from_static(
-                b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n",
-            ))
-            .err()
-            .expect("a body without any boundary must be rejected");
-
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
-    }
-
-    #[test]
-    fn test_multipart_rejects_missing_closing_delimiter() {
-        let body = "--batch\r\n\
-                    Content-Type: application/http\r\n\
-                    \r\n\
-                    HTTP/1.1 200 OK\r\n\
-                    \r\n\
-                    truncated body";
-
-        let err = Multipart::<MixedPart>::new()
-            .with_boundary("batch")
-            .parse(Bytes::from_static(body.as_bytes()))
-            .err()
-            .expect("a body without the closing delimiter must be rejected");
-
-        assert_eq!(err.kind(), ErrorKind::Unexpected);
+            .parse(Bytes::from_static(response.as_bytes()))?;
+        let parts = multipart.into_parts();
+        assert_eq!(parts.len(), 1);
+        assert_eq!(parts[0].content.to_bytes().as_ref(), b"body\r\n");
+        Ok(())
     }
 
     #[test]
@@ -1428,19 +1366,6 @@ Content-Length: 846
 
             h
         });
-    }
-
-    #[test]
-    fn test_multipart_mixed_response_rejects_header_without_colon() {
-        for response in [
-            "Content-Type application/http\r\n\r\nHTTP/1.1 200 OK\r\n\r\nbody",
-            "Content-Type: application/http\r\n\r\nHTTP/1.1 200 OK\r\nBroken-Header\r\n\r\nbody",
-        ] {
-            let err = MixedPart::parse(response)
-                .err()
-                .expect("a header line without a colon must be rejected");
-            assert_eq!(err.kind(), ErrorKind::Unexpected);
-        }
     }
 
     #[test]

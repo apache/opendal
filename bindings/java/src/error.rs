@@ -15,6 +15,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::any::Any;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -82,7 +83,7 @@ impl Error {
 }
 
 /// A native-method [`ErrorPolicy`] that converts a Rust [`Error`] into an
-/// `OpenDALException` and a panic into a `RuntimeException`, returning the
+/// `OpenDALException` and a panic into an `OpenDALPanicException`, returning the
 /// default value to the JVM in both cases.
 pub(crate) enum ThrowException {}
 
@@ -103,29 +104,38 @@ impl<T: Default> ErrorPolicy<T, Error> for ThrowException {
     fn on_panic<'unowned_env_local: 'native_method, 'native_method>(
         env: &mut Env<'unowned_env_local>,
         _cap: &mut Self::Captures<'unowned_env_local, 'native_method>,
-        payload: Box<dyn std::any::Any + Send + 'static>,
+        payload: Box<dyn Any + Send + 'static>,
     ) -> jni::errors::Result<T> {
         if !env.exception_check() {
-            fn downcast_payload(payload: Box<dyn std::any::Any + Send + 'static>) -> String {
-                let payload = match payload.downcast::<&'static str>() {
-                    Ok(payload) => return payload.to_string(),
-                    Err(payload) => payload,
-                };
-
-                let payload = match payload.downcast::<String>() {
-                    Ok(payload) => return *payload,
-                    Err(payload) => payload,
-                };
-
-                let _ = payload;
-                "native method panicked".to_string()
+            match panic_exception(env, payload.as_ref()).and_then(|exception| env.throw(exception))
+            {
+                Ok(()) | Err(jni::errors::Error::JavaException) => {}
+                Err(err) => return Err(err),
             }
-
-            let payload = downcast_payload(payload);
-            env.fatal_error(JNIString::new(payload).as_ref());
         }
         Ok(T::default())
     }
+}
+
+pub(crate) fn panic_exception<'local>(
+    env: &mut Env<'local>,
+    payload: &(dyn Any + Send),
+) -> jni::errors::Result<JThrowable<'local>> {
+    let message = if let Some(message) = payload.downcast_ref::<&str>() {
+        message
+    } else if let Some(message) = payload.downcast_ref::<String>() {
+        message.as_str()
+    } else {
+        "native method panicked"
+    };
+    let message = env.new_string(message)?;
+    let exception = env.new_object(
+        jni_str!("org/apache/opendal/OpenDALPanicException"),
+        jni_sig!("(Ljava/lang/String;)V"),
+        &[JValue::Object(&message)],
+    )?;
+    // SAFETY: OpenDALPanicException is a subclass of java.lang.Throwable.
+    Ok(unsafe { JThrowable::from_raw(env, exception.into_raw()) })
 }
 
 impl From<opendal::Error> for Error {

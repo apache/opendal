@@ -131,7 +131,7 @@ jobs:
       - name: Build and check
         working-directory: bindings/java
         run: |
-          ./mvnw clean compile spotless:check
+          ./mvnw clean test spotless:check -Dtest=NativePanicTest -Dopendal.test-native-panics=true
       # Useful for debugging
       - name: Print Clippy version
         working-directory: bindings/java

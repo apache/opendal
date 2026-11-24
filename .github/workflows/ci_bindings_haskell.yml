@@ -148,6 +148,9 @@ jobs:
           active-repositories: hackage-direct
           EOF
           cabal --config-file="$cabal_config" update --ignore-project
+          # Make GHC's bundled cc available to dependency configure scripts.
+          mingw_bin="$(cygpath -u "$RUNNER_TEMP")/haskell/ghc-9.4.8-x86_64-unknown-mingw32/mingw/bin"
+          PATH="$PATH:$mingw_bin" \
           cabal --config-file="$cabal_config" install --ignore-project --lib --package-env=./metadata-test.env \
             bytestring mtl text time unordered-containers co-log network tasty tasty-hunit \
             --constraint='bytestring >= 0.11.4 && < 0.12' --constraint='mtl >= 2.2.2 && < 2.3' \

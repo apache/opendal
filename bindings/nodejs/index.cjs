@@ -21,6 +21,13 @@
 
 const { Writable, Readable } = require('stream')
 
+function toWriterInput(chunk, encoding) {
+  if (typeof chunk === 'string' && encoding && encoding !== 'utf8' && encoding !== 'utf-8') {
+    return Buffer.from(chunk, encoding)
+  }
+  return chunk
+}
+
 class ReadStream extends Readable {
   constructor(reader, options) {
     super(options)
@@ -28,6 +35,9 @@ class ReadStream extends Readable {
   }
 
   async _read(size) {
+    if (this.destroyed || !this.reader) {
+      return
+    }
     try {
       // Node can request size 0 when highWaterMark is 0.
       const chunk = await this.reader.readChunk(Math.min(Math.max(size, 1), 0xffffffff))
@@ -52,18 +62,28 @@ class BlockingReadStream extends Readable {
   }
 
   _read(size) {
+    if (this.destroyed || !this.reader) {
+      return
+    }
     try {
       // Node can request size 0 when highWaterMark is 0.
       const buf = Buffer.alloc(Math.max(size, 1))
-      let s = this.reader.read(buf)
-      if (s === 0n) {
-        this.push(null)
-      } else {
-        this.push(buf.subarray(0, Number(s)))
+      const s = this.reader.read(buf)
+      if (!this.destroyed) {
+        if (s === 0n) {
+          this.push(null)
+        } else {
+          this.push(buf.subarray(0, Number(s)))
+        }
       }
-    } catch (e) {
-      this.emit('error', e)
+    } catch (error) {
+      this.destroy(error)
     }
+  }
+
+  _destroy(error, callback) {
+    this.reader = null
+    callback(error)
   }
 }
 
@@ -74,13 +94,21 @@ class WriteStream extends Writable {
   }
 
   _write(chunk, encoding, callback) {
+    let data
+    try {
+      data = toWriterInput(chunk, encoding)
+    } catch (error) {
+      callback(error)
+      return
+    }
+
     this.writer
-      .write(chunk)
+      .write(data)
       .then(() => {
         callback()
       })
-      .catch((e) => {
-        callback(e)
+      .catch((error) => {
+        callback(error)
       })
   }
 
@@ -90,9 +118,14 @@ class WriteStream extends Writable {
       .then(() => {
         callback()
       })
-      .catch((e) => {
-        callback(e)
+      .catch((error) => {
+        callback(error)
       })
+  }
+
+  _destroy(error, callback) {
+    this.writer = null
+    callback(error)
   }
 }
 
@@ -104,10 +137,10 @@ class BlockingWriteStream extends Writable {
 
   _write(chunk, encoding, callback) {
     try {
-      this.writer.write(chunk)
+      this.writer.write(toWriterInput(chunk, encoding))
       callback()
-    } catch (e) {
-      callback(e)
+    } catch (error) {
+      callback(error)
     }
   }
 
@@ -115,21 +148,30 @@ class BlockingWriteStream extends Writable {
     try {
       this.writer.close()
       callback()
-    } catch (e) {
-      callback(e)
+    } catch (error) {
+      callback(error)
     }
+  }
+
+  _destroy(error, callback) {
+    this.writer = null
+    callback(error)
   }
 }
 
+const generated = require('./generated.js')
 const {
-  Operator,
-  RetryLayer,
+  CapabilityOverrideLayer,
   ConcurrentLimitLayer,
+  LoggingLayer,
+  RetryLayer,
+  ThrottleLayer,
+  TimeoutLayer,
   BlockingReader,
   Reader,
   BlockingWriter,
   Writer,
-} = require('./generated.js')
+} = generated
 
 BlockingReader.prototype.createReadStream = function (options) {
   return new BlockingReadStream(this, options)
@@ -147,8 +189,30 @@ Writer.prototype.createWriteStream = function (options) {
   return new WriteStream(this, options)
 }
 
-module.exports.Operator = Operator
+module.exports = { ...generated }
+module.exports.BlockingLister = generated.BlockingLister
+module.exports.BlockingReader = generated.BlockingReader
+module.exports.BlockingWriter = generated.BlockingWriter
+module.exports.Capability = generated.Capability
+module.exports.CapabilityOverrideLayer = generated.CapabilityOverrideLayer
+module.exports.ConcurrentLimitLayer = generated.ConcurrentLimitLayer
+module.exports.Entry = generated.Entry
+module.exports.EntryMode = generated.EntryMode
+module.exports.Layer = generated.Layer
+module.exports.Lister = generated.Lister
+module.exports.LoggingLayer = generated.LoggingLayer
+module.exports.Metadata = generated.Metadata
+module.exports.Operator = generated.Operator
+module.exports.Reader = generated.Reader
+module.exports.RetryLayer = generated.RetryLayer
+module.exports.ThrottleLayer = generated.ThrottleLayer
+module.exports.TimeoutLayer = generated.TimeoutLayer
+module.exports.Writer = generated.Writer
 module.exports.layers = {
-  RetryLayer,
+  CapabilityOverrideLayer,
   ConcurrentLimitLayer,
+  LoggingLayer,
+  RetryLayer,
+  ThrottleLayer,
+  TimeoutLayer,
 }

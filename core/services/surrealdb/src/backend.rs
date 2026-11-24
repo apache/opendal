@@ -442,4 +442,30 @@ mod tests {
         .await
         .unwrap();
     }
+
+    #[tokio::test]
+    async fn root_write_and_delete_short_circuit_with_id_key_field() {
+        use oio::Delete;
+        use oio::Write;
+
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mut entries = valid_config_entries();
+            entries.push(("key_field".to_string(), "id".to_string()));
+            entries.push(("root".to_string(), "/".to_string()));
+
+            let cfg = SurrealdbConfig::from_iter(entries).unwrap();
+            let service = cfg.into_builder().build().unwrap();
+            let ctx = OperationContext::default();
+
+            let mut writer = service.write(&ctx, "/", OpWrite::new()).unwrap();
+            let meta = writer.close().await.unwrap();
+            assert_eq!(meta.mode(), EntryMode::DIR);
+
+            let mut deleter = service.delete(&ctx).unwrap();
+            deleter.delete("/", OpDelete::new()).await.unwrap();
+            deleter.close().await.unwrap();
+        })
+        .await
+        .unwrap();
+    }
 }

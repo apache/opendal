@@ -25,7 +25,9 @@ use surrealdb::opt::auth::Database;
 use surrealdb::types::Bytes;
 use surrealdb::types::ErrorDetails;
 use surrealdb::types::NotFoundError;
+use surrealdb::types::Number;
 use surrealdb::types::QueryError;
+use surrealdb::types::Value;
 
 use opendal_core::*;
 
@@ -116,22 +118,27 @@ impl SurrealdbCore {
             Err(err) => return Err(parse_surrealdb_error(err)),
         };
 
-        let value: Option<Bytes> = result.take((0, "value")).map_err(parse_surrealdb_error)?;
+        let value: Option<Value> = result.take((0, "value")).map_err(parse_surrealdb_error)?;
 
-        Ok(value.map(|v| Buffer::from(v.into_inner())))
+        value.map(decode_value_bytes).transpose()
     }
 
     pub async fn get_length(&self, path: &str) -> Result<Option<usize>> {
         let value_field = quote_identifier(&self.value_field);
+        let content_length_expr = format!(
+            "(IF type::is_bytes({value_field}) {{ bytes::len({value_field}) }} \
+            ELSE IF type::is_array({value_field}) {{ array::len({value_field}) }} \
+            ELSE {{ bytes::len({value_field}) }})"
+        );
         let query = if self.key_field == "id" {
             format!(
-                "SELECT bytes::len({value_field}) AS content_length FROM type::record($table, $path)"
+                "SELECT {content_length_expr} AS content_length FROM type::record($table, $path)"
             )
         } else {
             let table = quote_identifier(&self.table);
             let key_field = quote_identifier(&self.key_field);
             format!(
-                "SELECT bytes::len({value_field}) AS content_length FROM {table} WHERE {key_field} = $path LIMIT 1"
+                "SELECT {content_length_expr} AS content_length FROM {table} WHERE {key_field} = $path LIMIT 1"
             )
         };
 
@@ -165,6 +172,10 @@ impl SurrealdbCore {
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
+        if path.is_empty() {
+            return Ok(());
+        }
+
         let table = quote_identifier(&self.table);
         let key_field = quote_identifier(&self.key_field);
         let value_field = quote_identifier(&self.value_field);
@@ -186,6 +197,10 @@ impl SurrealdbCore {
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
+        if path.is_empty() {
+            return Ok(());
+        }
+
         let query = if self.key_field == "id" {
             "DELETE FROM type::record($table, $path)".to_string()
         } else {
@@ -208,6 +223,41 @@ impl SurrealdbCore {
             Err(err) if is_table_not_found(&err) => Ok(()),
             Err(err) => Err(parse_surrealdb_error(err)),
         }
+    }
+}
+
+fn decode_value_bytes(value: Value) -> Result<Buffer> {
+    match value {
+        Value::Bytes(bs) => Ok(Buffer::from(bs.into_inner())),
+        Value::Array(arr) => {
+            let mut bytes = Vec::with_capacity(arr.len());
+            for elem in arr {
+                match elem {
+                    Value::Number(Number::Int(n)) => match u8::try_from(n) {
+                        Ok(b) => bytes.push(b),
+                        Err(_) => {
+                            return Err(Error::new(
+                                ErrorKind::Unexpected,
+                                "surrealdb legacy byte array element out of range",
+                            )
+                            .with_context("value", n.to_string()));
+                        }
+                    },
+                    other => {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "surrealdb legacy byte array contains non-integer element",
+                        )
+                        .with_context("kind", other.kind().to_string()));
+                    }
+                }
+            }
+            Ok(Buffer::from(bytes))
+        }
+        other => Err(
+            Error::new(ErrorKind::Unexpected, "surrealdb value has unexpected type")
+                .with_context("kind", other.kind().to_string()),
+        ),
     }
 }
 
@@ -254,8 +304,8 @@ fn parse_surrealdb_error(err: surrealdb::Error) -> Error {
 mod tests {
     use std::time::Duration;
 
+    use surrealdb::types::Array;
     use surrealdb::types::SurrealValue;
-    use surrealdb::types::Value;
 
     use super::*;
 
@@ -272,6 +322,58 @@ mod tests {
         // which breaks bytes::len(...) in get_length.
         let vec_encoded = vec![1_u8, 2, 3].into_value();
         assert!(matches!(vec_encoded, Value::Array(_)));
+    }
+
+    #[test]
+    fn decode_value_bytes_accepts_bytes_and_legacy_array() {
+        let bytes_val = Bytes::from(b"hello".to_vec()).into_value();
+        assert_eq!(
+            decode_value_bytes(bytes_val).unwrap().to_bytes().as_ref(),
+            b"hello"
+        );
+
+        let legacy_arr = Value::Array(Array::from(vec![
+            Value::Number(Number::Int(104)),
+            Value::Number(Number::Int(105)),
+            Value::Number(Number::Int(106)),
+        ]));
+        assert_eq!(
+            decode_value_bytes(legacy_arr).unwrap().to_bytes().as_ref(),
+            b"hij"
+        );
+
+        let empty_arr = Value::Array(Array::new());
+        assert!(decode_value_bytes(empty_arr).unwrap().is_empty());
+
+        for out_of_range in [-1_i64, 256_i64] {
+            let err = decode_value_bytes(Value::Array(Array::from(vec![Value::Number(
+                Number::Int(out_of_range),
+            )])))
+            .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
+
+        let non_int_elem = Value::Array(Array::from(vec![Value::String("not-a-byte".to_string())]));
+        let err = decode_value_bytes(non_int_elem).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let float_elem = Value::Array(Array::from(vec![Value::Number(Number::Float(1.5))]));
+        let err = decode_value_bytes(float_elem).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        for invalid in [
+            Value::String("hij".to_string()),
+            Value::None,
+            Value::Null,
+            Value::Number(Number::Int(42)),
+        ] {
+            let err = decode_value_bytes(invalid).unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert!(!err.is_temporary());
+        }
     }
 
     #[test]

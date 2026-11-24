@@ -280,4 +280,120 @@ mod tests {
 
         assert_eq!(requests.load(Ordering::Relaxed), 2);
     }
+
+    #[derive(Clone)]
+    struct StaticBatchDeleteTransport {
+        body: &'static str,
+    }
+
+    impl HttpTransport for StaticBatchDeleteTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            assert_eq!(req.method(), Method::POST);
+            assert!(
+                req.uri().query().is_some_and(|q| q.contains("delete")),
+                "expected DeleteObjects query, got {:?}",
+                req.uri()
+            );
+
+            let body = Buffer::from(Bytes::from_static(self.body.as_bytes()));
+            let size = body.len() as u64;
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(
+                    futures::stream::iter(vec![Ok(body)]),
+                    Some(size),
+                ))
+                .expect("mock response must build"))
+        }
+    }
+
+    #[tokio::test]
+    async fn delete_batch_maps_200_xml_access_denied_to_permission_denied() {
+        for (body, op_delete, expected_kind) in [
+            (
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Deleted>
+    <Key>allowed.txt</Key>
+  </Deleted>
+  <Error>
+    <Key>target.txt</Key>
+    <Code>AccessDenied</Code>
+    <Message>Access Denied</Message>
+  </Error>
+</DeleteResult>"#,
+                options::DeleteOptions::default(),
+                ErrorKind::PermissionDenied,
+            ),
+            (
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Deleted>
+    <Key>allowed.txt</Key>
+  </Deleted>
+  <Error>
+    <Key>target.txt</Key>
+    <VersionId>v1</VersionId>
+    <Code>NoSuchVersion</Code>
+    <Message>The specified version does not exist.</Message>
+  </Error>
+</DeleteResult>"#,
+                options::DeleteOptions {
+                    version: Some("v1".to_string()),
+                    ..Default::default()
+                },
+                ErrorKind::NotFound,
+            ),
+            (
+                r#"<?xml version="1.0" encoding="UTF-8"?>
+<DeleteResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
+  <Deleted>
+    <Key>allowed.txt</Key>
+  </Deleted>
+  <Error>
+    <Key>target.txt</Key>
+    <VersionId>v2</VersionId>
+    <Code>NoSuchVersion</Code>
+    <Message>The specified version does not exist.</Message>
+  </Error>
+</DeleteResult>"#,
+                options::DeleteOptions {
+                    version: Some("v2".to_string()),
+                    if_match: Some("\"etag\"".to_string()),
+                    ..Default::default()
+                },
+                ErrorKind::ConditionNotMatch,
+            ),
+        ] {
+            let op = Operator::new(
+                S3Builder::default()
+                    .bucket("example")
+                    .region("us-east-1")
+                    .skip_signature()
+                    .disable_config_load()
+                    .disable_ec2_metadata(),
+            )
+            .expect("S3 operator must build")
+            .with_context(
+                OperationContext::new()
+                    .with_http_transport(HttpTransporter::new(StaticBatchDeleteTransport { body })),
+            );
+
+            let mut deleter = op.deleter().await.expect("deleter must initialize");
+            deleter
+                .delete("allowed.txt")
+                .await
+                .expect("queue allowed.txt");
+            deleter
+                .delete(("target.txt".to_string(), op_delete))
+                .await
+                .expect("queue target.txt");
+            let err = deleter
+                .close()
+                .await
+                .expect_err("batch delete must surface XML Error entry");
+            assert_eq!(err.kind(), expected_kind, "body={body}");
+            assert!(!err.is_temporary(), "body={body}");
+        }
+    }
 }

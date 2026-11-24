@@ -682,6 +682,9 @@ fn describe_bool_condition(expr: &Expr, rel_path: &str) -> Result<String> {
                             .to_string(),
                     );
                 }
+                if ident == "s3_write_can_multi" {
+                    return Ok("When `checksum_algorithm` is not `md5`".to_string());
+                }
                 if let Some(rest) = ident.strip_prefix("has_") {
                     return Ok(format!("Requires `{rest}`"));
                 }

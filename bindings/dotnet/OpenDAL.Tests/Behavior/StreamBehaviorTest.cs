@@ -381,14 +381,12 @@ public sealed class StreamBehaviorTest : BehaviorTestBase
         try
         {
             await output.WriteAsync(RandomBytes(32), CT);
-            // Flush first so CompleteAsync fails inside native close_async rather
-            // than during FlushBufferedAsync.
-            await output.FlushAsync(CT);
 
             var ex = await Assert.ThrowsAsync<OpenDALException>(() => output.CompleteAsync(CT));
             Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
             Assert.False(output.CanWrite);
             await Assert.ThrowsAsync<InvalidOperationException>(async () => await output.WriteAsync(new byte[1], CT));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => output.FlushAsync(CT));
             await Assert.ThrowsAsync<InvalidOperationException>(() => output.CompleteAsync(CT));
 
             // Remove the existing object before disposal so a retry of close_async()

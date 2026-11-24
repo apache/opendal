@@ -19,6 +19,7 @@
 
 using System.Runtime.CompilerServices;
 using OpenDAL.Layer;
+using OpenDAL.Options;
 
 namespace OpenDAL.Tests;
 
@@ -40,7 +41,7 @@ public sealed class StreamLifecycleTest
     }
 
     [Fact]
-    public void UndisposedStreams_FinalizersReleaseNativeHandlesWithoutCommitting()
+    public void UndisposedStreams_GcFinalizationDoesNotCommitIncompleteWritesAndAllowsOperatorDispose()
     {
         using var executor = new Executor(1);
         using var op = new Operator("memory", executor: executor);
@@ -237,6 +238,40 @@ public sealed class StreamLifecycleTest
         }
 
         Assert.False(await baseOp.ExistsAsync("canceled-complete-async", CT));
+    }
+
+    [Fact]
+    public async Task OutputStream_FailedCloseAsync_PoisonsStreamAndDoesNotRetryOnDisposeAsync()
+    {
+        using var op = new Operator("memory");
+        const string path = "failed-close-async";
+        await op.WriteAsync(path, new byte[16], cancellationToken: CT);
+
+        var output = op.OpenWriteStream(path, new WriteOptions { IfNotExists = true });
+        try
+        {
+            await output.WriteAsync(new byte[32], CT);
+            // The memory backend checks IfNotExists on close, so flushing first
+            // guarantees CompleteAsync reaches native close_async with an empty buffer.
+            await output.FlushAsync(CT);
+
+            var ex = await Assert.ThrowsAsync<OpenDALException>(() => output.CompleteAsync(CT));
+            Assert.Equal(ErrorCode.ConditionNotMatch, ex.Code);
+            Assert.False(output.CanWrite);
+            await Assert.ThrowsAsync<InvalidOperationException>(async () => await output.WriteAsync(new byte[1], CT));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => output.FlushAsync(CT));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => output.CompleteAsync(CT));
+
+            // Remove the existing object before disposal so a retry of close_async()
+            // during DisposeAsync() would visibly recreate the path.
+            await op.DeleteAsync(path, cancellationToken: CT);
+        }
+        finally
+        {
+            await output.DisposeAsync();
+        }
+
+        Assert.False(await op.ExistsAsync(path, CT));
     }
 
     private static void ForceFullCollectionUntilCollected(params WeakReference[] refs)

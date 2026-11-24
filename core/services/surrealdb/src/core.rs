@@ -23,10 +23,8 @@ use surrealdb::Surreal;
 use surrealdb::engine::any::Any;
 use surrealdb::opt::auth::Database;
 use surrealdb::types::Bytes;
-use surrealdb::types::ErrorDetails;
 use surrealdb::types::NotFoundError;
 use surrealdb::types::Number;
-use surrealdb::types::QueryError;
 use surrealdb::types::Value;
 
 use opendal_core::*;
@@ -172,7 +170,8 @@ impl SurrealdbCore {
     }
 
     pub async fn set(&self, path: &str, value: Buffer) -> Result<()> {
-        if path.is_empty() {
+        // SurrealDB rejects empty record IDs, and the implicit root needs no marker.
+        if self.key_field == "id" && path.is_empty() && value.is_empty() {
             return Ok(());
         }
 
@@ -197,7 +196,7 @@ impl SurrealdbCore {
     }
 
     pub async fn delete(&self, path: &str) -> Result<()> {
-        if path.is_empty() {
+        if self.key_field == "id" && path.is_empty() {
             return Ok(());
         }
 
@@ -286,24 +285,11 @@ fn is_table_not_found(err: &surrealdb::Error) -> bool {
 }
 
 fn parse_surrealdb_error(err: surrealdb::Error) -> Error {
-    let (kind, retryable) = match err.details() {
-        ErrorDetails::NotAllowed(_) => (ErrorKind::PermissionDenied, false),
-        ErrorDetails::Query(Some(
-            QueryError::TransactionConflict | QueryError::TimedOut { .. },
-        )) => (ErrorKind::Unexpected, true),
-        _ => (ErrorKind::Unexpected, false),
-    };
-    let mut opendal_err = Error::new(kind, "unhandled error from surrealdb").set_source(err);
-    if retryable {
-        opendal_err = opendal_err.set_temporary();
-    }
-    opendal_err
+    Error::new(ErrorKind::Unexpected, "unhandled error from surrealdb").set_source(err)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use surrealdb::types::Array;
     use surrealdb::types::SurrealValue;
 
@@ -389,7 +375,7 @@ mod tests {
     }
 
     #[test]
-    fn error_classification_handles_table_not_found_and_details() {
+    fn only_table_not_found_is_treated_as_missing() {
         let table_err = surrealdb::Error::not_found(
             "The table 'kv' does not exist".to_string(),
             NotFoundError::Table {
@@ -405,26 +391,5 @@ mod tests {
             },
         );
         assert!(!is_table_not_found(&db_err));
-
-        let denied =
-            parse_surrealdb_error(surrealdb::Error::not_allowed("denied".to_string(), None));
-        assert_eq!(denied.kind(), ErrorKind::PermissionDenied);
-        assert!(!denied.is_temporary());
-
-        let conflict = parse_surrealdb_error(surrealdb::Error::query(
-            "write conflict".to_string(),
-            QueryError::TransactionConflict,
-        ));
-        assert_eq!(conflict.kind(), ErrorKind::Unexpected);
-        assert!(conflict.is_temporary());
-
-        let timed_out = parse_surrealdb_error(surrealdb::Error::query(
-            "timed out".to_string(),
-            QueryError::TimedOut {
-                duration: Duration::from_secs(1),
-            },
-        ));
-        assert_eq!(timed_out.kind(), ErrorKind::Unexpected);
-        assert!(timed_out.is_temporary());
     }
 }

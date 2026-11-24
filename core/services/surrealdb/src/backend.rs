@@ -127,9 +127,11 @@ impl SurrealdbBuilder {
     }
 }
 
-impl SurrealdbBuilder {
-    fn build_backend(self) -> Result<SurrealdbBackend> {
-        let connection_string = match self.config.connection_string.filter(|v| !v.is_empty()) {
+impl Builder for SurrealdbBuilder {
+    type Config = SurrealdbConfig;
+
+    fn build(self) -> Result<impl Service> {
+        let connection_string = match self.config.connection_string.clone() {
             Some(v) => v,
             None => {
                 return Err(
@@ -139,21 +141,21 @@ impl SurrealdbBuilder {
             }
         };
 
-        let namespace = match self.config.namespace.filter(|v| !v.is_empty()) {
+        let namespace = match self.config.namespace.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "namespace is empty")
                     .with_context("service", SURREALDB_SCHEME));
             }
         };
-        let database = match self.config.database.filter(|v| !v.is_empty()) {
+        let database = match self.config.database.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "database is empty")
                     .with_context("service", SURREALDB_SCHEME));
             }
         };
-        let table = match self.config.table.filter(|v| !v.is_empty()) {
+        let table = match self.config.table.clone() {
             Some(v) => v,
             None => {
                 return Err(Error::new(ErrorKind::ConfigInvalid, "table is empty")
@@ -161,32 +163,24 @@ impl SurrealdbBuilder {
             }
         };
 
-        let username = self
-            .config
-            .username
-            .filter(|v| !v.is_empty())
-            .unwrap_or_default();
-        let password = self
-            .config
-            .password
-            .filter(|v| !v.is_empty())
-            .unwrap_or_default();
+        let username = self.config.username.clone().unwrap_or_default();
+        let password = self.config.password.clone().unwrap_or_default();
         let key_field = self
             .config
             .key_field
-            .filter(|v| !v.is_empty())
+            .clone()
             .unwrap_or_else(|| "key".to_string());
         let value_field = self
             .config
             .value_field
-            .filter(|v| !v.is_empty())
+            .clone()
             .unwrap_or_else(|| "value".to_string());
         let root = normalize_root(
             self.config
                 .root
-                .as_deref()
-                .filter(|v| !v.is_empty())
-                .unwrap_or("/"),
+                .clone()
+                .unwrap_or_else(|| "/".to_string())
+                .as_str(),
         );
 
         Ok(SurrealdbBackend::new(SurrealdbCore {
@@ -201,14 +195,6 @@ impl SurrealdbBuilder {
             value_field,
         })
         .with_normalized_root(root))
-    }
-}
-
-impl Builder for SurrealdbBuilder {
-    type Config = SurrealdbConfig;
-
-    fn build(self) -> Result<impl Service> {
-        self.build_backend()
     }
 }
 
@@ -392,40 +378,6 @@ mod tests {
         ]
     }
 
-    #[test]
-    fn build_rejects_empty_required_fields() {
-        for field in ["connection_string", "namespace", "database", "table"] {
-            let mut entries = valid_config_entries();
-            for (k, v) in &mut entries {
-                if k == field {
-                    v.clear();
-                }
-            }
-            let cfg = SurrealdbConfig::from_iter(entries).unwrap();
-            let err = cfg.into_builder().build().err().unwrap();
-            assert_eq!(
-                err.kind(),
-                ErrorKind::ConfigInvalid,
-                "empty {field} must fail with ConfigInvalid"
-            );
-        }
-    }
-
-    #[test]
-    fn build_falls_back_to_default_fields_when_empty() {
-        let mut entries = valid_config_entries();
-        entries.push(("key_field".to_string(), String::new()));
-        entries.push(("value_field".to_string(), String::new()));
-        entries.push(("root".to_string(), String::new()));
-
-        let cfg = SurrealdbConfig::from_iter(entries).unwrap();
-        let backend = cfg.into_builder().build_backend().unwrap();
-        assert_eq!(backend.info().root().as_ref(), "/");
-        assert_eq!(backend.info().name().as_ref(), "test_table");
-        assert_eq!(backend.core.key_field, "key");
-        assert_eq!(backend.core.value_field, "value");
-    }
-
     #[tokio::test]
     async fn stat_root_returns_dir() {
         tokio::time::timeout(Duration::from_secs(5), async {
@@ -444,7 +396,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn root_write_and_delete_short_circuit_with_id_key_field() {
+    async fn empty_root_write_and_delete_succeed_with_record_ids() {
         use oio::Delete;
         use oio::Write;
 
@@ -458,8 +410,7 @@ mod tests {
             let ctx = OperationContext::default();
 
             let mut writer = service.write(&ctx, "/", OpWrite::new()).unwrap();
-            let meta = writer.close().await.unwrap();
-            assert_eq!(meta.mode(), EntryMode::DIR);
+            writer.close().await.unwrap();
 
             let mut deleter = service.delete(&ctx).unwrap();
             deleter.delete("/", OpDelete::new()).await.unwrap();

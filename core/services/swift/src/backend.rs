@@ -133,8 +133,15 @@ impl Builder for SwiftBuilder {
 
         let endpoint = match self.config.endpoint {
             Some(endpoint) => {
-                if endpoint.starts_with("http") {
-                    endpoint
+                let endpoint = endpoint.trim_end_matches('/');
+                if endpoint.is_empty() {
+                    return Err(Error::new(
+                        ErrorKind::ConfigInvalid,
+                        "missing endpoint for Swift",
+                    ));
+                }
+                if endpoint.starts_with("http://") || endpoint.starts_with("https://") {
+                    endpoint.to_string()
                 } else {
                     format!("https://{endpoint}")
                 }
@@ -168,7 +175,7 @@ impl Builder for SwiftBuilder {
 
         Ok(SwiftBackend {
             core: Arc::new(SwiftCore {
-                info: ServiceInfo::new(SWIFT_SCHEME, &root, ""),
+                info: ServiceInfo::new(SWIFT_SCHEME, &root, &container),
                 capability: Capability {
                     stat: true,
                     stat_with_if_match: true,
@@ -441,5 +448,62 @@ impl Service for SwiftBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn build_handles_endpoint_scheme_prefix_and_service_info() {
+        let http_host = SwiftBuilder::default()
+            .endpoint("http-proxy.example.com/v1/AUTH_test/")
+            .container("photos")
+            .root("/albums")
+            .build()
+            .unwrap();
+        assert_eq!(http_host.info().scheme(), SWIFT_SCHEME);
+        assert_eq!(http_host.info().root().as_ref(), "/albums/");
+        assert_eq!(http_host.info().name().as_ref(), "photos");
+
+        let cfg = SwiftConfig {
+            endpoint: Some("http-proxy.example.com/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let op = Operator::from_config(cfg).unwrap();
+        assert_eq!(op.info().name(), "photos");
+
+        // Verify the built endpoint URL actually has https:// prepended via presign.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let req = rt
+            .block_on(op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            req.uri()
+                .to_string()
+                .starts_with("https://http-proxy.example.com/v1/AUTH_test/photos/pic.jpg?")
+        );
+
+        let http_cfg = SwiftConfig {
+            endpoint: Some("http://127.0.0.1:8080/v1/AUTH_test/".to_string()),
+            container: Some("photos".to_string()),
+            temp_url_key: Some("secret".to_string()),
+            ..Default::default()
+        };
+        let http_op = Operator::from_config(http_cfg).unwrap();
+        let http_req = rt
+            .block_on(http_op.presign_read("pic.jpg", std::time::Duration::from_secs(60)))
+            .unwrap();
+        assert!(
+            http_req
+                .uri()
+                .to_string()
+                .starts_with("http://127.0.0.1:8080/v1/AUTH_test/photos/pic.jpg?")
+        );
     }
 }

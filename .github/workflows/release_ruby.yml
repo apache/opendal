@@ -130,13 +130,13 @@ jobs:
           raise "bad read" unless op.read("hello.txt") == "hello"
           EOF
 
-  # We maintain multiple build targets for native gems.
-  # We only provide best-effort support for native gems. We could withdraw the support to these builds at any time.
   build-native:
+    name: Compile ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby-version }}
     strategy:
       fail-fast: false
       matrix:
-        include:
+        ruby-version: ["3.3", "3.4", "4.0"]
+        target:
           - os: ubuntu-24.04
             platform: x86_64-linux
             rust_target: x86_64-unknown-linux-gnu
@@ -144,23 +144,15 @@ jobs:
             platform: aarch64-linux
             rust_target: aarch64-unknown-linux-gnu
           # Publish a versionless macOS platform gem. RubyGems matches
-          # arm64-darwin against runtime platforms like arm64-darwin23/24/25,
-          # so separate Darwin-version gems only add release artifacts.
-          # Compatibility with older macOS is controlled by the binary's
-          # deployment target, not this platform suffix. For Rust ARM64 macOS,
-          # rustc defaults to macOS 11.0 unless MACOSX_DEPLOYMENT_TARGET is set.
-          #
-          # Read more https://doc.rust-lang.org/rustc/platform-support/apple-darwin.html
+          # arm64-darwin against runtime platforms like arm64-darwin23/24/25.
           - os: macos-latest
             platform: arm64-darwin
             rust_target: aarch64-apple-darwin
 
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true
+    runs-on: ${{ matrix.target.os }}
 
     env:
-      CARGO_BUILD_TARGET: ${{ matrix.rust_target }}
-      OPENDAL_RUBY_PLATFORM: ${{ matrix.platform }}
+      CARGO_BUILD_TARGET: ${{ matrix.target.rust_target }}
 
     steps:
       - name: Checkout repository
@@ -170,91 +162,123 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal
           rustup default stable
-          rustup target add ${{ matrix.rust_target }}
+          rustup target add ${{ matrix.target.rust_target }}
 
-      - name: Setup Ruby 3.4
-        id: ruby-3-4
+      - name: Setup Ruby
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
-          ruby-version: "3.4"
+          ruby-version: ${{ matrix.ruby-version }}
           bundler: "4.1.0"
           bundler-cache: true
           working-directory: bindings/ruby
 
-      - name: Compile the Ruby 3.4 extension
+      - name: Compile the native extension
         run: bundle exec rake native:compile
 
-      - name: Setup Ruby 4.0
-        id: ruby-4-0
+      - name: Upload native extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: opendal-ruby-extension-${{ matrix.target.platform }}-${{ matrix.ruby-version }}
+          path: bindings/ruby/tmp/native/
+          if-no-files-found: error
+          retention-days: 30
+
+  package-native:
+    name: Package ${{ matrix.target.platform }}
+    needs: build-native
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - os: ubuntu-24.04
+            platform: x86_64-linux
+          - os: ubuntu-24.04-arm
+            platform: aarch64-linux
+          - os: macos-latest
+            platform: arm64-darwin
+
+    runs-on: ${{ matrix.target.os }}
+
+    env:
+      OPENDAL_RUBY_PLATFORM: ${{ matrix.target.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Ruby for packaging
         uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
         with:
-          ruby-version: "4.0"
-          bundler: "4.1.0"
-          bundler-cache: true
-          working-directory: bindings/ruby
-
-      - name: Compile the Ruby 4.0 extension
-        run: bundle exec rake native:compile
-
-      - name: Setup Ruby 3.3 for packaging
-        id: ruby-3-3
-        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
-        with:
-          ruby-version: "3.3"
           rubygems: "4.1.0"
           bundler: "4.1.0"
           bundler-cache: true
           working-directory: bindings/ruby
 
-      - name: Compile the Ruby 3.3 extension
-        run: bundle exec rake native:compile
+      - name: Download native extensions
+        uses: actions/download-artifact@v8
+        with:
+          pattern: opendal-ruby-extension-${{ matrix.target.platform }}-*
+          path: bindings/ruby/tmp/native/
+          merge-multiple: true
 
       - name: Package and verify the native gems
         run: bundle exec rake native:opendal test:package
 
-      - name: Smoke test the native gem on each Ruby version
-        env:
-          RUBY_33: ${{ steps.ruby-3-3.outputs.ruby-prefix }}
-          RUBY_34: ${{ steps.ruby-3-4.outputs.ruby-prefix }}
-          RUBY_40: ${{ steps.ruby-4-0.outputs.ruby-prefix }}
-        run: |
-          gem_file="pkg/opendal-$(bundle exec rake version)-$OPENDAL_RUBY_PLATFORM.gem"
-          for prefix in "$RUBY_33" "$RUBY_34" "$RUBY_40"; do
-            "$prefix/bin/ruby" "$prefix/bin/gem" install --local "$gem_file" --no-document
-            "$prefix/bin/ruby" -ropendal -rtmpdir <<'RUBY'
-          Dir.mktmpdir do |root|
-            op = OpenDal::Operator.new("fs", {"root" => root})
-            op.write("hello.txt", "hello")
-            raise "bad read on Ruby #{RUBY_VERSION}" unless op.read("hello.txt") == "hello"
-            expected = Time.utc(2024, 1, 2, 3, 4, 5, 125_000)
-            File.utime(expected, expected, File.join(root, "hello.txt"))
-            raise "bad last_modified on Ruby #{RUBY_VERSION}" unless op.stat("hello.txt").last_modified == expected
-          end
-          RUBY
-          done
-
-      - name: Collect built gem
-        run: |
-          echo "Built gem file:"
-          ls -la pkg/
-          echo ""
-
-          mkdir -p pkg_out
-          cp -r pkg/*.gem pkg_out/
-
-      - name: Upload gem artifact
+      - name: Upload native gems
         uses: actions/upload-artifact@v7
         with:
-          name: opendal-ruby-gem-${{ matrix.platform }}
-          path: bindings/ruby/pkg_out/*.gem
+          name: opendal-ruby-gem-${{ matrix.target.platform }}
+          path: bindings/ruby/pkg/*.gem
+          if-no-files-found: error
           retention-days: 30
+
+  smoke-test-native:
+    name: Smoke test ${{ matrix.target.platform }} / Ruby ${{ matrix.ruby-version }} / ${{ matrix.format }}
+    needs: package-native
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version: ["3.3", "3.4", "4.0"]
+        format: [conventional, content-addressable]
+        target:
+          - os: ubuntu-24.04
+            platform: x86_64-linux
+          - os: ubuntu-24.04-arm
+            platform: aarch64-linux
+          - os: macos-latest
+            platform: arm64-darwin
+
+    runs-on: ${{ matrix.target.os }}
+
+    env:
+      OPENDAL_RUBY_PLATFORM: ${{ matrix.target.platform }}
+      OPENDAL_RUBY_GEM_FORMAT: ${{ matrix.format }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Setup Ruby for installation
+        uses: ruby/setup-ruby@be3c7df29b3349ec6bcfc6b4792f1cf9f5237d18 # v1.343.0
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          rubygems: "4.1.0"
+
+      - name: Download native gems
+        uses: actions/download-artifact@v8
+        with:
+          name: opendal-ruby-gem-${{ matrix.target.platform }}
+          path: bindings/ruby/pkg/
+
+      - name: Install and smoke test the native gem
+        run: ruby test/package/smoke.rb
 
   publish:
     # RC tags only build artifacts for release verification. RubyGems does not
     # provide a staging registry, so publish only from the final release tag.
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-')
 
-    needs: [build, smoke-test, build-native]
+    needs: [build, smoke-test, package-native, smoke-test-native]
     runs-on: ubuntu-latest
     permissions:
       contents: read

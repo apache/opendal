@@ -96,7 +96,8 @@ impl Configurator for LakefsConfig {
 
         let mut map = uri.options().clone();
         if let Some(authority) = uri.authority() {
-            map.insert("endpoint".to_string(), format!("https://{authority}"));
+            map.entry("endpoint".to_string())
+                .or_insert_with(|| format!("https://{authority}"));
         }
         map.insert("repository".to_string(), repository.to_string());
 
@@ -168,6 +169,21 @@ mod tests {
         let cfg = LakefsConfig::from_uri(&uri)?;
         assert_eq!(cfg.branch.as_deref(), Some("develop"));
         assert_eq!(cfg.root.as_deref(), Some("content"));
+        Ok(())
+    }
+
+    #[test]
+    fn from_uri_preserves_explicit_endpoint_option() -> Result<()> {
+        let uri = OperatorUri::new(
+            "lakefs://api.example.com/sample/main/data",
+            vec![("endpoint".to_string(), "http://127.0.0.1:8000".to_string())],
+        )?;
+
+        let cfg = LakefsConfig::from_uri(&uri)?;
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://127.0.0.1:8000"));
+        assert_eq!(cfg.repository.as_deref(), Some("sample"));
+        assert_eq!(cfg.branch.as_deref(), Some("main"));
+        assert_eq!(cfg.root.as_deref(), Some("data"));
         Ok(())
     }
 }

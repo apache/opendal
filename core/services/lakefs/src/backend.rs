@@ -113,12 +113,18 @@ impl Builder for LakefsBuilder {
     fn build(self) -> Result<impl Service> {
         debug!("backend build started: {:?}", self);
 
-        let endpoint = match self.config.endpoint {
-            Some(endpoint) => Ok(endpoint.clone()),
-            None => Err(Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
-                .with_operation("Builder::build")
-                .with_context("service", LAKEFS_SCHEME)),
-        }?;
+        let endpoint = self
+            .config
+            .endpoint
+            .as_deref()
+            .map(|v| v.trim_end_matches('/'))
+            .filter(|v| !v.is_empty())
+            .ok_or_else(|| {
+                Error::new(ErrorKind::ConfigInvalid, "endpoint is empty")
+                    .with_operation("Builder::build")
+                    .with_context("service", LAKEFS_SCHEME)
+            })?
+            .to_string();
         debug!("backend use endpoint: {:?}", endpoint);
 
         let repository = match &self.config.repository {
@@ -154,7 +160,7 @@ impl Builder for LakefsBuilder {
 
         Ok(LakefsBackend {
             core: Arc::new(LakefsCore {
-                info: ServiceInfo::new(LAKEFS_SCHEME, "", ""),
+                info: ServiceInfo::new(LAKEFS_SCHEME, &root, &repository),
                 capability: Capability {
                     stat: true,
 
@@ -355,5 +361,45 @@ impl Service for LakefsBackend {
             ErrorKind::Unsupported,
             "operation is not supported",
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_sets_service_info_and_trims_endpoint() -> Result<()> {
+        let op = Operator::new(
+            LakefsBuilder::default()
+                .endpoint("http://127.0.0.1:8000///")
+                .repository("my-repo")
+                .branch("feature/sub")
+                .root("nested/dir")
+                .username("user")
+                .password("pass"),
+        )?;
+
+        assert_eq!(op.info().scheme(), LAKEFS_SCHEME);
+        assert_eq!(op.info().root(), "/nested/dir/");
+        assert_eq!(op.info().name(), "my-repo");
+        Ok(())
+    }
+
+    #[test]
+    fn builder_rejects_slash_only_endpoint() {
+        let config = LakefsConfig {
+            endpoint: Some("///".to_string()),
+            repository: Some("my-repo".to_string()),
+            username: Some("user".to_string()),
+            password: Some("pass".to_string()),
+            ..Default::default()
+        };
+
+        let err = match config.into_builder().build() {
+            Ok(_) => panic!("slash-only endpoint must fail validation"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

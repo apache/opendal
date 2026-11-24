@@ -42,8 +42,13 @@ var lister = try op.list("/testdir/");
 defer lister.deinit();
 
 while (try lister.next()) |entry| {
-    defer entry.deinit(); // Entry owns the underlying C allocation; free it after use.
-    std.debug.print("name={s}  path={s}\n", .{ entry.name(), entry.path() });
+    var e = entry;
+    defer e.deinit();
+    var name = e.name();
+    defer name.deinit();
+    var path = e.path();
+    defer path.deinit();
+    std.debug.print("name={s}  path={s}\n", .{ name.slice(), path.slice() });
 }
 ```
 
@@ -85,13 +90,14 @@ is defined in `src/opendal.zig`.
 Handle them with a standard `catch` or `try`:
 
 ```zig
-const data = op.read("/missing.txt") catch |err| {
+var data = op.read("/missing.txt") catch |err| {
     if (err == error.NotFound) {
         std.debug.print("file not found\n", .{});
         return;
     }
     return err;
 };
+defer data.deinit();
 ```
 
 ## Running the binding's own tests

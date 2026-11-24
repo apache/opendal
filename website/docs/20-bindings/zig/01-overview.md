@@ -43,10 +43,9 @@ Operations available through `Operator`:
 - **createDir** — create a directory path
 - **rename** — rename/move a path (supported only on backends that expose this capability)
 - **copy** — copy a path (supported only on backends that expose this capability)
+- **info** — inspect operator details (`OperatorInfo`: scheme, root, name, and capabilities)
 
 All operations return Zig errors (`OpendalError`) rather than raw C error codes.
-
-`info()` / `OperatorInfo` exist in the source but are currently broken (a compile error in `src/opendal.zig` references an undefined variable) and cannot be used until the bug is fixed.
 
 The binding also exposes the raw C API under the `opendal.c` namespace for cases where
 the thin layer does not yet cover what you need.

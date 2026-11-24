@@ -18,6 +18,8 @@
 const std = @import("std");
 pub const c = @import("opendal_c_header");
 
+/// Owns a NUL-terminated string allocated by the underlying Rust library.
+/// Call `deinit()` to release the buffer; `slice()` is valid only until `deinit()` is called.
 pub const OwnedString = struct {
     ptr: [*c]u8,
 
@@ -36,6 +38,8 @@ pub const OwnedString = struct {
     }
 };
 
+/// Owns a byte buffer allocated by the underlying Rust library.
+/// Call `deinit()` to release the buffer; `slice()` is valid only until `deinit()` is called.
 pub const Bytes = struct {
     inner: c.opendal_bytes,
 
@@ -511,6 +515,7 @@ test "operator info" {
     var name = op_info.name();
     defer name.deinit();
     try testing.expect(name.slice().len > 0);
+    // Exercise idempotent double-deinit alongside the deferred `name.deinit()`.
     name.deinit();
     try testing.expectEqualStrings("", name.slice());
 

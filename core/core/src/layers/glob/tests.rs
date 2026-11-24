@@ -103,6 +103,29 @@ async fn guided_listing_skips_literal_parents_and_keeps_page_size() -> Result<()
 }
 
 #[tokio::test]
+async fn guided_listing_skips_unreadable_discovered_directories() -> Result<()> {
+    let inner = Arc::new(ListFixture {
+        entries: vec![
+            oio::Entry::new("locked/", MetadataBuilder::dir().build()),
+            oio::Entry::new("open/", MetadataBuilder::dir().build()),
+            oio::Entry::new("open/a.jpg", MetadataBuilder::file(0).build()),
+        ],
+        denied: Some("locked/"),
+        ..ListFixture::new(&[])
+    });
+    let op = Operator::from_parts(OperationContext::default(), inner.clone()).layer(GlobLayer);
+    let entries = op.list_with("/").glob("*/*.jpg").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["open/a.jpg"]
+    );
+    // The directory the caller asked for still reports the error.
+    let err = op.list_with("locked/").glob("*.jpg").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    Ok(())
+}
+
+#[tokio::test]
 async fn filtering_preserves_versions_and_delete_markers_at_the_same_path() -> Result<()> {
     let entries = [
         ("a/b.jpg", "new", false),
@@ -178,6 +201,7 @@ struct ListFixture {
     requests: Mutex<Vec<(String, OpList)>>,
     entries: Vec<oio::Entry>,
     native_glob: bool,
+    denied: Option<&'static str>,
 }
 
 impl ListFixture {
@@ -189,6 +213,7 @@ impl ListFixture {
                 .map(|path| oio::Entry::new(path, MetadataBuilder::file(0).build()))
                 .collect(),
             native_glob: false,
+            denied: None,
         }
     }
 }
@@ -219,6 +244,9 @@ impl Service for ListFixture {
 
     fn list(&self, _: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
         self.requests.lock().unwrap().push((path.to_owned(), args));
+        if self.denied == Some(path) {
+            return Err(Error::new(ErrorKind::PermissionDenied, "denied"));
+        }
         Ok(TestLister(self.entries.clone().into()))
     }
 

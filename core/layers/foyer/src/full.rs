@@ -144,21 +144,39 @@ impl FullReader {
                 let read_args = self.args.clone();
                 let fetch_guard = read_guard.clone();
                 async move {
-                    let path = &fetch_guard.key().path;
-                    // read the metadata first, if it's too large, do not cache
-                    let metadata = inner
-                        .srv
-                        .stat(&inner.ctx, path, stat_args)
-                        .await
-                        .map_err(FetchError::from_error)?
-                        .into_metadata();
-
-                    let size = metadata.content_length() as usize;
-                    if !size_limit.contains(&size) {
-                        return Err(FetchError::SizeTooLarge);
+                    if size_limit.is_empty() {
+                        return Err(FetchError::BypassCache);
                     }
 
-                    // fetch the ENTIRE object from remote.
+                    let cap = inner.srv.capability();
+                    if !cap.stat || (read_args.version().is_some() && !cap.stat_with_version) {
+                        return Err(FetchError::BypassCache);
+                    }
+
+                    let path = &fetch_guard.key().path;
+                    // Read metadata first; if stat is unsupported or the object is
+                    // not a cacheable file within `size_limit`, bypass the cache.
+                    let metadata = match inner.srv.stat(&inner.ctx, path, stat_args).await {
+                        Ok(rp) => rp.into_metadata(),
+                        Err(err) if err.kind() == ErrorKind::Unsupported => {
+                            return Err(FetchError::BypassCache);
+                        }
+                        Err(err) => return Err(FetchError::from_error(err)),
+                    };
+
+                    if !metadata.is_file() {
+                        return Err(FetchError::BypassCache);
+                    }
+
+                    let Ok(size) = usize::try_from(metadata.content_length()) else {
+                        return Err(FetchError::BypassCache);
+                    };
+                    if !size_limit.contains(&size) {
+                        return Err(FetchError::BypassCache);
+                    }
+
+                    // Fetch the ENTIRE object from remote, aborting early if
+                    // the object grew past `size_limit.end` since `stat`.
                     let reader = inner
                         .srv
                         .read(&inner.ctx, path, read_args)
@@ -167,7 +185,25 @@ impl FullReader {
                         .open(BytesRange::new(0, None))
                         .await
                         .map_err(FetchError::from_error)?;
-                    let buffer = stream.read_all().await.map_err(FetchError::from_error)?;
+                    let mut buf = oio::QueueBuf::new();
+                    loop {
+                        let chunk = stream.read().await.map_err(FetchError::from_error)?;
+                        if chunk.is_empty() {
+                            break;
+                        }
+                        if buf.len().saturating_add(chunk.len()) >= size_limit.end {
+                            return Err(FetchError::BypassCache);
+                        }
+                        buf.push(chunk);
+                    }
+                    let buffer = buf.collect();
+
+                    if !size_limit.contains(&buffer.len()) {
+                        return Err(FetchError::Uncached {
+                            buffer,
+                            fetch_epoch: fetch_guard.epoch(),
+                        });
+                    }
 
                     // Commit the fetched entry to Foyer while holding
                     // `DeletedKeys`'s cache lock so staleness checks and cache
@@ -201,16 +237,19 @@ impl FullReader {
         match result {
             Ok(entry) => Ok(Some(entry.0.clone())),
             Err(e) => match e.downcast_ref::<FetchError>() {
-                Some(FetchError::SizeTooLarge | FetchError::Committed) => Ok(None),
-                Some(FetchError::Stale {
-                    buffer,
-                    fetch_epoch,
-                }) if *fetch_epoch == read_epoch => Ok(Some(buffer.clone())),
-                Some(FetchError::Stale { .. }) => Ok(None),
-                Some(FetchError::Source { kind, message }) => {
-                    Err(Error::new(*kind, message.clone()))
-                }
-                None => Err(extract_err(e)),
+                Some(FetchError::BypassCache | FetchError::Committed) => Ok(None),
+                Some(
+                    FetchError::Stale {
+                        buffer,
+                        fetch_epoch,
+                    }
+                    | FetchError::Uncached {
+                        buffer,
+                        fetch_epoch,
+                    },
+                ) if *fetch_epoch == read_epoch => Ok(Some(buffer.clone())),
+                Some(FetchError::Stale { .. } | FetchError::Uncached { .. }) => Ok(None),
+                Some(FetchError::Source(_)) | None => Err(extract_err(e)),
             },
         }
     }

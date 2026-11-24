@@ -17,6 +17,7 @@
 
 use foyer::{HybridCache, HybridCacheBuilder, RecoverMode};
 use futures::StreamExt;
+use opendal_core::raw::oio::Delete as _;
 use opendal_core::raw::oio::ReadStream as _;
 use opendal_core::raw::{
     OpCopy, OpCreateDir, OpDelete, OpList, OpPresign, OpRead, OpRename, OpStat, OpWrite,
@@ -1078,4 +1079,428 @@ async fn cancelled_coalesced_waiter_does_not_deadlock_on_store() {
 
     assert!(cache.contains(&key));
     assert_eq!(op.read("target").await.unwrap().to_vec(), b"fresh");
+}
+
+#[tokio::test]
+async fn oneshot_delete_evicts_cached_entry_before_close() {
+    let (op, cache) = cached_memory_with_limit(0..usize::MAX).await;
+    let key = unversioned_key("a");
+
+    op.write("a", "hello").await.unwrap();
+    assert!(cache.contains(&key));
+
+    let mut deleter = op.deleter().await.unwrap();
+    deleter.delete("a").await.unwrap();
+
+    // `Memory`'s `OneShotDeleter` deletes during `delete()`, so the cache must
+    // not serve stale bytes even before `close()` is called.
+    assert!(!cache.contains(&key));
+    assert_eq!(op.read("a").await.unwrap_err().kind(), ErrorKind::NotFound);
+
+    deleter.close().await.unwrap();
+}
+
+#[tokio::test]
+async fn delete_iter_error_does_not_leave_earlier_oneshot_deletes_cached() {
+    let dir = tempfile::tempdir().unwrap();
+    let (op, cache) = cached_fs(&dir).await;
+    let key_a = unversioned_key("a");
+
+    op.write("a", "hello").await.unwrap();
+    op.write("dir/child", "nested").await.unwrap();
+    assert!(cache.contains(&key_a));
+
+    // `Fs` fails non-recursive deletion of non-empty `"dir/"` after already
+    // deleting `"a"`; `delete_iter` returns on error without calling `close()`.
+    let err = op.delete_iter(["a", "dir/"]).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+
+    assert!(!cache.contains(&key_a));
+    assert_eq!(op.read("a").await.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
+#[derive(Debug, Default)]
+struct PartialBatchDeleteBuilder {
+    fail_path: String,
+}
+
+impl Builder for PartialBatchDeleteBuilder {
+    type Config = ();
+
+    fn build(self) -> Result<impl Service> {
+        let inner: Servicer = Arc::new(Memory::default().build()?);
+        Ok(PartialBatchDeleteService {
+            inner,
+            fail_path: self.fail_path,
+        })
+    }
+}
+
+#[derive(Debug)]
+struct PartialBatchDeleteService {
+    inner: Servicer,
+    fail_path: String,
+}
+
+struct PartialBatchDelete {
+    inner: Servicer,
+    ctx: OperationContext,
+    fail_path: String,
+}
+
+impl oio::BatchDelete for PartialBatchDelete {
+    async fn delete_once(&self, path: String, args: OpDelete) -> Result<()> {
+        if path == self.fail_path {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                "injected permanent batch delete failure",
+            ));
+        }
+        let mut d = self.inner.delete(&self.ctx)?;
+        d.delete(&path, args).await?;
+        d.close().await
+    }
+
+    async fn delete_batch(&self, batch: Vec<(String, OpDelete)>) -> Result<oio::BatchDeleteResult> {
+        let mut succeeded = Vec::new();
+        let mut failed = Vec::new();
+        for (path, args) in batch {
+            if path == self.fail_path {
+                failed.push((
+                    path,
+                    args,
+                    Error::new(
+                        ErrorKind::PermissionDenied,
+                        "injected permanent batch delete failure",
+                    ),
+                ));
+            } else {
+                let mut d = self.inner.delete(&self.ctx)?;
+                d.delete(&path, args.clone()).await?;
+                d.close().await?;
+                succeeded.push((path, args));
+            }
+        }
+        Ok(oio::BatchDeleteResult { succeeded, failed })
+    }
+}
+
+impl Service for PartialBatchDeleteService {
+    type Reader = oio::Reader;
+    type Writer = oio::Writer;
+    type Lister = oio::Lister;
+    type Deleter = oio::BatchDeleter<PartialBatchDelete>;
+    type Copier = oio::Copier;
+    type Composer = oio::Composer;
+
+    fn info(&self) -> ServiceInfo {
+        self.inner.info()
+    }
+
+    fn capability(&self) -> Capability {
+        let mut cap = self.inner.capability();
+        cap.delete_max_size = Some(2);
+        cap
+    }
+
+    async fn create_dir(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpCreateDir,
+    ) -> Result<RpCreateDir> {
+        self.inner.create_dir(ctx, path, args).await
+    }
+
+    async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+        self.inner.stat(ctx, path, args).await
+    }
+
+    fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+        self.inner.read(ctx, path, args)
+    }
+
+    fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+        self.inner.write(ctx, path, args)
+    }
+
+    fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+        Ok(oio::BatchDeleter::new(
+            PartialBatchDelete {
+                inner: self.inner.clone(),
+                ctx: ctx.clone(),
+                fail_path: self.fail_path.clone(),
+            },
+            Some(2),
+        ))
+    }
+
+    fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+        self.inner.list(ctx, path, args)
+    }
+
+    fn copy(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Self::Copier> {
+        self.inner.copy(ctx, from, to, args)
+    }
+
+    async fn rename(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpRename,
+    ) -> Result<RpRename> {
+        self.inner.rename(ctx, from, to, args).await
+    }
+
+    async fn presign(
+        &self,
+        ctx: &OperationContext,
+        path: &str,
+        args: OpPresign,
+    ) -> Result<RpPresign> {
+        self.inner.presign(ctx, path, args).await
+    }
+}
+
+#[tokio::test]
+async fn batch_deleter_partial_flush_failure_evicts_committed_entries() {
+    // Case 1: earlier key `"a"` succeeds while triggering key `"b"` fails permanently.
+    let cache = memory_cache().await;
+    let op = Operator::new(PartialBatchDeleteBuilder {
+        fail_path: "b".to_string(),
+    })
+    .unwrap()
+    .layer(FoyerLayer::new(cache.clone()));
+
+    op.write("a", "va").await.unwrap();
+    op.write("b", "vb").await.unwrap();
+
+    let mut deleter = op.deleter().await.unwrap();
+    deleter.delete("a").await.unwrap();
+    // Simulate a concurrent write repopulating `"a"` before the batch flushes.
+    op.write("a", "va-refilled").await.unwrap();
+    assert!(cache.contains(&unversioned_key("a")));
+
+    let err = deleter.delete("b").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    assert!(!cache.contains(&unversioned_key("a")));
+    assert_eq!(op.read("a").await.unwrap_err().kind(), ErrorKind::NotFound);
+
+    // Case 2: earlier key `"a"` fails permanently while triggering key `"b"` succeeds.
+    let cache = memory_cache().await;
+    let op = Operator::new(PartialBatchDeleteBuilder {
+        fail_path: "a".to_string(),
+    })
+    .unwrap()
+    .layer(FoyerLayer::new(cache.clone()));
+
+    op.write("a", "va").await.unwrap();
+    op.write("b", "vb").await.unwrap();
+    assert!(cache.contains(&unversioned_key("b")));
+
+    let err = op.delete_iter(["a", "b"]).await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    assert!(!cache.contains(&unversioned_key("b")));
+    assert_eq!(op.read("b").await.unwrap_err().kind(), ErrorKind::NotFound);
+}
+
+#[tokio::test]
+async fn failed_standalone_delete_keeps_cached_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let (fs_op, fs_cache) = cached_fs(&dir).await;
+    fs_op.write("dir/child", "nested").await.unwrap();
+    let dir_key = unversioned_key("dir/");
+    fs_cache.insert(dir_key.clone(), FoyerValue("sentinel".into()));
+
+    let err = fs_op.delete("dir/").await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unexpected);
+    assert!(fs_cache.contains(&dir_key));
+}
+
+#[tokio::test]
+async fn aborted_append_write_evicts_cached_entry() {
+    // 1. Real `Fs` backend: append persists bytes during `write()` even when
+    //    `abort()` fails with `Unsupported` (or the writer is dropped).
+    let dir = tempfile::tempdir().unwrap();
+    let (op, cache) = cached_fs(&dir).await;
+    let key = unversioned_key("log.txt");
+
+    op.write("log.txt", "hello").await.unwrap();
+    assert!(cache.contains(&key));
+
+    let mut writer = op.writer_with("log.txt").append(true).await.unwrap();
+    writer.write(" world").await.unwrap();
+    let err = writer.abort().await.unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+    assert!(!cache.contains(&key));
+    assert_eq!(op.read("log.txt").await.unwrap().to_vec(), b"hello world");
+
+    // 2. `oio::AppendWriter`-style backend where `abort()` returns `Ok(())`
+    //    without rolling back already-appended bytes.
+    struct NoopAbortAppendWriter {
+        inner: oio::Writer,
+    }
+
+    impl oio::Write for NoopAbortAppendWriter {
+        async fn write(&mut self, bs: Buffer) -> Result<()> {
+            self.inner.write(bs).await
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            self.inner.close().await
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug, Default)]
+    struct AppendAbortBuilder {
+        fs_root: String,
+    }
+
+    #[derive(Debug)]
+    struct AppendAbortService {
+        inner: Servicer,
+    }
+
+    impl Builder for AppendAbortBuilder {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            let inner: Servicer = Arc::new(Fs::default().root(&self.fs_root).build()?);
+            Ok(AppendAbortService { inner })
+        }
+    }
+
+    impl Service for AppendAbortService {
+        type Reader = oio::Reader;
+        type Writer = NoopAbortAppendWriter;
+        type Lister = oio::Lister;
+        type Deleter = oio::Deleter;
+        type Copier = oio::Copier;
+        type Composer = oio::Composer;
+
+        fn info(&self) -> ServiceInfo {
+            self.inner.info()
+        }
+
+        fn capability(&self) -> Capability {
+            self.inner.capability()
+        }
+
+        async fn create_dir(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            self.inner.create_dir(ctx, path, args).await
+        }
+
+        async fn stat(&self, ctx: &OperationContext, path: &str, args: OpStat) -> Result<RpStat> {
+            self.inner.stat(ctx, path, args).await
+        }
+
+        fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
+            self.inner.read(ctx, path, args)
+        }
+
+        fn write(&self, ctx: &OperationContext, path: &str, args: OpWrite) -> Result<Self::Writer> {
+            Ok(NoopAbortAppendWriter {
+                inner: self.inner.write(ctx, path, args)?,
+            })
+        }
+
+        fn delete(&self, ctx: &OperationContext) -> Result<Self::Deleter> {
+            self.inner.delete(ctx)
+        }
+
+        fn list(&self, ctx: &OperationContext, path: &str, args: OpList) -> Result<Self::Lister> {
+            self.inner.list(ctx, path, args)
+        }
+
+        fn copy(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpCopy,
+        ) -> Result<Self::Copier> {
+            self.inner.copy(ctx, from, to, args)
+        }
+
+        async fn rename(
+            &self,
+            ctx: &OperationContext,
+            from: &str,
+            to: &str,
+            args: OpRename,
+        ) -> Result<RpRename> {
+            self.inner.rename(ctx, from, to, args).await
+        }
+
+        async fn presign(
+            &self,
+            ctx: &OperationContext,
+            path: &str,
+            args: OpPresign,
+        ) -> Result<RpPresign> {
+            self.inner.presign(ctx, path, args).await
+        }
+    }
+
+    let dir2 = tempfile::tempdir().unwrap();
+    let cache2 = memory_cache().await;
+    let op2 = Operator::new(AppendAbortBuilder {
+        fs_root: dir2.path().to_str().unwrap().to_string(),
+    })
+    .unwrap()
+    .layer(FoyerLayer::new(cache2.clone()));
+
+    op2.write("log.txt", "hello").await.unwrap();
+    assert!(cache2.contains(&key));
+
+    let mut writer = op2.writer_with("log.txt").append(true).await.unwrap();
+    writer.write(" world").await.unwrap();
+    writer.abort().await.unwrap();
+
+    assert!(!cache2.contains(&key));
+    assert_eq!(op2.read("log.txt").await.unwrap().to_vec(), b"hello world");
+}
+
+#[tokio::test]
+async fn failed_append_close_evicts_cached_entry() {
+    let dir = tempfile::tempdir().unwrap();
+    let fs_root = dir.path().to_str().unwrap().to_string();
+    let raw_fs = Operator::new(Fs::default().root(&fs_root)).unwrap();
+    raw_fs.write("log.txt", "hello").await.unwrap();
+
+    let (op, cache) = fault_operator(CloseFaultBuilder {
+        fs_root: Some(fs_root),
+        fail_next_close: true,
+        ..Default::default()
+    })
+    .await;
+    let key = unversioned_key("log.txt");
+
+    assert_eq!(op.read("log.txt").await.unwrap().to_vec(), b"hello");
+    assert!(cache.contains(&key));
+
+    let mut writer = op.writer_with("log.txt").append(true).await.unwrap();
+    writer.write(" world").await.unwrap();
+    let err = writer.close().await.unwrap_err();
+    assert!(err.is_temporary());
+
+    assert!(!cache.contains(&key));
+    assert_eq!(op.read("log.txt").await.unwrap().to_vec(), b"hello world");
 }

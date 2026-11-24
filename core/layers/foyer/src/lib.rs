@@ -826,21 +826,27 @@ impl DeletedKeys {
 /// # Operation Behavior
 /// - `write`: [`FoyerLayer`] caches data after the service completes the write
 ///   when the object's total size stays inside [`FoyerLayer::with_size_limit`].
-///   Writes that end up outside the limit, and append writes whose buffered
-///   chunks do not contain the whole object, invalidate the superseded cache
-///   entry instead. An aborted write leaves the cache untouched.
+///   Writes that end up outside the limit invalidate the superseded cache
+///   entry. Append writes do not contain the whole object and may persist
+///   bytes during `write`, so they evict the superseded unversioned cache
+///   entry on `write` and `close` even if `abort` is called or `close` fails.
+///   Aborting a non-append write leaves the cache untouched.
 /// - `read`: [`FoyerLayer`] checks the cache first. On a cache miss, it reads
 ///   and caches the entire object if its size is within the configured
 ///   [`FoyerLayer::with_size_limit`] range, even when only a byte range is requested.
 ///   Reads with preconditions such as `if_match` or `if_none_match` bypass the
 ///   cache and read directly from the service, which evaluates the condition.
 ///   A conditional read never populates the cache.
-/// - `delete`: [`FoyerLayer`] removes cached data after a successful delete when the deleter
-///   closes. A failed delete call is not invalidated. Exact-key invalidation happens before the
-///   underlying deleter is closed, so the data remains invalidated if closing the deleter fails.
-///   Recursive deletes also clear the entire cache after the underlying deleter closes, including
-///   when closing fails, because Foyer does not support prefix invalidation and buffered deleters
-///   can allow concurrent reads to refill deleted objects while closing.
+/// - `delete`: [`FoyerLayer`] invalidates cached data after a successful `delete` call and
+///   again when the deleter closes, so both immediate and buffered deleters stay consistent.
+///   A failed standalone non-recursive `delete` call is not invalidated; if earlier deletes
+///   were already queued on the same deleter or a recursive delete fails, affected entries are
+///   invalidated or cleared because the backend may have partially committed them. Exact-key
+///   invalidation happens before the underlying deleter is closed, so the data remains
+///   invalidated if closing the deleter fails. Recursive deletes also clear the entire cache
+///   on `delete` and after the underlying deleter closes, including when closing fails, because
+///   Foyer does not support prefix invalidation and buffered deleters can allow concurrent
+///   reads to refill deleted objects while closing.
 /// - `copy`: Once the copy completes, [`FoyerLayer`] removes the unversioned
 ///   cache entry for the destination.
 /// - `rename`: After a successful rename, [`FoyerLayer`] removes the unversioned
@@ -914,11 +920,11 @@ impl FoyerLayer {
     pub fn with_size_limit<R: RangeBounds<usize>>(mut self, size_limit: R) -> Self {
         let start = match size_limit.start_bound() {
             Bound::Included(v) => *v,
-            Bound::Excluded(v) => *v + 1,
+            Bound::Excluded(v) => v.saturating_add(1),
             Bound::Unbounded => 0,
         };
         let end = match size_limit.end_bound() {
-            Bound::Included(v) => *v + 1,
+            Bound::Included(v) => v.saturating_add(1),
             Bound::Excluded(v) => *v,
             Bound::Unbounded => usize::MAX,
         };
@@ -1313,7 +1319,9 @@ mod tests {
         fn capability(&self) -> Capability {
             Capability {
                 read: true,
+                read_with_version: true,
                 stat: true,
+                stat_with_version: true,
                 restore: true,
                 restore_with_version: true,
                 restore_with_if_not_exists: true,
@@ -2690,6 +2698,465 @@ mod tests {
         let fe = FoyerError::new(FoyerErrorKind::External, "external error").with_source(e);
         let oe = extract_err(fe);
         assert_eq!(oe.kind(), ErrorKind::NotFound);
+        assert!(oe.is_permanent());
+
+        let temp = Error::new(ErrorKind::RateLimited, "throttled")
+            .with_context("attempt", "1")
+            .set_temporary();
+        let fe_temp = FoyerError::new(FoyerErrorKind::External, "fetch failed")
+            .with_source(FetchError::from_error(temp));
+        let oe_temp = extract_err(fe_temp);
+        assert_eq!(oe_temp.kind(), ErrorKind::RateLimited);
+        assert_eq!(oe_temp.message(), "throttled");
+        assert!(oe_temp.is_temporary());
+        assert!(oe_temp.to_string().contains("attempt: 1"));
+
+        let persistent = Error::new(ErrorKind::Unexpected, "exhausted").set_persistent();
+        let fe_persistent = FoyerError::new(FoyerErrorKind::External, "fetch failed")
+            .with_source(FetchError::from_error(persistent));
+        let oe_persistent = extract_err(fe_persistent);
+        assert_eq!(oe_persistent.kind(), ErrorKind::Unexpected);
+        assert!(oe_persistent.is_persistent());
+        assert!(!oe_persistent.is_temporary());
+
+        let direct_temp = Error::new(ErrorKind::RateLimited, "direct").set_temporary();
+        let fe_direct =
+            FoyerError::new(FoyerErrorKind::External, "direct").with_source(direct_temp);
+        let oe_direct = extract_err(fe_direct);
+        assert_eq!(oe_direct.kind(), ErrorKind::RateLimited);
+        assert!(oe_direct.is_temporary());
+    }
+
+    #[tokio::test]
+    async fn test_with_size_limit_usize_max_bounds() {
+        let cache = memory_cache().await;
+
+        let inclusive_unbounded = FoyerLayer::new(cache.clone()).with_size_limit(..=usize::MAX);
+        assert_eq!(inclusive_unbounded.size_limit, 0..usize::MAX);
+        assert!(inclusive_unbounded.size_limit.contains(&0));
+        assert!(inclusive_unbounded.size_limit.contains(&(usize::MAX - 1)));
+
+        let inclusive_zero = FoyerLayer::new(cache.clone()).with_size_limit(0..=usize::MAX);
+        assert_eq!(inclusive_zero.size_limit, 0..usize::MAX);
+
+        let from_max = FoyerLayer::new(cache.clone()).with_size_limit(usize::MAX..);
+        assert!(from_max.size_limit.is_empty());
+
+        let excluded_max = FoyerLayer::new(cache.clone())
+            .with_size_limit((Bound::Excluded(usize::MAX), Bound::Unbounded));
+        assert!(excluded_max.size_limit.is_empty());
+        assert!(!excluded_max.size_limit.contains(&0));
+
+        let shifted =
+            FoyerLayer::new(cache).with_size_limit((Bound::Excluded(5), Bound::Included(10)));
+        assert_eq!(shifted.size_limit, 6..11);
+    }
+
+    #[derive(Debug)]
+    struct FaultReadBuilder {
+        capability: Capability,
+        stat_mode: EntryMode,
+        stat_length: u64,
+        data: Vec<u8>,
+        chunk_size: usize,
+        stat_fail_once: Arc<Mutex<Option<Error>>>,
+        open_fail_once: Arc<Mutex<Option<Error>>>,
+        stat_calls: Arc<AtomicUsize>,
+        open_calls: Arc<AtomicUsize>,
+        read_calls: Arc<AtomicUsize>,
+    }
+
+    impl Default for FaultReadBuilder {
+        fn default() -> Self {
+            Self::new(&[])
+        }
+    }
+
+    impl FaultReadBuilder {
+        fn new(data: &[u8]) -> Self {
+            Self {
+                capability: Capability {
+                    read: true,
+                    stat: true,
+                    ..Default::default()
+                },
+                stat_mode: EntryMode::FILE,
+                stat_length: data.len() as u64,
+                data: data.to_vec(),
+                chunk_size: data.len().max(1),
+                stat_fail_once: Arc::new(Mutex::new(None)),
+                open_fail_once: Arc::new(Mutex::new(None)),
+                stat_calls: Arc::new(AtomicUsize::new(0)),
+                open_calls: Arc::new(AtomicUsize::new(0)),
+                read_calls: Arc::new(AtomicUsize::new(0)),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct FaultReadService {
+        capability: Capability,
+        stat_mode: EntryMode,
+        stat_length: u64,
+        data: Vec<u8>,
+        chunk_size: usize,
+        stat_fail_once: Arc<Mutex<Option<Error>>>,
+        open_fail_once: Arc<Mutex<Option<Error>>>,
+        stat_calls: Arc<AtomicUsize>,
+        open_calls: Arc<AtomicUsize>,
+        read_calls: Arc<AtomicUsize>,
+    }
+
+    impl Builder for FaultReadBuilder {
+        type Config = ();
+
+        fn build(self) -> Result<impl Service> {
+            Ok(FaultReadService {
+                capability: self.capability,
+                stat_mode: self.stat_mode,
+                stat_length: self.stat_length,
+                data: self.data,
+                chunk_size: self.chunk_size,
+                stat_fail_once: self.stat_fail_once,
+                open_fail_once: self.open_fail_once,
+                stat_calls: self.stat_calls,
+                open_calls: self.open_calls,
+                read_calls: self.read_calls,
+            })
+        }
+    }
+
+    struct ChunkedSliceStream {
+        data: Vec<u8>,
+        offset: usize,
+        chunk_size: usize,
+    }
+
+    impl oio::ReadStream for ChunkedSliceStream {
+        async fn read(&mut self) -> Result<Buffer> {
+            if self.offset >= self.data.len() {
+                return Ok(Buffer::new());
+            }
+            let end = (self.offset + self.chunk_size).min(self.data.len());
+            let chunk = Buffer::from(self.data[self.offset..end].to_vec());
+            self.offset = end;
+            Ok(chunk)
+        }
+    }
+
+    struct FaultReader {
+        data: Vec<u8>,
+        chunk_size: usize,
+        open_fail_once: Arc<Mutex<Option<Error>>>,
+        open_calls: Arc<AtomicUsize>,
+        read_calls: Arc<AtomicUsize>,
+    }
+
+    impl oio::Read for FaultReader {
+        async fn open(&self, range: BytesRange) -> Result<(RpRead, Box<dyn oio::ReadStreamDyn>)> {
+            self.open_calls.fetch_add(1, Ordering::Relaxed);
+            if let Some(err) = self.open_fail_once.lock().unwrap().take() {
+                return Err(err);
+            }
+            let content_range = range.to_content_range(self.data.len())?;
+            let slice = self.data[content_range].to_vec();
+            let rp = RpRead::new(MetadataBuilder::file(self.data.len() as u64).build());
+            Ok((
+                rp,
+                Box::new(ChunkedSliceStream {
+                    data: slice,
+                    offset: 0,
+                    chunk_size: self.chunk_size,
+                }) as Box<dyn oio::ReadStreamDyn>,
+            ))
+        }
+
+        async fn read(&self, range: BytesRange) -> Result<(RpRead, Buffer)> {
+            self.read_calls.fetch_add(1, Ordering::Relaxed);
+            let content_range = range.to_content_range(self.data.len())?;
+            let rp = RpRead::new(MetadataBuilder::file(self.data.len() as u64).build());
+            Ok((rp, Buffer::from(self.data[content_range].to_vec())))
+        }
+    }
+
+    impl Service for FaultReadService {
+        type Reader = FaultReader;
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            ServiceInfo::with_scheme("fault-read")
+        }
+
+        fn capability(&self) -> Capability {
+            self.capability
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, args: OpStat) -> Result<RpStat> {
+            self.stat_calls.fetch_add(1, Ordering::Relaxed);
+            if !self.capability.stat
+                || (args.version().is_some() && !self.capability.stat_with_version)
+            {
+                return Err(Error::new(ErrorKind::Unsupported, "stat is not supported"));
+            }
+            if let Some(err) = self.stat_fail_once.lock().unwrap().take() {
+                return Err(err);
+            }
+            let metadata = match self.stat_mode {
+                EntryMode::FILE => MetadataBuilder::file(self.stat_length).build(),
+                EntryMode::DIR => MetadataBuilder::dir().build(),
+                EntryMode::Unknown => MetadataBuilder::unknown().build(),
+            };
+            Ok(RpStat::new(metadata))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<Self::Reader> {
+            Ok(FaultReader {
+                data: self.data.clone(),
+                chunk_size: self.chunk_size,
+                open_fail_once: self.open_fail_once.clone(),
+                open_calls: self.open_calls.clone(),
+                read_calls: self.read_calls.clone(),
+            })
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<Self::Writer> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<Self::Deleter> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<Self::Lister> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<Self::Copier> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "operation is not supported",
+            ))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_temporary_error_on_cache_miss_preserves_status_and_retries() {
+        use opendal_layer_retry::RetryLayer;
+
+        // 1. Transient error from `stat` preserves `is_temporary()` and succeeds via `RetryLayer`.
+        let cache = memory_cache().await;
+        let builder = FaultReadBuilder::new(b"hello");
+        *builder.stat_fail_once.lock().unwrap() =
+            Some(Error::new(ErrorKind::RateLimited, "stat throttled").set_temporary());
+        let stat_calls = builder.stat_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()));
+
+        let err = op.read("k").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::RateLimited);
+        assert!(err.is_temporary());
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 1);
+
+        let cache = memory_cache().await;
+        let builder = FaultReadBuilder::new(b"hello");
+        *builder.stat_fail_once.lock().unwrap() =
+            Some(Error::new(ErrorKind::RateLimited, "stat throttled").set_temporary());
+        let stat_calls = builder.stat_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()))
+            .layer(RetryLayer::new().with_min_delay(Duration::from_millis(1)));
+
+        assert_eq!(op.read("k").await.unwrap().to_vec(), b"hello");
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 2);
+        assert!(cache.contains(&FoyerKey {
+            path: "k".to_string(),
+            version: None,
+        }));
+
+        // 2. Transient error from `open` also retries through `RetryLayer`.
+        let cache = memory_cache().await;
+        let builder = FaultReadBuilder::new(b"world");
+        *builder.open_fail_once.lock().unwrap() =
+            Some(Error::new(ErrorKind::Unexpected, "transient open").set_temporary());
+        let open_calls = builder.open_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()))
+            .layer(RetryLayer::new().with_min_delay(Duration::from_millis(1)));
+
+        assert_eq!(op.read("k").await.unwrap().to_vec(), b"world");
+        assert_eq!(open_calls.load(Ordering::Relaxed), 2);
+
+        // 3. Persistent error stays persistent and is not retried.
+        let cache = memory_cache().await;
+        let builder = FaultReadBuilder::new(b"nope");
+        *builder.stat_fail_once.lock().unwrap() =
+            Some(Error::new(ErrorKind::Unexpected, "already retried").set_persistent());
+        let stat_calls = builder.stat_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache))
+            .layer(RetryLayer::new().with_min_delay(Duration::from_millis(1)));
+
+        let err = op.read("k").await.unwrap_err();
+        assert!(err.is_persistent());
+        assert!(!err.is_temporary());
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 1);
+    }
+
+    #[tokio::test]
+    async fn test_read_falls_back_when_stat_or_stat_with_version_unsupported() {
+        // 1. Service without `stat` capability falls back to direct read.
+        let cache = memory_cache().await;
+        let mut builder = FaultReadBuilder::new(b"0123456789");
+        builder.capability.stat = false;
+        let stat_calls = builder.stat_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()));
+
+        assert_eq!(op.read("k").await.unwrap().to_vec(), b"0123456789");
+        assert_eq!(
+            op.read_with("k").range(2..5).await.unwrap().to_vec(),
+            b"234"
+        );
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 0);
+        assert!(!cache.contains(&FoyerKey {
+            path: "k".to_string(),
+            version: None,
+        }));
+
+        // 2. Service with `stat` + `read_with_version` but without `stat_with_version`
+        //    falls back for versioned reads while still caching unversioned reads.
+        let cache = memory_cache().await;
+        let mut builder = FaultReadBuilder::new(b"versioned-body");
+        builder.capability.read_with_version = true;
+        builder.capability.stat_with_version = false;
+        let stat_calls = builder.stat_calls.clone();
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()));
+
+        assert_eq!(
+            op.read_with("k").version("v1").await.unwrap().to_vec(),
+            b"versioned-body"
+        );
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 0);
+        assert!(!cache.contains(&FoyerKey {
+            path: "k".to_string(),
+            version: Some("v1".to_string()),
+        }));
+
+        assert_eq!(op.read("k").await.unwrap().to_vec(), b"versioned-body");
+        assert_eq!(stat_calls.load(Ordering::Relaxed), 1);
+        assert!(cache.contains(&FoyerKey {
+            path: "k".to_string(),
+            version: None,
+        }));
+    }
+
+    #[tokio::test]
+    async fn test_read_rechecks_size_limit_and_entry_mode_without_caching_oversized() {
+        // 1. Object grows past `size_limit.end` between `stat` and `read`:
+        //    caller receives all 32 bytes and cache remains empty.
+        let cache = memory_cache().await;
+        let data = vec![b'x'; 32];
+        let mut builder = FaultReadBuilder::new(&data);
+        builder.stat_length = 4;
+        builder.chunk_size = 6;
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(0..10));
+        let key = FoyerKey {
+            path: "grown".to_string(),
+            version: None,
+        };
+
+        assert_eq!(op.read("grown").await.unwrap().to_vec(), data);
+        assert!(!cache.contains(&key));
+
+        // 2. Object shrinks below `size_limit.start` between `stat` and `read`:
+        //    caller receives the 5 bytes and cache remains empty.
+        let cache = memory_cache().await;
+        let mut builder = FaultReadBuilder::new(b"short");
+        builder.stat_length = 15;
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(10..20));
+        let key = FoyerKey {
+            path: "shrunk".to_string(),
+            version: None,
+        };
+
+        assert_eq!(op.read("shrunk").await.unwrap().to_vec(), b"short");
+        assert!(!cache.contains(&key));
+
+        // 3. `EntryMode::Unknown` from `stat` bypasses cache instead of treating
+        //    `content_length == 0` as a cacheable empty file.
+        let cache = memory_cache().await;
+        let mut builder = FaultReadBuilder::new(b"unknown-mode-data");
+        builder.stat_mode = EntryMode::Unknown;
+        builder.stat_length = 0;
+        let op = Operator::new(builder)
+            .unwrap()
+            .layer(FoyerLayer::new(cache.clone()).with_size_limit(0..100));
+        let key = FoyerKey {
+            path: "unknown".to_string(),
+            version: None,
+        };
+
+        assert_eq!(
+            op.read("unknown").await.unwrap().to_vec(),
+            b"unknown-mode-data"
+        );
+        assert!(!cache.contains(&key));
     }
 
     #[test]

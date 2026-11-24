@@ -70,13 +70,25 @@ impl<W> Writer<W> {
 
 impl<W: oio::Write> oio::Write for Writer<W> {
     async fn write(&mut self, bs: Buffer) -> Result<()> {
+        if self.append {
+            let res = self.w.write(bs).await;
+            // Append writers may persist bytes to the backend immediately in
+            // `write()` without rolling them back on error, `abort()`, or drop.
+            // Evict the unversioned entry right away so readers do not observe
+            // stale cached bytes.
+            let unversioned = self.unversioned_key();
+            self.inner
+                .deleted_keys
+                .evict(&self.inner.cache, &unversioned);
+            return res;
+        }
+
         self.w.write(bs.clone()).await?;
-        // Appended bytes are only a suffix of the object. Once the buffer can
-        // no longer hold the full object (cumulative size reaches the limit's
-        // end), `skip_cache` stays set so a later small chunk cannot leave a
-        // truncated suffix behind in the cache.
-        if !self.skip_cache && !self.append {
-            if self.buf.len() + bs.len() < self.size_limit.end {
+        // Once the buffer can no longer hold the full object (cumulative size
+        // reaches the limit's end), `skip_cache` stays set so a later small
+        // chunk cannot leave a truncated suffix behind in the cache.
+        if !self.skip_cache {
+            if self.buf.len().saturating_add(bs.len()) < self.size_limit.end {
                 self.buf.push(bs);
             } else {
                 self.buf.clear();
@@ -87,7 +99,21 @@ impl<W: oio::Write> oio::Write for Writer<W> {
     }
 
     async fn close(&mut self) -> Result<Metadata> {
-        let metadata = self.w.close().await?;
+        let res = self.w.close().await;
+        if self.append {
+            // Appended bytes are only a suffix of the object, so the cached
+            // entry is superseded while the object remains cacheable. Evict on
+            // both success and failure because a buffered append writer may
+            // have already committed bytes before returning an error.
+            let unversioned = self.unversioned_key();
+            self.inner
+                .deleted_keys
+                .evict(&self.inner.cache, &unversioned);
+        }
+        let metadata = res?;
+        if self.append {
+            return Ok(metadata);
+        }
         // Keep the buffer intact until close succeeds so a failed or
         // cancelled attempt can be retried without caching an empty object.
         let buffer = self.buf.take().collect();
@@ -96,7 +122,7 @@ impl<W: oio::Write> oio::Write for Writer<W> {
             version: metadata.version().map(|v| v.to_string()),
         };
         let unversioned = self.unversioned_key();
-        let cacheable = !self.append && !self.skip_cache && self.size_limit.contains(&buffer.len());
+        let cacheable = !self.skip_cache && self.size_limit.contains(&buffer.len());
         if cacheable {
             // On a versioned backend the write produced a new version, so the
             // unversioned entry still points at the superseded object. Evict it
@@ -106,13 +132,6 @@ impl<W: oio::Write> oio::Write for Writer<W> {
             self.inner
                 .deleted_keys
                 .store(&self.inner.cache, key, FoyerValue(buffer), evict_key);
-        } else if self.append {
-            // Appended bytes are only a suffix of the object, so the cached
-            // entry is superseded but the object remains cacheable: evict it
-            // and let a later read refill it.
-            self.inner
-                .deleted_keys
-                .evict(&self.inner.cache, &unversioned);
         } else {
             // The stored object is outside the size limit, so any cached entry
             // is superseded and refill attempts cannot succeed: invalidate it.
@@ -122,8 +141,9 @@ impl<W: oio::Write> oio::Write for Writer<W> {
     }
 
     async fn abort(&mut self) -> Result<()> {
-        // An aborted write does not change the stored object, so the cached
-        // entry stays valid.
+        // A non-append aborted write does not change the stored object, so the
+        // cached entry stays valid. Append writes already evicted the cache
+        // entry when `write()` ran.
         self.buf.clear();
         self.w.abort().await
     }

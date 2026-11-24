@@ -471,13 +471,14 @@ fn parse_conditional_rename_directory_error(
         .with_context("service_operation", "Rename")
 }
 
-/// Re-check `path` after a failed filesystem call so that Windows reports the
-/// same error kinds as Unix.
+/// Classify an already-failed filesystem call on Windows.
 ///
-/// Windows reports a directory target as `ERROR_ACCESS_DENIED`, and a regular
-/// file in a parent component as `ERROR_PATH_NOT_FOUND` or, from
-/// `create_dir_all`, `ERROR_ALREADY_EXISTS`. Unix reports these as `EISDIR`
-/// and `ENOTDIR`. The original error is kept as the source.
+/// The failed call is never retried. Windows reports a directory target as
+/// `ERROR_ACCESS_DENIED`, and a regular file in a parent component as
+/// `ERROR_PATH_NOT_FOUND` or, from `create_dir_all`, `ERROR_ALREADY_EXISTS`.
+/// Unix reports these as `EISDIR` and `ENOTDIR`. A read-only metadata probe
+/// after the failure tells us what the path is, so the error kind can be
+/// mapped. The original error is kept as the source.
 pub(crate) async fn refine_path_error(err: std::io::Error, path: &Path) -> std::io::Error {
     #[cfg(windows)]
     {

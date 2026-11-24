@@ -483,8 +483,6 @@ pub struct UploadPartResponse {
     pub etag: String,
 }
 
-use quick_xml::de;
-
 /// VercelBlobError is the error returned by VercelBlob service.
 #[derive(Default, Debug, Deserialize)]
 #[serde(default)]
@@ -517,15 +515,18 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
     let bs = body.to_bytes();
 
     let (kind, retryable) = match parts.status.as_u16() {
-        403 => (ErrorKind::PermissionDenied, false),
+        401 | 403 => (ErrorKind::PermissionDenied, false),
         404 => (ErrorKind::NotFound, false),
+        416 => (ErrorKind::RangeNotSatisfied, false),
+        429 => (ErrorKind::RateLimited, true),
         500 | 502 | 503 | 504 => (ErrorKind::Unexpected, true),
         _ => (ErrorKind::Unexpected, false),
     };
 
-    let (message, _vercel_blob_err) = de::from_reader::<_, VercelBlobError>(bs.clone().reader())
-        .map(|vercel_blob_err| (format!("{vercel_blob_err:?}"), Some(vercel_blob_err)))
-        .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
+    let (message, _vercel_blob_err) =
+        serde_json::from_reader::<_, VercelBlobError>(bs.clone().reader())
+            .map(|vercel_blob_err| (format!("{vercel_blob_err:?}"), Some(vercel_blob_err)))
+            .unwrap_or_else(|_| (String::from_utf8_lossy(&bs).into_owned(), None));
 
     let mut err = Error::new(kind, message);
 
@@ -547,24 +548,90 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_error() {
-        let err_res = vec![(
-            r#"{
+        let err_res = vec![
+            (
+                r#"{
+                    "error": {
+                        "code": "unauthorized",
+                        "message": "Missing token"
+                    }
+                }"#,
+                ErrorKind::PermissionDenied,
+                StatusCode::UNAUTHORIZED,
+                false,
+                Some("VercelBlobError"),
+            ),
+            (
+                r#"{
                     "error": {
                         "code": "forbidden",
                         "message": "Invalid token"
                     }
                 }"#,
-            ErrorKind::PermissionDenied,
-            StatusCode::FORBIDDEN,
-        )];
+                ErrorKind::PermissionDenied,
+                StatusCode::FORBIDDEN,
+                false,
+                Some("Invalid token"),
+            ),
+            (
+                r#"{
+                    "error": {
+                        "code": "not_found",
+                        "message": "Blob not found"
+                    }
+                }"#,
+                ErrorKind::NotFound,
+                StatusCode::NOT_FOUND,
+                false,
+                Some("Blob not found"),
+            ),
+            (
+                r#"{
+                    "error": {
+                        "code": "range_not_satisfiable",
+                        "message": "Range out of bounds"
+                    }
+                }"#,
+                ErrorKind::RangeNotSatisfied,
+                StatusCode::RANGE_NOT_SATISFIABLE,
+                false,
+                Some("Range out of bounds"),
+            ),
+            (
+                r#"{
+                    "error": {
+                        "code": "rate_limited",
+                        "message": "Too many requests"
+                    }
+                }"#,
+                ErrorKind::RateLimited,
+                StatusCode::TOO_MANY_REQUESTS,
+                true,
+                Some("Too many requests"),
+            ),
+            (
+                "<html>bad gateway</html>",
+                ErrorKind::Unexpected,
+                StatusCode::BAD_GATEWAY,
+                true,
+                Some("<html>bad gateway</html>"),
+            ),
+        ];
 
-        for res in err_res {
-            let body = Buffer::from(res.0.as_bytes().to_vec());
-            let resp = Response::builder().status(res.2).body(body).unwrap();
+        for (body_str, expected_kind, status, expected_temporary, expected_substr) in err_res {
+            let body = Buffer::from(body_str.as_bytes().to_vec());
+            let resp = Response::builder().status(status).body(body).unwrap();
 
             let err = parse_error(ErrorContext::new(ServiceOperation("Test")), resp);
 
-            assert_eq!(err.kind(), res.1);
+            assert_eq!(err.kind(), expected_kind, "status {status}");
+            assert_eq!(err.is_temporary(), expected_temporary, "status {status}");
+            if let Some(substr) = expected_substr {
+                assert!(
+                    err.to_string().contains(substr),
+                    "expected error message to contain {substr:?}, got: {err}"
+                );
+            }
         }
 
         let bs = bytes::Bytes::from(
@@ -577,7 +644,6 @@ mod tests {
         );
 
         let out: VercelBlobError = serde_json::from_reader(bs.reader()).expect("must success");
-        println!("{out:?}");
 
         assert_eq!(out.error.code, "forbidden");
         assert_eq!(out.error.message, Some("Invalid token".to_string()));

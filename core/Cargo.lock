@@ -8939,12 +8939,12 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "hmac 0.13.0",
  "http 1.5.0",
  "log",
  "md-5 0.11.0",
  "opendal-core",
- "quick-xml",
  "serde",
  "serde_json",
  "sha1 0.11.0",
@@ -8957,6 +8957,7 @@ version = "0.59.5"
 dependencies = [
  "anyhow",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8970,10 +8971,10 @@ name = "opendal-service-vercel-blob"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
- "quick-xml",
  "serde",
  "serde_json",
  "tokio",

@@ -19,6 +19,7 @@ use std::time::Duration;
 
 use futures::AsyncReadExt;
 use futures::TryStreamExt;
+use opendal_core::Buffer;
 use opendal_core::Builder;
 use opendal_core::Configurator;
 use opendal_core::ErrorKind;
@@ -26,8 +27,10 @@ use opendal_core::OperationContext;
 use opendal_core::Operator;
 use opendal_core::OperatorRegistry;
 use opendal_core::raw::OpList;
+use opendal_core::raw::OpWrite;
 use opendal_core::raw::Service;
 use opendal_core::raw::oio::List;
+use opendal_core::raw::oio::Write as RawWrite;
 use opendal_service_smb::SmbConfig;
 use opendal_service_smb::register_smb_service;
 
@@ -256,7 +259,8 @@ async fn list_without_trailing_slash_preserves_separator() {
 #[ignore = "requires the Samba fixture and OPENDAL_SMB_* configuration"]
 async fn writer_rejects_operations_after_close_without_truncating() {
     tokio::time::timeout(Duration::from_secs(5), async {
-        let op = Operator::new(config("writer-close").into_builder()).unwrap();
+        let cfg = config("writer-close");
+        let op = Operator::new(cfg.clone().into_builder()).unwrap();
         let mut writer = op.writer("close-once.txt").await.unwrap();
         writer.write("hello samba").await.unwrap();
         let meta = writer.close().await.unwrap();
@@ -273,7 +277,39 @@ async fn writer_rejects_operations_after_close_without_truncating() {
             b"hello samba"
         );
 
+        // Exercise raw Service::write directly to bypass CompleteWriter and hit
+        // SmbWriter's own Closed state machine.
+        let service = cfg.into_builder().build().unwrap();
+        let mut raw_writer = service
+            .write(
+                &OperationContext::default(),
+                "raw-close-once.txt",
+                OpWrite::default(),
+            )
+            .unwrap();
+        RawWrite::write(&mut raw_writer, Buffer::from("hello raw samba"))
+            .await
+            .unwrap();
+        let meta = RawWrite::close(&mut raw_writer).await.unwrap();
+        assert_eq!(meta.content_length(), 15);
+
+        let err = RawWrite::close(&mut raw_writer).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        let err = RawWrite::write(&mut raw_writer, Buffer::from("more"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(!err.is_temporary());
+
+        assert_eq!(
+            op.read("raw-close-once.txt").await.unwrap().to_vec(),
+            b"hello raw samba"
+        );
+
         op.delete("close-once.txt").await.unwrap();
+        op.delete("raw-close-once.txt").await.unwrap();
         op.delete("/").await.unwrap();
     })
     .await

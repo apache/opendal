@@ -77,19 +77,31 @@ impl RedbBuilder {
     ///
     /// [`database`]: RedbBuilder::database
     pub fn datadir(mut self, path: &str) -> Self {
-        self.config.datadir = Some(path.into());
+        self.config.datadir = if path.is_empty() {
+            None
+        } else {
+            Some(path.into())
+        };
         self
     }
 
     /// Set the table name for Redb. Will create if not exists.
     pub fn table(mut self, table: &str) -> Self {
-        self.config.table = Some(table.into());
+        self.config.table = if table.is_empty() {
+            None
+        } else {
+            Some(table.into())
+        };
         self
     }
 
     /// Set the root for Redb.
     pub fn root(mut self, path: &str) -> Self {
-        self.config.root = Some(path.into());
+        self.config.root = if path.is_empty() {
+            None
+        } else {
+            Some(path.into())
+        };
         self
     }
 }
@@ -98,7 +110,7 @@ impl Builder for RedbBuilder {
     type Config = RedbConfig;
 
     fn build(self) -> Result<impl Service> {
-        let table_name = self.config.table.ok_or_else(|| {
+        let table_name = self.config.table.filter(|v| !v.is_empty()).ok_or_else(|| {
             Error::new(ErrorKind::ConfigInvalid, "table is required but not set")
                 .with_context("service", REDB_SCHEME)
         })?;
@@ -106,10 +118,14 @@ impl Builder for RedbBuilder {
         let (datadir, db) = if let Some(db) = self.database {
             (None, db)
         } else {
-            let datadir = self.config.datadir.ok_or_else(|| {
-                Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
-                    .with_context("service", REDB_SCHEME)
-            })?;
+            let datadir = self
+                .config
+                .datadir
+                .filter(|v| !v.is_empty())
+                .ok_or_else(|| {
+                    Error::new(ErrorKind::ConfigInvalid, "datadir is required but not set")
+                        .with_context("service", REDB_SCHEME)
+                })?;
 
             let db = redb::Database::create(&datadir)
                 .map_err(parse_database_error)?
@@ -205,10 +221,14 @@ impl Service for RedbBackend {
         } else {
             let bs = self.core.get(&p)?;
             match bs {
-                Some(bs) => Ok(RpStat::new({
-                    let metadata = MetadataBuilder::file(bs.len() as u64);
-                    metadata.build()
-                })),
+                Some(bs) => {
+                    let metadata = if p.ends_with('/') {
+                        MetadataBuilder::dir()
+                    } else {
+                        MetadataBuilder::file(bs.len() as u64)
+                    };
+                    Ok(RpStat::new(metadata.build()))
+                }
                 None => Err(Error::new(ErrorKind::NotFound, "kv not found in redb")),
             }
         }
@@ -367,6 +387,94 @@ mod tests {
                 "root {root}"
             );
         }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_dir_marker_stat_metadata() -> Result<()> {
+        for root in ["/", "/sub/"] {
+            let dir = tempfile::tempdir().expect("create tempdir");
+            let db_path = dir.path().join("test.redb");
+            let builder = RedbBuilder::default()
+                .datadir(db_path.to_str().expect("valid utf-8 path"))
+                .table("test");
+            let builder = if root == "/" {
+                builder
+            } else {
+                builder.root(root)
+            };
+            let srv: Servicer = Arc::new(builder.build()?);
+            let op = Operator::from_parts(OperationContext::default(), srv)
+                .layer(layers::SimulateLayer::default().with_stat_dir(false));
+
+            op.create_dir("a/").await?;
+            assert_eq!(op.stat("a/").await?.mode(), EntryMode::DIR, "root {root}");
+
+            op.write("a/file.txt", "hello").await?;
+            let meta = op.stat("a/file.txt").await?;
+            assert_eq!(meta.mode(), EntryMode::FILE, "root {root}");
+            assert_eq!(meta.content_length(), 5, "root {root}");
+
+            let err = op.stat("missing/").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound, "root {root}");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_invalid_config() -> Result<()> {
+        let dir = tempfile::tempdir().expect("create tempdir");
+        let db_path = dir.path().join("test.redb");
+        let db_path = db_path.to_str().expect("valid utf-8 path");
+
+        let err = RedbBuilder::default()
+            .datadir("")
+            .table("test")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbBuilder::default()
+            .datadir(db_path)
+            .datadir("")
+            .table("test")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbConfig::from_iter([
+            ("datadir".to_string(), String::new()),
+            ("table".to_string(), "test".to_string()),
+        ])?
+        .into_builder()
+        .build()
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbBuilder::default()
+            .datadir(db_path)
+            .table("")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbBuilder::default()
+            .datadir(db_path)
+            .table("test")
+            .table("")
+            .build()
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        let err = RedbConfig::from_iter([
+            ("datadir".to_string(), db_path.to_string()),
+            ("table".to_string(), String::new()),
+        ])?
+        .into_builder()
+        .build()
+        .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
         Ok(())
     }
 }

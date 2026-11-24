@@ -1043,6 +1043,9 @@ impl ErrorContext {
         self
     }
 
+    /// Marks a create request that carries an `If-None-Match` precondition
+    /// (`*` or a specific ETag), where ADLS may report precondition failure
+    /// as `409 PathAlreadyExists`.
     pub(crate) const fn with_if_not_exists(mut self, if_not_exists: bool) -> Self {
         self.caller_condition = self.caller_condition || if_not_exists;
         self.if_not_exists = if_not_exists;

@@ -78,12 +78,14 @@ impl AzdlsWriter {
         match resp.status() {
             StatusCode::CREATED | StatusCode::OK => Ok(()),
             _ => {
-                let if_not_exists =
-                    self.op.if_not_exists() || self.op.if_none_match().map(str::trim) == Some("*");
+                // Both `if_not_exists` and `if_none_match(<etag>)` send `If-None-Match`
+                // on CreateFile; ADLS can reject either failed precondition with
+                // `409 PathAlreadyExists`, which must classify as `ConditionNotMatch`.
+                let if_none_match = self.op.if_not_exists() || self.op.if_none_match().is_some();
                 let err = parse_error(
                     ErrorContext::new(ServiceOperation("CreateFile"))
                         .with_caller_condition(self.op.is_conditional())
-                        .with_if_not_exists(if_not_exists),
+                        .with_if_not_exists(if_none_match),
                     resp,
                 )
                 .with_operation("Backend::azdls_create_request");
@@ -286,7 +288,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn write_if_none_match_etag_never_swallows_already_exists_or_precondition_failed() {
+    async fn write_if_none_match_etag_returns_condition_not_match() {
         let transport = ScriptedTransport::new(vec![
             Response::builder()
                 .status(StatusCode::CONFLICT)
@@ -302,8 +304,8 @@ mod tests {
             .write_with("exists.txt", "new")
             .if_none_match("\"etag-1\"")
             .await
-            .expect_err("conditional write must not swallow AlreadyExists");
-        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+            .expect_err("write with if_none_match('<etag>') must fail on 409 PathAlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         let requests = transport.requests();
         assert_eq!(requests.len(), 1);
         assert_eq!(requests[0].headers[IF_NONE_MATCH], "\"etag-1\"");
@@ -323,9 +325,25 @@ mod tests {
             .write_with("exists.txt", "new")
             .if_none_match("\"etag-1\"")
             .await
-            .expect_err("conditional write must fail on 412 ConditionNotMet");
+            .expect_err("write with if_none_match('<etag>') must fail on 412 ConditionNotMet");
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
-        assert_eq!(transport.requests().len(), 1);
+        let requests = transport.requests();
+        assert_eq!(requests.len(), 1);
+        assert_eq!(requests[0].headers[IF_NONE_MATCH], "\"etag-1\"");
+    }
+
+    #[tokio::test]
+    async fn write_if_match_returns_unsupported_without_sending_request() {
+        let transport = ScriptedTransport::new(vec![]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("exists.txt", "new")
+            .if_match("\"etag-1\"")
+            .await
+            .expect_err("write with if_match must be rejected when capability is false");
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert!(transport.requests().is_empty());
     }
 
     #[tokio::test]
@@ -411,6 +429,30 @@ mod tests {
             .if_none_match("*")
             .await
             .expect_err("conditional append must not swallow 409 PathAlreadyExists");
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        assert_eq!(transport.requests().len(), 2);
+
+        let transport = ScriptedTransport::new(vec![
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .body(Bytes::new())
+                .unwrap(),
+            Response::builder()
+                .status(StatusCode::CONFLICT)
+                .header("x-ms-error-code", "PathAlreadyExists")
+                .body(Bytes::from_static(
+                    br#"{"error":{"code":"PathAlreadyExists","message":"exists"}}"#,
+                ))
+                .unwrap(),
+        ]);
+        let op = test_operator(transport.clone());
+
+        let err = op
+            .write_with("log.txt", "hello")
+            .append(true)
+            .if_none_match("\"etag-1\"")
+            .await
+            .expect_err("append with if_none_match('<etag>') must fail on 409 PathAlreadyExists");
         assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
         assert_eq!(transport.requests().len(), 2);
     }

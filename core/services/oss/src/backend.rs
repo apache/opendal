@@ -189,22 +189,22 @@ impl OssBuilder {
     /// preprocess the endpoint option
     fn parse_endpoint(
         &self,
-        endpoint: &Option<String>,
+        endpoint: Option<&str>,
         bucket: &str,
         addressing_style: AddressingStyle,
     ) -> Result<(String, String)> {
-        let (endpoint, host) = match endpoint.clone() {
+        let (endpoint, host) = match endpoint {
             Some(ep) => {
                 let uri = ep.parse::<Uri>().map_err(|err| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint is invalid")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", &ep)
+                        .with_context("endpoint", ep)
                         .set_source(err)
                 })?;
                 let host = uri.host().ok_or_else(|| {
                     Error::new(ErrorKind::ConfigInvalid, "endpoint host is empty")
                         .with_context("service", OSS_SCHEME)
-                        .with_context("endpoint", &ep)
+                        .with_context("endpoint", ep)
                 })?;
                 let full_host = match addressing_style {
                     AddressingStyle::Virtual => {
@@ -221,11 +221,6 @@ impl OssBuilder {
                             host.to_string()
                         }
                     }
-                };
-                if let Some(port) = uri.port_u16() {
-                    format!("{bucket}.{host}:{port}")
-                } else {
-                    format!("{bucket}.{host}")
                 };
                 let endpoint = match uri.scheme_str() {
                     Some(scheme_str) => match scheme_str {
@@ -452,18 +447,23 @@ impl Builder for OssBuilder {
             ),
         }?;
 
-        // Retrieve endpoint and host by parsing the endpoint option and bucket. If presign_endpoint is not
-        // set, take endpoint as default presign_endpoint.
+        // Retrieve endpoint and host by parsing the endpoint option and bucket. If neither
+        // presign_endpoint nor presign_addressing_style is set, reuse the parsed endpoint.
         let (endpoint, host) = self.parse_endpoint(
-            &self.config.endpoint,
+            self.config.endpoint.as_deref(),
             bucket,
             (&self.config.addressing_style).try_into()?,
         )?;
         debug!("backend use bucket {}, endpoint: {}", bucket, endpoint);
 
-        let presign_endpoint = if self.config.presign_endpoint.is_some() {
+        let presign_endpoint = if self.config.presign_endpoint.is_some()
+            || self.config.presign_addressing_style.is_some()
+        {
             self.parse_endpoint(
-                &self.config.presign_endpoint,
+                self.config
+                    .presign_endpoint
+                    .as_deref()
+                    .or(self.config.endpoint.as_deref()),
                 bucket,
                 (&self.config.presign_addressing_style).try_into()?,
             )?
@@ -723,19 +723,7 @@ impl Service for OssBackend {
         let status = resp.status();
 
         match status {
-            StatusCode::OK => {
-                let headers = resp.headers();
-                let mut meta = self
-                    .core
-                    .parse_metadata(path, resp.headers())?
-                    .into_builder();
-
-                if let Some(v) = parse_header_to_str(headers, constants::X_OSS_VERSION_ID)? {
-                    meta.version(v);
-                }
-
-                Ok(RpStat::new(meta.build()))
-            }
+            StatusCode::OK => Ok(RpStat::new(self.core.parse_metadata(path, resp.headers())?)),
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("HeadObject"))
                     .with_caller_condition(args.is_conditional()),
@@ -1601,5 +1589,138 @@ mod tests {
         assert_eq!(err.to_string(), "failed to load signing credential");
         assert!(file_read.reads().is_empty());
         assert!(http.requests.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_presign_write_omits_content_length_header() {
+        let op = Operator::new(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .access_key_id("static-ak")
+                .access_key_secret("static-secret")
+                .disable_config_load(),
+        )
+        .unwrap();
+
+        let presigned = op
+            .presign_write("test.txt", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        assert_eq!(presigned.method(), http::Method::PUT);
+        assert!(
+            presigned
+                .header()
+                .get(http::header::CONTENT_LENGTH)
+                .is_none(),
+            "presign_write must not inject Content-Length: 0"
+        );
+
+        let presigned_with_type = op
+            .presign_write_with("test.txt", std::time::Duration::from_secs(60))
+            .content_type("text/plain")
+            .await
+            .unwrap();
+        assert!(
+            presigned_with_type
+                .header()
+                .get(http::header::CONTENT_LENGTH)
+                .is_none()
+        );
+        assert_eq!(
+            presigned_with_type
+                .header()
+                .get(http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok()),
+            Some("text/plain")
+        );
+
+        let core = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .skip_signature()
+                .disable_config_load(),
+        );
+        let put_req = core
+            .oss_put_object_request(
+                "test.txt",
+                Some(5),
+                &OpWrite::new(),
+                Buffer::from("hello"),
+                false,
+            )
+            .unwrap();
+        assert_eq!(put_req.headers()[http::header::CONTENT_LENGTH], "5");
+
+        let empty_put_req = core
+            .oss_put_object_request("empty.txt", Some(0), &OpWrite::new(), Buffer::new(), false)
+            .unwrap();
+        assert_eq!(empty_put_req.headers()[http::header::CONTENT_LENGTH], "0");
+    }
+
+    #[tokio::test]
+    async fn test_presign_addressing_style_without_presign_endpoint() {
+        let op = Operator::new(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .presign_addressing_style("path")
+                .access_key_id("static-ak")
+                .access_key_secret("static-secret")
+                .disable_config_load(),
+        )
+        .unwrap();
+        let presigned = op
+            .presign_read("obj.txt", std::time::Duration::from_secs(60))
+            .await
+            .unwrap();
+        assert!(
+            presigned
+                .uri()
+                .to_string()
+                .starts_with("https://oss-cn-hangzhou.aliyuncs.com/test-bucket/obj.txt?"),
+            "unexpected presign uri: {}",
+            presigned.uri()
+        );
+
+        let core_path = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .presign_addressing_style("path"),
+        );
+        assert_eq!(
+            core_path.endpoint,
+            "https://test-bucket.oss-cn-hangzhou.aliyuncs.com"
+        );
+        assert_eq!(
+            core_path.presign_endpoint,
+            "https://oss-cn-hangzhou.aliyuncs.com/test-bucket"
+        );
+
+        let core_cname = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://cdn.example.com")
+                .presign_addressing_style("cname"),
+        );
+        assert_eq!(core_cname.presign_endpoint, "https://cdn.example.com");
+
+        let core_inherited = build_test_core(
+            OssBuilder::default()
+                .bucket("test-bucket")
+                .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+                .addressing_style("path"),
+        );
+        assert_eq!(core_inherited.presign_endpoint, core_inherited.endpoint);
+
+        let err = OssBuilder::default()
+            .bucket("test-bucket")
+            .endpoint("https://oss-cn-hangzhou.aliyuncs.com")
+            .presign_addressing_style("invalid")
+            .build()
+            .expect_err("invalid presign_addressing_style must fail build");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

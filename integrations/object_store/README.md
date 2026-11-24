@@ -198,8 +198,9 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
     `copy_if_not_exists` followed by `delete`. That fallback only guards target
     creation and is not atomic with deleting the source; when neither
     capability is advertised, `rename_if_not_exists` returns `NotSupported`.
-  - `get_opts` with `GetOptions::version` requires `read_with_version` and
-    `stat_with_version`.
+  - `get_opts` with `GetOptions::version` requires `read_with_version` for
+    body reads, and `stat_with_version` for `GetOptions::head` or `stat`
+    fallback paths (such as over-EOF ranges or local precondition evaluation).
 - **Write atomicity and multipart uploads**:
   - Whether `put_opts`, `put_multipart_opts`, and `MultipartUpload::abort` are
     atomic depends on the underlying OpenDAL service. For example, OpenDAL's
@@ -211,8 +212,9 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
     through OpenDAL's `Writer` (which handles chunking and concurrent flushes
     internally). A failed, dropped, or cancelled `put_part` future poisons the
     upload so subsequent `put_part` and `complete` calls fail with
-    `Error::Generic`; call `abort()` to clean up. Calling `complete()` while
-    parts are still in flight also fails and poisons the upload.
+    `Error::Generic`; call `abort()` to clean up where supported. Calling
+    `complete()` while parts are still in flight also fails and poisons the
+    upload.
 - **Metadata, attributes, tags, and extensions**:
   - `ObjectMeta::e_tag`, `ObjectMeta::version`, `PutResult::e_tag`, and
     `PutResult::version` are populated only when the backend returns them
@@ -240,8 +242,7 @@ implementations (such as `InMemory`, `LocalFileSystem`, `AmazonS3`,
     `GetResultPayload::File`.
 - **Deletes**:
   - OpenDAL's `delete` is idempotent: deleting a missing object succeeds rather
-    than returning `Error::NotFound` (unlike native `InMemory` and
-    `LocalFileSystem`).
+    than returning `Error::NotFound` (unlike native `LocalFileSystem`).
   - `delete_stream` deletes locations one by one sequentially through
     `Operator::delete` instead of using bulk-delete APIs or concurrent batches.
 - **Listing**:

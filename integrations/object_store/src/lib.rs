@@ -111,7 +111,9 @@
 //!     `rename_with_if_not_exists` nor `copy_with_if_not_exists`.
 //!   - [`get_opts`](object_store::ObjectStore::get_opts) with
 //!     [`GetOptions::version`](object_store::GetOptions::version) requires
-//!     `read_with_version` and `stat_with_version`.
+//!     `read_with_version` for body reads, and `stat_with_version` for
+//!     [`GetOptions::head`](object_store::GetOptions::head) or `stat` fallback
+//!     paths (such as over-EOF ranges or local precondition evaluation).
 //! - **Write atomicity and multipart uploads**:
 //!   - Write atomicity and [`MultipartUpload::abort`](object_store::MultipartUpload::abort)
 //!     depend on the underlying OpenDAL service. For example, OpenDAL's `fs`
@@ -121,8 +123,9 @@
 //!     OpenDAL's `Writer` (which buffers chunks and flushes concurrently
 //!     internally). A failed, dropped, or cancelled `put_part` future poisons
 //!     the upload so subsequent `put_part` and `complete` calls fail with
-//!     [`object_store::Error::Generic`]; calling `complete` with parts still in
-//!     flight also fails and poisons the upload.
+//!     [`object_store::Error::Generic`]; call `abort` to clean up where
+//!     supported. Calling `complete` with parts still in flight also fails and
+//!     poisons the upload.
 //! - **Metadata, attributes, tags, and extensions**:
 //!   - `e_tag` and `version` on [`object_store::ObjectMeta`] and
 //!     [`object_store::PutResult`] are populated only when the backend returns

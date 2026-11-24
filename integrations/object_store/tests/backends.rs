@@ -698,8 +698,9 @@ async fn test_get_opts_ranges_conditionals_versions_and_attributes_across_backen
                 );
             }
 
-            // GetOptions::version obeys read_with_version / stat_with_version.
-            if cap.read_with_version && cap.stat_with_version {
+            // GetOptions::version obeys read_with_version for body reads and
+            // stat_with_version for head requests.
+            let v1 = if cap.read_with_version || cap.stat_with_version {
                 let v1 = first_put
                     .version
                     .clone()
@@ -708,8 +709,18 @@ async fn test_get_opts_ranges_conditionals_versions_and_attributes_across_backen
                     .put(&path, Bytes::from_static(b"updated-v2").into())
                     .await
                     .unwrap();
+                Some(v1)
+            } else {
+                None
+            };
+            let requested_version = v1.clone().unwrap_or_else(|| "v1".to_string());
+
+            if cap.read_with_version {
                 let old = store
-                    .get_opts(&path, GetOptions::new().with_version(Some(v1)))
+                    .get_opts(
+                        &path,
+                        GetOptions::new().with_version(Some(requested_version.clone())),
+                    )
                     .await
                     .unwrap_or_else(|e| panic!("[{name}] versioned get failed: {e}"));
                 assert_eq!(old.bytes().await.unwrap(), body);
@@ -717,13 +728,43 @@ async fn test_get_opts_ranges_conditionals_versions_and_attributes_across_backen
                 let err = store
                     .get_opts(
                         &path,
-                        GetOptions::new().with_version(Some("v1".to_string())),
+                        GetOptions::new().with_version(Some(requested_version.clone())),
                     )
                     .await
                     .unwrap_err();
                 assert!(
                     matches!(err, object_store::Error::NotSupported { .. }),
-                    "[{name}] expected NotSupported for GetOptions::version, got {err:?}"
+                    "[{name}] expected NotSupported for versioned get, got {err:?}"
+                );
+            }
+
+            if cap.stat_with_version {
+                let old_head = store
+                    .get_opts(
+                        &path,
+                        GetOptions::new()
+                            .with_head(true)
+                            .with_version(Some(requested_version)),
+                    )
+                    .await
+                    .unwrap_or_else(|e| panic!("[{name}] versioned head failed: {e}"));
+                assert_eq!(old_head.range, 0..0);
+                assert_eq!(old_head.meta.size, body.len() as u64);
+                assert_eq!(old_head.meta.version, v1);
+                assert!(old_head.bytes().await.unwrap().is_empty());
+            } else {
+                let err = store
+                    .get_opts(
+                        &path,
+                        GetOptions::new()
+                            .with_head(true)
+                            .with_version(Some(requested_version)),
+                    )
+                    .await
+                    .unwrap_err();
+                assert!(
+                    matches!(err, object_store::Error::NotSupported { .. }),
+                    "[{name}] expected NotSupported for versioned head, got {err:?}"
                 );
             }
 

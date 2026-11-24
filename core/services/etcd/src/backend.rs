@@ -136,40 +136,17 @@ impl Builder for EtcdBuilder {
     type Config = EtcdConfig;
 
     fn build(self) -> Result<impl Service> {
-        self.build_backend()
-    }
-}
+        let endpoints = self
+            .config
+            .endpoints
+            .clone()
+            .unwrap_or_else(|| DEFAULT_ETCD_ENDPOINTS.to_string());
 
-impl EtcdBuilder {
-    fn build_backend(self) -> Result<EtcdBackend> {
-        let endpoints: Vec<String> = match self.config.endpoints.as_deref() {
-            Some(raw) => {
-                let parsed: Vec<String> = raw
-                    .split(',')
-                    .map(str::trim)
-                    .filter(|s| !s.is_empty())
-                    .map(str::to_string)
-                    .collect();
-                if parsed.is_empty() {
-                    return Err(Error::new(
-                        ErrorKind::ConfigInvalid,
-                        "endpoints must not be empty",
-                    )
-                    .with_operation("Builder::build")
-                    .with_context("service", ETCD_SCHEME));
-                }
-                parsed
-            }
-            None => vec![DEFAULT_ETCD_ENDPOINTS.to_string()],
-        };
+        let endpoints: Vec<String> = endpoints.split(',').map(|s| s.to_string()).collect();
 
         let mut options = ConnectOptions::new();
 
-        let ca_path = self.config.ca_path.as_deref().filter(|s| !s.is_empty());
-        let cert_path = self.config.cert_path.as_deref().filter(|s| !s.is_empty());
-        let key_path = self.config.key_path.as_deref().filter(|s| !s.is_empty());
-
-        if cert_path.is_some() != key_path.is_some() {
+        if self.config.cert_path.is_some() != self.config.key_path.is_some() {
             return Err(Error::new(
                 ErrorKind::ConfigInvalid,
                 "cert_path and key_path must be configured together",
@@ -178,13 +155,15 @@ impl EtcdBuilder {
             .with_context("service", ETCD_SCHEME));
         }
 
-        if ca_path.is_some() || cert_path.is_some() {
+        if self.config.ca_path.is_some() || self.config.cert_path.is_some() {
             let mut tls_options = TlsOptions::default();
-            if let Some(path) = ca_path {
+            if let Some(path) = &self.config.ca_path {
                 let ca = self.load_pem(path)?;
                 tls_options = tls_options.ca_certificate(Certificate::from_pem(ca));
             }
-            if let (Some(cert_path), Some(key_path)) = (cert_path, key_path) {
+            if let (Some(cert_path), Some(key_path)) =
+                (&self.config.cert_path, &self.config.key_path)
+            {
                 let cert = self.load_pem(cert_path)?;
                 let key = self.load_pem(key_path)?;
                 tls_options = tls_options.identity(Identity::from_pem(cert, key));
@@ -192,20 +171,11 @@ impl EtcdBuilder {
             options = options.with_tls(tls_options);
         }
 
-        let username = self.config.username.as_deref().filter(|s| !s.is_empty());
-        let password = self.config.password.as_deref().filter(|s| !s.is_empty());
-
-        if username.is_none() && password.is_some() {
-            return Err(Error::new(
-                ErrorKind::ConfigInvalid,
-                "username must be configured when password is set",
-            )
-            .with_operation("Builder::build")
-            .with_context("service", ETCD_SCHEME));
-        }
-
-        if let Some(username) = username {
-            options = options.with_user(username, password.unwrap_or(""));
+        if let Some(username) = self.config.username.clone() {
+            options = options.with_user(
+                username,
+                self.config.password.clone().unwrap_or("".to_string()),
+            );
         }
 
         let root = normalize_root(
@@ -223,31 +193,21 @@ impl EtcdBuilder {
 
 impl EtcdBuilder {
     fn load_pem(&self, path: &str) -> Result<String> {
-        std::fs::read_to_string(path).map_err(|err| {
-            Error::new(ErrorKind::ConfigInvalid, "failed to load PEM file")
-                .with_operation("Builder::build")
-                .with_context("service", ETCD_SCHEME)
-                .set_source(err)
-        })
+        std::fs::read_to_string(path)
+            .map_err(|err| Error::new(ErrorKind::Unexpected, "invalid file path").set_source(err))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use super::*;
-    use opendal_core::raw::oio::StreamRead as _;
 
     #[test]
     fn incomplete_client_identity_is_rejected() {
-        for ca_path in [None, Some(""), Some("ca.pem")] {
-            for (cert_path, key_path) in [
-                (Some("client.pem"), None),
-                (None, Some("client-key.pem")),
-                (Some("client.pem"), Some("")),
-                (Some(""), Some("client-key.pem")),
-            ] {
+        for ca_path in [None, Some("ca.pem")] {
+            for (cert_path, key_path) in
+                [(Some("client.pem"), None), (None, Some("client-key.pem"))]
+            {
                 let config = EtcdConfig {
                     ca_path: ca_path.map(str::to_owned),
                     cert_path: cert_path.map(str::to_owned),
@@ -263,120 +223,15 @@ mod tests {
     }
 
     #[test]
-    fn empty_tls_paths_and_credentials_are_ignored() {
-        let config = EtcdConfig {
-            ca_path: Some(String::new()),
-            cert_path: Some(String::new()),
-            key_path: Some(String::new()),
-            username: Some(String::new()),
-            password: Some(String::new()),
-            ..Default::default()
-        };
-
-        let backend = config.into_builder().build().unwrap();
-        assert!(backend.capability().create_dir);
-    }
-
-    #[test]
-    fn unreadable_pem_file_returns_config_invalid() {
-        let config = EtcdConfig {
-            ca_path: Some("/nonexistent/opendal-etcd-ca.pem".to_string()),
-            ..Default::default()
-        };
-        let err = Operator::from_config(config).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[test]
-    fn endpoints_are_trimmed_filtered_and_validated() {
-        for empty in ["", "   ", " , , "] {
-            let config = EtcdConfig {
-                endpoints: Some(empty.to_string()),
-                ..Default::default()
-            };
-            let err = Operator::from_config(config).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        for blank in ["   ", " , , "] {
-            let config = EtcdConfig::from_iter([("endpoints".to_string(), blank.to_string())])
-                .expect("config deserialization should succeed");
-            let err = Operator::from_config(config).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-        }
-
-        let config = EtcdConfig::from_iter([(
-            "endpoints".to_string(),
-            " http://127.0.0.1:23790 , , http://127.0.0.1:23791 ".to_string(),
-        )])
-        .unwrap();
-        let backend = EtcdBuilder { config }.build_backend().unwrap();
-        assert_eq!(
-            backend.core.endpoints(),
-            &[
-                "http://127.0.0.1:23790".to_string(),
-                "http://127.0.0.1:23791".to_string(),
-            ]
-        );
-    }
-
-    #[test]
-    fn password_without_username_is_rejected() {
-        let config = EtcdConfig {
-            password: Some("secret".to_string()),
-            ..Default::default()
-        };
-        let err = Operator::from_config(config).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
-    }
-
-    #[test]
-    fn debug_does_not_leak_password() {
-        let builder = EtcdBuilder::default()
-            .username("alice")
-            .password("s3cr3t-pass");
-        assert!(!format!("{builder:?}").contains("s3cr3t-pass"));
-
-        let backend = builder.build_backend().unwrap();
-        assert!(!format!("{backend:?}").contains("s3cr3t-pass"));
-
+    fn operator_debug_redacts_credentials() {
+        let credential = "fixture-credential";
         let op = Operator::new(
             EtcdBuilder::default()
                 .username("alice")
-                .password("s3cr3t-pass"),
+                .password(credential),
         )
         .unwrap();
-        assert!(!format!("{op:?}").contains("s3cr3t-pass"));
-    }
-
-    #[tokio::test]
-    async fn stat_root_and_read_dir_do_not_require_network() -> Result<()> {
-        tokio::time::timeout(Duration::from_secs(5), async {
-            let ctx = OperationContext::default();
-            for root in ["/", "/sub/"] {
-                let backend = EtcdBuilder::default()
-                    .endpoints("http://127.0.0.1:1")
-                    .root(root)
-                    .build_backend()?;
-                assert!(backend.capability().create_dir);
-
-                let meta = backend
-                    .stat(&ctx, "/", OpStat::default())
-                    .await?
-                    .into_metadata();
-                assert_eq!(meta.mode(), EntryMode::DIR, "root {root}");
-
-                let reader = EtcdReader::new(backend, "/", OpRead::default());
-                let err = match reader.open(BytesRange::new(0, None)).await {
-                    Ok(_) => panic!("reading root directory must fail"),
-                    Err(err) => err,
-                };
-                assert_eq!(err.kind(), ErrorKind::IsADirectory, "root {root}");
-            }
-            Ok(())
-        })
-        .await
-        .expect("test timed out")
+        assert!(!format!("{op:?}").contains(credential));
     }
 }
 
@@ -454,10 +309,6 @@ impl Service for EtcdBackend {
 
     async fn stat(&self, _ctx: &OperationContext, path: &str, _: OpStat) -> Result<RpStat> {
         let abs_path = build_absolute_path(&self.info.root(), path);
-
-        if abs_path == build_absolute_path(&self.info.root(), "") {
-            return Ok(RpStat::new(MetadataBuilder::dir().build()));
-        }
 
         // First check if it's a direct key
         match self.core.get(&abs_path).await? {

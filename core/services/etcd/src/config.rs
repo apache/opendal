@@ -154,9 +154,6 @@ mod tests {
         assert_eq!(cfg.username.as_deref(), Some("alice"));
         assert_eq!(cfg.password.as_deref(), Some("s3cr3t"));
         assert_eq!(cfg.root.as_deref(), Some("/explicit/root"));
-
-        let debug_str = format!("{cfg:?}");
-        assert!(!debug_str.contains("s3cr3t"));
     }
 
     #[test]

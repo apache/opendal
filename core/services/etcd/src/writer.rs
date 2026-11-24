@@ -45,15 +45,10 @@ impl oio::Write for EtcdWriter {
 
     async fn close(&mut self) -> Result<Metadata> {
         let buf = self.buffer.clone().collect();
-        let key = if self.path.is_empty() {
-            "/"
-        } else {
-            self.path.as_str()
-        };
 
-        self.core.set(key, buf.clone()).await?;
+        self.core.set(&self.path, buf.clone()).await?;
 
-        let metadata = if self.path.is_empty() || self.path.ends_with('/') {
+        let metadata = if self.path.ends_with('/') {
             MetadataBuilder::dir()
         } else {
             MetadataBuilder::file(buf.len() as u64)

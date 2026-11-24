@@ -273,7 +273,6 @@ impl Builder for CosBuilder {
 
             list: true,
             list_with_recursive: true,
-            list_with_recursive_flat: true,
             list_with_versions: true,
             list_with_deleted: true,
 

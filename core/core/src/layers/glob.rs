@@ -27,12 +27,11 @@ use crate::*;
 ///
 /// OpenDAL installs this layer by default. Services that advertise native glob
 /// support receive list requests unchanged. Otherwise the layer uses the pattern
-/// to skip unrelated directories. On services that set
-/// `list_with_recursive_flat`, the walk costs one request per directory. When the
-/// walk visits every directory below the leading literal directories of the
-/// pattern, as for `t/**/*.parquet`, the layer filters one recursive listing
-/// instead. With a cursor, versions, or delete markers, it filters an underlying
-/// listing to preserve the service's cursor and entries.
+/// to skip unrelated directories. If the walk would list every directory below
+/// the leading literal directories of the pattern, as for `t/**/*.parquet`, and
+/// the service supports recursive listing, the layer filters one recursive
+/// listing instead. With a cursor, versions, or delete markers, it filters an
+/// underlying listing to preserve the service's cursor and entries.
 /// For a custom stack, install it before layers that resolve symbolic links
 /// when completing entry metadata.
 ///
@@ -181,12 +180,13 @@ impl Service for GlobService {
             directory.push('/');
         }
         let prefix = if path == "/" { "" } else { path };
+        let can_match = position == 0 || directory.starts_with(prefix);
 
-        let capability = self.inner.capability();
-        if capability.list_with_recursive
-            && capability.list_with_recursive_flat
+        // A recursive listing reads every key below `root`. It costs no more
+        // requests than the walk only if the walk lists every directory too.
+        if can_match
+            && self.inner.capability().list_with_recursive
             && pattern.walks_whole_subtree(position)
-            && (position == 0 || directory.starts_with(prefix))
         {
             args.set_recursive(true);
             let root = if directory.starts_with(prefix) {
@@ -199,13 +199,13 @@ impl Service for GlobService {
                 pattern,
                 base: base.to_owned(),
                 root,
-                implied: Some(HashSet::new()),
+                implied: Some(ImpliedDirectories::default()),
                 pending: None,
             }));
         }
 
         args.set_recursive(false);
-        let directories = if position == 0 || directory.starts_with(prefix) {
+        let directories = if can_match {
             vec![Directory {
                 path: directory,
                 positions: vec![position],
@@ -320,60 +320,75 @@ struct FilteredLister {
     inner: oio::Lister,
     pattern: GlobPattern,
     base: String,
-    /// The listed directory. It never matches, as in guided listing.
+    /// The listed path. As in the guided listing, a listed directory is not
+    /// returned.
     root: String,
-    /// Object stores list keys only, so parents that exist only as key prefixes
-    /// are synthesized once each, as a guided listing sees them.
-    implied: Option<HashSet<String>>,
+    implied: Option<ImpliedDirectories>,
     pending: Option<oio::Entry>,
 }
 
-impl FilteredLister {
-    fn accepts(&self, path: &str, is_dir: bool) -> bool {
-        (path != self.root || !self.root.ends_with('/'))
-            && relative_child(path, &self.base)
-                .is_some_and(|relative| self.pattern.matches(relative, is_dir))
-    }
+/// Object stores return only keys. The guided listing also returns each
+/// directory that exists only as a key prefix.
+#[derive(Default)]
+struct ImpliedDirectories {
+    returned: HashSet<String>,
+    /// A directory whose parents and itself are already checked.
+    checked: String,
+}
 
-    /// Return the first unseen matching parent of `entry`, or `entry` itself.
+impl FilteredLister {
+    /// Return the next unchecked parent of `entry` that matches, else `entry` if
+    /// it matches. After a parent, `entry` waits in `pending`.
     fn take_next(&mut self, entry: oio::Entry) -> Option<oio::Entry> {
-        if let Some(seen) = &self.implied {
-            let root = if self.root == "/" { "" } else { &self.root };
-            let path = entry.path();
-            let end = path.trim_end_matches('/').len();
-            for (index, _) in path[..end].match_indices('/') {
-                let parent = &path[..=index];
-                if parent.len() <= root.len() || !parent.starts_with(root) {
-                    continue;
-                }
-                if seen.contains(parent) {
-                    continue;
-                }
-                let parent = parent.to_owned();
-                self.implied
-                    .as_mut()
-                    .expect("implied set")
-                    .insert(parent.clone());
-                if self.accepts(&parent, true) {
-                    self.pending = Some(entry);
-                    return Some(oio::Entry::new(&parent, MetadataBuilder::dir().build()));
-                }
-                return self.take_next(entry);
-            }
-            if entry.mode().is_dir() {
-                let fresh = self
-                    .implied
-                    .as_mut()
-                    .expect("implied set")
-                    .insert(entry.path().to_owned());
-                if !fresh {
-                    return None;
-                }
+        let root = self.root.as_str();
+        let accepts = |path: &str, is_dir: bool| {
+            !(path == root && root.ends_with('/'))
+                && relative_child(path, &self.base)
+                    .is_some_and(|relative| self.pattern.matches(relative, is_dir))
+        };
+        let path = entry.path();
+        let is_dir = entry.mode().is_dir();
+        let Some(implied) = &mut self.implied else {
+            return accepts(path, is_dir).then_some(entry);
+        };
+
+        let listed = if root == "/" { 0 } else { root.len() };
+        let end = path.trim_end_matches('/').len();
+        let start = shared_directory_len(&implied.checked, path).min(end);
+        for (index, _) in path[start..end].match_indices('/') {
+            let parent = &path[..=start + index];
+            if parent.len() > listed && !implied.returned.contains(parent) && accepts(parent, true)
+            {
+                implied.returned.insert(parent.to_owned());
+                implied.checked.clear();
+                implied.checked.push_str(parent);
+                let parent = oio::Entry::new(parent, MetadataBuilder::dir().build());
+                self.pending = Some(entry);
+                return Some(parent);
             }
         }
-        self.accepts(entry.path(), entry.mode().is_dir())
-            .then_some(entry)
+
+        let directory_len = if is_dir {
+            path.len()
+        } else {
+            path.rfind('/').map_or(0, |index| index + 1)
+        };
+        implied.checked.clear();
+        implied.checked.push_str(&path[..directory_len]);
+        if !accepts(path, is_dir) || (is_dir && !implied.returned.insert(path.to_owned())) {
+            return None;
+        }
+        Some(entry)
     }
+}
+
+/// Length of the longest shared prefix of `a` and `b` that ends with `/`.
+fn shared_directory_len(a: &str, b: &str) -> usize {
+    let shared = a.bytes().zip(b.bytes()).take_while(|(a, b)| a == b).count();
+    a.as_bytes()[..shared]
+        .iter()
+        .rposition(|&byte| byte == b'/')
+        .map_or(0, |index| index + 1)
 }
 
 impl List for FilteredLister {

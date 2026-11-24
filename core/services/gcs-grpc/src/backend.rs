@@ -250,7 +250,6 @@ impl GcsGrpcBuilder {
             list_with_limit: true,
             list_with_start_after: true,
             list_with_recursive: true,
-            list_with_recursive_flat: true,
             shared: true,
             ..Default::default()
         };

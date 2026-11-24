@@ -595,7 +595,6 @@ impl AzblobBuilder {
 
             list: true,
             list_with_recursive: true,
-            list_with_recursive_flat: true,
 
             presign: azblob_can_presign,
             presign_stat: azblob_can_presign,

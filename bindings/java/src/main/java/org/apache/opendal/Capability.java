@@ -472,11 +472,6 @@ public class Capability {
     public final boolean listWithRecursive;
 
     /**
-     * Indicates if a recursive listing is one flat key listing (one request stream for the whole subtree), rather than a walk of directories.
-     */
-    public final boolean listWithRecursiveFlat;
-
-    /**
      * Indicates if listing with versions included is supported.
      */
     public final boolean listWithVersions;
@@ -770,7 +765,6 @@ public class Capability {
         this.listWithLimit = listWithLimit;
         this.listWithStartAfter = listWithStartAfter;
         this.listWithRecursive = listWithRecursive;
-        this.listWithRecursiveFlat = false;
         this.listWithVersions = listWithVersions;
         this.listWithDeleted = listWithDeleted;
         this.listWithGlob = false;

@@ -246,27 +246,27 @@ async fn recursive_services_filter_one_listing() -> Result<()> {
 }
 
 #[tokio::test]
-async fn walking_services_keep_the_guided_listing() -> Result<()> {
+async fn recursive_listing_returns_each_directory_once() -> Result<()> {
     let inner = Arc::new(ListFixture {
         recursive: true,
-        ..ListFixture::new(&["t/a.parquet"])
+        entries: vec![
+            oio::Entry::new("t/a/x", MetadataBuilder::file(0).build()),
+            oio::Entry::new("t/a/", MetadataBuilder::dir().build()),
+            oio::Entry::new("t/", MetadataBuilder::dir().build()),
+        ],
+        ..ListFixture::new(&[])
     });
-    let walking = crate::layers::CapabilityOverrideLayer::new(|mut capability| {
-        capability.list_with_recursive_flat = false;
-        capability
-    });
-    let op = Operator::from_parts(OperationContext::default(), inner.clone())
-        .layer(walking)
-        .layer(GlobLayer);
-    op.list_with("/").glob("t/*/*.parquet").await?;
-    let requests = inner.requests.lock().unwrap();
-    assert_eq!(requests[0].0, "t/");
-    assert!(requests.iter().all(|(_, args)| !args.recursive()));
+    let op = Operator::from_parts(OperationContext::default(), inner).layer(GlobLayer);
+    let entries = op.list_with("/").glob("**/").await?;
+    assert_eq!(
+        entries.iter().map(Entry::path).collect::<Vec<_>>(),
+        ["t/", "t/a/"]
+    );
     Ok(())
 }
 
 #[tokio::test]
-async fn flat_listing_requires_recursive_listing() -> Result<()> {
+async fn services_without_recursive_listing_keep_the_walk() -> Result<()> {
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&["t/a.parquet"])
@@ -285,7 +285,7 @@ async fn flat_listing_requires_recursive_listing() -> Result<()> {
 }
 
 #[tokio::test]
-async fn flat_services_walk_patterns_that_skip_directories() -> Result<()> {
+async fn recursive_services_walk_patterns_that_skip_directories() -> Result<()> {
     let inner = Arc::new(ListFixture {
         recursive: true,
         ..ListFixture::new(&["t/a.parquet", "t/b.json"])
@@ -307,7 +307,7 @@ async fn flat_services_walk_patterns_that_skip_directories() -> Result<()> {
 }
 
 #[tokio::test]
-async fn flat_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
+async fn recursive_listing_keeps_the_entry_named_by_a_prefix() -> Result<()> {
     let op = Operator::new(Memory::default())?;
     for path in ["t/a", "t/ab/c", "v/a/b"] {
         op.write(path, "data").await?;
@@ -366,7 +366,6 @@ impl Service for ListFixture {
             list: true,
             list_with_glob: self.native_glob,
             list_with_recursive: self.recursive,
-            list_with_recursive_flat: self.recursive,
             list_with_limit: true,
             list_with_start_after: true,
             list_with_versions: true,

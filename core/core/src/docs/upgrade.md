@@ -10,13 +10,6 @@ Operation paths and service roots remove components equal to `.`. For example,
 `./data/./file` addresses `data/file`. Operation paths still use a trailing `/`
 to mark directories.
 
-## Flat recursive listing
-
-`Capability` has a `list_with_recursive_flat` field. Services set it when a
-recursive listing returns the whole subtree as one flat key listing, as object
-stores do. In exhaustive struct literals, add `list_with_recursive_flat: false`,
-or use `..Default::default()`.
-
 ## Per-write expiration
 
 `WriteOptions` and `Capability` now have `expires` and `write_with_expires`

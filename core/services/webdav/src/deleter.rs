@@ -42,7 +42,7 @@ impl oio::OneShotDelete for WebdavDeleter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK | StatusCode::ACCEPTED | StatusCode::NO_CONTENT => Ok(()),
+            StatusCode::NO_CONTENT => Ok(()),
             StatusCode::NOT_FOUND if args.if_match().is_some() => Err(Error::new(
                 ErrorKind::ConditionNotMatch,
                 "delete precondition requires a live target",
@@ -91,13 +91,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_delete_accepts_200_202_204_and_404() -> Result<()> {
-        for status in [
-            StatusCode::OK,
-            StatusCode::ACCEPTED,
-            StatusCode::NO_CONTENT,
-            StatusCode::NOT_FOUND,
-        ] {
+    async fn test_delete_accepts_no_content_and_not_found() -> Result<()> {
+        for status in [StatusCode::NO_CONTENT, StatusCode::NOT_FOUND] {
             let op = operator_with_status(status)?;
             op.delete("file.txt").await?;
         }

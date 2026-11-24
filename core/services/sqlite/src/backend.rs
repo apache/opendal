@@ -101,12 +101,6 @@ impl SqliteBuilder {
 }
 
 fn validate_identifier(name: &str, value: &str) -> Result<()> {
-    if value.is_empty() {
-        return Err(
-            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
-                .with_context("service", SQLITE_SCHEME),
-        );
-    }
     if value.contains('\0') {
         return Err(Error::new(
             ErrorKind::ConfigInvalid,
@@ -1210,18 +1204,6 @@ mod test {
                 ..valid_config()
             },
             SqliteConfig {
-                table: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
-                key_field: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
-                value_field: Some(String::new()),
-                ..valid_config()
-            },
-            SqliteConfig {
                 table: Some("data\0bad".to_string()),
                 ..valid_config()
             },
@@ -1241,7 +1223,6 @@ mod test {
         for pairs in [
             vec![("connection_string", ""), ("table", "data")],
             vec![("connection_string", "   "), ("table", "data")],
-            vec![("connection_string", "sqlite::memory:"), ("table", "")],
             vec![
                 ("connection_string", "sqlite::memory:"),
                 ("table", "data\0bad"),
@@ -1313,6 +1294,37 @@ mod test {
         .build()
         .unwrap();
         assert_eq!(service.info().name().as_ref(), "my\"table");
+    }
+
+    #[test]
+    fn test_sqlite_accepts_empty_quoted_identifiers_from_config() {
+        let config = || SqliteConfig {
+            connection_string: Some("sqlite::memory:".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        };
+
+        let table = SqliteConfig {
+            table: Some(String::new()),
+            ..config()
+        }
+        .into_builder()
+        .build()
+        .unwrap();
+        assert_eq!(table.info().name().as_ref(), "");
+
+        for config in [
+            SqliteConfig {
+                key_field: Some(String::new()),
+                ..config()
+            },
+            SqliteConfig {
+                value_field: Some(String::new()),
+                ..config()
+            },
+        ] {
+            assert!(config.into_builder().build().is_ok());
+        }
     }
 
     #[tokio::test]

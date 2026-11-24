@@ -385,9 +385,7 @@ impl Service for WebhdfsBackend {
                         )?);
                         metadata.build()
                     }
-                    FileStatusType::Symlink | FileStatusType::Unknown => {
-                        MetadataBuilder::unknown().build()
-                    }
+                    FileStatusType::Symlink => MetadataBuilder::unknown().build(),
                 };
 
                 Ok(RpStat::new(meta))

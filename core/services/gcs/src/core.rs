@@ -1138,8 +1138,12 @@ impl GetObjectJsonResponse {
             MetadataBuilder::file(size)
         };
 
-        m.etag(&self.etag);
-        m.content_md5(&self.md5_hash);
+        if !self.etag.is_empty() {
+            m.etag(&self.etag);
+        }
+        if !self.md5_hash.is_empty() {
+            m.content_md5(&self.md5_hash);
+        }
         if !self.content_type.is_empty() {
             m.content_type(&self.content_type);
         }
@@ -2169,6 +2173,36 @@ mod tests {
     }
 
     #[test]
+    fn test_deserialize_composite_object_response_without_md5() {
+        let content = r#"{
+    "kind": "storage#object",
+    "name": "composite.bin",
+    "bucket": "example",
+    "generation": "1660563214863653",
+    "size": "1024",
+    "crc32c": "j/un9g==",
+    "etag": "CKWasoTgyPkCEAE=",
+    "updated": "2022-08-15T11:33:34.866Z"
+}"#;
+        let meta = GcsCore::build_metadata_from_object_response("composite.bin", content.into())
+            .expect("parse composite metadata should not fail");
+        assert_eq!(meta.content_length(), 1024);
+        assert_eq!(meta.content_md5(), None);
+        assert_eq!(meta.etag(), Some("CKWasoTgyPkCEAE="));
+
+        let empty_fields = r#"{
+    "size": "1024",
+    "md5Hash": "",
+    "etag": ""
+}"#;
+        let meta =
+            GcsCore::build_metadata_from_object_response("empty-fields.bin", empty_fields.into())
+                .expect("parse metadata with empty md5Hash and etag should not fail");
+        assert_eq!(meta.content_md5(), None);
+        assert_eq!(meta.etag(), None);
+    }
+
+    #[test]
     fn test_deserialize_list_response() {
         let content = r#"
     {
@@ -2381,7 +2415,7 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
             (ErrorKind::ConditionNotMatch, false)
         }
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
         StatusCode::NOT_MODIFIED | StatusCode::PRECONDITION_FAILED if ctx.internal_condition => {
             (ErrorKind::Conflict, false)
         }
@@ -2453,6 +2487,21 @@ pub fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 #[cfg(test)]
 mod error_tests {
     use super::*;
+
+    #[test]
+    fn test_parse_error_unauthorized_and_forbidden() {
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN] {
+            let resp = Response::builder()
+                .status(status)
+                .body(Buffer::from(
+                    r#"{"error":{"code":401,"message":"Invalid Credentials"}}"#,
+                ))
+                .unwrap();
+            let err = parse_error(ErrorContext::new(ServiceOperation("GetObject")), resp);
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+            assert!(!err.is_temporary());
+        }
+    }
 
     #[test]
     fn test_parse_error_range_not_satisfiable() {

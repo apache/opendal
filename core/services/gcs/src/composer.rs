@@ -28,6 +28,7 @@ use opendal_core::raw::*;
 use opendal_core::*;
 
 const GCS_COMPOSE_MAX_SOURCES: usize = 32;
+const MAX_TEMPORARY_RETRIES: usize = 3;
 const COMPOSE_TOKEN_KEY: &str = "opendal-compose-token";
 
 pub struct GcsComposer {
@@ -37,6 +38,7 @@ pub struct GcsComposer {
     args: OpCompose,
     buffered: Vec<GcsComposeSource>,
     tasks: ConcurrentTasks<GcsComposeTask, GcsComposeSource>,
+    level0_outputs: Vec<GcsComposeSource>,
     input_count: usize,
     intermediates: Vec<GcsComposeSource>,
     metadata: Option<Metadata>,
@@ -53,6 +55,7 @@ impl GcsComposer {
             args,
             buffered: Vec::with_capacity(GCS_COMPOSE_MAX_SOURCES + 1),
             tasks,
+            level0_outputs: Vec::new(),
             input_count: 0,
             intermediates: Vec::new(),
             metadata: None,
@@ -85,29 +88,63 @@ impl GcsComposer {
         })
     }
 
-    async fn collect_tasks(
+    async fn drain_ready_outputs(
         tasks: &mut ConcurrentTasks<GcsComposeTask, GcsComposeSource>,
-    ) -> Result<Vec<GcsComposeSource>> {
-        let mut outputs = Vec::new();
-        while let Some(output) = tasks.next().await {
-            match output {
-                Ok(output) => outputs.push(output),
-                Err(err) if err.is_temporary() => continue,
-                Err(err) => return Err(err),
+        outputs: &mut Vec<GcsComposeSource>,
+        intermediates: &mut Vec<GcsComposeSource>,
+    ) {
+        while tasks.has_result() {
+            if let Some(Ok(output)) = tasks.next().await {
+                intermediates.push(output.clone());
+                outputs.push(output);
+            } else {
+                break;
             }
         }
-        Ok(outputs)
+    }
+
+    async fn collect_tasks(
+        tasks: &mut ConcurrentTasks<GcsComposeTask, GcsComposeSource>,
+        outputs: &mut Vec<GcsComposeSource>,
+        intermediates: &mut Vec<GcsComposeSource>,
+    ) -> Result<()> {
+        let mut retries = 0;
+        while let Some(output) = tasks.next().await {
+            match output {
+                Ok(output) => {
+                    retries = 0;
+                    intermediates.push(output.clone());
+                    outputs.push(output);
+                }
+                Err(err) if err.is_temporary() && retries < MAX_TEMPORARY_RETRIES => {
+                    retries += 1;
+                    continue;
+                }
+                Err(err) => {
+                    tasks.clear();
+                    return Err(err);
+                }
+            }
+        }
+        Ok(())
     }
 
     async fn execute_task(
         tasks: &mut ConcurrentTasks<GcsComposeTask, GcsComposeSource>,
         task: GcsComposeTask,
     ) -> Result<()> {
+        let mut retries = 0;
         loop {
             match tasks.execute(task.clone()).await {
                 Ok(()) => return Ok(()),
-                Err(err) if err.is_temporary() => continue,
-                Err(err) => return Err(err),
+                Err(err) if err.is_temporary() && retries < MAX_TEMPORARY_RETRIES => {
+                    retries += 1;
+                    continue;
+                }
+                Err(err) => {
+                    tasks.clear();
+                    return Err(err);
+                }
             }
         }
     }
@@ -117,6 +154,7 @@ impl GcsComposer {
         sources: Vec<GcsComposeSource>,
     ) -> Result<Vec<GcsComposeSource>> {
         let mut tasks = new_tasks(self.ctx.executor().clone(), self.args.concurrent());
+        let mut outputs = Vec::new();
         let mut carried = None;
 
         for chunk in sources.chunks(GCS_COMPOSE_MAX_SOURCES) {
@@ -125,10 +163,10 @@ impl GcsComposer {
                 continue;
             }
             Self::execute_task(&mut tasks, self.new_intermediate_task(chunk.to_vec())?).await?;
+            Self::drain_ready_outputs(&mut tasks, &mut outputs, &mut self.intermediates).await;
         }
 
-        let mut outputs = Self::collect_tasks(&mut tasks).await?;
-        self.intermediates.extend(outputs.iter().cloned());
+        Self::collect_tasks(&mut tasks, &mut outputs, &mut self.intermediates).await?;
         if let Some(source) = carried {
             outputs.push(source);
         }
@@ -150,12 +188,16 @@ impl GcsComposer {
         GcsCore::build_metadata_from_object_response(&self.to, resp.into_body())
     }
 
-    async fn cleanup_intermediates(&self) -> Result<()> {
+    async fn cleanup_intermediates(&mut self) -> Result<()> {
+        let intermediates = std::mem::take(&mut self.intermediates);
+        if intermediates.is_empty() {
+            return Ok(());
+        }
         let mut deleter = oio::BatchDeleter::new(
             GcsDeleter::new(self.core.clone(), self.ctx.clone()),
             self.core.capability.delete_max_size,
         );
-        for source in &self.intermediates {
+        for source in &intermediates {
             let Some(version) = source.version.as_deref() else {
                 continue;
             };
@@ -171,6 +213,21 @@ impl GcsComposer {
         deleter.close().await
     }
 
+    async fn cleanup_intermediates_best_effort(&mut self) {
+        if self.intermediates.is_empty() {
+            return;
+        }
+        if let Err(err) = self.cleanup_intermediates().await {
+            log::warn!("failed to clean GCS compose intermediate objects: {err}");
+        }
+    }
+
+    async fn abort(&mut self) {
+        self.errored = true;
+        self.tasks.clear();
+        self.cleanup_intermediates_best_effort().await;
+    }
+
     async fn close_inner(&mut self) -> Result<Metadata> {
         if self.input_count == 0 {
             return Err(Error::new(
@@ -179,19 +236,15 @@ impl GcsComposer {
             ));
         }
 
-        let mut sources = Self::collect_tasks(&mut self.tasks).await?;
-        self.intermediates.extend(sources.iter().cloned());
+        let mut sources = std::mem::take(&mut self.level0_outputs);
+        Self::collect_tasks(&mut self.tasks, &mut sources, &mut self.intermediates).await?;
         sources.append(&mut self.buffered);
 
         while sources.len() > GCS_COMPOSE_MAX_SOURCES {
             sources = self.reduce_level(sources).await?;
         }
 
-        let metadata = self.compose_final(&sources).await?;
-        if let Err(err) = self.cleanup_intermediates().await {
-            log::warn!("failed to clean GCS compose intermediate objects: {err}");
-        }
-        Ok(metadata)
+        self.compose_final(&sources).await
     }
 }
 
@@ -238,14 +291,20 @@ impl oio::Compose for GcsComposer {
             let task = match self.new_intermediate_task(sources) {
                 Ok(task) => task,
                 Err(err) => {
-                    self.errored = true;
+                    self.abort().await;
                     return Err(err);
                 }
             };
             if let Err(err) = Self::execute_task(&mut self.tasks, task).await {
-                self.errored = true;
+                self.abort().await;
                 return Err(err);
             }
+            Self::drain_ready_outputs(
+                &mut self.tasks,
+                &mut self.level0_outputs,
+                &mut self.intermediates,
+            )
+            .await;
         }
         Ok(())
     }
@@ -261,7 +320,12 @@ impl oio::Compose for GcsComposer {
             return Ok(metadata);
         }
 
-        match self.close_inner().await {
+        let result = self.close_inner().await;
+        if result.is_err() {
+            self.tasks.clear();
+        }
+        self.cleanup_intermediates_best_effort().await;
+        match result {
             Ok(metadata) => {
                 self.metadata = Some(metadata.clone());
                 Ok(metadata)
@@ -699,5 +763,224 @@ mod tests {
                 .starts_with("__opendal/compose/")
         );
         assert_eq!(final_sources[1]["name"], "source-1024");
+    }
+
+    struct FailingComposeTransport {
+        fail_after_intermediates: usize,
+        fail_final_status: Option<http::StatusCode>,
+        intermediate_status: http::StatusCode,
+        generation: AtomicUsize,
+        intermediate_attempts: AtomicUsize,
+        created_intermediates: Mutex<Vec<(String, String)>>,
+        deleted_uris: Mutex<Vec<String>>,
+    }
+
+    #[derive(Clone)]
+    struct SharedFailingComposeTransport(Arc<FailingComposeTransport>);
+
+    impl HttpTransport for SharedFailingComposeTransport {
+        async fn fetch(&self, req: http::Request<Buffer>) -> Result<Response<HttpBody>> {
+            if req.method() == Method::DELETE {
+                self.0.deleted_uris.lock().await.push(req.uri().to_string());
+                return ComposeTransport::response(http::StatusCode::NO_CONTENT, Buffer::new());
+            }
+
+            if req.uri().path().contains("__opendal%2Fcompose%2F") {
+                let created = self.0.created_intermediates.lock().await.len();
+                if created >= self.0.fail_after_intermediates {
+                    self.0.intermediate_attempts.fetch_add(1, Ordering::SeqCst);
+                    return ComposeTransport::response(
+                        self.0.intermediate_status,
+                        Buffer::from(
+                            r#"{"error":{"code":503,"message":"temporarily unavailable"}}"#,
+                        ),
+                    );
+                }
+
+                let generation = self.0.generation.fetch_add(1, Ordering::SeqCst).to_string();
+                let path = req.uri().path().to_string();
+                self.0
+                    .created_intermediates
+                    .lock()
+                    .await
+                    .push((path, generation.clone()));
+                let body = Buffer::from(
+                    serde_json::to_vec(&serde_json::json!({
+                        "size": "32",
+                        "generation": generation,
+                    }))
+                    .unwrap(),
+                );
+                return ComposeTransport::response(http::StatusCode::OK, body);
+            }
+
+            if let Some(status) = self.0.fail_final_status {
+                let body = if status == http::StatusCode::PRECONDITION_FAILED {
+                    Buffer::from(
+                        r#"{"error":{"code":412,"message":"condition failed","errors":[{"reason":"conditionNotMet"}]}}"#,
+                    )
+                } else {
+                    Buffer::from(r#"{"error":{"code":503,"message":"final compose failed"}}"#)
+                };
+                return ComposeTransport::response(status, body);
+            }
+
+            let body = Buffer::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "size": "33",
+                    "generation": "99",
+                }))
+                .unwrap(),
+            );
+            ComposeTransport::response(http::StatusCode::OK, body)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_compose_bounds_persistent_temporary_errors_sequential() {
+        let transport = Arc::new(FailingComposeTransport {
+            fail_after_intermediates: 1,
+            fail_final_status: None,
+            intermediate_status: http::StatusCode::SERVICE_UNAVAILABLE,
+            generation: AtomicUsize::new(1),
+            intermediate_attempts: AtomicUsize::new(0),
+            created_intermediates: Mutex::new(Vec::new()),
+            deleted_uris: Mutex::new(Vec::new()),
+        });
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            SharedFailingComposeTransport(transport.clone()),
+        ));
+        let mut composer = GcsComposer::new(test_core(), ctx, "target", OpCompose::new());
+
+        for index in 0..64 {
+            composer
+                .compose(&format!("source-{index:02}"), OpRead::new())
+                .await
+                .expect("first 64 sources must be accepted");
+        }
+        let err = tokio::time::timeout(
+            Duration::from_secs(5),
+            composer.compose("source-64", OpRead::new()),
+        )
+        .await
+        .expect("compose must not spin forever on persistent 503")
+        .expect_err("persistent 503 must return an error");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert_eq!(
+            transport.intermediate_attempts.load(Ordering::SeqCst),
+            MAX_TEMPORARY_RETRIES + 1
+        );
+        // The first intermediate created before the failing chunk must be cleaned up.
+        let deleted = transport.deleted_uris.lock().await;
+        assert_eq!(deleted.len(), 1);
+        assert!(deleted[0].contains("ifGenerationMatch=1"));
+    }
+
+    #[tokio::test]
+    async fn test_compose_bounds_persistent_temporary_errors_concurrent() {
+        let transport = Arc::new(FailingComposeTransport {
+            fail_after_intermediates: 0,
+            fail_final_status: None,
+            intermediate_status: http::StatusCode::SERVICE_UNAVAILABLE,
+            generation: AtomicUsize::new(1),
+            intermediate_attempts: AtomicUsize::new(0),
+            created_intermediates: Mutex::new(Vec::new()),
+            deleted_uris: Mutex::new(Vec::new()),
+        });
+        let ctx = OperationContext::default()
+            .with_http_transport(HttpTransporter::new(SharedFailingComposeTransport(
+                transport.clone(),
+            )))
+            .with_executor(Executor::with(TokioTestExecutor));
+        let core = test_core();
+        let cap = core.capability;
+        let mut composer = GcsComposer::new(
+            core,
+            ctx,
+            "target",
+            OpCompose::from_options(
+                &cap,
+                options::ComposeOptions {
+                    concurrent: 2,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+
+        for index in 0..33 {
+            composer
+                .compose(&format!("source-{index:02}"), OpRead::new())
+                .await
+                .expect("sources must queue");
+        }
+        let err = tokio::time::timeout(Duration::from_secs(5), composer.close())
+            .await
+            .expect("close must not spin forever on persistent 503")
+            .expect_err("persistent 503 must fail close");
+
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert!(err.is_temporary());
+        assert!(transport.intermediate_attempts.load(Ordering::SeqCst) > MAX_TEMPORARY_RETRIES);
+    }
+
+    #[tokio::test]
+    async fn test_compose_cleans_up_intermediates_when_final_compose_fails() {
+        let transport = Arc::new(FailingComposeTransport {
+            fail_after_intermediates: usize::MAX,
+            fail_final_status: Some(http::StatusCode::PRECONDITION_FAILED),
+            intermediate_status: http::StatusCode::OK,
+            generation: AtomicUsize::new(10),
+            intermediate_attempts: AtomicUsize::new(0),
+            created_intermediates: Mutex::new(Vec::new()),
+            deleted_uris: Mutex::new(Vec::new()),
+        });
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            SharedFailingComposeTransport(transport.clone()),
+        ));
+        let core = test_core();
+        let cap = core.capability;
+        let mut composer = GcsComposer::new(
+            core,
+            ctx,
+            "target",
+            OpCompose::from_options(
+                &cap,
+                options::ComposeOptions {
+                    if_not_exists: true,
+                    ..Default::default()
+                },
+            )
+            .unwrap(),
+        );
+
+        for index in 0..65 {
+            composer
+                .compose(&format!("source-{index:02}"), OpRead::new())
+                .await
+                .expect("sources must be accepted");
+        }
+        let err = composer
+            .close()
+            .await
+            .expect_err("412 on final compose must fail");
+
+        assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+        let created = transport.created_intermediates.lock().await;
+        let deleted = transport.deleted_uris.lock().await;
+        assert_eq!(created.len(), 2);
+        assert_eq!(deleted.len(), 2);
+        assert!(
+            deleted
+                .iter()
+                .any(|uri| uri.contains("ifGenerationMatch=10"))
+        );
+        assert!(
+            deleted
+                .iter()
+                .any(|uri| uri.contains("ifGenerationMatch=11"))
+        );
     }
 }

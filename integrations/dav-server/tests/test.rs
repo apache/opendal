@@ -1204,8 +1204,6 @@ async fn test_put_and_open_on_implicit_collection_rejected() -> Result<()> {
     .await?;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    let webdavfs = OpendalFs::new(op.clone());
-
     assert!(matches!(
         op.stat("implicit").await,
         Err(err) if err.kind() == ErrorKind::NotFound

@@ -8377,6 +8377,7 @@ name = "opendal-service-ghac"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "ghac",
  "http 1.5.0",
  "log",

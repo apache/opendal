@@ -18,7 +18,6 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
-use asyncband::once::OnceCell;
 use sqlx::sqlite::SqliteConnectOptions;
 
 use super::SQLITE_SCHEME;
@@ -101,13 +100,30 @@ impl SqliteBuilder {
     }
 }
 
+fn validate_identifier(name: &str, value: &str) -> Result<()> {
+    if value.is_empty() {
+        return Err(
+            Error::new(ErrorKind::ConfigInvalid, format!("{name} is empty"))
+                .with_context("service", SQLITE_SCHEME),
+        );
+    }
+    if value.contains('\0') {
+        return Err(Error::new(
+            ErrorKind::ConfigInvalid,
+            format!("{name} must not contain NUL bytes"),
+        )
+        .with_context("service", SQLITE_SCHEME));
+    }
+    Ok(())
+}
+
 impl Builder for SqliteBuilder {
     type Config = SqliteConfig;
 
     fn build(self) -> Result<impl Service> {
         let conn = match self.config.connection_string {
-            Some(v) => v,
-            None => {
+            Some(v) if !v.trim().is_empty() => v,
+            _ => {
                 return Err(Error::new(
                     ErrorKind::ConfigInvalid,
                     "connection_string is required but not set",
@@ -129,24 +145,21 @@ impl Builder for SqliteBuilder {
                     .with_context("service", SQLITE_SCHEME));
             }
         };
+        validate_identifier("table", &table)?;
 
         let key_field = self.config.key_field.unwrap_or_else(|| "key".to_string());
+        validate_identifier("key_field", &key_field)?;
 
         let value_field = self
             .config
             .value_field
             .unwrap_or_else(|| "value".to_string());
+        validate_identifier("value_field", &value_field)?;
 
         let root = normalize_root(self.config.root.as_deref().unwrap_or("/"));
 
-        Ok(SqliteBackend::new(SqliteCore {
-            pool: OnceCell::new(),
-            config,
-            table,
-            key_field,
-            value_field,
-        })
-        .with_normalized_root(root))
+        let core = SqliteCore::new(config, &table, &key_field, &value_field);
+        Ok(SqliteBackend::new(core, &table).with_normalized_root(root))
     }
 }
 
@@ -179,8 +192,8 @@ pub struct SqliteBackend {
 }
 
 impl SqliteBackend {
-    fn new(core: SqliteCore) -> Self {
-        let info = ServiceInfo::new(SQLITE_SCHEME, "/", &core.table);
+    fn new(core: SqliteCore, table: &str) -> Self {
+        let info = ServiceInfo::new(SQLITE_SCHEME, "/", table);
         let capability = Capability {
             read: true,
             write: true,
@@ -369,26 +382,19 @@ mod test {
     use sqlx::SqlitePool;
     use sqlx::sqlite::SqlitePoolOptions;
 
-    async fn build_client() -> OnceCell<SqlitePool> {
+    async fn build_pool() -> SqlitePool {
         let config = SqliteConnectOptions::from_str("sqlite::memory:").unwrap();
-        let pool = SqlitePoolOptions::new()
+        SqlitePoolOptions::new()
             .max_connections(1)
             .connect_with(config)
             .await
-            .unwrap();
-        OnceCell::from_value(pool)
+            .unwrap()
     }
 
     async fn build_backend() -> SqliteBackend {
-        let core = SqliteCore {
-            pool: build_client().await,
-            config: Default::default(),
-            table: "test_table".to_string(),
-            key_field: "key".to_string(),
-            value_field: "value".to_string(),
-        };
+        let core = SqliteCore::with_pool(build_pool().await, "test_table", "key", "value");
 
-        SqliteBackend::new(core)
+        SqliteBackend::new(core, "test_table")
     }
 
     #[tokio::test]
@@ -915,13 +921,10 @@ mod test {
             .connect_with(options)
             .await
             .unwrap();
-        let backend = SqliteBackend::new(SqliteCore {
-            pool: OnceCell::from_value(reader_pool),
-            config: Default::default(),
-            table: "test_table".to_string(),
-            key_field: "key".to_string(),
-            value_field: "value".to_string(),
-        });
+        let backend = SqliteBackend::new(
+            SqliteCore::with_pool(reader_pool, "test_table", "key", "value"),
+            "test_table",
+        );
 
         let stop = Arc::new(AtomicBool::new(false));
         let writer_stop = stop.clone();
@@ -977,5 +980,414 @@ mod test {
 
         stop.store(true, Ordering::Relaxed);
         writer_task.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_delete_non_empty_dir_keeps_entries() {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            for root in ["/", "/sub/"] {
+                for explicit in [false, true] {
+                    let backend = build_backend().await.with_normalized_root(root.to_string());
+                    let pool = backend.core.get_client().await.unwrap();
+                    sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+                        .execute(pool)
+                        .await
+                        .unwrap();
+
+                    let op =
+                        Operator::from_parts(OperationContext::new(), Arc::new(backend.clone()));
+                    if explicit {
+                        op.create_dir("d/").await.unwrap();
+                    }
+                    op.write("d/a.txt", "a").await.unwrap();
+                    op.write("d/b.txt", "b").await.unwrap();
+                    op.write("d", "same-name-file").await.unwrap();
+                    op.write("dd/sibling.txt", "sibling").await.unwrap();
+
+                    let err = op
+                        .delete("d/")
+                        .await
+                        .expect_err("non-empty directory delete must fail");
+                    assert_eq!(err.kind(), ErrorKind::Unexpected);
+                    assert_eq!(err.message(), "directory not empty");
+
+                    assert!(op.exists("d/").await.unwrap());
+                    assert_eq!(op.read("d/a.txt").await.unwrap().to_vec(), b"a");
+                    assert_eq!(op.read("d/b.txt").await.unwrap().to_vec(), b"b");
+                    assert_eq!(op.read("d").await.unwrap().to_vec(), b"same-name-file");
+                    assert_eq!(
+                        op.read("dd/sibling.txt").await.unwrap().to_vec(),
+                        b"sibling"
+                    );
+
+                    if explicit {
+                        let expected_key = build_absolute_path(root, "d/");
+                        let marker_exists: bool = sqlx::query_scalar(
+                            "SELECT EXISTS (SELECT 1 FROM test_table WHERE key = $1)",
+                        )
+                        .bind(&expected_key)
+                        .fetch_one(pool)
+                        .await
+                        .unwrap();
+                        assert!(marker_exists, "explicit dir marker must remain intact");
+                    }
+
+                    // Deleting a plain file with the same name deletes only the file
+                    // row and keeps directory entries intact.
+                    op.delete("d").await.unwrap();
+                    assert_eq!(op.read("d").await.unwrap_err().kind(), ErrorKind::NotFound);
+                    assert_eq!(op.stat("d").await.unwrap().mode(), EntryMode::DIR);
+                    assert!(op.exists("d/a.txt").await.unwrap());
+
+                    // A nested empty subdirectory also keeps the parent non-empty.
+                    op.create_dir("d/nested/").await.unwrap();
+                    op.delete("d/a.txt").await.unwrap();
+                    op.delete("d/b.txt").await.unwrap();
+
+                    let err = op
+                        .delete("d/")
+                        .await
+                        .expect_err("directory with nested subdir must fail");
+                    assert_eq!(err.kind(), ErrorKind::Unexpected);
+                    assert_eq!(err.message(), "directory not empty");
+
+                    op.delete("d/nested/").await.unwrap();
+                    assert!(!op.exists("d/nested/").await.unwrap());
+
+                    // Now empty directory delete succeeds and keeps sibling intact.
+                    op.delete("d/").await.unwrap();
+                    assert!(!op.exists("d/").await.unwrap());
+                    assert!(op.exists("dd/sibling.txt").await.unwrap());
+
+                    // Deleting a missing directory is an idempotent no-op.
+                    op.delete("d/").await.unwrap();
+                }
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_delete_non_empty_root_keeps_entries() {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            for root in ["/", "/sub/"] {
+                let backend = build_backend().await.with_normalized_root(root.to_string());
+                let pool = backend.core.get_client().await.unwrap();
+                sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+                    .execute(pool)
+                    .await
+                    .unwrap();
+
+                if root != "/" {
+                    sqlx::query(
+                        "INSERT INTO test_table (key, value) VALUES ('other/file.txt', $1)",
+                    )
+                    .bind(b"outside".as_slice())
+                    .execute(pool)
+                    .await
+                    .unwrap();
+                }
+
+                let op = Operator::from_parts(OperationContext::new(), Arc::new(backend.clone()));
+                op.create_dir("/").await.unwrap();
+                op.write("a.txt", "hello").await.unwrap();
+
+                let err = op
+                    .delete("/")
+                    .await
+                    .expect_err("non-empty root delete must fail");
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+                assert_eq!(err.message(), "directory not empty");
+                assert_eq!(op.read("a.txt").await.unwrap().to_vec(), b"hello");
+
+                let root_key = build_absolute_path(root, "");
+                let root_marker_exists: bool =
+                    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM test_table WHERE key = $1)")
+                        .bind(&root_key)
+                        .fetch_one(pool)
+                        .await
+                        .unwrap();
+                assert!(root_marker_exists, "root marker must remain intact");
+
+                op.delete("a.txt").await.unwrap();
+                op.delete("/").await.unwrap();
+
+                let root_marker_exists: bool =
+                    sqlx::query_scalar("SELECT EXISTS (SELECT 1 FROM test_table WHERE key = $1)")
+                        .bind(&root_key)
+                        .fetch_one(pool)
+                        .await
+                        .unwrap();
+                assert!(!root_marker_exists, "empty root marker should be deleted");
+
+                if root != "/" {
+                    let outside_exists: bool = sqlx::query_scalar(
+                        "SELECT EXISTS (SELECT 1 FROM test_table WHERE key = 'other/file.txt')",
+                    )
+                    .fetch_one(pool)
+                    .await
+                    .unwrap();
+                    assert!(outside_exists, "keys outside root must remain intact");
+                }
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_writer_close_returns_dir_mode_for_root_and_dir_paths() {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            for root in ["/", "/sub/"] {
+                let backend = build_backend().await.with_normalized_root(root.to_string());
+                let pool = backend.core.get_client().await.unwrap();
+                sqlx::query("CREATE TABLE test_table (key TEXT PRIMARY KEY, value BLOB)")
+                    .execute(pool)
+                    .await
+                    .unwrap();
+
+                let ctx = OperationContext::new();
+                for dir_path in ["", "/", "nested/"] {
+                    let mut writer = backend.write(&ctx, dir_path, OpWrite::default()).unwrap();
+                    let meta = writer.close().await.unwrap();
+                    assert_eq!(
+                        meta.mode(),
+                        EntryMode::DIR,
+                        "writer close mode for path {dir_path:?} under root {root}"
+                    );
+                    let stat_meta = backend
+                        .stat(&ctx, dir_path, OpStat::default())
+                        .await
+                        .unwrap()
+                        .into_metadata();
+                    assert_eq!(
+                        stat_meta.mode(),
+                        EntryMode::DIR,
+                        "stat mode for path {dir_path:?} under root {root}"
+                    );
+                }
+
+                let mut file_writer = backend.write(&ctx, "file.txt", OpWrite::default()).unwrap();
+                file_writer.write(Buffer::from("hello")).await.unwrap();
+                let file_meta = file_writer.close().await.unwrap();
+                assert_eq!(file_meta.mode(), EntryMode::FILE);
+                assert_eq!(file_meta.content_length(), 5);
+            }
+        })
+        .await
+        .expect("test timed out");
+    }
+
+    #[test]
+    fn test_sqlite_build_rejects_invalid_config() {
+        let valid_config = || SqliteConfig {
+            connection_string: Some("sqlite::memory:".to_string()),
+            table: Some("data".to_string()),
+            ..Default::default()
+        };
+
+        for config in [
+            SqliteConfig {
+                connection_string: None,
+                ..valid_config()
+            },
+            SqliteConfig {
+                connection_string: Some(String::new()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                connection_string: Some("   \t\n ".to_string()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                table: None,
+                ..valid_config()
+            },
+            SqliteConfig {
+                table: Some(String::new()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                key_field: Some(String::new()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                value_field: Some(String::new()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                table: Some("data\0bad".to_string()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                key_field: Some("key\0bad".to_string()),
+                ..valid_config()
+            },
+            SqliteConfig {
+                value_field: Some("val\0bad".to_string()),
+                ..valid_config()
+            },
+        ] {
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        for pairs in [
+            vec![("connection_string", ""), ("table", "data")],
+            vec![("connection_string", "   "), ("table", "data")],
+            vec![("connection_string", "sqlite::memory:"), ("table", "")],
+            vec![
+                ("connection_string", "sqlite::memory:"),
+                ("table", "data\0bad"),
+            ],
+            vec![
+                ("connection_string", "sqlite::memory:"),
+                ("table", "data"),
+                ("key_field", "key\0bad"),
+            ],
+            vec![
+                ("connection_string", "sqlite::memory:"),
+                ("table", "data"),
+                ("value_field", "val\0bad"),
+            ],
+        ] {
+            let config = SqliteConfig::from_iter(
+                pairs
+                    .into_iter()
+                    .map(|(k, v)| (k.to_string(), v.to_string())),
+            )
+            .unwrap();
+            let err = config.into_builder().build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        // Empty optional fields in ConfigDeserializer deserialize as None and
+        // fall back to their default column names.
+        let config = SqliteConfig::from_iter([
+            (
+                "connection_string".to_string(),
+                "sqlite::memory:".to_string(),
+            ),
+            ("table".to_string(), "data".to_string()),
+            ("key_field".to_string(), String::new()),
+            ("value_field".to_string(), String::new()),
+        ])
+        .unwrap();
+        assert!(config.into_builder().build().is_ok());
+
+        for builder in [
+            SqliteBuilder::default().connection_string("").table("data"),
+            SqliteBuilder::default()
+                .connection_string("   ")
+                .table("data"),
+            SqliteBuilder::default()
+                .connection_string("sqlite::memory:")
+                .table(""),
+            SqliteBuilder::default()
+                .connection_string("sqlite::memory:")
+                .table("data\0bad"),
+            SqliteBuilder::default()
+                .connection_string("sqlite::memory:")
+                .table("data")
+                .key_field("key\0bad"),
+            SqliteBuilder::default()
+                .connection_string("sqlite::memory:")
+                .table("data")
+                .value_field("val\0bad"),
+        ] {
+            let err = builder.build().unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        let service = SqliteConfig {
+            table: Some("my\"table".to_string()),
+            ..valid_config()
+        }
+        .into_builder()
+        .build()
+        .unwrap();
+        assert_eq!(service.info().name().as_ref(), "my\"table");
+    }
+
+    #[tokio::test]
+    async fn test_sqlite_crud_with_double_quoted_identifiers() {
+        tokio::time::timeout(std::time::Duration::from_secs(30), async {
+            let table = "my\"table";
+            let key_field = "my\"key";
+            let value_field = "my\"value";
+
+            let pool = build_pool().await;
+            sqlx::query(
+                r#"CREATE TABLE "my""table" ("my""key" TEXT PRIMARY KEY, "my""value" BLOB)"#,
+            )
+            .execute(&pool)
+            .await
+            .unwrap();
+
+            let backend = SqliteBackend::new(
+                SqliteCore::with_pool(pool, table, key_field, value_field),
+                table,
+            );
+            assert_eq!(backend.info().name().as_ref(), table);
+
+            let ctx = OperationContext::new();
+            let op = Operator::from_parts(ctx.clone(), Arc::new(backend.clone()));
+
+            op.create_dir("dir/").await.unwrap();
+            assert_eq!(op.stat("dir/").await.unwrap().mode(), EntryMode::DIR);
+
+            op.write("dir/hello.txt", "hello world").await.unwrap();
+            let meta = op.stat("dir/hello.txt").await.unwrap();
+            assert_eq!(meta.mode(), EntryMode::FILE);
+            assert_eq!(meta.content_length(), 11);
+            assert_eq!(
+                op.read("dir/hello.txt").await.unwrap().to_vec(),
+                b"hello world"
+            );
+
+            // Exercise get_range (bounded and unbounded) and get_suffix with quoted identifiers.
+            let reader = backend
+                .read(&ctx, "dir/hello.txt", OpRead::default())
+                .unwrap();
+            let (_, mut stream) = reader.open(BytesRange::from(0_u64..5)).await.unwrap();
+            assert_eq!(stream.read_all().await.unwrap().to_vec(), b"hello");
+            let (_, mut stream) = reader.open(BytesRange::from(6_u64..)).await.unwrap();
+            assert_eq!(stream.read_all().await.unwrap().to_vec(), b"world");
+            let (_, mut stream) = reader.open(BytesRange::suffix(5)).await.unwrap();
+            assert_eq!(stream.read_all().await.unwrap().to_vec(), b"world");
+
+            // Exercise count_under via implicit directory stat.
+            op.write("implicit/child.txt", "x").await.unwrap();
+            assert_eq!(op.stat("implicit/").await.unwrap().mode(), EntryMode::DIR);
+
+            // Exercise rename (unconditional and if_not_exists).
+            op.rename("dir/hello.txt", "dir/renamed.txt").await.unwrap();
+            assert!(!op.exists("dir/hello.txt").await.unwrap());
+            assert_eq!(
+                op.read("dir/renamed.txt").await.unwrap().to_vec(),
+                b"hello world"
+            );
+
+            op.write("dir/other.txt", "other").await.unwrap();
+            let err = op
+                .rename_with("dir/other.txt", "dir/renamed.txt")
+                .if_not_exists(true)
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+            // Exercise directory non-empty delete check and successful deletes.
+            let err = op.delete("dir/").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            assert_eq!(err.message(), "directory not empty");
+
+            op.delete("dir/renamed.txt").await.unwrap();
+            op.delete("dir/other.txt").await.unwrap();
+            op.delete("dir/").await.unwrap();
+            assert!(!op.exists("dir/").await.unwrap());
+        })
+        .await
+        .expect("test timed out");
     }
 }

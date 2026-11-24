@@ -15,6 +15,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
+use std::fmt::Debug;
+
 use http::Request;
 use http::Response;
 use http::header;
@@ -26,7 +28,7 @@ use serde_json::json;
 
 use crate::model::CfKvMetadata;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct CloudflareKvCore {
     pub api_token: String,
     pub account_id: String,
@@ -34,6 +36,18 @@ pub struct CloudflareKvCore {
     pub expiration_ttl: Option<Duration>,
     pub info: ServiceInfo,
     pub capability: Capability,
+}
+
+impl Debug for CloudflareKvCore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CloudflareKvCore")
+            .field("account_id", &self.account_id)
+            .field("namespace_id", &self.namespace_id)
+            .field("expiration_ttl", &self.expiration_ttl)
+            .field("info", &self.info)
+            .field("capability", &self.capability)
+            .finish_non_exhaustive()
+    }
 }
 
 impl CloudflareKvCore {
@@ -156,7 +170,7 @@ impl CloudflareKvCore {
         if let Some(cursor) = cursor
             && !cursor.is_empty()
         {
-            url = url.push("cursor", &cursor);
+            url = url.push("cursor", &percent_encode_path(&cursor));
         }
         url = url.push("limit", &limit.unwrap_or(1000).to_string());
         url = url.push("prefix", &percent_encode_path(prefix));
@@ -200,8 +214,8 @@ pub(crate) fn parse_error(ctx: ErrorContext, resp: Response<Buffer>) -> Error {
 
     let (mut kind, mut retryable) = match parts.status {
         StatusCode::NOT_FOUND => (ErrorKind::NotFound, false),
-        // Some services (like owncloud) return 403 while file locked.
-        StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, true),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => (ErrorKind::PermissionDenied, false),
+        StatusCode::TOO_MANY_REQUESTS => (ErrorKind::RateLimited, true),
         // Allowing retry for resource locked.
         StatusCode::LOCKED => (ErrorKind::Unexpected, true),
         StatusCode::INTERNAL_SERVER_ERROR
@@ -244,5 +258,106 @@ pub(crate) fn parse_cfkv_error_code(errors: Vec<CfKvError>) -> Option<(ErrorKind
         // Authentication error.
         10000 => Some((ErrorKind::PermissionDenied, false)),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use futures::stream;
+
+    use super::*;
+
+    struct CaptureTransport {
+        uri: Arc<Mutex<Option<String>>>,
+    }
+
+    impl HttpTransport for CaptureTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            *self.uri.lock().unwrap() = Some(req.uri().to_string());
+            let body = Buffer::from(r#"{"success":true,"result":[],"result_info":{"cursor":""}}"#);
+            let len = body.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(body)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    fn test_core(api_token: &str) -> CloudflareKvCore {
+        CloudflareKvCore {
+            api_token: api_token.to_string(),
+            account_id: "acc123".to_string(),
+            namespace_id: "ns456".to_string(),
+            expiration_ttl: None,
+            info: ServiceInfo::new(crate::CLOUDFLARE_KV_SCHEME, "/", ""),
+            capability: Capability::default(),
+        }
+    }
+
+    #[test]
+    fn core_debug_redacts_api_token() {
+        let sentinel = "cfkv-sentinel-secret-token";
+        let core = test_core(&format!("Bearer {sentinel}"));
+        let debug = format!("{core:?}");
+        assert!(!debug.contains(sentinel));
+        assert!(debug.contains("acc123"));
+        assert!(debug.contains("ns456"));
+    }
+
+    #[tokio::test]
+    async fn list_percent_encodes_cursor() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let captured_uri = Arc::new(Mutex::new(None));
+            let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+                CaptureTransport {
+                    uri: captured_uri.clone(),
+                },
+            ));
+            let core = test_core("Bearer token");
+
+            let resp = core
+                .list(&ctx, "dir", Some(10), Some("a+b=c&d=e".to_string()))
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::OK);
+
+            let uri = captured_uri.lock().unwrap().clone().unwrap();
+            assert!(
+                uri.contains("cursor=a%2Bb%3Dc%26d%3De"),
+                "unexpected uri: {uri}"
+            );
+        })
+        .await
+        .unwrap();
+    }
+
+    #[test]
+    fn parse_error_maps_401_403_and_429() {
+        let resp_401 = Response::builder()
+            .status(StatusCode::UNAUTHORIZED)
+            .body(Buffer::from("unauthorized"))
+            .unwrap();
+        let err_401 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_401);
+        assert_eq!(err_401.kind(), ErrorKind::PermissionDenied);
+        assert!(!err_401.is_temporary());
+
+        let resp_403 = Response::builder()
+            .status(StatusCode::FORBIDDEN)
+            .body(Buffer::from("forbidden"))
+            .unwrap();
+        let err_403 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_403);
+        assert_eq!(err_403.kind(), ErrorKind::PermissionDenied);
+        assert!(!err_403.is_temporary());
+
+        let resp_429 = Response::builder()
+            .status(StatusCode::TOO_MANY_REQUESTS)
+            .body(Buffer::from("rate limited"))
+            .unwrap();
+        let err_429 = parse_error(ErrorContext::new(ServiceOperation("GetValue")), resp_429);
+        assert_eq!(err_429.kind(), ErrorKind::RateLimited);
+        assert!(err_429.is_temporary());
     }
 }

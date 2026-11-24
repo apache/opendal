@@ -60,13 +60,26 @@ impl oio::PositionRead for CompfsReader {
         let file = self
             .core
             .exec(move || async move {
-                let file = compio::fs::OpenOptions::new()
-                    .read(true)
-                    .open(&path)
-                    .await?;
-                Ok(file)
+                let file = match compio::fs::OpenOptions::new().read(true).open(&path).await {
+                    Ok(file) => file,
+                    #[cfg(windows)]
+                    Err(err)
+                        if err.kind() == std::io::ErrorKind::PermissionDenied
+                            && compio::fs::metadata(&path)
+                                .await
+                                .is_ok_and(|meta| meta.is_dir()) =>
+                    {
+                        return Ok(None);
+                    }
+                    Err(err) => return Err(err),
+                };
+                if file.metadata().await?.is_dir() {
+                    return Ok(None);
+                }
+                Ok(Some(file))
             })
-            .await?;
+            .await?
+            .ok_or_else(|| Error::new(ErrorKind::IsADirectory, "read path is a directory"))?;
 
         Ok(CompfsReaderHandle::new(self.core.clone(), file))
     }
@@ -216,10 +229,76 @@ impl oio::List for CompfsLazyLister {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use opendal_core::ErrorKind;
     use opendal_core::Operator;
+    use opendal_core::raw::oio::PositionRead;
+    use opendal_core::raw::oio::Read;
 
+    use super::*;
     use crate::Compfs;
+
+    #[tokio::test]
+    async fn test_read_directory_returns_is_a_directory() {
+        tokio::time::timeout(Duration::from_secs(30), async {
+            let temp_dir = tempfile::tempdir().unwrap();
+            let root = temp_dir.path();
+            std::fs::create_dir(root.join("dir")).unwrap();
+            #[cfg(unix)]
+            std::os::unix::fs::symlink("dir", root.join("dir_link")).unwrap();
+
+            let service = Compfs::default()
+                .root(root.to_str().unwrap())
+                .build()
+                .unwrap();
+            let raw_reader = service
+                .read(&OperationContext::new(), "dir", OpRead::default())
+                .unwrap();
+            let err = raw_reader
+                .read(BytesRange::new(0, Some(1)))
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let direct_core = Arc::new(CompfsCore {
+                info: ServiceInfo::new(crate::COMPFS_SCHEME, root.to_str().unwrap(), ""),
+                capability: Capability::default(),
+                root: root.to_path_buf(),
+                dispatcher: compio::dispatcher::Dispatcher::new().unwrap(),
+                buf_pool: oio::PooledBuf::new(1),
+            });
+            let direct_reader = CompfsReader::new(direct_core, root.join("dir"));
+            let err = direct_reader.open().await.err().unwrap();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let op = Operator::new(Compfs::default().root(root.to_str().unwrap())).unwrap();
+
+            let err = op.read("dir").await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let err = op.read_with("dir").range(0..1).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            let reader = op.reader("dir").await.unwrap();
+            let err = reader.read(..).await.unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+            assert!(!err.is_temporary(), "{err:?}");
+
+            #[cfg(unix)]
+            {
+                let err = op.read("dir_link").await.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+                assert!(!err.is_temporary(), "{err:?}");
+            }
+        })
+        .await
+        .unwrap();
+    }
 
     #[tokio::test]
     async fn test_abort_unused_writer_preserves_existing_file() {

@@ -167,6 +167,9 @@ type statOptions struct {
 func parseStatOptions(opts ...WithStatFn) *statOptions {
 	o := &statOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o

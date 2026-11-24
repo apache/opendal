@@ -318,18 +318,21 @@ impl OpList {
     /// exceed the compact encoding limit, and [`ErrorKind::Unsupported`] when
     /// `capability` does not support an enabled list option.
     pub fn from_options(capability: &Capability, value: options::ListOptions) -> Result<Self> {
-        if let Some(glob) = &value.glob {
-            // CompactValues stores a u16 bitmap and one u16 offset per field.
-            let mut encoded_len = 2 * size_of::<u16>() + glob.len();
-            if let Some(start_after) = &value.start_after {
-                encoded_len += size_of::<u16>() + start_after.len();
-            }
-            if encoded_len > u16::MAX as usize {
-                return Err(Error::new(
-                    ErrorKind::ConfigInvalid,
-                    "glob and start_after exceed the maximum size of list options",
-                ));
-            }
+        // CompactValues stores a u16 bitmap and one u16 offset per present field.
+        let mut encoded_len = size_of::<u16>();
+        for field in [value.start_after.as_deref(), value.glob.as_deref()]
+            .into_iter()
+            .flatten()
+        {
+            encoded_len = encoded_len
+                .saturating_add(size_of::<u16>())
+                .saturating_add(field.len());
+        }
+        if encoded_len > u16::MAX as usize {
+            return Err(Error::new(
+                ErrorKind::ConfigInvalid,
+                "glob and start_after exceed the maximum size of list options",
+            ));
         }
         let args = Self::from(value);
         args.check(capability)?;
@@ -2661,5 +2664,64 @@ mod tests {
         assert_eq!(restore.version(), Some("version"));
         assert!(restore.if_not_exists());
         assert!(restore.is_conditional());
+    }
+
+    #[test]
+    fn test_op_list_from_options_compact_size_bounds() {
+        let cap = Capability {
+            list_with_start_after: true,
+            list_with_glob: true,
+            ..Default::default()
+        };
+
+        // Single field header is u16 bitmap + u16 offset = 4 bytes.
+        let max_single_len = u16::MAX as usize - 2 * size_of::<u16>();
+        let exact_start_after = "a".repeat(max_single_len);
+        let op = OpList::from_options(
+            &cap,
+            options::ListOptions {
+                start_after: Some(exact_start_after.clone()),
+                ..Default::default()
+            },
+        )
+        .expect("start_after at exact 64 KiB boundary must succeed");
+        assert_eq!(op.start_after(), Some(exact_start_after.as_str()));
+
+        let err = OpList::from_options(
+            &cap,
+            options::ListOptions {
+                start_after: Some("a".repeat(max_single_len + 1)),
+                ..Default::default()
+            },
+        )
+        .expect_err("oversized start_after without glob must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+        // Two-field header is u16 bitmap + 2 * u16 offsets = 6 bytes.
+        let max_pair_len = u16::MAX as usize - 3 * size_of::<u16>();
+        let start_after = "s".repeat(40_000);
+        let glob = "g".repeat(max_pair_len - start_after.len());
+        let op = OpList::from_options(
+            &cap,
+            options::ListOptions {
+                start_after: Some(start_after.clone()),
+                glob: Some(glob.clone()),
+                ..Default::default()
+            },
+        )
+        .expect("combined start_after and glob at exact 64 KiB boundary must succeed");
+        assert_eq!(op.start_after(), Some(start_after.as_str()));
+        assert_eq!(op.glob(), Some(glob.as_str()));
+
+        let err = OpList::from_options(
+            &cap,
+            options::ListOptions {
+                start_after: Some(start_after),
+                glob: Some("g".repeat(max_pair_len - 40_000 + 1)),
+                ..Default::default()
+            },
+        )
+        .expect_err("oversized combined start_after and glob must return ConfigInvalid");
+        assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
     }
 }

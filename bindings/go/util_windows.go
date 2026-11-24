@@ -20,12 +20,17 @@
 package opendal
 
 import (
+	"unicode/utf8"
+
 	"golang.org/x/sys/windows"
 )
 
 func BytePtrFromString(s string) (*byte, error) {
 	if s == "" {
 		return new(byte), nil
+	}
+	if !utf8.ValidString(s) {
+		return nil, errInvalidUTF8
 	}
 	return windows.BytePtrFromString(s)
 }

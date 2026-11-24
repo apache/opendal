@@ -29,6 +29,13 @@ use super::lister::MiniMokaLister;
 use super::reader::*;
 use super::writer::MiniMokaWriter;
 
+/// Maximum TTL/TTI accepted by `mini_moka::sync::CacheBuilder::build` (1000 years).
+const MAX_CACHE_DURATION: Duration = Duration::from_secs(1_000 * 365 * 24 * 3600);
+
+fn entry_weight(key_len: usize, content_len: usize) -> u32 {
+    u32::try_from(key_len.saturating_add(content_len)).unwrap_or(u32::MAX)
+}
+
 /// [mini-moka](https://github.com/moka-rs/mini-moka) backend support.
 #[doc = include_str!("docs.md")]
 #[derive(Debug, Default)]
@@ -96,9 +103,9 @@ impl Builder for MiniMokaBuilder {
             mini_moka::sync::Cache::builder();
 
         // Use entries' bytes as capacity weigher.
-        builder = builder.weigher(|k, v| (k.len() + v.content.len()) as u32);
+        builder = builder.weigher(|k, v| entry_weight(k.len(), v.content.len()));
 
-        if let Some(v) = self.config.max_capacity {
+        if let Some(v) = self.config.max_capacity.filter(|&v| v != 0) {
             builder = builder.max_capacity(v);
         }
         let time_to_live = match self.time_to_live {
@@ -108,8 +115,16 @@ impl Builder for MiniMokaBuilder {
                 .time_to_live
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        };
+        }
+        .filter(|duration| !duration.is_zero());
         if let Some(duration) = time_to_live {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_live must not exceed 1000 years",
+                )
+                .with_context("service", MINI_MOKA_SCHEME));
+            }
             builder = builder.time_to_live(duration);
         }
         let time_to_idle = match self.time_to_idle {
@@ -119,8 +134,16 @@ impl Builder for MiniMokaBuilder {
                 .time_to_idle
                 .map(signed_duration_to_duration)
                 .transpose()?,
-        };
+        }
+        .filter(|duration| !duration.is_zero());
         if let Some(duration) = time_to_idle {
+            if duration > MAX_CACHE_DURATION {
+                return Err(Error::new(
+                    ErrorKind::ConfigInvalid,
+                    "time_to_idle must not exceed 1000 years",
+                )
+                .with_context("service", MINI_MOKA_SCHEME));
+            }
             builder = builder.time_to_idle(duration);
         }
 
@@ -321,6 +344,74 @@ mod tests {
             );
         }
         Ok(())
+    }
+
+    #[test]
+    fn test_expiration_duration_upper_bound() -> Result<()> {
+        // Exact 1000-year boundary succeeds without panicking.
+        let _ = MiniMokaBuilder::default()
+            .time_to_live(MAX_CACHE_DURATION)
+            .time_to_idle(MAX_CACHE_DURATION)
+            .build()?;
+
+        let over_limit = MAX_CACHE_DURATION + Duration::from_nanos(1);
+        for duration in [over_limit, Duration::MAX] {
+            let err = MiniMokaBuilder::default()
+                .time_to_live(duration)
+                .build()
+                .expect_err("time_to_live > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+
+            let err = MiniMokaBuilder::default()
+                .time_to_idle(duration)
+                .build()
+                .expect_err("time_to_idle > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        let over_secs = format!("{}s", MAX_CACHE_DURATION.as_secs() + 1);
+        for key in ["time_to_live", "time_to_idle"] {
+            let err = MiniMokaConfig::from_iter([(key.to_string(), over_secs.clone())])?
+                .into_builder()
+                .build()
+                .expect_err("config duration > 1000 years must fail");
+            assert_eq!(err.kind(), ErrorKind::ConfigInvalid);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_entry_weight_saturates_to_u32_max() {
+        assert_eq!(entry_weight(3, 5), 8);
+        assert_eq!(entry_weight(u32::MAX as usize, 0), u32::MAX);
+        assert_eq!(entry_weight(u32::MAX as usize, 1), u32::MAX);
+        assert_eq!(entry_weight(usize::MAX, usize::MAX), u32::MAX);
+    }
+
+    #[tokio::test]
+    async fn test_config_zero_values_match_builder() -> Result<()> {
+        tokio::time::timeout(Duration::from_secs(10), async {
+            let service = MiniMokaConfig::from_iter([
+                ("max_capacity".to_string(), "0".to_string()),
+                ("time_to_live".to_string(), "0s".to_string()),
+                ("time_to_idle".to_string(), "0s".to_string()),
+            ])?
+            .into_builder()
+            .build()?;
+
+            let ctx = OperationContext::default();
+            write_file(&service, &ctx, "a/file.txt").await?;
+            let meta = service
+                .stat(&ctx, "a/file.txt", OpStat::default())
+                .await?
+                .into_metadata();
+            assert_eq!(meta.mode(), EntryMode::FILE);
+            assert_eq!(meta.content_length(), 1);
+            Ok::<_, Error>(())
+        })
+        .await
+        .expect("test timed out")
     }
 }
 

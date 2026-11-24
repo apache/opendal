@@ -36,6 +36,8 @@ mod deleter;
 #[allow(dead_code, missing_docs, clippy::all)]
 mod generated;
 mod lister;
+#[cfg(test)]
+mod mock_tests;
 mod reader;
 mod writer;
 

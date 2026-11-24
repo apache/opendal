@@ -8086,6 +8086,7 @@ dependencies = [
  "asyncband",
  "base64 0.23.1",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8132,6 +8133,7 @@ version = "0.59.5"
 dependencies = [
  "asyncband",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8156,10 +8158,12 @@ name = "opendal-service-cloudflare-kv"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -8197,6 +8201,7 @@ name = "opendal-service-d1"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "opendal-core",
  "serde",
@@ -8221,6 +8226,7 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8267,6 +8273,7 @@ dependencies = [
 name = "opendal-service-foyer"
 version = "0.59.5"
 dependencies = [
+ "asyncband",
  "foyer",
  "log",
  "opendal",
@@ -8373,6 +8380,7 @@ name = "opendal-service-ghac"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "ghac",
  "http 1.5.0",
  "log",
@@ -8526,6 +8534,7 @@ name = "opendal-service-ipfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8539,6 +8548,7 @@ name = "opendal-service-ipmfs"
 version = "0.59.5"
 dependencies = [
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",
@@ -8882,6 +8892,7 @@ version = "0.59.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
+ "futures",
  "hmac 0.13.0",
  "http 1.5.0",
  "log",
@@ -8990,6 +9001,7 @@ dependencies = [
  "anyhow",
  "asyncband",
  "bytes",
+ "futures",
  "http 1.5.0",
  "log",
  "opendal-core",

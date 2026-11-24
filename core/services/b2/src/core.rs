@@ -38,7 +38,7 @@ pub(super) mod constants {
     pub const X_BZ_FILE_NAME: &str = "X-Bz-File-Name";
     pub const X_BZ_CONTENT_SHA1: &str = "X-Bz-Content-Sha1";
     pub const X_BZ_PART_NUMBER: &str = "X-Bz-Part-Number";
-    pub const X_BZ_INFO_PREFIX: &str = "X-Bz-Info-";
+    pub const X_BZ_INFO_PREFIX: &str = "x-bz-info-";
 }
 
 /// Core of [b2](https://www.backblaze.com/cloud-storage) services support.
@@ -504,8 +504,9 @@ impl B2Core {
         path: &str,
         delimiter: Option<&str>,
     ) -> Result<File> {
+        let abs_path = build_absolute_path(&self.root, path);
         let resp = self
-            .list_file_names_raw(ctx, Some(path), delimiter, None, None, Operation::Stat)
+            .list_file_names_raw(ctx, Some(path), delimiter, Some(1), None, Operation::Stat)
             .await?;
 
         let status = resp.status();
@@ -518,7 +519,34 @@ impl B2Core {
                 if resp.files.is_empty() {
                     return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
                 }
-                Ok(resp.files.swap_remove(0))
+
+                let file = resp.files.swap_remove(0);
+                if path.ends_with('/') {
+                    if file.file_name == abs_path {
+                        return Ok(file);
+                    }
+                    if file.file_name.starts_with(&abs_path) {
+                        return Ok(File {
+                            file_id: None,
+                            content_length: 0,
+                            content_md5: None,
+                            content_type: None,
+                            file_name: if abs_path.is_empty() {
+                                "/".to_string()
+                            } else {
+                                abs_path
+                            },
+                            file_info: HashMap::new(),
+                        });
+                    }
+                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
+                }
+
+                if file.file_name != abs_path {
+                    return Err(Error::new(ErrorKind::NotFound, "no such file or directory"));
+                }
+
+                Ok(file)
             }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("ListFileNames")),
@@ -945,7 +973,7 @@ pub(crate) fn parse_b2_error_code(code: &str) -> Option<(ErrorKind, bool)> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use http::StatusCode;
 
     use super::*;
@@ -1047,5 +1075,161 @@ mod tests {
 
             assert_eq!(err.kind(), res.1);
         }
+    }
+
+    pub(crate) fn test_core(root: &str) -> Arc<B2Core> {
+        let root = normalize_root(root);
+        let bucket = "test-bucket".to_string();
+        Arc::new(B2Core {
+            info: ServiceInfo::new(crate::B2_SCHEME, &root, &bucket),
+            capability: Capability::default(),
+            signer: Arc::new(RwLock::new(B2Signer {
+                application_key_id: "key-id".to_string(),
+                application_key: "key-secret".to_string(),
+                auth_info: AuthInfo {
+                    authorization_token: "test-token".to_string(),
+                    api_url: "https://api001.backblazeb2.com".to_string(),
+                    download_url: "https://f001.backblazeb2.com".to_string(),
+                    expires_in: Timestamp::now() + Duration::from_secs(3600),
+                },
+            })),
+            root,
+            bucket,
+            bucket_id: "bucket-id-1".to_string(),
+        })
+    }
+
+    struct ListResponseTransport {
+        body: String,
+        requests: Arc<std::sync::Mutex<Vec<String>>>,
+    }
+
+    impl HttpTransport for ListResponseTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests.lock().unwrap().push(req.uri().to_string());
+            let buf = Buffer::from(self.body.clone());
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(futures::stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info_exact_match_and_max_file_count() {
+        let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let transport = ListResponseTransport {
+            body: r#"{
+                "files": [{
+                    "fileId": "4_z123",
+                    "fileName": "sub/foo",
+                    "contentLength": 42,
+                    "contentType": "text/plain",
+                    "contentMd5": "abc123",
+                    "fileInfo": {"author": "Alice%20Smith"}
+                }],
+                "nextFileName": null
+            }"#
+            .to_string(),
+            requests: requests.clone(),
+        };
+        let core = test_core("/sub/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+        let file = core.get_file_info(&ctx, "foo", None).await.unwrap();
+        assert_eq!(file.file_name, "sub/foo");
+        assert_eq!(file.file_id.as_deref(), Some("4_z123"));
+        assert_eq!(file.content_length, 42);
+
+        let recorded = requests.lock().unwrap();
+        assert_eq!(recorded.len(), 1);
+        assert!(recorded[0].contains("prefix=sub/foo"));
+        assert!(recorded[0].contains("maxFileCount=1"));
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info_rejects_prefix_mismatch_for_file() {
+        for returned_name in ["foobar", "foo/bar.txt"] {
+            let requests = Arc::new(std::sync::Mutex::new(Vec::new()));
+            let transport = ListResponseTransport {
+                body: format!(
+                    r#"{{"files":[{{"fileId":"4_z999","fileName":"{returned_name}","contentLength":10}}],"nextFileName":null}}"#
+                ),
+                requests,
+            };
+            let core = test_core("/");
+            let ctx =
+                OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+            let err = core.get_file_info(&ctx, "foo", None).await.unwrap_err();
+            assert_eq!(
+                err.kind(),
+                ErrorKind::NotFound,
+                "returned {returned_name} must not match stat(\"foo\")"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_get_file_info_handles_virtual_and_explicit_dir() {
+        // Virtual directory: only a child file exists under dir/.
+        let transport = ListResponseTransport {
+            body: r#"{
+                "files": [{
+                    "fileId": "4_zchild",
+                    "fileName": "sub/dir/a.txt",
+                    "contentLength": 99
+                }],
+                "nextFileName": null
+            }"#
+            .to_string(),
+            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
+        };
+        let core = test_core("/sub/");
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+
+        let file = core.get_file_info(&ctx, "dir/", Some("/")).await.unwrap();
+        assert_eq!(file.file_name, "sub/dir/");
+        assert_eq!(file.file_id, None);
+        assert_eq!(parse_file_info(&file).mode(), EntryMode::DIR);
+
+        // Explicit directory marker object "sub/dir/".
+        let transport = ListResponseTransport {
+            body: r#"{
+                "files": [{
+                    "fileId": "4_zdir",
+                    "fileName": "sub/dir/",
+                    "contentLength": 0
+                }],
+                "nextFileName": null
+            }"#
+            .to_string(),
+            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
+        };
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let file = core.get_file_info(&ctx, "dir/", Some("/")).await.unwrap();
+        assert_eq!(file.file_name, "sub/dir/");
+        assert_eq!(parse_file_info(&file).mode(), EntryMode::DIR);
+
+        // Unrelated prefix returned for dir/ must return NotFound.
+        let transport = ListResponseTransport {
+            body: r#"{
+                "files": [{
+                    "fileId": "4_zother",
+                    "fileName": "sub/dir2/a.txt",
+                    "contentLength": 10
+                }],
+                "nextFileName": null
+            }"#
+            .to_string(),
+            requests: Arc::new(std::sync::Mutex::new(Vec::new())),
+        };
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let err = core
+            .get_file_info(&ctx, "dir/", Some("/"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }

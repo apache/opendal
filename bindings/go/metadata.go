@@ -79,7 +79,7 @@ func newMetadata(ctx context.Context, inner *opendalMetadata) *Metadata {
 	var lastModified time.Time
 	ms := ffiMetaLastModified.symbol(ctx)(inner)
 	if ms != -1 {
-		lastModified = time.UnixMilli(ms)
+		lastModified = time.UnixMilli(ms).UTC()
 	}
 
 	isCurrent := boolPtrFromOptionalByte(ffiMetaIsCurrent.symbol(ctx)(inner))

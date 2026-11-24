@@ -24,6 +24,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"unicode/utf8"
 )
 
 // ErrWriterClosed reports that a Writer is used after Close released it.
@@ -187,6 +188,9 @@ type writeOptions struct {
 func parseWriteOptions(opts ...WithWriteFn) *writeOptions {
 	o := &writeOptions{}
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
 		opt(o)
 	}
 	return o
@@ -539,6 +543,9 @@ var ffiWriteOptionsSetAppend = newDirectFFI[func(opts *opendalWriteOptions, appe
 func byteSliceFromString(value string) ([]byte, error) {
 	if strings.IndexByte(value, 0) >= 0 {
 		return nil, errors.New("string contains nul")
+	}
+	if !utf8.ValidString(value) {
+		return nil, errInvalidUTF8
 	}
 	return append([]byte(value), 0), nil
 }

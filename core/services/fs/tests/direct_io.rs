@@ -243,4 +243,30 @@ mod linux {
         assert_eq!(fs::read(path).unwrap(), b"original");
         assert_eq!(fs::read_dir(staging).unwrap().count(), 0);
     }
+
+    #[tokio::test]
+    async fn direct_io_read_directory_returns_is_a_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir(dir.path().join("dir")).unwrap();
+
+        let op = Operator::new(
+            Fs::default()
+                .root(dir.path().to_str().unwrap())
+                .direct_io(true),
+        )
+        .unwrap();
+
+        let err = op.read("dir").await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let err = op.read_with("dir").range(0..1).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+
+        let reader = op.reader("dir").await.unwrap();
+        let err = reader.read(..).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory, "{err:?}");
+        assert!(!err.is_temporary(), "{err:?}");
+    }
 }

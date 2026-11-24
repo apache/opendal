@@ -487,7 +487,21 @@ impl SwiftCore {
         let mut req = Request::put(&url);
         req = req.header("X-Auth-Token", &self.token);
         req = req.header(header::CONTENT_LENGTH, body.len());
-        req = req.header(header::CONTENT_TYPE, "application/json");
+
+        // Headers on PUT ?multipart-manifest=put become the resulting SLO object's metadata;
+        // Swift parses the manifest body as JSON regardless of Content-Type.
+        if let Some(content_type) = args.content_type() {
+            req = req.header(header::CONTENT_TYPE, content_type);
+        }
+        if let Some(content_disposition) = args.content_disposition() {
+            req = req.header(header::CONTENT_DISPOSITION, content_disposition);
+        }
+        if let Some(content_encoding) = args.content_encoding() {
+            req = req.header(header::CONTENT_ENCODING, content_encoding);
+        }
+        if let Some(cache_control) = args.cache_control() {
+            req = req.header(header::CACHE_CONTROL, cache_control);
+        }
 
         // Forward user metadata to the manifest object.
         if let Some(user_metadata) = args.user_metadata() {
@@ -614,7 +628,7 @@ impl SwiftCore {
             .duration_since(SystemTime::UNIX_EPOCH)
             .expect("system time before epoch")
             .as_secs()
-            + expire.as_secs();
+            .saturating_add(expire.as_secs());
 
         let sig_body = format!("{}\n{}\n{}", method.as_str(), expires, signing_path);
 
@@ -861,6 +875,26 @@ mod tests {
             TempUrlHashAlgorithm::Sha512
         );
         assert!(TempUrlHashAlgorithm::from_str_opt("md5").is_err());
+    }
+
+    #[test]
+    fn temp_url_saturates_on_large_expire() {
+        let core = SwiftCore {
+            info: ServiceInfo::new(crate::SWIFT_SCHEME, "/", "container"),
+            capability: Capability::default(),
+            root: "/".to_string(),
+            endpoint: "https://swift.example.com/v1/AUTH_test".to_string(),
+            container: "container".to_string(),
+            token: String::new(),
+            temp_url_key: "secret-key".to_string(),
+            temp_url_hash_algorithm: TempUrlHashAlgorithm::Sha256,
+        };
+
+        let url = core
+            .swift_temp_url(&Method::GET, "dir/file.txt", Duration::MAX)
+            .unwrap();
+        assert!(url.contains(&format!("temp_url_expires={}", u64::MAX)));
+        assert!(url.parse::<http::Uri>().is_ok());
     }
 
     #[test]

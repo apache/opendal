@@ -23,7 +23,7 @@ use uuid::Uuid;
 
 use super::core::parse_error;
 use super::core::{ErrorContext, WebhdfsCore};
-use crate::message::FileStatusWrapper;
+use crate::message::{BooleanResp, FileStatusWrapper};
 use opendal_core::raw::oio;
 use opendal_core::raw::*;
 use opendal_core::*;
@@ -122,6 +122,32 @@ impl oio::BlockWrite for WebhdfsWriter {
                 ));
             }
         }
+        // Ensure parent directory exists before deleting the target or renaming,
+        // because WebHDFS op=RENAME does not auto-create parent directories.
+        let parent = get_parent(&self.path);
+        if parent != "/" {
+            let resp = self.core.webhdfs_create_dir(&self.ctx, parent).await?;
+            match resp.status() {
+                StatusCode::CREATED | StatusCode::OK => {
+                    let bs = resp.into_body();
+                    let resp = serde_json::from_reader::<_, BooleanResp>(bs.reader())
+                        .map_err(new_json_deserialize_error)?;
+                    if !resp.boolean {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "webhdfs create parent dir failed",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(parse_error(
+                        ErrorContext::new(ServiceOperation("Mkdirs")),
+                        resp,
+                    ));
+                }
+            }
+        }
+
         // delete the path file
         let resp = self
             .core
@@ -144,7 +170,19 @@ impl oio::BlockWrite for WebhdfsWriter {
 
         let status = resp.status();
         match status {
-            StatusCode::OK => Ok(MetadataBuilder::unknown().build()),
+            StatusCode::OK => {
+                let bs = resp.into_body();
+                let resp = serde_json::from_reader::<_, BooleanResp>(bs.reader())
+                    .map_err(new_json_deserialize_error)?;
+                if resp.boolean {
+                    Ok(MetadataBuilder::unknown().build())
+                } else {
+                    Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "webhdfs rename object failed",
+                    ))
+                }
+            }
             _ => Err(parse_error(
                 ErrorContext::new(ServiceOperation("Rename")),
                 resp,
@@ -231,5 +269,218 @@ impl oio::AppendWrite for WebhdfsWriter {
                 resp,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+    use std::sync::Mutex;
+
+    use asyncband::once::OnceCell;
+    use http::{Request, Response};
+    use oio::BlockWrite;
+
+    use super::*;
+
+    type RecordedRequests = Arc<Mutex<Vec<(String, String)>>>;
+
+    struct SequenceTransport {
+        requests: RecordedRequests,
+        responses: Mutex<VecDeque<Response<Buffer>>>,
+    }
+
+    impl SequenceTransport {
+        fn new(responses: Vec<Response<Buffer>>) -> (Self, RecordedRequests) {
+            let requests = Arc::new(Mutex::new(Vec::new()));
+            (
+                Self {
+                    requests: requests.clone(),
+                    responses: Mutex::new(VecDeque::from(responses)),
+                },
+                requests,
+            )
+        }
+    }
+
+    impl HttpTransport for SequenceTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            self.requests
+                .lock()
+                .unwrap()
+                .push((req.method().to_string(), req.uri().to_string()));
+            let resp = self
+                .responses
+                .lock()
+                .unwrap()
+                .pop_front()
+                .expect("unexpected request in SequenceTransport");
+            let (parts, body) = resp.into_parts();
+            let size = body.len() as u64;
+            Ok(Response::from_parts(
+                parts,
+                HttpBody::new(futures::stream::iter([Ok(body)]), Some(size)),
+            ))
+        }
+    }
+
+    fn writer_with_responses(
+        path: &str,
+        responses: Vec<Response<Buffer>>,
+    ) -> (WebhdfsWriter, RecordedRequests) {
+        let (transport, requests) = SequenceTransport::new(responses);
+        let core = Arc::new(WebhdfsCore {
+            info: ServiceInfo::new("webhdfs", "/", ""),
+            capability: Capability {
+                write: true,
+                write_can_multi: true,
+                ..Default::default()
+            },
+            root: "/".to_string(),
+            endpoint: "http://127.0.0.1:9870".to_string(),
+            user_name: None,
+            delegation: None,
+            root_checker: OnceCell::new(),
+            atomic_write_dir: Some(".opendal_tmp/".to_string()),
+            disable_list_batch: false,
+        });
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(transport));
+        let writer = WebhdfsWriter::new(core, ctx, OpWrite::default(), path.to_string());
+        (writer, requests)
+    }
+
+    #[tokio::test]
+    async fn complete_block_creates_parent_dir_and_checks_rename_boolean() -> Result<()> {
+        let block1 = Uuid::new_v4();
+        let block2 = Uuid::new_v4();
+
+        let (writer, requests) = writer_with_responses(
+            "sub/dir/file.bin",
+            vec![
+                // CONCAT
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::new())
+                    .unwrap(),
+                // MKDIRS for sub/dir/
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":true}"#))
+                    .unwrap(),
+                // DELETE existing target (returns false when absent)
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":false}"#))
+                    .unwrap(),
+                // RENAME
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":true}"#))
+                    .unwrap(),
+            ],
+        );
+
+        writer.complete_block(vec![block1, block2]).await?;
+
+        let captured = requests.lock().unwrap();
+        assert_eq!(captured.len(), 4);
+        assert!(captured[0].1.contains("op=CONCAT"));
+        assert_eq!(
+            captured[1],
+            (
+                "PUT".to_string(),
+                "http://127.0.0.1:9870/webhdfs/v1/sub/dir/?op=MKDIRS&overwrite=true&noredirect=true"
+                    .to_string()
+            )
+        );
+        assert!(captured[2].1.contains("op=DELETE"));
+        assert!(captured[3].1.contains("op=RENAME"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn complete_block_returns_error_when_rename_returns_false() {
+        let block1 = Uuid::new_v4();
+
+        let (writer, requests) = writer_with_responses(
+            "sub/dir/file.bin",
+            vec![
+                // MKDIRS
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":true}"#))
+                    .unwrap(),
+                // DELETE
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":true}"#))
+                    .unwrap(),
+                // RENAME returns HTTP 200 OK with {"boolean": false}
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":false}"#))
+                    .unwrap(),
+            ],
+        );
+
+        let err = writer.complete_block(vec![block1]).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unexpected);
+        assert_eq!(requests.lock().unwrap().len(), 3);
+    }
+
+    #[tokio::test]
+    async fn complete_block_aborts_before_delete_when_parent_mkdir_fails() {
+        let block1 = Uuid::new_v4();
+
+        let (writer, requests) = writer_with_responses(
+            "sub/dir/file.bin",
+            vec![
+                // MKDIRS fails with ParentNotDirectoryException
+                Response::builder()
+                    .status(StatusCode::FORBIDDEN)
+                    .body(Buffer::from(
+                        r#"{"RemoteException":{"exception":"ParentNotDirectoryException","javaClassName":"org.apache.hadoop.fs.ParentNotDirectoryException","message":"Parent path is not a directory"}}"#,
+                    ))
+                    .unwrap(),
+            ],
+        );
+
+        let err = writer.complete_block(vec![block1]).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotADirectory);
+        // Must not call DELETE when parent directory creation failed.
+        let captured = requests.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert!(captured[0].1.contains("op=MKDIRS"));
+    }
+
+    #[tokio::test]
+    async fn complete_block_skips_mkdir_for_root_level_file() -> Result<()> {
+        let block1 = Uuid::new_v4();
+
+        let (writer, requests) = writer_with_responses(
+            "file.bin",
+            vec![
+                // DELETE
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":false}"#))
+                    .unwrap(),
+                // RENAME
+                Response::builder()
+                    .status(StatusCode::OK)
+                    .body(Buffer::from(r#"{"boolean":true}"#))
+                    .unwrap(),
+            ],
+        );
+
+        writer.complete_block(vec![block1]).await?;
+
+        let captured = requests.lock().unwrap();
+        assert_eq!(captured.len(), 2);
+        assert!(captured[0].1.contains("op=DELETE"));
+        assert!(captured[1].1.contains("op=RENAME"));
+
+        Ok(())
     }
 }

@@ -108,7 +108,7 @@ jobs:
             rust:1.91-alpine3.20 \
             sh -lc '
               set -eu
-              apk add --no-cache python3 build-base cmake pkgconfig git protobuf sqlite-dev zlib-dev
+              apk add --no-cache python3 build-base cmake pkgconfig git protobuf protobuf-dev sqlite-dev zlib-dev
               export PATH=/usr/local/cargo/bin:$PATH
 
               python3 tools/build.py \

@@ -794,23 +794,41 @@ impl AzblobCore {
         self.send(ctx, req).await
     }
 
-    pub async fn azblob_copy_blob(
+    pub async fn azblob_copy_blob_request(
         &self,
         ctx: &OperationContext,
         from: &str,
         to: &str,
-        args: OpCopy,
-    ) -> Result<Response<Buffer>> {
+        args: &OpCopy,
+    ) -> Result<Request<Buffer>> {
         let mut source = self.build_path_url(from);
         if let Some(version) = args.source_version() {
             source = QueryPairsWriter::new(&source)
                 .push("versionid", &percent_encode_path(version))
                 .finish();
         }
+        let mut source_header = build_header_value(&source)?;
+        if !self.skip_signature {
+            // Only a SAS credential changes the URI; shared key and bearer
+            // token authorize the source through the destination request.
+            let (mut parts, ()) = Request::get(&source)
+                .body(())
+                .map_err(new_request_build_error)?
+                .into_parts();
+            let unsigned = parts.uri.clone();
+            self.signer(ctx)
+                .sign(&mut parts, None)
+                .await
+                .map_err(|e| new_request_sign_error(e.into()))?;
+            if parts.uri != unsigned {
+                source_header = build_header_value(&parts.uri.to_string())?;
+                source_header.set_sensitive(true);
+            }
+        }
         let target = self.build_path_url(to);
 
         let mut req = Request::put(&target)
-            .header(constants::X_MS_COPY_SOURCE, source)
+            .header(constants::X_MS_COPY_SOURCE, source_header)
             .header(CONTENT_LENGTH, 0);
 
         // Add if_not_exists condition using If-None-Match header
@@ -824,12 +842,20 @@ impl AzblobCore {
             req = req.header(IF_NONE_MATCH, if_none_match);
         }
 
-        let req = req
-            .extension(Operation::Copy)
+        req.extension(Operation::Copy)
             .extension(ServiceOperation("CopyBlob"))
             .body(Buffer::new())
-            .map_err(new_request_build_error)?;
+            .map_err(new_request_build_error)
+    }
 
+    pub async fn azblob_copy_blob(
+        &self,
+        ctx: &OperationContext,
+        from: &str,
+        to: &str,
+        args: OpCopy,
+    ) -> Result<Response<Buffer>> {
+        let req = self.azblob_copy_blob_request(ctx, from, to, &args).await?;
         let req = self.sign(ctx, req).await?;
         self.send(ctx, req).await
     }
@@ -976,6 +1002,53 @@ mod tests {
             request_signer: Arc::new(RequestSigner::new()),
             signers: HttpTransportCache::new(),
         }
+    }
+
+    #[tokio::test]
+    async fn test_copy_blob_source_carries_only_sas_credential() {
+        let copy_source = async |credential: StaticCredentialProvider, args: OpCopy| {
+            let core = AzblobCore {
+                skip_signature: false,
+                credential_provider: Arc::new(credential),
+                ..test_core()
+            };
+            let req = core
+                .azblob_copy_blob_request(&OperationContext::default(), "a", "b", &args)
+                .await
+                .expect("must build");
+            let source = &req.headers()[constants::X_MS_COPY_SOURCE];
+            (source.to_str().unwrap().to_string(), source.is_sensitive())
+        };
+        let sas = || StaticCredentialProvider::new_sas_token("sv=x&sig=y");
+        let url = "https://acc.blob.core.windows.net/c/a";
+
+        assert_eq!(
+            copy_source(
+                StaticCredentialProvider::new_shared_key("acc", "a2V5"),
+                OpCopy::new()
+            )
+            .await,
+            (url.to_string(), false)
+        );
+        assert_eq!(
+            copy_source(sas(), OpCopy::new()).await,
+            (format!("{url}?sv=x&sig=y"), true)
+        );
+        let versioned = OpCopy::from_options(
+            &Capability {
+                copy_with_source_version: true,
+                ..Default::default()
+            },
+            options::CopyOptions {
+                source_version: Some("v1".to_string()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            copy_source(sas(), versioned).await,
+            (format!("{url}?versionid=v1&sv=x&sig=y"), true)
+        );
     }
 
     #[test]

@@ -844,12 +844,16 @@ pub fn parse_user_metadata_from_xml(xml: &str, namespace_uri: &str) -> HashMap<S
 /// not success or failure. We need to parse the response body to check if all
 /// property updates were successful (2xx status).
 ///
-/// Returns Ok(()) if the XML is well-formed and all reported `<D:status>` elements
-/// succeeded with a 2xx status code, or an error otherwise.
+/// Returns Ok(()) if the XML is well-formed, every `<D:propstat>` contains a
+/// `<D:status>`, and all reported `<D:status>` elements succeeded with a 2xx
+/// status code, or an error otherwise.
 pub fn check_proppatch_response(xml: &str) -> Result<()> {
     let mut reader = NsReader::from_str(xml);
 
     let mut depth: usize = 0;
+    let mut root_closed = false;
+    let mut propstat_depth: Option<usize> = None;
+    let mut propstat_has_status = false;
     let mut status_depth: Option<usize> = None;
     let mut status_text = String::new();
     let mut has_status = false;
@@ -857,21 +861,46 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
     loop {
         match reader.read_resolved_event() {
             Ok((ns, Event::Start(e))) => {
+                if root_closed {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response XML has trailing element after root",
+                    ));
+                }
                 depth += 1;
                 let local_name = e.local_name();
-                if status_depth.is_none() && is_dav_element(&ns, local_name.into_inner(), "status")
-                {
+                let local_name = local_name.into_inner();
+                if propstat_depth.is_none() && is_dav_element(&ns, local_name, "propstat") {
+                    propstat_depth = Some(depth);
+                    propstat_has_status = false;
+                } else if status_depth.is_none() && is_dav_element(&ns, local_name, "status") {
                     status_depth = Some(depth);
                     status_text.clear();
                 }
             }
             Ok((ns, Event::Empty(e))) => {
+                if root_closed {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response XML has trailing element after root",
+                    ));
+                }
                 let local_name = e.local_name();
-                if is_dav_element(&ns, local_name.into_inner(), "status") {
+                let local_name = local_name.into_inner();
+                if is_dav_element(&ns, local_name, "status") {
                     return Err(Error::new(
                         ErrorKind::Unexpected,
                         "PROPPATCH response has empty status",
                     ));
+                }
+                if is_dav_element(&ns, local_name, "propstat") {
+                    return Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "PROPPATCH response propstat missing status",
+                    ));
+                }
+                if depth == 0 {
+                    root_closed = true;
                 }
             }
             Ok((_, Event::Text(e))) if status_depth.is_some() => {
@@ -898,9 +927,24 @@ pub fn check_proppatch_response(xml: &str) -> Result<()> {
                         ));
                     }
                     has_status = true;
+                    if propstat_depth.is_some_and(|ps_d| depth == ps_d + 1) {
+                        propstat_has_status = true;
+                    }
                     status_depth = None;
+                } else if propstat_depth == Some(depth) {
+                    if !propstat_has_status {
+                        return Err(Error::new(
+                            ErrorKind::Unexpected,
+                            "PROPPATCH response propstat missing status",
+                        ));
+                    }
+                    propstat_depth = None;
+                    propstat_has_status = false;
                 }
                 depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    root_closed = true;
+                }
             }
             Ok((_, Event::Eof)) => break,
             Err(err) => {
@@ -2002,10 +2046,18 @@ c😀"
             "",
             // Self-closing empty status element
             r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status/></D:propstat></D:response></D:multistatus>"#,
-            // Unparseable status line
+            // Unparsable status line
             r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>broken</D:status></D:propstat></D:response></D:multistatus>"#,
             // Mixed 200 and 424 propstats
             r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat><D:status>HTTP/1.1 424 Failed Dependency</D:status></D:propstat></D:response></D:multistatus>"#,
+            // One 200 propstat alongside another propstat missing status
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat><D:prop/></D:propstat></D:response></D:multistatus>"#,
+            // One 200 propstat alongside a self-closing empty propstat
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat><D:propstat/></D:response></D:multistatus>"#,
+            // Trailing start element after root closes
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus><extra></extra>"#,
+            // Trailing empty element after root closes
+            r#"<D:multistatus xmlns:D="DAV:"><D:response><D:propstat><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus><extra/>"#,
         ];
 
         for xml in invalid_cases {

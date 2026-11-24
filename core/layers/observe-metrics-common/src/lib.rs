@@ -617,7 +617,11 @@ impl<I: MetricsIntercept> HttpTransport for MetricsHttpTransport<I> {
         match res {
             Err(err) => {
                 self.interceptor
-                    .observe(labels, MetricValue::HttpConnectionErrorsTotal);
+                    .observe(labels.clone(), MetricValue::HttpConnectionErrorsTotal);
+                self.interceptor.observe(
+                    labels,
+                    MetricValue::HttpRequestDurationSeconds(req_duration),
+                );
                 Err(err)
             }
             Ok(resp) => {
@@ -814,24 +818,17 @@ impl<I: MetricsIntercept> Service for MetricsService<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner
-            .create_dir(ctx, path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
+        let res = self.inner.create_dir(ctx, path, args).await;
         guard.complete();
+        let duration = start.elapsed();
+        if let Err(err) = &res {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
+        self.interceptor
+            .observe(labels, MetricValue::OperationDurationSeconds(duration));
         res
     }
 
@@ -945,24 +942,17 @@ impl<I: MetricsIntercept> Service for MetricsService<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner
-            .rename(ctx, from, to, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
+        let res = self.inner.rename(ctx, from, to, args).await;
         guard.complete();
+        let duration = start.elapsed();
+        if let Err(err) = &res {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
+        self.interceptor
+            .observe(labels, MetricValue::OperationDurationSeconds(duration));
         res
     }
 
@@ -980,24 +970,17 @@ impl<I: MetricsIntercept> Service for MetricsService<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner
-            .restore(ctx, path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
+        let res = self.inner.restore(ctx, path, args).await;
         guard.complete();
+        let duration = start.elapsed();
+        if let Err(err) = &res {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
+        self.interceptor
+            .observe(labels, MetricValue::OperationDurationSeconds(duration));
         res
     }
 
@@ -1011,24 +994,17 @@ impl<I: MetricsIntercept> Service for MetricsService<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner
-            .stat(ctx, path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
+        let res = self.inner.stat(ctx, path, args).await;
         guard.complete();
+        let duration = start.elapsed();
+        if let Err(err) = &res {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
+        self.interceptor
+            .observe(labels, MetricValue::OperationDurationSeconds(duration));
         res
     }
 
@@ -1109,24 +1085,17 @@ impl<I: MetricsIntercept> Service for MetricsService<I> {
         let mut guard =
             ExecutingGuard::new_operation(self.interceptor.clone(), labels.clone(), start);
 
-        let res = self
-            .inner
-            .presign(ctx, path, args)
-            .await
-            .inspect(|_| {
-                self.interceptor.observe(
-                    labels.clone(),
-                    MetricValue::OperationDurationSeconds(start.elapsed()),
-                );
-            })
-            .inspect_err(|err| {
-                self.interceptor.observe(
-                    labels.clone().with_error(err.kind()),
-                    MetricValue::OperationErrorsTotal,
-                );
-            });
-
+        let res = self.inner.presign(ctx, path, args).await;
         guard.complete();
+        let duration = start.elapsed();
+        if let Err(err) = &res {
+            self.interceptor.observe(
+                labels.clone().with_error(err.kind()),
+                MetricValue::OperationErrorsTotal,
+            );
+        }
+        self.interceptor
+            .observe(labels, MetricValue::OperationDurationSeconds(duration));
         res
     }
 }
@@ -1175,11 +1144,15 @@ impl<R: oio::Read, I: MetricsIntercept> oio::Read for MetricsReader<R, I> {
                 ))
             }
             Err(err) => {
+                guard.complete();
                 self.interceptor.observe(
                     labels.clone().with_error(err.kind()),
                     MetricValue::OperationErrorsTotal,
                 );
-                guard.complete();
+                self.interceptor.observe(
+                    labels,
+                    MetricValue::OperationDurationSeconds(start.elapsed()),
+                );
                 Err(err)
             }
         }
@@ -1306,15 +1279,15 @@ impl<R: oio::Write, I: MetricsIntercept> oio::Write for MetricsWrapper<R, I> {
     }
 
     async fn copy_from(&mut self, path: &str, args: OpRead, range: BytesRange) -> Result<()> {
-        let size = range
-            .size()
-            .expect("writer copy range must be absolute and bounded");
-
         self.inner
             .copy_from(path, args, range)
             .await
             .inspect(|_| {
-                self.size += size;
+                if !range.is_suffix()
+                    && let Some(size) = range.size()
+                {
+                    self.size += size;
+                }
             })
             .inspect_err(|err| self.record_error(err))
     }
@@ -1893,15 +1866,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_connection_error_records_connection_error() {
-        let mock = MockInterceptor::default();
-        let fetcher = build_metrics_http_fetcher(mock.clone(), MockFetchBehavior::ConnectionError);
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mock = MockInterceptor::default();
+            let fetcher =
+                build_metrics_http_fetcher(mock.clone(), MockFetchBehavior::ConnectionError);
 
-        let res = fetcher.fetch(build_http_request()).await;
-        assert!(res.is_err());
+            let res = fetcher.fetch(build_http_request()).await;
+            assert!(res.is_err());
 
-        assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
-        assert_eq!(mock.count_metric("opendal_http_status_errors_total"), 0);
-        assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+            assert_eq!(mock.count_metric("opendal_http_connection_errors_total"), 1);
+            assert_eq!(mock.count_metric("opendal_http_status_errors_total"), 0);
+            assert!(
+                mock.get_duration_seconds("opendal_http_request_duration_seconds")
+                    .is_some()
+            );
+            assert_eq!(mock.gauge_value("opendal_http_executing"), 0);
+        })
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -2648,5 +2630,379 @@ mod tests {
             .get_value_f64("opendal_http_response_bytes_rate")
             .unwrap();
         assert!(rate.is_finite() && rate > 0.0);
+    }
+
+    struct MockWriter {
+        copy_from_result: Mutex<Option<Result<()>>>,
+    }
+
+    impl MockWriter {
+        fn with_copy_from_result(result: Result<()>) -> Self {
+            Self {
+                copy_from_result: Mutex::new(Some(result)),
+            }
+        }
+    }
+
+    impl oio::Write for MockWriter {
+        async fn write(&mut self, _: Buffer) -> Result<()> {
+            Ok(())
+        }
+
+        async fn copy_from(&mut self, _: &str, _: OpRead, _: BytesRange) -> Result<()> {
+            self.copy_from_result
+                .lock()
+                .unwrap()
+                .take()
+                .unwrap_or_else(|| {
+                    Err(Error::new(
+                        ErrorKind::Unsupported,
+                        "writer doesn't support native copy",
+                    ))
+                })
+        }
+
+        async fn close(&mut self) -> Result<Metadata> {
+            Ok(MetadataBuilder::file(0).build())
+        }
+
+        async fn abort(&mut self) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_unbounded_range_delegates_without_panic() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for range in [BytesRange::new(0, None), BytesRange::from(..)] {
+                let mock = MockInterceptor::default();
+                let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
+                mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+                let mut wrapper = MetricsWrapper::new(
+                    MockWriter::with_copy_from_result(Err(Error::new(
+                        ErrorKind::Unexpected,
+                        "native writer copy requires an absolute bounded range",
+                    ))),
+                    mock.clone(),
+                    labels,
+                    Instant::now(),
+                );
+
+                let err = oio::Write::copy_from(&mut wrapper, "src", OpRead::default(), range)
+                    .await
+                    .unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unexpected);
+                drop(wrapper);
+
+                assert_eq!(
+                    mock.count_errors_with_kind(
+                        "opendal_operation_errors_total",
+                        ErrorKind::Unexpected
+                    ),
+                    1
+                );
+                assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
+                assert!(mock.has_metric("opendal_operation_duration_seconds"));
+                assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_suffix_range_does_not_misaccount_bytes() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            // Inner returns an error for suffix range.
+            let mock = MockInterceptor::default();
+            let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
+            mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+            let mut wrapper = MetricsWrapper::new(
+                MockWriter::with_copy_from_result(Err(Error::new(
+                    ErrorKind::Unexpected,
+                    "suffix range unsupported",
+                ))),
+                mock.clone(),
+                labels,
+                Instant::now(),
+            );
+
+            let err = oio::Write::copy_from(
+                &mut wrapper,
+                "src",
+                OpRead::default(),
+                BytesRange::suffix(10),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unexpected);
+            drop(wrapper);
+
+            assert_eq!(
+                mock.count_errors_with_kind(
+                    "opendal_operation_errors_total",
+                    ErrorKind::Unexpected
+                ),
+                1
+            );
+            assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
+            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+
+            // Even if a custom writer accepts a suffix range, suffix length is
+            // not a guaranteed copied byte count and must not be added.
+            let mock = MockInterceptor::default();
+            let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
+            mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+            let mut wrapper = MetricsWrapper::new(
+                MockWriter::with_copy_from_result(Ok(())),
+                mock.clone(),
+                labels,
+                Instant::now(),
+            );
+
+            oio::Write::copy_from(
+                &mut wrapper,
+                "src",
+                OpRead::default(),
+                BytesRange::suffix(10),
+            )
+            .await
+            .unwrap();
+            oio::Write::close(&mut wrapper).await.unwrap();
+            drop(wrapper);
+
+            assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+            assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(0));
+            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_writer_copy_from_bounded_range_records_bytes() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mock = MockInterceptor::default();
+            let labels = MetricLabels::new(test_info(), Operation::Write.into_static());
+            mock.observe(labels.clone(), MetricValue::OperationExecuting(1));
+
+            let mut wrapper = MetricsWrapper::new(
+                MockWriter::with_copy_from_result(Ok(())),
+                mock.clone(),
+                labels,
+                Instant::now(),
+            );
+
+            oio::Write::copy_from(
+                &mut wrapper,
+                "src",
+                OpRead::default(),
+                BytesRange::new(0, Some(16)),
+            )
+            .await
+            .unwrap();
+            oio::Write::close(&mut wrapper).await.unwrap();
+            drop(wrapper);
+
+            assert_eq!(mock.count_metric("opendal_operation_errors_total"), 0);
+            assert_eq!(mock.get_value_u64("opendal_operation_bytes"), Some(16));
+            assert!(mock.has_metric("opendal_operation_duration_seconds"));
+            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        })
+        .await
+        .unwrap();
+    }
+
+    #[derive(Debug)]
+    struct MockUnaryErrorService {
+        info: ServiceInfo,
+    }
+
+    impl Service for MockUnaryErrorService {
+        type Reader = ();
+        type Writer = ();
+        type Lister = ();
+        type Deleter = ();
+        type Copier = ();
+        type Composer = ();
+
+        fn info(&self) -> ServiceInfo {
+            self.info.clone()
+        }
+
+        fn capability(&self) -> Capability {
+            Capability::default()
+        }
+
+        async fn create_dir(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: OpCreateDir,
+        ) -> Result<RpCreateDir> {
+            Err(Error::new(ErrorKind::PermissionDenied, "create_dir failed"))
+        }
+
+        fn read(&self, _: &OperationContext, _: &str, _: OpRead) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn write(&self, _: &OperationContext, _: &str, _: OpWrite) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn delete(&self, _: &OperationContext) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn list(&self, _: &OperationContext, _: &str, _: OpList) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        fn copy(&self, _: &OperationContext, _: &str, _: &str, _: OpCopy) -> Result<()> {
+            Err(Error::new(ErrorKind::Unsupported, "not supported"))
+        }
+
+        async fn rename(
+            &self,
+            _: &OperationContext,
+            _: &str,
+            _: &str,
+            _: OpRename,
+        ) -> Result<RpRename> {
+            Err(Error::new(ErrorKind::NotFound, "rename failed"))
+        }
+
+        async fn restore(&self, _: &OperationContext, _: &str, _: OpRestore) -> Result<RpRestore> {
+            Err(Error::new(ErrorKind::Unsupported, "restore failed"))
+        }
+
+        async fn stat(&self, _: &OperationContext, _: &str, _: OpStat) -> Result<RpStat> {
+            Err(Error::new(ErrorKind::RateLimited, "stat failed"))
+        }
+
+        async fn presign(&self, _: &OperationContext, _: &str, _: OpPresign) -> Result<RpPresign> {
+            Err(Error::new(ErrorKind::ConditionNotMatch, "presign failed"))
+        }
+    }
+
+    #[tokio::test]
+    async fn test_unary_operation_errors_record_duration() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mock = MockInterceptor::default();
+            let inner: Servicer = Arc::new(MockUnaryErrorService { info: test_info() });
+            let service = MetricsService {
+                info: inner.info(),
+                inner,
+                interceptor: mock.clone(),
+            };
+            let ctx = OperationContext::default();
+
+            let err = Service::create_dir(&service, &ctx, "dir/", OpCreateDir::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+            let err = Service::rename(&service, &ctx, "a", "b", OpRename::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+
+            let err = Service::restore(&service, &ctx, "a", OpRestore::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+            let err = Service::stat(&service, &ctx, "a", OpStat::default())
+                .await
+                .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::RateLimited);
+
+            let err = Service::presign(
+                &service,
+                &ctx,
+                "a",
+                OpPresign::new(OpRead::default(), Duration::from_secs(60)),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(err.kind(), ErrorKind::ConditionNotMatch);
+
+            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+
+            let observations = mock.observations.lock().unwrap();
+            for (op, expected_kind) in [
+                (Operation::CreateDir, ErrorKind::PermissionDenied),
+                (Operation::Rename, ErrorKind::NotFound),
+                (Operation::Restore, ErrorKind::Unsupported),
+                (Operation::Stat, ErrorKind::RateLimited),
+                (Operation::Presign, ErrorKind::ConditionNotMatch),
+            ] {
+                let op_name = op.into_static();
+                let error_count = observations
+                    .iter()
+                    .filter(|(l, v)| {
+                        l.operation == op_name
+                            && l.error == Some(expected_kind)
+                            && v.name() == "opendal_operation_errors_total"
+                    })
+                    .count();
+                assert_eq!(error_count, 1, "missing error counter for {op_name}");
+
+                let duration_count = observations
+                    .iter()
+                    .filter(|(l, v)| {
+                        l.operation == op_name
+                            && matches!(v, MetricValue::OperationDurationSeconds(_))
+                    })
+                    .count();
+                assert_eq!(
+                    duration_count, 1,
+                    "missing duration histogram for {op_name}"
+                );
+            }
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_reader_open_error_records_duration() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            let mock = MockInterceptor::default();
+            let labels = MetricLabels::new(test_info(), Operation::Read.into_static());
+            let reader = MetricsReader::new(
+                MockRawReader {
+                    open_result: Mutex::new(Some(Err(Error::new(
+                        ErrorKind::NotFound,
+                        "missing object",
+                    )))),
+                    read_result: Mutex::new(None),
+                },
+                mock.clone(),
+                labels,
+            );
+
+            let err = match oio::Read::open(&reader, BytesRange::from(0_u64..5)).await {
+                Ok(_) => panic!("open should fail"),
+                Err(err) => err,
+            };
+            assert_eq!(err.kind(), ErrorKind::NotFound);
+
+            assert_eq!(
+                mock.count_errors_with_kind("opendal_operation_errors_total", ErrorKind::NotFound),
+                1
+            );
+            assert!(
+                mock.get_duration_seconds("opendal_operation_duration_seconds")
+                    .is_some()
+            );
+            assert_eq!(mock.gauge_value("opendal_operation_executing"), 0);
+        })
+        .await
+        .unwrap();
     }
 }

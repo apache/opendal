@@ -131,14 +131,24 @@ impl observe::MetricsIntercept for MetricsInterceptor {
                 counter!(value.name(), labels).increment(1)
             }
             observe::MetricValue::OperationExecuting(v) => {
-                gauge!(value.name(), labels).increment(v as f64)
+                let g = gauge!(value.name(), labels);
+                if v >= 0 {
+                    g.increment(v as f64);
+                } else {
+                    g.decrement(v.unsigned_abs() as f64);
+                }
             }
             observe::MetricValue::OperationTtfbSeconds(v) => {
                 histogram!(value.name(), labels).record(v)
             }
 
             observe::MetricValue::HttpExecuting(v) => {
-                gauge!(value.name(), labels).increment(v as f64)
+                let g = gauge!(value.name(), labels);
+                if v >= 0 {
+                    g.increment(v as f64);
+                } else {
+                    g.decrement(v.unsigned_abs() as f64);
+                }
             }
             observe::MetricValue::HttpRequestBytes(v) => {
                 histogram!(value.name(), labels).record(v as f64)
@@ -202,5 +212,146 @@ impl OperationLabels {
         }
 
         labels
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    use metrics::Counter;
+    use metrics::Gauge;
+    use metrics::GaugeFn;
+    use metrics::Histogram;
+    use metrics::Key;
+    use metrics::KeyName;
+    use metrics::Metadata;
+    use metrics::Recorder;
+    use metrics::SharedString;
+    use metrics::Unit;
+    use opendal_core::raw::Operation;
+    use opendal_layer_observe_metrics_common::MetricsIntercept;
+
+    use super::*;
+
+    #[derive(Debug, Clone, PartialEq)]
+    enum GaugeOp {
+        Increment(f64),
+        Decrement(f64),
+        Set(f64),
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingGauge {
+        name: String,
+        ops: Arc<Mutex<Vec<(String, GaugeOp)>>>,
+    }
+
+    impl GaugeFn for RecordingGauge {
+        fn increment(&self, value: f64) {
+            self.ops
+                .lock()
+                .unwrap()
+                .push((self.name.clone(), GaugeOp::Increment(value)));
+        }
+
+        fn decrement(&self, value: f64) {
+            self.ops
+                .lock()
+                .unwrap()
+                .push((self.name.clone(), GaugeOp::Decrement(value)));
+        }
+
+        fn set(&self, value: f64) {
+            self.ops
+                .lock()
+                .unwrap()
+                .push((self.name.clone(), GaugeOp::Set(value)));
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct RecordingRecorder {
+        gauge_ops: Arc<Mutex<Vec<(String, GaugeOp)>>>,
+    }
+
+    impl Recorder for RecordingRecorder {
+        fn describe_counter(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
+        fn describe_gauge(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
+        fn describe_histogram(&self, _: KeyName, _: Option<Unit>, _: SharedString) {}
+
+        fn register_counter(&self, _: &Key, _: &Metadata<'_>) -> Counter {
+            Counter::noop()
+        }
+
+        fn register_gauge(&self, key: &Key, _: &Metadata<'_>) -> Gauge {
+            Gauge::from_arc(Arc::new(RecordingGauge {
+                name: key.name().to_owned(),
+                ops: self.gauge_ops.clone(),
+            }))
+        }
+
+        fn register_histogram(&self, _: &Key, _: &Metadata<'_>) -> Histogram {
+            Histogram::noop()
+        }
+    }
+
+    #[test]
+    fn test_executing_gauges_dispatch_increment_and_decrement() {
+        let recorder = RecordingRecorder::default();
+        let labels = observe::MetricLabels {
+            scheme: "memory",
+            namespace: Arc::from("test"),
+            root: Arc::from("/"),
+            operation: Operation::Read.into_static(),
+            ..Default::default()
+        };
+        let interceptor = MetricsInterceptor;
+
+        metrics::with_local_recorder(&recorder, || {
+            interceptor.observe(labels.clone(), observe::MetricValue::OperationExecuting(1));
+            interceptor.observe(labels.clone(), observe::MetricValue::OperationExecuting(-1));
+            interceptor.observe(labels.clone(), observe::MetricValue::OperationExecuting(0));
+            interceptor.observe(
+                labels.clone(),
+                observe::MetricValue::OperationExecuting(isize::MIN),
+            );
+
+            interceptor.observe(labels.clone(), observe::MetricValue::HttpExecuting(1));
+            interceptor.observe(labels.clone(), observe::MetricValue::HttpExecuting(-1));
+            interceptor.observe(labels.clone(), observe::MetricValue::HttpExecuting(0));
+            interceptor.observe(labels, observe::MetricValue::HttpExecuting(isize::MIN));
+        });
+
+        let ops = recorder.gauge_ops.lock().unwrap().clone();
+        assert_eq!(
+            ops,
+            vec![
+                (
+                    "opendal_operation_executing".to_owned(),
+                    GaugeOp::Increment(1.0)
+                ),
+                (
+                    "opendal_operation_executing".to_owned(),
+                    GaugeOp::Decrement(1.0)
+                ),
+                (
+                    "opendal_operation_executing".to_owned(),
+                    GaugeOp::Increment(0.0)
+                ),
+                (
+                    "opendal_operation_executing".to_owned(),
+                    GaugeOp::Decrement(isize::MIN.unsigned_abs() as f64)
+                ),
+                ("opendal_http_executing".to_owned(), GaugeOp::Increment(1.0)),
+                ("opendal_http_executing".to_owned(), GaugeOp::Decrement(1.0)),
+                ("opendal_http_executing".to_owned(), GaugeOp::Increment(0.0)),
+                (
+                    "opendal_http_executing".to_owned(),
+                    GaugeOp::Decrement(isize::MIN.unsigned_abs() as f64)
+                ),
+            ]
+        );
     }
 }

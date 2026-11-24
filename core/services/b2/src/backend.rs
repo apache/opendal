@@ -160,7 +160,7 @@ impl Builder for B2Builder {
 
         Ok(B2Backend {
             core: Arc::new(B2Core {
-                info: ServiceInfo::new(B2_SCHEME, &root, ""),
+                info: ServiceInfo::new(B2_SCHEME, &root, &self.config.bucket),
                 capability: Capability {
                     stat: true,
 
@@ -257,7 +257,11 @@ impl Service for B2Backend {
         let delimiter = if path.ends_with('/') { Some("/") } else { None };
 
         let file_info = self.core.get_file_info(ctx, path, delimiter).await?;
-        let meta = parse_file_info(&file_info);
+        let meta = if path.ends_with('/') {
+            MetadataBuilder::dir().build()
+        } else {
+            parse_file_info(&file_info)
+        };
         Ok(RpStat::new(meta))
     }
     fn read(&self, ctx: &OperationContext, path: &str, args: OpRead) -> Result<Self::Reader> {
@@ -325,6 +329,10 @@ impl Service for B2Backend {
         let to = to.to_string();
 
         Ok(oio::OneShotCopier::new(async move {
+            if from.ends_with('/') {
+                return Err(Error::new(ErrorKind::IsADirectory, "is a directory"));
+            }
+
             let file_info = core.get_file_info(&ctx, &from, None).await?;
             let source_file_id = file_info.file_id;
             let source_content_length = file_info.content_length;
@@ -465,5 +473,183 @@ impl Service for B2Backend {
                 "operation is not supported",
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use futures::stream;
+    use http::Response;
+    use opendal_core::raw::oio::Copy as _;
+
+    use super::*;
+    use crate::core::tests::test_core;
+
+    struct ScriptedTransport {
+        list_body: String,
+        requests: Arc<Mutex<Vec<(String, String)>>>,
+    }
+
+    impl HttpTransport for ScriptedTransport {
+        async fn fetch(&self, req: Request<Buffer>) -> Result<Response<HttpBody>> {
+            let uri = req.uri().to_string();
+            let body_str = String::from_utf8_lossy(&req.into_body().to_bytes()).into_owned();
+            self.requests.lock().unwrap().push((uri.clone(), body_str));
+
+            let resp_body = if uri.contains("b2_list_file_names") {
+                self.list_body.clone()
+            } else if uri.contains("b2_copy_file") {
+                r#"{"fileId":"4_zcopied","fileName":"dst","contentLength":5}"#.to_string()
+            } else {
+                panic!("unexpected request URI: {uri}");
+            };
+
+            let buf = Buffer::from(resp_body);
+            let len = buf.len() as u64;
+            Response::builder()
+                .status(StatusCode::OK)
+                .body(HttpBody::new(stream::iter([Ok(buf)]), Some(len)))
+                .map_err(new_request_build_error)
+        }
+    }
+
+    #[test]
+    fn test_builder_sets_service_info_bucket_name() {
+        let srv = B2Builder::default()
+            .root("/prefix")
+            .bucket("my-b2-bucket")
+            .bucket_id("bucket-id-123")
+            .application_key_id("key-id")
+            .application_key("key-secret")
+            .build()
+            .unwrap();
+
+        let info = srv.info();
+        assert_eq!(info.scheme(), B2_SCHEME);
+        assert_eq!(&*info.root(), "/prefix/");
+        assert_eq!(&*info.name(), "my-b2-bucket");
+    }
+
+    #[tokio::test]
+    async fn test_stat_exact_prefix_and_virtual_dir() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let backend = B2Backend {
+            core: test_core("/"),
+        };
+
+        // Only "foobar" exists: stat("foo") must return NotFound.
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_z1","fileName":"foobar","contentLength":12}],"nextFileName":null}"#.to_string(),
+                requests: requests.clone(),
+            },
+        ));
+        let err = backend.stat(&ctx, "foo", OpStat::new()).await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        // Exact "foo" exists: stat("foo") returns FILE with its metadata.
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_z2","fileName":"foo","contentLength":7,"contentType":"text/plain","fileInfo":{"owner":"alice"}}],"nextFileName":null}"#.to_string(),
+                requests: requests.clone(),
+            },
+        ));
+        let rp = backend.stat(&ctx, "foo", OpStat::new()).await.unwrap();
+        let meta = rp.into_metadata();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+        assert_eq!(meta.content_length(), 7);
+        assert_eq!(meta.content_type(), Some("text/plain"));
+        assert_eq!(meta.user_metadata().unwrap().get("owner"), Some("alice"));
+
+        // Virtual directory: "dir/a.txt" exists, stat("dir/") must return DIR.
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_z3","fileName":"dir/a.txt","contentLength":3}],"nextFileName":null}"#.to_string(),
+                requests: requests.clone(),
+            },
+        ));
+        let rp = backend.stat(&ctx, "dir/", OpStat::new()).await.unwrap();
+        assert_eq!(rp.into_metadata().mode(), EntryMode::DIR);
+
+        // Missing directory: empty files list returns NotFound.
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[],"nextFileName":null}"#.to_string(),
+                requests,
+            },
+        ));
+        let err = backend
+            .stat(&ctx, "missing/", OpStat::new())
+            .await
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    #[tokio::test]
+    async fn test_copy_rejects_prefix_mismatch_without_issuing_copy_file() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let backend = B2Backend {
+            core: test_core("/"),
+        };
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_zfoobar","fileName":"foobar","contentLength":99}],"nextFileName":null}"#.to_string(),
+                requests: requests.clone(),
+            },
+        ));
+
+        let mut copier = backend.copy(&ctx, "foo", "dst", OpCopy::new()).unwrap();
+        let err = copier.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        let recorded = requests.lock().unwrap();
+        assert_eq!(recorded.len(), 1);
+        assert!(recorded[0].0.contains("b2_list_file_names"));
+        assert!(!recorded.iter().any(|(uri, _)| uri.contains("b2_copy_file")));
+    }
+
+    #[tokio::test]
+    async fn test_copy_exact_match_succeeds_and_dir_rejected() {
+        let requests = Arc::new(Mutex::new(Vec::new()));
+        let backend = B2Backend {
+            core: test_core("/"),
+        };
+        let ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_zfoo","fileName":"foo","contentLength":5}],"nextFileName":null}"#.to_string(),
+                requests: requests.clone(),
+            },
+        ));
+
+        let mut copier = backend.copy(&ctx, "foo", "dst", OpCopy::new()).unwrap();
+        assert_eq!(copier.next().await.unwrap(), None);
+        let meta = copier.close().await.unwrap();
+        assert_eq!(meta.mode(), EntryMode::FILE);
+        assert_eq!(meta.content_length(), 5);
+
+        {
+            let recorded = requests.lock().unwrap();
+            assert_eq!(recorded.len(), 2);
+            assert!(recorded[1].0.contains("b2_copy_file"));
+            assert!(recorded[1].1.contains(r#""sourceFileId":"4_zfoo""#));
+            assert!(recorded[1].1.contains(r#""fileName":"dst""#));
+        }
+
+        // Copying a directory path must return IsADirectory without issuing b2_copy_file.
+        let dir_requests = Arc::new(Mutex::new(Vec::new()));
+        let dir_ctx = OperationContext::default().with_http_transport(HttpTransporter::new(
+            ScriptedTransport {
+                list_body: r#"{"files":[{"fileId":"4_zdir","fileName":"dir/a.txt","contentLength":5}],"nextFileName":null}"#.to_string(),
+                requests: dir_requests.clone(),
+            },
+        ));
+        let mut copier = backend
+            .copy(&dir_ctx, "dir/", "dst", OpCopy::new())
+            .unwrap();
+        let err = copier.close().await.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::IsADirectory);
+        assert!(dir_requests.lock().unwrap().is_empty());
     }
 }

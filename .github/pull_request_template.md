@@ -37,9 +37,10 @@ Affected packages: core, bindings/java
 Migration:
 - Replace `old_api()` with `new_api()`.
 
-Use package names from dev/src/release/package.rs. Include bindings affected by
-behavior changes even when their source files are unchanged. Explain how users
-can migrate, or explain the removal and available alternatives.
+Use package names from dev/src/release/package.rs. You can also list bindings/zig
+for migration notes. Include bindings affected by behavior changes even when
+their source files are unchanged. Explain how users can migrate, or explain the
+removal and available alternatives.
 -->
 
 # AI Usage Statement
